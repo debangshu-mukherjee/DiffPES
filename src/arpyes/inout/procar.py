@@ -143,7 +143,8 @@ def read_procar(
                     ]
                 fid.readline()
                 fid.readline()
-    proj_arr: Float[Array, " K B A 9"] = jnp.asarray(projections, dtype=jnp.float64)
+    proj_arr: Float[Array, " K B A 9"] = jnp.asarray(
+        projections, dtype=jnp.float64)
     orb_proj: OrbitalProjection = make_orbital_projection(
         projections=proj_arr,
     )

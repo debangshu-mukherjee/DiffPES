@@ -226,9 +226,51 @@ _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
 
 
 @beartype
+def _dataset_write_kwargs(
+    data: np.ndarray,
+    compression: Optional[str],
+    compression_opts: Any,  # noqa: ANN401
+    shuffle: bool,
+    fletcher32: bool,
+    chunks: Optional[Union[bool, tuple[int, ...]]],
+) -> dict[str, Any]:
+    """Build ``h5py.create_dataset`` kwargs for one child array.
+
+    Implementation Logic
+    --------------------
+    1. For scalar datasets (shape ``()``), return an empty dict since
+       HDF5 filter/chunk flags are invalid for scalar datasets.
+    2. For non-scalar datasets, forward supported storage flags:
+       ``compression``, ``compression_opts``, ``shuffle``,
+       ``fletcher32``, and ``chunks``.
+    """
+    if data.ndim == 0:
+        return {}
+
+    kwargs: dict[str, Any] = {}
+    if compression is not None:
+        kwargs["compression"] = compression
+    if compression_opts is not None:
+        kwargs["compression_opts"] = compression_opts
+    if shuffle:
+        kwargs["shuffle"] = True
+    if fletcher32:
+        kwargs["fletcher32"] = True
+    if chunks is not None:
+        kwargs["chunks"] = chunks
+    return kwargs
+
+
+@beartype
 def save_to_h5(
     path: Union[str, Path],
     /,
+    *,
+    compression: Optional[str] = None,
+    compression_opts: Any = None,  # noqa: ANN401
+    shuffle: bool = False,
+    fletcher32: bool = False,
+    chunks: Optional[Union[bool, tuple[int, ...]]] = None,
     **pytrees: Any,  # noqa: ANN401
 ) -> None:
     """Save one or more named PyTrees to an HDF5 file.
@@ -260,7 +302,9 @@ def save_to_h5(
        e. For each child field: if the value is ``None``
           (Optional field), record the field name in
           ``_none_fields``; otherwise create an HDF5 dataset
-          from ``numpy.asarray(child)``.
+          from ``numpy.asarray(child)`` with optional storage
+          flags (compression/chunk/checksum) for non-scalar
+          datasets.
 
        f. Store the ``_none_fields`` list as a JSON attribute.
 
@@ -268,6 +312,19 @@ def save_to_h5(
     ----------
     path : Union[str, Path]
         File path for the HDF5 file to create.
+    compression : Optional[str], optional
+        HDF5 compression filter name (e.g. ``"gzip"``, ``"lzf"``).
+        Applied to non-scalar datasets only.
+    compression_opts : Any, optional
+        Compression options passed through to h5py (e.g. gzip level).
+        Must be ``None`` when ``compression`` is ``None``.
+    shuffle : bool, optional
+        If True, enable HDF5 shuffle filter on non-scalar datasets.
+    fletcher32 : bool, optional
+        If True, enable HDF5 Fletcher32 checksum on non-scalar datasets.
+    chunks : Optional[Union[bool, tuple[int, ...]]], optional
+        Chunking policy for non-scalar datasets. ``True`` enables
+        auto-chunking, or provide an explicit chunk-shape tuple.
     **pytrees : PyTree
         Named PyTree instances. Each keyword argument name
         becomes an HDF5 group name.
@@ -276,11 +333,24 @@ def save_to_h5(
     ------
     ValueError
         If no PyTrees are provided.
+    ValueError
+        If ``compression_opts`` is provided without ``compression``.
     TypeError
         If a PyTree's class is not in the registry.
+
+    Notes
+    -----
+    Scalar datasets (shape ``()``) are always written without HDF5
+    filter/chunk flags because those options are invalid for scalar
+    dataspace in HDF5.
     """
     if not pytrees:
         msg = "At least one PyTree must be provided."
+        raise ValueError(msg)
+    if compression is None and compression_opts is not None:
+        msg = (
+            "compression_opts requires compression to be set."
+        )
         raise ValueError(msg)
 
     file_path: Path = Path(path)
@@ -315,9 +385,21 @@ def save_to_h5(
                 if child is None:
                     none_fields.append(field_name)
                 else:
+                    child_arr: np.ndarray = np.asarray(child)
+                    ds_kwargs: dict[str, Any] = (
+                        _dataset_write_kwargs(
+                            data=child_arr,
+                            compression=compression,
+                            compression_opts=compression_opts,
+                            shuffle=shuffle,
+                            fletcher32=fletcher32,
+                            chunks=chunks,
+                        )
+                    )
                     grp.create_dataset(
                         field_name,
-                        data=np.asarray(child),
+                        data=child_arr,
+                        **ds_kwargs,
                     )
             grp.attrs[_ATTR_NONE] = json.dumps(none_fields)
 

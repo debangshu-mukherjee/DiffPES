@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import chex
+import h5py
 import jax.numpy as jnp
 import pytest
 
@@ -589,3 +590,90 @@ class TestErrorHandling(chex.TestCase):
                 KeyError, match="not found"
             ):
                 load_from_h5(path, name="b")
+
+
+class TestDatasetFlags(chex.TestCase):
+    """Tests for HDF5 dataset storage flags in save_to_h5."""
+
+    def test_compression_flags_applied_to_arrays(self):
+        """Verify storage flags are applied to non-scalar datasets.
+
+        Test Logic
+        ----------
+        1. **Create** an ArpesSpectrum (array datasets) and
+           SimulationParams (scalar datasets).
+        2. **Save** both with compression/chunk/checksum flags.
+        3. **Inspect** HDF5 dataset properties directly.
+        4. **Round-trip load** to verify numerical integrity.
+
+        Asserts
+        -------
+        - Array dataset has requested filter/chunk settings.
+        - Scalar dataset remains uncompressed (safe handling).
+        - Loaded spectrum matches original data.
+        """
+        spectrum = make_arpes_spectrum(
+            intensity=jnp.ones((12, 30)),
+            energy_axis=jnp.linspace(-2.0, 1.0, 30),
+        )
+        params = make_simulation_params(
+            fidelity=30,
+            sigma=0.04,
+            gamma=0.1,
+        )
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "flags.h5"
+            save_to_h5(
+                path,
+                compression="gzip",
+                compression_opts=4,
+                shuffle=True,
+                fletcher32=True,
+                chunks=True,
+                spectrum=spectrum,
+                params=params,
+            )
+            with h5py.File(path, "r") as f:
+                ds = f["spectrum"]["intensity"]
+                assert ds.compression == "gzip"
+                assert ds.compression_opts == 4
+                assert ds.shuffle
+                assert ds.fletcher32
+                assert ds.chunks is not None
+
+                scalar_ds = f["params"]["energy_min"]
+                assert scalar_ds.shape == ()
+                assert scalar_ds.compression is None
+            loaded = load_from_h5(path, name="spectrum")
+        chex.assert_trees_all_close(
+            loaded.intensity,
+            spectrum.intensity,
+            atol=1e-12,
+        )
+
+    def test_compression_opts_without_compression_raises(self):
+        """Verify invalid compression flag combination raises ValueError.
+
+        Test Logic
+        ----------
+        1. **Create** a simple DensityOfStates PyTree.
+        2. **Call** ``save_to_h5`` with ``compression_opts`` only.
+
+        Asserts
+        -------
+        ValueError is raised with explanatory message.
+        """
+        dos = make_density_of_states(
+            energy=jnp.linspace(-5.0, 5.0, 50),
+            total_dos=jnp.ones(50),
+        )
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "bad_flags.h5"
+            with pytest.raises(
+                ValueError, match="compression_opts"
+            ):
+                save_to_h5(
+                    path,
+                    compression_opts=4,
+                    dos=dos,
+                )
