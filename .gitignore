@@ -17,6 +17,7 @@ notebooks/__pycache__/
 /data/
 /.claude/
 /.claude/*.md
+${SCIPION_HOME}
 
 *.py[cod]
 /openspec/

@@ -18,6 +18,12 @@ Routine Listings
     Parse VASP DOSCAR into DensityOfStates.
 :func:`read_procar`
     Parse VASP PROCAR into OrbitalProjection.
+:func:`plot_arpes_spectrum`
+    Plot an ARPES map from an ArpesSpectrum PyTree.
+:func:`apply_kpath_ticks`
+    Annotate a plot axis with KPathInfo symmetry labels.
+:func:`plot_arpes_with_kpath`
+    Plot an ARPES map and apply KPathInfo axis annotations.
 
 Notes
 -----
@@ -29,10 +35,18 @@ to JAX arrays via factory functions.
 from .doscar import read_doscar
 from .eigenval import read_eigenval
 from .kpoints import read_kpoints
+from .plotting import (
+    apply_kpath_ticks,
+    plot_arpes_spectrum,
+    plot_arpes_with_kpath,
+)
 from .poscar import read_poscar
 from .procar import read_procar
 
 __all__: list[str] = [
+    "apply_kpath_ticks",
+    "plot_arpes_spectrum",
+    "plot_arpes_with_kpath",
     "read_doscar",
     "read_eigenval",
     "read_kpoints",
