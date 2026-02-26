@@ -1,16 +1,16 @@
-"""Tests for MATLAB-compatibility simulation wrappers."""
+"""Tests for expanded-input simulation wrappers."""
 
 import chex
 import jax.numpy as jnp
 
 from arpyes.simul import (
-    make_matlab_simulation_params,
+    make_expanded_simulation_params,
     simulate_advanced,
-    simulate_advanced_matlab,
+    simulate_advanced_expanded,
     simulate_basic,
-    simulate_basic_matlab,
-    simulate_expert_matlab,
-    simulate_matlab,
+    simulate_basic_expanded,
+    simulate_expert_expanded,
+    simulate_expanded,
 )
 from arpyes.types import (
     make_band_structure,
@@ -28,13 +28,13 @@ def _make_synthetic_data(nk=12, nb=4, na=3):
     return eigenbands, surface_orb
 
 
-class TestMatlabParams(chex.TestCase):
+class TestExpandedParams(chex.TestCase):
 
-    def test_energy_window_matches_matlab_default(self):
+    def test_energy_window_matches_expanded_default(self):
         eigenbands = jnp.array(
             [[-2.0, 0.25], [1.0, -1.0]], dtype=jnp.float64
         )
-        params = make_matlab_simulation_params(
+        params = make_expanded_simulation_params(
             eigenbands=eigenbands,
             fidelity=100,
         )
@@ -47,11 +47,11 @@ class TestMatlabParams(chex.TestCase):
         chex.assert_equal(params.fidelity, 100)
 
 
-class TestMatlabBasicWrapper(chex.TestCase):
+class TestExpandedBasicWrapper(chex.TestCase):
 
     def test_matches_core_basic_simulation(self):
         eigenbands, surface_orb = _make_synthetic_data()
-        params = make_matlab_simulation_params(
+        params = make_expanded_simulation_params(
             eigenbands=eigenbands,
             fidelity=240,
             sigma=0.06,
@@ -70,7 +70,7 @@ class TestMatlabBasicWrapper(chex.TestCase):
             projections=surface_orb
         )
         expected = simulate_basic(bands, orb_proj, params)
-        wrapped = simulate_basic_matlab(
+        wrapped = simulate_basic_expanded(
             eigenbands=eigenbands,
             surface_orb=surface_orb,
             ef=0.0,
@@ -87,11 +87,11 @@ class TestMatlabBasicWrapper(chex.TestCase):
         )
 
 
-class TestMatlabAdvancedWrapper(chex.TestCase):
+class TestExpandedAdvancedWrapper(chex.TestCase):
 
     def test_degree_conversion_matches_core_advanced(self):
         eigenbands, surface_orb = _make_synthetic_data()
-        params = make_matlab_simulation_params(
+        params = make_expanded_simulation_params(
             eigenbands=eigenbands,
             fidelity=220,
             sigma=0.05,
@@ -116,7 +116,7 @@ class TestMatlabAdvancedWrapper(chex.TestCase):
             polarization_type="LHP",
         )
         expected = simulate_advanced(bands, orb_proj, params, pol)
-        wrapped = simulate_advanced_matlab(
+        wrapped = simulate_advanced_expanded(
             eigenbands=eigenbands,
             surface_orb=surface_orb,
             ef=0.0,
@@ -134,11 +134,11 @@ class TestMatlabAdvancedWrapper(chex.TestCase):
         )
 
 
-class TestMatlabDispatch(chex.TestCase):
+class TestExpandedDispatch(chex.TestCase):
 
     def test_dispatch_expert_matches_direct_wrapper(self):
         eigenbands, surface_orb = _make_synthetic_data()
-        expected = simulate_expert_matlab(
+        expected = simulate_expert_expanded(
             eigenbands=eigenbands,
             surface_orb=surface_orb,
             ef=0.0,
@@ -152,7 +152,7 @@ class TestMatlabDispatch(chex.TestCase):
             incident_phi=0.0,
             polarization_angle=0.0,
         )
-        dispatched = simulate_matlab(
+        dispatched = simulate_expanded(
             level="Expert",
             eigenbands=eigenbands,
             surface_orb=surface_orb,

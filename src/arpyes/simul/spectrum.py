@@ -51,6 +51,8 @@ from .polarization import (
     dipole_matrix_elements,
 )
 
+_NON_S_ORBITAL_SLICE: slice = slice(1, 9)
+
 
 @jaxtyped(typechecker=beartype)
 def simulate_novice(
@@ -58,26 +60,68 @@ def simulate_novice(
     orb_proj: OrbitalProjection,
     params: SimulationParams,
 ) -> ArpesSpectrum:
-    """Simulate ARPES spectrum with Voigt broadening.
+    """Simulate ARPES spectrum with Voigt broadening and uniform weights.
+
+    Entry-level simulation that convolves each band with a Voigt profile
+    (combined Gaussian + Lorentzian) and applies Fermi-Dirac occupation.
+    All non-s orbital projections (p, d) are summed with equal weight,
+    making this the simplest model that still captures lifetime and
+    instrumental broadening simultaneously.
+
+    Implementation Logic
+    --------------------
+    1. **Build energy axis** via ``jnp.linspace(energy_min, energy_max,
+       fidelity)`` to define the output energy grid of shape ``(E,)``.
+
+    2. **Sum all non-s orbital projections**
+       (``slice(1, 9)``, i.e., indices 1 through 8) across
+       both orbital type and atom axes to produce uniform per-band
+       weights of shape ``(K, B)``. The s-orbital (index 0) is excluded
+       because it contributes negligible photoemission intensity at
+       typical photon energies.
+
+    3. **Define ``_single_band``**: for one band at one k-point, compute
+       ``Fermi-Dirac(E_band) * Voigt(energy_axis, E_band, sigma, gamma)
+       * weight`` to yield a spectral contribution of shape ``(E,)``.
+
+    4. **Define ``_single_kpoint``**: ``jax.vmap`` ``_single_band`` over
+       the band index B, then sum contributions to produce the total
+       intensity at one k-point with shape ``(E,)``.
+
+    5. **Outer vmap** ``_single_kpoint`` over k-points K to produce the
+       full intensity array of shape ``(K, E)``.
 
     Parameters
     ----------
     bands : BandStructure
-        Electronic band structure.
+        Electronic band structure containing eigenvalues of shape
+        ``(K, B)`` and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital projections (K, B, A, 9).
+        Orbital projections of shape ``(K, B, A, 9)`` where A is the
+        number of atoms and 9 is the number of orbital channels
+        (s, p_y, p_z, p_x, d_xy, d_yz, d_z2, d_xz, d_x2-y2).
     params : SimulationParams
-        Simulation parameters.
+        Simulation parameters including ``sigma``, ``gamma``,
+        ``temperature``, ``energy_min``, ``energy_max``, and
+        ``fidelity``.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES intensity map with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
+
+    See Also
+    --------
+    simulate_novice_expanded : Expanded variant that returns per-band
+        contributions before summation.
 
     Notes
     -----
-    Uses Voigt profile (combined Gaussian-Lorentzian) and
-    sums all non-s orbital contributions with equal weight.
+    Uses Voigt profile (combined Gaussian-Lorentzian) and sums all
+    non-s orbital contributions with equal weight. This is appropriate
+    when orbital cross-section data is unavailable or when a quick
+    qualitative comparison with experiment is sufficient.
     """
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
@@ -86,7 +130,8 @@ def simulate_novice(
     )
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     weights: Float[Array, "K B"] = jnp.sum(
-        jnp.sum(proj[..., 1:9], axis=-1), axis=-1
+        jnp.sum(proj[..., _NON_S_ORBITAL_SLICE], axis=-1),
+        axis=-1,
     )
 
     def _single_band(
@@ -132,26 +177,66 @@ def simulate_basic(
     orb_proj: OrbitalProjection,
     params: SimulationParams,
 ) -> ArpesSpectrum:
-    """Simulate ARPES spectrum with Gaussian broadening.
+    """Simulate ARPES spectrum with Gaussian broadening and heuristic weights.
+
+    Intermediate simulation that replaces the Voigt profile with a pure
+    Gaussian and introduces energy-dependent heuristic orbital weights.
+    The heuristic weights enhance p-orbital contributions below ~50 eV
+    photon energy and d-orbital contributions above, providing a
+    first-order approximation to photoionization cross-sections without
+    requiring tabulated atomic data.
+
+    Implementation Logic
+    --------------------
+    1. **Build energy axis** via ``jnp.linspace(energy_min, energy_max,
+       fidelity)`` to define the output energy grid of shape ``(E,)``.
+
+    2. **Compute heuristic weights** from ``photon_energy`` via
+       :func:`~arpyes.simul.crosssections.heuristic_weights`, returning
+       a weight vector of shape ``(9,)`` with empirical cross-section
+       approximations per orbital channel.
+
+    3. **Weight projections by heuristic weights** (skipping the
+       s-orbital at index 0): multiply
+       ``proj[..., slice(1, 9)]`` element-wise by
+       ``orb_w[slice(1, 9)]``, then sum over orbital and atom axes to yield
+       per-band weights of shape ``(K, B)``.
+
+    4. **Define ``_single_band``**: for one band at one k-point, compute
+       ``Fermi-Dirac(E_band) * Gaussian(energy_axis, E_band, sigma)
+       * weight`` to yield a spectral contribution of shape ``(E,)``.
+
+    5. **Double vmap over k-points and bands**: ``jax.vmap``
+       ``_single_band`` over B inside ``_single_kpoint``, then
+       ``jax.vmap`` ``_single_kpoint`` over K to produce the full
+       intensity array of shape ``(K, E)``.
 
     Parameters
     ----------
     bands : BandStructure
-        Electronic band structure.
+        Electronic band structure containing eigenvalues of shape
+        ``(K, B)`` and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital projections (K, B, A, 9).
+        Orbital projections of shape ``(K, B, A, 9)`` where A is the
+        number of atoms and 9 is the number of orbital channels
+        (s, p_y, p_z, p_x, d_xy, d_yz, d_z2, d_xz, d_x2-y2).
     params : SimulationParams
-        Simulation parameters.
+        Simulation parameters including ``sigma``, ``photon_energy``,
+        ``temperature``, ``energy_min``, ``energy_max``, and
+        ``fidelity``.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES intensity map with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
 
     Notes
     -----
-    Uses Gaussian broadening with energy-dependent heuristic
-    orbital weights (p-enhanced below 50 eV, d-enhanced above).
+    Uses Gaussian broadening with energy-dependent heuristic orbital
+    weights (p-enhanced below 50 eV, d-enhanced above). This level is
+    suitable when Yeh-Lindau cross-section tables are not available but
+    some orbital selectivity is desired.
     """
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
@@ -163,7 +248,8 @@ def simulate_basic(
     )
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     weighted_proj: Float[Array, "K B A 9"] = (
-        proj[..., 1:9] * orb_w[1:9]
+        proj[..., _NON_S_ORBITAL_SLICE]
+        * orb_w[_NON_S_ORBITAL_SLICE]
     )
     weights: Float[Array, "K B"] = jnp.sum(
         jnp.sum(weighted_proj, axis=-1), axis=-1
@@ -212,26 +298,67 @@ def simulate_basicplus(
     orb_proj: OrbitalProjection,
     params: SimulationParams,
 ) -> ArpesSpectrum:
-    """Simulate ARPES with Yeh-Lindau cross-sections.
+    """Simulate ARPES with Gaussian broadening and Yeh-Lindau cross-sections.
+
+    Upgrades the heuristic weights of ``simulate_basic`` to physically
+    motivated Yeh-Lindau photoionization cross-sections interpolated at
+    the experimental photon energy. Unlike the basic level, ALL orbital
+    projections (including s) are first weighted by their respective
+    cross-sections before summing the non-s channels, ensuring that
+    cross-section magnitudes are correctly applied before orbital
+    selection.
+
+    Implementation Logic
+    --------------------
+    1. **Build energy axis** via ``jnp.linspace(energy_min, energy_max,
+       fidelity)`` to define the output energy grid of shape ``(E,)``.
+
+    2. **Compute Yeh-Lindau weights** from ``photon_energy`` via
+       :func:`~arpyes.simul.crosssections.yeh_lindau_weights`, returning
+       interpolated photoionization cross-sections of shape ``(9,)``.
+
+    3. **Weight ALL projections by cross-sections, then sum non-s**:
+       multiply the full ``proj`` array by ``orb_w`` across all 9
+       orbital channels, then apply ``slice(1, 9)`` (indices 1..8) and
+       sum over orbital and atom axes to yield per-band weights of
+       shape ``(K, B)``.
+       This order matters: weighting before slicing ensures correct
+       normalization.
+
+    4. **Define ``_single_band``**: for one band at one k-point, compute
+       ``Fermi-Dirac(E_band) * Gaussian(energy_axis, E_band, sigma)
+       * weight`` to yield a spectral contribution of shape ``(E,)``.
+
+    5. **Double vmap over k-points and bands**: same ``_single_band``
+       inside ``_single_kpoint`` pattern as ``simulate_basic``, with
+       ``jax.vmap`` over B then K to produce shape ``(K, E)``.
 
     Parameters
     ----------
     bands : BandStructure
-        Electronic band structure.
+        Electronic band structure containing eigenvalues of shape
+        ``(K, B)`` and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital projections (K, B, A, 9).
+        Orbital projections of shape ``(K, B, A, 9)`` where A is the
+        number of atoms and 9 is the number of orbital channels
+        (s, p_y, p_z, p_x, d_xy, d_yz, d_z2, d_xz, d_x2-y2).
     params : SimulationParams
-        Simulation parameters.
+        Simulation parameters including ``sigma``, ``photon_energy``,
+        ``temperature``, ``energy_min``, ``energy_max``, and
+        ``fidelity``.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES intensity map with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
 
     Notes
     -----
     Uses Gaussian broadening with interpolated Yeh-Lindau
-    photoionization cross-section weights per orbital type.
+    photoionization cross-section weights per orbital type. The
+    cross-sections are computed from tabulated atomic data and
+    interpolated to the specified photon energy.
     """
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
@@ -246,7 +373,11 @@ def simulate_basicplus(
         proj * orb_w
     )
     weights: Float[Array, "K B"] = jnp.sum(
-        jnp.sum(weighted_proj[..., 1:9], axis=-1), axis=-1
+        jnp.sum(
+            weighted_proj[..., _NON_S_ORBITAL_SLICE],
+            axis=-1,
+        ),
+        axis=-1,
     )
 
     def _single_band(
@@ -293,30 +424,78 @@ def simulate_advanced(
     params: SimulationParams,
     pol_config: PolarizationConfig,
 ) -> ArpesSpectrum:
-    """Simulate ARPES with polarization selection rules.
+    """Simulate ARPES with Gaussian broadening and polarization rules.
+
+    Extends ``simulate_basicplus`` by incorporating light polarization
+    dependence through dipole matrix elements. The intensity for each
+    orbital channel is weighted by ``|E . d_orbital|^2`` where E is the
+    electric-field polarization vector and d_orbital is the dipole
+    selection vector. Supports both polarized (linear, circular) and
+    unpolarized light configurations.
+
+    Implementation Logic
+    --------------------
+    1. **Build energy axis** via ``jnp.linspace(energy_min, energy_max,
+       fidelity)`` and **compute Yeh-Lindau weights** from
+       ``photon_energy``, same as ``simulate_basicplus``.
+
+    2. **Branch on unpolarized vs polarized**:
+
+       a. **Unpolarized**: build orthogonal polarization vectors
+          ``e_s``, ``e_p`` from ``(theta, phi)`` via
+          :func:`~arpyes.simul.polarization.build_polarization_vectors`.
+          For each polarization vector, compute dipole matrix elements
+          of shape ``(9,)`` via
+          :func:`~arpyes.simul.polarization.dipole_matrix_elements`.
+          Weight projections by ``orb_w * m_s`` and ``orb_w * m_p``
+          respectively, sum non-s channels over orbital and atom axes
+          to get ``ws_sum`` and ``wp_sum`` of shape ``(K, B)``, compute
+          ``|ws_sum|^2`` and ``|wp_sum|^2``, then average:
+          ``band_intensity = (i_s + i_p) / 2``.
+
+       b. **Polarized**: build the electric field vector E via
+          :func:`~arpyes.simul.polarization.build_efield`, compute
+          dipole matrix elements ``m_elem`` of shape ``(9,)``, weight
+          projections by ``orb_w * m_elem``, sum non-s channels, and
+          compute ``band_intensity = |w_sum|^2``.
+
+    3. **Double vmap with ``band_intensity``**: define ``_single_band``
+       as ``Fermi-Dirac * Gaussian * band_intensity``, vmap over bands
+       B inside ``_single_kpoint``, then vmap over k-points K to
+       produce shape ``(K, E)``.
 
     Parameters
     ----------
     bands : BandStructure
-        Electronic band structure.
+        Electronic band structure containing eigenvalues of shape
+        ``(K, B)`` and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital projections (K, B, A, 9).
+        Orbital projections of shape ``(K, B, A, 9)`` where A is the
+        number of atoms and 9 is the number of orbital channels
+        (s, p_y, p_z, p_x, d_xy, d_yz, d_z2, d_xz, d_x2-y2).
     params : SimulationParams
-        Simulation parameters.
+        Simulation parameters including ``sigma``, ``photon_energy``,
+        ``temperature``, ``energy_min``, ``energy_max``, and
+        ``fidelity``.
     pol_config : PolarizationConfig
-        Light polarization configuration.
+        Light polarization configuration specifying
+        ``polarization_type`` (``"unpolarized"``, ``"linear"``, etc.),
+        incidence angles ``theta`` and ``phi``, and any additional
+        polarization parameters.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES intensity map with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
 
     Notes
     -----
-    Uses Gaussian broadening with Yeh-Lindau cross-sections
-    and polarization-dependent orbital selection via
-    |e_field dot d_orbital|^2 weighting.
-    For unpolarized light, averages s and p contributions.
+    Uses Gaussian broadening with Yeh-Lindau cross-sections and
+    polarization-dependent orbital selection via
+    ``|E . d_orbital|^2`` weighting. For unpolarized light, the s- and
+    p-polarization intensities are averaged, which is exact for
+    incoherent superposition of orthogonal polarization states.
     """
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
@@ -347,10 +526,12 @@ def simulate_advanced(
             proj * orb_w * m_p
         )
         ws_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(w_s[..., 1:9], axis=-1), axis=-1
+            jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
         )
         wp_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(w_p[..., 1:9], axis=-1), axis=-1
+            jnp.sum(w_p[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
         )
         i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
@@ -366,7 +547,11 @@ def simulate_advanced(
             proj * orb_w * m_elem
         )
         w_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(weighted[..., 1:9], axis=-1), axis=-1
+            jnp.sum(
+                weighted[..., _NON_S_ORBITAL_SLICE],
+                axis=-1,
+            ),
+            axis=-1,
         )
         band_intensity = jnp.abs(w_sum) ** 2
 
@@ -414,30 +599,76 @@ def simulate_expert(
     params: SimulationParams,
     pol_config: PolarizationConfig,
 ) -> ArpesSpectrum:
-    """Simulate ARPES with full dipole matrix elements.
+    """Simulate ARPES with Voigt broadening and dipole matrix elements.
+
+    The most physically complete simulation model. Combines Voigt
+    broadening (capturing both instrumental Gaussian and lifetime
+    Lorentzian contributions via ``sigma`` and ``gamma``), Yeh-Lindau
+    photoionization cross-sections, and full polarization-dependent
+    dipole matrix element weighting. This level should be used when
+    quantitative comparison with experimental spectra is required.
+
+    Implementation Logic
+    --------------------
+    1. **Build energy axis** and **compute Yeh-Lindau weights**, same
+       as ``simulate_advanced``.
+
+    2. **Branch on unpolarized vs polarized**: identical logic to
+       ``simulate_advanced`` for computing ``band_intensity`` of shape
+       ``(K, B)`` from dipole matrix elements and cross-sections.
+
+       a. **Unpolarized**: build ``e_s``, ``e_p`` polarization vectors,
+          compute dipole elements for each, weight projections by
+          ``orb_w * m_s`` and ``orb_w * m_p``, sum non-s channels,
+          compute ``|sum|^2`` for each, average to get
+          ``band_intensity = (i_s + i_p) / 2``.
+
+       b. **Polarized**: build E-field vector, compute dipole elements,
+          weight projections, sum non-s, compute
+          ``band_intensity = |w_sum|^2``.
+
+    3. **Double vmap with ``band_intensity``**: define ``_single_band``
+       using **Voigt(sigma, gamma)** instead of Gaussian. This is the
+       key distinction from ``simulate_advanced``: the Voigt profile
+       ``V(E; E_band, sigma, gamma)`` accounts for both instrumental
+       resolution (Gaussian, width ``sigma``) and quasiparticle
+       lifetime broadening (Lorentzian, width ``gamma``)
+       simultaneously. Then vmap over bands B and k-points K to produce
+       the full intensity of shape ``(K, E)``.
 
     Parameters
     ----------
     bands : BandStructure
-        Electronic band structure.
+        Electronic band structure containing eigenvalues of shape
+        ``(K, B)`` and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital projections (K, B, A, 9).
+        Orbital projections of shape ``(K, B, A, 9)`` where A is the
+        number of atoms and 9 is the number of orbital channels
+        (s, p_y, p_z, p_x, d_xy, d_yz, d_z2, d_xz, d_x2-y2).
     params : SimulationParams
-        Simulation parameters.
+        Simulation parameters including ``sigma``, ``gamma``,
+        ``photon_energy``, ``temperature``, ``energy_min``,
+        ``energy_max``, and ``fidelity``.
     pol_config : PolarizationConfig
-        Light polarization configuration.
+        Light polarization configuration specifying
+        ``polarization_type`` (``"unpolarized"``, ``"linear"``, etc.),
+        incidence angles ``theta`` and ``phi``, and any additional
+        polarization parameters.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES intensity map with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
 
     Notes
     -----
-    Uses Voigt broadening with Yeh-Lindau cross-sections,
-    polarization selection rules, and dipole matrix element
-    weighting. This is the most physically complete model.
-    For unpolarized light, averages s and p contributions.
+    Uses Voigt broadening with Yeh-Lindau cross-sections, polarization
+    selection rules, and dipole matrix element weighting. This is the
+    most physically complete model. For unpolarized light, averages s
+    and p contributions. The Voigt profile is essential for accurate
+    lineshape fitting where both instrumental and intrinsic broadening
+    must be deconvolved.
     """
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
@@ -468,10 +699,12 @@ def simulate_expert(
             proj * orb_w * m_p
         )
         ws_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(w_s[..., 1:9], axis=-1), axis=-1
+            jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
         )
         wp_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(w_p[..., 1:9], axis=-1), axis=-1
+            jnp.sum(w_p[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
         )
         i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
@@ -487,7 +720,11 @@ def simulate_expert(
             proj * orb_w * m_elem
         )
         w_sum: Float[Array, "K B"] = jnp.sum(
-            jnp.sum(weighted[..., 1:9], axis=-1), axis=-1
+            jnp.sum(
+                weighted[..., _NON_S_ORBITAL_SLICE],
+                axis=-1,
+            ),
+            axis=-1,
         )
         band_intensity = jnp.abs(w_sum) ** 2
 

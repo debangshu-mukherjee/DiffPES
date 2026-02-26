@@ -31,6 +31,8 @@ Routine Listings
     Expanded-input advanced wrapper.
 :func:`simulate_expert_expanded`
     Expanded-input expert wrapper.
+:func:`make_expanded_simulation_params`
+    Build expanded-input simulation parameters from eigenbands.
 :func:`gaussian`
     Normalized Gaussian broadening profile.
 :func:`voigt`
@@ -59,6 +61,7 @@ for vectorized evaluation across k-points and bands.
 from .broadening import fermi_dirac, gaussian, voigt
 from .crosssections import heuristic_weights, yeh_lindau_weights
 from .expanded import (
+    make_expanded_simulation_params,
     simulate_advanced_expanded,
     simulate_basic_expanded,
     simulate_basicplus_expanded,
@@ -88,6 +91,7 @@ __all__: list[str] = [
     "fermi_dirac",
     "gaussian",
     "heuristic_weights",
+    "make_expanded_simulation_params",
     "simulate_advanced_expanded",
     "simulate_advanced",
     "simulate_basic_expanded",

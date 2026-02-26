@@ -62,6 +62,42 @@ def build_polarization_vectors(
 ) -> Tuple[Float[Array, " 3"], Float[Array, " 3"]]:
     """Construct s- and p-polarization basis vectors.
 
+    Builds an orthonormal pair of polarization vectors (e_s, e_p)
+    from the photon incidence angles, defining the s-polarization
+    (perpendicular to the incidence plane) and p-polarization (in
+    the incidence plane, perpendicular to the wavevector).
+
+    Implementation Logic
+    --------------------
+    1. **Construct photon wavevector k from spherical coordinates**:
+       k = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
+       k = k / ||k||
+       - Converts the incidence angles (theta from surface normal,
+         phi azimuthal) into a unit wavevector in Cartesian
+         coordinates.
+
+    2. **Choose reference axis**:
+       ref = z_hat  unless  |k . z_hat| >= 0.99
+       ref = y_hat  if k is nearly collinear with z_hat
+       - The reference axis is used to define the incidence plane.
+         When k is nearly parallel to z_hat, the cross product
+         k x z_hat would be poorly conditioned, so y_hat is used
+         as a fallback.
+
+    3. **Compute s-polarization: e_s = normalize(k x ref)**:
+       e_s_raw = cross(k, ref)
+       e_s = e_s_raw / ||e_s_raw||
+       - The s-polarization vector is perpendicular to both the
+         wavevector and the reference axis, hence perpendicular to
+         the incidence plane.
+
+    4. **Compute p-polarization: e_p = normalize(e_s x k)**:
+       e_p_raw = cross(e_s, k)
+       e_p = e_p_raw / ||e_p_raw||
+       - The p-polarization vector lies in the incidence plane and
+         is perpendicular to the wavevector, completing the
+         right-handed orthonormal basis {k, e_s, e_p}.
+
     Parameters
     ----------
     theta : ScalarFloat
@@ -119,6 +155,49 @@ def build_efield(
 ) -> Complex[Array, " 3"]:
     """Compute electric field vector from polarization config.
 
+    Constructs the complex electric field polarization vector for the
+    specified photon geometry and polarization type.
+
+    Implementation Logic
+    --------------------
+    1. **Build s- and p-polarization basis**:
+       e_s, e_p = build_polarization_vectors(theta, phi)
+       - Computes the real-valued orthonormal basis vectors from the
+         incidence angles in the config. Both are cast to complex128
+         for compatibility with circular polarization states.
+
+    2. **Dispatch on polarization type**:
+       The ``polarization_type`` string (case-insensitive) selects
+       the electric field vector:
+
+       - **"lvp"** (linear vertical polarization):
+         efield = e_s
+         Pure s-polarization.
+
+       - **"lhp"** (linear horizontal polarization):
+         efield = e_p
+         Pure p-polarization.
+
+       - **"lap"** (linear arbitrary polarization):
+         efield = cos(angle) * e_s + sin(angle) * e_p
+         Linear combination at the angle specified by
+         ``config.polarization_angle``.
+
+       - **"rcp"** (right circular polarization):
+         efield = (e_s + i * e_p) / sqrt(2)
+         Right-handed circular polarization with equal s and p
+         amplitudes and 90-degree phase shift.
+
+       - **"lcp"** (left circular polarization):
+         efield = (e_s - i * e_p) / sqrt(2)
+         Left-handed circular polarization with equal s and p
+         amplitudes and -90-degree phase shift.
+
+       - **else** (fallback / unpolarized):
+         efield = e_s
+         Defaults to s-polarization. Unpolarized averaging is
+         handled externally in the simulation loop.
+
     Parameters
     ----------
     config : PolarizationConfig
@@ -128,11 +207,6 @@ def build_efield(
     -------
     efield : Complex[Array, " 3"]
         Complex electric field polarization vector.
-
-    Notes
-    -----
-    For unpolarized light, returns the s-polarization vector.
-    Unpolarized averaging is handled in the simulation loop.
     """
     e_s: Float[Array, " 3"]
     e_p: Float[Array, " 3"]
@@ -170,6 +244,34 @@ def dipole_matrix_elements(
 ) -> Float[Array, " 9"]:
     """Compute dipole matrix elements for all 9 orbitals.
 
+    Evaluates the squared modulus of the dipole transition matrix
+    element for each orbital:
+
+        M_i = |e . d_i|^2
+
+    where e is the electric field polarization vector and d_i is
+    the normalized direction vector of orbital i.
+
+    Implementation Logic
+    --------------------
+    1. **Dot product of E-field with each orbital direction**:
+       dots = ORBITAL_DIRS_NORMALIZED @ efield
+       - Computes the inner product of the complex electric field
+         vector with each of the 9 normalized orbital direction
+         vectors (shape [9, 3] @ [3] -> [9]). The result is a
+         complex-valued array of length 9.
+       - The s-orbital direction vector is [0, 0, 0] (zero vector),
+         so its dot product is always zero regardless of the
+         E-field, reflecting the isotropic (zero directionality)
+         character of the s-orbital.
+
+    2. **Square modulus |e . d|^2**:
+       matrix_elements = |dots|^2
+       - Takes the absolute value squared of each complex dot
+         product. For real-valued E-fields this reduces to the
+         squared real dot product. For circular polarization
+         (complex E-field) this correctly accounts for the phase.
+
     Parameters
     ----------
     efield : Complex[Array, " 3"]
@@ -182,8 +284,8 @@ def dipole_matrix_elements(
 
     Notes
     -----
-    The s-orbital has zero directionality and thus zero
-    dipole matrix element with any polarization.
+    The s-orbital has a zero direction vector and therefore always
+    produces a zero dipole matrix element with any polarization.
     """
     dots: Complex[Array, " 9"] = jnp.dot(
         ORBITAL_DIRS_NORMALIZED,

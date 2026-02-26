@@ -28,6 +28,43 @@ def read_kpoints(
 ) -> KPathInfo:
     """Parse a VASP KPOINTS file.
 
+    Reads a VASP KPOINTS file that specifies the Brillouin-zone sampling
+    for a band-structure calculation. The KPOINTS file has three possible
+    modes: Line-mode (explicit path segments between high-symmetry
+    points), Automatic (Monkhorst-Pack or Gamma-centred grid), and
+    Explicit (individually listed k-points). This function extracts
+    symmetry-point labels and their indices along the path and returns
+    a :class:`~arpyes.types.KPathInfo` PyTree.
+
+    Implementation Logic
+    --------------------
+    1. **Read header** -- consume the comment line (line 1), the
+       number-of-k-points line (line 2, parsed as ``num_kpts``), and
+       the mode line (line 3).
+
+    2. **Determine mode** -- if the mode line contains ``"line"`` the
+       file is Line-mode; otherwise if ``num_kpts == 0`` it is
+       Automatic; otherwise Explicit.
+
+    3. **Skip coordinate-type line** -- consume line 4 (Reciprocal /
+       Cartesian indicator) without storing it.
+
+    4. **Parse k-point data** (mode-dependent):
+       - *Line-mode*: collect all remaining non-blank lines. Lines are
+         grouped in pairs (start, end) forming path segments. For each
+         segment, extract the symmetry label from the start and end
+         lines using ``_extract_label``. The running index advances by
+         ``num_kpts`` per segment; the start label of the first segment
+         gets index 0, and each segment's end label gets index
+         ``idx + num_kpts - 1``.
+       - *Automatic*: ``total_kpts`` is set to 0 (grid size determined
+         by VASP internally).
+       - *Explicit*: ``total_kpts`` equals the header value.
+
+    5. **Construct PyTree** -- call ``make_kpath_info`` with the
+       accumulated labels, label indices, mode string, and total
+       k-point count.
+
     Parameters
     ----------
     filename : str, optional
@@ -37,6 +74,14 @@ def read_kpoints(
     -------
     kpath : KPathInfo
         K-point path metadata with labels and indices.
+
+    Notes
+    -----
+    In Line-mode the number on line 2 is the number of k-points
+    **per segment**, not the total. The total equals
+    ``n_segments * num_kpts``. Labels are extracted via
+    ``_extract_label``, which looks for the ``! LABEL`` comment
+    convention used by tools such as AFLOW and SeeK-path.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
@@ -94,15 +139,44 @@ def read_kpoints(
 def _extract_label(line: str) -> str:
     """Extract symmetry label from a KPOINTS line.
 
+    Parses a single coordinate line from a VASP KPOINTS file and
+    attempts to recover the human-readable symmetry label (e.g.
+    ``"G"``, ``"X"``, ``"M"``) that is conventionally appended after
+    the three fractional coordinates.
+
+    Implementation Logic
+    --------------------
+    1. **Regex match** -- search for the pattern ``! <label>`` using
+       ``re.search(r"!\\s*(\\S+)", line)``. The ``!`` delimiter is the
+       standard VASP comment marker used by AFLOW, SeeK-path, and most
+       KPOINTS generators. If a match is found, return the first
+       captured non-whitespace group.
+
+    2. **Fallback heuristic** -- if no ``!`` marker is present, split
+       the line on whitespace. If there are more than 4 tokens (three
+       coordinates plus at least a weight and a label), return the last
+       token as the label.
+
+    3. **Default** -- if neither strategy yields a label, return an
+       empty string.
+
     Parameters
     ----------
     line : str
-        A line from the KPOINTS file.
+        A single k-point line from the KPOINTS file, typically of the
+        form ``"0.0  0.0  0.0  ! G"`` or ``"0.0  0.0  0.0  1  G"``.
 
     Returns
     -------
     label : str
-        Extracted label or empty string.
+        Extracted symmetry label, or ``""`` if none is found.
+
+    Notes
+    -----
+    The ``! LABEL`` convention is the most reliable. The fallback
+    heuristic can misidentify a numeric weight as a label when the
+    line has exactly 5 whitespace-separated tokens, but this situation
+    is rare in practice.
     """
     _min_parts_with_label: int = 4
     match: re.Match[str] | None = re.search(

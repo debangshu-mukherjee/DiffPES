@@ -30,6 +30,56 @@ def read_poscar(
 ) -> CrystalGeometry:
     """Parse a VASP POSCAR/CONTCAR file.
 
+    Reads a VASP POSCAR (or CONTCAR) file that defines the crystal
+    structure: lattice vectors, element symbols, atom counts, and
+    atomic coordinates in either direct (fractional) or Cartesian
+    form. The function returns a :class:`~arpyes.types.CrystalGeometry`
+    PyTree with coordinates always stored in fractional form and the
+    lattice pre-scaled by the universal scaling factor.
+
+    Implementation Logic
+    --------------------
+    1. **Read comment line** (line 1) -- consumed and discarded.
+
+    2. **Read scaling factor** (line 2) -- a single float that
+       multiplies all lattice vectors.
+
+    3. **Read lattice vectors** (lines 3-5) -- three rows of three
+       floats each, stored as a (3, 3) NumPy array and immediately
+       multiplied by the scaling factor.
+
+    4. **Detect optional species line** (line 6) -- if the line
+       contains no digits it is the VASP-5 style element-symbol line
+       (e.g. ``"Si O"``). The symbols are stored and the next line is
+       read. If the line contains digits, it is the atom-count line
+       (VASP-4 style) and ``symbols`` remains empty.
+
+    5. **Read atom counts** -- parse the current line as a list of
+       integers giving the number of atoms per species.
+
+    6. **Detect optional Selective Dynamics line** -- if the next line
+       starts with ``"s"`` or ``"S"``, selective-dynamics flags are
+       present; consume the line and read the coordinate-type line
+       that follows.
+
+    7. **Determine coordinate type** -- if the coordinate-type line
+       starts with ``"c"``, ``"C"``, ``"k"``, or ``"K"`` the
+       coordinates are Cartesian; otherwise they are direct
+       (fractional).
+
+    8. **Read coordinates** -- parse ``natoms`` lines, each with at
+       least three floats. Only the first three tokens are used
+       (selective-dynamics flags on positions 4-6 are ignored).
+
+    9. **Convert Cartesian to fractional** (if needed) -- scale the
+       Cartesian coordinates by the scaling factor, then solve
+       ``lattice^T @ frac^T = cart^T`` via ``np.linalg.solve`` to
+       obtain fractional coordinates.
+
+    10. **Construct PyTree** -- call ``make_crystal_geometry`` with the
+        scaled lattice, fractional coordinates, element symbols, and
+        atom counts.
+
     Parameters
     ----------
     filename : str, optional
@@ -39,6 +89,18 @@ def read_poscar(
     -------
     geometry : CrystalGeometry
         Crystal geometry with lattice, coordinates, symbols.
+
+    Notes
+    -----
+    Coordinates are always returned in **fractional** (direct) form,
+    regardless of the input format. If the input is Cartesian, the
+    conversion ``frac = lattice^{-T} @ cart^T`` is performed via
+    ``np.linalg.solve`` for numerical stability. The optional
+    selective-dynamics flags (``T T F`` appended to coordinate lines)
+    are detected and skipped but not stored. VASP-4 style files that
+    lack the element-symbol line will produce an empty ``symbols``
+    tuple; the caller should supply symbols from an external source
+    (e.g. POTCAR) in that case.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
