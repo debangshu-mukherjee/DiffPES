@@ -20,6 +20,7 @@ computation.
 
 from pathlib import Path
 
+import jax.numpy as jnp
 import numpy as np
 
 from arpyes.types import CrystalGeometry, make_crystal_geometry
@@ -144,7 +145,7 @@ def read_poscar(
             ).T
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=lattice,
-        coords=coords,
+        coords=jnp.asarray(coords),
         symbols=symbols,
         atom_counts=atom_counts,
     )

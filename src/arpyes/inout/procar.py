@@ -20,7 +20,9 @@ Orbital ordering follows VASP convention:
 import re
 from pathlib import Path
 
+import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Array, Float
 
 from arpyes.types import OrbitalProjection, make_orbital_projection
 
@@ -30,7 +32,7 @@ _NORBS: int = 9
 def read_procar(
     filename: str = "PROCAR",
 ) -> OrbitalProjection:
-    """Parse a VASP PROCAR file.
+    r"""Parse a VASP PROCAR file.
 
     Reads a VASP PROCAR file that contains the orbital-resolved
     projections of Kohn-Sham wave functions onto site-centred
@@ -141,8 +143,9 @@ def read_procar(
                     ]
                 fid.readline()
                 fid.readline()
+    proj_arr: Float[Array, " K B A 9"] = jnp.asarray(projections, dtype=jnp.float64)
     orb_proj: OrbitalProjection = make_orbital_projection(
-        projections=projections,
+        projections=proj_arr,
     )
     return orb_proj
 

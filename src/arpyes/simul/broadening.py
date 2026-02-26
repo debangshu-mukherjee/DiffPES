@@ -165,7 +165,7 @@ def voigt(
     f_g: Float[Array, " "] = (
         2.0 * sigma * jnp.sqrt(2.0 * _ln2)
     )
-    f_l: Float[Array, " "] = 2.0 * gamma
+    f_l: Float[Array, " "] = jnp.asarray(2.0 * gamma)
     f_v: Float[Array, " "] = (
         f_g**5
         + 2.69269 * f_g**4 * f_l

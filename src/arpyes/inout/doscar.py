@@ -19,7 +19,9 @@ The Fermi level is extracted directly from the file header.
 
 from pathlib import Path
 
+import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Array, Float
 
 from arpyes.types import DensityOfStates, make_density_of_states
 
@@ -111,8 +113,8 @@ def read_doscar(
                 float(x) for x in fid.readline().split()
             ]
             data[i, :] = vals
-    energy: np.ndarray = data[:, 0]
-    total_dos: np.ndarray = data[:, 1]
+    energy: Float[Array, " E"] = jnp.asarray(data[:, 0], dtype=jnp.float64)
+    total_dos: Float[Array, " E"] = jnp.asarray(data[:, 1], dtype=jnp.float64)
     dos: DensityOfStates = make_density_of_states(
         energy=energy,
         total_dos=total_dos,

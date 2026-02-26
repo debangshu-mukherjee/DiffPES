@@ -18,6 +18,7 @@ Bands are sorted by energy within each k-point.
 
 from pathlib import Path
 
+import jax.numpy as jnp
 import numpy as np
 
 from arpyes.types import BandStructure, make_band_structure
@@ -134,9 +135,9 @@ def read_eigenval(
                 pass
         eigenvalues = np.sort(eigenvalues, axis=1)
     bands: BandStructure = make_band_structure(
-        eigenvalues=eigenvalues,
-        kpoints=kpoints[:, :3],
-        kpoint_weights=kpoints[:, 3],
+        eigenvalues=jnp.asarray(eigenvalues),
+        kpoints=jnp.asarray(kpoints[:, :3]),
+        kpoint_weights=jnp.asarray(kpoints[:, 3]),
         fermi_energy=fermi_energy,
     )
     return bands

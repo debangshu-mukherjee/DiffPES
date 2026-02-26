@@ -37,10 +37,8 @@ dependencies = [
     "jaxtyping>=0.3.0",
     "chex>=0.1.85",
     "beartype>=0.21.0",
-    "jupyter-black>=0.4.0",
     "jupyter>=1.1.1",
     "ipykernel>=7.2.0",
-    "black>=26.1.0",
 ]
 
 [tool.setuptools]
@@ -89,6 +87,9 @@ dev = [
     "pygount>=3.1.0",
     "pre-commit>=4.5.1",
     "isort>=6.0.1",
+    "ty>=0.0.19",
+    "black>=26.1.0",
+    "jupyter-black>=0.4.0",
 ]
 dev_cuda = [
     "arpyes[dev,cuda]",
@@ -241,6 +242,14 @@ convention = "numpy"
     "F841",
     "PLR2004",
 ]
+
+[tool.ty.environment]
+python-version = "3.12"
+root = ["./src"]
+
+[tool.ty.src]
+include = ["src"]
+exclude = ["tests"]
 
 [tool.black]
 line-length = 79
