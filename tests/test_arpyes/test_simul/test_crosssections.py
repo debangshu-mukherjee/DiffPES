@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from arpyes.simulate.crosssections import (
+from arpyes.simul.crosssections import (
     heuristic_weights,
     yeh_lindau_weights,
 )

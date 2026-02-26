@@ -26,7 +26,6 @@ from beartype import beartype
 from jaxtyping import Array, Float, jaxtyped
 
 from arpyes.types import ScalarFloat
-from arpyes.utils.math import faddeeva
 
 _KB: float = 8.617333e-5
 
@@ -90,18 +89,48 @@ def voigt(
 
     Notes
     -----
-    Uses the Faddeeva function: V(x) = Re[w(z)] / (sigma sqrt(2pi))
-    where z = (x - x0 + i*gamma) / (sigma * sqrt(2)).
+    Uses the pseudo-Voigt approximation (Thompson, Cox &
+    Hastings, 1987) which combines Gaussian and Lorentzian
+    profiles with mixing ratio eta computed from the Voigt
+    FWHM. Accurate to better than 1% relative error.
     """
-    z: Float[Array, " E"] = (
-        (energy_range - center) + 1j * gamma
-    ) / (sigma * jnp.sqrt(2.0))
-    w_val: Float[Array, " E"] = faddeeva(z)
-    norm_factor: Float[Array, " "] = (
-        sigma * jnp.sqrt(2.0 * jnp.pi)
+    _ln2: Float[Array, " "] = jnp.log(jnp.float64(2.0))
+    f_g: Float[Array, " "] = (
+        2.0 * sigma * jnp.sqrt(2.0 * _ln2)
+    )
+    f_l: Float[Array, " "] = 2.0 * gamma
+    f_v: Float[Array, " "] = (
+        f_g**5
+        + 2.69269 * f_g**4 * f_l
+        + 2.42843 * f_g**3 * f_l**2
+        + 4.47163 * f_g**2 * f_l**3
+        + 0.07842 * f_g * f_l**4
+        + f_l**5
+    ) ** 0.2
+    safe_fv: Float[Array, " "] = jnp.where(
+        f_v > 0.0, f_v, jnp.float64(1e-30)
+    )
+    ratio: Float[Array, " "] = f_l / safe_fv
+    eta: Float[Array, " "] = (
+        1.36603 * ratio
+        - 0.47719 * ratio**2
+        + 0.11116 * ratio**3
+    )
+    eta = jnp.clip(eta, 0.0, 1.0)
+    sigma_v: Float[Array, " "] = (
+        safe_fv / (2.0 * jnp.sqrt(2.0 * _ln2))
+    )
+    g_part: Float[Array, " E"] = gaussian(
+        energy_range, center, sigma_v
+    )
+    diff: Float[Array, " E"] = energy_range - center
+    gamma_v: Float[Array, " "] = safe_fv / 2.0
+    l_part: Float[Array, " E"] = (
+        gamma_v
+        / (jnp.pi * (diff**2 + gamma_v**2))
     )
     profile: Float[Array, " E"] = (
-        jnp.real(w_val) / norm_factor
+        eta * l_part + (1.0 - eta) * g_part
     )
     return profile
 

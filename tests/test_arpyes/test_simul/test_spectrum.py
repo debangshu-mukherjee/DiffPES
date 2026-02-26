@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from arpyes.simulate.spectrum import (
+from arpyes.simul.spectrum import (
     simulate_advanced,
     simulate_basic,
     simulate_basicplus,

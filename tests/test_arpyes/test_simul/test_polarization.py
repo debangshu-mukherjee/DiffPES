@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from arpyes.simulate.polarization import (
+from arpyes.simul.polarization import (
     build_efield,
     build_polarization_vectors,
     dipole_matrix_elements,

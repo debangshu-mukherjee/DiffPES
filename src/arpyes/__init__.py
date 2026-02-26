@@ -11,9 +11,9 @@ calculations.
 
 Routine Listings
 ----------------
-:mod:`io`
+:mod:`inout`
     VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR).
-:mod:`simulate`
+:mod:`simul`
     ARPES simulation functions at five complexity levels.
 :mod:`types`
     PyTree data structures and factory functions.
@@ -23,10 +23,10 @@ Routine Listings
 Examples
 --------
 >>> import arpyes
->>> bands = arpyes.io.read_eigenval("EIGENVAL", fermi_energy=-1.5)
->>> orb = arpyes.io.read_procar("PROCAR")
+>>> bands = arpyes.inout.read_eigenval("EIGENVAL", fermi_energy=-1.5)
+>>> orb = arpyes.inout.read_procar("PROCAR")
 >>> params = arpyes.types.make_simulation_params(sigma=0.04)
->>> spectrum = arpyes.simulate.simulate_basic(bands, orb, params)
+>>> spectrum = arpyes.simul.simulate_basic(bands, orb, params)
 
 Notes
 -----
@@ -48,14 +48,14 @@ import jax  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 
-from . import io, simulate, types, utils  # noqa: E402
+from . import inout, simul, types, utils  # noqa: E402
 
 __version__: str = version("arpyes")
 
 __all__: list[str] = [
     "__version__",
-    "io",
-    "simulate",
+    "inout",
+    "simul",
     "types",
     "utils",
 ]

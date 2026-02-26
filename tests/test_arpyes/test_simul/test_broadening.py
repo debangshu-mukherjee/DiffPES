@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from arpyes.simulate.broadening import (
+from arpyes.simul.broadening import (
     fermi_dirac,
     gaussian,
     voigt,

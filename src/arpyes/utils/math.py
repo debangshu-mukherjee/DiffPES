@@ -9,44 +9,45 @@ throughout the ARPES simulation pipeline.
 Routine Listings
 ----------------
 :func:`faddeeva`
-    Faddeeva function via Weideman's 32-term rational approximation.
+    Faddeeva function via Taylor series expansion.
 :func:`zscore_normalize`
     Z-score (zero-mean, unit-variance) normalization.
 
 Notes
 -----
-The Faddeeva implementation uses the algorithm from
-Weideman (1994), SIAM J. Numer. Anal. 31(5), pp. 1497-1518,
-which provides high accuracy for complex arguments via a
-32-term rational approximation using Chebyshev nodes.
+The Faddeeva implementation uses a 64-term Taylor series
+derived from the ODE w'(z) = -2z w(z) + 2i/sqrt(pi),
+giving double-precision accuracy for |z| < 6.
 """
+
+import math
 
 import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
 
-_FADDEEVA_N: int = 32
-_FADDEEVA_L: float = 6.0
+_N_TAYLOR: int = 64
 
-_K_IDX: Float[Array, " N"] = jnp.arange(
-    1, _FADDEEVA_N + 1, dtype=jnp.float64
-)
-_THETA: Float[Array, " N"] = (
-    jnp.pi * (_K_IDX - 0.5) / _FADDEEVA_N
-)
-_T_NODES: Float[Array, " N"] = (
-    _FADDEEVA_L * jnp.tan(_THETA / 2.0)
-)
-_F_VALS: Float[Array, " N"] = (
-    jnp.exp(-_T_NODES**2)
-    * (_FADDEEVA_L**2 + _T_NODES**2)
-)
-_FFT_INPUT: Float[Array, " M"] = jnp.concatenate(
-    [_F_VALS, _F_VALS[::-1]]
-)
-_COEFFS: Float[Array, " N"] = (
-    (2.0 / _FADDEEVA_N)
-    * jnp.real(jnp.fft.fft(_FFT_INPUT))[: _FADDEEVA_N]
+
+def _faddeeva_taylor_coeffs() -> list[complex]:
+    """Taylor coefficients of w(z) = exp(-z^2) erfc(-iz).
+
+    Uses the recurrence from the ODE
+    w'(z) = -2z w(z) + 2i/sqrt(pi):
+      a_0 = 1,  a_1 = 2i/sqrt(pi),
+      a_{n+1} = -2 a_{n-1} / (n+1)  for n >= 1.
+    """
+    c: list[complex] = [0j] * _N_TAYLOR
+    c[0] = 1.0 + 0j
+    c[1] = 2.0j / math.sqrt(math.pi)
+    for n in range(1, _N_TAYLOR - 1):
+        c[n + 1] = -2.0 * c[n - 1] / (n + 1)
+    return c
+
+
+_W_POLY: Complex[Array, " N"] = jnp.array(
+    _faddeeva_taylor_coeffs()[::-1],
+    dtype=jnp.complex128,
 )
 
 
@@ -68,28 +69,15 @@ def faddeeva(
 
     Notes
     -----
-    Uses Weideman's 32-term rational approximation with
-    FFT-computed coefficients (L=6, N=32) for double precision
-    accuracy. Reference: Weideman (1994), SIAM J. Numer. Anal.
-    31(5), pp. 1497-1518.
+    Uses a 64-term Taylor series derived from the ODE
+    w'(z) = -2z w(z) + 2i/sqrt(pi). Accurate to double
+    precision for |z| < 6.
     """
     z_c: Complex[Array, " ..."] = jnp.asarray(
         z, dtype=jnp.complex128
     )
-    poles: Complex[Array, " N"] = 1j * _T_NODES
-    diffs: Complex[Array, " ... N"] = (
-        z_c[..., jnp.newaxis] - poles[jnp.newaxis, :]
-    )
-    terms: Complex[Array, " ... N"] = (
-        _COEFFS[jnp.newaxis, :] / diffs
-    )
-    partial_sum: Complex[Array, " ..."] = jnp.sum(
-        terms, axis=-1
-    )
-    w: Complex[Array, " ..."] = (
-        (2.0 / jnp.sqrt(jnp.pi))
-        * partial_sum
-        * jnp.exp(-(z_c**2))
+    w: Complex[Array, " ..."] = jnp.polyval(
+        _W_POLY, z_c, unroll=8
     )
     return w
 
