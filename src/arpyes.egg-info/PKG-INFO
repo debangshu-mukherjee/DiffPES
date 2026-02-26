@@ -1,0 +1,68 @@
+Metadata-Version: 2.4
+Name: arpyes
+Version: 2026.2.26
+Summary: Differentiable ARPES simulations in JAX
+Author-email: Debangshu Mukherjee <mukherjeed@ornl.gov>, Jacob Cook <cookjl2@ornl.gov>
+Maintainer-email: Debangshu Mukherjee <mukherjeed@ornl.gov>
+Keywords: ARPES,MBE,JAX,Differentiable Programming
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Typing :: Typed
+Requires-Python: <3.15,>=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=2.2.1
+Requires-Dist: scipy>=1.14.1
+Requires-Dist: matplotlib>=3.10.0
+Requires-Dist: jax>=0.7.0; sys_platform == "win64"
+Requires-Dist: jax>=0.7.0; sys_platform == "darwin"
+Requires-Dist: jax>=0.7.0; sys_platform == "linux"
+Requires-Dist: jaxtyping>=0.3.0
+Requires-Dist: chex>=0.1.85
+Requires-Dist: optax>=0.1.8
+Requires-Dist: beartype>=0.21.0
+Requires-Dist: ase>=3.26.0
+Requires-Dist: pymatgen>=2025.10.7
+Provides-Extra: cuda
+Requires-Dist: jax[cuda12]>=0.7.0; (platform_machine == "x86_64" and sys_platform == "linux") and extra == "cuda"
+Requires-Dist: nvidia-cudnn-cu12>=9.5.0; (platform_machine == "x86_64" and sys_platform == "linux") and extra == "cuda"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=3.0.2; extra == "docs"
+Requires-Dist: nbsphinx>=0.9.7; extra == "docs"
+Requires-Dist: myst-parser>=2.0.0; extra == "docs"
+Requires-Dist: ipykernel>=6.29.5; extra == "docs"
+Requires-Dist: nbconvert>=7.16.6; extra == "docs"
+Requires-Dist: furo>=2025.7.19; extra == "docs"
+Requires-Dist: sphinx-autodoc-typehints>=3.0.1; extra == "docs"
+Requires-Dist: numpydoc>=1.9.0; extra == "docs"
+Requires-Dist: pydoclint>=0.7.3; extra == "docs"
+Requires-Dist: interrogate>=1.7.0; extra == "docs"
+Provides-Extra: test
+Requires-Dist: pytest>=8.3.5; extra == "test"
+Requires-Dist: pytest-cov>=6.0.0; extra == "test"
+Requires-Dist: pytest-xdist>=3.0.0; extra == "test"
+Requires-Dist: chex>=0.1.89; extra == "test"
+Provides-Extra: notebooks
+Requires-Dist: ipywidgets>=8.1.0; extra == "notebooks"
+Requires-Dist: ipykernel>=6.29.5; extra == "notebooks"
+Requires-Dist: nbconvert>=7.16.6; extra == "notebooks"
+Provides-Extra: dev
+Requires-Dist: arpyes[docs,notebooks,test]; extra == "dev"
+Requires-Dist: black[jupyter]>=25.1.0; extra == "dev"
+Requires-Dist: build>=1.2.2.post1; extra == "dev"
+Requires-Dist: twine>=6.1.0; extra == "dev"
+Requires-Dist: ruff>=0.12.9; extra == "dev"
+Requires-Dist: pygount>=3.1.0; extra == "dev"
+Requires-Dist: pre-commit>=4.5.1; extra == "dev"
+Requires-Dist: isort>=6.0.1; extra == "dev"
+Provides-Extra: dev-cuda
+Requires-Dist: arpyes[cuda,dev]; extra == "dev-cuda"
+Provides-Extra: all
+Requires-Dist: arpyes[cuda,dev,docs,notebooks,test]; extra == "all"

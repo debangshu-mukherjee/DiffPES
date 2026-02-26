@@ -1,0 +1,78 @@
+"""ARPES simulation functions at five complexity levels.
+
+Extended Summary
+----------------
+Provides a complete ARPES simulation pipeline from basic Voigt
+convolution to full polarization-dependent dipole matrix element
+calculations. Also exports broadening functions, cross-section
+models, polarization utilities, and orbital angular momentum.
+
+Routine Listings
+----------------
+:func:`simulate_novice`
+    Voigt broadening with uniform orbital weights.
+:func:`simulate_basic`
+    Gaussian broadening with heuristic orbital weights.
+:func:`simulate_basicplus`
+    Gaussian broadening with Yeh-Lindau cross-sections.
+:func:`simulate_advanced`
+    Gaussian with Yeh-Lindau and polarization selection rules.
+:func:`simulate_expert`
+    Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`gaussian`
+    Normalized Gaussian broadening profile.
+:func:`voigt`
+    Normalized Voigt profile via the Faddeeva function.
+:func:`fermi_dirac`
+    Fermi-Dirac thermal distribution function.
+:func:`heuristic_weights`
+    Energy-dependent heuristic orbital weights.
+:func:`yeh_lindau_weights`
+    Interpolated Yeh-Lindau cross-section weights.
+:func:`build_polarization_vectors`
+    Construct s- and p-polarization basis vectors.
+:func:`build_efield`
+    Compute electric field vector from polarization config.
+:func:`dipole_matrix_elements`
+    Compute dipole matrix elements for all 9 orbitals.
+:func:`compute_oam`
+    Compute orbital angular momentum from projections.
+
+Notes
+-----
+All simulation functions are JAX-compatible and use ``jax.vmap``
+for vectorized evaluation across k-points and bands.
+"""
+
+from .broadening import fermi_dirac, gaussian, voigt
+from .crosssections import heuristic_weights, yeh_lindau_weights
+from .oam import compute_oam
+from .polarization import (
+    build_efield,
+    build_polarization_vectors,
+    dipole_matrix_elements,
+)
+from .spectrum import (
+    simulate_advanced,
+    simulate_basic,
+    simulate_basicplus,
+    simulate_expert,
+    simulate_novice,
+)
+
+__all__: list[str] = [
+    "build_efield",
+    "build_polarization_vectors",
+    "compute_oam",
+    "dipole_matrix_elements",
+    "fermi_dirac",
+    "gaussian",
+    "heuristic_weights",
+    "simulate_advanced",
+    "simulate_basic",
+    "simulate_basicplus",
+    "simulate_expert",
+    "simulate_novice",
+    "voigt",
+    "yeh_lindau_weights",
+]
