@@ -1,0 +1,441 @@
+"""HDF5 serializer and deserializer for arpyes PyTrees.
+
+Extended Summary
+----------------
+Provides functions for saving and loading arpyes PyTree objects
+(NamedTuples registered with ``@register_pytree_node_class``)
+to and from HDF5 files via ``h5py``. Each PyTree's named fields
+become HDF5 datasets, and auxiliary data (non-JAX metadata) is
+stored as HDF5 group attributes in JSON format.
+
+Routine Listings
+----------------
+:func:`save_to_h5`
+    Save one or more named PyTrees to an HDF5 file.
+:func:`load_from_h5`
+    Load PyTrees from an HDF5 file.
+
+Notes
+-----
+All eight arpyes PyTree types are supported:
+``DensityOfStates``, ``BandStructure``, ``ArpesSpectrum``,
+``OrbitalProjection``, ``SimulationParams``,
+``PolarizationConfig``, ``KPathInfo``, ``CrystalGeometry``.
+"""
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import h5py
+import jax.numpy as jnp
+import numpy as np
+from beartype import beartype
+from beartype.typing import Any, Callable, Optional, Union
+
+from arpyes.types import (
+    ArpesSpectrum,
+    BandStructure,
+    CrystalGeometry,
+    DensityOfStates,
+    KPathInfo,
+    OrbitalProjection,
+    PolarizationConfig,
+    SimulationParams,
+)
+
+_ATTR_TYPE: str = "_pytree_type"
+_ATTR_AUX: str = "_aux_data_json"
+_ATTR_NONE: str = "_none_fields"
+
+
+@dataclass(frozen=True)
+class _PyTreeMeta:
+    """Serialization metadata for a registered PyTree type.
+
+    Stores the class reference, the ordered names of JAX-traced
+    children fields (matching the order returned by
+    ``tree_flatten``), and encoder/decoder callables for
+    converting auxiliary data to and from JSON-serializable form.
+
+    Parameters
+    ----------
+    cls : type
+        The NamedTuple PyTree class.
+    children_fields : tuple[str, ...]
+        Ordered field names of JAX array children.
+    aux_encoder : Callable[[Any], Any]
+        Converts aux_data to a JSON-serializable value.
+    aux_decoder : Callable[[Any], Any]
+        Converts JSON-decoded value back to the Python type
+        expected by ``tree_unflatten``.
+    """
+
+    cls: Any  # PyTree NamedTuple class
+    children_fields: tuple[str, ...]
+    aux_encoder: Callable[[Any], Any]
+    aux_decoder: Callable[[Any], Any]
+
+
+def _encode_none(
+    _aux: None,  # noqa: ARG001
+) -> None:
+    """Encode ``None`` aux_data as JSON ``null``."""
+
+
+def _decode_none(
+    _val: None,  # noqa: ARG001
+) -> None:
+    """Decode JSON ``null`` back to ``None``."""
+
+
+def _encode_int(aux: int) -> int:
+    """Encode ``int`` aux_data as JSON integer."""
+    return int(aux)
+
+
+def _decode_int(val: Any) -> int:  # noqa: ANN401
+    """Decode JSON integer back to Python ``int``."""
+    return int(val)
+
+
+def _encode_str(aux: str) -> str:
+    """Encode ``str`` aux_data as JSON string."""
+    return str(aux)
+
+
+def _decode_str(val: Any) -> str:  # noqa: ANN401
+    """Decode JSON string back to Python ``str``."""
+    return str(val)
+
+
+def _encode_tuple_str(
+    aux: tuple[str, ...],
+) -> list[str]:
+    """Encode ``tuple[str, ...]`` as JSON array of strings."""
+    return list(aux)
+
+
+def _decode_tuple_str(
+    val: Any,  # noqa: ANN401
+) -> tuple[str, ...]:
+    """Decode JSON array of strings to ``tuple[str, ...]``."""
+    return tuple(str(s) for s in val)
+
+
+def _encode_kpath_aux(
+    aux: tuple[str, tuple[str, ...]],
+) -> list[Any]:
+    """Encode KPathInfo aux ``(mode, labels)`` for JSON."""
+    mode, labels = aux
+    return [str(mode), list(labels)]
+
+
+def _decode_kpath_aux(
+    val: Any,  # noqa: ANN401
+) -> tuple[str, tuple[str, ...]]:
+    """Decode JSON list to KPathInfo ``(mode, labels)``."""
+    return (str(val[0]), tuple(str(s) for s in val[1]))
+
+
+_PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
+    "DensityOfStates": _PyTreeMeta(
+        cls=DensityOfStates,
+        children_fields=(
+            "energy",
+            "total_dos",
+            "fermi_energy",
+        ),
+        aux_encoder=_encode_none,
+        aux_decoder=_decode_none,
+    ),
+    "BandStructure": _PyTreeMeta(
+        cls=BandStructure,
+        children_fields=(
+            "eigenvalues",
+            "kpoints",
+            "kpoint_weights",
+            "fermi_energy",
+        ),
+        aux_encoder=_encode_none,
+        aux_decoder=_decode_none,
+    ),
+    "ArpesSpectrum": _PyTreeMeta(
+        cls=ArpesSpectrum,
+        children_fields=(
+            "intensity",
+            "energy_axis",
+        ),
+        aux_encoder=_encode_none,
+        aux_decoder=_decode_none,
+    ),
+    "OrbitalProjection": _PyTreeMeta(
+        cls=OrbitalProjection,
+        children_fields=(
+            "projections",
+            "spin",
+            "oam",
+        ),
+        aux_encoder=_encode_none,
+        aux_decoder=_decode_none,
+    ),
+    "SimulationParams": _PyTreeMeta(
+        cls=SimulationParams,
+        children_fields=(
+            "energy_min",
+            "energy_max",
+            "sigma",
+            "gamma",
+            "temperature",
+            "photon_energy",
+        ),
+        aux_encoder=_encode_int,
+        aux_decoder=_decode_int,
+    ),
+    "PolarizationConfig": _PyTreeMeta(
+        cls=PolarizationConfig,
+        children_fields=(
+            "theta",
+            "phi",
+            "polarization_angle",
+        ),
+        aux_encoder=_encode_str,
+        aux_decoder=_decode_str,
+    ),
+    "KPathInfo": _PyTreeMeta(
+        cls=KPathInfo,
+        children_fields=(
+            "num_kpoints",
+            "label_indices",
+        ),
+        aux_encoder=_encode_kpath_aux,
+        aux_decoder=_decode_kpath_aux,
+    ),
+    "CrystalGeometry": _PyTreeMeta(
+        cls=CrystalGeometry,
+        children_fields=(
+            "lattice",
+            "reciprocal_lattice",
+            "coords",
+            "atom_counts",
+        ),
+        aux_encoder=_encode_tuple_str,
+        aux_decoder=_decode_tuple_str,
+    ),
+}
+
+
+@beartype
+def save_to_h5(
+    path: Union[str, Path],
+    /,
+    **pytrees: Any,  # noqa: ANN401
+) -> None:
+    """Save one or more named PyTrees to an HDF5 file.
+
+    Serializes each keyword-argument PyTree into a named HDF5
+    group. JAX array fields become HDF5 datasets (named by the
+    NamedTuple field name), and auxiliary data is stored as a
+    JSON-encoded group attribute.
+
+    Implementation Logic
+    --------------------
+    1. **Validate inputs**:
+       Ensure at least one PyTree is provided.
+
+    2. **Iterate over keyword arguments**:
+       For each ``(group_name, pytree)`` pair:
+
+       a. Look up ``type(pytree).__name__`` in
+          ``_PYTREE_REGISTRY`` to obtain serialization metadata.
+
+       b. Call ``pytree.tree_flatten()`` to separate the PyTree
+          into ``(children, aux_data)``.
+
+       c. Create an HDF5 group named ``group_name``.
+
+       d. Store the type name as ``_pytree_type`` attribute and
+          the JSON-encoded aux_data as ``_aux_data_json``.
+
+       e. For each child field: if the value is ``None``
+          (Optional field), record the field name in
+          ``_none_fields``; otherwise create an HDF5 dataset
+          from ``numpy.asarray(child)``.
+
+       f. Store the ``_none_fields`` list as a JSON attribute.
+
+    Parameters
+    ----------
+    path : Union[str, Path]
+        File path for the HDF5 file to create.
+    **pytrees : PyTree
+        Named PyTree instances. Each keyword argument name
+        becomes an HDF5 group name.
+
+    Raises
+    ------
+    ValueError
+        If no PyTrees are provided.
+    TypeError
+        If a PyTree's class is not in the registry.
+    """
+    if not pytrees:
+        msg = "At least one PyTree must be provided."
+        raise ValueError(msg)
+
+    file_path: Path = Path(path)
+    with h5py.File(file_path, "w") as f:
+        for group_name, pytree in pytrees.items():
+            type_name: str = type(pytree).__name__
+            if type_name not in _PYTREE_REGISTRY:
+                msg = (
+                    f"Unsupported PyTree type: "
+                    f"{type_name}"
+                )
+                raise TypeError(msg)
+
+            meta: _PyTreeMeta = (
+                _PYTREE_REGISTRY[type_name]
+            )
+            children, aux_data = pytree.tree_flatten()
+
+            grp: h5py.Group = f.create_group(group_name)
+            grp.attrs[_ATTR_TYPE] = type_name
+            aux_serializable = meta.aux_encoder(aux_data)
+            grp.attrs[_ATTR_AUX] = json.dumps(
+                aux_serializable
+            )
+
+            none_fields: list[str] = []
+            for field_name, child in zip(
+                meta.children_fields,
+                children,
+                strict=True,
+            ):
+                if child is None:
+                    none_fields.append(field_name)
+                else:
+                    grp.create_dataset(
+                        field_name,
+                        data=np.asarray(child),
+                    )
+            grp.attrs[_ATTR_NONE] = json.dumps(none_fields)
+
+
+@beartype
+def load_from_h5(
+    path: Union[str, Path],
+    name: Optional[str] = None,
+) -> Any:  # noqa: ANN401
+    """Load PyTrees from an HDF5 file.
+
+    Deserializes HDF5 groups back into arpyes PyTree objects
+    by reading datasets as JAX arrays and reconstructing the
+    NamedTuple via ``tree_unflatten``.
+
+    Implementation Logic
+    --------------------
+    1. **Open the HDF5 file** for reading.
+
+    2. **Select groups to load**:
+       If ``name`` is provided, load only that group. If
+       ``name`` is ``None``, load all top-level groups.
+
+    3. **For each group**:
+
+       a. Read ``_pytree_type`` attribute and look up the class
+          in ``_PYTREE_REGISTRY``.
+
+       b. Read ``_aux_data_json`` attribute and decode it via
+          the type-specific ``aux_decoder``.
+
+       c. Read ``_none_fields`` attribute (defaulting to empty
+          list).
+
+       d. For each children field name: if the name appears in
+          ``_none_fields``, set the child to ``None``;
+          otherwise read the HDF5 dataset and convert to a JAX
+          array via ``jnp.asarray``.
+
+       e. Call ``cls.tree_unflatten(aux_data, children)`` to
+          reconstruct the PyTree.
+
+    Parameters
+    ----------
+    path : Union[str, Path]
+        File path to the HDF5 file to read.
+    name : Optional[str], optional
+        Name of a specific group to load. If ``None``, all
+        groups are loaded and returned as a dict.
+
+    Returns
+    -------
+    result : PyTree or dict[str, PyTree]
+        A single PyTree if ``name`` is given, otherwise a dict
+        mapping group names to PyTree instances.
+
+    Raises
+    ------
+    KeyError
+        If ``name`` is specified but does not exist in the file.
+    TypeError
+        If a group's ``_pytree_type`` is not in the registry.
+    """
+    file_path: Path = Path(path)
+
+    def _load_group(
+        grp: h5py.Group,
+    ) -> Any:  # noqa: ANN401
+        type_name: str = str(grp.attrs[_ATTR_TYPE])
+        if type_name not in _PYTREE_REGISTRY:
+            msg = (
+                f"Unknown PyTree type: {type_name}"
+            )
+            raise TypeError(msg)
+
+        meta: _PyTreeMeta = (
+            _PYTREE_REGISTRY[type_name]
+        )
+        aux_json = json.loads(
+            str(grp.attrs[_ATTR_AUX])
+        )
+        aux_data = meta.aux_decoder(aux_json)
+
+        none_fields: list[str] = json.loads(
+            str(grp.attrs[_ATTR_NONE])
+        )
+
+        children: list[Any] = []
+        for field_name in meta.children_fields:
+            if field_name in none_fields:
+                children.append(None)
+            else:
+                arr = grp[field_name][()]
+                children.append(jnp.asarray(arr))
+
+        return meta.cls.tree_unflatten(
+            aux_data, tuple(children)
+        )
+
+    with h5py.File(file_path, "r") as f:
+        if name is not None:
+            if name not in f:
+                msg = (
+                    f"Group '{name}' not found "
+                    f"in {path}"
+                )
+                raise KeyError(msg)
+            return _load_group(f[name])
+
+        result: dict[str, Any] = {}
+        for group_name in f:
+            result[group_name] = _load_group(
+                f[group_name]
+            )
+        return result
+
+
+__all__: list[str] = [
+    "load_from_h5",
+    "save_to_h5",
+]

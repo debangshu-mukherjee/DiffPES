@@ -39,6 +39,7 @@ dependencies = [
     "beartype>=0.21.0",
     "jupyter>=1.1.1",
     "ipykernel>=7.2.0",
+    "h5py>=3.15.1",
 ]
 
 [tool.setuptools]

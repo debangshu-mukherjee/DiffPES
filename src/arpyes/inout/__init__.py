@@ -24,6 +24,10 @@ Routine Listings
     Annotate a plot axis with KPathInfo symmetry labels.
 :func:`plot_arpes_with_kpath`
     Plot an ARPES map and apply KPathInfo axis annotations.
+:func:`save_to_h5`
+    Save one or more named PyTrees to an HDF5 file.
+:func:`load_from_h5`
+    Load PyTrees from an HDF5 file.
 
 Notes
 -----
@@ -34,6 +38,7 @@ to JAX arrays via factory functions.
 
 from .doscar import read_doscar
 from .eigenval import read_eigenval
+from .hdf5 import load_from_h5, save_to_h5
 from .kpoints import read_kpoints
 from .plotting import (
     apply_kpath_ticks,
@@ -45,6 +50,7 @@ from .procar import read_procar
 
 __all__: list[str] = [
     "apply_kpath_ticks",
+    "load_from_h5",
     "plot_arpes_spectrum",
     "plot_arpes_with_kpath",
     "read_doscar",
@@ -52,4 +58,5 @@ __all__: list[str] = [
     "read_kpoints",
     "read_poscar",
     "read_procar",
+    "save_to_h5",
 ]
