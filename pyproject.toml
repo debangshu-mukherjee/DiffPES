@@ -1,0 +1,98 @@
+[project]
+name = "arpyes"
+version = "2026.02.26"
+description = "Differentiable ARPES simulations in JAX"
+authors = [
+    {name = "Debangshu Mukherjee", email = "mukherjeed@ornl.gov"},
+    {name = "Jacob Cook", email = "cookjl2@ornl.gov"},
+    ]
+license = {file = "LICENSE"}
+maintainers = [{name = "Debangshu Mukherjee", email = "mukherjeed@ornl.gov"}]
+keywords = [
+    "ARPES",
+    "MBE",
+    "JAX",
+    "Differentiable Programming"
+]
+readme = "README.md"
+requires-python = ">=3.12, <3.15"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "jaxtyping >= 0.3.0",
+    "chex >= 0.1.85",
+    "optax >= 0.1.8",
+    "pytest >= 8.0.0",
+    "beartype",
+    "ipython>=8.31.0",
+    "jupyter>=1.1.1",
+    "numpy>=2.2.1",
+    "scipy>=1.14.1",
+    "matplotlib>=3.10.0",
+    "jupyter-black>=0.4.0",
+    "ipykernel>=6.29.5",
+    "pandas>=2.3.0",
+    "jax>=0.7.0 ; sys_platform == 'win64'",
+    "jax>=0.7.0 ; sys_platform == 'darwin'",
+    "jax>=0.7.0 ; sys_platform == 'linux'",
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "ase>=3.26.0",
+    "pymatgen>=2025.10.7",
+]
+[project.optional-dependencies]
+cuda = [
+   "jax[cuda12]>=0.7.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'",
+   "nvidia-cudnn-cu12>=9.5.0 ; platform_machine == 'x86_64' and sys_platform == 'linux'",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=3.0.2",
+    "nbsphinx>=0.9.7",
+    "myst-parser>=2.0.0",
+    "ipykernel>=6.29.5",
+    "nbconvert>=7.16.6",
+    "sphinx-autobuild>=2024.10.3",
+    "furo>=2025.7.19",
+    "sphinx-autodoc-typehints>=3.0.1",
+    "numpydoc>=1.9.0",
+]
+test = [
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.0.0",
+    "chex>=0.1.89",
+]
+notebooks = [
+    "ipywidgets>=8.1.0",
+    "ipykernel>=6.29.5",
+    "nbconvert>=7.16.6",
+]
+dev = [
+    "rheedium[docs,test,notebooks]",
+    "black[jupyter]>=25.1.0",
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
+    "ipywidgets>=8.1.0",
+    "ruff>=0.12.9",
+    "twine>=6.0.1",
+    "pygount>=3.1.0",
+    "pre-commit>=4.5.1",
+]
+dev_cuda = [
+    "rheedium[dev,cuda]",
+]
+all = [
+    "rheedium[docs,test,dev,notebooks,cuda]",
+]
