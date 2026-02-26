@@ -19,6 +19,18 @@ Routine Listings
     Gaussian with Yeh-Lindau and polarization selection rules.
 :func:`simulate_expert`
     Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`simulate_expanded`
+    Expanded-input dispatcher for the five simulation levels.
+:func:`simulate_novice_expanded`
+    Expanded-input novice wrapper.
+:func:`simulate_basic_expanded`
+    Expanded-input basic wrapper.
+:func:`simulate_basicplus_expanded`
+    Expanded-input basicplus wrapper.
+:func:`simulate_advanced_expanded`
+    Expanded-input advanced wrapper.
+:func:`simulate_expert_expanded`
+    Expanded-input expert wrapper.
 :func:`gaussian`
     Normalized Gaussian broadening profile.
 :func:`voigt`
@@ -46,6 +58,14 @@ for vectorized evaluation across k-points and bands.
 
 from .broadening import fermi_dirac, gaussian, voigt
 from .crosssections import heuristic_weights, yeh_lindau_weights
+from .expanded import (
+    simulate_advanced_expanded,
+    simulate_basic_expanded,
+    simulate_basicplus_expanded,
+    simulate_expanded,
+    simulate_expert_expanded,
+    simulate_novice_expanded,
+)
 from .oam import compute_oam
 from .polarization import (
     build_efield,
@@ -68,10 +88,16 @@ __all__: list[str] = [
     "fermi_dirac",
     "gaussian",
     "heuristic_weights",
+    "simulate_advanced_expanded",
     "simulate_advanced",
+    "simulate_basic_expanded",
     "simulate_basic",
+    "simulate_basicplus_expanded",
     "simulate_basicplus",
+    "simulate_expert_expanded",
     "simulate_expert",
+    "simulate_expanded",
+    "simulate_novice_expanded",
     "simulate_novice",
     "voigt",
     "yeh_lindau_weights",
