@@ -1,9 +1,35 @@
 """Tests for ARPES simulation spectrum functions.
 
-Validates the five simulation levels in :mod:`arpyes.simul.spectrum`
-(novice, basic, basicplus, advanced, expert) by checking output shapes,
-value constraints (non-negativity, finiteness), and sensitivity to
-physical parameters (photon energy, polarization type).
+Extended Summary
+----------------
+Validates the simulation levels in :mod:`arpyes.simul.spectrum`:
+novice, basic, basicplus, advanced, expert, and soc. Tests check
+output tensor shapes (intensity and energy_axis), value constraints
+(non-negativity, finiteness), and sensitivity to physical parameters
+(photon energy, polarization type, spin-orbit scale). Synthetic band
+structure and orbital projections are built via _make_synthetic_data.
+SOC tests verify that spin is required and that ls_scale=0 matches
+expert. All test logic and assertions are documented in the
+docstrings of each test class and method.
+
+Routine Listings
+----------------
+:class:`TestSimulateAdvanced`
+    Tests for simulate_advanced.
+:class:`TestSimulateBasic`
+    Tests for simulate_basic.
+:class:`TestSimulateBasicplus`
+    Tests for simulate_basicplus.
+:class:`TestSimulateExpert`
+    Tests for simulate_expert.
+:class:`TestSimulateNovice`
+    Tests for simulate_novice.
+:class:`TestSimulateSoc`
+    Tests for simulate_soc.
+:func:`_make_synthetic_data`
+    Helper to build synthetic bands and orbital projections.
+:func:`_make_synthetic_data_with_spin`
+    Helper to build synthetic data including spin for SOC tests.
 """
 
 import chex

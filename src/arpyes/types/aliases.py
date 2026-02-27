@@ -8,18 +8,18 @@ that work seamlessly with JAX transformations.
 
 Routine Listings
 ----------------
-:data:`ScalarFloat`
-    Union of ``float`` and ``Float[Array, " "]``.
-:data:`ScalarComplex`
-    Union of ``complex`` and ``Complex[Array, " "]``.
-:data:`ScalarInteger`
-    Union of ``int`` and ``Int[Array, " "]``.
-:data:`ScalarBool`
-    Union of ``bool`` and ``Bool[Array, " "]``.
-:data:`ScalarNumeric`
-    Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
 :data:`NonJaxNumber`
     Union of ``int``, ``float``, and ``complex``.
+:data:`ScalarBool`
+    Union of ``bool`` and ``Bool[Array, " "]``.
+:data:`ScalarComplex`
+    Union of ``complex`` and ``Complex[Array, " "]``.
+:data:`ScalarFloat`
+    Union of ``float`` and ``Float[Array, " "]``.
+:data:`ScalarInteger`
+    Union of ``int`` and ``Int[Array, " "]``.
+:data:`ScalarNumeric`
+    Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
 
 Notes
 -----

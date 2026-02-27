@@ -8,26 +8,26 @@ ARPES simulations.
 
 Routine Listings
 ----------------
-:func:`read_poscar`
-    Parse VASP POSCAR into CrystalGeometry.
+:func:`apply_kpath_ticks`
+    Annotate a plot axis with KPathInfo symmetry labels.
+:func:`load_from_h5`
+    Load PyTrees from an HDF5 file.
+:func:`plot_arpes_spectrum`
+    Plot an ARPES map from an ArpesSpectrum PyTree.
+:func:`plot_arpes_with_kpath`
+    Plot an ARPES map and apply KPathInfo axis annotations.
+:func:`read_doscar`
+    Parse VASP DOSCAR into DensityOfStates.
 :func:`read_eigenval`
     Parse VASP EIGENVAL into BandStructure.
 :func:`read_kpoints`
     Parse VASP KPOINTS into KPathInfo.
-:func:`read_doscar`
-    Parse VASP DOSCAR into DensityOfStates.
+:func:`read_poscar`
+    Parse VASP POSCAR into CrystalGeometry.
 :func:`read_procar`
     Parse VASP PROCAR into OrbitalProjection.
-:func:`plot_arpes_spectrum`
-    Plot an ARPES map from an ArpesSpectrum PyTree.
-:func:`apply_kpath_ticks`
-    Annotate a plot axis with KPathInfo symmetry labels.
-:func:`plot_arpes_with_kpath`
-    Plot an ARPES map and apply KPathInfo axis annotations.
 :func:`save_to_h5`
     Save one or more named PyTrees to an HDF5 file.
-:func:`load_from_h5`
-    Load PyTrees from an HDF5 file.
 
 Notes
 -----

@@ -1,4 +1,36 @@
-"""Tests for PyTree factory functions."""
+"""Tests for PyTree factory functions.
+
+Extended Summary
+----------------
+Exercises the type module factory functions: make_crystal_geometry,
+make_density_of_states, make_kpath_info, make_simulation_params,
+make_polarization_config, make_band_structure, make_orbital_projection,
+and make_arpes_spectrum. Tests verify correct construction, shape
+validation, optional arguments (e.g. kpoint_weights, spin, oam),
+reciprocal lattice computation, JAX PyTree round-trip fidelity, and
+explicit k-point weights in make_band_structure. All test logic and
+assertions are documented in the docstrings of each test class and
+method.
+
+Routine Listings
+----------------
+:class:`TestMakeArpesSpectrum`
+    Tests for make_arpes_spectrum.
+:class:`TestMakeBandStructure`
+    Tests for make_band_structure.
+:class:`TestMakeCrystalGeometry`
+    Tests for make_crystal_geometry.
+:class:`TestMakeDensityOfStates`
+    Tests for make_density_of_states.
+:class:`TestMakeKPathInfo`
+    Tests for make_kpath_info.
+:class:`TestMakeOrbitalProjection`
+    Tests for make_orbital_projection.
+:class:`TestMakePolarizationConfig`
+    Tests for make_polarization_config.
+:class:`TestMakeSimulationParams`
+    Tests for make_simulation_params.
+"""
 
 import chex
 import jax

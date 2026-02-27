@@ -8,14 +8,14 @@ and light polarization configuration.
 
 Routine Listings
 ----------------
-:class:`SimulationParams`
-    PyTree for core simulation parameters.
 :class:`PolarizationConfig`
     PyTree for photon polarization geometry.
-:func:`make_simulation_params`
-    Factory for SimulationParams.
+:class:`SimulationParams`
+    PyTree for core simulation parameters.
 :func:`make_polarization_config`
     Factory for PolarizationConfig.
+:func:`make_simulation_params`
+    Factory for SimulationParams.
 
 Notes
 -----

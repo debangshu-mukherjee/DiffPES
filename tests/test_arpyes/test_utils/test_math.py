@@ -1,4 +1,22 @@
-"""Tests for math utility functions."""
+"""Tests for ARPES math utility functions.
+
+Extended Summary
+----------------
+Exercises the utils.math module: faddeeva (complex error function)
+and zscore_normalize. Faddeeva tests cover the real axis, the
+imaginary axis, and the known value at the origin; each is run with
+and without JIT. Z-score tests cover normalisation statistics,
+constant input (zero std guard), and 2D input. All test logic and
+assertions are documented in the docstrings of each test class
+and method.
+
+Routine Listings
+----------------
+:class:`TestFaddeeva`
+    Tests for faddeeva.
+:class:`TestZscoreNormalize`
+    Tests for zscore_normalize.
+"""
 
 import chex
 import jax.numpy as jnp

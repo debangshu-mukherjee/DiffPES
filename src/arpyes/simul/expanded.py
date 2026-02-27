@@ -8,21 +8,22 @@ used internally by arpyes.
 
 Routine Listings
 ----------------
-:func:`_build_inputs`
-    Build internal PyTrees from plain arrays.
-    Internal helper function.
-:func:`simulate_novice_expanded`
-    Novice-level simulation with expanded inputs.
+:func:`make_expanded_simulation_params`
+    Build expanded-input simulation parameters from eigenbands.
+:func:`simulate_advanced_expanded`
+    Advanced-level simulation with expanded inputs.
 :func:`simulate_basic_expanded`
     Basic-level simulation with expanded inputs.
 :func:`simulate_basicplus_expanded`
     Basicplus-level simulation with expanded inputs.
-:func:`simulate_advanced_expanded`
-    Advanced-level simulation with expanded inputs.
-:func:`simulate_expert_expanded`
-    Expert-level simulation with expanded inputs.
 :func:`simulate_expanded`
     Dispatch an expanded simulation by complexity level.
+:func:`simulate_expert_expanded`
+    Expert-level simulation with expanded inputs.
+:func:`simulate_novice_expanded`
+    Novice-level simulation with expanded inputs.
+:func:`simulate_soc_expanded`
+    SOC-level simulation with expanded inputs (requires surface_spin).
 
 Notes
 -----

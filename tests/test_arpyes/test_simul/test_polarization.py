@@ -1,4 +1,23 @@
-"""Tests for polarization functions."""
+"""Tests for ARPES polarization and dipole matrix element functions.
+
+Extended Summary
+----------------
+Exercises build_polarization_vectors, build_efield, and
+dipole_matrix_elements. Verifies orthogonality and unit norm of the
+s- and p-polarization basis, correct efield for LVP, LHP, LAP, RCP,
+LCP and unknown-type fallback, and dipole matrix element non-negativity
+and shape. All test logic and assertions are documented in the
+docstrings of each test class and method.
+
+Routine Listings
+----------------
+:class:`TestBuildEfield`
+    Tests for build_efield.
+:class:`TestBuildPolarizationVectors`
+    Tests for build_polarization_vectors.
+:class:`TestDipoleMatrixElements`
+    Tests for dipole_matrix_elements.
+"""
 
 import chex
 import jax.numpy as jnp

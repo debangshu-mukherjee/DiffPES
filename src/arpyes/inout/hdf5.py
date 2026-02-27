@@ -10,10 +10,10 @@ stored as HDF5 group attributes in JSON format.
 
 Routine Listings
 ----------------
-:func:`save_to_h5`
-    Save one or more named PyTrees to an HDF5 file.
 :func:`load_from_h5`
     Load PyTrees from an HDF5 file.
+:func:`save_to_h5`
+    Save one or more named PyTrees to an HDF5 file.
 
 Notes
 -----
@@ -80,53 +80,183 @@ class _PyTreeMeta:
 def _encode_none(
     _aux: None,  # noqa: ARG001
 ) -> None:
-    """Encode ``None`` aux_data as JSON ``null``."""
+    """Encode PyTree auxiliary data ``None`` for JSON storage.
+
+    Used for PyTree types that have no auxiliary data (e.g. DensityOfStates).
+    The value is returned unchanged; when written to JSON it becomes
+    ``null``.
+
+    Parameters
+    ----------
+    _aux : None
+        The auxiliary data to encode (must be None).
+
+    Returns
+    -------
+    None
+        Unchanged; serializers write this as JSON ``null``.
+    """
 
 
 def _decode_none(
     _val: None,  # noqa: ARG001
 ) -> None:
-    """Decode JSON ``null`` back to ``None``."""
+    """Decode JSON ``null`` back to PyTree auxiliary data ``None``.
+
+    Inverse of ``_encode_none``. Used when loading PyTrees that have
+    no auxiliary data.
+
+    Parameters
+    ----------
+    _val : None
+        The decoded value (expected to be None / JSON null).
+
+    Returns
+    -------
+    None
+        The reconstructed auxiliary data for the PyTree.
+    """
 
 
 def _encode_int(aux: int) -> int:
-    """Encode ``int`` aux_data as JSON integer."""
+    """Encode PyTree auxiliary integer for JSON storage.
+
+    Converts the Python int to a JSON-serialisable integer. Used for
+    types that store a single int in auxiliary data (e.g. SimulationParams
+    fidelity).
+
+    Parameters
+    ----------
+    aux : int
+        The auxiliary integer to encode.
+
+    Returns
+    -------
+    int
+        The same value, guaranteed to be a plain Python int for JSON.
+    """
     return int(aux)
 
 
 def _decode_int(val: Any) -> int:  # noqa: ANN401
-    """Decode JSON integer back to Python ``int``."""
+    """Decode a JSON integer back to Python int for PyTree auxiliary data.
+
+    Inverse of ``_encode_int``. Accepts any value and casts to int so that
+    JSON number types are correctly restored.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (typically an int or float).
+
+    Returns
+    -------
+    int
+        The reconstructed auxiliary integer.
+    """
     return int(val)
 
 
 def _encode_str(aux: str) -> str:
-    """Encode ``str`` aux_data as JSON string."""
+    """Encode PyTree auxiliary string for JSON storage.
+
+    Returns the string unchanged so it can be written as a JSON string.
+    Used for single-string auxiliary fields.
+
+    Parameters
+    ----------
+    aux : str
+        The auxiliary string to encode.
+
+    Returns
+    -------
+    str
+        The same string for JSON serialisation.
+    """
     return str(aux)
 
 
 def _decode_str(val: Any) -> str:  # noqa: ANN401
-    """Decode JSON string back to Python ``str``."""
+    """Decode a JSON string back to Python str for PyTree auxiliary data.
+
+    Inverse of ``_encode_str``. Converts the loaded value to str so that
+    non-string JSON types (if any) are normalised.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (typically a string).
+
+    Returns
+    -------
+    str
+        The reconstructed auxiliary string.
+    """
     return str(val)
 
 
 def _encode_tuple_str(
     aux: tuple[str, ...],
 ) -> list[str]:
-    """Encode ``tuple[str, ...]`` as JSON array of strings."""
+    """Encode PyTree auxiliary tuple of strings for JSON storage.
+
+    JSON does not support tuples; the tuple is converted to a list of
+    strings so that it can be serialised. Used for types that store
+    sequences of strings (e.g. KPathInfo labels).
+
+    Parameters
+    ----------
+    aux : tuple[str, ...]
+        The auxiliary tuple of strings to encode.
+
+    Returns
+    -------
+    list[str]
+        A list of the same strings for JSON array serialisation.
+    """
     return list(aux)
 
 
 def _decode_tuple_str(
     val: Any,  # noqa: ANN401
 ) -> tuple[str, ...]:
-    """Decode JSON array of strings to ``tuple[str, ...]``."""
+    """Decode a JSON array of strings to a tuple for PyTree auxiliary data.
+
+    Inverse of ``_encode_tuple_str``. Each element is coerced to str and
+    the result is returned as an immutable tuple.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (typically a list of strings).
+
+    Returns
+    -------
+    tuple[str, ...]
+        The reconstructed auxiliary tuple of strings.
+    """
     return tuple(str(s) for s in val)
 
 
 def _encode_kpath_aux(
     aux: tuple[str, tuple[str, ...]],
 ) -> list[Any]:
-    """Encode KPathInfo aux ``(mode, labels)`` for JSON."""
+    """Encode KPathInfo auxiliary data (mode, labels) for JSON storage.
+
+    KPathInfo stores ``(mode, labels)`` as auxiliary data. The mode is
+    a string and labels is a tuple of strings. Both are converted to
+    JSON-serialisable form: a two-element list [mode_string, list_of_labels].
+
+    Parameters
+    ----------
+    aux : tuple[str, tuple[str, ...]]
+        The (mode, labels) auxiliary data from KPathInfo.
+
+    Returns
+    -------
+    list[Any]
+        A two-element list [mode, list(labels)] for JSON serialisation.
+    """
     mode, labels = aux
     return [str(mode), list(labels)]
 
@@ -134,7 +264,22 @@ def _encode_kpath_aux(
 def _decode_kpath_aux(
     val: Any,  # noqa: ANN401
 ) -> tuple[str, tuple[str, ...]]:
-    """Decode JSON list to KPathInfo ``(mode, labels)``."""
+    """Decode JSON list back to KPathInfo auxiliary (mode, labels).
+
+    Inverse of ``_encode_kpath_aux``. Expects a list of length at least
+    two: the first element is the mode string, the second is a sequence
+    of label strings, which is converted to a tuple.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (a list [mode, labels_list]).
+
+    Returns
+    -------
+    tuple[str, tuple[str, ...]]
+        The reconstructed (mode, labels) auxiliary data for KPathInfo.
+    """
     return (str(val[0]), tuple(str(s) for s in val[1]))
 
 

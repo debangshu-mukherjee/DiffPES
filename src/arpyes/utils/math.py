@@ -22,65 +22,62 @@ giving double-precision accuracy for |z| < 6.
 
 import math
 
+import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 _N_TAYLOR: int = 64
 
 
-def _faddeeva_taylor_coeffs() -> list[complex]:
-    """Taylor coefficients of w(z) = exp(-z^2) erfc(-iz).
+def _faddeeva_taylor_coeffs() -> Complex[Array, " N"]:
+    r"""Taylor coefficients of w(z) = exp(-z^2) erfc(-iz) via JAX scan.
 
     Computes the first ``_N_TAYLOR`` coefficients of the Taylor expansion
-    of the Faddeeva function about the origin using a three-term recurrence
-    relation derived from the defining ODE w'(z) = -2z w(z) + 2i/sqrt(pi).
-
-    Implementation Logic
-    --------------------
-    The recurrence is derived by substituting the power series
-    w(z) = sum_n a_n z^n into the ODE and matching coefficients:
-
-    1. **Seed values** -- set the first two coefficients from the known
-       boundary conditions of the Faddeeva function:
-       a_0 = 1  (w(0) = erfc(0) = 1),
-       a_1 = 2i / sqrt(pi)  (from w'(0) = 2i/sqrt(pi)).
-
-    2. **Three-term recurrence** -- for n >= 1 iterate:
-       a_{n+1} = -2 * a_{n-1} / (n + 1).
-       This follows directly from the ODE: equating the z^n coefficient
-       on both sides yields (n+1) a_{n+1} = -2 a_{n-1}.
-
-    3. **Return** the coefficient list of length ``_N_TAYLOR``.
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    c : list[complex]
-        Taylor coefficients [a_0, a_1, ..., a_{N-1}] where
-        N = ``_N_TAYLOR``.
-
-    Notes
-    -----
-    The recurrence skips every other coefficient (even indices are real,
-    odd indices are purely imaginary), producing an alternating pattern
-    that mirrors the parity structure of the Faddeeva function.
+    of the Faddeeva function about the origin. The recurrence is derived
+    from the ODE w'(z) = -2z w(z) + 2i/sqrt(pi): substituting
+    w(z) = sum_n a_n z^n and matching coefficients yields
+    a_0 = 1, a_1 = 2i/sqrt(pi), and a_{n+1} = -2*a_{n-1}/(n+1) for n >= 1.
+    With 0-based step index n in the scan, the next coefficient is
+    next = -2*c_prev/(n+2). The scan carry is (c_prev, c_curr); each step
+    outputs the new coefficient and updates the carry. Seed values c0 and
+    c1 are set; the scan produces c[2] through c[_N_TAYLOR-1], which are
+    concatenated with c0 and c1 to form the full coefficient vector.
+    Implemented with ``jax.lax.scan`` so that no Python for loop is used.
     """
-    c: list[complex] = [0j] * _N_TAYLOR
-    c[0] = 1.0 + 0j
-    c[1] = 2.0j / math.sqrt(math.pi)
-    for n in range(1, _N_TAYLOR - 1):
-        c[n + 1] = -2.0 * c[n - 1] / (n + 1)
-    return c
+
+    c0: Complex[Array, " "] = jnp.array(
+        1.0 + 0j, dtype=jnp.complex128
+    )
+    c1: Complex[Array, " "] = jnp.array(
+        2.0j / math.sqrt(math.pi), dtype=jnp.complex128
+    )
+
+    def body(
+        carry: tuple[Complex[Array, " "], Complex[Array, " "]],
+        n: Int[Array, ""],
+    ) -> tuple[
+        tuple[Complex[Array, " "], Complex[Array, " "]],
+        Complex[Array, " "],
+    ]:
+        c_prev, c_curr = carry
+        next_c: Complex[Array, " "] = (-2.0 * c_prev) / (
+            jnp.asarray(n, dtype=jnp.float64) + 2.0
+        )
+        return (c_curr, next_c), next_c
+
+    _, rest = jax.lax.scan(
+        body,
+        (c0, c1),
+        jnp.arange(_N_TAYLOR - 2, dtype=jnp.int32),
+    )
+    full: Complex[Array, " N"] = jnp.concatenate(
+        [c0[None], c1[None], rest]
+    )
+    return full
 
 
-_W_POLY: Complex[Array, " N"] = jnp.array(
-    _faddeeva_taylor_coeffs()[::-1],
-    dtype=jnp.complex128,
-)
+_W_POLY: Complex[Array, " N"] = _faddeeva_taylor_coeffs()[::-1]
 
 
 @jaxtyped(typechecker=beartype)

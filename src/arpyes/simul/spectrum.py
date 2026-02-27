@@ -10,16 +10,16 @@ efficient GPU execution.
 
 Routine Listings
 ----------------
-:func:`simulate_novice`
-    Voigt broadening with uniform orbital weights.
+:func:`simulate_advanced`
+    Gaussian with Yeh-Lindau and polarization selection rules.
 :func:`simulate_basic`
     Gaussian broadening with heuristic orbital weights.
 :func:`simulate_basicplus`
     Gaussian broadening with Yeh-Lindau cross-sections.
-:func:`simulate_advanced`
-    Gaussian with Yeh-Lindau and polarization selection rules.
 :func:`simulate_expert`
     Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`simulate_novice`
+    Voigt broadening with uniform orbital weights.
 :func:`simulate_soc`
     Expert model plus spin-orbit (S·k_photon) correction.
 
@@ -29,6 +29,9 @@ All functions accept :class:`~arpyes.types.BandStructure`,
 :class:`~arpyes.types.OrbitalProjection`, and
 :class:`~arpyes.types.SimulationParams` PyTrees and return an
 :class:`~arpyes.types.ArpesSpectrum` PyTree.
+
+The ``if is_unpolarized`` branches are intentional Python-side dispatch
+(config choice); they are not traced, so only one path is compiled per call.
 """
 
 import jax

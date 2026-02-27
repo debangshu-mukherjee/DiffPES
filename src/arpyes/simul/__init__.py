@@ -9,52 +9,54 @@ models, polarization utilities, and orbital angular momentum.
 
 Routine Listings
 ----------------
-:func:`simulate_novice`
-    Voigt broadening with uniform orbital weights.
-:func:`simulate_basic`
-    Gaussian broadening with heuristic orbital weights.
-:func:`simulate_basicplus`
-    Gaussian broadening with Yeh-Lindau cross-sections.
-:func:`simulate_advanced`
-    Gaussian with Yeh-Lindau and polarization selection rules.
-:func:`simulate_expert`
-    Voigt with Yeh-Lindau, polarization, and dipole elements.
-:func:`simulate_soc`
-    Expert plus spin-orbit (S·k_photon) correction.
-:func:`simulate_expanded`
-    Expanded-input dispatcher for the five simulation levels.
-:func:`simulate_novice_expanded`
-    Expanded-input novice wrapper.
-:func:`simulate_basic_expanded`
-    Expanded-input basic wrapper.
-:func:`simulate_basicplus_expanded`
-    Expanded-input basicplus wrapper.
-:func:`simulate_advanced_expanded`
-    Expanded-input advanced wrapper.
-:func:`simulate_expert_expanded`
-    Expanded-input expert wrapper.
-:func:`simulate_soc_expanded`
-    Expanded-input SOC wrapper (requires surface_spin).
-:func:`make_expanded_simulation_params`
-    Build expanded-input simulation parameters from eigenbands.
-:func:`gaussian`
-    Normalized Gaussian broadening profile.
-:func:`voigt`
-    Normalized Voigt profile via the Faddeeva function.
-:func:`fermi_dirac`
-    Fermi-Dirac thermal distribution function.
-:func:`heuristic_weights`
-    Energy-dependent heuristic orbital weights.
-:func:`yeh_lindau_weights`
-    Interpolated Yeh-Lindau cross-section weights.
-:func:`build_polarization_vectors`
-    Construct s- and p-polarization basis vectors.
 :func:`build_efield`
     Compute electric field vector from polarization config.
-:func:`dipole_matrix_elements`
-    Compute dipole matrix elements for all 9 orbitals.
+:func:`build_polarization_vectors`
+    Construct s- and p-polarization basis vectors.
 :func:`compute_oam`
     Compute orbital angular momentum from projections.
+:func:`dipole_matrix_elements`
+    Compute dipole matrix elements for all 9 orbitals.
+:func:`fermi_dirac`
+    Fermi-Dirac thermal distribution function.
+:func:`gaussian`
+    Normalized Gaussian broadening profile.
+:func:`heuristic_weights`
+    Energy-dependent heuristic orbital weights.
+:func:`make_expanded_simulation_params`
+    Build expanded-input simulation parameters from eigenbands.
+:func:`photon_wavevector`
+    Unit photon propagation vector from incidence angles.
+:func:`simulate_advanced`
+    Gaussian with Yeh-Lindau and polarization selection rules.
+:func:`simulate_advanced_expanded`
+    Expanded-input advanced wrapper.
+:func:`simulate_basic`
+    Gaussian broadening with heuristic orbital weights.
+:func:`simulate_basic_expanded`
+    Expanded-input basic wrapper.
+:func:`simulate_basicplus`
+    Gaussian broadening with Yeh-Lindau cross-sections.
+:func:`simulate_basicplus_expanded`
+    Expanded-input basicplus wrapper.
+:func:`simulate_expanded`
+    Expanded-input dispatcher by complexity level.
+:func:`simulate_expert`
+    Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`simulate_expert_expanded`
+    Expanded-input expert wrapper.
+:func:`simulate_novice`
+    Voigt broadening with uniform orbital weights.
+:func:`simulate_novice_expanded`
+    Expanded-input novice wrapper.
+:func:`simulate_soc`
+    Expert plus spin-orbit (S·k_photon) correction.
+:func:`simulate_soc_expanded`
+    Expanded-input SOC wrapper (requires surface_spin).
+:func:`voigt`
+    Normalized Voigt profile via the Faddeeva function.
+:func:`yeh_lindau_weights`
+    Interpolated Yeh-Lindau cross-section weights.
 
 Notes
 -----

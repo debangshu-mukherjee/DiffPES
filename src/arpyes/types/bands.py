@@ -8,18 +8,18 @@ the primary inputs to all ARPES simulation functions.
 
 Routine Listings
 ----------------
+:class:`ArpesSpectrum`
+    PyTree for ARPES simulation output.
 :class:`BandStructure`
     PyTree for eigenvalues and k-point data.
 :class:`OrbitalProjection`
     PyTree for orbital-resolved band projections.
-:class:`ArpesSpectrum`
-    PyTree for ARPES simulation output.
+:func:`make_arpes_spectrum`
+    Factory for ArpesSpectrum.
 :func:`make_band_structure`
     Factory for BandStructure with validation.
 :func:`make_orbital_projection`
     Factory for OrbitalProjection with validation.
-:func:`make_arpes_spectrum`
-    Factory for ArpesSpectrum.
 
 Notes
 -----

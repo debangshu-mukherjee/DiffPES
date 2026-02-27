@@ -8,10 +8,10 @@ publication-style ARPES intensity maps.
 
 Routine Listings
 ----------------
-:func:`plot_arpes_spectrum`
-    Plot an ARPES intensity map from an ArpesSpectrum.
 :func:`apply_kpath_ticks`
     Apply symmetry-point tick labels from KPathInfo.
+:func:`plot_arpes_spectrum`
+    Plot an ARPES intensity map from an ArpesSpectrum.
 :func:`plot_arpes_with_kpath`
     Plot spectrum and annotate the k-axis with symmetry labels.
 

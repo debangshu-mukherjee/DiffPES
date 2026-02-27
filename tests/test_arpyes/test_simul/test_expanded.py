@@ -1,10 +1,32 @@
 """Tests for expanded-input simulation wrappers.
 
+Extended Summary
+----------------
 Validates the convenience wrappers in :mod:`arpyes.simul.expanded` that
 accept plain arrays and scalars instead of PyTree structures. Tests
-verify that auto-derived energy windows are correct, that each expanded
-wrapper produces results identical to the corresponding core simulation
-function, and that the level-dispatch function routes correctly.
+verify that make_expanded_simulation_params derives energy_min and
+energy_max correctly from eigenband extrema; that each expanded wrapper
+(novice, basic, basicplus, advanced, expert, soc) produces results
+identical to the corresponding core simulation when given equivalent
+inputs; and that simulate_expanded(level=...) dispatches to the correct
+wrapper and that level='soc' requires surface_spin. All test logic and
+assertions are documented in the docstrings of each test class and
+method.
+
+Routine Listings
+----------------
+:class:`TestExpandedAdvancedWrapper`
+    Tests for simulate_advanced_expanded vs simulate_advanced.
+:class:`TestExpandedBasicWrapper`
+    Tests for simulate_basic_expanded vs simulate_basic.
+:class:`TestExpandedDispatch`
+    Tests for simulate_expanded level dispatch.
+:class:`TestExpandedParams`
+    Tests for make_expanded_simulation_params.
+:class:`TestExpandedSocWrapper`
+    Tests for simulate_soc_expanded vs simulate_soc.
+:func:`_make_synthetic_data`
+    Helper to build synthetic eigenbands and orbital arrays.
 """
 
 import chex

@@ -8,14 +8,14 @@ atomic orbital, following standard ARPES selection rules.
 
 Routine Listings
 ----------------
-:func:`build_polarization_vectors`
-    Construct s- and p-polarization basis vectors.
-:func:`photon_wavevector`
-    Unit photon propagation vector from incidence angles.
 :func:`build_efield`
     Compute electric field vector from polarization config.
+:func:`build_polarization_vectors`
+    Construct s- and p-polarization basis vectors.
 :func:`dipole_matrix_elements`
     Compute |e dot d_orbital|^2 for all 9 orbitals.
+:func:`photon_wavevector`
+    Unit photon propagation vector from incidence angles.
 
 Notes
 -----
@@ -24,6 +24,7 @@ Orbital direction vectors follow VASP orbital ordering:
 The s-orbital has zero directionality.
 """
 
+import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
@@ -242,6 +243,14 @@ def build_efield(
          Defaults to s-polarization. Unpolarized averaging is
          handled externally in the simulation loop.
 
+    3. **JAX switch over branches**:
+       An operand tuple (e_s_c, e_p_c, polarization_angle) is built so
+       that all branch functions receive the same traced inputs. The
+       polarization type is mapped to an integer index (lvp=0, lhp=1,
+       lap=2, rcp=3, lcp=4, default=5). ``jax.lax.switch(index, branches,
+       operand)`` invokes the corresponding branch function on the
+       operand and returns the resulting electric field vector.
+
     Parameters
     ----------
     config : PolarizationConfig
@@ -264,21 +273,127 @@ def build_efield(
         jnp.complex128
     )
     pol_type: str = config.polarization_type.lower()
-    if pol_type == "lvp":
-        efield: Complex[Array, " 3"] = e_s_c
-    elif pol_type == "lhp":
-        efield = e_p_c
-    elif pol_type == "lap":
-        efield = (
-            jnp.cos(config.polarization_angle) * e_s_c
-            + jnp.sin(config.polarization_angle) * e_p_c
+    angle: Float[Array, " "] = jnp.asarray(
+        config.polarization_angle, dtype=jnp.float64
+    )
+    operand: Tuple[
+        Complex[Array, " 3"],
+        Complex[Array, " 3"],
+        Float[Array, " "],
+    ] = (e_s_c, e_p_c, angle)
+
+    def branch_lvp(op: Tuple) -> Complex[Array, " 3"]:
+        """Linear vertical polarization: electric field equals s-polarization basis vector.
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). Only the first element is used.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            The s-polarization complex electric field vector.
+        """
+        return op[0]
+
+    def branch_lhp(op: Tuple) -> Complex[Array, " 3"]:
+        """Linear horizontal polarization: electric field equals p-polarization basis vector.
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). Only the second element is used.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            The p-polarization complex electric field vector.
+        """
+        return op[1]
+
+    def branch_lap(op: Tuple) -> Complex[Array, " 3"]:
+        """Linear arbitrary polarization: cos(angle)*e_s + sin(angle)*e_p.
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). op[2] is the polarization angle in radians.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            The linear combination of s- and p-polarization vectors.
+        """
+        return (
+            jnp.cos(op[2]) * op[0]
+            + jnp.sin(op[2]) * op[1]
         )
-    elif pol_type == "rcp":
-        efield = (e_s_c + 1j * e_p_c) / jnp.sqrt(2.0)
-    elif pol_type == "lcp":
-        efield = (e_s_c - 1j * e_p_c) / jnp.sqrt(2.0)
-    else:
-        efield = e_s_c
+
+    def branch_rcp(op: Tuple) -> Complex[Array, " 3"]:
+        """Right circular polarization: (e_s + i*e_p)/sqrt(2).
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). First two elements are used.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            Right-handed circular polarization electric field.
+        """
+        return (op[0] + 1j * op[1]) / jnp.sqrt(2.0)
+
+    def branch_lcp(op: Tuple) -> Complex[Array, " 3"]:
+        """Left circular polarization: (e_s - i*e_p)/sqrt(2).
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). First two elements are used.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            Left-handed circular polarization electric field.
+        """
+        return (op[0] - 1j * op[1]) / jnp.sqrt(2.0)
+
+    def branch_default(op: Tuple) -> Complex[Array, " 3"]:
+        """Fallback for unknown or unpolarized type: return s-polarization.
+
+        Parameters
+        ----------
+        op : Tuple
+            Operand (e_s_c, e_p_c, angle). Only the first element is used.
+
+        Returns
+        -------
+        Complex[Array, " 3"]
+            The s-polarization vector as the default.
+        """
+        return op[0]
+
+    _POL_INDEX: dict[str, int] = {
+        "lvp": 0,
+        "lhp": 1,
+        "lap": 2,
+        "rcp": 3,
+        "lcp": 4,
+    }
+    index: int = _POL_INDEX.get(pol_type, 5)
+    branches: Tuple = (
+        branch_lvp,
+        branch_lhp,
+        branch_lap,
+        branch_rcp,
+        branch_lcp,
+        branch_default,
+    )
+    efield: Complex[Array, " 3"] = jax.lax.switch(
+        index, branches, operand
+    )
     return efield
 
 

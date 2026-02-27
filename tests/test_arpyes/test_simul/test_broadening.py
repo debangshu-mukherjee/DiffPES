@@ -1,4 +1,24 @@
-"""Tests for broadening functions."""
+"""Tests for ARPES broadening functions.
+
+Extended Summary
+----------------
+Exercises the broadening module: gaussian, voigt, and fermi_dirac.
+Each test is run with and without JIT (via chex.variants) to ensure
+correctness under transformation. Tests cover normalization (unit
+integral), peak position, symmetry, reduction of Voigt to Gaussian
+when Lorentzian width is negligible, and Fermi-Dirac behaviour at
+and away from the Fermi level. All test logic and assertions are
+documented in the docstrings of each test class and method.
+
+Routine Listings
+----------------
+:class:`TestFermiDirac`
+    Tests for fermi_dirac.
+:class:`TestGaussian`
+    Tests for gaussian.
+:class:`TestVoigt`
+    Tests for voigt.
+"""
 
 import chex
 import jax.numpy as jnp

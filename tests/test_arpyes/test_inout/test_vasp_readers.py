@@ -1,8 +1,29 @@
 """Tests for VASP file readers.
 
-Uses minimal fixture files under fixtures/ to exercise the parsing
-paths of read_doscar, read_eigenval, read_kpoints, read_poscar,
-and read_procar.
+Extended Summary
+----------------
+Exercises the VASP file parsing API: read_doscar, read_eigenval,
+read_kpoints, read_poscar, and read_procar. Each reader is tested
+against minimal but valid fixture files under fixtures/ so that
+parsing logic, shape construction, and numeric values can be
+asserted without external data. Tests cover Line-mode, Automatic,
+and Explicit KPOINTS; VASP4 and VASP5 POSCAR formats; and
+multi-k-point EIGENVAL and label-extraction branches in KPOINTS.
+All test logic is documented in the docstrings of each class
+and test method.
+
+Routine Listings
+----------------
+:class:`TestReadDoscar`
+    Tests for read_doscar.
+:class:`TestReadEigenval`
+    Tests for read_eigenval.
+:class:`TestReadKpoints`
+    Tests for read_kpoints.
+:class:`TestReadPoscar`
+    Tests for read_poscar.
+:class:`TestReadProcar`
+    Tests for read_procar.
 """
 
 from pathlib import Path
@@ -22,10 +43,22 @@ _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
 
 
 class TestReadDoscar(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_doscar`."""
+    """Tests for :func:`arpyes.inout.read_doscar`.
+
+    Verifies that the DOSCAR parser produces a valid DensityOfStates
+    PyTree with correct array shapes and expected numeric values from
+    the minimal fixture.
+    """
 
     def test_parses_minimal_doscar(self):
-        """Parse minimal DOSCAR fixture and check DensityOfStates."""
+        """Read minimal DOSCAR fixture and assert shape and key values of DensityOfStates.
+
+        Loads the fixtures/DOSCAR file and asserts that energy and
+        total_dos have shape (5,), fermi_energy is scalar, and
+        selected elements match the known fixture values (fermi 0.5,
+        first energy -2.0, middle DOS 0.5). Ensures the parser
+        correctly interprets the DOSCAR header and data block.
+        """
         path = _FIXTURES_DIR / "DOSCAR"
         dos = read_doscar(str(path))
         chex.assert_shape(dos.energy, (5,))
@@ -37,10 +70,21 @@ class TestReadDoscar(chex.TestCase):
 
 
 class TestReadEigenval(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_eigenval`."""
+    """Tests for :func:`arpyes.inout.read_eigenval`.
+
+    Covers single- and multi-k-point EIGENVAL parsing, including
+    the loop branch for multiple k-points, and asserts BandStructure
+    shapes and eigenvalue/k-point values.
+    """
 
     def test_parses_minimal_eigenval(self):
-        """Parse minimal EIGENVAL fixture (1 k-point, 1 band) and check BandStructure."""
+        """Read minimal EIGENVAL (1 k-point, 1 band) and assert BandStructure shape and values.
+
+        Uses the minimal EIGENVAL fixture and fermi_energy=-0.5.
+        Asserts eigenvalues shape (1, 1), kpoints (1, 3),
+        kpoint_weights (1,), k-point [0,0,0], fermi -0.5, and
+        eigenvalue -1.5. Validates header and per-k-point block parsing.
+        """
         path = _FIXTURES_DIR / "EIGENVAL"
         bands = read_eigenval(str(path), fermi_energy=-0.5)
         chex.assert_shape(bands.eigenvalues, (1, 1))
@@ -55,7 +99,13 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_parses_eigenval_two_kpoints(self):
-        """Parse EIGENVAL with 2 k-points to cover multi-k-point loop branch."""
+        """Read EIGENVAL with 2 k-points and assert both k-points and eigenvalues.
+
+        Uses EIGENVAL_two_kp fixture to exercise the parser's loop
+        over multiple k-points (including the branch between k-point
+        blocks). Asserts eigenvalues shape (2, 1), k-points at
+        [0,0,0] and [0.5,0,0], and eigenvalues -1.0 and -0.5.
+        """
         path = _FIXTURES_DIR / "EIGENVAL_two_kp"
         bands = read_eigenval(str(path), fermi_energy=0.0)
         chex.assert_shape(bands.eigenvalues, (2, 1))
@@ -75,10 +125,21 @@ class TestReadEigenval(chex.TestCase):
 
 
 class TestReadKpoints(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_kpoints`."""
+    """Tests for :func:`arpyes.inout.read_kpoints`.
+
+    Covers Line-mode (with and without label fallback), Automatic,
+    and Explicit KPOINTS formats. Asserts mode string, num_kpoints,
+    and presence of expected labels.
+    """
 
     def test_line_mode(self):
-        """Parse Line-mode KPOINTS and check labels and indices."""
+        """Read Line-mode KPOINTS and assert mode, num_kpoints, and symmetry labels.
+
+        Parses KPOINTS_line fixture. Asserts mode is "Line-mode",
+        num_kpoints is 4, and labels include G, X, M with at least
+        two labels and two label indices. Validates segment parsing
+        and label extraction from lines with "! LABEL" convention.
+        """
         path = _FIXTURES_DIR / "KPOINTS_line"
         kpath = read_kpoints(str(path))
         assert kpath.mode == "Line-mode"
@@ -90,14 +151,26 @@ class TestReadKpoints(chex.TestCase):
         assert len(kpath.label_indices) >= 2
 
     def test_automatic_mode(self):
-        """Parse Automatic (Monkhorst-Pack) KPOINTS."""
+        """Read Automatic (Monkhorst-Pack) KPOINTS and assert mode and zero k-point count.
+
+        Parses KPOINTS_auto. Asserts mode is "Automatic" and
+        num_kpoints is 0, as required for grid-based sampling
+        where VASP determines the grid size internally.
+        """
         path = _FIXTURES_DIR / "KPOINTS_auto"
         kpath = read_kpoints(str(path))
         assert kpath.mode == "Automatic"
         chex.assert_equal(kpath.num_kpoints, 0)
 
     def test_line_mode_label_fallback(self):
-        """Parse Line-mode KPOINTS with 5-token line (label from last token) and 3-token line (no label)."""
+        """Read Line-mode KPOINTS using fallback label extraction (no "!" prefix).
+
+        Uses KPOINTS_line_fallback where one line has five tokens
+        (coordinates plus weight and label "G") and another has three
+        (no label). Asserts mode is "Line-mode", "G" appears in
+        labels, and the empty or second label is present, exercising
+        _extract_label branches for len(parts) > 4 and return "".
+        """
         path = _FIXTURES_DIR / "KPOINTS_line_fallback"
         kpath = read_kpoints(str(path))
         assert kpath.mode == "Line-mode"
@@ -105,7 +178,12 @@ class TestReadKpoints(chex.TestCase):
         assert "" in kpath.labels or len(kpath.labels) == 2
 
     def test_explicit_mode(self):
-        """Parse Explicit KPOINTS."""
+        """Read Explicit KPOINTS and assert mode and k-point count.
+
+        Parses KPOINTS_explicit. Asserts mode is "Explicit" and
+        num_kpoints is 3, confirming that the header value is
+        used when the file lists k-points explicitly.
+        """
         path = _FIXTURES_DIR / "KPOINTS_explicit"
         kpath = read_kpoints(str(path))
         assert kpath.mode == "Explicit"
@@ -113,10 +191,20 @@ class TestReadKpoints(chex.TestCase):
 
 
 class TestReadPoscar(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_poscar`."""
+    """Tests for :func:`arpyes.inout.read_poscar`.
+
+    Covers VASP5 (species + Direct), VASP4 (Cartesian), and
+    selective-dynamics POSCAR formats. Asserts lattice, coords,
+    symbols, and atom_counts as appropriate.
+    """
 
     def test_parses_vasp5_direct(self):
-        """Parse VASP-5 POSCAR with species and Direct coordinates."""
+        """Read VASP-5 POSCAR with species and Direct coordinates and assert geometry.
+
+        Parses the default POSCAR fixture. Asserts lattice (3,3),
+        coords (6,3), symbols ("Si", "O"), and atom_counts [2, 4].
+        Validates species line parsing and direct-coordinate scaling.
+        """
         path = _FIXTURES_DIR / "POSCAR"
         geom = read_poscar(str(path))
         chex.assert_shape(geom.lattice, (3, 3))
@@ -127,7 +215,12 @@ class TestReadPoscar(chex.TestCase):
         )
 
     def test_parses_vasp4_cartesian(self):
-        """Parse VASP-4 POSCAR with Cartesian coordinates."""
+        """Read VASP-4 POSCAR with Cartesian coordinates and assert geometry.
+
+        Parses POSCAR_cartesian (no species line). Asserts coords
+        shape (2, 3), empty symbols, and atom_counts [2]. Validates
+        Cartesian path and single-species fallback.
+        """
         path = _FIXTURES_DIR / "POSCAR_cartesian"
         geom = read_poscar(str(path))
         chex.assert_shape(geom.coords, (2, 3))
@@ -137,7 +230,13 @@ class TestReadPoscar(chex.TestCase):
         )
 
     def test_parses_selective_dynamics(self):
-        """Parse POSCAR with Selective dynamics line."""
+        """Read POSCAR with Selective dynamics line and assert coordinates.
+
+        Parses POSCAR_selective. Asserts coords shape (1, 3) and
+        first coordinate [0, 0, 0]. Validates that the selective
+        dynamics line is consumed and coordinates are still read
+        correctly.
+        """
         path = _FIXTURES_DIR / "POSCAR_selective"
         geom = read_poscar(str(path))
         chex.assert_shape(geom.coords, (1, 3))
@@ -147,10 +246,21 @@ class TestReadPoscar(chex.TestCase):
 
 
 class TestReadProcar(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_procar`."""
+    """Tests for :func:`arpyes.inout.read_procar`.
+
+    Verifies that the PROCAR parser produces an OrbitalProjection
+    with correct projection array shape and optional spin/oam
+    absent when not present in the file.
+    """
 
     def test_parses_minimal_procar(self):
-        """Parse minimal PROCAR and check OrbitalProjection."""
+        """Read minimal PROCAR and assert OrbitalProjection shape and sample values.
+
+        Loads the minimal PROCAR fixture. Asserts projections shape
+        (2, 2, 1, 9), selected projection values (0.1 and 0.18),
+        and that spin and oam are None. Validates k-point/band/ion
+        block parsing and orbital channel ordering.
+        """
         path = _FIXTURES_DIR / "PROCAR"
         orb = read_procar(str(path))
         chex.assert_shape(orb.projections, (2, 2, 1, 9))

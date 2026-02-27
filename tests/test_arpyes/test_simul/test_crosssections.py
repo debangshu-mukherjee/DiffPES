@@ -1,4 +1,21 @@
-"""Tests for cross-section weight functions."""
+"""Tests for ARPES cross-section weight functions.
+
+Extended Summary
+----------------
+Exercises heuristic_weights and yeh_lindau_weights. Heuristic tests
+verify the two-regime model (p-enhanced below 50 eV, d-enhanced above),
+output shape (9,), and JIT compatibility. Yeh-Lindau tests verify
+interpolation at a fixed photon energy, output shape, and non-negative
+weights. All test logic and assertions are documented in the docstrings
+of each test class and method.
+
+Routine Listings
+----------------
+:class:`TestHeuristicWeights`
+    Tests for heuristic_weights.
+:class:`TestYehLindauWeights`
+    Tests for yeh_lindau_weights.
+"""
 
 import chex
 import jax.numpy as jnp

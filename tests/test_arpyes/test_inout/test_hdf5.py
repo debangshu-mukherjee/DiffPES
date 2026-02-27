@@ -1,4 +1,42 @@
-"""Tests for HDF5 PyTree serializer and deserializer."""
+"""Tests for HDF5 PyTree save/load.
+
+Extended Summary
+----------------
+Exercises save_to_h5 and load_from_h5 for all registered PyTree types:
+DensityOfStates, BandStructure, CrystalGeometry, KPathInfo,
+SimulationParams, PolarizationConfig, ArpesSpectrum, OrbitalProjection
+(variants with spin/oam), and multi-PyTree save/load. Round-trip tests
+assert numerical equality within tolerance; error-handling tests assert
+raises for unknown types, missing groups, and invalid options.
+Compression and dataset flags are tested where applicable. All test
+logic and assertions are documented in the docstrings of each test
+class and method.
+
+Routine Listings
+----------------
+:class:`TestArpesSpectrum`
+    Round-trip tests for ArpesSpectrum.
+:class:`TestBandStructure`
+    Round-trip tests for BandStructure.
+:class:`TestCrystalGeometry`
+    Round-trip tests for CrystalGeometry.
+:class:`TestDatasetFlags`
+    Tests for compression and dataset options.
+:class:`TestDensityOfStates`
+    Round-trip tests for DensityOfStates.
+:class:`TestErrorHandling`
+    Tests for load/save error conditions.
+:class:`TestKPathInfo`
+    Round-trip tests for KPathInfo.
+:class:`TestMultiPyTree`
+    Tests for saving and loading multiple PyTrees.
+:class:`TestOrbitalProjection`
+    Round-trip tests for OrbitalProjection (with/without spin/oam).
+:class:`TestPolarizationConfig`
+    Round-trip tests for PolarizationConfig.
+:class:`TestSimulationParams`
+    Round-trip tests for SimulationParams.
+"""
 
 import tempfile
 from pathlib import Path
