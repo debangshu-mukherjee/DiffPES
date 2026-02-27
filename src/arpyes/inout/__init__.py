@@ -42,7 +42,12 @@ from .chgcar import read_chgcar
 from .doscar import read_doscar
 from .eigenval import read_eigenval
 from .hdf5 import load_from_h5, save_to_h5
-from .helpers import aggregate_atoms, check_consistency, reduce_orbitals, select_atoms
+from .helpers import (
+    aggregate_atoms,
+    check_consistency,
+    reduce_orbitals,
+    select_atoms,
+)
 from .kpoints import read_kpoints
 from .plotting import (
     apply_kpath_ticks,

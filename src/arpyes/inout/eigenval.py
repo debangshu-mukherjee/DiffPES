@@ -20,10 +20,10 @@ calculations. Bands are sorted by energy within each k-point.
 """
 
 from pathlib import Path
-from typing import Literal
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Literal, Optional, Union
 
 from arpyes.types import (
     BandStructure,
@@ -44,7 +44,7 @@ def read_eigenval(
     filename: str = "EIGENVAL",
     fermi_energy: float = 0.0,
     return_mode: Literal["legacy", "full"] = "legacy",
-) -> BandStructure | SpinBandStructure:
+) -> Union[BandStructure, SpinBandStructure]:
     """Parse a VASP EIGENVAL file.
 
     Reads a VASP EIGENVAL file that contains electronic eigenvalues
@@ -96,7 +96,7 @@ def read_eigenval(
         eigenvalues_up: np.ndarray = np.zeros(
             (nkpoints, nbands), dtype=np.float64
         )
-        eigenvalues_down: np.ndarray | None = None
+        eigenvalues_down: Optional[np.ndarray] = None
         if ispin == _ISPIN_SPIN_POLARIZED:
             eigenvalues_down = np.zeros(
                 (nkpoints, nbands), dtype=np.float64

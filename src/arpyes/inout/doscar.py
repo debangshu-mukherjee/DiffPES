@@ -21,10 +21,10 @@ file header.
 """
 
 from pathlib import Path
-from typing import Literal, Union
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Literal, Union
 from jaxtyping import Array, Float
 
 from arpyes.types import (

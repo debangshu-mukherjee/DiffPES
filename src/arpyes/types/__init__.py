@@ -79,10 +79,6 @@ from .dos import (
     make_density_of_states,
     make_full_density_of_states,
 )
-from .volumetric import (
-    VolumetricData,
-    make_volumetric_data,
-)
 from .geometry import (
     CrystalGeometry,
     make_crystal_geometry,
@@ -96,6 +92,10 @@ from .params import (
     SimulationParams,
     make_polarization_config,
     make_simulation_params,
+)
+from .volumetric import (
+    VolumetricData,
+    make_volumetric_data,
 )
 
 __all__: list[str] = [

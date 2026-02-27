@@ -43,6 +43,7 @@ from arpyes.types import (
     BandStructure,
     FullDensityOfStates,
     SpinBandStructure,
+    SpinOrbitalProjection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -384,11 +385,11 @@ class TestReadProcar(chex.TestCase):
         assert orb.spin is None
 
     def test_spin_procar_full(self):
-        """Read spin-polarized PROCAR in full mode (spin-averaged + spin field)."""
+        """Read spin-polarized PROCAR in full mode returns SpinOrbitalProjection."""
         path = _FIXTURES_DIR / "PROCAR_spin"
         orb = read_procar(str(path), return_mode="full")
+        assert isinstance(orb, SpinOrbitalProjection)
         chex.assert_shape(orb.projections, (2, 2, 1, 9))
-        assert orb.spin is not None
         chex.assert_shape(orb.spin, (2, 2, 1, 6))
         # Projections should be average of up and down
         # up s[0,0,0]=0.1, down s[0,0,0]=0.08 -> avg 0.09

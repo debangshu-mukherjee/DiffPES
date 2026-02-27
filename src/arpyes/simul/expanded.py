@@ -139,7 +139,6 @@ def _build_inputs(
     eigenbands: Float[Array, "K B"],
     surface_orb: Float[Array, "K B A 9"],
     ef: ScalarFloat,
-    surface_spin: Optional[Float[Array, "K B A 6"]] = None,
 ) -> Tuple[BandStructure, OrbitalProjection]:
     """Convert plain arrays into core ARPES input PyTrees.
 
@@ -162,8 +161,6 @@ def _build_inputs(
 
     3. **Build PyTrees**: ``make_band_structure`` and
        ``make_orbital_projection`` assemble the validated PyTrees.
-       If ``surface_spin`` is provided (shape ``(K, B, A, 6)``), it
-       is passed to ``make_orbital_projection`` for SOC simulations.
 
     Parameters
     ----------
@@ -175,9 +172,6 @@ def _build_inputs(
         the order ``(s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2)``.
     ef : ScalarFloat
         Fermi energy in eV.
-    surface_spin : Optional[Float[Array, "K B A 6"]], optional
-        Spin projections (up/down for x, y, z). Required for SOC
-        level; omit for other levels.
 
     Returns
     -------
@@ -185,8 +179,7 @@ def _build_inputs(
         Band-structure PyTree containing eigenvalues, placeholder
         k-points, and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital-projection PyTree wrapping ``surface_orb`` (and
-        ``surface_spin`` when provided).
+        Orbital-projection PyTree wrapping ``surface_orb``.
     """
     bands_arr: Float[Array, "K B"] = jnp.asarray(eigenbands, dtype=jnp.float64)
     proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
@@ -201,7 +194,6 @@ def _build_inputs(
     )
     orb_proj: OrbitalProjection = make_orbital_projection(
         projections=proj_arr,
-        spin=surface_spin,
     )
     return bands, orb_proj
 

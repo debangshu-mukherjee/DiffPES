@@ -11,6 +11,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Optional, Tuple
 
 from arpyes.types import VolumetricData, make_volumetric_data
 
@@ -67,7 +68,7 @@ def read_chgcar(
         charge_vals.reshape(grid_shape, order="F") / volume
     )
 
-    magnetization_grid: np.ndarray | None = None
+    magnetization_grid: Optional[np.ndarray] = None
     second_grid_idx, second_shape = _find_next_grid_line(rest_lines, end_idx)
     if second_grid_idx is not None:
         ngrid_mag: int = int(np.prod(np.asarray(second_shape, dtype=np.int64)))
@@ -144,7 +145,7 @@ def _read_poscar_header(
 def _find_next_grid_line(
     lines: list[str],
     start_idx: int,
-) -> tuple[int | None, tuple[int, int, int]]:
+) -> Tuple[Optional[int], Tuple[int, int, int]]:
     """Find the next line containing three positive integers."""
     for idx in range(start_idx, len(lines)):
         stripped: str = lines[idx].strip()

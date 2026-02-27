@@ -25,7 +25,7 @@ functions.
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Literal, Optional, Tuple
+from beartype.typing import Literal, Optional, Tuple, Union
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
@@ -108,7 +108,7 @@ def plot_arpes_spectrum(
     xlabel: str = "k-point index",
     ylabel: str = "Energy (eV)",
     title: str = "Simulated ARPES Spectrum",
-) -> Tuple[Figure | SubFigure, Axes, AxesImage]:
+) -> Tuple[Union[Figure, SubFigure], Axes, AxesImage]:
     """Plot an ARPES intensity map from an ArpesSpectrum PyTree.
 
     Extended Summary
@@ -173,7 +173,7 @@ def plot_arpes_spectrum(
     energy_axis: np.ndarray
     intensity, energy_axis = _prepare_plot_arrays(spectrum)
 
-    fig: Figure | SubFigure
+    fig: Union[Figure, SubFigure]
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -291,7 +291,7 @@ def plot_arpes_with_kpath(  # noqa: PLR0913
     ylabel: str = "Energy (eV)",
     title: str = "Simulated ARPES Spectrum",
     draw_symmetry_lines: bool = True,
-) -> Tuple[Figure | SubFigure, Axes, AxesImage]:
+) -> Tuple[Union[Figure, SubFigure], Axes, AxesImage]:
     """Plot ARPES spectrum and annotate k-axis using KPathInfo.
 
     Extended Summary
@@ -350,7 +350,7 @@ def plot_arpes_with_kpath(  # noqa: PLR0913
     plot_arpes_spectrum : Base ARPES heatmap renderer.
     apply_kpath_ticks : K-path label and guide-line utility.
     """
-    fig: Figure | SubFigure
+    fig: Union[Figure, SubFigure]
     image: AxesImage
     fig, ax, image = plot_arpes_spectrum(
         spectrum=spectrum,

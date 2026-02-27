@@ -6,9 +6,11 @@ import pytest
 
 from arpyes.inout import aggregate_atoms, check_consistency, reduce_orbitals, select_atoms
 from arpyes.types import (
+    SpinOrbitalProjection,
     make_band_structure,
     make_kpath_info,
     make_orbital_projection,
+    make_spin_orbital_projection,
 )
 
 
@@ -55,6 +57,16 @@ class TestSelectAtoms(chex.TestCase):
         chex.assert_trees_all_close(
             sub.projections[0, 0, 1, 0], jnp.float64(3.0), atol=1e-12
         )
+
+    def test_preserves_spin_orbital_projection_type(self):
+        """SpinOrbitalProjection input returns SpinOrbitalProjection."""
+        proj = jnp.ones((2, 2, 3, 9), dtype=jnp.float64)
+        spin = jnp.ones((2, 2, 3, 6), dtype=jnp.float64)
+        orb = make_spin_orbital_projection(projections=proj, spin=spin)
+        sub = select_atoms(orb, [0, 2])
+        assert isinstance(sub, SpinOrbitalProjection)
+        chex.assert_shape(sub.projections, (2, 2, 2, 9))
+        chex.assert_shape(sub.spin, (2, 2, 2, 6))
 
 
 class TestAggregateAtoms(chex.TestCase):

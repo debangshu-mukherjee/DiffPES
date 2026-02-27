@@ -20,13 +20,18 @@ Orbital ordering follows VASP convention:
 
 import re
 from pathlib import Path
-from typing import Literal
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Literal, Optional, Union
 from jaxtyping import Array, Float
 
-from arpyes.types import OrbitalProjection, make_orbital_projection
+from arpyes.types import (
+    OrbitalProjection,
+    SpinOrbitalProjection,
+    make_orbital_projection,
+    make_spin_orbital_projection,
+)
 
 _NORBS: int = 9
 _NSPIN_COMPONENTS: int = 6
@@ -35,7 +40,7 @@ _NSPIN_COMPONENTS: int = 6
 def read_procar(
     filename: str = "PROCAR",
     return_mode: Literal["legacy", "full"] = "legacy",
-) -> OrbitalProjection:
+) -> Union[OrbitalProjection, SpinOrbitalProjection]:
     r"""Parse a VASP PROCAR file.
 
     Reads a VASP PROCAR file that contains the orbital-resolved
@@ -53,15 +58,17 @@ def read_procar(
     filename : str, optional
         Path to PROCAR file. Default is ``"PROCAR"``.
     return_mode : {"legacy", "full"}, optional
-        ``"legacy"`` (default) returns projections from the first
-        spin block only (backward-compatible). ``"full"`` returns
-        spin-averaged projections for ISPIN=2, or populates the
-        ``spin`` field for SOC data.
+        ``"legacy"`` (default) returns an ``OrbitalProjection``
+        from the first spin block only (backward-compatible).
+        ``"full"`` returns a ``SpinOrbitalProjection`` (with
+        mandatory spin field) for ISPIN=2 and SOC data, or an
+        ``OrbitalProjection`` for non-spin data.
 
     Returns
     -------
-    orb_proj : OrbitalProjection
-        Orbital projections with shape ``(K, B, A, 9)``.
+    orb_proj : OrbitalProjection or SpinOrbitalProjection
+        ``OrbitalProjection`` for legacy mode or non-spin data.
+        ``SpinOrbitalProjection`` for full mode with spin data.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
@@ -101,7 +108,7 @@ def read_procar(
         spin_arr: Float[Array, " K B A 6"] = jnp.asarray(
             spin_data, dtype=jnp.float64
         )
-        return make_orbital_projection(
+        return make_spin_orbital_projection(
             projections=proj_arr, spin=spin_arr
         )
 
@@ -125,7 +132,7 @@ def read_procar(
     spin_data[:, :, :, 4] = np.maximum(sz_sum, 0.0)
     spin_data[:, :, :, 5] = np.maximum(-sz_sum, 0.0)
     spin_arr = jnp.asarray(spin_data, dtype=jnp.float64)
-    return make_orbital_projection(
+    return make_spin_orbital_projection(
         projections=proj_arr, spin=spin_arr
     )
 
@@ -163,7 +170,7 @@ def _parse_procar_blocks(
         )
         kpts_found: int = 0
         while i < len(lines) and kpts_found < nkpts:
-            k_match: re.Match[str] | None = re.search(k_re, lines[i])
+            k_match: Optional[re.Match[str]] = re.search(k_re, lines[i])
             if k_match is None:
                 i += 1
                 continue

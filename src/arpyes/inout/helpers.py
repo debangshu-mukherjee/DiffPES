@@ -6,9 +6,15 @@ PROCAR, and KPOINTS parsed data.
 """
 
 import jax.numpy as jnp
+from beartype.typing import Optional, Union
 from jaxtyping import Array, Float, Int
 
-from arpyes.types import BandStructure, KPathInfo, OrbitalProjection
+from arpyes.types import (
+    BandStructure,
+    KPathInfo,
+    OrbitalProjection,
+    SpinOrbitalProjection,
+)
 
 _S_IDX: int = 0
 _P_SLICE: slice = slice(1, 4)
@@ -16,23 +22,24 @@ _D_SLICE: slice = slice(4, 9)
 
 
 def select_atoms(
-    orb: OrbitalProjection,
+    orb: Union[OrbitalProjection, SpinOrbitalProjection],
     atom_indices: list[int],
-) -> OrbitalProjection:
+) -> Union[OrbitalProjection, SpinOrbitalProjection]:
     """Extract orbital projections for a subset of atoms.
 
     Parameters
     ----------
-    orb : OrbitalProjection
+    orb : OrbitalProjection or SpinOrbitalProjection
         Full orbital projections with shape ``(K, B, A, 9)``.
     atom_indices : list[int]
         0-based indices of atoms to select.
 
     Returns
     -------
-    OrbitalProjection
+    OrbitalProjection or SpinOrbitalProjection
         Projections restricted to the specified atoms.
         Shape ``(K, B, len(atom_indices), 9)``.
+        Preserves the input type.
     """
     idx: Int[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
     proj_sub: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
@@ -42,7 +49,7 @@ def select_atoms(
     oam_sub = None
     if orb.oam is not None:
         oam_sub = orb.oam[:, :, idx, :]
-    return OrbitalProjection(
+    return type(orb)(
         projections=proj_sub,
         spin=spin_sub,
         oam=oam_sub,
@@ -51,7 +58,7 @@ def select_atoms(
 
 def aggregate_atoms(
     orb: OrbitalProjection,
-    atom_indices: list[int] | None = None,
+    atom_indices: Optional[list[int]] = None,
 ) -> Float[Array, "K B 9"]:
     """Sum orbital projections over a set of atoms.
 
@@ -104,7 +111,7 @@ def reduce_orbitals(
 def check_consistency(
     bands: BandStructure,
     orb: OrbitalProjection,
-    kpath: KPathInfo | None = None,
+    kpath: Optional[KPathInfo] = None,
 ) -> None:
     """Check dimension agreement across parsed VASP files.
 

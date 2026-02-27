@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 import jax.numpy as jnp
+from beartype.typing import Optional
 
 from arpyes.types import KPathInfo, make_kpath_info
 
@@ -80,8 +81,8 @@ def read_kpoints(  # noqa: PLR0915
         line_endpoints: list[list[float]] = []
         explicit_kpoints: list[list[float]] = []
         explicit_weights: list[float] = []
-        grid: list[int] | None = None
-        shift: list[float] | None = None
+        grid: Optional[list[int]] = None
+        shift: Optional[list[float]] = None
         coord_mode: str = ""
         segments: int = 0
         total_kpts: int
@@ -285,7 +286,7 @@ def _extract_label(line: str) -> str:
     is rare in practice.
     """
     _min_parts_with_label: int = 4
-    match: re.Match[str] | None = re.search(r"!\s*(\S+)", line)
+    match: Optional[re.Match[str]] = re.search(r"!\s*(\S+)", line)
     if match:
         return match.group(1)
     parts: list[str] = line.split()

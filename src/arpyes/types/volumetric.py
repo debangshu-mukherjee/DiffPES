@@ -10,8 +10,6 @@ from beartype.typing import NamedTuple, Optional, Tuple
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, Int, jaxtyped
 
-from .aliases import ScalarNumeric
-
 
 @register_pytree_node_class
 class VolumetricData(NamedTuple):
