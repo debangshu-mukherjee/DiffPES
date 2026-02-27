@@ -32,7 +32,7 @@ Energy axes are built as
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, jaxtyped
 
 from arpyes.types import (
@@ -54,6 +54,7 @@ from .spectrum import (
     simulate_basicplus,
     simulate_expert,
     simulate_novice,
+    simulate_soc,
 )
 
 
@@ -139,6 +140,7 @@ def _build_inputs(
     eigenbands: Float[Array, "K B"],
     surface_orb: Float[Array, "K B A 9"],
     ef: ScalarFloat,
+    surface_spin: Optional[Float[Array, "K B A 6"]] = None,
 ) -> Tuple[BandStructure, OrbitalProjection]:
     """Convert plain arrays into core ARPES input PyTrees.
 
@@ -161,6 +163,8 @@ def _build_inputs(
 
     3. **Build PyTrees**: ``make_band_structure`` and
        ``make_orbital_projection`` assemble the validated PyTrees.
+       If ``surface_spin`` is provided (shape ``(K, B, A, 6)``), it
+       is passed to ``make_orbital_projection`` for SOC simulations.
 
     Parameters
     ----------
@@ -172,6 +176,9 @@ def _build_inputs(
         the order ``(s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2)``.
     ef : ScalarFloat
         Fermi energy in eV.
+    surface_spin : Optional[Float[Array, "K B A 6"]], optional
+        Spin projections (up/down for x, y, z). Required for SOC
+        level; omit for other levels.
 
     Returns
     -------
@@ -179,7 +186,8 @@ def _build_inputs(
         Band-structure PyTree containing eigenvalues, placeholder
         k-points, and the Fermi energy.
     orb_proj : OrbitalProjection
-        Orbital-projection PyTree wrapping ``surface_orb``.
+        Orbital-projection PyTree wrapping ``surface_orb`` (and
+        ``surface_spin`` when provided).
     """
     bands_arr: Float[Array, "K B"] = jnp.asarray(eigenbands, dtype=jnp.float64)
     proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
@@ -192,7 +200,10 @@ def _build_inputs(
         kpoints=kpoints,
         fermi_energy=ef,
     )
-    orb_proj: OrbitalProjection = make_orbital_projection(projections=proj_arr)
+    orb_proj: OrbitalProjection = make_orbital_projection(
+        projections=proj_arr,
+        spin=surface_spin,
+    )
     return bands, orb_proj
 
 
@@ -705,6 +716,117 @@ def simulate_expert_expanded(  # noqa: PLR0913
 
 
 @jaxtyped(typechecker=beartype)
+def simulate_soc_expanded(  # noqa: PLR0913
+    eigenbands: Float[Array, "K B"],
+    surface_orb: Float[Array, "K B A 9"],
+    surface_spin: Float[Array, "K B A 6"],
+    ef: ScalarFloat,
+    sigma: ScalarFloat,
+    gamma: ScalarFloat,
+    fidelity: int,
+    temperature: ScalarFloat,
+    photon_energy: ScalarFloat,
+    polarization: str = "unpolarized",
+    incident_theta: ScalarFloat = 45.0,
+    incident_phi: ScalarFloat = 0.0,
+    polarization_angle: ScalarFloat = 0.0,
+    ls_scale: ScalarFloat = 0.01,
+) -> ArpesSpectrum:
+    """Run SOC (spin-orbit coupling) ARPES simulation from plain arrays.
+
+    Expert model plus spin-dependent intensity correction
+    (S·k_photon). Requires spin projections of shape
+    ``(n_kpoints, n_bands, n_atoms, 6)`` (up/down for x, y, z).
+    Incident angles are interpreted in degrees.
+
+    Implementation Logic
+    --------------------
+    1. **Build PyTrees**: Calls :func:`_build_inputs` with
+       ``surface_spin`` so that ``OrbitalProjection`` has non-None
+       spin.
+    2. **Build params and polarization**: Same as
+       :func:`simulate_expert_expanded` (auto-derived energy window,
+       degree-to-radian conversion for angles).
+    3. **Simulate**: Delegates to :func:`~arpyes.simul.simulate_soc`
+       with the given ``ls_scale``.
+
+    Parameters
+    ----------
+    eigenbands : Float[Array, "K B"]
+        Band eigenvalues in eV, shape ``(n_kpoints, n_bands)``.
+    surface_orb : Float[Array, "K B A 9"]
+        Orbital projection coefficients, shape
+        ``(n_kpoints, n_bands, n_atoms, 9)``.
+    surface_spin : Float[Array, "K B A 6"]
+        Spin projections (required for SOC), shape
+        ``(n_kpoints, n_bands, n_atoms, 6)`` with channels
+        (x up, x down, y up, y down, z up, z down).
+    ef : ScalarFloat
+        Fermi energy in eV.
+    sigma : ScalarFloat
+        Gaussian broadening width in eV.
+    gamma : ScalarFloat
+        Lorentzian broadening width in eV.
+    fidelity : int
+        Number of points on the energy axis.
+    temperature : ScalarFloat
+        Electronic temperature in Kelvin.
+    photon_energy : ScalarFloat
+        Incident photon energy in eV.
+    polarization : str, optional
+        Polarization type (e.g. ``"unpolarized"``, ``"LHP"``).
+        Default is ``"unpolarized"``.
+    incident_theta : ScalarFloat, optional
+        Polar angle of the incident beam in degrees. Default 45.
+    incident_phi : ScalarFloat, optional
+        Azimuthal angle of the incident beam in degrees. Default 0.
+    polarization_angle : ScalarFloat, optional
+        Rotation angle for arbitrary linear polarization in
+        radians. Default 0.
+    ls_scale : ScalarFloat, optional
+        Spin-orbit coupling strength for the S·k_photon
+        correction. Default 0.01.
+
+    Returns
+    -------
+    spectrum : ArpesSpectrum
+        Simulated ARPES spectrum with spin-orbit correction;
+        ``intensity`` shape ``(K, E)``, ``energy_axis`` shape ``(E,)``.
+
+    See Also
+    --------
+    simulate_soc : Low-level implementation accepting PyTrees.
+    simulate_expert_expanded : Same pipeline without spin data.
+    """
+    bands: BandStructure
+    orb_proj: OrbitalProjection
+    bands, orb_proj = _build_inputs(
+        eigenbands=eigenbands,
+        surface_orb=surface_orb,
+        ef=ef,
+        surface_spin=surface_spin,
+    )
+    params: SimulationParams = make_expanded_simulation_params(
+        eigenbands=eigenbands,
+        fidelity=fidelity,
+        sigma=sigma,
+        gamma=gamma,
+        temperature=temperature,
+        photon_energy=photon_energy,
+    )
+    pol: PolarizationConfig = _build_polarization(
+        polarization=polarization,
+        incident_theta=incident_theta,
+        incident_phi=incident_phi,
+        polarization_angle=polarization_angle,
+    )
+    spectrum: ArpesSpectrum = simulate_soc(
+        bands, orb_proj, params, pol, ls_scale=ls_scale
+    )
+    return spectrum
+
+
+@jaxtyped(typechecker=beartype)
 def simulate_expanded(  # noqa: PLR0913
     level: str,
     eigenbands: Float[Array, "K B"],
@@ -719,10 +841,12 @@ def simulate_expanded(  # noqa: PLR0913
     incident_theta: ScalarFloat = 45.0,
     incident_phi: ScalarFloat = 0.0,
     polarization_angle: ScalarFloat = 0.0,
+    surface_spin: Optional[Float[Array, "K B A 6"]] = None,
+    ls_scale: ScalarFloat = 0.01,
 ) -> ArpesSpectrum:
     """Dispatch an expanded-input simulation by complexity level.
 
-    Single entry-point that routes to one of the five simulation
+    Single entry-point that routes to one of the six simulation
     functions based on ``level``. All parameters have sensible
     defaults, so only ``level``, ``eigenbands``, and ``surface_orb``
     are required. Parameters that are unused by the selected level
@@ -742,7 +866,7 @@ def simulate_expanded(  # noqa: PLR0913
     ----------
     level : str
         One of ``"novice"``, ``"basic"``, ``"basicplus"``,
-        ``"advanced"``, or ``"expert"`` (case-insensitive).
+        ``"advanced"``, ``"expert"``, or ``"soc"`` (case-insensitive).
     eigenbands : Float[Array, "K B"]
         Band eigenvalues in eV, shape ``(n_kpoints, n_bands)``.
     surface_orb : Float[Array, "K B A 9"]
@@ -773,6 +897,11 @@ def simulate_expanded(  # noqa: PLR0913
     polarization_angle : ScalarFloat, optional
         Rotation angle for arbitrary linear polarization in
         radians. Only used by advanced and expert. Default is 0.
+    surface_spin : Optional[Float[Array, "K B A 6"]], optional
+        Spin projections; required when ``level='soc'``. Default None.
+    ls_scale : ScalarFloat, optional
+        Spin-orbit coupling strength when ``level='soc'``.
+        Default 0.01.
 
     Returns
     -------
@@ -783,7 +912,8 @@ def simulate_expanded(  # noqa: PLR0913
     Raises
     ------
     ValueError
-        If ``level`` is not one of the five recognized levels.
+        If ``level`` is not one of the six recognized levels, or
+        if ``level='soc'`` and ``surface_spin`` is None.
 
     See Also
     --------
@@ -793,6 +923,7 @@ def simulate_expanded(  # noqa: PLR0913
     simulate_advanced_expanded : Gaussian, Yeh-Lindau, polarization.
     simulate_expert_expanded : Voigt, Yeh-Lindau, polarization,
         dipole matrix elements.
+    simulate_soc_expanded : Expert plus spin-orbit (S·k_photon) correction.
     """
     level_key: str = level.lower()
     if level_key == "novice":
@@ -855,9 +986,30 @@ def simulate_expanded(  # noqa: PLR0913
             incident_phi=incident_phi,
             polarization_angle=polarization_angle,
         )
+    if level_key == "soc":
+        if surface_spin is None:
+            raise ValueError(
+                "simulate_expanded(level='soc', ...) requires surface_spin."
+            )
+        return simulate_soc_expanded(
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            surface_spin=surface_spin,
+            ef=ef,
+            sigma=sigma,
+            gamma=gamma,
+            fidelity=fidelity,
+            temperature=temperature,
+            photon_energy=photon_energy,
+            polarization=polarization,
+            incident_theta=incident_theta,
+            incident_phi=incident_phi,
+            polarization_angle=polarization_angle,
+            ls_scale=ls_scale,
+        )
     msg: str = (
         "Unknown simulation level. "
-        "Expected one of: novice, basic, basicplus, advanced, expert."
+        "Expected one of: novice, basic, basicplus, advanced, expert, soc."
     )
     raise ValueError(msg)
 
@@ -871,5 +1023,6 @@ __all__: list[str] = [
     "simulate_basicplus_expanded",
     "simulate_novice_expanded",
     "simulate_expert_expanded",
+    "simulate_soc_expanded",
     "simulate_expanded",
 ]

@@ -19,6 +19,8 @@ Routine Listings
     Gaussian with Yeh-Lindau and polarization selection rules.
 :func:`simulate_expert`
     Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`simulate_soc`
+    Expert plus spin-orbit (S·k_photon) correction.
 :func:`simulate_expanded`
     Expanded-input dispatcher for the five simulation levels.
 :func:`simulate_novice_expanded`
@@ -31,6 +33,8 @@ Routine Listings
     Expanded-input advanced wrapper.
 :func:`simulate_expert_expanded`
     Expanded-input expert wrapper.
+:func:`simulate_soc_expanded`
+    Expanded-input SOC wrapper (requires surface_spin).
 :func:`make_expanded_simulation_params`
     Build expanded-input simulation parameters from eigenbands.
 :func:`gaussian`
@@ -68,12 +72,14 @@ from .expanded import (
     simulate_expanded,
     simulate_expert_expanded,
     simulate_novice_expanded,
+    simulate_soc_expanded,
 )
 from .oam import compute_oam
 from .polarization import (
     build_efield,
     build_polarization_vectors,
     dipole_matrix_elements,
+    photon_wavevector,
 )
 from .spectrum import (
     simulate_advanced,
@@ -81,6 +87,7 @@ from .spectrum import (
     simulate_basicplus,
     simulate_expert,
     simulate_novice,
+    simulate_soc,
 )
 
 __all__: list[str] = [
@@ -92,6 +99,7 @@ __all__: list[str] = [
     "gaussian",
     "heuristic_weights",
     "make_expanded_simulation_params",
+    "photon_wavevector",
     "simulate_advanced_expanded",
     "simulate_advanced",
     "simulate_basic_expanded",
@@ -103,6 +111,8 @@ __all__: list[str] = [
     "simulate_expanded",
     "simulate_novice_expanded",
     "simulate_novice",
+    "simulate_soc_expanded",
+    "simulate_soc",
     "voigt",
     "yeh_lindau_weights",
 ]

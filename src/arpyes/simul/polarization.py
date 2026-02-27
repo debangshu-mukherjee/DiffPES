@@ -10,6 +10,8 @@ Routine Listings
 ----------------
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
+:func:`photon_wavevector`
+    Unit photon propagation vector from incidence angles.
 :func:`build_efield`
     Compute electric field vector from polarization config.
 :func:`dipole_matrix_elements`
@@ -147,6 +149,48 @@ def build_polarization_vectors(
         e_p_raw
     )
     return e_s, e_p
+
+
+@jaxtyped(typechecker=beartype)
+def photon_wavevector(
+    theta: ScalarFloat,
+    phi: ScalarFloat,
+) -> Float[Array, " 3"]:
+    """Unit photon wavevector from incidence angles.
+
+    Builds the unit vector in the direction of photon propagation
+    from spherical coordinates (theta from surface normal, phi
+    azimuthal): k = [sin(theta)*cos(phi), sin(theta)*sin(phi),
+    cos(theta)] / ||...||. Used in spin-orbit ARPES simulations
+    to form the S·k_photon correction for circular dichroism.
+
+    Parameters
+    ----------
+    theta : ScalarFloat
+        Incident angle from surface normal in radians.
+    phi : ScalarFloat
+        In-plane azimuthal angle in radians.
+
+    Returns
+    -------
+    k_photon : Float[Array, " 3"]
+        Unit wavevector in Cartesian coordinates.
+
+    See Also
+    --------
+    build_polarization_vectors : Builds the same k internally for
+        the s- and p-polarization basis; use this when only the
+        propagation direction is needed.
+    """
+    k: Float[Array, " 3"] = jnp.array(
+        [
+            jnp.sin(theta) * jnp.cos(phi),
+            jnp.sin(theta) * jnp.sin(phi),
+            jnp.cos(theta),
+        ],
+        dtype=jnp.float64,
+    )
+    return k / jnp.linalg.norm(k)
 
 
 @jaxtyped(typechecker=beartype)
@@ -300,4 +344,5 @@ __all__: list[str] = [
     "build_efield",
     "build_polarization_vectors",
     "dipole_matrix_elements",
+    "photon_wavevector",
 ]

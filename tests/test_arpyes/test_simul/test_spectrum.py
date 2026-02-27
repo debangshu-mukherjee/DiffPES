@@ -15,6 +15,7 @@ from arpyes.simul.spectrum import (
     simulate_basicplus,
     simulate_expert,
     simulate_novice,
+    simulate_soc,
 )
 from arpyes.types import (
     make_band_structure,
@@ -448,3 +449,166 @@ class TestSimulateExpert(chex.TestCase):
             bands, orb_proj, params, pol
         )
         chex.assert_tree_all_finite(spectrum.intensity)
+
+
+def _make_synthetic_data_with_spin(nk=20, nb=5, na=2):
+    """Generate synthetic band and orbital data including spin projections.
+
+    Same as :func:`_make_synthetic_data` but adds a non-zero spin array
+    of shape ``(nk, nb, na, 6)`` (x up/down, y up/down, z up/down) and
+    returns an :class:`~arpyes.types.OrbitalProjection` built with
+    :func:`~arpyes.types.make_orbital_projection` including the spin
+    argument. Used by SOC simulation tests.
+
+    Parameters
+    ----------
+    nk : int, optional
+        Number of k-points. Default is 20.
+    nb : int, optional
+        Number of bands. Default is 5.
+    na : int, optional
+        Number of atoms. Default is 2.
+
+    Returns
+    -------
+    bands : BandStructure
+        Band structure from :func:`_make_synthetic_data`.
+    orb_with_spin : OrbitalProjection
+        Orbital projections with ``spin`` set to a synthetic
+        (K, B, A, 6) array.
+    """
+    bands, orb_proj = _make_synthetic_data(nk=nk, nb=nb, na=na)
+    spin = jnp.zeros((nk, nb, na, 6), dtype=jnp.float64)
+    spin = spin.at[..., 0].set(0.1)
+    spin = spin.at[..., 1].set(0.05)
+    spin = spin.at[..., 2].set(0.0)
+    spin = spin.at[..., 3].set(0.0)
+    spin = spin.at[..., 4].set(0.2)
+    spin = spin.at[..., 5].set(0.1)
+    orb_with_spin = make_orbital_projection(
+        projections=orb_proj.projections,
+        spin=spin,
+    )
+    return bands, orb_with_spin
+
+
+class TestSimulateSoc(chex.TestCase):
+    """Tests for :func:`arpyes.simul.spectrum.simulate_soc`.
+
+    Verifies that the SOC simulation requires non-None spin data,
+    produces the expected output shapes, that ``ls_scale=0`` recovers
+    the expert result, and that non-zero ``ls_scale`` changes the
+    intensity relative to expert.
+    """
+
+    def test_requires_spin_raises(self):
+        """Verify that simulate_soc raises when orb_proj.spin is None.
+
+        Test Logic
+        ----------
+        1. **Setup**: Use synthetic data without spin (orb_proj from
+           :func:`_make_synthetic_data` has ``spin=None``).
+        2. **Call**: Invoke ``simulate_soc`` with bands, orb_proj,
+           params, and pol_config.
+        3. **Check**: Assert that a ``ValueError`` is raised and that
+           the exception message contains ``"spin"``.
+
+        Asserts
+        -------
+        Calling ``simulate_soc`` with no spin data raises
+        ``ValueError`` with a message referring to spin.
+        """
+        bands, orb_proj = _make_synthetic_data()
+        params = make_simulation_params(fidelity=100)
+        pol = make_polarization_config(polarization_type="unpolarized")
+        with self.assertRaises(ValueError) as ctx:
+            simulate_soc(bands, orb_proj, params, pol)
+        self.assertIn("spin", str(ctx.exception))
+
+    def test_output_shape(self):
+        """Verify SOC spectrum has intensity (K, E) and energy_axis (E).
+
+        Test Logic
+        ----------
+        1. **Setup**: Build bands and orb_proj with spin via
+           :func:`_make_synthetic_data_with_spin`; params with
+           fidelity=100; unpolarized polarization config.
+        2. **Simulate**: Run ``simulate_soc`` with ls_scale=0.01.
+        3. **Check shapes**: Assert intensity shape ``(n_kpoints, 100)``
+           and energy_axis shape ``(100,)``; assert all intensity values
+           are finite.
+
+        Asserts
+        -------
+        Output shapes match the expert convention and the spectrum
+        contains no NaN or Inf.
+        """
+        bands, orb_proj = _make_synthetic_data_with_spin()
+        params = make_simulation_params(fidelity=100)
+        pol = make_polarization_config(polarization_type="unpolarized")
+        spectrum = simulate_soc(
+            bands, orb_proj, params, pol, ls_scale=0.01
+        )
+        chex.assert_shape(spectrum.intensity, (bands.eigenvalues.shape[0], 100))
+        chex.assert_shape(spectrum.energy_axis, (100,))
+        chex.assert_tree_all_finite(spectrum.intensity)
+
+    def test_soc_ls_scale_zero_matches_expert(self):
+        """With ls_scale=0, SOC intensity should match expert (same orbital part).
+
+        Test Logic
+        ----------
+        1. **Setup**: Synthetic data with spin; params and
+           unpolarized pol_config.
+        2. **Run both**: Call ``simulate_expert`` and
+           ``simulate_soc(..., ls_scale=0.0)``.
+        3. **Compare**: Assert intensity and energy_axis from both
+           match to within 1e-12 absolute tolerance.
+
+        Asserts
+        -------
+        When the spin-orbit correction is disabled (ls_scale=0),
+        the SOC simulation reproduces the expert result exactly.
+        """
+        bands, orb_proj = _make_synthetic_data_with_spin()
+        params = make_simulation_params(fidelity=100)
+        pol = make_polarization_config(polarization_type="unpolarized")
+        expert_spec = simulate_expert(bands, orb_proj, params, pol)
+        soc_spec = simulate_soc(
+            bands, orb_proj, params, pol, ls_scale=0.0
+        )
+        chex.assert_trees_all_close(
+            expert_spec.intensity, soc_spec.intensity, atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            expert_spec.energy_axis, soc_spec.energy_axis, atol=1e-12
+        )
+
+    def test_soc_nonzero_ls_scale_differs_from_expert(self):
+        """With ls_scale != 0, SOC intensity can differ from expert.
+
+        Test Logic
+        ----------
+        1. **Setup**: Synthetic data with spin; params and
+           unpolarized pol_config.
+        2. **Run both**: Call ``simulate_expert`` and
+           ``simulate_soc(..., ls_scale=0.1)``.
+        3. **Compare**: Compute the maximum absolute difference
+           between the two intensity arrays; assert it is greater
+           than 1e-10.
+
+        Asserts
+        -------
+        A non-zero ls_scale produces a different intensity map
+        from the expert-only simulation, confirming the spin
+        correction is applied.
+        """
+        bands, orb_proj = _make_synthetic_data_with_spin()
+        params = make_simulation_params(fidelity=100)
+        pol = make_polarization_config(polarization_type="unpolarized")
+        expert_spec = simulate_expert(bands, orb_proj, params, pol)
+        soc_spec = simulate_soc(
+            bands, orb_proj, params, pol, ls_scale=0.1
+        )
+        diff = jnp.abs(soc_spec.intensity - expert_spec.intensity)
+        self.assertGreater(jnp.max(diff), 1e-10)

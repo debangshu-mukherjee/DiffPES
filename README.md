@@ -14,7 +14,9 @@ simulator with plain arrays/scalars while still running JAX kernels.
 - `ARPES_simulation_Basicplus` -> `arpyes.simul.simulate_basicplus_expanded`
 - `ARPES_simulation_Advanced` -> `arpyes.simul.simulate_advanced_expanded`
 - `ARPES_simulation_Expert` -> `arpyes.simul.simulate_expert_expanded`
+- `ARPES_simulation_SOC` -> `arpyes.simul.simulate_soc_expanded`
 - Dynamic dispatch by level -> `arpyes.simul.simulate_expanded`
+  (use `level="soc"` with `surface_spin` for SOC)
 
 ### Notes
 

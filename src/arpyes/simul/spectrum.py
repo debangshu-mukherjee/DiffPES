@@ -1,11 +1,11 @@
-"""ARPES spectrum simulation functions at five complexity levels.
+"""ARPES spectrum simulation functions at six complexity levels (including spin-orbit coupling).
 
 Extended Summary
 ----------------
 Provides five simulation functions of increasing physical
 sophistication, from basic Voigt convolution (novice) to full
 polarization-dependent dipole matrix element calculations
-(expert). All functions are vectorized with ``jax.vmap`` for
+(expert) and spin-orbit (soc). All functions are vectorized with ``jax.vmap`` for
 efficient GPU execution.
 
 Routine Listings
@@ -20,6 +20,8 @@ Routine Listings
     Gaussian with Yeh-Lindau and polarization selection rules.
 :func:`simulate_expert`
     Voigt with Yeh-Lindau, polarization, and dipole elements.
+:func:`simulate_soc`
+    Expert model plus spin-orbit (S·k_photon) correction.
 
 Notes
 -----
@@ -39,6 +41,7 @@ from arpyes.types import (
     BandStructure,
     OrbitalProjection,
     PolarizationConfig,
+    ScalarFloat,
     SimulationParams,
     make_arpes_spectrum,
 )
@@ -49,6 +52,7 @@ from .polarization import (
     build_efield,
     build_polarization_vectors,
     dipole_matrix_elements,
+    photon_wavevector,
 )
 
 _NON_S_ORBITAL_SLICE: slice = slice(1, 9)
@@ -765,10 +769,207 @@ def simulate_expert(
     return spectrum
 
 
+@jaxtyped(typechecker=beartype)
+def simulate_soc(
+    bands: BandStructure,
+    orb_proj: OrbitalProjection,
+    params: SimulationParams,
+    pol_config: PolarizationConfig,
+    ls_scale: ScalarFloat = 0.01,
+) -> ArpesSpectrum:
+    """Simulate ARPES with spin-orbit coupling (spin-dependent intensity).
+
+    Extends the expert model with a spin-orbit correction: the
+    orbital-derived band intensity is modulated by the spin projection
+    along the photon wavevector, enabling spin-ARPES and circular
+    dichroism. Requires ``orb_proj.spin`` of shape ``(K, B, A, 6)``
+    (spin up/down for x, y, z). Uses Voigt broadening and the same
+    Yeh-Lindau and polarization logic as ``simulate_expert``.
+
+    Implementation Logic
+    --------------------
+    1. **Require spin**: Raise ValueError if ``orb_proj.spin`` is None.
+    2. **Orbital intensity**: Compute ``band_intensity`` exactly as in
+       ``simulate_expert`` (Yeh-Lindau, dipole matrix elements,
+       unpolarized or polarized branch).
+    3. **Spin vector**: From ``spin`` (K, B, A, 6) form (Sx, Sy, Sz) per
+       (k, band, atom): Sx = spin[...,0]+spin[...,1], Sy = spin[...,2]+
+       spin[...,3], Sz = spin[...,4]+spin[...,5]. Sum over atoms to get
+       spin per (k, band) of shape (K, B, 3).
+    4. **SOC correction**: k_photon = photon_wavevector(theta, phi).
+       spin_dot_k = (K, B). band_intensity_soc = band_intensity *
+       (1 + ls_scale * spin_dot_k). Then Voigt convolution and vmap
+       as in expert.
+
+    Parameters
+    ----------
+    bands : BandStructure
+        Band structure with eigenvalues and Fermi energy.
+    orb_proj : OrbitalProjection
+        Orbital projections and **spin** (spin must be non-None,
+        shape ``(K, B, A, 6)``).
+    params : SimulationParams
+        Simulation parameters (sigma, gamma, fidelity, etc.).
+    pol_config : PolarizationConfig
+        Light polarization and incidence angles.
+    ls_scale : ScalarFloat, optional
+        Spin-orbit coupling strength for the S·k_photon correction.
+        Default is 0.01.
+
+    Returns
+    -------
+    spectrum : ArpesSpectrum
+        Simulated ARPES intensity and energy axis.
+
+    Raises
+    ------
+    ValueError
+        If ``orb_proj.spin`` is None.
+
+    Notes
+    -----
+    The spin array has six channels (up/down for x, y, z). The net
+    spin vector (Sx, Sy, Sz) per (k, band, atom) is formed by
+    summing the two components for each axis, then summed over
+    atoms to get a per-band spin used in the modulation
+    (1 + ls_scale * S·k_photon). With ``ls_scale=0`` the result
+    coincides with ``simulate_expert``.
+
+    See Also
+    --------
+    simulate_expert : Same physics without spin correction.
+    photon_wavevector : Builds k_photon from incidence angles.
+    """
+    if orb_proj.spin is None:
+        raise ValueError(
+            "simulate_soc requires orb_proj.spin (shape (K, B, A, 6)); "
+            "orbital projection has no spin data."
+        )
+    energy_axis: Float[Array, " E"] = jnp.linspace(
+        params.energy_min,
+        params.energy_max,
+        params.fidelity,
+    )
+    orb_w: Float[Array, " 9"] = yeh_lindau_weights(
+        params.photon_energy
+    )
+    proj: Float[Array, "K B A 9"] = orb_proj.projections
+    spin_raw: Float[Array, "K B A 6"] = orb_proj.spin
+    is_unpolarized: bool = (
+        pol_config.polarization_type.lower() == "unpolarized"
+    )
+    if is_unpolarized:
+        e_s, e_p = build_polarization_vectors(
+            pol_config.theta, pol_config.phi
+        )
+        m_s: Float[Array, " 9"] = dipole_matrix_elements(
+            e_s.astype(jnp.complex128)
+        )
+        m_p: Float[Array, " 9"] = dipole_matrix_elements(
+            e_p.astype(jnp.complex128)
+        )
+        w_s: Float[Array, "K B A 9"] = (
+            proj * orb_w * m_s
+        )
+        w_p: Float[Array, "K B A 9"] = (
+            proj * orb_w * m_p
+        )
+        ws_sum: Float[Array, "K B"] = jnp.sum(
+            jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
+        )
+        wp_sum: Float[Array, "K B"] = jnp.sum(
+            jnp.sum(w_p[..., _NON_S_ORBITAL_SLICE], axis=-1),
+            axis=-1,
+        )
+        i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
+        i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
+        band_intensity: Float[Array, "K B"] = (
+            i_s + i_p
+        ) / 2.0
+    else:
+        efield = build_efield(pol_config)
+        m_elem: Float[Array, " 9"] = (
+            dipole_matrix_elements(efield)
+        )
+        weighted: Float[Array, "K B A 9"] = (
+            proj * orb_w * m_elem
+        )
+        w_sum: Float[Array, "K B"] = jnp.sum(
+            jnp.sum(
+                weighted[..., _NON_S_ORBITAL_SLICE],
+                axis=-1,
+            ),
+            axis=-1,
+        )
+        band_intensity = jnp.abs(w_sum) ** 2
+
+    k_photon: Float[Array, " 3"] = photon_wavevector(
+        pol_config.theta, pol_config.phi
+    )
+    spin_vec: Float[Array, "K B A 3"] = jnp.stack(
+        [
+            spin_raw[..., 0] + spin_raw[..., 1],
+            spin_raw[..., 2] + spin_raw[..., 3],
+            spin_raw[..., 4] + spin_raw[..., 5],
+        ],
+        axis=-1,
+    )
+    spin_per_band: Float[Array, "K B 3"] = jnp.sum(
+        spin_vec, axis=-2
+    )
+    spin_dot_k: Float[Array, "K B"] = jnp.dot(
+        spin_per_band, k_photon
+    )
+    ls_arr: Float[Array, " "] = jnp.asarray(
+        ls_scale, dtype=jnp.float64
+    )
+    band_intensity_soc: Float[Array, "K B"] = (
+        band_intensity * (1.0 + ls_arr * spin_dot_k)
+    )
+
+    def _single_band(
+        energy: Float[Array, " "],
+        bi: Float[Array, " "],
+    ) -> Float[Array, " E"]:
+        fd: Float[Array, " "] = fermi_dirac(
+            energy, bands.fermi_energy, params.temperature
+        )
+        profile: Float[Array, " E"] = voigt(
+            energy_axis, energy, params.sigma, params.gamma
+        )
+        contribution: Float[Array, " E"] = (
+            bi * fd * profile
+        )
+        return contribution
+
+    def _single_kpoint(
+        energies: Float[Array, " B"],
+        bi_k: Float[Array, " B"],
+    ) -> Float[Array, " E"]:
+        contributions: Float[Array, "B E"] = jax.vmap(
+            _single_band
+        )(energies, bi_k)
+        total: Float[Array, " E"] = jnp.sum(
+            contributions, axis=0
+        )
+        return total
+
+    intensity: Float[Array, "K E"] = jax.vmap(
+        _single_kpoint
+    )(bands.eigenvalues, band_intensity_soc)
+    spectrum: ArpesSpectrum = make_arpes_spectrum(
+        intensity=intensity,
+        energy_axis=energy_axis,
+    )
+    return spectrum
+
+
 __all__: list[str] = [
     "simulate_advanced",
     "simulate_basic",
     "simulate_basicplus",
     "simulate_expert",
     "simulate_novice",
+    "simulate_soc",
 ]
