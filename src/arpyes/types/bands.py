@@ -422,6 +422,139 @@ def make_spin_orbital_projection(
 
 
 @register_pytree_node_class
+class SpinBandStructure(NamedTuple):
+    """PyTree for spin-resolved electronic band structure.
+
+    Stores eigenvalues for both spin channels from an ISPIN=2 VASP
+    calculation. The two spin channels share the same k-point mesh
+    and weights. This type is returned by ``read_eigenval`` when
+    ``return_mode="full"`` and the EIGENVAL file contains spin-
+    polarized data.
+
+    Attributes
+    ----------
+    eigenvalues_up : Float[Array, "K B"]
+        Spin-up band energies in eV.
+    eigenvalues_down : Float[Array, "K B"]
+        Spin-down band energies in eV.
+    kpoints : Float[Array, "K 3"]
+        k-point coordinates in reciprocal space.
+    kpoint_weights : Float[Array, " K"]
+        Integration weights for each k-point.
+    fermi_energy : Float[Array, " "]
+        Fermi level energy in eV.
+    """
+
+    eigenvalues_up: Float[Array, "K B"]
+    eigenvalues_down: Float[Array, "K B"]
+    kpoints: Float[Array, "K 3"]
+    kpoint_weights: Float[Array, " K"]
+    fermi_energy: Float[Array, " "]
+
+    def tree_flatten(
+        self,
+    ) -> Tuple[
+        Tuple[
+            Float[Array, "K B"],
+            Float[Array, "K B"],
+            Float[Array, "K 3"],
+            Float[Array, " K"],
+            Float[Array, " "],
+        ],
+        None,
+    ]:
+        """Flatten into JAX leaf arrays and auxiliary data.
+
+        Returns
+        -------
+        children : tuple of jax.Array
+            All five fields.
+        aux_data : None
+        """
+        return (
+            (
+                self.eigenvalues_up,
+                self.eigenvalues_down,
+                self.kpoints,
+                self.kpoint_weights,
+                self.fermi_energy,
+            ),
+            None,
+        )
+
+    @classmethod
+    def tree_unflatten(
+        cls,
+        _aux_data: None,
+        children: Tuple[
+            Float[Array, "K B"],
+            Float[Array, "K B"],
+            Float[Array, "K 3"],
+            Float[Array, " K"],
+            Float[Array, " "],
+        ],
+    ) -> "SpinBandStructure":
+        """Reconstruct from flattened components.
+
+        Parameters
+        ----------
+        _aux_data : None
+        children : tuple of jax.Array
+
+        Returns
+        -------
+        SpinBandStructure
+        """
+        return cls(*children)
+
+
+@jaxtyped(typechecker=beartype)
+def make_spin_band_structure(
+    eigenvalues_up: Float[Array, "K B"],
+    eigenvalues_down: Float[Array, "K B"],
+    kpoints: Float[Array, "K 3"],
+    kpoint_weights: Union[Float[Array, " K"], None] = None,
+    fermi_energy: ScalarNumeric = 0.0,
+) -> SpinBandStructure:
+    """Create a validated ``SpinBandStructure`` instance.
+
+    Parameters
+    ----------
+    eigenvalues_up : Float[Array, "K B"]
+        Spin-up band energies in eV.
+    eigenvalues_down : Float[Array, "K B"]
+        Spin-down band energies in eV.
+    kpoints : Float[Array, "K 3"]
+        k-point coordinates in reciprocal space.
+    kpoint_weights : Union[Float[Array, " K"], None], optional
+        Integration weights. Defaults to uniform weights.
+    fermi_energy : ScalarNumeric, optional
+        Fermi level in eV. Default is 0.0.
+
+    Returns
+    -------
+    bands : SpinBandStructure
+        Validated spin-resolved band structure.
+    """
+    up_arr = jnp.asarray(eigenvalues_up, dtype=jnp.float64)
+    down_arr = jnp.asarray(eigenvalues_down, dtype=jnp.float64)
+    kpts_arr = jnp.asarray(kpoints, dtype=jnp.float64)
+    nkpts = up_arr.shape[0]
+    if kpoint_weights is None:
+        weights_arr = jnp.ones(nkpts, dtype=jnp.float64)
+    else:
+        weights_arr = jnp.asarray(kpoint_weights, dtype=jnp.float64)
+    fermi_arr = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    return SpinBandStructure(
+        eigenvalues_up=up_arr,
+        eigenvalues_down=down_arr,
+        kpoints=kpts_arr,
+        kpoint_weights=weights_arr,
+        fermi_energy=fermi_arr,
+    )
+
+
+@register_pytree_node_class
 class ArpesSpectrum(NamedTuple):
     """PyTree for ARPES simulation output.
 
@@ -730,9 +863,11 @@ __all__: list[str] = [
     "ArpesSpectrum",
     "BandStructure",
     "OrbitalProjection",
+    "SpinBandStructure",
     "SpinOrbitalProjection",
     "make_arpes_spectrum",
     "make_band_structure",
     "make_orbital_projection",
+    "make_spin_band_structure",
     "make_spin_orbital_projection",
 ]

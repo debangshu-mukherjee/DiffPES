@@ -3,8 +3,8 @@
 Extended Summary
 ----------------
 Provides parsers for VASP output files (POSCAR, EIGENVAL, KPOINTS,
-DOSCAR, PROCAR) that return PyTree data structures suitable for
-ARPES simulations.
+DOSCAR, PROCAR, CHGCAR) that return PyTree data structures suitable
+for ARPES simulations.
 
 Routine Listings
 ----------------
@@ -18,6 +18,8 @@ Routine Listings
     Plot an ARPES map and apply KPathInfo axis annotations.
 :func:`read_doscar`
     Parse VASP DOSCAR into DensityOfStates.
+:func:`read_chgcar`
+    Parse VASP CHGCAR into VolumetricData.
 :func:`read_eigenval`
     Parse VASP EIGENVAL into BandStructure.
 :func:`read_kpoints`
@@ -36,9 +38,11 @@ parsing is inherently sequential. They convert parsed data
 to JAX arrays via factory functions.
 """
 
+from .chgcar import read_chgcar
 from .doscar import read_doscar
 from .eigenval import read_eigenval
 from .hdf5 import load_from_h5, save_to_h5
+from .helpers import aggregate_atoms, check_consistency, reduce_orbitals, select_atoms
 from .kpoints import read_kpoints
 from .plotting import (
     apply_kpath_ticks,
@@ -49,14 +53,19 @@ from .poscar import read_poscar
 from .procar import read_procar
 
 __all__: list[str] = [
+    "aggregate_atoms",
     "apply_kpath_ticks",
+    "check_consistency",
     "load_from_h5",
     "plot_arpes_spectrum",
     "plot_arpes_with_kpath",
+    "read_chgcar",
     "read_doscar",
     "read_eigenval",
     "read_kpoints",
     "read_poscar",
     "read_procar",
+    "reduce_orbitals",
     "save_to_h5",
+    "select_atoms",
 ]

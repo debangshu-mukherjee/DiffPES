@@ -4,7 +4,8 @@ Extended Summary
 ----------------
 Reads VASP PROCAR files containing orbital-resolved band
 projections and returns an
-:class:`~arpyes.types.OrbitalProjection` PyTree.
+:class:`~arpyes.types.OrbitalProjection` PyTree. Supports
+non-spin, spin-polarized (ISPIN=2), and SOC layouts.
 
 Routine Listings
 ----------------
@@ -19,6 +20,7 @@ Orbital ordering follows VASP convention:
 
 import re
 from pathlib import Path
+from typing import Literal
 
 import jax.numpy as jnp
 import numpy as np
@@ -27,119 +29,169 @@ from jaxtyping import Array, Float
 from arpyes.types import OrbitalProjection, make_orbital_projection
 
 _NORBS: int = 9
+_NSPIN_COMPONENTS: int = 6
 
 
 def read_procar(
     filename: str = "PROCAR",
+    return_mode: Literal["legacy", "full"] = "legacy",
 ) -> OrbitalProjection:
     r"""Parse a VASP PROCAR file.
 
     Reads a VASP PROCAR file that contains the orbital-resolved
     projections of Kohn-Sham wave functions onto site-centred
-    spherical harmonics. The PROCAR file is generated when
-    ``LORBIT >= 10`` and provides a 4-D array of projection weights
-    indexed by (k-point, band, atom, orbital). This function returns
-    an :class:`~arpyes.types.OrbitalProjection` PyTree.
+    spherical harmonics. Supports three layouts:
 
-    Implementation Logic
-    --------------------
-    1. **Locate header line** -- scan forward until a line containing
-       ``"k-points"`` is found. This header line has the format
-       ``"# of k-points:  K  # of bands:  B  # of ions:  A"`` and
-       is parsed with ``re.findall(r"\\d+", header)`` to extract
-       the three integers ``nkpts``, ``nbands``, ``natoms``.
-
-    2. **Allocate output array** -- create a zero-filled NumPy array
-       of shape ``(nkpts, nbands, natoms, 9)`` with dtype float64.
-
-    3. **Iterate over k-point blocks** -- scan the remaining lines
-       for k-point headers matching the regex
-       ``r"k-point\\s+(\\d+)\\s*:\\s*([-\\d.]+)\\s+([-\\d.]+)\\s+([-\\d.]+)"``.
-       The first capture group gives the 1-based k-point index
-       (converted to 0-based).
-
-    4. **Iterate over band blocks** -- for each k-point, loop
-       ``nbands`` times. Within each iteration, scan forward until
-       a line containing ``"band"`` is found (the band header), then
-       skip one orbital-name header line.
-
-    5. **Read per-atom projection rows** -- read ``natoms`` lines.
-       Each line has the format ``"atom_idx  s  py  pz  px  dxy  dyz
-       dz2  dxz  dx2  tot"``. Parse all tokens as floats and store
-       columns 1 through 9 (the 9 orbital weights, excluding the
-       atom index at position 0 and the total at position 10) into
-       ``projections[k, b, a, :]``.
-
-    6. **Skip footer lines** -- after each band's atom block,
-       consume two lines (the ``"tot"`` summation line and a blank
-       separator).
-
-    7. **Construct PyTree** -- call ``make_orbital_projection`` with
-       the filled projection array.
+    - **Non-spin** (ISPIN=1, no SOC): single block of k-points.
+    - **Spin-polarized** (ISPIN=2): two consecutive blocks of
+      k-points (one per spin channel).
+    - **SOC** (LSORBIT=.TRUE.): four consecutive blocks per k-point
+      (total, Sx, Sy, Sz projections).
 
     Parameters
     ----------
     filename : str, optional
         Path to PROCAR file. Default is ``"PROCAR"``.
+    return_mode : {"legacy", "full"}, optional
+        ``"legacy"`` (default) returns projections from the first
+        spin block only (backward-compatible). ``"full"`` returns
+        spin-averaged projections for ISPIN=2, or populates the
+        ``spin`` field for SOC data.
 
     Returns
     -------
     orb_proj : OrbitalProjection
-        Orbital projections with shape ``(K, B, A, 9)`` where K is
-        the number of k-points, B the number of bands, A the number
-        of atoms, and 9 the number of orbital channels.
-
-    Notes
-    -----
-    Orbital ordering follows the VASP convention:
-    ``[s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2]``. This differs
-    from the standard real-spherical-harmonic ordering used by some
-    other DFT codes. For spin-polarized calculations (ISPIN=2) the
-    PROCAR file contains two consecutive sets of k-point blocks (one
-    per spin channel). The current parser does **not** separate spin
-    channels; it will overwrite the first spin's data with the
-    second's because both share the same k-point indices.
+        Orbital projections with shape ``(K, B, A, 9)``.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
-        header: str = ""
-        while "k-points" not in header:
-            header = fid.readline()
+        content: str = fid.read()
+
+    blocks: list[dict] = _parse_procar_blocks(content)
+
+    if not blocks:
+        msg = "No valid PROCAR blocks found."
+        raise ValueError(msg)
+
+    nblocks: int = len(blocks)
+    nkpts: int = blocks[0]["nkpts"]
+    nbands: int = blocks[0]["nbands"]
+    natoms: int = blocks[0]["natoms"]
+
+    is_spin_polarized: bool = nblocks == 2
+    is_soc: bool = nblocks == 4
+
+    if return_mode == "legacy" or (not is_spin_polarized and not is_soc):
+        proj_arr: Float[Array, " K B A 9"] = jnp.asarray(
+            blocks[0]["projections"], dtype=jnp.float64
+        )
+        return make_orbital_projection(projections=proj_arr)
+
+    if is_spin_polarized:
+        proj_up: np.ndarray = blocks[0]["projections"]
+        proj_down: np.ndarray = blocks[1]["projections"]
+        avg: np.ndarray = (proj_up + proj_down) / 2.0
+        proj_arr = jnp.asarray(avg, dtype=jnp.float64)
+        spin_data: np.ndarray = np.zeros(
+            (nkpts, nbands, natoms, _NSPIN_COMPONENTS), dtype=np.float64
+        )
+        sz_diff: np.ndarray = np.sum(proj_up - proj_down, axis=-1)
+        spin_data[:, :, :, 4] = np.maximum(sz_diff, 0.0)
+        spin_data[:, :, :, 5] = np.maximum(-sz_diff, 0.0)
+        spin_arr: Float[Array, " K B A 6"] = jnp.asarray(
+            spin_data, dtype=jnp.float64
+        )
+        return make_orbital_projection(
+            projections=proj_arr, spin=spin_arr
+        )
+
+    # SOC: 4 blocks = total, Sx, Sy, Sz
+    proj_total: np.ndarray = blocks[0]["projections"]
+    proj_sx: np.ndarray = blocks[1]["projections"]
+    proj_sy: np.ndarray = blocks[2]["projections"]
+    proj_sz: np.ndarray = blocks[3]["projections"]
+    proj_arr = jnp.asarray(proj_total, dtype=jnp.float64)
+
+    spin_data = np.zeros(
+        (nkpts, nbands, natoms, _NSPIN_COMPONENTS), dtype=np.float64
+    )
+    sx_sum: np.ndarray = np.sum(proj_sx, axis=-1)
+    sy_sum: np.ndarray = np.sum(proj_sy, axis=-1)
+    sz_sum: np.ndarray = np.sum(proj_sz, axis=-1)
+    spin_data[:, :, :, 0] = np.maximum(sx_sum, 0.0)
+    spin_data[:, :, :, 1] = np.maximum(-sx_sum, 0.0)
+    spin_data[:, :, :, 2] = np.maximum(sy_sum, 0.0)
+    spin_data[:, :, :, 3] = np.maximum(-sy_sum, 0.0)
+    spin_data[:, :, :, 4] = np.maximum(sz_sum, 0.0)
+    spin_data[:, :, :, 5] = np.maximum(-sz_sum, 0.0)
+    spin_arr = jnp.asarray(spin_data, dtype=jnp.float64)
+    return make_orbital_projection(
+        projections=proj_arr, spin=spin_arr
+    )
+
+
+def _parse_procar_blocks(
+    content: str,
+) -> list[dict]:
+    """Parse all PROCAR blocks from file content.
+
+    Each block starts with a header line containing k-points count,
+    followed by k-point/band/atom data. Returns a list of dicts,
+    each with keys 'nkpts', 'nbands', 'natoms', 'projections'.
+    """
+    blocks: list[dict] = []
+    lines: list[str] = content.splitlines()
+    i: int = 0
+
+    while i < len(lines):
+        if "k-points" not in lines[i]:
+            i += 1
+            continue
+        header: str = lines[i]
         params: list[int] = [int(x) for x in re.findall(r"\d+", header)]
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
         projections: np.ndarray = np.zeros(
-            (nkpts, nbands, natoms, _NORBS),
-            dtype=np.float64,
+            (nkpts, nbands, natoms, _NORBS), dtype=np.float64
         )
+        i += 1
+
         k_re: str = (
             r"k-point\s+(\d+)\s*:\s*"
             r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
         )
-        for line in fid:
-            k_match: re.Match[str] | None = re.search(k_re, line)
+        kpts_found: int = 0
+        while i < len(lines) and kpts_found < nkpts:
+            k_match: re.Match[str] | None = re.search(k_re, lines[i])
             if k_match is None:
+                i += 1
                 continue
             k_idx: int = int(k_match.group(1)) - 1
+            i += 1
             for b in range(nbands):
-                band_line: str = ""
-                while "band" not in band_line:
-                    band_line = fid.readline()
-                fid.readline()
+                while i < len(lines) and "band" not in lines[i]:
+                    i += 1
+                i += 1  # skip band header
+                i += 1  # skip orbital-name header
                 for a in range(natoms):
-                    data_line: str = fid.readline()
-                    vals: list[float] = [float(x) for x in data_line.split()]
+                    vals: list[float] = [
+                        float(x) for x in lines[i].split()
+                    ]
                     projections[k_idx, b, a, :] = vals[1 : _NORBS + 1]
-                fid.readline()
-                fid.readline()
-    proj_arr: Float[Array, " K B A 9"] = jnp.asarray(
-        projections, dtype=jnp.float64
-    )
-    orb_proj: OrbitalProjection = make_orbital_projection(
-        projections=proj_arr,
-    )
-    return orb_proj
+                    i += 1
+                i += 1  # skip tot line
+                i += 1  # skip blank line
+            kpts_found += 1
+
+        blocks.append({
+            "nkpts": nkpts,
+            "nbands": nbands,
+            "natoms": natoms,
+            "projections": projections,
+        })
+
+    return blocks
 
 
 __all__: list[str] = [

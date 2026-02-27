@@ -19,7 +19,7 @@ All energy values are in electron-volts (eV).
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import NamedTuple, Tuple
+from beartype.typing import NamedTuple, Optional, Tuple
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
@@ -190,7 +190,192 @@ def make_density_of_states(
     return dos
 
 
+@register_pytree_node_class
+class FullDensityOfStates(NamedTuple):
+    """PyTree for complete density of states with spin and PDOS.
+
+    Stores the full DOS data from a VASP DOSCAR file including
+    spin-resolved total DOS, integrated DOS, and per-atom
+    site-projected DOS. Returned by ``read_doscar`` when
+    ``return_mode="full"``.
+
+    Attributes
+    ----------
+    energy : Float[Array, " E"]
+        Energy axis in eV.
+    total_dos_up : Float[Array, " E"]
+        Total DOS for spin-up (or only channel if non-spin).
+    total_dos_down : Optional[Float[Array, " E"]]
+        Total DOS for spin-down, or None if ISPIN=1.
+    integrated_dos_up : Float[Array, " E"]
+        Integrated DOS for spin-up.
+    integrated_dos_down : Optional[Float[Array, " E"]]
+        Integrated DOS for spin-down, or None if ISPIN=1.
+    pdos : Optional[Float[Array, "A E C"]]
+        Per-atom projected DOS. A atoms, E energies, C columns.
+        None if no PDOS blocks present.
+    fermi_energy : Float[Array, " "]
+        Fermi level energy in eV.
+    natoms : int
+        Number of atoms in the cell.
+    """
+
+    energy: Float[Array, " E"]
+    total_dos_up: Float[Array, " E"]
+    total_dos_down: Optional[Float[Array, " E"]]
+    integrated_dos_up: Float[Array, " E"]
+    integrated_dos_down: Optional[Float[Array, " E"]]
+    pdos: Optional[Float[Array, "A E C"]]
+    fermi_energy: Float[Array, " "]
+    natoms: int
+
+    def tree_flatten(
+        self,
+    ) -> Tuple[
+        Tuple[
+            Float[Array, " E"],
+            Float[Array, " E"],
+            Optional[Float[Array, " E"]],
+            Float[Array, " E"],
+            Optional[Float[Array, " E"]],
+            Optional[Float[Array, "A E C"]],
+            Float[Array, " "],
+        ],
+        int,
+    ]:
+        """Flatten into JAX leaf arrays and auxiliary data.
+
+        Returns
+        -------
+        children : tuple of (jax.Array or None)
+            All numeric fields.
+        aux_data : int
+            natoms (static).
+        """
+        return (
+            (
+                self.energy,
+                self.total_dos_up,
+                self.total_dos_down,
+                self.integrated_dos_up,
+                self.integrated_dos_down,
+                self.pdos,
+                self.fermi_energy,
+            ),
+            self.natoms,
+        )
+
+    @classmethod
+    def tree_unflatten(
+        cls,
+        aux_data: int,
+        children: Tuple[
+            Float[Array, " E"],
+            Float[Array, " E"],
+            Optional[Float[Array, " E"]],
+            Float[Array, " E"],
+            Optional[Float[Array, " E"]],
+            Optional[Float[Array, "A E C"]],
+            Float[Array, " "],
+        ],
+    ) -> "FullDensityOfStates":
+        """Reconstruct from flattened components.
+
+        Parameters
+        ----------
+        aux_data : int
+            natoms.
+        children : tuple of (jax.Array or None)
+
+        Returns
+        -------
+        FullDensityOfStates
+        """
+        (
+            energy,
+            total_dos_up,
+            total_dos_down,
+            integrated_dos_up,
+            integrated_dos_down,
+            pdos,
+            fermi_energy,
+        ) = children
+        return cls(
+            energy=energy,
+            total_dos_up=total_dos_up,
+            total_dos_down=total_dos_down,
+            integrated_dos_up=integrated_dos_up,
+            integrated_dos_down=integrated_dos_down,
+            pdos=pdos,
+            fermi_energy=fermi_energy,
+            natoms=aux_data,
+        )
+
+
+@jaxtyped(typechecker=beartype)
+def make_full_density_of_states(
+    energy: Float[Array, " E"],
+    total_dos_up: Float[Array, " E"],
+    integrated_dos_up: Float[Array, " E"],
+    fermi_energy: ScalarNumeric = 0.0,
+    total_dos_down: Optional[Float[Array, " E"]] = None,
+    integrated_dos_down: Optional[Float[Array, " E"]] = None,
+    pdos: Optional[Float[Array, "A E C"]] = None,
+    natoms: int = 0,
+) -> FullDensityOfStates:
+    """Create a validated ``FullDensityOfStates`` instance.
+
+    Parameters
+    ----------
+    energy : Float[Array, " E"]
+        Energy axis in eV.
+    total_dos_up : Float[Array, " E"]
+        Spin-up total DOS.
+    integrated_dos_up : Float[Array, " E"]
+        Spin-up integrated DOS.
+    fermi_energy : ScalarNumeric, optional
+        Fermi level in eV.
+    total_dos_down : Optional[Float[Array, " E"]], optional
+        Spin-down total DOS.
+    integrated_dos_down : Optional[Float[Array, " E"]], optional
+        Spin-down integrated DOS.
+    pdos : Optional[Float[Array, "A E C"]], optional
+        Per-atom projected DOS.
+    natoms : int, optional
+        Number of atoms.
+
+    Returns
+    -------
+    dos : FullDensityOfStates
+    """
+    energy_arr = jnp.asarray(energy, dtype=jnp.float64)
+    up_arr = jnp.asarray(total_dos_up, dtype=jnp.float64)
+    int_up_arr = jnp.asarray(integrated_dos_up, dtype=jnp.float64)
+    fermi_arr = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    down_arr = None
+    if total_dos_down is not None:
+        down_arr = jnp.asarray(total_dos_down, dtype=jnp.float64)
+    int_down_arr = None
+    if integrated_dos_down is not None:
+        int_down_arr = jnp.asarray(integrated_dos_down, dtype=jnp.float64)
+    pdos_arr = None
+    if pdos is not None:
+        pdos_arr = jnp.asarray(pdos, dtype=jnp.float64)
+    return FullDensityOfStates(
+        energy=energy_arr,
+        total_dos_up=up_arr,
+        total_dos_down=down_arr,
+        integrated_dos_up=int_up_arr,
+        integrated_dos_down=int_down_arr,
+        pdos=pdos_arr,
+        fermi_energy=fermi_arr,
+        natoms=natoms,
+    )
+
+
 __all__: list[str] = [
     "DensityOfStates",
+    "FullDensityOfStates",
     "make_density_of_states",
+    "make_full_density_of_states",
 ]

@@ -3,74 +3,53 @@
 Extended Summary
 ----------------
 Reads VASP EIGENVAL files containing electronic band energies and
-returns a :class:`~arpyes.types.BandStructure` PyTree.
+returns a :class:`~arpyes.types.BandStructure` or
+:class:`~arpyes.types.SpinBandStructure` PyTree depending on the
+``return_mode`` parameter.
 
 Routine Listings
 ----------------
 :func:`read_eigenval`
-    Parse a VASP EIGENVAL file into a BandStructure.
+    Parse a VASP EIGENVAL file into a BandStructure or
+    SpinBandStructure.
 
 Notes
 -----
-Handles both spin-polarized and non-polarized calculations.
-Bands are sorted by energy within each k-point.
+Handles both spin-polarized (ISPIN=2) and non-polarized (ISPIN=1)
+calculations. Bands are sorted by energy within each k-point.
 """
 
 from pathlib import Path
+from typing import Literal
 
 import jax.numpy as jnp
 import numpy as np
 
-from arpyes.types import BandStructure, make_band_structure
+from arpyes.types import (
+    BandStructure,
+    SpinBandStructure,
+    make_band_structure,
+    make_spin_band_structure,
+)
+
+_ISPIN_SPIN_POLARIZED: int = 2
+_KPOINT_LINE_VALUES: int = 4
+_BAND_LINE_MIN_VALUES: int = 2
+_BAND_LINE_SPIN_VALUES: int = 3
+_EIG_UP_INDEX: int = 1
+_EIG_DOWN_INDEX: int = 2
 
 
 def read_eigenval(
     filename: str = "EIGENVAL",
     fermi_energy: float = 0.0,
-) -> BandStructure:
+    return_mode: Literal["legacy", "full"] = "legacy",
+) -> BandStructure | SpinBandStructure:
     """Parse a VASP EIGENVAL file.
 
     Reads a VASP EIGENVAL file that contains electronic eigenvalues
-    (band energies) at each k-point sampled during a self-consistent
-    or non-self-consistent calculation. The EIGENVAL format consists
-    of a fixed header block followed by repeating per-k-point blocks
-    of band energies. This function returns a
-    :class:`~arpyes.types.BandStructure` PyTree.
-
-    Implementation Logic
-    --------------------
-    1. **Read header** -- parse the first line to extract the 4-integer
-       header (NIONS, unknown, unknown, ISPIN). The fourth integer
-       ``_ispin`` indicates spin-polarization (1 = non-polarized,
-       2 = spin-polarized).
-
-    2. **Skip lines 2-5** -- consume four lines that contain the
-       system title, a blank line, and POTCAR-related metadata. These
-       are not used.
-
-    3. **Read metadata line (line 6)** -- parse three integers:
-       ``_nelect`` (number of electrons), ``nkpoints`` (number of
-       k-points), and ``nbands`` (number of bands).
-
-    4. **Skip one blank line** following the metadata.
-
-    5. **Parse per-k-point blocks** -- for each of the ``nkpoints``
-       k-points:
-       a. Skip one blank separator line.
-       b. Read the k-point coordinate line: four floats
-          (kx, ky, kz, weight) stored in ``kpoints[k, :]``.
-       c. Skip one blank line after the k-point header.
-       d. Read ``nbands`` eigenvalue lines. Each line has at least
-          two columns (band index, energy); store ``vals[1]`` in
-          ``eigenvalues[k, b]``.
-
-    6. **Sort eigenvalues** -- sort bands within each k-point by
-       energy (ascending) via ``np.sort(eigenvalues, axis=1)`` to
-       ensure a consistent band ordering.
-
-    7. **Construct PyTree** -- call ``make_band_structure`` with the
-       eigenvalue matrix, k-point coordinates (first 3 columns),
-       k-point weights (column 4), and the user-supplied Fermi energy.
+    (band energies) at each k-point. Supports both ISPIN=1 (non-
+    polarized) and ISPIN=2 (spin-polarized) calculations.
 
     Parameters
     ----------
@@ -79,27 +58,32 @@ def read_eigenval(
     fermi_energy : float, optional
         Fermi level in eV used to reference the eigenvalues.
         Default is 0.0.
+    return_mode : {"legacy", "full"}, optional
+        ``"legacy"`` (default) returns a ``BandStructure`` with only
+        spin-up eigenvalues (backward-compatible). ``"full"`` returns
+        a ``SpinBandStructure`` with both spin channels when ISPIN=2,
+        or a ``BandStructure`` when ISPIN=1.
 
     Returns
     -------
-    bands : BandStructure
-        Band structure with eigenvalues and k-points.
+    bands : BandStructure or SpinBandStructure
+        Band structure with eigenvalues and k-points. The type
+        depends on ``return_mode`` and the spin polarization.
 
     Notes
     -----
     For spin-polarized calculations (ISPIN=2), each eigenvalue line
-    contains three columns (index, energy-up, energy-down). Only the
-    spin-up energy (``vals[1]``) is currently extracted; spin-down
-    channels are silently dropped. The eigenvalue sort in step 6 may
-    re-order bands across spin channels. The Fermi energy is **not**
-    embedded in the EIGENVAL file itself; it must be obtained
-    separately (e.g. from a DOSCAR or OUTCAR) and passed via the
-    ``fermi_energy`` parameter.
+    contains three columns (index, energy-up, energy-down). In
+    ``"legacy"`` mode only the spin-up energy is extracted. In
+    ``"full"`` mode both channels are preserved in a
+    ``SpinBandStructure``. The Fermi energy is **not** embedded in
+    the EIGENVAL file; it must be obtained separately (e.g. from
+    DOSCAR or OUTCAR).
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
         header: list[int] = [int(x) for x in fid.readline().split()]
-        _ispin: int = header[3]
+        ispin: int = header[3]
         fid.readline()
         fid.readline()
         fid.readline()
@@ -108,28 +92,83 @@ def read_eigenval(
         _nelect: int = meta[0]
         nkpoints: int = meta[1]
         nbands: int = meta[2]
-        fid.readline()
         kpoints: np.ndarray = np.zeros((nkpoints, 4), dtype=np.float64)
-        eigenvalues: np.ndarray = np.zeros(
+        eigenvalues_up: np.ndarray = np.zeros(
             (nkpoints, nbands), dtype=np.float64
         )
+        eigenvalues_down: np.ndarray | None = None
+        if ispin == _ISPIN_SPIN_POLARIZED:
+            eigenvalues_down = np.zeros(
+                (nkpoints, nbands), dtype=np.float64
+            )
         for k in range(nkpoints):
-            fid.readline()
-            kpoints[k, :] = [float(x) for x in fid.readline().split()]
-            fid.readline()
+            kpoint_line: str = _read_next_nonempty_line(fid)
+            if not kpoint_line:
+                msg = "Unexpected EOF while reading EIGENVAL k-point block."
+                raise ValueError(msg)
+            kpoint_vals: list[float] = [
+                float(x) for x in kpoint_line.split()
+            ]
+            if len(kpoint_vals) < _KPOINT_LINE_VALUES:
+                msg = "Invalid EIGENVAL k-point line; expected 4 values."
+                raise ValueError(msg)
+            kpoints[k, :] = kpoint_vals[:_KPOINT_LINE_VALUES]
             for b in range(nbands):
-                vals: list[float] = [float(x) for x in fid.readline().split()]
-                eigenvalues[k, b] = vals[1]
-            if k < nkpoints - 1:
-                pass
-        eigenvalues = np.sort(eigenvalues, axis=1)
+                band_line: str = _read_next_nonempty_line(fid)
+                if not band_line:
+                    msg = "Unexpected EOF while reading EIGENVAL band line."
+                    raise ValueError(msg)
+                vals: list[float] = [
+                    float(x) for x in band_line.split()
+                ]
+                if len(vals) < _BAND_LINE_MIN_VALUES:
+                    msg = "Invalid EIGENVAL band line; expected band energy."
+                    raise ValueError(msg)
+                eigenvalues_up[k, b] = vals[_EIG_UP_INDEX]
+                if (
+                    ispin == _ISPIN_SPIN_POLARIZED
+                    and eigenvalues_down is not None
+                ):
+                    if len(vals) < _BAND_LINE_SPIN_VALUES:
+                        msg = (
+                            "Invalid spin-polarized EIGENVAL band line; "
+                            "expected spin-down energy."
+                        )
+                        raise ValueError(msg)
+                    eigenvalues_down[k, b] = vals[_EIG_DOWN_INDEX]
+        eigenvalues_up = np.sort(eigenvalues_up, axis=1)
+        if eigenvalues_down is not None:
+            eigenvalues_down = np.sort(eigenvalues_down, axis=1)
+
+    if (
+        return_mode == "full"
+        and ispin == _ISPIN_SPIN_POLARIZED
+        and eigenvalues_down is not None
+    ):
+        return make_spin_band_structure(
+            eigenvalues_up=jnp.asarray(eigenvalues_up),
+            eigenvalues_down=jnp.asarray(eigenvalues_down),
+            kpoints=jnp.asarray(kpoints[:, :3]),
+            kpoint_weights=jnp.asarray(kpoints[:, 3]),
+            fermi_energy=fermi_energy,
+        )
     bands: BandStructure = make_band_structure(
-        eigenvalues=jnp.asarray(eigenvalues),
+        eigenvalues=jnp.asarray(eigenvalues_up),
         kpoints=jnp.asarray(kpoints[:, :3]),
         kpoint_weights=jnp.asarray(kpoints[:, 3]),
         fermi_energy=fermi_energy,
     )
     return bands
+
+
+def _read_next_nonempty_line(fid) -> str:  # noqa: ANN001
+    """Read and return the next non-empty line, or ``""`` at EOF."""
+    while True:
+        line: str = fid.readline()
+        if not line:
+            return ""
+        if line.strip():
+            return line
 
 
 __all__: list[str] = [

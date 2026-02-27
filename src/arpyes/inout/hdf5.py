@@ -48,6 +48,8 @@ from arpyes.types import (
 _ATTR_TYPE: str = "_pytree_type"
 _ATTR_AUX: str = "_aux_data_json"
 _ATTR_NONE: str = "_none_fields"
+_KPATH_AUX_WITH_COMMENT_LEN: int = 3
+_KPATH_AUX_WITH_COORD_MODE_LEN: int = 4
 
 
 @dataclass(frozen=True)
@@ -240,48 +242,39 @@ def _decode_tuple_str(
 
 
 def _encode_kpath_aux(
-    aux: tuple[str, tuple[str, ...]],
+    aux: tuple[str, tuple[str, ...], str, str],
 ) -> list[Any]:
-    """Encode KPathInfo auxiliary data (mode, labels) for JSON storage.
+    """Encode KPathInfo auxiliary string metadata for JSON storage.
 
-    KPathInfo stores ``(mode, labels)`` as auxiliary data. The mode is
-    a string and labels is a tuple of strings. Both are converted to
-    JSON-serialisable form: a two-element list [mode_string, list_of_labels].
-
-    Parameters
-    ----------
-    aux : tuple[str, tuple[str, ...]]
-        The (mode, labels) auxiliary data from KPathInfo.
-
-    Returns
-    -------
-    list[Any]
-        A two-element list [mode, list(labels)] for JSON serialisation.
+    KPathInfo stores ``(mode, labels, comment, coordinate_mode)`` as
+    auxiliary data.
     """
-    mode, labels = aux
-    return [str(mode), list(labels)]
+    mode, labels, comment, coordinate_mode = aux
+    return [
+        str(mode),
+        list(labels),
+        str(comment),
+        str(coordinate_mode),
+    ]
 
 
 def _decode_kpath_aux(
     val: Any,  # noqa: ANN401
-) -> tuple[str, tuple[str, ...]]:
-    """Decode JSON list back to KPathInfo auxiliary (mode, labels).
+) -> tuple[str, tuple[str, ...], str, str]:
+    """Decode JSON list back to KPathInfo auxiliary string metadata.
 
-    Inverse of ``_encode_kpath_aux``. Expects a list of length at least
-    two: the first element is the mode string, the second is a sequence
-    of label strings, which is converted to a tuple.
-
-    Parameters
-    ----------
-    val : Any
-        The value read from JSON (a list [mode, labels_list]).
-
-    Returns
-    -------
-    tuple[str, tuple[str, ...]]
-        The reconstructed (mode, labels) auxiliary data for KPathInfo.
+    Supports both the legacy format ``[mode, labels]`` and the new
+    format ``[mode, labels, comment, coordinate_mode]``.
     """
-    return (str(val[0]), tuple(str(s) for s in val[1]))
+    mode: str = str(val[0])
+    labels: tuple[str, ...] = tuple(str(s) for s in val[1])
+    comment: str = (
+        str(val[2]) if len(val) >= _KPATH_AUX_WITH_COMMENT_LEN else ""
+    )
+    coordinate_mode: str = (
+        str(val[3]) if len(val) >= _KPATH_AUX_WITH_COORD_MODE_LEN else ""
+    )
+    return (mode, labels, comment, coordinate_mode)
 
 
 _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
@@ -363,6 +356,12 @@ _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
         children_fields=(
             "num_kpoints",
             "label_indices",
+            "points_per_segment",
+            "segments",
+            "kpoints",
+            "weights",
+            "grid",
+            "shift",
         ),
         aux_encoder=_encode_kpath_aux,
         aux_decoder=_decode_kpath_aux,

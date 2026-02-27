@@ -65,15 +65,23 @@ from .bands import (
     ArpesSpectrum,
     BandStructure,
     OrbitalProjection,
+    SpinBandStructure,
     SpinOrbitalProjection,
     make_arpes_spectrum,
     make_band_structure,
     make_orbital_projection,
+    make_spin_band_structure,
     make_spin_orbital_projection,
 )
 from .dos import (
     DensityOfStates,
+    FullDensityOfStates,
     make_density_of_states,
+    make_full_density_of_states,
+)
+from .volumetric import (
+    VolumetricData,
+    make_volumetric_data,
 )
 from .geometry import (
     CrystalGeometry,
@@ -95,9 +103,11 @@ __all__: list[str] = [
     "BandStructure",
     "CrystalGeometry",
     "DensityOfStates",
+    "FullDensityOfStates",
     "KPathInfo",
     "NonJaxNumber",
     "OrbitalProjection",
+    "SpinBandStructure",
     "SpinOrbitalProjection",
     "PolarizationConfig",
     "ScalarBool",
@@ -106,13 +116,17 @@ __all__: list[str] = [
     "ScalarInteger",
     "ScalarNumeric",
     "SimulationParams",
+    "VolumetricData",
     "make_arpes_spectrum",
     "make_band_structure",
     "make_crystal_geometry",
     "make_density_of_states",
+    "make_full_density_of_states",
     "make_kpath_info",
     "make_orbital_projection",
+    "make_spin_band_structure",
     "make_spin_orbital_projection",
     "make_polarization_config",
     "make_simulation_params",
+    "make_volumetric_data",
 ]
