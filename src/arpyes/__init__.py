@@ -13,6 +13,8 @@ Routine Listings
 ----------------
 :mod:`inout`
     VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR).
+:mod:`radial`
+    Differentiable radial primitives (Bessel, wavefunctions, integrals).
 :mod:`simul`
     ARPES simulation functions at five complexity levels.
 :mod:`types`
@@ -47,13 +49,14 @@ import jax  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 
-from . import inout, simul, types, utils  # noqa: E402
+from . import inout, radial, simul, types, utils  # noqa: E402
 
 __version__: str = version("arpyes")
 
 __all__: list[str] = [
     "__version__",
     "inout",
+    "radial",
     "simul",
     "types",
     "utils",

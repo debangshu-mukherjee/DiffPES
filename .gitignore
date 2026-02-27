@@ -15,8 +15,8 @@ notebooks/__pycache__/
 /tests/utils/__pycache__/
 /envs/__pycache__/
 /data/
-/.claude/
-/.claude/*.md
+/.agents/
+/.agents/*.md
 ${SCIPION_HOME}
 
 *.py[cod]
