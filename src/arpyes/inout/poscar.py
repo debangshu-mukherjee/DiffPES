@@ -144,7 +144,7 @@ def read_poscar(
                 lattice.T, coords.T
             ).T
     geometry: CrystalGeometry = make_crystal_geometry(
-        lattice=lattice,
+        lattice=jnp.asarray(lattice),
         coords=jnp.asarray(coords),
         symbols=symbols,
         atom_counts=atom_counts,

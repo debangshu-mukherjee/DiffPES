@@ -16,8 +16,10 @@ from arpyes.simul import (
     simulate_advanced_expanded,
     simulate_basic,
     simulate_basic_expanded,
+    simulate_basicplus_expanded,
     simulate_expanded,
     simulate_expert_expanded,
+    simulate_novice_expanded,
     simulate_soc,
     simulate_soc_expanded,
 )
@@ -337,6 +339,133 @@ class TestExpandedDispatch(chex.TestCase):
         chex.assert_trees_all_close(
             dispatched.intensity, expected.intensity, atol=1e-12
         )
+
+    def test_dispatch_novice_matches_direct_wrapper(self):
+        """Verify level='novice' matches simulate_novice_expanded."""
+        eigenbands, surface_orb = _make_synthetic_data()
+        expected = simulate_novice_expanded(
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            gamma=0.1,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        dispatched = simulate_expanded(
+            level="novice",
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            gamma=0.1,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        chex.assert_trees_all_close(
+            dispatched.intensity, expected.intensity, atol=1e-12
+        )
+
+    def test_dispatch_basic_matches_direct_wrapper(self):
+        """Verify level='basic' matches simulate_basic_expanded."""
+        eigenbands, surface_orb = _make_synthetic_data()
+        expected = simulate_basic_expanded(
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        dispatched = simulate_expanded(
+            level="basic",
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        chex.assert_trees_all_close(
+            dispatched.intensity, expected.intensity, atol=1e-12
+        )
+
+    def test_dispatch_basicplus_matches_direct_wrapper(self):
+        """Verify level='basicplus' matches simulate_basicplus_expanded."""
+        eigenbands, surface_orb = _make_synthetic_data()
+        expected = simulate_basicplus_expanded(
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        dispatched = simulate_expanded(
+            level="basicplus",
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+        )
+        chex.assert_trees_all_close(
+            dispatched.intensity, expected.intensity, atol=1e-12
+        )
+
+    def test_dispatch_advanced_matches_direct_wrapper(self):
+        """Verify level='advanced' matches simulate_advanced_expanded."""
+        eigenbands, surface_orb = _make_synthetic_data()
+        expected = simulate_advanced_expanded(
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+            polarization="unpolarized",
+            incident_theta=45.0,
+            incident_phi=0.0,
+            polarization_angle=0.0,
+        )
+        dispatched = simulate_expanded(
+            level="advanced",
+            eigenbands=eigenbands,
+            surface_orb=surface_orb,
+            ef=0.0,
+            sigma=0.04,
+            fidelity=200,
+            temperature=15.0,
+            photon_energy=11.0,
+            polarization="unpolarized",
+            incident_theta=45.0,
+            incident_phi=0.0,
+            polarization_angle=0.0,
+        )
+        chex.assert_trees_all_close(
+            dispatched.intensity, expected.intensity, atol=1e-12
+        )
+
+    def test_dispatch_unknown_level_raises(self):
+        """Verify that an unknown level raises ValueError with expected message."""
+        eigenbands, surface_orb = _make_synthetic_data()
+        with self.assertRaises(ValueError) as ctx:
+            simulate_expanded(
+                level="invalid",
+                eigenbands=eigenbands,
+                surface_orb=surface_orb,
+                ef=0.0,
+            )
+        self.assertIn("Unknown simulation level", str(ctx.exception))
+        self.assertIn("novice", str(ctx.exception))
 
     def test_dispatch_soc_requires_surface_spin(self):
         """Verify that level='soc' without surface_spin raises ValueError.

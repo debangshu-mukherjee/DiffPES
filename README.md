@@ -62,3 +62,33 @@ spectrum = simulate_expanded(
     polarization_angle=0.0,
 )
 ```
+
+## Test coverage
+
+Test coverage measures which lines of source code are executed
+during tests. Run it with:
+
+```bash
+source .venv/bin/activate
+pytest tests/ --cov=src/arpyes --cov-report=term-missing
+```
+
+To get as close to 100% as possible:
+
+1. **Simul and types** — Already well covered. Any new branch
+   (e.g. new polarization or dispatch level) should have a
+   corresponding test.
+2. **Expanded dispatch** — Test every `simulate_expanded(level=...)`
+   branch (novice, basic, basicplus, advanced, expert, soc) and
+   the unknown-level `ValueError`.
+3. **HDF5** — Round-trip all PyTree types; test error paths
+   (unknown type on load, missing group, unsupported type on save).
+4. **VASP file readers** (`read_doscar`, `read_eigenval`, `read_kpoints`,
+   `read_poscar`, `read_procar`) — Add tests that call each reader
+   on minimal in-repo fixture files (e.g. under `tests/fixtures/`)
+   so the parsing code paths are executed.
+5. **Plotting** — Exercise the public plotting API in tests (or
+   accept lower coverage for GUI-oriented code).
+6. **Edge branches** — Cover optional arguments (e.g.
+   `make_band_structure(..., kpoint_weights=...)`) and error
+   messages so one-off branches are hit.

@@ -244,6 +244,40 @@ class TestMakeBandStructure(chex.TestCase):
             isinstance(bands.fermi_energy, jax.Array), True
         )
 
+    @chex.variants(with_jit=True, without_jit=True)
+    def test_explicit_kpoint_weights(self):
+        """Verify that explicit kpoint_weights are stored correctly.
+
+        Test Logic
+        ----------
+        1. **Construct with explicit weights**:
+           Call ``make_band_structure`` with a non-uniform
+           ``kpoint_weights`` array (e.g. length 6).
+
+        2. **Assert stored weights**:
+           Check that ``bands.kpoint_weights`` matches the supplied
+           array (cast to float64).
+
+        Asserts
+        -------
+        The else branch (kpoint_weights is not None) is exercised and
+        the supplied weights are preserved.
+        """
+        nk, nb = 6, 2
+        eigenvalues = jnp.zeros((nk, nb))
+        kpoints = jnp.zeros((nk, 3))
+        weights = jnp.linspace(0.5, 1.5, nk, dtype=jnp.float64)
+        var_fn = self.variant(make_band_structure)
+        bands = var_fn(
+            eigenvalues=eigenvalues,
+            kpoints=kpoints,
+            kpoint_weights=weights,
+            fermi_energy=0.0,
+        )
+        chex.assert_trees_all_close(
+            bands.kpoint_weights, weights, atol=1e-12
+        )
+
 
 class TestMakeOrbitalProjection(chex.TestCase):
     """Tests for :func:`arpyes.types.bands.make_orbital_projection`.

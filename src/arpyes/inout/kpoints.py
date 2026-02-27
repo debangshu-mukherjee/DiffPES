@@ -137,7 +137,7 @@ def read_kpoints(
 
 
 def _extract_label(line: str) -> str:
-    """Extract symmetry label from a KPOINTS line.
+    r"""Extract symmetry label from a KPOINTS line.
 
     Parses a single coordinate line from a VASP KPOINTS file and
     attempts to recover the human-readable symmetry label (e.g.

@@ -215,6 +215,75 @@ class TestBuildEfield(chex.TestCase):
             atol=1e-10,
         )
 
+    def test_lap_linear_combination(self):
+        """Verify that LAP (linear arbitrary) yields cos(angle)*e_s + sin(angle)*e_p.
+
+        Test Logic
+        ----------
+        1. **Build E-field with LAP config**:
+           Creates a polarization config with type "LAP",
+           polarization_angle=0.3, and computes the electric field.
+
+        2. **Build e_s and e_p** with the same angles and form the
+           expected combination cos(0.3)*e_s + sin(0.3)*e_p.
+
+        3. **Compare**: E-field matches the expected combination.
+
+        Asserts
+        -------
+        LAP E-field equals the linear combination of s- and p-vectors
+        at the given polarization angle.
+        """
+        angle = 0.3
+        config = make_polarization_config(
+            theta=jnp.pi / 4.0,
+            phi=0.0,
+            polarization_type="LAP",
+            polarization_angle=angle,
+        )
+        efield = build_efield(config)
+        e_s, e_p = build_polarization_vectors(
+            config.theta, config.phi
+        )
+        e_s_c = e_s.astype(jnp.complex128)
+        e_p_c = e_p.astype(jnp.complex128)
+        expected = (
+            jnp.cos(angle) * e_s_c + jnp.sin(angle) * e_p_c
+        )
+        chex.assert_trees_all_close(
+            efield, expected, atol=1e-10
+        )
+
+    def test_unknown_pol_type_fallback_to_s(self):
+        """Verify that unknown polarization type falls back to e_s.
+
+        Test Logic
+        ----------
+        1. **Build E-field with an unsupported type** (e.g. "unpolarized"):
+           build_efield treats it as the default branch and returns e_s.
+
+        2. **Compare** real part of E-field to e_s from
+           build_polarization_vectors.
+
+        Asserts
+        -------
+        The default/else branch returns the s-polarization vector.
+        """
+        config = make_polarization_config(
+            theta=jnp.pi / 4.0,
+            phi=0.0,
+            polarization_type="unpolarized",
+        )
+        efield = build_efield(config)
+        e_s, _ = build_polarization_vectors(
+            config.theta, config.phi
+        )
+        chex.assert_trees_all_close(
+            jnp.real(efield),
+            e_s.astype(jnp.float64),
+            atol=1e-10,
+        )
+
 
 class TestDipoleMatrixElements(chex.TestCase):
     """Tests for :func:`arpyes.simul.polarization.dipole_matrix_elements`.

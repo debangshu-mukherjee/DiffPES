@@ -1,0 +1,9 @@
+With Selective Dynamics
+1.0
+  1.0 0.0 0.0
+  0.0 1.0 0.0
+  0.0 0.0 1.0
+  1
+Selective dynamics
+Direct
+  0.0 0.0 0.0 T T T

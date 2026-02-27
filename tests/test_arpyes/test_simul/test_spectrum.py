@@ -612,3 +612,16 @@ class TestSimulateSoc(chex.TestCase):
         )
         diff = jnp.abs(soc_spec.intensity - expert_spec.intensity)
         self.assertGreater(jnp.max(diff), 1e-10)
+
+    def test_soc_polarized_light(self):
+        """Verify SOC runs with polarized light (hits polarized branch in simulate_soc)."""
+        bands, orb_proj = _make_synthetic_data_with_spin()
+        params = make_simulation_params(fidelity=100)
+        pol = make_polarization_config(
+            polarization_type="LHP",
+        )
+        spectrum = simulate_soc(
+            bands, orb_proj, params, pol, ls_scale=0.02
+        )
+        chex.assert_shape(spectrum.intensity, (bands.eigenvalues.shape[0], 100))
+        chex.assert_tree_all_finite(spectrum.intensity)

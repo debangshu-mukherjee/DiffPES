@@ -591,6 +591,29 @@ class TestErrorHandling(chex.TestCase):
             ):
                 load_from_h5(path, name="b")
 
+    def test_load_unknown_pytree_type_raises(self):
+        """Verify loading a group with unknown _pytree_type raises TypeError.
+
+        Test Logic
+        ----------
+        1. **Create** an HDF5 file with a group that has
+           _pytree_type = "UnknownType" (not in _PYTREE_REGISTRY).
+        2. **Load** that group with load_from_h5(path, name="bad").
+
+        Asserts
+        -------
+        TypeError is raised with message referring to unknown type.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "unknown_type.h5"
+            with h5py.File(path, "w") as f:
+                grp = f.create_group("bad")
+                grp.attrs["_pytree_type"] = "UnknownType"
+                grp.attrs["_aux_data_json"] = "null"
+                grp.attrs["_none_fields"] = "[]"
+            with pytest.raises(TypeError, match="Unknown PyTree type"):
+                load_from_h5(path, name="bad")
+
 
 class TestDatasetFlags(chex.TestCase):
     """Tests for HDF5 dataset storage flags in save_to_h5."""
