@@ -462,21 +462,13 @@ def make_band_structure(
     eigenvalues_arr: Float[Array, "K B"] = jnp.asarray(
         eigenvalues, dtype=jnp.float64
     )
-    kpoints_arr: Float[Array, "K 3"] = jnp.asarray(
-        kpoints, dtype=jnp.float64
-    )
+    kpoints_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
     nkpts: int = eigenvalues_arr.shape[0]
     if kpoint_weights is None:
-        weights_arr: Float[Array, " K"] = jnp.ones(
-            nkpts, dtype=jnp.float64
-        )
+        weights_arr: Float[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
     else:
-        weights_arr = jnp.asarray(
-            kpoint_weights, dtype=jnp.float64
-        )
-    fermi_arr: Float[Array, " "] = jnp.asarray(
-        fermi_energy, dtype=jnp.float64
-    )
+        weights_arr = jnp.asarray(kpoint_weights, dtype=jnp.float64)
+    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
     bands: BandStructure = BandStructure(
         eigenvalues=eigenvalues_arr,
         kpoints=kpoints_arr,

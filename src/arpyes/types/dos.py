@@ -179,15 +179,9 @@ def make_density_of_states(
     --------
     DensityOfStates : The PyTree class constructed by this factory.
     """
-    energy_arr: Float[Array, " E"] = jnp.asarray(
-        energy, dtype=jnp.float64
-    )
-    dos_arr: Float[Array, " E"] = jnp.asarray(
-        total_dos, dtype=jnp.float64
-    )
-    fermi_arr: Float[Array, " "] = jnp.asarray(
-        fermi_energy, dtype=jnp.float64
-    )
+    energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
+    dos_arr: Float[Array, " E"] = jnp.asarray(total_dos, dtype=jnp.float64)
+    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
     dos: DensityOfStates = DensityOfStates(
         energy=energy_arr,
         total_dos=dos_arr,

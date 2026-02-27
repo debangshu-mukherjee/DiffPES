@@ -77,16 +77,12 @@ def _prepare_plot_arrays(
         If array ranks are invalid or if intensity/energy sizes are
         incompatible.
     """
-    intensity: np.ndarray = np.asarray(
-        spectrum.intensity, dtype=np.float64
-    )
+    intensity: np.ndarray = np.asarray(spectrum.intensity, dtype=np.float64)
     energy_axis: np.ndarray = np.asarray(
         spectrum.energy_axis, dtype=np.float64
     )
     if intensity.ndim != _INTENSITY_NDIM:
-        msg: str = (
-            "Expected spectrum.intensity to have shape (K, E)."
-        )
+        msg: str = "Expected spectrum.intensity to have shape (K, E)."
         raise ValueError(msg)
     if energy_axis.ndim != _ENERGY_AXIS_NDIM:
         msg = "Expected spectrum.energy_axis to have shape (E,)."
@@ -266,9 +262,7 @@ def apply_kpath_ticks(
     if n_labels == 0:
         return ax
 
-    ticks: list[float] = [
-        float(idx) for idx in indices[:n_labels]
-    ]
+    ticks: list[float] = [float(idx) for idx in indices[:n_labels]]
     ax.set_xticks(ticks)
     ax.set_xticklabels(labels[:n_labels])
 

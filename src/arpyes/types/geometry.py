@@ -165,9 +165,7 @@ class CrystalGeometry(NamedTuple):
         geometry : CrystalGeometry
             Reconstructed instance with identical data.
         """
-        lattice, reciprocal_lattice, coords, atom_counts = (
-            children
-        )
+        lattice, reciprocal_lattice, coords, atom_counts = children
         return cls(
             lattice=lattice,
             reciprocal_lattice=reciprocal_lattice,
@@ -180,7 +178,7 @@ class CrystalGeometry(NamedTuple):
 def _compute_reciprocal_lattice(
     lattice: Float[Array, "3 3"],
 ) -> Float[Array, "3 3"]:
-    """Compute reciprocal lattice vectors from real-space lattice.
+    r"""Compute reciprocal lattice vectors from real-space lattice.
 
     Derives the reciprocal lattice from the real-space lattice using
     the standard cross-product formula. The reciprocal lattice vectors
@@ -223,24 +221,16 @@ def _compute_reciprocal_lattice(
     a2: Float[Array, " 3"] = lattice[1]
     a3: Float[Array, " 3"] = lattice[2]
     volume: Float[Array, " "] = jnp.dot(a1, jnp.cross(a2, a3))
-    b1: Float[Array, " 3"] = (
-        2.0 * jnp.pi * jnp.cross(a2, a3) / volume
-    )
-    b2: Float[Array, " 3"] = (
-        2.0 * jnp.pi * jnp.cross(a3, a1) / volume
-    )
-    b3: Float[Array, " 3"] = (
-        2.0 * jnp.pi * jnp.cross(a1, a2) / volume
-    )
+    b1: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a2, a3) / volume
+    b2: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a3, a1) / volume
+    b3: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a1, a2) / volume
     reciprocal: Float[Array, "3 3"] = jnp.stack([b1, b2, b3])
     return reciprocal
 
 
 @jaxtyped(typechecker=beartype)
 def make_crystal_geometry(
-    lattice: Union[
-        Float[Array, "3 3"], "list[list[ScalarNumeric]]"
-    ],
+    lattice: Union[Float[Array, "3 3"], "list[list[ScalarNumeric]]"],
     coords: Float[Array, "N 3"],
     symbols: tuple[str, ...],
     atom_counts: Union[Int[Array, " S"], "list[int]"],
@@ -291,18 +281,10 @@ def make_crystal_geometry(
     _compute_reciprocal_lattice : Cross-product formula used to
         derive the reciprocal lattice.
     """
-    lattice_arr: Float[Array, "3 3"] = jnp.asarray(
-        lattice, dtype=jnp.float64
-    )
-    coords_arr: Float[Array, "N 3"] = jnp.asarray(
-        coords, dtype=jnp.float64
-    )
-    counts_arr: Int[Array, " S"] = jnp.asarray(
-        atom_counts, dtype=jnp.int32
-    )
-    reciprocal: Float[Array, "3 3"] = _compute_reciprocal_lattice(
-        lattice_arr
-    )
+    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
+    coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
+    counts_arr: Int[Array, " S"] = jnp.asarray(atom_counts, dtype=jnp.int32)
+    reciprocal: Float[Array, "3 3"] = _compute_reciprocal_lattice(lattice_arr)
     geometry: CrystalGeometry = CrystalGeometry(
         lattice=lattice_arr,
         reciprocal_lattice=reciprocal,

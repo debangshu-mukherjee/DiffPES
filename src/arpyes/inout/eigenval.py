@@ -98,38 +98,27 @@ def read_eigenval(
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
-        header: list[int] = [
-            int(x) for x in fid.readline().split()
-        ]
+        header: list[int] = [int(x) for x in fid.readline().split()]
         _ispin: int = header[3]
         fid.readline()
         fid.readline()
         fid.readline()
         fid.readline()
-        meta: list[int] = [
-            int(x) for x in fid.readline().split()
-        ]
+        meta: list[int] = [int(x) for x in fid.readline().split()]
         _nelect: int = meta[0]
         nkpoints: int = meta[1]
         nbands: int = meta[2]
         fid.readline()
-        kpoints: np.ndarray = np.zeros(
-            (nkpoints, 4), dtype=np.float64
-        )
+        kpoints: np.ndarray = np.zeros((nkpoints, 4), dtype=np.float64)
         eigenvalues: np.ndarray = np.zeros(
             (nkpoints, nbands), dtype=np.float64
         )
         for k in range(nkpoints):
             fid.readline()
-            kpoints[k, :] = [
-                float(x) for x in fid.readline().split()
-            ]
+            kpoints[k, :] = [float(x) for x in fid.readline().split()]
             fid.readline()
             for b in range(nbands):
-                vals: list[float] = [
-                    float(x)
-                    for x in fid.readline().split()
-                ]
+                vals: list[float] = [float(x) for x in fid.readline().split()]
                 eigenvalues[k, b] = vals[1]
             if k < nkpoints - 1:
                 pass

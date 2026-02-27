@@ -109,9 +109,7 @@ def read_poscar(
         scale: float = float(fid.readline().strip())
         lattice: np.ndarray = np.zeros((3, 3), dtype=np.float64)
         for i in range(3):
-            vals: list[float] = [
-                float(x) for x in fid.readline().split()
-            ]
+            vals: list[float] = [float(x) for x in fid.readline().split()]
             lattice[i, :] = vals
         lattice = lattice * scale
         line: str = fid.readline().strip()
@@ -119,9 +117,7 @@ def read_poscar(
         if not any(c.isdigit() for c in line):
             symbols = tuple(line.split())
             line = fid.readline().strip()
-        atom_counts: list[int] = [
-            int(x) for x in line.split()
-        ]
+        atom_counts: list[int] = [int(x) for x in line.split()]
         natoms: int = sum(atom_counts)
         line = fid.readline().strip()
         selective: bool = False
@@ -129,20 +125,13 @@ def read_poscar(
             selective = True  # noqa: F841
             line = fid.readline().strip()
         cartesian: bool = line[0].lower() in ("c", "k")
-        coords: np.ndarray = np.zeros(
-            (natoms, 3), dtype=np.float64
-        )
+        coords: np.ndarray = np.zeros((natoms, 3), dtype=np.float64)
         for i in range(natoms):
-            vals = [
-                float(x)
-                for x in fid.readline().split()[:3]
-            ]
+            vals = [float(x) for x in fid.readline().split()[:3]]
             coords[i, :] = vals
         if cartesian:
             coords = coords * scale
-            coords = np.linalg.solve(
-                lattice.T, coords.T
-            ).T
+            coords = np.linalg.solve(lattice.T, coords.T).T
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.asarray(lattice),
         coords=jnp.asarray(coords),

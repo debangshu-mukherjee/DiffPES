@@ -30,15 +30,9 @@ from arpyes.types import ScalarFloat
 _ENERGIES: Float[Array, " 3"] = jnp.array(
     [20.0, 40.0, 60.0], dtype=jnp.float64
 )
-_SIGMA_S: Float[Array, " 3"] = jnp.array(
-    [0.1, 0.08, 0.06], dtype=jnp.float64
-)
-_SIGMA_P: Float[Array, " 3"] = jnp.array(
-    [0.6, 0.9, 1.1], dtype=jnp.float64
-)
-_SIGMA_D: Float[Array, " 3"] = jnp.array(
-    [2.0, 1.5, 1.2], dtype=jnp.float64
-)
+_SIGMA_S: Float[Array, " 3"] = jnp.array([0.1, 0.08, 0.06], dtype=jnp.float64)
+_SIGMA_P: Float[Array, " 3"] = jnp.array([0.6, 0.9, 1.1], dtype=jnp.float64)
+_SIGMA_D: Float[Array, " 3"] = jnp.array([2.0, 1.5, 1.2], dtype=jnp.float64)
 
 
 @jaxtyped(typechecker=beartype)
@@ -133,9 +127,7 @@ def _interp_cross_section(
     sigma : Float[Array, " "]
         Interpolated cross-section value.
     """
-    sigma: Float[Array, " "] = jnp.interp(
-        photon_energy, _ENERGIES, sigma_vals
-    )
+    sigma: Float[Array, " "] = jnp.interp(photon_energy, _ENERGIES, sigma_vals)
     return sigma
 
 
@@ -187,18 +179,10 @@ def yeh_lindau_weights(
        sections and asymmetry parameters: 1 <= Z <= 103", Atomic
        Data and Nuclear Data Tables 32, 1-155 (1985).
     """
-    pe: Float[Array, " "] = jnp.asarray(
-        photon_energy, dtype=jnp.float64
-    )
-    s_w: Float[Array, " "] = _interp_cross_section(
-        pe, _SIGMA_S
-    )
-    p_w: Float[Array, " "] = _interp_cross_section(
-        pe, _SIGMA_P
-    )
-    d_w: Float[Array, " "] = _interp_cross_section(
-        pe, _SIGMA_D
-    )
+    pe: Float[Array, " "] = jnp.asarray(photon_energy, dtype=jnp.float64)
+    s_w: Float[Array, " "] = _interp_cross_section(pe, _SIGMA_S)
+    p_w: Float[Array, " "] = _interp_cross_section(pe, _SIGMA_P)
+    d_w: Float[Array, " "] = _interp_cross_section(pe, _SIGMA_D)
     weights: Float[Array, " 9"] = jnp.array(
         [s_w, p_w, p_w, p_w, d_w, d_w, d_w, d_w, d_w],
         dtype=jnp.float64,

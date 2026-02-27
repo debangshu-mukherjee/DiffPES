@@ -77,11 +77,9 @@ def gaussian(
         Normalized Gaussian profile values.
     """
     diff: Float[Array, " E"] = energy_range - center
-    norm_factor: Float[Array, " "] = (
-        jnp.sqrt(2.0 * jnp.pi) * sigma
-    )
+    norm_factor: Float[Array, " "] = jnp.sqrt(2.0 * jnp.pi) * sigma
     profile: Float[Array, " E"] = (
-        jnp.exp(-diff**2 / (2.0 * sigma**2)) / norm_factor
+        jnp.exp(-(diff**2) / (2.0 * sigma**2)) / norm_factor
     )
     return profile
 
@@ -162,9 +160,7 @@ def voigt(
        J. Appl. Cryst. 20, 79-83 (1987).
     """
     _ln2: Float[Array, " "] = jnp.log(jnp.float64(2.0))
-    f_g: Float[Array, " "] = (
-        2.0 * sigma * jnp.sqrt(2.0 * _ln2)
-    )
+    f_g: Float[Array, " "] = 2.0 * sigma * jnp.sqrt(2.0 * _ln2)
     f_l: Float[Array, " "] = jnp.asarray(2.0 * gamma)
     f_v: Float[Array, " "] = (
         f_g**5
@@ -174,31 +170,18 @@ def voigt(
         + 0.07842 * f_g * f_l**4
         + f_l**5
     ) ** 0.2
-    safe_fv: Float[Array, " "] = jnp.where(
-        f_v > 0.0, f_v, jnp.float64(1e-30)
-    )
+    safe_fv: Float[Array, " "] = jnp.where(f_v > 0.0, f_v, jnp.float64(1e-30))
     ratio: Float[Array, " "] = f_l / safe_fv
     eta: Float[Array, " "] = (
-        1.36603 * ratio
-        - 0.47719 * ratio**2
-        + 0.11116 * ratio**3
+        1.36603 * ratio - 0.47719 * ratio**2 + 0.11116 * ratio**3
     )
     eta = jnp.clip(eta, 0.0, 1.0)
-    sigma_v: Float[Array, " "] = (
-        safe_fv / (2.0 * jnp.sqrt(2.0 * _ln2))
-    )
-    g_part: Float[Array, " E"] = gaussian(
-        energy_range, center, sigma_v
-    )
+    sigma_v: Float[Array, " "] = safe_fv / (2.0 * jnp.sqrt(2.0 * _ln2))
+    g_part: Float[Array, " E"] = gaussian(energy_range, center, sigma_v)
     diff: Float[Array, " E"] = energy_range - center
     gamma_v: Float[Array, " "] = safe_fv / 2.0
-    l_part: Float[Array, " E"] = (
-        gamma_v
-        / (jnp.pi * (diff**2 + gamma_v**2))
-    )
-    profile: Float[Array, " E"] = (
-        eta * l_part + (1.0 - eta) * g_part
-    )
+    l_part: Float[Array, " E"] = gamma_v / (jnp.pi * (diff**2 + gamma_v**2))
+    profile: Float[Array, " E"] = eta * l_part + (1.0 - eta) * g_part
     return profile
 
 
@@ -256,19 +239,15 @@ def fermi_dirac(
     Uses the Boltzmann constant kB = 8.617333e-5 eV/K, stored in
     the module-level constant ``_KB``.
     """
-    kt: Float[Array, " "] = jnp.asarray(
-        _KB, dtype=jnp.float64
-    ) * jnp.asarray(temperature, dtype=jnp.float64)
-    safe_kt: Float[Array, " "] = jnp.where(
-        kt > 0.0, kt, jnp.float64(1e-10)
+    kt: Float[Array, " "] = jnp.asarray(_KB, dtype=jnp.float64) * jnp.asarray(
+        temperature, dtype=jnp.float64
     )
+    safe_kt: Float[Array, " "] = jnp.where(kt > 0.0, kt, jnp.float64(1e-10))
     exponent: Float[Array, " "] = (
         jnp.asarray(energy, dtype=jnp.float64)
         - jnp.asarray(fermi_energy, dtype=jnp.float64)
     ) / safe_kt
-    occupation: Float[Array, " "] = 1.0 / (
-        1.0 + jnp.exp(exponent)
-    )
+    occupation: Float[Array, " "] = 1.0 / (1.0 + jnp.exp(exponent))
     return occupation
 
 

@@ -105,10 +105,7 @@ def read_procar(
         header: str = ""
         while "k-points" not in header:
             header = fid.readline()
-        params: list[int] = [
-            int(x)
-            for x in re.findall(r"\d+", header)
-        ]
+        params: list[int] = [int(x) for x in re.findall(r"\d+", header)]
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
@@ -121,9 +118,7 @@ def read_procar(
             r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
         )
         for line in fid:
-            k_match: re.Match[str] | None = re.search(
-                k_re, line
-            )
+            k_match: re.Match[str] | None = re.search(k_re, line)
             if k_match is None:
                 continue
             k_idx: int = int(k_match.group(1)) - 1
@@ -134,17 +129,13 @@ def read_procar(
                 fid.readline()
                 for a in range(natoms):
                     data_line: str = fid.readline()
-                    vals: list[float] = [
-                        float(x)
-                        for x in data_line.split()
-                    ]
-                    projections[k_idx, b, a, :] = vals[
-                        1 : _NORBS + 1
-                    ]
+                    vals: list[float] = [float(x) for x in data_line.split()]
+                    projections[k_idx, b, a, :] = vals[1 : _NORBS + 1]
                 fid.readline()
                 fid.readline()
     proj_arr: Float[Array, " K B A 9"] = jnp.asarray(
-        projections, dtype=jnp.float64)
+        projections, dtype=jnp.float64
+    )
     orb_proj: OrbitalProjection = make_orbital_projection(
         projections=proj_arr,
     )

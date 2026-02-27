@@ -493,9 +493,7 @@ def save_to_h5(
         msg = "At least one PyTree must be provided."
         raise ValueError(msg)
     if compression is None and compression_opts is not None:
-        msg = (
-            "compression_opts requires compression to be set."
-        )
+        msg = "compression_opts requires compression to be set."
         raise ValueError(msg)
 
     file_path: Path = Path(path)
@@ -503,23 +501,16 @@ def save_to_h5(
         for group_name, pytree in pytrees.items():
             type_name: str = type(pytree).__name__
             if type_name not in _PYTREE_REGISTRY:
-                msg = (
-                    f"Unsupported PyTree type: "
-                    f"{type_name}"
-                )
+                msg = f"Unsupported PyTree type: {type_name}"
                 raise TypeError(msg)
 
-            meta: _PyTreeMeta = (
-                _PYTREE_REGISTRY[type_name]
-            )
+            meta: _PyTreeMeta = _PYTREE_REGISTRY[type_name]
             children, aux_data = pytree.tree_flatten()
 
             grp: h5py.Group = f.create_group(group_name)
             grp.attrs[_ATTR_TYPE] = type_name
             aux_serializable = meta.aux_encoder(aux_data)
-            grp.attrs[_ATTR_AUX] = json.dumps(
-                aux_serializable
-            )
+            grp.attrs[_ATTR_AUX] = json.dumps(aux_serializable)
 
             none_fields: list[str] = []
             for field_name, child in zip(
@@ -531,15 +522,13 @@ def save_to_h5(
                     none_fields.append(field_name)
                 else:
                     child_arr: np.ndarray = np.asarray(child)
-                    ds_kwargs: dict[str, Any] = (
-                        _dataset_write_kwargs(
-                            data=child_arr,
-                            compression=compression,
-                            compression_opts=compression_opts,
-                            shuffle=shuffle,
-                            fletcher32=fletcher32,
-                            chunks=chunks,
-                        )
+                    ds_kwargs: dict[str, Any] = _dataset_write_kwargs(
+                        data=child_arr,
+                        compression=compression,
+                        compression_opts=compression_opts,
+                        shuffle=shuffle,
+                        fletcher32=fletcher32,
+                        chunks=chunks,
                     )
                     grp.create_dataset(
                         field_name,
@@ -615,22 +604,14 @@ def load_from_h5(
     ) -> Any:  # noqa: ANN401
         type_name: str = str(grp.attrs[_ATTR_TYPE])
         if type_name not in _PYTREE_REGISTRY:
-            msg = (
-                f"Unknown PyTree type: {type_name}"
-            )
+            msg = f"Unknown PyTree type: {type_name}"
             raise TypeError(msg)
 
-        meta: _PyTreeMeta = (
-            _PYTREE_REGISTRY[type_name]
-        )
-        aux_json = json.loads(
-            str(grp.attrs[_ATTR_AUX])
-        )
+        meta: _PyTreeMeta = _PYTREE_REGISTRY[type_name]
+        aux_json = json.loads(str(grp.attrs[_ATTR_AUX]))
         aux_data = meta.aux_decoder(aux_json)
 
-        none_fields: list[str] = json.loads(
-            str(grp.attrs[_ATTR_NONE])
-        )
+        none_fields: list[str] = json.loads(str(grp.attrs[_ATTR_NONE]))
 
         children: list[Any] = []
         for field_name in meta.children_fields:
@@ -640,25 +621,18 @@ def load_from_h5(
                 arr = grp[field_name][()]
                 children.append(jnp.asarray(arr))
 
-        return meta.cls.tree_unflatten(
-            aux_data, tuple(children)
-        )
+        return meta.cls.tree_unflatten(aux_data, tuple(children))
 
     with h5py.File(file_path, "r") as f:
         if name is not None:
             if name not in f:
-                msg = (
-                    f"Group '{name}' not found "
-                    f"in {path}"
-                )
+                msg = f"Group '{name}' not found in {path}"
                 raise KeyError(msg)
             return _load_group(f[name])
 
         result: dict[str, Any] = {}
         for group_name in f:
-            result[group_name] = _load_group(
-                f[group_name]
-            )
+            result[group_name] = _load_group(f[group_name])
         return result
 
 

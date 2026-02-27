@@ -40,9 +40,7 @@ ScalarFloat: TypeAlias = Union[float, Float[Array, " "]]
 
 ScalarInteger: TypeAlias = Union[int, Int[Array, " "]]
 
-ScalarNumeric: TypeAlias = Union[
-    int, float, complex, Num[Array, " "]
-]
+ScalarNumeric: TypeAlias = Union[int, float, complex, Num[Array, " "]]
 
 __all__: list[str] = [
     "NonJaxNumber",

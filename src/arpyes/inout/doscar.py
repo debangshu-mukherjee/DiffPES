@@ -94,24 +94,16 @@ def read_doscar(
         fid.readline()
         fid.readline()
         fid.readline()
-        meta: list[float] = [
-            float(x) for x in fid.readline().split()
-        ]
+        meta: list[float] = [float(x) for x in fid.readline().split()]
         nedos: int = int(meta[2])
         efermi: float = meta[3]
         first_line: str = fid.readline()
-        first_vals: list[float] = [
-            float(x) for x in first_line.split()
-        ]
+        first_vals: list[float] = [float(x) for x in first_line.split()]
         ncols: int = len(first_vals)
-        data: np.ndarray = np.zeros(
-            (nedos, ncols), dtype=np.float64
-        )
+        data: np.ndarray = np.zeros((nedos, ncols), dtype=np.float64)
         data[0, :] = first_vals
         for i in range(1, nedos):
-            vals: list[float] = [
-                float(x) for x in fid.readline().split()
-            ]
+            vals: list[float] = [float(x) for x in fid.readline().split()]
             data[i, :] = vals
     energy: Float[Array, " E"] = jnp.asarray(data[:, 0], dtype=jnp.float64)
     total_dos: Float[Array, " E"] = jnp.asarray(data[:, 1], dtype=jnp.float64)

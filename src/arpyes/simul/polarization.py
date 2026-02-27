@@ -126,29 +126,18 @@ def build_polarization_vectors(
         dtype=jnp.float64,
     )
     k_photon = k_photon / jnp.linalg.norm(k_photon)
-    z_hat: Float[Array, " 3"] = jnp.array(
-        [0.0, 0.0, 1.0], dtype=jnp.float64
-    )
-    y_hat: Float[Array, " 3"] = jnp.array(
-        [0.0, 1.0, 0.0], dtype=jnp.float64
-    )
+    z_hat: Float[Array, " 3"] = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float64)
+    y_hat: Float[Array, " 3"] = jnp.array([0.0, 1.0, 0.0], dtype=jnp.float64)
     _collinear_threshold: float = 0.99
     ref: Float[Array, " 3"] = jnp.where(
-        jnp.abs(jnp.dot(k_photon, z_hat))
-        < _collinear_threshold,
+        jnp.abs(jnp.dot(k_photon, z_hat)) < _collinear_threshold,
         z_hat,
         y_hat,
     )
-    e_s_raw: Float[Array, " 3"] = jnp.cross(
-        k_photon, ref
-    )
-    e_s: Float[Array, " 3"] = e_s_raw / jnp.linalg.norm(
-        e_s_raw
-    )
+    e_s_raw: Float[Array, " 3"] = jnp.cross(k_photon, ref)
+    e_s: Float[Array, " 3"] = e_s_raw / jnp.linalg.norm(e_s_raw)
     e_p_raw: Float[Array, " 3"] = jnp.cross(e_s, k_photon)
-    e_p: Float[Array, " 3"] = e_p_raw / jnp.linalg.norm(
-        e_p_raw
-    )
+    e_p: Float[Array, " 3"] = e_p_raw / jnp.linalg.norm(e_p_raw)
     return e_s, e_p
 
 
@@ -157,7 +146,7 @@ def photon_wavevector(
     theta: ScalarFloat,
     phi: ScalarFloat,
 ) -> Float[Array, " 3"]:
-    """Unit photon wavevector from incidence angles.
+    """Build the unit photon wavevector from incidence angles.
 
     Builds the unit vector in the direction of photon propagation
     from spherical coordinates (theta from surface normal, phi
@@ -263,15 +252,9 @@ def build_efield(
     """
     e_s: Float[Array, " 3"]
     e_p: Float[Array, " 3"]
-    e_s, e_p = build_polarization_vectors(
-        config.theta, config.phi
-    )
-    e_s_c: Complex[Array, " 3"] = e_s.astype(
-        jnp.complex128
-    )
-    e_p_c: Complex[Array, " 3"] = e_p.astype(
-        jnp.complex128
-    )
+    e_s, e_p = build_polarization_vectors(config.theta, config.phi)
+    e_s_c: Complex[Array, " 3"] = e_s.astype(jnp.complex128)
+    e_p_c: Complex[Array, " 3"] = e_p.astype(jnp.complex128)
     pol_type: str = config.polarization_type.lower()
     angle: Float[Array, " "] = jnp.asarray(
         config.polarization_angle, dtype=jnp.float64
@@ -283,7 +266,7 @@ def build_efield(
     ] = (e_s_c, e_p_c, angle)
 
     def branch_lvp(op: Tuple) -> Complex[Array, " 3"]:
-        """Linear vertical polarization: electric field equals s-polarization basis vector.
+        """Linear vertical: electric field equals s-polarization basis.
 
         Parameters
         ----------
@@ -298,7 +281,7 @@ def build_efield(
         return op[0]
 
     def branch_lhp(op: Tuple) -> Complex[Array, " 3"]:
-        """Linear horizontal polarization: electric field equals p-polarization basis vector.
+        """Linear horizontal: electric field equals p-polarization basis.
 
         Parameters
         ----------
@@ -313,22 +296,20 @@ def build_efield(
         return op[1]
 
     def branch_lap(op: Tuple) -> Complex[Array, " 3"]:
-        """Linear arbitrary polarization: cos(angle)*e_s + sin(angle)*e_p.
+        """Linear arbitrary: cos(angle)*e_s + sin(angle)*e_p.
 
         Parameters
         ----------
         op : Tuple
-            Operand (e_s_c, e_p_c, angle). op[2] is the polarization angle in radians.
+            Operand (e_s_c, e_p_c, angle). op[2] is the polarization
+            angle in radians.
 
         Returns
         -------
         Complex[Array, " 3"]
             The linear combination of s- and p-polarization vectors.
         """
-        return (
-            jnp.cos(op[2]) * op[0]
-            + jnp.sin(op[2]) * op[1]
-        )
+        return jnp.cos(op[2]) * op[0] + jnp.sin(op[2]) * op[1]
 
     def branch_rcp(op: Tuple) -> Complex[Array, " 3"]:
         """Right circular polarization: (e_s + i*e_p)/sqrt(2).
@@ -375,14 +356,14 @@ def build_efield(
         """
         return op[0]
 
-    _POL_INDEX: dict[str, int] = {
+    pol_index_map: dict[str, int] = {
         "lvp": 0,
         "lhp": 1,
         "lap": 2,
         "rcp": 3,
         "lcp": 4,
     }
-    index: int = _POL_INDEX.get(pol_type, 5)
+    index: int = pol_index_map.get(pol_type, 5)
     branches: Tuple = (
         branch_lvp,
         branch_lhp,
@@ -391,9 +372,7 @@ def build_efield(
         branch_lcp,
         branch_default,
     )
-    efield: Complex[Array, " 3"] = jax.lax.switch(
-        index, branches, operand
-    )
+    efield: Complex[Array, " 3"] = jax.lax.switch(index, branches, operand)
     return efield
 
 

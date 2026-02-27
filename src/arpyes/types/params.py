@@ -406,12 +406,8 @@ def make_simulation_params(
         fidelity=fidelity,
         sigma=jnp.asarray(sigma, dtype=jnp.float64),
         gamma=jnp.asarray(gamma, dtype=jnp.float64),
-        temperature=jnp.asarray(
-            temperature, dtype=jnp.float64
-        ),
-        photon_energy=jnp.asarray(
-            photon_energy, dtype=jnp.float64
-        ),
+        temperature=jnp.asarray(temperature, dtype=jnp.float64),
+        photon_energy=jnp.asarray(photon_energy, dtype=jnp.float64),
     )
     return params
 
@@ -475,9 +471,7 @@ def make_polarization_config(
     config: PolarizationConfig = PolarizationConfig(
         theta=jnp.asarray(theta, dtype=jnp.float64),
         phi=jnp.asarray(phi, dtype=jnp.float64),
-        polarization_angle=jnp.asarray(
-            polarization_angle, dtype=jnp.float64
-        ),
+        polarization_angle=jnp.asarray(polarization_angle, dtype=jnp.float64),
         polarization_type=polarization_type,
     )
     return config

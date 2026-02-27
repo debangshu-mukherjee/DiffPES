@@ -87,9 +87,7 @@ def read_kpoints(
     with path.open("r") as fid:
         _comment: str = fid.readline().strip()
         num_line: str = fid.readline().strip()
-        num_kpts: int = int(
-            num_line.split(maxsplit=1)[0]
-        )
+        num_kpts: int = int(num_line.split(maxsplit=1)[0])
         mode_line: str = fid.readline().strip().lower()
         if "line" in mode_line:
             mode: str = "Line-mode"
@@ -112,9 +110,7 @@ def read_kpoints(
             for seg in range(n_segments):
                 start_line: str = raw_lines[2 * seg]
                 end_line: str = raw_lines[2 * seg + 1]
-                start_label: str = _extract_label(
-                    start_line
-                )
+                start_label: str = _extract_label(start_line)
                 end_label: str = _extract_label(end_line)
                 if seg == 0:
                     labels.append(start_label)
@@ -179,9 +175,7 @@ def _extract_label(line: str) -> str:
     is rare in practice.
     """
     _min_parts_with_label: int = 4
-    match: re.Match[str] | None = re.search(
-        r"!\s*(\S+)", line
-    )
+    match: re.Match[str] | None = re.search(r"!\s*(\S+)", line)
     if match:
         return match.group(1)
     parts: list[str] = line.split()

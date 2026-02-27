@@ -199,12 +199,8 @@ def make_kpath_info(
     --------
     KPathInfo : The PyTree class constructed by this factory.
     """
-    nkpts_arr: Int[Array, " "] = jnp.asarray(
-        num_kpoints, dtype=jnp.int32
-    )
-    indices_arr: Int[Array, " L"] = jnp.asarray(
-        label_indices, dtype=jnp.int32
-    )
+    nkpts_arr: Int[Array, " "] = jnp.asarray(num_kpoints, dtype=jnp.int32)
+    indices_arr: Int[Array, " L"] = jnp.asarray(label_indices, dtype=jnp.int32)
     kpath: KPathInfo = KPathInfo(
         num_kpoints=nkpts_arr,
         label_indices=indices_arr,

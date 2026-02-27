@@ -1,12 +1,12 @@
-"""ARPES spectrum simulation functions at six complexity levels (including spin-orbit coupling).
+"""ARPES spectrum simulation at six complexity levels (incl. spin-orbit).
 
 Extended Summary
 ----------------
 Provides five simulation functions of increasing physical
 sophistication, from basic Voigt convolution (novice) to full
 polarization-dependent dipole matrix element calculations
-(expert) and spin-orbit (soc). All functions are vectorized with ``jax.vmap`` for
-efficient GPU execution.
+(expert) and spin-orbit (soc). All functions are vectorized with
+``jax.vmap`` for efficient GPU execution.
 
 Routine Listings
 ----------------
@@ -151,26 +151,22 @@ def simulate_novice(
         profile: Float[Array, " E"] = voigt(
             energy_axis, energy, params.sigma, params.gamma
         )
-        contribution: Float[Array, " E"] = (
-            weight * fd * profile
-        )
+        contribution: Float[Array, " E"] = weight * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, kweights)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, kweights
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, weights)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, weights
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -250,13 +246,10 @@ def simulate_basic(
         params.energy_max,
         params.fidelity,
     )
-    orb_w: Float[Array, " 9"] = heuristic_weights(
-        params.photon_energy
-    )
+    orb_w: Float[Array, " 9"] = heuristic_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     weighted_proj: Float[Array, "K B A 9"] = (
-        proj[..., _NON_S_ORBITAL_SLICE]
-        * orb_w[_NON_S_ORBITAL_SLICE]
+        proj[..., _NON_S_ORBITAL_SLICE] * orb_w[_NON_S_ORBITAL_SLICE]
     )
     weights: Float[Array, "K B"] = jnp.sum(
         jnp.sum(weighted_proj, axis=-1), axis=-1
@@ -272,26 +265,22 @@ def simulate_basic(
         profile: Float[Array, " E"] = gaussian(
             energy_axis, energy, params.sigma
         )
-        contribution: Float[Array, " E"] = (
-            weight * fd * profile
-        )
+        contribution: Float[Array, " E"] = weight * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, kweights)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, kweights
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, weights)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, weights
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -372,13 +361,9 @@ def simulate_basicplus(
         params.energy_max,
         params.fidelity,
     )
-    orb_w: Float[Array, " 9"] = yeh_lindau_weights(
-        params.photon_energy
-    )
+    orb_w: Float[Array, " 9"] = yeh_lindau_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
-    weighted_proj: Float[Array, "K B A 9"] = (
-        proj * orb_w
-    )
+    weighted_proj: Float[Array, "K B A 9"] = proj * orb_w
     weights: Float[Array, "K B"] = jnp.sum(
         jnp.sum(
             weighted_proj[..., _NON_S_ORBITAL_SLICE],
@@ -397,26 +382,22 @@ def simulate_basicplus(
         profile: Float[Array, " E"] = gaussian(
             energy_axis, energy, params.sigma
         )
-        contribution: Float[Array, " E"] = (
-            weight * fd * profile
-        )
+        contribution: Float[Array, " E"] = weight * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, kweights)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, kweights
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, weights)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, weights
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -509,29 +490,21 @@ def simulate_advanced(
         params.energy_max,
         params.fidelity,
     )
-    orb_w: Float[Array, " 9"] = yeh_lindau_weights(
-        params.photon_energy
-    )
+    orb_w: Float[Array, " 9"] = yeh_lindau_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     is_unpolarized: bool = (
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
-        e_s, e_p = build_polarization_vectors(
-            pol_config.theta, pol_config.phi
-        )
+        e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
         )
         m_p: Float[Array, " 9"] = dipole_matrix_elements(
             e_p.astype(jnp.complex128)
         )
-        w_s: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_s
-        )
-        w_p: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_p
-        )
+        w_s: Float[Array, "K B A 9"] = proj * orb_w * m_s
+        w_p: Float[Array, "K B A 9"] = proj * orb_w * m_p
         ws_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
             axis=-1,
@@ -542,17 +515,11 @@ def simulate_advanced(
         )
         i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
-        band_intensity: Float[Array, "K B"] = (
-            i_s + i_p
-        ) / 2.0
+        band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
         efield = build_efield(pol_config)
-        m_elem: Float[Array, " 9"] = (
-            dipole_matrix_elements(efield)
-        )
-        weighted: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_elem
-        )
+        m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
+        weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(
                 weighted[..., _NON_S_ORBITAL_SLICE],
@@ -572,26 +539,22 @@ def simulate_advanced(
         profile: Float[Array, " E"] = gaussian(
             energy_axis, energy, params.sigma
         )
-        contribution: Float[Array, " E"] = (
-            bi * fd * profile
-        )
+        contribution: Float[Array, " E"] = bi * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, bi_k)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, bi_k
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, band_intensity)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, band_intensity
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -682,29 +645,21 @@ def simulate_expert(
         params.energy_max,
         params.fidelity,
     )
-    orb_w: Float[Array, " 9"] = yeh_lindau_weights(
-        params.photon_energy
-    )
+    orb_w: Float[Array, " 9"] = yeh_lindau_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     is_unpolarized: bool = (
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
-        e_s, e_p = build_polarization_vectors(
-            pol_config.theta, pol_config.phi
-        )
+        e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
         )
         m_p: Float[Array, " 9"] = dipole_matrix_elements(
             e_p.astype(jnp.complex128)
         )
-        w_s: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_s
-        )
-        w_p: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_p
-        )
+        w_s: Float[Array, "K B A 9"] = proj * orb_w * m_s
+        w_p: Float[Array, "K B A 9"] = proj * orb_w * m_p
         ws_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
             axis=-1,
@@ -715,17 +670,11 @@ def simulate_expert(
         )
         i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
-        band_intensity: Float[Array, "K B"] = (
-            i_s + i_p
-        ) / 2.0
+        band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
         efield = build_efield(pol_config)
-        m_elem: Float[Array, " 9"] = (
-            dipole_matrix_elements(efield)
-        )
-        weighted: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_elem
-        )
+        m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
+        weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(
                 weighted[..., _NON_S_ORBITAL_SLICE],
@@ -745,26 +694,22 @@ def simulate_expert(
         profile: Float[Array, " E"] = voigt(
             energy_axis, energy, params.sigma, params.gamma
         )
-        contribution: Float[Array, " E"] = (
-            bi * fd * profile
-        )
+        contribution: Float[Array, " E"] = bi * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, bi_k)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, bi_k
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, band_intensity)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, band_intensity
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -853,30 +798,22 @@ def simulate_soc(
         params.energy_max,
         params.fidelity,
     )
-    orb_w: Float[Array, " 9"] = yeh_lindau_weights(
-        params.photon_energy
-    )
+    orb_w: Float[Array, " 9"] = yeh_lindau_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
     spin_raw: Float[Array, "K B A 6"] = orb_proj.spin
     is_unpolarized: bool = (
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
-        e_s, e_p = build_polarization_vectors(
-            pol_config.theta, pol_config.phi
-        )
+        e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
         )
         m_p: Float[Array, " 9"] = dipole_matrix_elements(
             e_p.astype(jnp.complex128)
         )
-        w_s: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_s
-        )
-        w_p: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_p
-        )
+        w_s: Float[Array, "K B A 9"] = proj * orb_w * m_s
+        w_p: Float[Array, "K B A 9"] = proj * orb_w * m_p
         ws_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(w_s[..., _NON_S_ORBITAL_SLICE], axis=-1),
             axis=-1,
@@ -887,17 +824,11 @@ def simulate_soc(
         )
         i_s: Float[Array, "K B"] = jnp.abs(ws_sum) ** 2
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
-        band_intensity: Float[Array, "K B"] = (
-            i_s + i_p
-        ) / 2.0
+        band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
         efield = build_efield(pol_config)
-        m_elem: Float[Array, " 9"] = (
-            dipole_matrix_elements(efield)
-        )
-        weighted: Float[Array, "K B A 9"] = (
-            proj * orb_w * m_elem
-        )
+        m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
+        weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
             jnp.sum(
                 weighted[..., _NON_S_ORBITAL_SLICE],
@@ -918,17 +849,11 @@ def simulate_soc(
         ],
         axis=-1,
     )
-    spin_per_band: Float[Array, "K B 3"] = jnp.sum(
-        spin_vec, axis=-2
-    )
-    spin_dot_k: Float[Array, "K B"] = jnp.dot(
-        spin_per_band, k_photon
-    )
-    ls_arr: Float[Array, " "] = jnp.asarray(
-        ls_scale, dtype=jnp.float64
-    )
-    band_intensity_soc: Float[Array, "K B"] = (
-        band_intensity * (1.0 + ls_arr * spin_dot_k)
+    spin_per_band: Float[Array, "K B 3"] = jnp.sum(spin_vec, axis=-2)
+    spin_dot_k: Float[Array, "K B"] = jnp.dot(spin_per_band, k_photon)
+    ls_arr: Float[Array, " "] = jnp.asarray(ls_scale, dtype=jnp.float64)
+    band_intensity_soc: Float[Array, "K B"] = band_intensity * (
+        1.0 + ls_arr * spin_dot_k
     )
 
     def _single_band(
@@ -941,26 +866,22 @@ def simulate_soc(
         profile: Float[Array, " E"] = voigt(
             energy_axis, energy, params.sigma, params.gamma
         )
-        contribution: Float[Array, " E"] = (
-            bi * fd * profile
-        )
+        contribution: Float[Array, " E"] = bi * fd * profile
         return contribution
 
     def _single_kpoint(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(
-            _single_band
-        )(energies, bi_k)
-        total: Float[Array, " E"] = jnp.sum(
-            contributions, axis=0
+        contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+            energies, bi_k
         )
+        total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
         return total
 
-    intensity: Float[Array, "K E"] = jax.vmap(
-        _single_kpoint
-    )(bands.eigenvalues, band_intensity_soc)
+    intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
+        bands.eigenvalues, band_intensity_soc
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,

@@ -116,12 +116,8 @@ def make_expanded_simulation_params(
     make_simulation_params : Lower-level factory with explicit
         energy bounds.
     """
-    bands_arr: Float[Array, "K B"] = jnp.asarray(
-        eigenbands, dtype=jnp.float64
-    )
-    pad: Float[Array, " "] = jnp.asarray(
-        energy_padding, dtype=jnp.float64
-    )
+    bands_arr: Float[Array, "K B"] = jnp.asarray(eigenbands, dtype=jnp.float64)
+    pad: Float[Array, " "] = jnp.asarray(energy_padding, dtype=jnp.float64)
     energy_min: Float[Array, " "] = jnp.min(bands_arr) - pad
     energy_max: Float[Array, " "] = jnp.max(bands_arr) + pad
     params: SimulationParams = make_simulation_params(

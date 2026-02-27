@@ -45,10 +45,7 @@ def _faddeeva_taylor_coeffs() -> Complex[Array, " N"]:
     concatenated with c0 and c1 to form the full coefficient vector.
     Implemented with ``jax.lax.scan`` so that no Python for loop is used.
     """
-
-    c0: Complex[Array, " "] = jnp.array(
-        1.0 + 0j, dtype=jnp.complex128
-    )
+    c0: Complex[Array, " "] = jnp.array(1.0 + 0j, dtype=jnp.complex128)
     c1: Complex[Array, " "] = jnp.array(
         2.0j / math.sqrt(math.pi), dtype=jnp.complex128
     )
@@ -71,9 +68,7 @@ def _faddeeva_taylor_coeffs() -> Complex[Array, " N"]:
         (c0, c1),
         jnp.arange(_N_TAYLOR - 2, dtype=jnp.int32),
     )
-    full: Complex[Array, " N"] = jnp.concatenate(
-        [c0[None], c1[None], rest]
-    )
+    full: Complex[Array, " N"] = jnp.concatenate([c0[None], c1[None], rest])
     return full
 
 
@@ -122,12 +117,8 @@ def faddeeva(
     to an asymptotic form, so callers must ensure inputs stay within the
     convergence domain.
     """
-    z_c: Complex[Array, " ..."] = jnp.asarray(
-        z, dtype=jnp.complex128
-    )
-    w: Complex[Array, " ..."] = jnp.polyval(
-        _W_POLY, z_c, unroll=8
-    )
+    z_c: Complex[Array, " ..."] = jnp.asarray(z, dtype=jnp.complex128)
+    w: Complex[Array, " ..."] = jnp.polyval(_W_POLY, z_c, unroll=8)
     return w
 
 
@@ -175,12 +166,8 @@ def zscore_normalize(
     """
     mean_val: Float[Array, " "] = jnp.mean(data)
     std_val: Float[Array, " "] = jnp.std(data)
-    safe_std: Float[Array, " "] = jnp.where(
-        std_val > 0.0, std_val, 1.0
-    )
-    normalized: Float[Array, " ..."] = (
-        data - mean_val
-    ) / safe_std
+    safe_std: Float[Array, " "] = jnp.where(std_val > 0.0, std_val, 1.0)
+    normalized: Float[Array, " ..."] = (data - mean_val) / safe_std
     return normalized
 
 
