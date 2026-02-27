@@ -43,10 +43,12 @@ from arpyes.types import (
     PolarizationConfig,
     ScalarFloat,
     SimulationParams,
+    SpinOrbitalProjection,
     make_band_structure,
     make_orbital_projection,
     make_polarization_config,
     make_simulation_params,
+    make_spin_orbital_projection,
 )
 
 from .spectrum import (
@@ -738,9 +740,9 @@ def simulate_soc_expanded(  # noqa: PLR0913
 
     Implementation Logic
     --------------------
-    1. **Build PyTrees**: Calls :func:`_build_inputs` with
-       ``surface_spin`` so that ``OrbitalProjection`` has non-None
-       spin.
+    1. **Build PyTrees**: Calls :func:`_build_inputs` for the
+       ``BandStructure`` and constructs a
+       ``SpinOrbitalProjection`` with mandatory spin data.
     2. **Build params and polarization**: Same as
        :func:`simulate_expert_expanded` (auto-derived energy window,
        degree-to-radian conversion for angles).
@@ -796,12 +798,14 @@ def simulate_soc_expanded(  # noqa: PLR0913
     simulate_expert_expanded : Same pipeline without spin data.
     """
     bands: BandStructure
-    orb_proj: OrbitalProjection
-    bands, orb_proj = _build_inputs(
+    bands, _ = _build_inputs(
         eigenbands=eigenbands,
         surface_orb=surface_orb,
         ef=ef,
-        surface_spin=surface_spin,
+    )
+    soc_proj: SpinOrbitalProjection = make_spin_orbital_projection(
+        projections=jnp.asarray(surface_orb, dtype=jnp.float64),
+        spin=surface_spin,
     )
     params: SimulationParams = make_expanded_simulation_params(
         eigenbands=eigenbands,
@@ -818,7 +822,7 @@ def simulate_soc_expanded(  # noqa: PLR0913
         polarization_angle=polarization_angle,
     )
     spectrum: ArpesSpectrum = simulate_soc(
-        bands, orb_proj, params, pol, ls_scale=ls_scale
+        bands, soc_proj, params, pol, ls_scale=ls_scale
     )
     return spectrum
 

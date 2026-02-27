@@ -49,6 +49,7 @@ from arpyes.types import (
     make_band_structure,
     make_orbital_projection,
     make_polarization_config,
+    make_spin_orbital_projection,
 )
 
 
@@ -622,11 +623,14 @@ class TestExpandedSocWrapper(chex.TestCase):
         surface_spin = surface_spin.at[..., 4].set(0.2)
         from arpyes.simul.expanded import _build_inputs, _build_polarization
 
-        bands, orb_proj = _build_inputs(
+        bands, _ = _build_inputs(
             eigenbands=eigenbands,
             surface_orb=surface_orb,
             ef=0.0,
-            surface_spin=surface_spin,
+        )
+        soc_proj = make_spin_orbital_projection(
+            projections=jnp.asarray(surface_orb, dtype=jnp.float64),
+            spin=surface_spin,
         )
         params = make_expanded_simulation_params(
             eigenbands=eigenbands,
@@ -642,7 +646,7 @@ class TestExpandedSocWrapper(chex.TestCase):
             incident_phi=0.0,
         )
         expected = simulate_soc(
-            bands, orb_proj, params, pol, ls_scale=0.02
+            bands, soc_proj, params, pol, ls_scale=0.02
         )
         wrapped = simulate_soc_expanded(
             eigenbands=eigenbands,

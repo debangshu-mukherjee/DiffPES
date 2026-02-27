@@ -46,6 +46,7 @@ from arpyes.types import (
     PolarizationConfig,
     ScalarFloat,
     SimulationParams,
+    SpinOrbitalProjection,
     make_arpes_spectrum,
 )
 
@@ -720,7 +721,7 @@ def simulate_expert(
 @jaxtyped(typechecker=beartype)
 def simulate_soc(
     bands: BandStructure,
-    orb_proj: OrbitalProjection,
+    orb_proj: SpinOrbitalProjection,
     params: SimulationParams,
     pol_config: PolarizationConfig,
     ls_scale: ScalarFloat = 0.01,
@@ -736,15 +737,14 @@ def simulate_soc(
 
     Implementation Logic
     --------------------
-    1. **Require spin**: Raise ValueError if ``orb_proj.spin`` is None.
-    2. **Orbital intensity**: Compute ``band_intensity`` exactly as in
+    1. **Orbital intensity**: Compute ``band_intensity`` exactly as in
        ``simulate_expert`` (Yeh-Lindau, dipole matrix elements,
        unpolarized or polarized branch).
-    3. **Spin vector**: From ``spin`` (K, B, A, 6) form (Sx, Sy, Sz) per
+    2. **Spin vector**: From ``spin`` (K, B, A, 6) form (Sx, Sy, Sz) per
        (k, band, atom): Sx = spin[...,0]+spin[...,1], Sy = spin[...,2]+
        spin[...,3], Sz = spin[...,4]+spin[...,5]. Sum over atoms to get
        spin per (k, band) of shape (K, B, 3).
-    4. **SOC correction**: k_photon = photon_wavevector(theta, phi).
+    3. **SOC correction**: k_photon = photon_wavevector(theta, phi).
        spin_dot_k = (K, B). band_intensity_soc = band_intensity *
        (1 + ls_scale * spin_dot_k). Then Voigt convolution and vmap
        as in expert.
@@ -753,9 +753,9 @@ def simulate_soc(
     ----------
     bands : BandStructure
         Band structure with eigenvalues and Fermi energy.
-    orb_proj : OrbitalProjection
-        Orbital projections and **spin** (spin must be non-None,
-        shape ``(K, B, A, 6)``).
+    orb_proj : SpinOrbitalProjection
+        Orbital projections with mandatory spin data
+        (shape ``(K, B, A, 6)``).
     params : SimulationParams
         Simulation parameters (sigma, gamma, fidelity, etc.).
     pol_config : PolarizationConfig
@@ -768,11 +768,6 @@ def simulate_soc(
     -------
     spectrum : ArpesSpectrum
         Simulated ARPES intensity and energy axis.
-
-    Raises
-    ------
-    ValueError
-        If ``orb_proj.spin`` is None.
 
     Notes
     -----
@@ -788,11 +783,6 @@ def simulate_soc(
     simulate_expert : Same physics without spin correction.
     photon_wavevector : Builds k_photon from incidence angles.
     """
-    if orb_proj.spin is None:
-        raise ValueError(
-            "simulate_soc requires orb_proj.spin (shape (K, B, A, 6)); "
-            "orbital projection has no spin data."
-        )
     energy_axis: Float[Array, " E"] = jnp.linspace(
         params.energy_min,
         params.energy_max,

@@ -42,6 +42,7 @@ from arpyes.types import (
     OrbitalProjection,
     PolarizationConfig,
     SimulationParams,
+    SpinOrbitalProjection,
 )
 
 _ATTR_TYPE: str = "_pytree_type"
@@ -316,6 +317,16 @@ _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
     ),
     "OrbitalProjection": _PyTreeMeta(
         cls=OrbitalProjection,
+        children_fields=(
+            "projections",
+            "spin",
+            "oam",
+        ),
+        aux_encoder=_encode_none,
+        aux_decoder=_decode_none,
+    ),
+    "SpinOrbitalProjection": _PyTreeMeta(
+        cls=SpinOrbitalProjection,
         children_fields=(
             "projections",
             "spin",

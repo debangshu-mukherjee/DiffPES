@@ -297,6 +297,131 @@ class OrbitalProjection(NamedTuple):
 
 
 @register_pytree_node_class
+class SpinOrbitalProjection(NamedTuple):
+    """PyTree for orbital projections with mandatory spin data.
+
+    Variant of :class:`OrbitalProjection` where the ``spin`` field
+    is required (not Optional). Used by spin-orbit coupling
+    simulations (:func:`~arpyes.simul.simulate_soc`) that need
+    guaranteed access to spin projection data.
+
+    Hardening (validation that spin data exists) belongs at the I/O
+    boundary — the factory :func:`make_spin_orbital_projection`
+    enforces the contract so the simulation kernel stays pure.
+
+    Attributes
+    ----------
+    projections : Float[Array, "K B A 9"]
+        Orbital projection weights for K k-points, B bands,
+        A atoms, and 9 orbitals.
+    spin : Float[Array, "K B A 6"]
+        Spin projections (up/down for x, y, z). Required.
+    oam : Optional[Float[Array, "K B A 3"]]
+        Orbital angular momentum (p, d, total) or None.
+
+    Notes
+    -----
+    Registered as a JAX PyTree via ``@register_pytree_node_class``.
+    """
+
+    projections: Float[Array, "K B A 9"]
+    spin: Float[Array, "K B A 6"]
+    oam: Optional[Float[Array, "K B A 3"]]
+
+    def tree_flatten(
+        self,
+    ) -> Tuple[
+        Tuple[
+            Float[Array, "K B A 9"],
+            Float[Array, "K B A 6"],
+            Optional[Float[Array, "K B A 3"]],
+        ],
+        None,
+    ]:
+        """Flatten into JAX leaf arrays and auxiliary data.
+
+        Returns
+        -------
+        children : tuple of (jax.Array or None)
+            ``(projections, spin, oam)``.
+        aux_data : None
+            No static metadata.
+        """
+        return (
+            (self.projections, self.spin, self.oam),
+            None,
+        )
+
+    @classmethod
+    def tree_unflatten(
+        cls,
+        _aux_data: None,
+        children: Tuple[
+            Float[Array, "K B A 9"],
+            Float[Array, "K B A 6"],
+            Optional[Float[Array, "K B A 3"]],
+        ],
+    ) -> "SpinOrbitalProjection":
+        """Reconstruct a ``SpinOrbitalProjection`` from flattened components.
+
+        Parameters
+        ----------
+        _aux_data : None
+            Unused static metadata (always ``None``).
+        children : tuple of (jax.Array or None)
+            ``(projections, spin, oam)``.
+
+        Returns
+        -------
+        spin_orbital_projection : SpinOrbitalProjection
+            Reconstructed instance.
+        """
+        return cls(*children)
+
+
+@jaxtyped(typechecker=beartype)
+def make_spin_orbital_projection(
+    projections: Float[Array, "K B A 9"],
+    spin: Float[Array, "K B A 6"],
+    oam: Optional[Float[Array, "K B A 3"]] = None,
+) -> SpinOrbitalProjection:
+    """Create a validated ``SpinOrbitalProjection`` instance.
+
+    Factory function that validates and normalises orbital projection
+    data with mandatory spin. All non-None arrays are cast to
+    ``float64``.
+
+    Parameters
+    ----------
+    projections : Float[Array, "K B A 9"]
+        Orbital projection weights.
+    spin : Float[Array, "K B A 6"]
+        Spin projections. Required.
+    oam : Optional[Float[Array, "K B A 3"]], optional
+        Orbital angular momentum. Default is None.
+
+    Returns
+    -------
+    soc_proj : SpinOrbitalProjection
+        Validated instance with all non-None arrays in ``float64``.
+    """
+    proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
+        projections, dtype=jnp.float64
+    )
+    spin_arr: Float[Array, "K B A 6"] = jnp.asarray(
+        spin, dtype=jnp.float64
+    )
+    oam_arr: Optional[Float[Array, "K B A 3"]] = None
+    if oam is not None:
+        oam_arr = jnp.asarray(oam, dtype=jnp.float64)
+    return SpinOrbitalProjection(
+        projections=proj_arr,
+        spin=spin_arr,
+        oam=oam_arr,
+    )
+
+
+@register_pytree_node_class
 class ArpesSpectrum(NamedTuple):
     """PyTree for ARPES simulation output.
 
@@ -605,7 +730,9 @@ __all__: list[str] = [
     "ArpesSpectrum",
     "BandStructure",
     "OrbitalProjection",
+    "SpinOrbitalProjection",
     "make_arpes_spectrum",
     "make_band_structure",
     "make_orbital_projection",
+    "make_spin_orbital_projection",
 ]

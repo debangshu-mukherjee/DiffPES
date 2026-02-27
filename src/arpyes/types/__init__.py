@@ -5,7 +5,12 @@ Extended Summary
 Provides PyTree-compatible data structures and their factory
 functions for representing ARPES simulation data including crystal
 geometry, band structures, orbital projections, simulation
-parameters, and polarization configurations.
+parameters, and polarization configurations. Fields that
+participate in autodiff are stored as JAX array children, while
+shape-determining values (e.g., ``SimulationParams.fidelity``)
+and code-path selectors (e.g., ``PolarizationConfig.polarization_type``)
+are stored as auxiliary data so they remain concrete at trace time
+and trigger recompilation only when changed.
 
 Routine Listings
 ----------------
@@ -60,9 +65,11 @@ from .bands import (
     ArpesSpectrum,
     BandStructure,
     OrbitalProjection,
+    SpinOrbitalProjection,
     make_arpes_spectrum,
     make_band_structure,
     make_orbital_projection,
+    make_spin_orbital_projection,
 )
 from .dos import (
     DensityOfStates,
@@ -91,6 +98,7 @@ __all__: list[str] = [
     "KPathInfo",
     "NonJaxNumber",
     "OrbitalProjection",
+    "SpinOrbitalProjection",
     "PolarizationConfig",
     "ScalarBool",
     "ScalarComplex",
@@ -104,6 +112,7 @@ __all__: list[str] = [
     "make_density_of_states",
     "make_kpath_info",
     "make_orbital_projection",
+    "make_spin_orbital_projection",
     "make_polarization_config",
     "make_simulation_params",
 ]
