@@ -144,7 +144,9 @@ def real_spherical_harmonic(
     elif m == 0:
         return norm * plm
     else:
-        return jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
+        # Cancel the Condon-Shortley phase (-1)^|m| embedded in P_l^|m|
+        # to match the real-to-complex transform used in the Gaunt table.
+        return (-1) ** am * jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
 
 
 @jaxtyped(typechecker=beartype)

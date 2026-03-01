@@ -155,9 +155,9 @@ def simulate_tb_radial(
                 params.photon_energy, W, eigenval
             )
             # Use crystal k-direction, scale to photoelectron magnitude
-            k_norm = jnp.linalg.norm(k_crystal)
-            safe_k_norm = jnp.where(k_norm > 1e-12, k_norm, 1e-12)
-            k_hat = k_crystal / safe_k_norm
+            # Gradient-safe norm: eps avoids NaN grad at Gamma point (k=0)
+            k_norm = jnp.sqrt(jnp.dot(k_crystal, k_crystal) + 1e-30)
+            k_hat = k_crystal / k_norm
             k_vec = k_hat * k_mag
 
             # Compute total M = sum_o c_{k,b,o} * M_o

@@ -93,13 +93,13 @@ def dipole_matrix_element_single(
     M : Complex[Array, " "]
         Complex dipole matrix element.
     """
-    k_mag = jnp.linalg.norm(k_vec)
-    safe_k = jnp.where(k_mag > 1e-12, k_mag, 1e-12)
-    k_hat = k_vec / safe_k
+    # Gradient-safe norm: eps prevents NaN grad at k_vec=0
+    k_mag = jnp.sqrt(jnp.dot(k_vec, k_vec) + 1e-30)
+    k_hat = k_vec / k_mag
 
-    # Convert k_hat to spherical angles
-    theta_k = jnp.arccos(jnp.clip(k_hat[2], -1.0, 1.0))
-    phi_k = jnp.arctan2(k_hat[1], k_hat[0])
+    # Convert k_hat to spherical angles (safe for grad at poles/origin)
+    theta_k = jnp.arccos(jnp.clip(k_hat[2], -1.0 + 1e-7, 1.0 - 1e-7))
+    phi_k = jnp.arctan2(k_hat[1], k_hat[0] + 1e-30)
 
     # Polarization in spherical dipole components
     e_sph = _cartesian_to_spherical_dipole(efield)

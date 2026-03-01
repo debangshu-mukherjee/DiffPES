@@ -32,24 +32,21 @@ class TestRealSphericalHarmonics:
         assert jnp.allclose(vals, expected, atol=1e-10)
 
     def test_y11_sin_cos(self):
-        """Y_1^1 = √(3/(4π)) sin(θ) cos(φ) (up to √2 normalization)."""
+        """Y_1^1 = -√(3/(4π)) sin(θ) cos(φ) (Condon-Shortley convention)."""
         theta = jnp.array(jnp.pi / 4)
         phi = jnp.array(0.0)
         val = real_spherical_harmonic(1, 1, theta, phi)
-        expected = math.sqrt(3.0 / (4.0 * math.pi)) * math.sqrt(2) * math.sin(math.pi / 4) * math.cos(0.0)
+        # With CS phase: Y_1^1 = -sqrt(3/(4pi)) sin(theta) cos(phi)
+        expected = -math.sqrt(3.0 / (4.0 * math.pi)) * math.sin(math.pi / 4) * math.cos(0.0)
         assert abs(float(val) - expected) < 1e-10
 
     def test_y1m1_sin_sin(self):
-        """Y_1^{-1} = √(3/(4π)) sin(θ) sin(φ) (up to √2 normalization)."""
+        """Y_1^{-1} = +√(3/(4π)) sin(θ) sin(φ) (CS phase cancelled for m<0)."""
         theta = jnp.array(jnp.pi / 3)
         phi = jnp.array(jnp.pi / 4)
         val = real_spherical_harmonic(1, -1, theta, phi)
-        expected = (
-            math.sqrt(3.0 / (4.0 * math.pi))
-            * math.sqrt(2)
-            * math.sin(math.pi / 3)
-            * math.sin(math.pi / 4)
-        )
+        # After CS phase cancellation: Y_1^{-1} = +sqrt(3/(4pi)) sin(theta) sin(phi)
+        expected = math.sqrt(3.0 / (4.0 * math.pi)) * math.sin(math.pi / 3) * math.sin(math.pi / 4)
         assert abs(float(val) - expected) < 1e-10
 
     def test_orthonormality_low_l(self):
