@@ -51,6 +51,56 @@ def read_eigenval(
     (band energies) at each k-point. Supports both ISPIN=1 (non-
     polarized) and ISPIN=2 (spin-polarized) calculations.
 
+    Extended Summary
+    ----------------
+    The EIGENVAL file format written by VASP consists of:
+
+    * **Header** (6 lines):
+      - Line 1: four integers including ``ISPIN`` as the 4th value.
+        ``ISPIN=2`` indicates spin-polarized eigenvalues.
+      - Lines 2-5: additional metadata (unused here).
+      - Line 6: ``NELECT  NKPOINTS  NBANDS`` -- number of electrons,
+        k-points, and bands.
+
+    * **K-point / band blocks** (``NKPOINTS`` blocks): each block
+      starts with a k-point line of 4 floats (``kx ky kz weight``),
+      followed by ``NBANDS`` eigenvalue lines.
+
+      - ISPIN=1: each band line has 2 values -- ``band_index energy``.
+      - ISPIN=2: each band line has 3 values --
+        ``band_index energy_up energy_down``.
+
+    Implementation Logic
+    --------------------
+    1. **Parse header** -- read the first 6 lines. Extract ``ISPIN``
+       from line 1 (4th integer) and ``NKPOINTS`` / ``NBANDS`` from
+       line 6.
+
+    2. **Allocate arrays** -- create ``(NKPOINTS, 4)`` for k-point
+       coordinates+weights and ``(NKPOINTS, NBANDS)`` for spin-up
+       eigenvalues. If ``ISPIN=2``, allocate a matching spin-down
+       array.
+
+    3. **Read k-point blocks** -- for each k-point:
+
+       a. Read the next non-empty line and parse 4 floats for the
+          k-point coordinates and weight.
+       b. For each band, read the next non-empty line and extract the
+          eigenvalue(s). For spin-polarized files, store both spin-up
+          (column 1) and spin-down (column 2).
+
+    4. **Sort eigenvalues** -- sort bands by energy within each
+       k-point (ascending) for both spin channels. This ensures
+       consistent band ordering even if VASP wrote them unordered.
+
+    5. **Construct return value**:
+
+       * ``return_mode="legacy"`` or ISPIN=1: return a
+         ``BandStructure`` with only spin-up eigenvalues, 3D k-point
+         coordinates, and k-point weights.
+       * ``return_mode="full"`` with ISPIN=2: return a
+         ``SpinBandStructure`` containing both spin channels.
+
     Parameters
     ----------
     filename : str, optional
@@ -70,6 +120,13 @@ def read_eigenval(
         Band structure with eigenvalues and k-points. The type
         depends on ``return_mode`` and the spin polarization.
 
+    Raises
+    ------
+    ValueError
+        If a k-point line has fewer than 4 values, or a band line
+        has fewer values than expected for the given ISPIN, or if
+        EOF is encountered before all blocks are read.
+
     Notes
     -----
     For spin-polarized calculations (ISPIN=2), each eigenvalue line
@@ -78,7 +135,10 @@ def read_eigenval(
     ``"full"`` mode both channels are preserved in a
     ``SpinBandStructure``. The Fermi energy is **not** embedded in
     the EIGENVAL file; it must be obtained separately (e.g. from
-    DOSCAR or OUTCAR).
+    DOSCAR or OUTCAR). Eigenvalues are stored as-is from the file
+    (not shifted by ``fermi_energy``); the Fermi energy is carried
+    alongside the eigenvalues in the returned PyTree for downstream
+    consumers to apply the shift if needed.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
@@ -156,7 +216,35 @@ def read_eigenval(
 
 
 def _read_next_nonempty_line(fid) -> str:  # noqa: ANN001
-    """Read and return the next non-empty line, or ``""`` at EOF."""
+    """Read and return the next non-empty line, or ``""`` at EOF.
+
+    Extended Summary
+    ----------------
+    Helper that skips blank lines in the EIGENVAL file. VASP separates
+    k-point blocks with empty lines; this function transparently
+    consumes them so that the main parsing loop does not need to handle
+    blank-line logic.
+
+    Implementation Logic
+    --------------------
+    1. Call ``fid.readline()`` in a loop.
+    2. If the returned string is falsy (empty string ``""``), EOF has
+       been reached -- return ``""``.
+    3. If the stripped line is non-empty, return the original
+       (unstripped) line.
+    4. Otherwise continue to the next line.
+
+    Parameters
+    ----------
+    fid : file-like
+        Open file handle positioned somewhere within the EIGENVAL file.
+
+    Returns
+    -------
+    line : str
+        The next non-empty line (with trailing newline), or ``""`` if
+        the end of the file is reached.
+    """
     while True:
         line: str = fid.readline()
         if not line:

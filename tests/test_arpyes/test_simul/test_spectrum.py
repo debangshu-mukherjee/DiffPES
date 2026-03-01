@@ -587,7 +587,29 @@ class TestSimulateSoc(chex.TestCase):
         self.assertGreater(jnp.max(diff), 1e-10)
 
     def test_soc_polarized_light(self):
-        """Verify SOC runs with polarized light (hits polarized branch in simulate_soc)."""
+        """Verify that SOC simulation runs with polarized light (LHP).
+
+        Test Logic
+        ----------
+        1. **Setup**: Build bands and spin-orbital projections via
+           :func:`_make_synthetic_data_with_spin`; create params with
+           fidelity=100 and LHP polarization config. This exercises the
+           polarized code branch within ``simulate_soc``, which differs
+           from the unpolarized branch (used in other SOC tests) by
+           computing dipole matrix elements with an explicit electric
+           field vector rather than averaging over polarizations.
+        2. **Simulate**: Run ``simulate_soc`` with ls_scale=0.02.
+        3. **Check shape and finiteness**: Assert intensity shape is
+           ``(n_kpoints, 100)`` and all values are finite.
+
+        Asserts
+        -------
+        The SOC simulation produces correctly shaped, finite output
+        under polarized (LHP) light, confirming that the polarized
+        branch of ``simulate_soc`` handles the spin-orbit correction
+        in combination with directional dipole matrix elements without
+        numerical instability.
+        """
         bands, soc_proj = _make_synthetic_data_with_spin()
         params = make_simulation_params(fidelity=100)
         pol = make_polarization_config(

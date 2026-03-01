@@ -5,13 +5,38 @@ Extended Summary
 Implements ``simulate_tb_radial``, the fully differentiable ARPES
 simulation function that computes dipole matrix elements from first
 principles using radial integrals, Gaunt coefficients, and real
-spherical harmonics. Supports ``jax.grad`` with respect to Slater
-exponents, eigenvectors/eigenvalues, simulation parameters, and
-work function.
+spherical harmonics. This is the "Chinook-style" tight-binding
+forward model, distinct from the VASP-projection-based ``simulate_*``
+functions in ``spectrum.py``.
 
-Pipeline:
-    diag_bands → eigenvectors → per-orbital M(k) →
-    total |M|^2 × Fermi-Dirac × Voigt → I(k, E)
+The full simulation pipeline is:
+
+    diag_bands --> eigenvectors --> per-orbital M(k) -->
+    total |M|^2 x Fermi-Dirac x Voigt --> I(k, E)
+
+Every stage is JAX-traceable, enabling ``jax.grad`` with respect to
+Slater exponents (controlling radial wavefunction extent),
+eigenvectors/eigenvalues, simulation parameters (sigma, gamma,
+temperature), polarization angles, and work function. Optional
+energy-dependent self-energy and momentum broadening are supported.
+
+Routine Listings
+----------------
+:func:`simulate_tb_radial`
+    End-to-end differentiable ARPES forward model.
+
+Notes
+-----
+Physical constants used in this module:
+
+- ``_HBAR_EV_S``: hbar in eV*s (6.582e-16)
+- ``_ME_EV``: electron mass in eV/c^2 (0.511e6)
+- ``_HBAR_C_EV_A``: hbar*c in eV*Angstrom (1973.27)
+- ``_BOHR_TO_ANGSTROM``: Bohr radius in Angstroms (0.5292)
+
+The private helper ``_ekin_to_k_magnitude`` converts photon
+energy and binding energy to a photoelectron wavevector magnitude
+using the free-electron final-state approximation.
 """
 
 import jax
@@ -49,14 +74,70 @@ def _ekin_to_k_magnitude(
     work_function: Float[Array, " "],
     binding_energy: Float[Array, " "],
 ) -> Float[Array, " "]:
-    """Compute photoelectron momentum magnitude.
+    r"""Compute photoelectron momentum magnitude from kinematics.
 
-    E_kin = hv - W - |E_b|
-    |k| = sqrt(2 m_e E_kin) / hbar  (in Å^-1)
+    Converts photon energy, work function, and binding energy into the
+    magnitude of the photoelectron wavevector using the free-electron
+    final-state approximation.
 
-    Using: |k| [Å^-1] = sqrt(2 * m_e * E_kin) / (hbar*c) * c
-         = sqrt(2 * 0.511e6 eV * E_kin) / 1973.27 eV·Å
-         = 0.5123 * sqrt(E_kin [eV])  (approximate)
+    Extended Summary
+    ----------------
+    In the three-step model of photoemission, the photoelectron kinetic
+    energy is:
+
+    .. math::
+
+        E_{\mathrm{kin}} = h\nu - W - |E_b|
+
+    where :math:`h\nu` is the photon energy, :math:`W` is the work
+    function, and :math:`E_b` is the binding energy (negative by
+    convention). The free-electron wavevector magnitude is then:
+
+    .. math::
+
+        |k| = \frac{\sqrt{2\,m_e\,E_{\mathrm{kin}}}}{\hbar}
+
+    Implementation Logic
+    --------------------
+    1. **Compute kinetic energy**:
+       ``e_kin = photon_energy - work_function - |binding_energy|``
+       The absolute value of ``binding_energy`` is used so that the
+       sign convention does not matter.
+
+    2. **Guard against negative kinetic energy**:
+       ``safe_ekin = max(e_kin, 0)``
+       Negative kinetic energy is unphysical (the photon cannot eject
+       this electron); clamping to zero yields ``|k| = 0`` for such
+       bands, which is correct and gradient-safe.
+
+    3. **Convert to wavevector magnitude**:
+       ``k_mag = sqrt(2 * m_e * safe_ekin) / (hbar * c)``
+       Using natural units with ``_ME_EV = 0.511e6 eV/c^2`` and
+       ``_HBAR_C_EV_A = 1973.27 eV*Angstrom``, the result is
+       directly in inverse Angstroms. The approximate relation is
+       ``|k| ~ 0.5123 * sqrt(E_kin [eV])`` in Angstrom^-1.
+
+    Parameters
+    ----------
+    photon_energy : Float[Array, " "]
+        Incident photon energy in eV.
+    work_function : Float[Array, " "]
+        Material work function in eV.
+    binding_energy : Float[Array, " "]
+        Electron binding energy in eV (sign-agnostic: absolute
+        value is taken internally).
+
+    Returns
+    -------
+    k_mag : Float[Array, " "]
+        Photoelectron wavevector magnitude in inverse Angstroms.
+
+    Notes
+    -----
+    Uses physical constants defined at module level:
+    ``_ME_EV`` (electron mass in eV/c^2) and ``_HBAR_C_EV_A``
+    (hbar*c in eV*Angstrom). The function is JAX-traceable and
+    supports ``jax.grad`` through the ``jnp.maximum`` guard.
     """
     e_kin = photon_energy - work_function - jnp.abs(binding_energy)
     safe_ekin = jnp.maximum(e_kin, 0.0)
@@ -77,40 +158,133 @@ def simulate_tb_radial(
 ) -> ArpesSpectrum:
     r"""End-to-end differentiable ARPES forward model.
 
-    Computes dipole matrix elements from first principles and
-    produces a simulated ARPES spectrum. The entire pipeline is
-    JAX-traceable and supports ``jax.grad`` with respect to:
+    Computes dipole matrix elements from first principles using
+    radial integrals, Gaunt coefficients, and real spherical
+    harmonics, then produces a simulated ARPES spectrum. The entire
+    pipeline is JAX-traceable and supports ``jax.grad`` with respect
+    to all continuous parameters.
 
-    - ``slater_params.zeta`` (Slater exponents)
-    - ``diag_bands.eigenvalues``, ``diag_bands.eigenvectors``
+    Extended Summary
+    ----------------
+    This is the "Chinook-style" tight-binding ARPES forward model.
+    Unlike the six-level ``simulate_*`` functions in ``spectrum.py``
+    (which use VASP orbital projections as pre-computed weights),
+    this function computes dipole matrix elements ab initio from
+    Slater-type radial wavefunctions and the diagonalized
+    tight-binding eigenvectors. This makes the entire simulation
+    differentiable with respect to:
+
+    - ``slater_params.zeta`` (Slater exponents controlling radial
+      extent)
+    - ``diag_bands.eigenvalues`` and ``diag_bands.eigenvectors``
     - ``params.sigma``, ``params.gamma``, ``params.temperature``
     - ``pol_config.theta``, ``pol_config.phi``
     - ``work_function``
     - ``self_energy.coefficients`` (if provided)
 
+    Implementation Logic
+    --------------------
+    The simulation proceeds in five stages:
+
+    1. **Energy axis and radial grid setup**:
+       A linear energy axis of ``fidelity`` points spanning
+       ``[energy_min, energy_max]`` is created. If no radial grid is
+       provided, a default grid of 10000 points on ``[1e-6, 50.0]``
+       Bohr is used for the radial integrals.
+
+    2. **Precompute radial wavefunctions**:
+       For each orbital in ``slater_params.orbital_basis``, the
+       Slater radial function ``R_nl(r; zeta)`` is evaluated on the
+       grid and scaled by the leading coefficient. This is a
+       Python-level loop that JAX unrolls during tracing.
+
+    3. **Compute band intensities |M(k,b)|^2**:
+       For each (k-point, band) pair, the total dipole matrix element
+       is:
+
+       .. math::
+
+           M_{k,b} = \sum_o c_{k,b,o} \cdot M_o(k, \hat{\epsilon})
+
+       where :math:`c_{k,b,o}` are eigenvector coefficients and
+       :math:`M_o` is the single-orbital dipole matrix element
+       computed by ``dipole_matrix_element_single``. The photoelectron
+       momentum ``k`` is derived from kinematics via
+       ``_ekin_to_k_magnitude``, scaled along the crystal k-direction.
+       For unpolarized light, s- and p-polarization intensities are
+       averaged: ``I = (|M_s|^2 + |M_p|^2) / 2``. The computation
+       is vectorized with nested ``jax.vmap`` over bands and k-points.
+
+    4. **Spectral broadening**:
+       Each band contributes a Voigt profile weighted by the
+       Fermi-Dirac occupation and the band intensity. If a
+       ``SelfEnergyConfig`` is provided, the Lorentzian width
+       ``gamma`` becomes energy-dependent via ``evaluate_self_energy``,
+       and a per-energy-point Voigt is computed. Otherwise, a
+       constant ``params.gamma`` is used. Contributions from all
+       bands at each k-point are summed.
+
+    5. **Optional momentum broadening**:
+       If ``dk`` is specified, a Gaussian convolution along the
+       k-axis is applied via ``apply_momentum_broadening`` to
+       simulate finite angular acceptance. Cumulative k-distances
+       are computed from the k-point path.
+
     Parameters
     ----------
     diag_bands : DiagonalizedBands
-        Diagonalized electronic structure.
+        Diagonalized electronic structure containing eigenvalues of
+        shape ``(K, B)``, eigenvectors of shape ``(K, B, O)`` where
+        O is the number of orbitals, k-points of shape ``(K, 3)``,
+        and the Fermi energy.
     slater_params : SlaterParams
-        Slater radial wavefunction parameters.
+        Slater radial wavefunction parameters including Slater
+        exponents ``zeta`` of shape ``(O,)``, expansion coefficients,
+        and the ``orbital_basis`` specifying (n, l, m) quantum
+        numbers for each orbital.
     params : SimulationParams
-        Simulation parameters (energy window, broadening, etc.).
+        Simulation parameters including ``energy_min``, ``energy_max``,
+        ``fidelity``, ``sigma`` (Gaussian width), ``gamma``
+        (Lorentzian width), ``temperature``, and ``photon_energy``.
     pol_config : PolarizationConfig
-        Photon polarization configuration.
+        Photon polarization configuration specifying
+        ``polarization_type``, incidence angles ``theta`` and ``phi``,
+        and ``polarization_angle``.
     work_function : ScalarFloat, optional
-        Work function in eV. Default 4.5.
+        Material work function in eV. Default is 4.5.
     self_energy : SelfEnergyConfig, optional
-        Energy-dependent broadening. If None, uses ``params.gamma``.
+        Energy-dependent self-energy model for the Lorentzian
+        broadening. If ``None``, the constant ``params.gamma`` is
+        used for all energies.
     r_grid : Float[Array, " R"], optional
-        Radial grid for integration. Default: 10000 points on [0, 50].
+        Radial integration grid in Bohr. Default is 10000 points
+        linearly spaced on ``[1e-6, 50.0]``.
     dk : ScalarFloat, optional
-        Momentum broadening in Å^-1. If None, no k-convolution.
+        Momentum broadening width in inverse Angstroms. If ``None``,
+        no k-space convolution is applied.
 
     Returns
     -------
     spectrum : ArpesSpectrum
-        Simulated ARPES intensity map.
+        Simulated ARPES spectrum with ``intensity`` of shape
+        ``(K, E)`` and ``energy_axis`` of shape ``(E,)``.
+
+    See Also
+    --------
+    simulate_expert : Projection-based simulation (uses VASP weights
+        rather than ab-initio dipole matrix elements).
+    dipole_matrix_element_single : Core dipole integral computation.
+    slater_radial : Slater-type radial wavefunction evaluation.
+    evaluate_self_energy : Energy-dependent broadening model.
+    apply_momentum_broadening : k-space Gaussian convolution.
+
+    Notes
+    -----
+    The inner function ``_single_k_band`` adds a small epsilon
+    (1e-30) inside the k-vector norm to avoid NaN gradients at the
+    Gamma point (k = 0). The Python-level ``for`` loop over orbitals
+    is unrolled by the JAX tracer and does not affect runtime
+    performance after JIT compilation.
     """
     # Energy axis
     energy_axis: Float[Array, " E"] = jnp.linspace(
@@ -145,14 +319,54 @@ def simulate_tb_radial(
     def _compute_band_intensity_single_efield(
         efield: Complex[Array, " 3"],
     ) -> Float[Array, "K B"]:
-        """Compute |M|^2 for all (k, band) with a given E-field."""
+        """Compute squared dipole matrix element for all (k, band) pairs.
+
+        For a fixed electric-field polarization vector, evaluates the
+        total dipole matrix element ``M = sum_o c_{k,b,o} * M_o`` for
+        every (k-point, band) pair and returns ``|M|^2``. The
+        computation is vectorized with nested ``jax.vmap``: the inner
+        vmap maps over bands (B) and the outer vmap maps over k-points
+        (K), yielding the full intensity array of shape ``(K, B)``.
+
+        Parameters
+        ----------
+        efield : Complex[Array, " 3"]
+            Complex electric-field polarization vector.
+
+        Returns
+        -------
+        Float[Array, "K B"]
+            Squared modulus of the total dipole matrix element for
+            each (k-point, band) pair.
+        """
 
         def _single_k_band(
             k_crystal: Float[Array, " 3"],
             eigvec: Complex[Array, " O"],
             eigenval: Float[Array, " "],
         ) -> Float[Array, " "]:
-            """Intensity for one (k, band) pair."""
+            """Compute |M|^2 for a single (k-point, band) pair.
+
+            Converts the crystal k-vector to the photoelectron
+            wavevector using free-electron kinematics, then sums the
+            orbital-weighted dipole matrix elements and returns the
+            squared modulus. A small epsilon (1e-30) is added to the
+            k-vector norm to ensure gradient safety at the Gamma point.
+
+            Parameters
+            ----------
+            k_crystal : Float[Array, " 3"]
+                Crystal momentum vector for this k-point.
+            eigvec : Complex[Array, " O"]
+                Eigenvector coefficients for this band at this k-point.
+            eigenval : Float[Array, " "]
+                Band eigenvalue (binding energy) in eV.
+
+            Returns
+            -------
+            Float[Array, " "]
+                Squared modulus of the total dipole matrix element.
+            """
             # Compute photoelectron k magnitude from kinematics
             k_mag = _ekin_to_k_magnitude(params.photon_energy, W, eigenval)
             # Use crystal k-direction, scale to photoelectron magnitude
@@ -213,6 +427,26 @@ def simulate_tb_radial(
             energy: Float[Array, " "],
             bi: Float[Array, " "],
         ) -> Float[Array, " E"]:
+            """Spectral contribution of one band with energy-dependent gamma.
+
+            Computes the Fermi-Dirac occupation at the band energy,
+            then evaluates a Voigt profile at each energy-axis point
+            with a different Lorentzian width ``gamma(E)`` from the
+            self-energy model. The result is scaled by the band
+            intensity.
+
+            Parameters
+            ----------
+            energy : Float[Array, " "]
+                Band eigenvalue in eV.
+            bi : Float[Array, " "]
+                Band intensity weight (|M|^2).
+
+            Returns
+            -------
+            Float[Array, " E"]
+                Weighted spectral contribution of this band.
+            """
             fd = fermi_dirac(
                 energy, diag_bands.fermi_energy, params.temperature
             )
@@ -228,6 +462,24 @@ def simulate_tb_radial(
             energies: Float[Array, " B"],
             bi_k: Float[Array, " B"],
         ) -> Float[Array, " E"]:
+            """Sum spectral contributions over all bands at one k-point.
+
+            Vmaps ``_single_band_se`` over the band axis and sums the
+            resulting (B, E) array along the band dimension to produce
+            the total spectral intensity at this k-point.
+
+            Parameters
+            ----------
+            energies : Float[Array, " B"]
+                Band eigenvalues for all bands at this k-point.
+            bi_k : Float[Array, " B"]
+                Band intensity weights for all bands at this k-point.
+
+            Returns
+            -------
+            Float[Array, " E"]
+                Total spectral intensity at this k-point.
+            """
             contributions = jax.vmap(_single_band_se)(energies, bi_k)
             return jnp.sum(contributions, axis=0)
 
@@ -240,6 +492,25 @@ def simulate_tb_radial(
             energy: Float[Array, " "],
             bi: Float[Array, " "],
         ) -> Float[Array, " E"]:
+            """Spectral contribution of one band with constant gamma.
+
+            Computes the Fermi-Dirac occupation at the band energy,
+            evaluates a Voigt profile with constant ``sigma`` and
+            ``gamma`` from ``params``, and scales by the band
+            intensity.
+
+            Parameters
+            ----------
+            energy : Float[Array, " "]
+                Band eigenvalue in eV.
+            bi : Float[Array, " "]
+                Band intensity weight (|M|^2).
+
+            Returns
+            -------
+            Float[Array, " E"]
+                Weighted spectral contribution of this band.
+            """
             fd = fermi_dirac(
                 energy, diag_bands.fermi_energy, params.temperature
             )
@@ -250,6 +521,24 @@ def simulate_tb_radial(
             energies: Float[Array, " B"],
             bi_k: Float[Array, " B"],
         ) -> Float[Array, " E"]:
+            """Sum spectral contributions over all bands at one k-point.
+
+            Vmaps ``_single_band`` over the band axis and sums the
+            resulting (B, E) array along the band dimension to produce
+            the total spectral intensity at this k-point.
+
+            Parameters
+            ----------
+            energies : Float[Array, " B"]
+                Band eigenvalues for all bands at this k-point.
+            bi_k : Float[Array, " B"]
+                Band intensity weights for all bands at this k-point.
+
+            Returns
+            -------
+            Float[Array, " E"]
+                Total spectral intensity at this k-point.
+            """
             contributions = jax.vmap(_single_band)(energies, bi_k)
             return jnp.sum(contributions, axis=0)
 

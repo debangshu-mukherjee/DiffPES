@@ -1,6 +1,6 @@
 [project]
 name = "arpyes"
-version = "2026.02.26"
+version = "2026.02.28"
 description = "Differentiable ARPES simulations in JAX"
 authors = [
     {name = "Debangshu Mukherjee", email = "mukherjeed@ornl.gov"},
@@ -100,8 +100,8 @@ all = [
 ]
 
 [build-system]
-requires = ["setuptools>=75.0.0"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

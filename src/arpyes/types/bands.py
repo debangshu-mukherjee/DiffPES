@@ -300,28 +300,55 @@ class OrbitalProjection(NamedTuple):
 class SpinOrbitalProjection(NamedTuple):
     """PyTree for orbital projections with mandatory spin data.
 
+    Extended Summary
+    ----------------
     Variant of :class:`OrbitalProjection` where the ``spin`` field
     is required (not Optional). Used by spin-orbit coupling
     simulations (:func:`~arpyes.simul.simulate_soc`) that need
     guaranteed access to spin projection data.
 
     Hardening (validation that spin data exists) belongs at the I/O
-    boundary — the factory :func:`make_spin_orbital_projection`
+    boundary -- the factory :func:`make_spin_orbital_projection`
     enforces the contract so the simulation kernel stays pure.
+
+    This type exists as a JAX-compatible PyTree so that spin-resolved
+    orbital weights can participate in JAX transformations (``jit``,
+    ``vmap``, ``grad``) alongside band structure data. All array
+    fields are JAX-traced children; ``None``-valued ``oam`` is
+    handled transparently by JAX's tree utilities.
 
     Attributes
     ----------
     projections : Float[Array, "K B A 9"]
-        Orbital projection weights for K k-points, B bands,
-        A atoms, and 9 orbitals.
+        Orbital projection weights |<psi_{k,b}|Y_{lm}>|^2 for K
+        k-points, B bands, A atoms, and 9 orbitals following VASP
+        ordering ``[s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2]``.
+        Units are dimensionless (squared overlap). JAX-traced
+        (differentiable).
     spin : Float[Array, "K B A 6"]
-        Spin projections (up/down for x, y, z). Required.
+        Spin projections from VASP PROCAR, stored as six columns:
+        ``[Sx_up, Sx_dn, Sy_up, Sy_dn, Sz_up, Sz_dn]``. Required
+        (non-optional) unlike in :class:`OrbitalProjection`.
+        JAX-traced (differentiable).
     oam : Optional[Float[Array, "K B A 3"]]
-        Orbital angular momentum (p, d, total) or None.
+        Orbital angular momentum expectation values
+        ``[L_p, L_d, L_total]`` for p-shell, d-shell, and total
+        OAM contributions, or ``None`` when the PROCAR does not
+        contain OAM data. JAX-traced when present.
 
     Notes
     -----
     Registered as a JAX PyTree via ``@register_pytree_node_class``.
+    All fields are stored as children (no auxiliary data). When
+    ``oam`` is ``None``, JAX treats that leaf as an empty subtree
+    and skips it during tracing, so the PyTree structure adapts
+    automatically.
+
+    See Also
+    --------
+    OrbitalProjection : Variant with optional ``spin`` field.
+    make_spin_orbital_projection : Factory function with validation
+        and float64 casting.
     """
 
     projections: Float[Array, "K B A 9"]
@@ -340,12 +367,26 @@ class SpinOrbitalProjection(NamedTuple):
     ]:
         """Flatten into JAX leaf arrays and auxiliary data.
 
+        Separates JAX-traced arrays (children) from static Python
+        values (auxiliary data) for ``jax.tree_util`` compatibility.
+
+        Implementation Logic
+        --------------------
+        1. **Children**: ``(projections, spin, oam)`` -- all three
+           fields are either dense JAX arrays or ``None``. ``spin``
+           is guaranteed non-None for this type. When ``oam`` is
+           ``None``, JAX treats that leaf as an empty subtree and
+           skips it during tracing.
+        2. **Auxiliary data**: ``None`` -- there are no static Python
+           values because every field is a numerical array (or
+           ``None``).
+
         Returns
         -------
         children : tuple of (jax.Array or None)
             ``(projections, spin, oam)``.
         aux_data : None
-            No static metadata.
+            No static metadata is needed for reconstruction.
         """
         return (
             (self.projections, self.spin, self.oam),
@@ -364,17 +405,33 @@ class SpinOrbitalProjection(NamedTuple):
     ) -> "SpinOrbitalProjection":
         """Reconstruct a ``SpinOrbitalProjection`` from flattened components.
 
+        Inverse of :meth:`tree_flatten`. Called by ``jax.tree_util``
+        when a traced ``SpinOrbitalProjection`` needs to be reassembled
+        -- for example at the boundary of a ``jit``-compiled function
+        or after ``vmap`` unstacks batched leaves.
+
+        Implementation Logic
+        --------------------
+        1. **Auxiliary data**: ignored (always ``None``) because
+           ``SpinOrbitalProjection`` carries no static metadata.
+        2. **Reconstruction**: unpacks the children tuple positionally
+           into the ``NamedTuple`` constructor via ``cls(*children)``,
+           restoring ``(projections, spin, oam)`` in declaration
+           order. If ``oam`` was ``None`` before flattening, it
+           remains ``None`` after reconstruction.
+
         Parameters
         ----------
         _aux_data : None
             Unused static metadata (always ``None``).
         children : tuple of (jax.Array or None)
-            ``(projections, spin, oam)``.
+            ``(projections, spin, oam)`` as returned by
+            :meth:`tree_flatten`.
 
         Returns
         -------
         spin_orbital_projection : SpinOrbitalProjection
-            Reconstructed instance.
+            Reconstructed instance with the original array fields.
         """
         return cls(*children)
 
@@ -387,23 +444,54 @@ def make_spin_orbital_projection(
 ) -> SpinOrbitalProjection:
     """Create a validated ``SpinOrbitalProjection`` instance.
 
+    Extended Summary
+    ----------------
     Factory function that validates and normalises orbital projection
-    data with mandatory spin. All non-None arrays are cast to
-    ``float64``.
+    data with mandatory spin before constructing a
+    ``SpinOrbitalProjection`` PyTree. This is the spin-orbit coupling
+    counterpart to :func:`make_orbital_projection`: it requires the
+    ``spin`` field and therefore guarantees that downstream SOC
+    simulation kernels receive complete spin data without runtime
+    checks.
+
+    All non-None arrays are cast to ``float64`` for numerical
+    stability. The function is decorated with
+    ``@jaxtyped(typechecker=beartype)`` so that shape constraints
+    (K, B, A dimensions must agree across all provided arrays) are
+    checked at call time.
+
+    Implementation Logic
+    --------------------
+    1. **Cast projections** to ``jnp.float64`` via ``jnp.asarray``.
+    2. **Cast spin** to ``jnp.float64`` via ``jnp.asarray``. This
+       field is mandatory, unlike in :func:`make_orbital_projection`.
+    3. **Cast oam** to ``jnp.float64`` when not ``None``; otherwise
+       leave as ``None`` to signal that OAM data is absent.
+    4. **Construct** the ``SpinOrbitalProjection`` NamedTuple from the
+       three validated fields and return it.
 
     Parameters
     ----------
     projections : Float[Array, "K B A 9"]
-        Orbital projection weights.
+        Orbital projection weights |<psi|Y_{lm}>|^2 following VASP
+        ordering. Must share the K, B, A dimensions with ``spin``.
     spin : Float[Array, "K B A 6"]
-        Spin projections. Required.
+        Spin projections ``[Sx_up, Sx_dn, Sy_up, Sy_dn, Sz_up,
+        Sz_dn]``. Required (non-optional).
     oam : Optional[Float[Array, "K B A 3"]], optional
-        Orbital angular momentum. Default is None.
+        Orbital angular momentum ``[L_p, L_d, L_total]``.
+        Default is None.
 
     Returns
     -------
     soc_proj : SpinOrbitalProjection
         Validated instance with all non-None arrays in ``float64``.
+
+    See Also
+    --------
+    make_orbital_projection : Factory for the optional-spin variant.
+    SpinOrbitalProjection : The PyTree class constructed by this
+        factory.
     """
     proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
         projections, dtype=jnp.float64
@@ -423,24 +511,54 @@ def make_spin_orbital_projection(
 class SpinBandStructure(NamedTuple):
     """PyTree for spin-resolved electronic band structure.
 
+    Extended Summary
+    ----------------
     Stores eigenvalues for both spin channels from an ISPIN=2 VASP
     calculation. The two spin channels share the same k-point mesh
     and weights. This type is returned by ``read_eigenval`` when
     ``return_mode="full"`` and the EIGENVAL file contains spin-
     polarized data.
 
+    This class is registered as a JAX PyTree via
+    ``@register_pytree_node_class``. All five fields are dense JAX
+    arrays stored as children (no auxiliary data), making the entire
+    object fully differentiable with respect to any of its fields.
+
     Attributes
     ----------
     eigenvalues_up : Float[Array, "K B"]
-        Spin-up band energies in eV.
+        Spin-up (majority) band energies in eV for K k-points and
+        B bands. JAX-traced (differentiable).
     eigenvalues_down : Float[Array, "K B"]
-        Spin-down band energies in eV.
+        Spin-down (minority) band energies in eV for K k-points
+        and B bands. JAX-traced (differentiable).
     kpoints : Float[Array, "K 3"]
-        k-point coordinates in reciprocal space.
+        k-point coordinates in reciprocal (fractional) space, shared
+        by both spin channels. JAX-traced (differentiable).
     kpoint_weights : Float[Array, " K"]
-        Integration weights for each k-point.
+        Integration weights for each k-point, used for Brillouin-zone
+        averaging. Uniform weights (all ones) are the norm for band
+        structure paths. JAX-traced (differentiable).
     fermi_energy : Float[Array, " "]
-        Fermi level energy in eV.
+        Fermi level energy in eV. A 0-D scalar array.
+        JAX-traced (differentiable).
+
+    Notes
+    -----
+    Registered as a JAX PyTree with ``@register_pytree_node_class``.
+    Because ``SpinBandStructure`` is a ``NamedTuple``, JAX would
+    normally flatten it by treating each field as a leaf in
+    declaration order. The explicit ``tree_flatten`` /
+    ``tree_unflatten`` pair overrides this default to make the
+    children-vs-auxiliary split explicit and self-documenting, even
+    though in this case all fields are children and the auxiliary
+    data is ``None``.
+
+    See Also
+    --------
+    BandStructure : Single-spin-channel variant.
+    make_spin_band_structure : Factory function with validation and
+        float64 casting.
     """
 
     eigenvalues_up: Float[Array, "K B"]
@@ -463,11 +581,27 @@ class SpinBandStructure(NamedTuple):
     ]:
         """Flatten into JAX leaf arrays and auxiliary data.
 
+        Separates JAX-traced arrays (children) from static Python
+        values (auxiliary data) for ``jax.tree_util`` compatibility.
+
+        Implementation Logic
+        --------------------
+        1. **Children**: ``(eigenvalues_up, eigenvalues_down, kpoints,
+           kpoint_weights, fermi_energy)`` -- all five fields are dense
+           JAX arrays that must be visible to the tracer so that
+           ``jit``, ``grad``, and ``vmap`` can differentiate through
+           or batch over them.
+        2. **Auxiliary data**: ``None`` -- there are no static Python
+           values because every field in a ``SpinBandStructure`` is a
+           numerical array.
+
         Returns
         -------
         children : tuple of jax.Array
-            All five fields.
+            ``(eigenvalues_up, eigenvalues_down, kpoints,
+            kpoint_weights, fermi_energy)``.
         aux_data : None
+            No static metadata is needed for reconstruction.
         """
         return (
             (
@@ -492,16 +626,35 @@ class SpinBandStructure(NamedTuple):
             Float[Array, " "],
         ],
     ) -> "SpinBandStructure":
-        """Reconstruct from flattened components.
+        """Reconstruct a ``SpinBandStructure`` from flattened components.
+
+        Inverse of :meth:`tree_flatten`. Called by ``jax.tree_util``
+        when a traced ``SpinBandStructure`` needs to be reassembled
+        -- for example at the boundary of a ``jit``-compiled function
+        or after a ``vmap`` transformation unstacks its batched leaves.
+
+        Implementation Logic
+        --------------------
+        1. **Auxiliary data**: ignored (always ``None``) because
+           ``SpinBandStructure`` carries no static metadata.
+        2. **Reconstruction**: unpacks the children tuple positionally
+           into the ``NamedTuple`` constructor via ``cls(*children)``,
+           restoring ``(eigenvalues_up, eigenvalues_down, kpoints,
+           kpoint_weights, fermi_energy)`` in declaration order.
 
         Parameters
         ----------
         _aux_data : None
+            Unused static metadata (always ``None``).
         children : tuple of jax.Array
+            ``(eigenvalues_up, eigenvalues_down, kpoints,
+            kpoint_weights, fermi_energy)`` as returned by
+            :meth:`tree_flatten`.
 
         Returns
         -------
-        SpinBandStructure
+        band_structure : SpinBandStructure
+            Reconstructed instance with the original array fields.
         """
         return cls(*children)
 
@@ -516,23 +669,62 @@ def make_spin_band_structure(
 ) -> SpinBandStructure:
     """Create a validated ``SpinBandStructure`` instance.
 
+    Extended Summary
+    ----------------
+    Factory function that validates and normalises raw spin-resolved
+    band structure data before constructing a ``SpinBandStructure``
+    PyTree. This is the spin-polarized (ISPIN=2) counterpart to
+    :func:`make_band_structure`. All input arrays are cast to
+    ``float64`` for numerical stability. Missing k-point weights are
+    replaced by uniform weights so that callers do not need to handle
+    the common equal-weight case explicitly.
+
+    The function is decorated with ``@jaxtyped(typechecker=beartype)``
+    so that shape and dtype constraints on the inputs are checked at
+    call time, catching mismatched dimensions (e.g. different K or B
+    between the two spin channels) before they propagate into the
+    simulation pipeline.
+
+    Implementation Logic
+    --------------------
+    1. **Cast eigenvalues_up** to ``jnp.float64`` via ``jnp.asarray``.
+    2. **Cast eigenvalues_down** to ``jnp.float64`` via
+       ``jnp.asarray``.
+    3. **Cast kpoints** to ``jnp.float64`` via ``jnp.asarray``.
+    4. **Default handling**: if ``kpoint_weights`` is ``None``, a
+       uniform weight vector ``jnp.ones(K)`` is created (where *K* is
+       inferred from ``eigenvalues_up.shape[0]``). This is the
+       standard assumption for band structure paths.
+    5. **Cast fermi_energy** scalar to a 0-D ``jnp.float64`` array.
+    6. **Construction**: the five validated arrays are passed to the
+       ``SpinBandStructure`` named-tuple constructor, producing an
+       immutable PyTree ready for use in JAX transformations.
+
     Parameters
     ----------
     eigenvalues_up : Float[Array, "K B"]
-        Spin-up band energies in eV.
+        Spin-up band energies in eV for K k-points and B bands.
     eigenvalues_down : Float[Array, "K B"]
-        Spin-down band energies in eV.
+        Spin-down band energies in eV. Must share the same (K, B)
+        shape as ``eigenvalues_up``.
     kpoints : Float[Array, "K 3"]
-        k-point coordinates in reciprocal space.
+        k-point coordinates in reciprocal (fractional) space.
     kpoint_weights : Union[Float[Array, " K"], None], optional
-        Integration weights. Defaults to uniform weights.
+        Integration weights per k-point. Defaults to uniform weights
+        ``jnp.ones(K)``.
     fermi_energy : ScalarNumeric, optional
         Fermi level in eV. Default is 0.0.
 
     Returns
     -------
     bands : SpinBandStructure
-        Validated spin-resolved band structure.
+        Validated spin-resolved band structure with all arrays in
+        ``float64``.
+
+    See Also
+    --------
+    make_band_structure : Factory for single-spin-channel data.
+    SpinBandStructure : The PyTree class constructed by this factory.
     """
     up_arr = jnp.asarray(eigenvalues_up, dtype=jnp.float64)
     down_arr = jnp.asarray(eigenvalues_down, dtype=jnp.float64)

@@ -146,6 +146,25 @@ def simulate_novice(
         energy: Float[Array, " "],
         weight: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band at one k-point (Voigt).
+
+        Evaluates ``weight * f(E_band) * V(E; E_band, sigma, gamma)``
+        where ``f`` is the Fermi-Dirac distribution and ``V`` is the
+        Voigt profile. This yields the weighted spectral lineshape
+        for a single band.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        weight : Float[Array, " "]
+            Uniform orbital weight for this band.
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Voigt spectral contribution.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -159,6 +178,23 @@ def simulate_novice(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum spectral contributions over all bands at one k-point.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        kweights : Float[Array, " B"]
+            Orbital weights for each band at this k-point.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, kweights
         )
@@ -260,6 +296,25 @@ def simulate_basic(
         energy: Float[Array, " "],
         weight: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band at one k-point (Gaussian).
+
+        Evaluates ``weight * f(E_band) * G(E; E_band, sigma)``
+        where ``f`` is the Fermi-Dirac distribution and ``G`` is the
+        Gaussian profile. The heuristic cross-section weighting is
+        already incorporated into ``weight``.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        weight : Float[Array, " "]
+            Heuristic-weighted orbital projection for this band.
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Gaussian spectral contribution.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -273,6 +328,23 @@ def simulate_basic(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum Gaussian spectral contributions over all bands at one k-point.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        kweights : Float[Array, " B"]
+            Heuristic-weighted projections for each band.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, kweights
         )
@@ -377,6 +449,25 @@ def simulate_basicplus(
         energy: Float[Array, " "],
         weight: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band (Gaussian, Yeh-Lindau weights).
+
+        Evaluates ``weight * f(E_band) * G(E; E_band, sigma)``
+        where ``f`` is the Fermi-Dirac distribution and ``G`` is the
+        Gaussian profile. The Yeh-Lindau cross-section weighting is
+        already incorporated into ``weight``.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        weight : Float[Array, " "]
+            Yeh-Lindau-weighted orbital projection for this band.
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Gaussian spectral contribution.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -390,6 +481,23 @@ def simulate_basicplus(
         energies: Float[Array, " B"],
         kweights: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum Yeh-Lindau Gaussian contributions over bands at one k-point.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        kweights : Float[Array, " B"]
+            Yeh-Lindau-weighted projections for each band.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, kweights
         )
@@ -534,6 +642,26 @@ def simulate_advanced(
         energy: Float[Array, " "],
         bi: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band (Gaussian, polarization-weighted).
+
+        Evaluates ``bi * f(E_band) * G(E; E_band, sigma)`` where
+        ``bi`` is the polarization-weighted band intensity (already
+        including Yeh-Lindau cross-sections and dipole matrix element
+        weighting), ``f`` is the Fermi-Dirac distribution, and ``G``
+        is the Gaussian profile.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        bi : Float[Array, " "]
+            Polarization-weighted band intensity (|e.d|^2 weighted).
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Gaussian spectral contribution.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -547,6 +675,23 @@ def simulate_advanced(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum polarization-weighted Gaussian contributions over bands.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        bi_k : Float[Array, " B"]
+            Polarization-weighted band intensities at this k-point.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, bi_k
         )
@@ -689,6 +834,27 @@ def simulate_expert(
         energy: Float[Array, " "],
         bi: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band (Voigt, polarization-weighted).
+
+        Evaluates ``bi * f(E_band) * V(E; E_band, sigma, gamma)``
+        where ``bi`` is the polarization-weighted band intensity
+        (including Yeh-Lindau cross-sections and dipole matrix element
+        weighting), ``f`` is the Fermi-Dirac distribution, and ``V``
+        is the Voigt profile combining Gaussian (instrumental) and
+        Lorentzian (lifetime) broadening.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        bi : Float[Array, " "]
+            Polarization-weighted band intensity (|e.d|^2 weighted).
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Voigt spectral contribution.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -702,6 +868,23 @@ def simulate_expert(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum polarization-weighted Voigt contributions over bands.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        bi_k : Float[Array, " B"]
+            Polarization-weighted band intensities at this k-point.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, bi_k
         )
@@ -850,6 +1033,27 @@ def simulate_soc(
         energy: Float[Array, " "],
         bi: Float[Array, " "],
     ) -> Float[Array, " E"]:
+        """Spectral contribution of one band (Voigt, SOC-corrected).
+
+        Evaluates ``bi * f(E_band) * V(E; E_band, sigma, gamma)``
+        where ``bi`` is the spin-orbit-corrected band intensity
+        (including Yeh-Lindau cross-sections, dipole matrix element
+        weighting, and the ``1 + ls_scale * S.k_photon`` modulation),
+        ``f`` is the Fermi-Dirac distribution, and ``V`` is the Voigt
+        profile.
+
+        Parameters
+        ----------
+        energy : Float[Array, " "]
+            Band eigenvalue in eV.
+        bi : Float[Array, " "]
+            SOC-corrected band intensity.
+
+        Returns
+        -------
+        contribution : Float[Array, " E"]
+            Weighted Voigt spectral contribution with SOC correction.
+        """
         fd: Float[Array, " "] = fermi_dirac(
             energy, bands.fermi_energy, params.temperature
         )
@@ -863,6 +1067,23 @@ def simulate_soc(
         energies: Float[Array, " B"],
         bi_k: Float[Array, " B"],
     ) -> Float[Array, " E"]:
+        """Sum SOC-corrected Voigt contributions over bands at one k-point.
+
+        Vmaps ``_single_band`` over the band axis B and sums the
+        resulting ``(B, E)`` array along the band dimension.
+
+        Parameters
+        ----------
+        energies : Float[Array, " B"]
+            Band eigenvalues at this k-point.
+        bi_k : Float[Array, " B"]
+            SOC-corrected band intensities at this k-point.
+
+        Returns
+        -------
+        total : Float[Array, " E"]
+            Total spectral intensity at this k-point.
+        """
         contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
             energies, bi_k
         )

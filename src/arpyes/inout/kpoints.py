@@ -6,6 +6,11 @@ Reads VASP KPOINTS files and returns a
 :class:`~arpyes.types.KPathInfo` PyTree containing plotting labels and
 mode-specific metadata (automatic grid/shift, explicit weights, and
 line-mode segment endpoints).
+
+Routine Listings
+----------------
+:func:`read_kpoints`
+    Parse a VASP KPOINTS file into KPathInfo.
 """
 
 import re
@@ -175,7 +180,45 @@ def _parse_explicit_kpoints(
     lines: list[str],
     num_kpoints: int,
 ) -> tuple[list[list[float]], list[float]]:
-    """Parse explicit-mode coordinates and optional weights."""
+    """Parse explicit-mode k-point coordinates and optional weights.
+
+    Extended Summary
+    ----------------
+    In VASP explicit KPOINTS mode, each k-point is listed on its own
+    line with at least three fractional/Cartesian coordinates and an
+    optional fourth column for the integration weight.
+
+    Implementation Logic
+    --------------------
+    1. Iterate over ``lines``, stopping once ``num_kpoints`` k-points
+       have been collected.
+    2. Split each line and parse all tokens as floats. Raise
+       ``ValueError`` if any token is not numeric or if fewer than 3
+       values are present.
+    3. Store the first 3 values as coordinates.
+    4. If a 4th value is present, use it as the weight; otherwise
+       default to 1.0.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Remaining lines from the KPOINTS file after the mode line.
+    num_kpoints : int
+        Expected number of k-points to parse.
+
+    Returns
+    -------
+    points : list[list[float]]
+        Parsed k-point coordinates, each a 3-element list.
+    weights : list[float]
+        Corresponding k-point weights.
+
+    Raises
+    ------
+    ValueError
+        If a coordinate line cannot be parsed or has fewer than 3
+        numeric tokens.
+    """
     points: list[list[float]] = []
     weights: list[float] = []
     for stripped in lines:
@@ -199,7 +242,27 @@ def _parse_explicit_kpoints(
 
 
 def _looks_like_kpoint_line(line: str) -> bool:
-    """Return ``True`` when the first three tokens are parseable floats."""
+    """Return ``True`` when the first three tokens are parseable floats.
+
+    Extended Summary
+    ----------------
+    Heuristic used to distinguish a k-point coordinate line from a
+    coordinate-mode descriptor line (e.g. ``"Reciprocal"``) when the
+    KPOINTS file uses explicit mode and the mode keyword also happens
+    to appear on line 3. Lines with fewer than 3 tokens or with
+    non-numeric leading tokens return ``False``.
+
+    Parameters
+    ----------
+    line : str
+        A single line from the KPOINTS file.
+
+    Returns
+    -------
+    bool
+        ``True`` if the first three whitespace-separated tokens can
+        all be converted to ``float``; ``False`` otherwise.
+    """
     parts: list[str] = line.split()
     if len(parts) < _XYZ_COMPONENTS:
         return False
@@ -213,7 +276,31 @@ def _looks_like_kpoint_line(line: str) -> bool:
 
 
 def _parse_grid(line: str) -> list[int]:
-    """Parse automatic-mode grid line into three integers."""
+    """Parse automatic-mode grid line into three integers.
+
+    Extended Summary
+    ----------------
+    In VASP automatic KPOINTS mode, the line immediately after the
+    scheme keyword contains the three Monkhorst-Pack grid subdivisions
+    ``N1 N2 N3``. Tokens are parsed as floats first and then rounded
+    to the nearest integer to tolerate files written with decimal
+    points (e.g. ``"4.0 4.0 4.0"``).
+
+    Parameters
+    ----------
+    line : str
+        The grid-dimension line from the KPOINTS file.
+
+    Returns
+    -------
+    list[int]
+        Three-element list ``[N1, N2, N3]``.
+
+    Raises
+    ------
+    ValueError
+        If the line contains fewer than 3 whitespace-separated tokens.
+    """
     vals: list[str] = line.split()
     if len(vals) < _XYZ_COMPONENTS:
         msg = "Automatic KPOINTS grid line must have 3 values."
@@ -226,7 +313,30 @@ def _parse_grid(line: str) -> list[int]:
 
 
 def _parse_shift(line: str) -> list[float]:
-    """Parse automatic-mode shift line into three floats."""
+    """Parse automatic-mode shift line into three floats.
+
+    Extended Summary
+    ----------------
+    In VASP automatic KPOINTS mode, the line after the grid line
+    contains the shift vector applied to the Monkhorst-Pack mesh.
+    Values of ``0 0 0`` indicate a Gamma-centred grid; non-zero
+    values shift the mesh in fractional reciprocal-space coordinates.
+
+    Parameters
+    ----------
+    line : str
+        The shift line from the KPOINTS file.
+
+    Returns
+    -------
+    list[float]
+        Three-element list ``[s1, s2, s3]``.
+
+    Raises
+    ------
+    ValueError
+        If the line contains fewer than 3 whitespace-separated tokens.
+    """
     vals: list[str] = line.split()
     if len(vals) < _XYZ_COMPONENTS:
         msg = "Automatic KPOINTS shift line must have 3 values."
@@ -235,7 +345,30 @@ def _parse_shift(line: str) -> list[float]:
 
 
 def _extract_coords(line: str) -> list[float]:
-    """Extract first three float tokens from a KPOINTS coordinate line."""
+    """Extract first three float tokens from a KPOINTS coordinate line.
+
+    Extended Summary
+    ----------------
+    Uses a regex (``_FLOAT_TOKEN_RE``) to find all floating-point
+    tokens in the line, regardless of surrounding non-numeric text
+    (such as symmetry labels or comment markers). This makes the
+    extraction robust to various KPOINTS formatting styles.
+
+    Parameters
+    ----------
+    line : str
+        A single k-point coordinate line.
+
+    Returns
+    -------
+    list[float]
+        Three-element list of the first three float values found.
+
+    Raises
+    ------
+    ValueError
+        If fewer than 3 float tokens are found on the line.
+    """
     tokens: list[str] = _FLOAT_TOKEN_RE.findall(line)
     if len(tokens) < _XYZ_COMPONENTS:
         msg = f"Could not parse k-point coordinates from line: {line!r}"

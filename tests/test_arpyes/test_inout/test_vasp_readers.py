@@ -141,7 +141,16 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_spin_polarized_legacy(self):
-        """Read spin-polarized EIGENVAL in legacy mode and get only spin-up."""
+        """Read spin-polarized EIGENVAL in legacy mode and verify only spin-up eigenvalues.
+
+        Parses the EIGENVAL_spin fixture with ``return_mode="legacy"``,
+        which should discard spin-down data and return a plain
+        ``BandStructure``. Asserts the result is a ``BandStructure``
+        (not ``SpinBandStructure``), eigenvalues shape is (2, 2)
+        (2 k-points, 2 bands), and the spin-up eigenvalues at k=0 are
+        -1.5 and -0.5 respectively, verified to within ``atol=1e-12``.
+        This exercises the legacy backward-compatibility path.
+        """
         path = _FIXTURES_DIR / "EIGENVAL_spin"
         bands = read_eigenval(
             str(path), fermi_energy=0.0, return_mode="legacy"
@@ -157,7 +166,16 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_spin_polarized_full(self):
-        """Read spin-polarized EIGENVAL in full mode to get both channels."""
+        """Read spin-polarized EIGENVAL in full mode and verify both spin channels.
+
+        Parses the EIGENVAL_spin fixture with ``return_mode="full"``,
+        which returns a ``SpinBandStructure`` containing separate
+        ``eigenvalues_up`` and ``eigenvalues_down`` arrays. Asserts the
+        result type is ``SpinBandStructure``, both arrays have shape
+        (2, 2), spin-up k=0 eigenvalues are [-1.5, -0.5], and spin-down
+        k=0 eigenvalues are [-1.2, -0.3], all verified to within
+        ``atol=1e-12``.
+        """
         path = _FIXTURES_DIR / "EIGENVAL_spin"
         bands = read_eigenval(str(path), fermi_energy=0.0, return_mode="full")
         assert isinstance(bands, SpinBandStructure)
@@ -176,7 +194,14 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_nonspin_full_returns_bandstructure(self):
-        """In full mode, ISPIN=1 file still returns BandStructure."""
+        """Verify that full mode with a non-spin-polarized file returns plain BandStructure.
+
+        Parses the standard EIGENVAL fixture (ISPIN=1) with
+        ``return_mode="full"``. Asserts the result is a plain
+        ``BandStructure`` rather than ``SpinBandStructure``, confirming
+        that the full-mode path correctly detects single-spin data and
+        falls back to the standard type.
+        """
         path = _FIXTURES_DIR / "EIGENVAL"
         bands = read_eigenval(str(path), fermi_energy=0.0, return_mode="full")
         assert isinstance(bands, BandStructure)
@@ -284,7 +309,16 @@ class TestReadKpoints(chex.TestCase):
         assert kpath.coordinate_mode.lower() == "cartesian"
 
     def test_explicit_mode_with_mode_header(self):
-        """Read Explicit KPOINTS with mode header and separate coord line."""
+        """Read Explicit KPOINTS with an explicit mode header line and separate coordinate line.
+
+        Parses KPOINTS_explicit_mode_header, which uses a distinct
+        format where the mode is declared on a separate header line
+        before the coordinate system line. Asserts mode is ``"Explicit"``,
+        ``num_kpoints`` is 3, k-points shape is (3, 3), weights shape
+        is (3,), the first k-point is [0, 0, 0], weights are
+        [1.0, 0.5, 0.5], and coordinate mode is Cartesian. This exercises
+        an alternative file layout branch in the KPOINTS parser.
+        """
         path = _FIXTURES_DIR / "KPOINTS_explicit_mode_header"
         kpath = read_kpoints(str(path))
         assert kpath.mode == "Explicit"
@@ -386,7 +420,15 @@ class TestReadProcar(chex.TestCase):
         assert orb.oam is None
 
     def test_spin_procar_legacy(self):
-        """Read spin-polarized PROCAR in legacy mode (first block only)."""
+        """Read spin-polarized PROCAR in legacy mode and verify only first spin block.
+
+        Parses the PROCAR_spin fixture with ``return_mode="legacy"``,
+        which extracts only the first (spin-up) block. Asserts
+        projections shape is (2, 2, 1, 9), the s-orbital value at
+        [0, 0, 0, 0] equals 0.1 (matching the fixture's spin-up data),
+        and ``spin`` is ``None`` (no spin decomposition in legacy mode).
+        This exercises the backward-compatible single-block extraction.
+        """
         path = _FIXTURES_DIR / "PROCAR_spin"
         orb = read_procar(str(path), return_mode="legacy")
         chex.assert_shape(orb.projections, (2, 2, 1, 9))
@@ -397,7 +439,16 @@ class TestReadProcar(chex.TestCase):
         assert orb.spin is None
 
     def test_spin_procar_full(self):
-        """Read spin-polarized PROCAR in full mode returns SpinOrbitalProjection."""
+        """Read spin-polarized PROCAR in full mode and verify SpinOrbitalProjection output.
+
+        Parses the PROCAR_spin fixture with ``return_mode="full"``,
+        returning a ``SpinOrbitalProjection`` with both ``projections``
+        and ``spin`` arrays. Asserts the result type is
+        ``SpinOrbitalProjection``, projections shape is (2, 2, 1, 9),
+        spin shape is (2, 2, 1, 6), and the averaged s-orbital value
+        at [0, 0, 0, 0] equals 0.09 (the mean of spin-up 0.1 and
+        spin-down 0.08), verified to within ``atol=1e-12``.
+        """
         path = _FIXTURES_DIR / "PROCAR_spin"
         orb = read_procar(str(path), return_mode="full")
         assert isinstance(orb, SpinOrbitalProjection)
@@ -411,10 +462,27 @@ class TestReadProcar(chex.TestCase):
 
 
 class TestReadDoscarFull(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_doscar` with return_mode='full'."""
+    """Tests for :func:`arpyes.inout.read_doscar` with ``return_mode='full'``.
+
+    Validates the full-mode DOSCAR parser that returns
+    ``FullDensityOfStates`` objects containing spin-resolved total DOS,
+    integrated DOS, and optionally per-atom projected DOS (PDOS).
+    Covers spin-polarized files (both channels), non-spin files
+    (spin-down fields are None), PDOS-containing files, and the
+    legacy fallback for spin-polarized data.
+    """
 
     def test_spin_doscar_full(self):
-        """Read spin-polarized DOSCAR in full mode with both channels."""
+        """Read spin-polarized DOSCAR in full mode and verify both spin channels.
+
+        Parses the DOSCAR_spin fixture with ``return_mode="full"``.
+        Asserts the result is a ``FullDensityOfStates``, energy has
+        shape (5,), both ``total_dos_up`` and ``total_dos_down`` have
+        shape (5,) and are not None, both integrated DOS arrays have
+        shape (5,), ``fermi_energy`` is 0.5, the first spin-up DOS
+        value is 0.10, and the first spin-down DOS value is 0.08,
+        all verified to within ``atol=1e-12``.
+        """
         path = _FIXTURES_DIR / "DOSCAR_spin"
         dos = read_doscar(str(path), return_mode="full")
         assert isinstance(dos, FullDensityOfStates)
@@ -436,7 +504,16 @@ class TestReadDoscarFull(chex.TestCase):
         )
 
     def test_nonspin_doscar_full(self):
-        """Read non-spin DOSCAR in full mode."""
+        """Read non-spin-polarized DOSCAR in full mode and verify spin-down fields are None.
+
+        Parses the standard DOSCAR fixture (non-spin-polarized) with
+        ``return_mode="full"``. Asserts the result is a
+        ``FullDensityOfStates``, energy and ``total_dos_up`` both have
+        shape (5,), ``integrated_dos_up`` has shape (5,), and both
+        ``total_dos_down`` and ``integrated_dos_down`` are ``None``,
+        confirming the parser correctly detects non-spin data and
+        leaves spin-down fields unset.
+        """
         path = _FIXTURES_DIR / "DOSCAR"
         dos = read_doscar(str(path), return_mode="full")
         assert isinstance(dos, FullDensityOfStates)
@@ -447,7 +524,16 @@ class TestReadDoscarFull(chex.TestCase):
         assert dos.integrated_dos_down is None
 
     def test_pdos_doscar_full(self):
-        """Read DOSCAR with PDOS blocks in full mode."""
+        """Read DOSCAR containing per-atom PDOS blocks in full mode.
+
+        Parses the DOSCAR_pdos fixture with ``return_mode="full"``.
+        Asserts the result is a ``FullDensityOfStates``, ``pdos`` is
+        not None, its shape is (2, 3, 10) corresponding to 2 atoms,
+        3 energy points, and 10 data columns (9 orbital channels plus
+        a total column), and ``natoms`` is 2. This validates the PDOS
+        block parsing path which reads per-atom decomposed DOS after
+        the total DOS header.
+        """
         path = _FIXTURES_DIR / "DOSCAR_pdos"
         dos = read_doscar(str(path), return_mode="full")
         assert isinstance(dos, FullDensityOfStates)
@@ -457,7 +543,16 @@ class TestReadDoscarFull(chex.TestCase):
         assert dos.natoms == 2
 
     def test_spin_doscar_legacy(self):
-        """Read spin DOSCAR in legacy mode returns DensityOfStates."""
+        """Read spin-polarized DOSCAR in legacy mode and verify only spin-up is returned.
+
+        Parses the DOSCAR_spin fixture with ``return_mode="legacy"``.
+        Asserts the result is a plain ``DensityOfStates`` (not
+        ``FullDensityOfStates``), energy has shape (5,), ``total_dos``
+        has shape (5,), and the first total DOS value is 0.10
+        (matching the spin-up channel), verified to within
+        ``atol=1e-12``. This exercises the backward-compatible path
+        that discards spin-down data.
+        """
         path = _FIXTURES_DIR / "DOSCAR_spin"
         dos = read_doscar(str(path), return_mode="legacy")
         # Legacy returns DensityOfStates with only spin-up
@@ -469,10 +564,27 @@ class TestReadDoscarFull(chex.TestCase):
 
 
 class TestReadChgcar(chex.TestCase):
-    """Tests for :func:`arpyes.inout.read_chgcar`."""
+    """Tests for :func:`arpyes.inout.read_chgcar`.
+
+    Validates the CHGCAR parser across three file variants: charge-only
+    (single data block yielding ``VolumetricData``), ISPIN=2
+    spin-polarized (two blocks yielding ``VolumetricData`` with scalar
+    magnetization), and SOC (four blocks yielding
+    ``SOCVolumetricData`` with vector magnetization). Asserts lattice,
+    coordinate, and grid shapes, type discrimination, and numerical
+    values of the volumetric data grids.
+    """
 
     def test_charge_only(self):
-        """Read charge-only CHGCAR returns VolumetricData."""
+        """Read charge-only CHGCAR and verify VolumetricData output with no magnetization.
+
+        Parses CHGCAR_charge (single data block). Asserts the result
+        type is ``VolumetricData``, lattice shape is (3, 3), coords
+        shape is (1, 3), ``grid_shape`` is (2, 2, 2), charge shape is
+        (2, 2, 2), magnetization is ``None``, symbols is ``("Si",)``,
+        and ``atom_counts`` matches ``[1]``. This validates the
+        single-block CHGCAR parsing path.
+        """
         path = _FIXTURES_DIR / "CHGCAR_charge"
         vol = read_chgcar(str(path))
         assert isinstance(vol, VolumetricData)
@@ -487,7 +599,15 @@ class TestReadChgcar(chex.TestCase):
         )
 
     def test_charge_with_magnetization(self):
-        """Read ISPIN=2 CHGCAR returns VolumetricData with magnetization."""
+        """Read ISPIN=2 CHGCAR and verify VolumetricData includes scalar magnetization.
+
+        Parses CHGCAR_spin (two data blocks: charge and magnetization
+        density). Asserts the result type is ``VolumetricData``,
+        ``grid_shape`` is (2, 2, 2), charge shape is (2, 2, 2),
+        magnetization is not ``None``, and magnetization shape is
+        (2, 2, 2). This validates the two-block ISPIN=2 parsing path
+        where magnetization = rho_up - rho_down.
+        """
         path = _FIXTURES_DIR / "CHGCAR_spin"
         vol = read_chgcar(str(path))
         assert isinstance(vol, VolumetricData)
@@ -497,7 +617,18 @@ class TestReadChgcar(chex.TestCase):
         chex.assert_shape(vol.magnetization, (2, 2, 2))
 
     def test_soc_chgcar(self):
-        """Read SOC CHGCAR returns SOCVolumetricData with vector magnetization."""
+        """Read SOC CHGCAR and verify SOCVolumetricData with 3-component magnetization.
+
+        Parses CHGCAR_soc (four data blocks: charge, mx, my, mz).
+        Asserts the result type is ``SOCVolumetricData``, ``grid_shape``
+        is (2, 2, 2), charge shape is (2, 2, 2), scalar magnetization
+        shape is (2, 2, 2), and ``magnetization_vector`` shape is
+        (2, 2, 2, 3). Further verifies that the scalar magnetization
+        equals the z-component (block 4), and that the first element
+        of the x-component matches the expected volume-normalized value
+        ``0.10 / 27.0``, both to within ``atol=1e-12``. This validates
+        the four-block SOC parsing path and volume normalization.
+        """
         path = _FIXTURES_DIR / "CHGCAR_soc"
         vol = read_chgcar(str(path))
         assert isinstance(vol, SOCVolumetricData)

@@ -55,6 +55,60 @@ def read_procar(
     - **SOC** (LSORBIT=.TRUE.): four consecutive blocks per k-point
       (total, Sx, Sy, Sz projections).
 
+    Extended Summary
+    ----------------
+    The PROCAR file written by VASP (when ``LORBIT=11`` or ``12``)
+    contains site- and orbital-resolved projections of each Kohn-Sham
+    eigenstate. The file is organised into one or more *blocks*, each
+    containing:
+
+    * A header line with ``# of k-points``, ``# of bands``,
+      ``# of ions``.
+    * For each k-point: a coordinate line, then for each band: a
+      band-energy line, an orbital-name header, one projection line
+      per atom (columns: ion index, s, py, pz, px, dxy, dyz, dz2,
+      dxz, dx2-y2, tot), a ``tot`` summation line, and a blank line.
+
+    The number of blocks determines the spin layout:
+
+    * 1 block: non-spin-polarized (ISPIN=1).
+    * 2 blocks: spin-polarized (ISPIN=2), block 0 = spin-up,
+      block 1 = spin-down.
+    * 4 blocks: spin-orbit coupling (SOC), blocks = total, Sx, Sy, Sz.
+
+    Implementation Logic
+    --------------------
+    1. **Read entire file** into a single string and delegate to
+       :func:`_parse_procar_blocks` to extract structured block data.
+
+    2. **Determine spin layout** from the number of blocks.
+
+    3. **Legacy mode or non-spin**: return an ``OrbitalProjection``
+       wrapping only the first block's projection array (shape
+       ``(K, B, A, 9)``).
+
+    4. **Spin-polarized (ISPIN=2), full mode**:
+
+       a. Average spin-up and spin-down projections to get a
+          spin-averaged orbital weight per atom.
+       b. Construct a ``(K, B, A, 6)`` spin texture array where
+          channels 4-5 encode ``Sz+`` and ``Sz-`` (the positive and
+          negative parts of the spin-up minus spin-down difference
+          summed over orbitals).
+       c. Return a ``SpinOrbitalProjection``.
+
+    5. **SOC (4 blocks), full mode**:
+
+       a. Use the total-projection block (block 0) as the orbital
+          weights.
+       b. Construct a ``(K, B, A, 6)`` spin texture array where
+          channels 0-1 encode ``Sx+`` / ``Sx-``, 2-3 encode
+          ``Sy+`` / ``Sy-``, and 4-5 encode ``Sz+`` / ``Sz-``.
+          Each component is the positive/negative part of the
+          orbital-summed projection from the corresponding
+          spin block.
+       c. Return a ``SpinOrbitalProjection``.
+
     Parameters
     ----------
     filename : str, optional
@@ -71,6 +125,24 @@ def read_procar(
     orb_proj : OrbitalProjection or SpinOrbitalProjection
         ``OrbitalProjection`` for legacy mode or non-spin data.
         ``SpinOrbitalProjection`` for full mode with spin data.
+
+    Raises
+    ------
+    ValueError
+        If no valid PROCAR blocks are found in the file.
+
+    Notes
+    -----
+    The 9 orbital channels follow the VASP convention:
+    ``[s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2]``.
+    The ``tot`` column printed by VASP is **not** stored; only the
+    individual orbital columns are kept. For ISPIN=2 in full mode, the
+    spin-averaged projection ``(up + down) / 2`` is used as the
+    orbital weight because many downstream consumers expect a single
+    projection array rather than separate spin channels. The spin
+    texture is encoded as 6 non-negative channels
+    ``[Sx+, Sx-, Sy+, Sy-, Sz+, Sz-]`` following the convention used
+    by the ARPES simulation pipeline.
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
@@ -140,11 +212,65 @@ def read_procar(
 def _parse_procar_blocks(
     content: str,
 ) -> list[dict]:
-    """Parse all PROCAR blocks from file content.
+    """Parse all PROCAR blocks from the full file content string.
 
-    Each block starts with a header line containing k-points count,
-    followed by k-point/band/atom data. Returns a list of dicts,
-    each with keys 'nkpts', 'nbands', 'natoms', 'projections'.
+    Extended Summary
+    ----------------
+    A PROCAR file may contain 1, 2, or 4 consecutive blocks depending
+    on the spin configuration. Each block begins with a header line
+    matching ``"# of k-points: K  # of bands: B  # of ions: A"`` and
+    is followed by nested k-point / band / atom projection data.
+
+    Implementation Logic
+    --------------------
+    1. Split the content into lines and scan for lines containing the
+       substring ``"k-points"`` (the block header).
+    2. Extract ``(nkpts, nbands, natoms)`` from the header using a
+       regex that captures all integers on the line.
+    3. Allocate a ``(nkpts, nbands, natoms, 9)`` NumPy array for the
+       orbital projections.
+    4. For each k-point within the block:
+
+       a. Search forward for a line matching the pattern
+          ``k-point <index> : kx ky kz`` using a regex.
+       b. For each band within the k-point:
+
+          i.   Skip forward until a line containing ``"band"`` is
+               found (the band energy header).
+          ii.  Skip the orbital-name header line (``ion  s  py ...``).
+          iii. Read ``natoms`` lines, parsing columns 1 through 9
+               (skipping the ion index in column 0) as the orbital
+               projections.
+          iv.  Skip the ``tot`` summation line and the trailing blank
+               line.
+
+    5. Append a dict with keys ``'nkpts'``, ``'nbands'``,
+       ``'natoms'``, and ``'projections'`` for each block.
+    6. Return the list of block dicts.
+
+    Parameters
+    ----------
+    content : str
+        The entire PROCAR file content as a single string.
+
+    Returns
+    -------
+    blocks : list[dict]
+        List of parsed blocks. Each dict contains:
+
+        * ``'nkpts'`` (int): number of k-points.
+        * ``'nbands'`` (int): number of bands.
+        * ``'natoms'`` (int): number of atoms (ions).
+        * ``'projections'`` (np.ndarray): orbital projections with
+          shape ``(nkpts, nbands, natoms, 9)`` and dtype ``float64``.
+
+    Notes
+    -----
+    The parser uses 1-based k-point indices from the file to place
+    data into the 0-based NumPy array (``k_idx = parsed_index - 1``).
+    Band and atom lines are read positionally (sequential order) rather
+    than by parsed index. The ``tot`` column (column 10 in the PROCAR
+    line) is not stored.
     """
     blocks: list[dict] = []
     lines: list[str] = content.splitlines()

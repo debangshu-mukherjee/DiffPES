@@ -47,6 +47,60 @@ def read_doscar(  # noqa: PLR0912, PLR0915
     Reads a VASP DOSCAR file containing total (and optionally
     site-projected) density of states on a uniform energy grid.
 
+    Extended Summary
+    ----------------
+    The DOSCAR file format written by VASP consists of:
+
+    * **Header** (6 lines):
+      - Line 1: system header with ``NATOMS`` as the first integer.
+      - Lines 2-5: additional metadata (unused here).
+      - Line 6: ``EMIN  EMAX  NEDOS  EFERMI  ...`` -- energy window
+        bounds, number of DOS grid points, and the Fermi energy.
+
+    * **Total DOS block** (``NEDOS`` lines): each line contains the
+      energy value followed by density-of-states columns.
+
+      - ISPIN=1: 3 columns -- ``energy, DOS_up, intDOS_up``.
+      - ISPIN=2: 5 columns -- ``energy, DOS_up, DOS_down, intDOS_up,
+        intDOS_down``.
+
+    * **Per-atom PDOS blocks** (optional, ``NATOMS`` blocks of
+      ``NEDOS`` lines each): each block begins with a header line
+      identical in format to line 6 of the main header, followed by
+      orbital-projected DOS values. Column counts vary depending on
+      ``LORBIT`` and spin polarization.
+
+    Implementation Logic
+    --------------------
+    1. **Parse header** -- read the first 6 lines. Extract ``NATOMS``
+       from line 1 and ``NEDOS`` / ``EFERMI`` from line 6.
+
+    2. **Read total DOS block** -- peek at the first data line to
+       determine the column count (3 for non-spin, 5 for spin).
+       Read all ``NEDOS`` rows into a ``(NEDOS, ncols)`` array.
+
+    3. **Legacy mode early return** -- if ``return_mode == "legacy"``,
+       extract only ``energy`` (column 0) and ``total_dos`` (column 1,
+       i.e. spin-up DOS) and return a ``DensityOfStates``.
+
+    4. **Full mode column extraction** -- split columns into spin-up
+       DOS, optional spin-down DOS, and integrated DOS arrays.
+
+    5. **Read PDOS blocks** -- for each of the ``NATOMS`` atoms:
+
+       a. Read the per-atom header line (EMIN/EMAX/NEDOS/EFERMI).
+       b. Read the first data line to determine the PDOS column count.
+       c. Read the remaining ``NEDOS - 1`` lines.
+       d. Strip the energy column (column 0) and store the orbital
+          columns.
+
+    6. **Stack PDOS** -- if any PDOS blocks were successfully read,
+       stack them into a ``(NATOMS, NEDOS, C)`` array where ``C`` is
+       the number of orbital columns.
+
+    7. **Construct return value** -- build a ``FullDensityOfStates``
+       PyTree containing all extracted arrays.
+
     Parameters
     ----------
     filename : str, optional
@@ -67,7 +121,10 @@ def read_doscar(  # noqa: PLR0912, PLR0915
     In ``"full"`` mode the parser also reads per-atom PDOS blocks
     that follow the total DOS section. Each atom's PDOS block has
     the same number of energy grid points (``NEDOS``) as the total
-    DOS block.
+    DOS block. The PDOS orbital ordering follows the VASP convention
+    determined by ``LORBIT`` (e.g. ``s, p_y, p_z, p_x, d_{xy}, ...``
+    for ``LORBIT=11``). The Fermi energy stored in the returned
+    object is taken directly from the file header (line 6, column 4).
     """
     path: Path = Path(filename)
     with path.open("r") as fid:

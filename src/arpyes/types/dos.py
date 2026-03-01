@@ -194,30 +194,73 @@ def make_density_of_states(
 class FullDensityOfStates(NamedTuple):
     """PyTree for complete density of states with spin and PDOS.
 
+    Extended Summary
+    ----------------
     Stores the full DOS data from a VASP DOSCAR file including
     spin-resolved total DOS, integrated DOS, and per-atom
     site-projected DOS. Returned by ``read_doscar`` when
-    ``return_mode="full"``.
+    ``return_mode="full"``. This is the comprehensive counterpart to
+    the simpler :class:`DensityOfStates`, which only stores a single
+    total-DOS channel.
+
+    This class is registered as a JAX PyTree via
+    ``@register_pytree_node_class``. All numeric fields (seven
+    arrays, some optional) are stored as children visible to JAX
+    tracing, while ``natoms`` is a plain Python ``int`` stored as
+    auxiliary data because it is a structural constant that JAX
+    cannot trace.
 
     Attributes
     ----------
     energy : Float[Array, " E"]
-        Energy axis in eV.
+        Energy axis in eV, shared by all DOS channels.
+        JAX-traced (differentiable).
     total_dos_up : Float[Array, " E"]
-        Total DOS for spin-up (or only channel if non-spin).
+        Total DOS for spin-up channel (or the only channel if
+        ISPIN=1). Units are states/eV. JAX-traced (differentiable).
     total_dos_down : Optional[Float[Array, " E"]]
-        Total DOS for spin-down, or None if ISPIN=1.
+        Total DOS for spin-down channel, or ``None`` if the
+        calculation is non-spin-polarized (ISPIN=1). Units are
+        states/eV. JAX-traced when present.
     integrated_dos_up : Float[Array, " E"]
-        Integrated DOS for spin-up.
+        Integrated (cumulative) DOS for spin-up channel. The value
+        at the Fermi energy gives the number of electrons for this
+        spin channel. JAX-traced (differentiable).
     integrated_dos_down : Optional[Float[Array, " E"]]
-        Integrated DOS for spin-down, or None if ISPIN=1.
+        Integrated DOS for spin-down channel, or ``None`` if
+        ISPIN=1. JAX-traced when present.
     pdos : Optional[Float[Array, "A E C"]]
-        Per-atom projected DOS. A atoms, E energies, C columns.
-        None if no PDOS blocks present.
+        Per-atom site-projected DOS. A is the number of atoms, E the
+        number of energy points, and C the number of orbital columns
+        (depends on LORBIT setting in VASP, typically 9 or 16).
+        ``None`` if no PDOS blocks are present in the DOSCAR file.
+        JAX-traced when present.
     fermi_energy : Float[Array, " "]
-        Fermi level energy in eV.
+        Fermi level energy in eV. A 0-D scalar array.
+        JAX-traced (differentiable).
     natoms : int
-        Number of atoms in the cell.
+        Number of atoms in the unit cell. Stored as auxiliary data
+        (not a JAX array) because it is a structural constant.
+
+    Notes
+    -----
+    Registered as a JAX PyTree with ``@register_pytree_node_class``.
+    The ``natoms`` field is a Python ``int`` (not a JAX array) and
+    is therefore stored as auxiliary data rather than as a child. JAX
+    treats auxiliary data as a compile-time constant: changing
+    ``natoms`` triggers recompilation of any ``jit``-compiled
+    function that receives this PyTree.
+
+    Optional fields (``total_dos_down``, ``integrated_dos_down``,
+    ``pdos``) may be ``None`` for non-spin-polarized calculations or
+    DOSCAR files without projected DOS. JAX handles ``None`` leaves
+    transparently.
+
+    See Also
+    --------
+    DensityOfStates : Simplified single-channel variant.
+    make_full_density_of_states : Factory function with validation
+        and float64 casting.
     """
 
     energy: Float[Array, " E"]
@@ -245,12 +288,29 @@ class FullDensityOfStates(NamedTuple):
     ]:
         """Flatten into JAX leaf arrays and auxiliary data.
 
+        Separates JAX-traced arrays (children) from static Python
+        values (auxiliary data) for ``jax.tree_util`` compatibility.
+
+        Implementation Logic
+        --------------------
+        1. **Children** (JAX arrays, participate in autodiff):
+           ``(energy, total_dos_up, total_dos_down, integrated_dos_up,
+           integrated_dos_down, pdos, fermi_energy)`` -- seven fields,
+           some of which may be ``None``. JAX treats ``None`` leaves
+           as empty subtrees and skips them during tracing.
+        2. **Auxiliary data** (static, not traced by JAX):
+           ``natoms`` -- a Python ``int`` representing the number of
+           atoms. Stored as aux_data because JAX cannot trace Python
+           ints and because this value is a structural constant.
+
         Returns
         -------
         children : tuple of (jax.Array or None)
-            All numeric fields.
+            ``(energy, total_dos_up, total_dos_down,
+            integrated_dos_up, integrated_dos_down, pdos,
+            fermi_energy)``.
         aux_data : int
-            natoms (static).
+            The ``natoms`` value, stored outside JAX tracing.
         """
         return (
             (
@@ -279,17 +339,34 @@ class FullDensityOfStates(NamedTuple):
             Float[Array, " "],
         ],
     ) -> "FullDensityOfStates":
-        """Reconstruct from flattened components.
+        """Reconstruct a ``FullDensityOfStates`` from flattened components.
+
+        Inverse of :meth:`tree_flatten`. JAX calls this method
+        automatically when unflattening a PyTree after a
+        transformation (e.g., inside ``jax.jit`` or ``jax.grad``).
+
+        Implementation Logic
+        --------------------
+        1. Unpack ``children`` into seven array-valued fields:
+           ``(energy, total_dos_up, total_dos_down, integrated_dos_up,
+           integrated_dos_down, pdos, fermi_energy)``.
+        2. Receive ``aux_data`` as the ``natoms`` Python int.
+        3. Pass all eight fields to the constructor, restoring
+           ``natoms`` from ``aux_data`` into its correct position.
 
         Parameters
         ----------
         aux_data : int
-            natoms.
+            The ``natoms`` value recovered from auxiliary data.
         children : tuple of (jax.Array or None)
+            ``(energy, total_dos_up, total_dos_down,
+            integrated_dos_up, integrated_dos_down, pdos,
+            fermi_energy)`` as returned by :meth:`tree_flatten`.
 
         Returns
         -------
-        FullDensityOfStates
+        dos : FullDensityOfStates
+            Reconstructed instance with identical data.
         """
         (
             energy,
@@ -325,28 +402,70 @@ def make_full_density_of_states(
 ) -> FullDensityOfStates:
     """Create a validated ``FullDensityOfStates`` instance.
 
+    Extended Summary
+    ----------------
+    Factory function that validates and normalises full density of
+    states data before constructing a ``FullDensityOfStates`` PyTree.
+    All non-None numeric arrays are cast to ``float64`` for numerical
+    stability. Optional fields (``total_dos_down``,
+    ``integrated_dos_down``, ``pdos``) are cast only when present,
+    preserving the ``None`` sentinel for non-spin-polarized or
+    non-projected calculations.
+
+    The function is decorated with ``@jaxtyped(typechecker=beartype)``
+    so that the energy dimension *E* is checked for consistency
+    across all provided arrays at call time.
+
+    Use this factory when you need the complete DOSCAR output
+    including spin-resolved channels and site-projected DOS. For the
+    simpler case of a single total-DOS channel, prefer
+    :func:`make_density_of_states` instead.
+
+    Implementation Logic
+    --------------------
+    1. **Cast energy** to ``jnp.float64`` via ``jnp.asarray``.
+    2. **Cast total_dos_up** to ``jnp.float64``.
+    3. **Cast integrated_dos_up** to ``jnp.float64``.
+    4. **Cast fermi_energy** scalar to a 0-D ``jnp.float64`` array.
+    5. **Cast optional fields** (``total_dos_down``,
+       ``integrated_dos_down``, ``pdos``) to ``jnp.float64`` when
+       not ``None``; otherwise leave as ``None``.
+    6. **Keep natoms** as a Python ``int`` (not cast). It is stored
+       as auxiliary data in the resulting PyTree.
+    7. **Construct** the ``FullDensityOfStates`` NamedTuple from all
+       fields and return it.
+
     Parameters
     ----------
     energy : Float[Array, " E"]
         Energy axis in eV.
     total_dos_up : Float[Array, " E"]
-        Spin-up total DOS.
+        Spin-up total DOS (states/eV).
     integrated_dos_up : Float[Array, " E"]
-        Spin-up integrated DOS.
+        Spin-up integrated (cumulative) DOS.
     fermi_energy : ScalarNumeric, optional
-        Fermi level in eV.
+        Fermi level in eV. Default is 0.0.
     total_dos_down : Optional[Float[Array, " E"]], optional
-        Spin-down total DOS.
+        Spin-down total DOS. Default is None (ISPIN=1).
     integrated_dos_down : Optional[Float[Array, " E"]], optional
-        Spin-down integrated DOS.
+        Spin-down integrated DOS. Default is None.
     pdos : Optional[Float[Array, "A E C"]], optional
-        Per-atom projected DOS.
+        Per-atom site-projected DOS with C orbital columns.
+        Default is None.
     natoms : int, optional
-        Number of atoms.
+        Number of atoms in the unit cell. Default is 0.
 
     Returns
     -------
     dos : FullDensityOfStates
+        Validated full density of states with all non-None arrays
+        in ``float64``.
+
+    See Also
+    --------
+    make_density_of_states : Factory for the simplified variant.
+    FullDensityOfStates : The PyTree class constructed by this
+        factory.
     """
     energy_arr = jnp.asarray(energy, dtype=jnp.float64)
     up_arr = jnp.asarray(total_dos_up, dtype=jnp.float64)

@@ -16,6 +16,15 @@ dipole matrix elements from first principles:
 where :math:`q = m' - m` selects the dipole component and
 :math:`\hat{e}_q` is the corresponding spherical component of
 the polarization vector.
+
+Routine Listings
+----------------
+:func:`dipole_matrix_element_single`
+    Compute dipole matrix element for a single orbital (n, l, m).
+:func:`dipole_intensity_orbital`
+    Compute |M|^2 for one orbital.
+:func:`dipole_intensities_all_orbitals`
+    Compute |M|^2 for all orbitals in the basis.
 """
 
 import jax.numpy as jnp
@@ -32,7 +41,7 @@ from .spherical_harmonics import real_spherical_harmonic
 def _cartesian_to_spherical_dipole(
     efield: Complex[Array, " 3"],
 ) -> Complex[Array, " 3"]:
-    """Convert Cartesian E-field to real-harmonic dipole components.
+    r"""Convert Cartesian E-field to real-harmonic dipole components.
 
     Maps (e_x, e_y, e_z) to (e_{q=-1}, e_{q=0}, e_{q=+1}) where
     the q index matches the real spherical harmonic convention for
@@ -41,6 +50,34 @@ def _cartesian_to_spherical_dipole(
     - q = -1 corresponds to Y_1^{-1}(real) ~ sin(theta)sin(phi) ~ y
     - q =  0 corresponds to Y_1^0(real) ~ cos(theta) ~ z
     - q = +1 corresponds to Y_1^{+1}(real) ~ sin(theta)cos(phi) ~ x
+
+    Extended Summary
+    ----------------
+    The dipole operator :math:`\hat{r}` is expanded in the real spherical
+    harmonic basis for l=1. In Cartesian coordinates the three components
+    of the position vector are :math:`(x, y, z)`, and they map to real
+    spherical harmonics as:
+
+    .. math::
+
+        x = r \sin\theta \cos\phi \propto Y_1^{+1}(\text{real}) \quad (q=+1)
+
+        y = r \sin\theta \sin\phi \propto Y_1^{-1}(\text{real}) \quad (q=-1)
+
+        z = r \cos\theta \propto Y_1^{0}(\text{real}) \quad (q=0)
+
+    The returned array is ordered by ascending q: ``[e_y, e_z, e_x]``,
+    so that indexing with ``q_idx = q + 1`` (for q in {-1, 0, +1})
+    selects the correct Cartesian component of the polarization vector.
+
+    This is a pure permutation with no complex rotation because the
+    real spherical harmonics for l=1 directly correspond to the
+    Cartesian axes without mixing.
+
+    Parameters
+    ----------
+    efield : Complex[Array, " 3"]
+        Polarization vector ``(e_x, e_y, e_z)`` in Cartesian coordinates.
 
     Returns
     -------
@@ -73,6 +110,46 @@ def dipole_matrix_element_single(
     where the sum is over dipole components q in {-1, 0, +1} and
     final-state angular momenta l' in {l-1, l+1}.
 
+    Extended Summary
+    ----------------
+    This function assembles the full photoemission dipole matrix element
+    by combining four ingredients:
+
+    1. **Radial integral** :math:`B^{l'}(|k|)` -- the overlap between
+       the initial radial wavefunction and the final-state spherical
+       Bessel function :math:`j_{l'}(kr)`, weighted by :math:`r^3`,
+       evaluated via trapezoidal quadrature on the supplied radial grid.
+
+    2. **Gaunt coefficient** :math:`G(l, m, l', m')` -- the angular
+       integral coupling initial (l, m) and final (l', m') states
+       through the dipole operator, looked up from the precomputed
+       ``GAUNT_TABLE``.
+
+    3. **Real spherical harmonic** :math:`Y_{l'}^{m'}(\hat{k})` --
+       the angular part of the final-state plane wave expansion,
+       evaluated at the direction of the photoelectron wavevector.
+
+    4. **Polarization component** :math:`\hat{e}_q` -- the q-th
+       spherical component of the polarization vector, obtained by
+       mapping Cartesian (x, y, z) to the real harmonic basis via
+       `_cartesian_to_spherical_dipole`.
+
+    The dipole selection rule :math:`l' = l \pm 1` restricts the
+    final-state sum to at most two terms per q value. The magnetic
+    selection rule :math:`m' = m + q` with :math:`|q| \le 1` means
+    at most three q values contribute.
+
+    Numerical stability techniques:
+
+    - **Gradient-safe norm**: :math:`|k|` is computed as
+      :math:`\sqrt{k \cdot k + \epsilon}` with :math:`\epsilon = 10^{-30}`
+      to avoid NaN gradients when :math:`k = 0`.
+    - **Safe polar angle**: :math:`\cos\theta` is clipped to
+      :math:`[-1 + 10^{-7}, 1 - 10^{-7}]` to prevent singularities in
+      ``arccos`` gradients at the poles.
+    - **Safe azimuthal angle**: a small offset is added to the x-component
+      in ``arctan2`` to avoid indeterminate gradients at the origin.
+
     Parameters
     ----------
     k_vec : Float[Array, " 3"]
@@ -92,6 +169,15 @@ def dipole_matrix_element_single(
     -------
     M : Complex[Array, " "]
         Complex dipole matrix element.
+
+    Notes
+    -----
+    The loop over q and l' is unrolled at Python trace time (not
+    inside ``jax.lax`` control flow) because the iteration bounds
+    depend on the static quantum numbers (l, m). This produces a
+    fixed computation graph per (l, m) pair, which is efficient
+    for JIT compilation but means different orbitals trace distinct
+    XLA programs.
     """
     # Gradient-safe norm: eps prevents NaN grad at k_vec=0
     k_mag = jnp.sqrt(jnp.dot(k_vec, k_vec) + 1e-30)
@@ -139,7 +225,24 @@ def dipole_intensity_orbital(
     m: int,
     efield: Complex[Array, " 3"],
 ) -> Float[Array, " "]:
-    """Compute |M|^2 for one orbital.
+    r"""Compute |M|^2 for one orbital.
+
+    Extended Summary
+    ----------------
+    Computes the photoemission intensity for a single initial-state
+    orbital characterized by quantum numbers (l, m) and a radial
+    wavefunction sampled on a grid. The intensity is the squared
+    modulus of the complex dipole matrix element:
+
+    .. math::
+
+        I(\mathbf{k}) = |M(\mathbf{k}, l, m)|^2
+
+    This is a thin wrapper that calls `dipole_matrix_element_single`
+    and returns :math:`|M|^2 = M \cdot M^*`. The result is real and
+    non-negative by construction, and is differentiable with respect
+    to all continuous inputs (k_vec, r_grid, radial_values, efield)
+    through JAX automatic differentiation.
 
     Parameters
     ----------
@@ -176,8 +279,29 @@ def dipole_intensities_all_orbitals(
 ) -> Float[Array, " O"]:
     r"""Compute |M|^2 for all orbitals in the basis.
 
-    Unrolls the orbital loop at Python level because each orbital
-    has different static (l, m) controlling recurrence depth.
+    Extended Summary
+    ----------------
+    Iterates over every orbital in the Slater basis set, computes its
+    radial wavefunction from ``slater_params``, and evaluates the
+    squared dipole matrix element. The loop is unrolled at Python
+    trace time because each orbital has different static quantum
+    numbers (n, l, m) that determine the structure of the recurrence
+    relations and Gaunt table lookups. This means each orbital
+    produces a distinct sub-graph in the XLA program.
+
+    For each orbital *o*, the function:
+
+    1. Extracts quantum numbers :math:`(n_o, l_o, m_o)` and Slater
+       exponent :math:`\zeta_o` from ``slater_params``.
+    2. Evaluates the normalized Slater radial function
+       :math:`R(r) = N r^{n-1} e^{-\zeta r}` on the supplied grid.
+    3. Weights by the multi-zeta coefficient
+       ``slater_params.coefficients[o, 0]`` (first column for
+       single-zeta bases).
+    4. Calls `dipole_intensity_orbital` to compute :math:`|M|^2`.
+
+    The results are stacked into a 1-D array of length equal to the
+    number of orbitals in the basis.
 
     Parameters
     ----------
@@ -194,6 +318,12 @@ def dipole_intensities_all_orbitals(
     -------
     intensities : Float[Array, " O"]
         |M|^2 per orbital.
+
+    Notes
+    -----
+    Because the loop is Python-level (not ``jax.lax.scan``), the
+    number of orbitals is baked into the traced program. Changing the
+    basis size requires re-tracing / re-JITting.
     """
     basis = slater_params.orbital_basis
     n_orbitals = len(basis.n_values)

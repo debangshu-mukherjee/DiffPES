@@ -1,7 +1,35 @@
 """Volumetric data structures for VASP CHGCAR files.
 
-Defines the :class:`VolumetricData` PyTree for storing charge density
-and optional magnetization density grids parsed from VASP CHGCAR files.
+Extended Summary
+----------------
+Defines PyTree types for storing real-space volumetric grid data
+parsed from VASP CHGCAR files. Two variants are provided:
+
+- :class:`VolumetricData` -- for non-SOC calculations (ISPIN=1 or
+  ISPIN=2), with an optional scalar magnetization density.
+- :class:`SOCVolumetricData` -- for spin-orbit coupling calculations
+  where VASP writes four grid blocks (total charge, mx, my, mz),
+  storing both the scalar mz and the full 3-component magnetization
+  vector.
+
+Routine Listings
+----------------
+:class:`VolumetricData`
+    PyTree for charge density with optional scalar magnetization.
+:class:`SOCVolumetricData`
+    PyTree for charge density with vector magnetization (SOC).
+:func:`make_volumetric_data`
+    Factory for VolumetricData.
+:func:`make_soc_volumetric_data`
+    Factory for SOCVolumetricData.
+
+Notes
+-----
+All real-space grid data is stored in units consistent with VASP
+output: charge density in electrons per unit cell volume (not per
+Angstrom^3). The ``grid_shape`` and ``symbols`` fields are stored
+as auxiliary data because JAX cannot trace Python tuples of ints
+or strings.
 """
 
 import jax.numpy as jnp
@@ -15,27 +43,66 @@ from jaxtyping import Array, Float, Int, jaxtyped
 class VolumetricData(NamedTuple):
     """PyTree for volumetric grid data from CHGCAR.
 
+    Extended Summary
+    ----------------
     Stores the charge density on a 3-D real-space grid together with
     the crystal lattice needed to interpret the grid coordinates.
     An optional magnetization density grid is included when the
-    CHGCAR comes from a spin-polarized calculation.
+    CHGCAR comes from a spin-polarized (ISPIN=2) calculation, where
+    the magnetization is the difference between spin-up and spin-down
+    charge densities.
+
+    This class is registered as a JAX PyTree via
+    ``@register_pytree_node_class``. Numeric fields (``lattice``,
+    ``coords``, ``charge``, ``magnetization``, ``atom_counts``) are
+    stored as children visible to JAX tracing, while ``grid_shape``
+    (a Python tuple of ints) and ``symbols`` (a Python tuple of
+    strings) are stored as auxiliary data because JAX cannot trace
+    these types.
 
     Attributes
     ----------
     lattice : Float[Array, "3 3"]
-        Real-space lattice vectors as rows (Angstroms).
+        Real-space lattice vectors as rows, in Angstroms. Defines
+        the unit cell geometry for interpreting grid coordinates.
+        JAX-traced (differentiable).
     coords : Float[Array, "N 3"]
-        Fractional atomic coordinates.
+        Fractional atomic coordinates for all N atoms in the cell.
+        JAX-traced (differentiable).
     charge : Float[Array, "Nx Ny Nz"]
-        Charge density on a 3-D grid.
+        Charge density on the 3-D real-space grid, in units of
+        electrons per unit cell volume (VASP convention). Nx, Ny, Nz
+        are the grid dimensions along the three lattice directions.
+        JAX-traced (differentiable).
     magnetization : Optional[Float[Array, "Nx Ny Nz"]]
-        Magnetization density (spin-up minus spin-down), or None.
+        Scalar magnetization density (spin-up minus spin-down), or
+        ``None`` for non-spin-polarized calculations (ISPIN=1).
+        Same units and grid as ``charge``. JAX-traced when present.
     grid_shape : tuple[int, int, int]
-        Grid dimensions (Nx, Ny, Nz).
+        Grid dimensions ``(Nx, Ny, Nz)``. Stored as auxiliary data
+        (static) because these integers determine array shapes and
+        JAX requires them at compile time.
     symbols : tuple[str, ...]
-        Element symbols per species.
+        Element symbols for each species (e.g. ``("Bi", "Se")``).
+        Stored as auxiliary data (static).
     atom_counts : Int[Array, " S"]
-        Atoms per species.
+        Number of atoms per species, with S = number of species.
+        JAX-traced (differentiable, int32).
+
+    Notes
+    -----
+    Registered as a JAX PyTree with ``@register_pytree_node_class``.
+    The ``grid_shape`` and ``symbols`` fields are Python tuples and
+    therefore must be stored as PyTree auxiliary data. JAX treats
+    auxiliary data as compile-time constants: changing them triggers
+    recompilation of any ``jit``-compiled function.
+
+    See Also
+    --------
+    SOCVolumetricData : Variant for spin-orbit coupling with vector
+        magnetization.
+    make_volumetric_data : Factory function with validation and
+        float64 casting.
     """
 
     lattice: Float[Array, "3 3"]
@@ -60,12 +127,28 @@ class VolumetricData(NamedTuple):
     ]:
         """Flatten into JAX leaf arrays and auxiliary data.
 
+        Separates JAX-traced arrays (children) from static Python
+        values (auxiliary data) for ``jax.tree_util`` compatibility.
+
+        Implementation Logic
+        --------------------
+        1. **Children** (JAX arrays, participate in autodiff):
+           ``(lattice, coords, charge, magnetization, atom_counts)``
+           -- five fields, where ``magnetization`` may be ``None``
+           for non-spin-polarized data. JAX treats ``None`` leaves as
+           empty subtrees and skips them during tracing.
+        2. **Auxiliary data** (static, not traced by JAX):
+           ``(grid_shape, symbols)`` -- a tuple of Python ints and a
+           tuple of Python strings. JAX treats these as compile-time
+           constants; changing either triggers JIT recompilation.
+
         Returns
         -------
         children : tuple of (jax.Array or None)
-            Numeric fields.
+            ``(lattice, coords, charge, magnetization,
+            atom_counts)``.
         aux_data : tuple
-            (grid_shape, symbols) static metadata.
+            ``(grid_shape, symbols)`` static metadata.
         """
         return (
             (
@@ -90,17 +173,33 @@ class VolumetricData(NamedTuple):
             Int[Array, " S"],
         ],
     ) -> "VolumetricData":
-        """Reconstruct from flattened components.
+        """Reconstruct a ``VolumetricData`` from flattened components.
+
+        Inverse of :meth:`tree_flatten`. JAX calls this method
+        automatically when unflattening a PyTree after a
+        transformation (e.g., inside ``jax.jit`` or ``jax.grad``).
+
+        Implementation Logic
+        --------------------
+        1. Unpack ``children`` into five array-valued fields:
+           ``(lattice, coords, charge, magnetization, atom_counts)``.
+        2. Unpack ``aux_data`` into ``(grid_shape, symbols)``.
+        3. Pass all seven fields to the constructor, re-interleaving
+           the static metadata from ``aux_data`` into their correct
+           positions.
 
         Parameters
         ----------
         aux_data : tuple
-            (grid_shape, symbols).
+            ``(grid_shape, symbols)`` recovered from auxiliary data.
         children : tuple of (jax.Array or None)
+            ``(lattice, coords, charge, magnetization, atom_counts)``
+            as returned by :meth:`tree_flatten`.
 
         Returns
         -------
-        VolumetricData
+        vol : VolumetricData
+            Reconstructed instance with identical data.
         """
         lattice, coords, charge, magnetization, atom_counts = children
         grid_shape, symbols = aux_data
@@ -127,26 +226,62 @@ def make_volumetric_data(
 ) -> VolumetricData:
     """Create a validated ``VolumetricData`` instance.
 
+    Extended Summary
+    ----------------
+    Factory function that validates and normalises CHGCAR volumetric
+    data before constructing a ``VolumetricData`` PyTree. All numeric
+    arrays are cast to ``float64`` (or ``int32`` for atom counts).
+    The optional ``magnetization`` field is cast only when present,
+    preserving ``None`` for non-spin-polarized calculations. When
+    ``atom_counts`` is ``None``, an empty int32 array is created as
+    a placeholder.
+
+    The function is decorated with ``@jaxtyped(typechecker=beartype)``
+    so that shape and dtype constraints are checked at call time.
+
+    Implementation Logic
+    --------------------
+    1. **Cast lattice** to ``jnp.float64`` via ``jnp.asarray``.
+    2. **Cast coords** to ``jnp.float64`` via ``jnp.asarray``.
+    3. **Cast charge** to ``jnp.float64`` via ``jnp.asarray``.
+    4. **Cast magnetization** to ``jnp.float64`` when not ``None``;
+       otherwise leave as ``None``.
+    5. **Default atom_counts**: if ``None``, create an empty int32
+       array ``jnp.zeros(0, dtype=jnp.int32)``; otherwise cast to
+       ``jnp.int32``.
+    6. **Pass through** ``grid_shape`` and ``symbols`` unchanged --
+       these become auxiliary data in the PyTree.
+    7. **Construct** the ``VolumetricData`` NamedTuple and return it.
+
     Parameters
     ----------
     lattice : Float[Array, "3 3"]
-        Real-space lattice vectors (rows, Angstroms).
+        Real-space lattice vectors as rows, in Angstroms.
     coords : Float[Array, "N 3"]
         Fractional atomic coordinates.
     charge : Float[Array, "Nx Ny Nz"]
-        Charge density on 3-D grid.
+        Charge density on 3-D grid (electrons per unit cell volume).
     magnetization : Optional[Float[Array, "Nx Ny Nz"]], optional
-        Magnetization density. Default is None.
+        Magnetization density (spin-up minus spin-down).
+        Default is ``None`` (non-spin-polarized).
     grid_shape : tuple[int, int, int], optional
-        Grid dimensions. Default is (1,1,1).
+        Grid dimensions ``(Nx, Ny, Nz)``. Default is ``(1, 1, 1)``.
     symbols : tuple[str, ...], optional
-        Element symbols. Default is empty.
+        Element symbols per species. Default is empty tuple.
     atom_counts : Optional[Int[Array, " S"]], optional
-        Atoms per species. Default is None.
+        Number of atoms per species. Default is ``None`` (replaced
+        by an empty int32 array).
 
     Returns
     -------
     vol : VolumetricData
+        Validated volumetric data with ``float64``/``int32`` arrays.
+
+    See Also
+    --------
+    VolumetricData : The PyTree class constructed by this factory.
+    make_soc_volumetric_data : Factory for the SOC variant with
+        vector magnetization.
     """
     lattice_arr = jnp.asarray(lattice, dtype=jnp.float64)
     coords_arr = jnp.asarray(coords, dtype=jnp.float64)
@@ -173,30 +308,65 @@ def make_volumetric_data(
 class SOCVolumetricData(NamedTuple):
     """PyTree for volumetric data from SOC CHGCAR files.
 
+    Extended Summary
+    ----------------
     Variant of :class:`VolumetricData` for spin-orbit coupling
-    calculations where VASP writes 4 grid blocks: total charge,
-    mx, my, mz. The ``magnetization`` field holds mz (backward
-    compatible with ISPIN=2 consumers) and
-    ``magnetization_vector`` holds the full 3-component vector.
+    calculations where VASP writes 4 grid blocks in the CHGCAR:
+    total charge, mx, my, mz magnetization components. The
+    ``magnetization`` field holds the mz component for backward
+    compatibility with ISPIN=2 consumers, while
+    ``magnetization_vector`` holds the full 3-component
+    magnetization vector ``(mx, my, mz)`` at each grid point.
+
+    This class is registered as a JAX PyTree via
+    ``@register_pytree_node_class``. Numeric fields are stored as
+    children visible to JAX tracing, while ``grid_shape`` and
+    ``symbols`` are stored as auxiliary data.
 
     Attributes
     ----------
     lattice : Float[Array, "3 3"]
-        Real-space lattice vectors as rows (Angstroms).
+        Real-space lattice vectors as rows, in Angstroms.
+        JAX-traced (differentiable).
     coords : Float[Array, "N 3"]
-        Fractional atomic coordinates.
+        Fractional atomic coordinates for all N atoms.
+        JAX-traced (differentiable).
     charge : Float[Array, "Nx Ny Nz"]
-        Charge density on a 3-D grid.
+        Total charge density on the 3-D grid (electrons per unit
+        cell volume). JAX-traced (differentiable).
     magnetization : Float[Array, "Nx Ny Nz"]
-        Scalar magnetization density (mz component).
+        Scalar magnetization density, specifically the mz component.
+        Provided for backward compatibility with code that expects
+        ISPIN=2-style scalar magnetization. JAX-traced
+        (differentiable).
     magnetization_vector : Float[Array, "Nx Ny Nz 3"]
-        Vector magnetization (mx, my, mz).
+        Full vector magnetization ``(mx, my, mz)`` at each grid
+        point. The last axis indexes the three Cartesian components.
+        JAX-traced (differentiable).
     grid_shape : tuple[int, int, int]
-        Grid dimensions (Nx, Ny, Nz).
+        Grid dimensions ``(Nx, Ny, Nz)``. Stored as auxiliary data
+        (static).
     symbols : tuple[str, ...]
-        Element symbols per species.
+        Element symbols per species. Stored as auxiliary data
+        (static).
     atom_counts : Int[Array, " S"]
-        Atoms per species.
+        Number of atoms per species. JAX-traced (int32).
+
+    Notes
+    -----
+    Registered as a JAX PyTree with ``@register_pytree_node_class``.
+    Six numeric fields are children; ``grid_shape`` and ``symbols``
+    are auxiliary data. Unlike :class:`VolumetricData`, both
+    ``magnetization`` and ``magnetization_vector`` are mandatory
+    (non-optional) because SOC calculations always produce all four
+    grid blocks.
+
+    See Also
+    --------
+    VolumetricData : Non-SOC variant with optional scalar
+        magnetization.
+    make_soc_volumetric_data : Factory function with validation and
+        float64 casting.
     """
 
     lattice: Float[Array, "3 3"]
@@ -221,7 +391,30 @@ class SOCVolumetricData(NamedTuple):
         ],
         Tuple[tuple[int, int, int], tuple[str, ...]],
     ]:
-        """Flatten into JAX leaf arrays and auxiliary data."""
+        """Flatten into JAX leaf arrays and auxiliary data.
+
+        Separates JAX-traced arrays (children) from static Python
+        values (auxiliary data) for ``jax.tree_util`` compatibility.
+
+        Implementation Logic
+        --------------------
+        1. **Children** (JAX arrays, participate in autodiff):
+           ``(lattice, coords, charge, magnetization,
+           magnetization_vector, atom_counts)`` -- six dense JAX
+           arrays. All are mandatory (no ``None`` leaves) because
+           SOC calculations always produce all grid blocks.
+        2. **Auxiliary data** (static, not traced by JAX):
+           ``(grid_shape, symbols)`` -- Python tuples of ints and
+           strings. Stored as compile-time constants.
+
+        Returns
+        -------
+        children : tuple of jax.Array
+            ``(lattice, coords, charge, magnetization,
+            magnetization_vector, atom_counts)``.
+        aux_data : tuple
+            ``(grid_shape, symbols)`` static metadata.
+        """
         return (
             (
                 self.lattice,
@@ -247,7 +440,35 @@ class SOCVolumetricData(NamedTuple):
             Int[Array, " S"],
         ],
     ) -> "SOCVolumetricData":
-        """Reconstruct from flattened components."""
+        """Reconstruct a ``SOCVolumetricData`` from flattened components.
+
+        Inverse of :meth:`tree_flatten`. JAX calls this method
+        automatically when unflattening a PyTree after a
+        transformation (e.g., inside ``jax.jit`` or ``jax.grad``).
+
+        Implementation Logic
+        --------------------
+        1. Unpack ``children`` into six array-valued fields:
+           ``(lattice, coords, charge, magnetization,
+           magnetization_vector, atom_counts)``.
+        2. Unpack ``aux_data`` into ``(grid_shape, symbols)``.
+        3. Pass all eight fields to the constructor, re-interleaving
+           the static metadata from ``aux_data``.
+
+        Parameters
+        ----------
+        aux_data : tuple
+            ``(grid_shape, symbols)`` recovered from auxiliary data.
+        children : tuple of jax.Array
+            ``(lattice, coords, charge, magnetization,
+            magnetization_vector, atom_counts)`` as returned by
+            :meth:`tree_flatten`.
+
+        Returns
+        -------
+        vol : SOCVolumetricData
+            Reconstructed instance with identical data.
+        """
         (
             lattice,
             coords,
@@ -282,28 +503,65 @@ def make_soc_volumetric_data(
 ) -> SOCVolumetricData:
     """Create a validated ``SOCVolumetricData`` instance.
 
+    Extended Summary
+    ----------------
+    Factory function that validates and normalises SOC CHGCAR
+    volumetric data before constructing a ``SOCVolumetricData``
+    PyTree. All numeric arrays are cast to ``float64`` (or ``int32``
+    for atom counts). Unlike :func:`make_volumetric_data`, both
+    ``magnetization`` and ``magnetization_vector`` are mandatory
+    because SOC calculations always produce all four grid blocks.
+
+    The function is decorated with ``@jaxtyped(typechecker=beartype)``
+    so that shape constraints (grid dimensions must match across
+    ``charge``, ``magnetization``, and ``magnetization_vector``) are
+    checked at call time.
+
+    Implementation Logic
+    --------------------
+    1. **Default atom_counts**: if ``None``, create an empty int32
+       array ``jnp.zeros(0, dtype=jnp.int32)``; otherwise cast to
+       ``jnp.int32``.
+    2. **Cast all numeric fields** (``lattice``, ``coords``,
+       ``charge``, ``magnetization``, ``magnetization_vector``) to
+       ``jnp.float64`` via ``jnp.asarray``.
+    3. **Pass through** ``grid_shape`` and ``symbols`` unchanged --
+       these become auxiliary data in the PyTree.
+    4. **Construct** the ``SOCVolumetricData`` NamedTuple and return.
+
     Parameters
     ----------
     lattice : Float[Array, "3 3"]
-        Real-space lattice vectors (rows, Angstroms).
+        Real-space lattice vectors as rows, in Angstroms.
     coords : Float[Array, "N 3"]
         Fractional atomic coordinates.
     charge : Float[Array, "Nx Ny Nz"]
-        Charge density on 3-D grid.
+        Total charge density on 3-D grid (electrons per unit cell
+        volume).
     magnetization : Float[Array, "Nx Ny Nz"]
-        Scalar magnetization density (mz).
+        Scalar magnetization density (mz component), for backward
+        compatibility with ISPIN=2 consumers.
     magnetization_vector : Float[Array, "Nx Ny Nz 3"]
-        Vector magnetization (mx, my, mz).
+        Full vector magnetization ``(mx, my, mz)`` at each grid
+        point.
     grid_shape : tuple[int, int, int], optional
-        Grid dimensions. Default is (1,1,1).
+        Grid dimensions ``(Nx, Ny, Nz)``. Default is ``(1, 1, 1)``.
     symbols : tuple[str, ...], optional
-        Element symbols. Default is empty.
+        Element symbols per species. Default is empty tuple.
     atom_counts : Optional[Int[Array, " S"]], optional
-        Atoms per species. Default is None.
+        Number of atoms per species. Default is ``None`` (replaced
+        by an empty int32 array).
 
     Returns
     -------
     vol : SOCVolumetricData
+        Validated SOC volumetric data with ``float64``/``int32``
+        arrays.
+
+    See Also
+    --------
+    SOCVolumetricData : The PyTree class constructed by this factory.
+    make_volumetric_data : Factory for the non-SOC variant.
     """
     if atom_counts is None:
         counts_arr = jnp.zeros(0, dtype=jnp.int32)

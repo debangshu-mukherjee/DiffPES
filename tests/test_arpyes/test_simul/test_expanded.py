@@ -354,7 +354,29 @@ class TestExpandedDispatch(chex.TestCase):
         )
 
     def test_dispatch_novice_matches_direct_wrapper(self):
-        """Verify level='novice' matches simulate_novice_expanded."""
+        """Verify that dispatching with level='novice' matches the direct wrapper.
+
+        Test Logic
+        ----------
+        1. **Run direct wrapper**:
+           Call ``simulate_novice_expanded`` with explicit parameters
+           (sigma=0.04, gamma=0.1, fidelity=200, temperature=15,
+           photon_energy=11) to produce the expected spectrum.
+
+        2. **Run dispatcher**:
+           Call ``simulate_expanded`` with ``level="novice"`` and the
+           same parameters.
+
+        3. **Compare**:
+           Assert that both intensity arrays match to within 1e-12
+           absolute tolerance.
+
+        Asserts
+        -------
+        The dispatched intensity is numerically identical to the direct
+        novice wrapper, confirming that ``simulate_expanded`` correctly
+        routes to ``simulate_novice_expanded``.
+        """
         eigenbands, surface_orb = _make_synthetic_data()
         expected = simulate_novice_expanded(
             eigenbands=eigenbands,
@@ -382,7 +404,29 @@ class TestExpandedDispatch(chex.TestCase):
         )
 
     def test_dispatch_basic_matches_direct_wrapper(self):
-        """Verify level='basic' matches simulate_basic_expanded."""
+        """Verify that dispatching with level='basic' matches the direct wrapper.
+
+        Test Logic
+        ----------
+        1. **Run direct wrapper**:
+           Call ``simulate_basic_expanded`` with explicit parameters
+           (sigma=0.04, fidelity=200, temperature=15,
+           photon_energy=11) to produce the expected spectrum.
+
+        2. **Run dispatcher**:
+           Call ``simulate_expanded`` with ``level="basic"`` and the
+           same parameters.
+
+        3. **Compare**:
+           Assert that both intensity arrays match to within 1e-12
+           absolute tolerance.
+
+        Asserts
+        -------
+        The dispatched intensity is numerically identical to the direct
+        basic wrapper, confirming that ``simulate_expanded`` correctly
+        routes to ``simulate_basic_expanded``.
+        """
         eigenbands, surface_orb = _make_synthetic_data()
         expected = simulate_basic_expanded(
             eigenbands=eigenbands,
@@ -408,7 +452,29 @@ class TestExpandedDispatch(chex.TestCase):
         )
 
     def test_dispatch_basicplus_matches_direct_wrapper(self):
-        """Verify level='basicplus' matches simulate_basicplus_expanded."""
+        """Verify that dispatching with level='basicplus' matches the direct wrapper.
+
+        Test Logic
+        ----------
+        1. **Run direct wrapper**:
+           Call ``simulate_basicplus_expanded`` with explicit parameters
+           (sigma=0.04, fidelity=200, temperature=15,
+           photon_energy=11) to produce the expected spectrum.
+
+        2. **Run dispatcher**:
+           Call ``simulate_expanded`` with ``level="basicplus"`` and the
+           same parameters.
+
+        3. **Compare**:
+           Assert that both intensity arrays match to within 1e-12
+           absolute tolerance.
+
+        Asserts
+        -------
+        The dispatched intensity is numerically identical to the direct
+        basicplus wrapper, confirming that ``simulate_expanded`` correctly
+        routes to ``simulate_basicplus_expanded``.
+        """
         eigenbands, surface_orb = _make_synthetic_data()
         expected = simulate_basicplus_expanded(
             eigenbands=eigenbands,
@@ -434,7 +500,31 @@ class TestExpandedDispatch(chex.TestCase):
         )
 
     def test_dispatch_advanced_matches_direct_wrapper(self):
-        """Verify level='advanced' matches simulate_advanced_expanded."""
+        """Verify that dispatching with level='advanced' matches the direct wrapper.
+
+        Test Logic
+        ----------
+        1. **Run direct wrapper**:
+           Call ``simulate_advanced_expanded`` with explicit parameters
+           (sigma=0.04, fidelity=200, temperature=15, photon_energy=11,
+           polarization="unpolarized", incident_theta=45,
+           incident_phi=0, polarization_angle=0) to produce the
+           expected spectrum.
+
+        2. **Run dispatcher**:
+           Call ``simulate_expanded`` with ``level="advanced"`` and the
+           same parameters.
+
+        3. **Compare**:
+           Assert that both intensity arrays match to within 1e-12
+           absolute tolerance.
+
+        Asserts
+        -------
+        The dispatched intensity is numerically identical to the direct
+        advanced wrapper, confirming that ``simulate_expanded`` correctly
+        routes to ``simulate_advanced_expanded``.
+        """
         eigenbands, surface_orb = _make_synthetic_data()
         expected = simulate_advanced_expanded(
             eigenbands=eigenbands,
@@ -468,7 +558,27 @@ class TestExpandedDispatch(chex.TestCase):
         )
 
     def test_dispatch_unknown_level_raises(self):
-        """Verify that an unknown level raises ValueError with expected message."""
+        """Verify that an unknown level raises ValueError with expected message.
+
+        Test Logic
+        ----------
+        1. **Call dispatcher with invalid level**:
+           Call ``simulate_expanded(level="invalid", ...)`` with minimal
+           required arguments (eigenbands, surface_orb, ef).
+
+        2. **Check exception type**:
+           Assert that a ``ValueError`` is raised.
+
+        3. **Check error message**:
+           Verify the exception message contains ``"Unknown simulation level"``
+           and lists the available levels (at minimum ``"novice"``), so that
+           users receive actionable feedback on which levels are supported.
+
+        Asserts
+        -------
+        A ``ValueError`` is raised whose message includes both an error
+        description and a hint about valid level names.
+        """
         eigenbands, surface_orb = _make_synthetic_data()
         with self.assertRaises(ValueError) as ctx:
             simulate_expanded(

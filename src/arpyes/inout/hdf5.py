@@ -248,8 +248,24 @@ def _encode_kpath_aux(
 ) -> list[Any]:
     """Encode KPathInfo auxiliary string metadata for JSON storage.
 
+    Extended Summary
+    ----------------
     KPathInfo stores ``(mode, labels, comment, coordinate_mode)`` as
-    auxiliary data.
+    its PyTree auxiliary data. Since JSON does not support Python
+    tuples, this encoder converts the 4-element tuple into a JSON
+    list ``[mode_str, [label_str, ...], comment_str,
+    coordinate_mode_str]``.
+
+    Parameters
+    ----------
+    aux : tuple[str, tuple[str, ...], str, str]
+        The KPathInfo auxiliary data:
+        ``(mode, labels, comment, coordinate_mode)``.
+
+    Returns
+    -------
+    list[Any]
+        JSON-serializable list representation.
     """
     mode, labels, comment, coordinate_mode = aux
     return [
@@ -265,8 +281,32 @@ def _decode_kpath_aux(
 ) -> tuple[str, tuple[str, ...], str, str]:
     """Decode JSON list back to KPathInfo auxiliary string metadata.
 
-    Supports both the legacy format ``[mode, labels]`` and the new
-    format ``[mode, labels, comment, coordinate_mode]``.
+    Extended Summary
+    ----------------
+    Inverse of :func:`_encode_kpath_aux`. Supports both the legacy
+    2-element format ``[mode, labels]`` (written by older versions of
+    the serializer) and the current 4-element format
+    ``[mode, labels, comment, coordinate_mode]``. Missing fields
+    default to empty strings.
+
+    Implementation Logic
+    --------------------
+    1. Extract ``mode`` from index 0 and ``labels`` from index 1.
+    2. If the list has >= 3 elements, extract ``comment`` from index 2;
+       otherwise default to ``""``.
+    3. If the list has >= 4 elements, extract ``coordinate_mode`` from
+       index 3; otherwise default to ``""``.
+    4. Return as a 4-tuple matching the KPathInfo auxiliary signature.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (a list of 2-4 elements).
+
+    Returns
+    -------
+    tuple[str, tuple[str, ...], str, str]
+        Reconstructed ``(mode, labels, comment, coordinate_mode)``.
     """
     mode: str = str(val[0])
     labels: tuple[str, ...] = tuple(str(s) for s in val[1])
@@ -284,7 +324,23 @@ def _encode_volumetric_aux(
 ) -> list[Any]:
     """Encode VolumetricData auxiliary data for JSON storage.
 
-    VolumetricData stores ``(grid_shape, symbols)`` as auxiliary data.
+    Extended Summary
+    ----------------
+    VolumetricData and SOCVolumetricData store
+    ``(grid_shape, symbols)`` as their PyTree auxiliary data. This
+    encoder converts the nested tuple into a JSON-serializable list
+    ``[[NGX, NGY, NGZ], [symbol_str, ...]]``.
+
+    Parameters
+    ----------
+    aux : tuple[tuple[int, int, int], tuple[str, ...]]
+        The volumetric auxiliary data:
+        ``(grid_shape, symbols)``.
+
+    Returns
+    -------
+    list[Any]
+        JSON-serializable nested list representation.
     """
     grid_shape, symbols = aux
     return [list(grid_shape), list(symbols)]
@@ -293,7 +349,25 @@ def _encode_volumetric_aux(
 def _decode_volumetric_aux(
     val: Any,  # noqa: ANN401
 ) -> tuple[tuple[int, int, int], tuple[str, ...]]:
-    """Decode JSON list back to VolumetricData auxiliary data."""
+    """Decode JSON list back to VolumetricData auxiliary data.
+
+    Extended Summary
+    ----------------
+    Inverse of :func:`_encode_volumetric_aux`. Converts the nested
+    JSON list ``[[NGX, NGY, NGZ], [symbol_str, ...]]`` back into the
+    Python tuple ``(grid_shape, symbols)`` expected by the
+    VolumetricData / SOCVolumetricData ``tree_unflatten`` method.
+
+    Parameters
+    ----------
+    val : Any
+        The value read from JSON (a list of two sub-lists).
+
+    Returns
+    -------
+    tuple[tuple[int, int, int], tuple[str, ...]]
+        Reconstructed ``(grid_shape, symbols)``.
+    """
     grid_shape: tuple[int, int, int] = (
         int(val[0][0]),
         int(val[0][1]),
@@ -440,15 +514,46 @@ def _dataset_write_kwargs(
     fletcher32: bool,
     chunks: Optional[Union[bool, tuple[int, ...]]],
 ) -> dict[str, Any]:
-    """Build ``h5py.create_dataset`` kwargs for one child array.
+    """Build ``h5py.create_dataset`` keyword arguments for one child array.
+
+    Extended Summary
+    ----------------
+    HDF5 storage filters (compression, shuffle, checksums) and chunking
+    are only valid for datasets with non-scalar dataspace. This helper
+    inspects the array dimensionality and returns the appropriate
+    keyword dictionary for ``h5py.Group.create_dataset``.
 
     Implementation Logic
     --------------------
-    1. For scalar datasets (shape ``()``), return an empty dict since
-       HDF5 filter/chunk flags are invalid for scalar datasets.
-    2. For non-scalar datasets, forward supported storage flags:
-       ``compression``, ``compression_opts``, ``shuffle``,
-       ``fletcher32``, and ``chunks``.
+    1. For scalar datasets (``data.ndim == 0``), return an empty dict
+       since HDF5 filter/chunk flags are invalid for scalar dataspace.
+    2. For non-scalar datasets, conditionally include each supported
+       storage flag (``compression``, ``compression_opts``, ``shuffle``,
+       ``fletcher32``, ``chunks``) only when the corresponding argument
+       is not ``None`` / ``False``.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        The NumPy array to be written. Its ``ndim`` determines whether
+        filters are applicable.
+    compression : Optional[str]
+        HDF5 compression filter name (e.g. ``"gzip"``, ``"lzf"``).
+    compression_opts : Any
+        Compression-specific options (e.g. gzip level 1-9).
+    shuffle : bool
+        Whether to enable the HDF5 byte-shuffle filter.
+    fletcher32 : bool
+        Whether to enable the Fletcher32 checksum filter.
+    chunks : Optional[Union[bool, tuple[int, ...]]]
+        Chunking policy: ``True`` for auto-chunking, or an explicit
+        chunk shape tuple.
+
+    Returns
+    -------
+    dict[str, Any]
+        Keyword arguments to pass to ``h5py.Group.create_dataset``.
+        Empty dict for scalar datasets.
     """
     if data.ndim == 0:
         return {}

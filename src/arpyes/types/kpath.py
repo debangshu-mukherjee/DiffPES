@@ -6,6 +6,13 @@ Defines the :class:`KPathInfo` PyTree for storing Brillouin-zone
 metadata parsed from VASP KPOINTS files, including both plotting
 labels and mode-specific metadata (automatic grids, explicit weights,
 line-mode segments/endpoints).
+
+Routine Listings
+----------------
+:class:`KPathInfo`
+    PyTree for k-point path metadata.
+:func:`make_kpath_info`
+    Create a validated KPathInfo instance.
 """
 
 import jax.numpy as jnp
@@ -19,6 +26,8 @@ from jaxtyping import Array, Float, Int, jaxtyped
 class KPathInfo(NamedTuple):
     """PyTree for k-point path metadata.
 
+    Extended Summary
+    ----------------
     Stores Brillouin-zone path information parsed from VASP KPOINTS
     files. Includes plotting fields (labels + label indices) and
     mode-specific metadata needed for full parser completeness:
@@ -233,17 +242,40 @@ def make_kpath_info(  # noqa: PLR0913
 ) -> KPathInfo:
     """Create a validated KPathInfo instance.
 
-    Validates and normalises the inputs before constructing the
-    KPathInfo PyTree. Integer inputs are cast to int32 JAX arrays,
-    float inputs to float64 arrays, and optional array fields are
-    cast when provided.
+    Extended Summary
+    ----------------
+    Factory function that validates and normalises raw k-path
+    metadata before constructing a ``KPathInfo`` PyTree. Integer
+    scalars and arrays are cast to ``int32``; float arrays are cast
+    to ``float64``. Optional fields (``kpoints``, ``weights``,
+    ``grid``, ``shift``) are cast only when present, preserving
+    ``None`` for modes that do not use them.
+
+    The function is decorated with ``@jaxtyped(typechecker=beartype)``
+    so that shape constraints are checked at call time. String
+    metadata (``mode``, ``labels``, ``comment``, ``coordinate_mode``)
+    is passed through unchanged and stored as PyTree auxiliary data.
+
+    Use this factory when constructing ``KPathInfo`` from parsed
+    KPOINTS data or when building synthetic k-paths for testing. The
+    factory ensures consistent dtypes and handles the three KPOINTS
+    modes (Line-mode, Explicit, Automatic) through the optional
+    fields.
 
     Implementation Logic
     --------------------
-    1. Cast integer scalar/array fields to ``jnp.int32``.
-    2. Cast optional float/array metadata to ``jnp.float64`` if set.
-    3. Pass string metadata through unchanged (stored as aux data).
-    4. Construct and return ``KPathInfo``.
+    1. **Cast integer fields** (``num_kpoints``, ``label_indices``,
+       ``points_per_segment``, ``segments``) to ``jnp.int32`` via
+       ``jnp.asarray``. Accepts both Python ints and JAX arrays.
+    2. **Cast optional float fields** (``kpoints``, ``weights``,
+       ``shift``) to ``jnp.float64`` when not ``None``.
+    3. **Cast optional int field** (``grid``) to ``jnp.int32`` when
+       not ``None``.
+    4. **Pass string metadata** (``mode``, ``labels``, ``comment``,
+       ``coordinate_mode``) through unchanged -- stored as auxiliary
+       data in the PyTree.
+    5. **Construct** the ``KPathInfo`` NamedTuple from all validated
+       fields and return it.
 
     Parameters
     ----------

@@ -38,6 +38,27 @@ def read_poscar(
     PyTree with coordinates always stored in fractional form and the
     lattice pre-scaled by the universal scaling factor.
 
+    Extended Summary
+    ----------------
+    The POSCAR file format used by VASP has the following structure:
+
+    * **Line 1**: Comment / system name (discarded).
+    * **Line 2**: Universal scaling factor applied to all lattice
+      vectors (and to Cartesian coordinates, if applicable).
+    * **Lines 3-5**: Three rows of three floats defining the lattice
+      vectors ``a``, ``b``, ``c`` in Angstroms (before scaling).
+    * **Line 6**: Either element symbols (VASP >= 5) or atom counts
+      (VASP 4). If non-numeric, it is the species line.
+    * **Line 6 or 7**: Atom counts per species (list of integers).
+    * **Next line**: Optional ``"Selective dynamics"`` flag. If
+      present, the following line is the coordinate-type specifier.
+    * **Coordinate-type line**: ``"Direct"`` / ``"Fractional"`` for
+      fractional coordinates, or ``"Cartesian"`` / ``"Cart"`` for
+      Cartesian.
+    * **Coordinate lines**: ``natoms`` lines, each with at least three
+      floats. Additional columns (selective-dynamics T/F flags) are
+      silently ignored.
+
     Implementation Logic
     --------------------
     1. **Read comment line** (line 1) -- consumed and discarded.
@@ -79,7 +100,8 @@ def read_poscar(
 
     10. **Construct PyTree** -- call ``make_crystal_geometry`` with the
         scaled lattice, fractional coordinates, element symbols, and
-        atom counts.
+        atom counts. The reciprocal lattice is computed automatically
+        inside ``make_crystal_geometry`` as ``2 * pi * inv(lattice)^T``.
 
     Parameters
     ----------
@@ -89,7 +111,13 @@ def read_poscar(
     Returns
     -------
     geometry : CrystalGeometry
-        Crystal geometry with lattice, coordinates, symbols.
+        Crystal geometry with lattice, reciprocal lattice, fractional
+        coordinates, element symbols, and atom counts.
+
+    Raises
+    ------
+    IndexError
+        If the coordinate-type line is empty (malformed file).
 
     Notes
     -----
