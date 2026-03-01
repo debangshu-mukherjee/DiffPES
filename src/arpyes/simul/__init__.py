@@ -66,6 +66,9 @@ for vectorized evaluation across k-points and bands.
 
 from .broadening import fermi_dirac, gaussian, voigt
 from .crosssections import heuristic_weights, yeh_lindau_weights
+from .forward import simulate_tb_radial
+from .resolution import apply_momentum_broadening
+from .self_energy import evaluate_self_energy
 from .expanded import (
     make_expanded_simulation_params,
     simulate_advanced_expanded,
@@ -93,10 +96,12 @@ from .spectrum import (
 )
 
 __all__: list[str] = [
+    "apply_momentum_broadening",
     "build_efield",
     "build_polarization_vectors",
     "compute_oam",
     "dipole_matrix_elements",
+    "evaluate_self_energy",
     "fermi_dirac",
     "gaussian",
     "heuristic_weights",
@@ -115,6 +120,7 @@ __all__: list[str] = [
     "simulate_novice",
     "simulate_soc_expanded",
     "simulate_soc",
+    "simulate_tb_radial",
     "voigt",
     "yeh_lindau_weights",
 ]

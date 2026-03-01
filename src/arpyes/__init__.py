@@ -49,15 +49,17 @@ import jax  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 
-from . import inout, radial, simul, types, utils  # noqa: E402
+from . import inout, matrix_elements, radial, simul, tb, types, utils  # noqa: E402
 
 __version__: str = version("arpyes")
 
 __all__: list[str] = [
     "__version__",
     "inout",
+    "matrix_elements",
     "radial",
     "simul",
+    "tb",
     "types",
     "utils",
 ]
