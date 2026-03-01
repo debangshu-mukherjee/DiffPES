@@ -23,7 +23,9 @@ class TestEvaluateSelfEnergy:
         # gamma(E) = 0.1 + 0.05*E (linear)
         config = make_self_energy_config(
             mode="polynomial",
-            coefficients=jnp.array([0.05, 0.1]),  # polyval: highest degree first
+            coefficients=jnp.array(
+                [0.05, 0.1]
+            ),  # polyval: highest degree first
         )
         energy = jnp.array([0.0, 1.0, -1.0])
         gamma = evaluate_self_energy(energy, config)
@@ -46,6 +48,7 @@ class TestEvaluateSelfEnergy:
 
     def test_constant_gradient(self):
         """Gradient w.r.t. constant coefficient is finite."""
+
         def loss(coeff):
             config = make_self_energy_config(
                 mode="constant",
@@ -59,6 +62,7 @@ class TestEvaluateSelfEnergy:
 
     def test_polynomial_gradient(self):
         """Gradient w.r.t. polynomial coefficients is finite."""
+
         def loss(coeffs):
             config = make_self_energy_config(
                 mode="polynomial",

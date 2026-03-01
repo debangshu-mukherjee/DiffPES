@@ -134,9 +134,7 @@ def read_procar(
     spin_data[:, :, :, 4] = np.maximum(sz_sum, 0.0)
     spin_data[:, :, :, 5] = np.maximum(-sz_sum, 0.0)
     spin_arr = jnp.asarray(spin_data, dtype=jnp.float64)
-    return make_spin_orbital_projection(
-        projections=proj_arr, spin=spin_arr
-    )
+    return make_spin_orbital_projection(projections=proj_arr, spin=spin_arr)
 
 
 def _parse_procar_blocks(
@@ -167,8 +165,7 @@ def _parse_procar_blocks(
         i += 1
 
         k_re: str = (
-            r"k-point\s+(\d+)\s*:\s*"
-            r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
+            r"k-point\s+(\d+)\s*:\s*" r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
         )
         kpts_found: int = 0
         while i < len(lines) and kpts_found < nkpts:
@@ -184,21 +181,21 @@ def _parse_procar_blocks(
                 i += 1  # skip band header
                 i += 1  # skip orbital-name header
                 for a in range(natoms):
-                    vals: list[float] = [
-                        float(x) for x in lines[i].split()
-                    ]
+                    vals: list[float] = [float(x) for x in lines[i].split()]
                     projections[k_idx, b, a, :] = vals[1 : _NORBS + 1]
                     i += 1
                 i += 1  # skip tot line
                 i += 1  # skip blank line
             kpts_found += 1
 
-        blocks.append({
-            "nkpts": nkpts,
-            "nbands": nbands,
-            "natoms": natoms,
-            "projections": projections,
-        })
+        blocks.append(
+            {
+                "nkpts": nkpts,
+                "nbands": nbands,
+                "natoms": natoms,
+                "projections": projections,
+            }
+        )
 
     return blocks
 

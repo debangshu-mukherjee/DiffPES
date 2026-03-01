@@ -161,7 +161,9 @@ def dipole_intensity_orbital(
     intensity : Float[Array, " "]
         Squared modulus of the matrix element.
     """
-    M = dipole_matrix_element_single(k_vec, r_grid, radial_values, l, m, efield)
+    M = dipole_matrix_element_single(
+        k_vec, r_grid, radial_values, l, m, efield
+    )
     return jnp.abs(M) ** 2
 
 

@@ -72,8 +72,8 @@ def spherical_bessel_jl(
         previous, current = state
         index_arr: Float[Array, " "] = jnp.asarray(index, dtype=jnp.float64)
         next_value: Float[Array, " ..."] = (
-            ((2.0 * index_arr + 1.0) / x_safe) * current - previous
-        )
+            (2.0 * index_arr + 1.0) / x_safe
+        ) * current - previous
         return current, next_value
 
     _, jl_nonzero = jax.lax.fori_loop(

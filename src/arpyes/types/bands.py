@@ -408,9 +408,7 @@ def make_spin_orbital_projection(
     proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
         projections, dtype=jnp.float64
     )
-    spin_arr: Float[Array, "K B A 6"] = jnp.asarray(
-        spin, dtype=jnp.float64
-    )
+    spin_arr: Float[Array, "K B A 6"] = jnp.asarray(spin, dtype=jnp.float64)
     oam_arr: Optional[Float[Array, "K B A 3"]] = None
     if oam is not None:
         oam_arr = jnp.asarray(oam, dtype=jnp.float64)

@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from arpyes.tb.hamiltonian import (
+from arpyes.tightb.hamiltonian import (
     build_hamiltonian_k,
     make_1d_chain_model,
     make_graphene_model,
@@ -62,9 +62,11 @@ class TestMake1DChainModel:
     def test_cosine_dispersion(self):
         """1D chain: E(k) = 2t cos(2πk)."""
         model = make_1d_chain_model(t=-1.0)
-        kpoints = jnp.linspace(-0.5, 0.5, 101)[:, None] * jnp.array([[1.0, 0.0, 0.0]])
+        kpoints = jnp.linspace(-0.5, 0.5, 101)[:, None] * jnp.array(
+            [[1.0, 0.0, 0.0]]
+        )
 
-        from arpyes.tb.diagonalize import diagonalize_tb
+        from arpyes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, kpoints)
         expected = -2.0 * jnp.cos(2.0 * jnp.pi * jnp.linspace(-0.5, 0.5, 101))
@@ -73,9 +75,11 @@ class TestMake1DChainModel:
     def test_eigenvalue_range(self):
         """Eigenvalues span [-2|t|, 2|t|]."""
         model = make_1d_chain_model(t=-1.5)
-        kpoints = jnp.linspace(-0.5, 0.5, 201)[:, None] * jnp.array([[1.0, 0.0, 0.0]])
+        kpoints = jnp.linspace(-0.5, 0.5, 201)[:, None] * jnp.array(
+            [[1.0, 0.0, 0.0]]
+        )
 
-        from arpyes.tb.diagonalize import diagonalize_tb
+        from arpyes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, kpoints)
         assert float(diag.eigenvalues.min()) == pytest.approx(-3.0, abs=0.05)
@@ -90,7 +94,7 @@ class TestMakeGrapheneModel:
         model = make_graphene_model(t=-2.7)
         Gamma = jnp.array([[0.0, 0.0, 0.0]])
 
-        from arpyes.tb.diagonalize import diagonalize_tb
+        from arpyes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, Gamma)
         evals = jnp.sort(diag.eigenvalues[0])
@@ -102,7 +106,7 @@ class TestMakeGrapheneModel:
         model = make_graphene_model(t=-2.7)
         K = jnp.array([[2.0 / 3, 1.0 / 3, 0.0]])
 
-        from arpyes.tb.diagonalize import diagonalize_tb
+        from arpyes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, K)
         assert jnp.allclose(diag.eigenvalues[0], 0.0, atol=1e-10)
@@ -112,12 +116,12 @@ class TestMakeGrapheneModel:
         model = make_graphene_model(t=-2.7)
         kpoints = jnp.array([[0.1, 0.2, 0.0]])
 
-        from arpyes.tb.diagonalize import diagonalize_tb
+        from arpyes.tightb.diagonalize import diagonalize_tb
 
         def loss(hop):
             m = model._replace(hopping_params=hop)
             d = diagonalize_tb(m, kpoints)
-            return jnp.sum(d.eigenvalues ** 2)
+            return jnp.sum(d.eigenvalues**2)
 
         grad = jax.grad(loss)(model.hopping_params)
         assert jnp.all(jnp.isfinite(grad))

@@ -27,10 +27,9 @@ class TestSphericalBessel(chex.TestCase):
         """Compare j2 against analytical expression."""
         x = jnp.array([0.4, 1.1, 2.4], dtype=jnp.float64)
         fn = self.variant(lambda values: spherical_bessel_jl(2, values))
-        expected = (
-            ((3.0 / (x**3)) - (1.0 / x)) * jnp.sin(x)
-            - (3.0 / (x * x)) * jnp.cos(x)
-        )
+        expected = ((3.0 / (x**3)) - (1.0 / x)) * jnp.sin(x) - (
+            3.0 / (x * x)
+        ) * jnp.cos(x)
         chex.assert_trees_all_close(fn(x), expected, atol=1.0e-10)
 
     @chex.variants(with_jit=True, without_jit=True)
@@ -40,9 +39,15 @@ class TestSphericalBessel(chex.TestCase):
         j0_fn = self.variant(lambda values: spherical_bessel_jl(0, values))
         j1_fn = self.variant(lambda values: spherical_bessel_jl(1, values))
         j3_fn = self.variant(lambda values: spherical_bessel_jl(3, values))
-        chex.assert_trees_all_close(j0_fn(zero), jnp.array([1.0]), atol=1.0e-12)
-        chex.assert_trees_all_close(j1_fn(zero), jnp.array([0.0]), atol=1.0e-12)
-        chex.assert_trees_all_close(j3_fn(zero), jnp.array([0.0]), atol=1.0e-12)
+        chex.assert_trees_all_close(
+            j0_fn(zero), jnp.array([1.0]), atol=1.0e-12
+        )
+        chex.assert_trees_all_close(
+            j1_fn(zero), jnp.array([0.0]), atol=1.0e-12
+        )
+        chex.assert_trees_all_close(
+            j3_fn(zero), jnp.array([0.0]), atol=1.0e-12
+        )
 
     def test_j0_gradient_matches_analytic_derivative(self):
         """Validate grad(j0) against d/dx[sin(x)/x]."""

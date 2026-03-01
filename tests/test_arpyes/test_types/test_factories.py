@@ -166,9 +166,7 @@ class TestMakeCrystalGeometry(chex.TestCase):
         )
         leaves, treedef = jax.tree.flatten(geom)
         restored = jax.tree.unflatten(treedef, leaves)
-        chex.assert_trees_all_close(
-            restored.lattice, geom.lattice
-        )
+        chex.assert_trees_all_close(restored.lattice, geom.lattice)
         chex.assert_equal(restored.symbols, geom.symbols)
 
 
@@ -241,9 +239,7 @@ class TestMakeBandStructure(chex.TestCase):
         var_fn = self.variant(make_band_structure)
         bands = var_fn(eigenvalues=eigenvalues, kpoints=kpoints)
         expected = jnp.ones(nk, dtype=jnp.float64)
-        chex.assert_trees_all_close(
-            bands.kpoint_weights, expected
-        )
+        chex.assert_trees_all_close(bands.kpoint_weights, expected)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_type_conversion(self):
@@ -272,9 +268,7 @@ class TestMakeBandStructure(chex.TestCase):
             kpoints=kpoints,
             fermi_energy=-1.5,
         )
-        chex.assert_equal(
-            isinstance(bands.fermi_energy, jax.Array), True
-        )
+        chex.assert_equal(isinstance(bands.fermi_energy, jax.Array), True)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_explicit_kpoint_weights(self):
@@ -306,9 +300,7 @@ class TestMakeBandStructure(chex.TestCase):
             kpoint_weights=weights,
             fermi_energy=0.0,
         )
-        chex.assert_trees_all_close(
-            bands.kpoint_weights, weights, atol=1e-12
-        )
+        chex.assert_trees_all_close(bands.kpoint_weights, weights, atol=1e-12)
 
 
 class TestMakeOrbitalProjection(chex.TestCase):
@@ -405,19 +397,11 @@ class TestMakeSimulationParams(chex.TestCase):
         the factory's default-value specification is correct.
         """
         params = make_simulation_params()
-        chex.assert_trees_all_close(
-            params.energy_min, jnp.float64(-3.0)
-        )
-        chex.assert_trees_all_close(
-            params.energy_max, jnp.float64(1.0)
-        )
+        chex.assert_trees_all_close(params.energy_min, jnp.float64(-3.0))
+        chex.assert_trees_all_close(params.energy_max, jnp.float64(1.0))
         chex.assert_equal(params.fidelity, 25000)
-        chex.assert_trees_all_close(
-            params.sigma, jnp.float64(0.04)
-        )
-        chex.assert_trees_all_close(
-            params.gamma, jnp.float64(0.1)
-        )
+        chex.assert_trees_all_close(params.sigma, jnp.float64(0.04))
+        chex.assert_trees_all_close(params.gamma, jnp.float64(0.1))
 
     def test_custom_values(self):
         """Verify that custom parameter values are stored correctly.
@@ -447,9 +431,7 @@ class TestMakeSimulationParams(chex.TestCase):
             temperature=300.0,
             photon_energy=21.2,
         )
-        chex.assert_trees_all_close(
-            params.temperature, jnp.float64(300.0)
-        )
+        chex.assert_trees_all_close(params.temperature, jnp.float64(300.0))
 
     def test_pytree_compatible(self):
         """Verify that SimulationParams survives a JAX PyTree round-trip.
@@ -476,9 +458,7 @@ class TestMakeSimulationParams(chex.TestCase):
         params = make_simulation_params()
         leaves, treedef = jax.tree.flatten(params)
         restored = jax.tree.unflatten(treedef, leaves)
-        chex.assert_trees_all_close(
-            restored.sigma, params.sigma
-        )
+        chex.assert_trees_all_close(restored.sigma, params.sigma)
 
 
 class TestMakePolarizationConfig(chex.TestCase):
@@ -509,9 +489,7 @@ class TestMakePolarizationConfig(chex.TestCase):
         are scalar JAX arrays, confirming the factory's default behavior.
         """
         config = make_polarization_config()
-        chex.assert_equal(
-            config.polarization_type, "unpolarized"
-        )
+        chex.assert_equal(config.polarization_type, "unpolarized")
         chex.assert_shape(config.theta, ())
         chex.assert_shape(config.phi, ())
 
@@ -618,14 +596,10 @@ class TestMakeDensityOfStates(chex.TestCase):
         energy = jnp.linspace(-10.0, 5.0, ne)
         dos = jnp.ones(ne)
         var_fn = self.variant(make_density_of_states)
-        result = var_fn(
-            energy=energy, total_dos=dos, fermi_energy=-1.5
-        )
+        result = var_fn(energy=energy, total_dos=dos, fermi_energy=-1.5)
         chex.assert_shape(result.energy, (ne,))
         chex.assert_shape(result.total_dos, (ne,))
-        chex.assert_trees_all_close(
-            result.fermi_energy, jnp.float64(-1.5)
-        )
+        chex.assert_trees_all_close(result.fermi_energy, jnp.float64(-1.5))
 
 
 class TestMakeKPathInfo(chex.TestCase):

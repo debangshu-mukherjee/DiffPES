@@ -159,10 +159,7 @@ def hydrogenic_radial(
         jnp.asarray(factorial_ratio, dtype=jnp.float64)
     )
     values: Float[Array, " ..."] = (
-        norm
-        * jnp.exp(-0.5 * rho)
-        * (rho**angular_momentum)
-        * laguerre_values
+        norm * jnp.exp(-0.5 * rho) * (rho**angular_momentum) * laguerre_values
     )
     return values
 

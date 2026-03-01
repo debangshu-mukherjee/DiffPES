@@ -32,8 +32,6 @@ from beartype.typing import NamedTuple, Optional, Tuple
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
-from .aliases import ScalarFloat
-
 
 @register_pytree_node_class
 class OrbitalBasis(NamedTuple):

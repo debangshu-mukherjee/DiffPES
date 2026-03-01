@@ -5,7 +5,7 @@ import math
 import jax.numpy as jnp
 import pytest
 
-from arpyes.matrix_elements.gaunt import (
+from arpyes.maths.gaunt import (
     GAUNT_TABLE,
     L_MAX,
     build_gaunt_table,

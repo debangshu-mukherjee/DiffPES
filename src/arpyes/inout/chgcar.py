@@ -91,17 +91,13 @@ def read_chgcar(
         next_idx, next_shape = _find_next_grid_line(rest_lines, scan_idx)
         if next_idx is None:
             break
-        ngrid_mag: int = int(
-            np.prod(np.asarray(next_shape, dtype=np.int64))
-        )
+        ngrid_mag: int = int(np.prod(np.asarray(next_shape, dtype=np.int64)))
         mag_vals, scan_idx = _parse_float_block(
             rest_lines,
             next_idx + 1,
             ngrid_mag,
         )
-        mag_grids.append(
-            mag_vals.reshape(next_shape, order="F") / volume
-        )
+        mag_grids.append(mag_vals.reshape(next_shape, order="F") / volume)
 
     lattice_arr = jnp.asarray(lattice, dtype=jnp.float64)
     coords_arr = jnp.asarray(coords, dtype=jnp.float64)
@@ -116,9 +112,7 @@ def read_chgcar(
             coords=coords_arr,
             charge=charge_arr,
             magnetization=jnp.asarray(mag_grids[2], dtype=jnp.float64),
-            magnetization_vector=jnp.asarray(
-                mag_vector, dtype=jnp.float64
-            ),
+            magnetization_vector=jnp.asarray(mag_vector, dtype=jnp.float64),
             grid_shape=grid_shape,
             symbols=symbols,
             atom_counts=counts_arr,

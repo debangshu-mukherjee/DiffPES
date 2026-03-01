@@ -88,9 +88,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
         data: np.ndarray = np.zeros((nedos, ncols), dtype=np.float64)
         data[0, :] = first_vals
         for i in range(1, nedos):
-            vals: list[float] = [
-                float(x) for x in fid.readline().split()
-            ]
+            vals: list[float] = [float(x) for x in fid.readline().split()]
             data[i, :] = vals
 
         if return_mode == "legacy":
@@ -153,25 +151,19 @@ def read_doscar(  # noqa: PLR0912, PLR0915
                     row_line: str = fid.readline()
                     if not row_line.strip():
                         break
-                    atom_data[j, :] = [
-                        float(x) for x in row_line.split()
-                    ]
+                    atom_data[j, :] = [float(x) for x in row_line.split()]
                 # Store only the orbital columns (skip energy column 0)
                 pdos_blocks.append(atom_data[:, 1:])
             else:
                 # This line is the first PDOS data line (no header)
                 pdos_ncols = len(line_vals)
-                atom_data = np.zeros(
-                    (nedos, pdos_ncols), dtype=np.float64
-                )
+                atom_data = np.zeros((nedos, pdos_ncols), dtype=np.float64)
                 atom_data[0, :] = line_vals
                 for j in range(1, nedos):
                     row_line = fid.readline()
                     if not row_line.strip():
                         break
-                    atom_data[j, :] = [
-                        float(x) for x in row_line.split()
-                    ]
+                    atom_data[j, :] = [float(x) for x in row_line.split()]
                 pdos_blocks.append(atom_data[:, 1:])
 
         if pdos_blocks:

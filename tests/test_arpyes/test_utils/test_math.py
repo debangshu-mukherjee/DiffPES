@@ -90,9 +90,7 @@ class TestFaddeeva(chex.TestCase):
         z = jnp.array(0.0 + 0j)
         var_fn = self.variant(faddeeva)
         w = var_fn(z)
-        chex.assert_trees_all_close(
-            jnp.real(w), jnp.float64(1.0), atol=0.05
-        )
+        chex.assert_trees_all_close(jnp.real(w), jnp.float64(1.0), atol=0.05)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_imaginary_axis(self):
@@ -154,9 +152,7 @@ class TestZscoreNormalize(chex.TestCase):
         Output mean is approximately 0 and output std is approximately 1,
         confirming the core z-score transformation (x - mu) / sigma.
         """
-        data = jnp.array(
-            [1.0, 2.0, 3.0, 4.0, 5.0], dtype=jnp.float64
-        )
+        data = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=jnp.float64)
         var_fn = self.variant(zscore_normalize)
         result = var_fn(data)
         chex.assert_trees_all_close(

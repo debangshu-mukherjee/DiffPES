@@ -59,9 +59,7 @@ class TestBuildPolarizationVectors(chex.TestCase):
         phi = 0.0
         e_s, e_p = build_polarization_vectors(theta, phi)
         dot_product = jnp.dot(e_s, e_p)
-        chex.assert_trees_all_close(
-            dot_product, jnp.float64(0.0), atol=1e-10
-        )
+        chex.assert_trees_all_close(dot_product, jnp.float64(0.0), atol=1e-10)
 
     def test_unit_vectors(self):
         """Verify that both e_s and e_p have unit norm.
@@ -152,9 +150,7 @@ class TestBuildEfield(chex.TestCase):
             polarization_type="LVP",
         )
         efield = build_efield(config)
-        e_s, _ = build_polarization_vectors(
-            config.theta, config.phi
-        )
+        e_s, _ = build_polarization_vectors(config.theta, config.phi)
         chex.assert_trees_all_close(
             jnp.real(efield),
             e_s.astype(jnp.float64),
@@ -188,9 +184,7 @@ class TestBuildEfield(chex.TestCase):
             polarization_type="LHP",
         )
         efield = build_efield(config)
-        _, e_p = build_polarization_vectors(
-            config.theta, config.phi
-        )
+        _, e_p = build_polarization_vectors(config.theta, config.phi)
         chex.assert_trees_all_close(
             jnp.real(efield),
             e_p.astype(jnp.float64),
@@ -261,17 +255,11 @@ class TestBuildEfield(chex.TestCase):
             polarization_angle=angle,
         )
         efield = build_efield(config)
-        e_s, e_p = build_polarization_vectors(
-            config.theta, config.phi
-        )
+        e_s, e_p = build_polarization_vectors(config.theta, config.phi)
         e_s_c = e_s.astype(jnp.complex128)
         e_p_c = e_p.astype(jnp.complex128)
-        expected = (
-            jnp.cos(angle) * e_s_c + jnp.sin(angle) * e_p_c
-        )
-        chex.assert_trees_all_close(
-            efield, expected, atol=1e-10
-        )
+        expected = jnp.cos(angle) * e_s_c + jnp.sin(angle) * e_p_c
+        chex.assert_trees_all_close(efield, expected, atol=1e-10)
 
     def test_unknown_pol_type_fallback_to_s(self):
         """Verify that unknown polarization type falls back to e_s.
@@ -294,9 +282,7 @@ class TestBuildEfield(chex.TestCase):
             polarization_type="unpolarized",
         )
         efield = build_efield(config)
-        e_s, _ = build_polarization_vectors(
-            config.theta, config.phi
-        )
+        e_s, _ = build_polarization_vectors(config.theta, config.phi)
         chex.assert_trees_all_close(
             jnp.real(efield),
             e_s.astype(jnp.float64),
@@ -329,9 +315,7 @@ class TestDipoleMatrixElements(chex.TestCase):
         The output array has shape ``(9,)``, one element per orbital in
         the [s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2] basis.
         """
-        efield = jnp.array(
-            [1.0, 0.0, 0.0], dtype=jnp.complex128
-        )
+        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
         m = dipole_matrix_elements(efield)
         chex.assert_shape(m, (9,))
 
@@ -353,13 +337,9 @@ class TestDipoleMatrixElements(chex.TestCase):
         1e-10, because the s-orbital direction vector is [0, 0, 0] and
         its dot product with any E-field is identically zero.
         """
-        efield = jnp.array(
-            [1.0, 0.0, 0.0], dtype=jnp.complex128
-        )
+        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
         m = dipole_matrix_elements(efield)
-        chex.assert_trees_all_close(
-            m[0], jnp.float64(0.0), atol=1e-10
-        )
+        chex.assert_trees_all_close(m[0], jnp.float64(0.0), atol=1e-10)
 
     def test_px_with_x_field(self):
         """Verify that an x-polarized field produces a positive px matrix element.
@@ -379,9 +359,7 @@ class TestDipoleMatrixElements(chex.TestCase):
         confirming that the x-polarized field couples to the px-orbital
         via the dipole selection rule.
         """
-        efield = jnp.array(
-            [1.0, 0.0, 0.0], dtype=jnp.complex128
-        )
+        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
         m = dipole_matrix_elements(efield)
         chex.assert_scalar_positive(float(m[3]))
 
@@ -405,9 +383,7 @@ class TestDipoleMatrixElements(chex.TestCase):
         Every element of the 9-element matrix element vector is non-negative,
         as expected from the squared-modulus definition |e . d|^2 >= 0.
         """
-        efield = jnp.array(
-            [0.5, 0.3, 0.8], dtype=jnp.complex128
-        )
+        efield = jnp.array([0.5, 0.3, 0.8], dtype=jnp.complex128)
         efield = efield / jnp.linalg.norm(efield)
         m = dipole_matrix_elements(efield)
         for i in range(9):

@@ -73,9 +73,15 @@ class TestReadDoscar(chex.TestCase):
         chex.assert_shape(dos.energy, (5,))
         chex.assert_shape(dos.total_dos, (5,))
         chex.assert_shape(dos.fermi_energy, ())
-        chex.assert_trees_all_close(dos.fermi_energy, jnp.float64(0.5), atol=1e-12)
-        chex.assert_trees_all_close(dos.energy[0], jnp.float64(-2.0), atol=1e-12)
-        chex.assert_trees_all_close(dos.total_dos[2], jnp.float64(0.5), atol=1e-12)
+        chex.assert_trees_all_close(
+            dos.fermi_energy, jnp.float64(0.5), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            dos.energy[0], jnp.float64(-2.0), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            dos.total_dos[2], jnp.float64(0.5), atol=1e-12
+        )
 
 
 class TestReadEigenval(chex.TestCase):
@@ -102,7 +108,9 @@ class TestReadEigenval(chex.TestCase):
         chex.assert_trees_all_close(
             bands.kpoints[0], jnp.array([0.0, 0.0, 0.0]), atol=1e-12
         )
-        chex.assert_trees_all_close(bands.fermi_energy, jnp.float64(-0.5), atol=1e-12)
+        chex.assert_trees_all_close(
+            bands.fermi_energy, jnp.float64(-0.5), atol=1e-12
+        )
         chex.assert_trees_all_close(
             bands.eigenvalues[0, 0], jnp.float64(-1.5), atol=1e-12
         )
@@ -135,7 +143,9 @@ class TestReadEigenval(chex.TestCase):
     def test_spin_polarized_legacy(self):
         """Read spin-polarized EIGENVAL in legacy mode and get only spin-up."""
         path = _FIXTURES_DIR / "EIGENVAL_spin"
-        bands = read_eigenval(str(path), fermi_energy=0.0, return_mode="legacy")
+        bands = read_eigenval(
+            str(path), fermi_energy=0.0, return_mode="legacy"
+        )
         assert isinstance(bands, BandStructure)
         chex.assert_shape(bands.eigenvalues, (2, 2))
         # spin-up eigenvalues sorted: [-1.5, -0.5] and [-1.0, -0.2]

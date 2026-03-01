@@ -66,9 +66,7 @@ class TestGaussian(chex.TestCase):
         profile = var_fn(e_range, 0.0, sigma)
         de = e_range[1] - e_range[0]
         integral = jnp.sum(profile) * de
-        chex.assert_trees_all_close(
-            integral, jnp.float64(1.0), atol=1e-3
-        )
+        chex.assert_trees_all_close(integral, jnp.float64(1.0), atol=1e-3)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_peak_position(self):
@@ -127,9 +125,7 @@ class TestGaussian(chex.TestCase):
         e_range = jnp.linspace(-5.0, 5.0, 1001)
         var_fn = self.variant(gaussian)
         profile = var_fn(e_range, 0.0, 0.5)
-        chex.assert_trees_all_close(
-            profile, profile[::-1], atol=1e-10
-        )
+        chex.assert_trees_all_close(profile, profile[::-1], atol=1e-10)
 
 
 class TestVoigt(chex.TestCase):
@@ -168,9 +164,7 @@ class TestVoigt(chex.TestCase):
         var_fn = self.variant(voigt)
         v_profile = var_fn(e_range, 0.0, sigma, gamma)
         g_profile = gaussian(e_range, 0.0, sigma)
-        chex.assert_trees_all_close(
-            v_profile, g_profile, atol=1e-3
-        )
+        chex.assert_trees_all_close(v_profile, g_profile, atol=1e-3)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_peak_position(self):
@@ -259,9 +253,7 @@ class TestFermiDirac(chex.TestCase):
         """
         var_fn = self.variant(fermi_dirac)
         result = var_fn(0.0, 0.0, 300.0)
-        chex.assert_trees_all_close(
-            result, jnp.float64(0.5), atol=1e-5
-        )
+        chex.assert_trees_all_close(result, jnp.float64(0.5), atol=1e-5)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_deep_below_fermi(self):
@@ -284,9 +276,7 @@ class TestFermiDirac(chex.TestCase):
         """
         var_fn = self.variant(fermi_dirac)
         result = var_fn(-5.0, 0.0, 15.0)
-        chex.assert_trees_all_close(
-            result, jnp.float64(1.0), atol=1e-5
-        )
+        chex.assert_trees_all_close(result, jnp.float64(1.0), atol=1e-5)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_high_above_fermi(self):
@@ -309,9 +299,7 @@ class TestFermiDirac(chex.TestCase):
         """
         var_fn = self.variant(fermi_dirac)
         result = var_fn(5.0, 0.0, 15.0)
-        chex.assert_trees_all_close(
-            result, jnp.float64(0.0), atol=1e-5
-        )
+        chex.assert_trees_all_close(result, jnp.float64(0.0), atol=1e-5)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_range_0_to_1(self):

@@ -98,17 +98,13 @@ def read_eigenval(
         )
         eigenvalues_down: Optional[np.ndarray] = None
         if ispin == _ISPIN_SPIN_POLARIZED:
-            eigenvalues_down = np.zeros(
-                (nkpoints, nbands), dtype=np.float64
-            )
+            eigenvalues_down = np.zeros((nkpoints, nbands), dtype=np.float64)
         for k in range(nkpoints):
             kpoint_line: str = _read_next_nonempty_line(fid)
             if not kpoint_line:
                 msg = "Unexpected EOF while reading EIGENVAL k-point block."
                 raise ValueError(msg)
-            kpoint_vals: list[float] = [
-                float(x) for x in kpoint_line.split()
-            ]
+            kpoint_vals: list[float] = [float(x) for x in kpoint_line.split()]
             if len(kpoint_vals) < _KPOINT_LINE_VALUES:
                 msg = "Invalid EIGENVAL k-point line; expected 4 values."
                 raise ValueError(msg)
@@ -118,9 +114,7 @@ def read_eigenval(
                 if not band_line:
                     msg = "Unexpected EOF while reading EIGENVAL band line."
                     raise ValueError(msg)
-                vals: list[float] = [
-                    float(x) for x in band_line.split()
-                ]
+                vals: list[float] = [float(x) for x in band_line.split()]
                 if len(vals) < _BAND_LINE_MIN_VALUES:
                     msg = "Invalid EIGENVAL band line; expected band energy."
                     raise ValueError(msg)

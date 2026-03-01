@@ -79,9 +79,9 @@ def _make_synthetic_data(nk=12, nb=4, na=3):
         Uniform orbital projections of shape ``(nk, nb, na, 9)`` in
         float64 with all entries set to 0.1.
     """
-    eigenbands = jnp.linspace(
-        -2.5, 0.75, nk * nb, dtype=jnp.float64
-    ).reshape(nk, nb)
+    eigenbands = jnp.linspace(-2.5, 0.75, nk * nb, dtype=jnp.float64).reshape(
+        nk, nb
+    )
     surface_orb = jnp.ones((nk, nb, na, 9), dtype=jnp.float64)
     surface_orb = surface_orb * 0.1
     return eigenbands, surface_orb
@@ -120,9 +120,7 @@ class TestExpandedParams(chex.TestCase):
         The auto-derived energy window matches ``[min - padding, max + padding]``
         and the fidelity value is preserved exactly.
         """
-        eigenbands = jnp.array(
-            [[-2.0, 0.25], [1.0, -1.0]], dtype=jnp.float64
-        )
+        eigenbands = jnp.array([[-2.0, 0.25], [1.0, -1.0]], dtype=jnp.float64)
         params = make_expanded_simulation_params(
             eigenbands=eigenbands,
             fidelity=100,
@@ -181,17 +179,13 @@ class TestExpandedBasicWrapper(chex.TestCase):
             temperature=20.0,
             photon_energy=35.0,
         )
-        kpoints = jnp.zeros(
-            (eigenbands.shape[0], 3), dtype=jnp.float64
-        )
+        kpoints = jnp.zeros((eigenbands.shape[0], 3), dtype=jnp.float64)
         bands = make_band_structure(
             eigenvalues=eigenbands,
             kpoints=kpoints,
             fermi_energy=0.0,
         )
-        orb_proj = make_orbital_projection(
-            projections=surface_orb
-        )
+        orb_proj = make_orbital_projection(projections=surface_orb)
         expected = simulate_basic(bands, orb_proj, params)
         wrapped = simulate_basic_expanded(
             eigenbands=eigenbands,
@@ -259,17 +253,13 @@ class TestExpandedAdvancedWrapper(chex.TestCase):
             temperature=25.0,
             photon_energy=21.2,
         )
-        kpoints = jnp.zeros(
-            (eigenbands.shape[0], 3), dtype=jnp.float64
-        )
+        kpoints = jnp.zeros((eigenbands.shape[0], 3), dtype=jnp.float64)
         bands = make_band_structure(
             eigenvalues=eigenbands,
             kpoints=kpoints,
             fermi_energy=0.0,
         )
-        orb_proj = make_orbital_projection(
-            projections=surface_orb
-        )
+        orb_proj = make_orbital_projection(projections=surface_orb)
         pol = make_polarization_config(
             theta=jnp.deg2rad(jnp.float64(45.0)),
             phi=jnp.deg2rad(jnp.float64(30.0)),
@@ -541,7 +531,11 @@ class TestExpandedDispatch(chex.TestCase):
         ``simulate_soc_expanded`` directly.
         """
         eigenbands, surface_orb = _make_synthetic_data()
-        nk, nb, na = surface_orb.shape[0], surface_orb.shape[1], surface_orb.shape[2]
+        nk, nb, na = (
+            surface_orb.shape[0],
+            surface_orb.shape[1],
+            surface_orb.shape[2],
+        )
         surface_spin = jnp.zeros((nk, nb, na, 6), dtype=jnp.float64)
         surface_spin = surface_spin.at[..., 4].set(0.15)
         surface_spin = surface_spin.at[..., 5].set(0.08)
@@ -617,7 +611,11 @@ class TestExpandedSocWrapper(chex.TestCase):
         physical parameters.
         """
         eigenbands, surface_orb = _make_synthetic_data()
-        nk, nb, na = surface_orb.shape[0], surface_orb.shape[1], surface_orb.shape[2]
+        nk, nb, na = (
+            surface_orb.shape[0],
+            surface_orb.shape[1],
+            surface_orb.shape[2],
+        )
         surface_spin = jnp.zeros((nk, nb, na, 6), dtype=jnp.float64)
         surface_spin = surface_spin.at[..., 0].set(0.1)
         surface_spin = surface_spin.at[..., 4].set(0.2)
@@ -645,9 +643,7 @@ class TestExpandedSocWrapper(chex.TestCase):
             incident_theta=45.0,
             incident_phi=0.0,
         )
-        expected = simulate_soc(
-            bands, soc_proj, params, pol, ls_scale=0.02
-        )
+        expected = simulate_soc(bands, soc_proj, params, pol, ls_scale=0.02)
         wrapped = simulate_soc_expanded(
             eigenbands=eigenbands,
             surface_orb=surface_orb,

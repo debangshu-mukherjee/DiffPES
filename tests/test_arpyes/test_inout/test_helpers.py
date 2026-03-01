@@ -4,7 +4,12 @@ import chex
 import jax.numpy as jnp
 import pytest
 
-from arpyes.inout import aggregate_atoms, check_consistency, reduce_orbitals, select_atoms
+from arpyes.inout import (
+    aggregate_atoms,
+    check_consistency,
+    reduce_orbitals,
+    select_atoms,
+)
 from arpyes.types import (
     SpinOrbitalProjection,
     make_band_structure,
@@ -78,9 +83,7 @@ class TestAggregateAtoms(chex.TestCase):
         agg = aggregate_atoms(orb)
         chex.assert_shape(agg, (2, 2, 9))
         # s-orbital: 1+2+3 = 6
-        chex.assert_trees_all_close(
-            agg[0, 0, 0], jnp.float64(6.0), atol=1e-12
-        )
+        chex.assert_trees_all_close(agg[0, 0, 0], jnp.float64(6.0), atol=1e-12)
 
     def test_aggregate_subset(self):
         """Sum over a subset of atoms."""
@@ -88,9 +91,7 @@ class TestAggregateAtoms(chex.TestCase):
         agg = aggregate_atoms(orb, [0, 1])
         chex.assert_shape(agg, (2, 2, 9))
         # s-orbital: 1+2 = 3
-        chex.assert_trees_all_close(
-            agg[0, 0, 0], jnp.float64(3.0), atol=1e-12
-        )
+        chex.assert_trees_all_close(agg[0, 0, 0], jnp.float64(3.0), atol=1e-12)
 
 
 class TestReduceOrbitals(chex.TestCase):

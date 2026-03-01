@@ -249,8 +249,12 @@ class SOCVolumetricData(NamedTuple):
     ) -> "SOCVolumetricData":
         """Reconstruct from flattened components."""
         (
-            lattice, coords, charge,
-            magnetization, magnetization_vector, atom_counts,
+            lattice,
+            coords,
+            charge,
+            magnetization,
+            magnetization_vector,
+            atom_counts,
         ) = children
         grid_shape, symbols = aux_data
         return cls(

@@ -78,13 +78,9 @@ def _make_synthetic_data(nk=20, nb=5, na=2):
         Uniform orbital projections of shape ``(nk, nb, na, 9)`` with
         all entries set to 0.1.
     """
-    eigenvalues = jnp.linspace(-2.0, 0.5, nk * nb).reshape(
-        nk, nb
-    )
+    eigenvalues = jnp.linspace(-2.0, 0.5, nk * nb).reshape(nk, nb)
     kpoints = jnp.zeros((nk, 3))
-    kpoints = kpoints.at[:, 0].set(
-        jnp.linspace(0.0, 1.0, nk)
-    )
+    kpoints = kpoints.at[:, 0].set(jnp.linspace(0.0, 1.0, nk))
     bands = make_band_structure(
         eigenvalues=eigenvalues,
         kpoints=kpoints,
@@ -275,21 +271,11 @@ class TestSimulateBasicplus(chex.TestCase):
         weightings at 20 eV versus 60 eV.
         """
         bands, orb_proj = _make_synthetic_data()
-        params_low = make_simulation_params(
-            fidelity=200, photon_energy=20.0
-        )
-        params_high = make_simulation_params(
-            fidelity=200, photon_energy=60.0
-        )
-        spec_low = simulate_basicplus(
-            bands, orb_proj, params_low
-        )
-        spec_high = simulate_basicplus(
-            bands, orb_proj, params_high
-        )
-        diff = jnp.sum(
-            jnp.abs(spec_low.intensity - spec_high.intensity)
-        )
+        params_low = make_simulation_params(fidelity=200, photon_energy=20.0)
+        params_high = make_simulation_params(fidelity=200, photon_energy=60.0)
+        spec_low = simulate_basicplus(bands, orb_proj, params_low)
+        spec_high = simulate_basicplus(bands, orb_proj, params_high)
+        diff = jnp.sum(jnp.abs(spec_low.intensity - spec_high.intensity))
         assert float(diff) > 0.0
 
 
@@ -325,12 +311,8 @@ class TestSimulateAdvanced(chex.TestCase):
         """
         bands, orb_proj = _make_synthetic_data()
         params = make_simulation_params(fidelity=500)
-        pol = make_polarization_config(
-            polarization_type="LVP"
-        )
-        spectrum = simulate_advanced(
-            bands, orb_proj, params, pol
-        )
+        pol = make_polarization_config(polarization_type="LVP")
+        spectrum = simulate_advanced(bands, orb_proj, params, pol)
         chex.assert_shape(spectrum.intensity, (20, 500))
 
     def test_unpolarized(self):
@@ -358,12 +340,8 @@ class TestSimulateAdvanced(chex.TestCase):
         """
         bands, orb_proj = _make_synthetic_data()
         params = make_simulation_params(fidelity=200)
-        pol = make_polarization_config(
-            polarization_type="unpolarized"
-        )
-        spectrum = simulate_advanced(
-            bands, orb_proj, params, pol
-        )
+        pol = make_polarization_config(polarization_type="unpolarized")
+        spectrum = simulate_advanced(bands, orb_proj, params, pol)
         chex.assert_tree_all_finite(spectrum.intensity)
 
 
@@ -401,12 +379,8 @@ class TestSimulateExpert(chex.TestCase):
         """
         bands, orb_proj = _make_synthetic_data()
         params = make_simulation_params(fidelity=500)
-        pol = make_polarization_config(
-            polarization_type="LHP"
-        )
-        spectrum = simulate_expert(
-            bands, orb_proj, params, pol
-        )
+        pol = make_polarization_config(polarization_type="LHP")
+        spectrum = simulate_expert(bands, orb_proj, params, pol)
         chex.assert_shape(spectrum.intensity, (20, 500))
 
     def test_unpolarized(self):
@@ -434,12 +408,8 @@ class TestSimulateExpert(chex.TestCase):
         """
         bands, orb_proj = _make_synthetic_data()
         params = make_simulation_params(fidelity=200)
-        pol = make_polarization_config(
-            polarization_type="unpolarized"
-        )
-        spectrum = simulate_expert(
-            bands, orb_proj, params, pol
-        )
+        pol = make_polarization_config(polarization_type="unpolarized")
+        spectrum = simulate_expert(bands, orb_proj, params, pol)
         chex.assert_tree_all_finite(spectrum.intensity)
 
     def test_circular_polarization(self):
@@ -469,12 +439,8 @@ class TestSimulateExpert(chex.TestCase):
         """
         bands, orb_proj = _make_synthetic_data()
         params = make_simulation_params(fidelity=200)
-        pol = make_polarization_config(
-            polarization_type="RCP"
-        )
-        spectrum = simulate_expert(
-            bands, orb_proj, params, pol
-        )
+        pol = make_polarization_config(polarization_type="RCP")
+        spectrum = simulate_expert(bands, orb_proj, params, pol)
         chex.assert_tree_all_finite(spectrum.intensity)
 
 
@@ -549,10 +515,10 @@ class TestSimulateSoc(chex.TestCase):
         bands, soc_proj = _make_synthetic_data_with_spin()
         params = make_simulation_params(fidelity=100)
         pol = make_polarization_config(polarization_type="unpolarized")
-        spectrum = simulate_soc(
-            bands, soc_proj, params, pol, ls_scale=0.01
+        spectrum = simulate_soc(bands, soc_proj, params, pol, ls_scale=0.01)
+        chex.assert_shape(
+            spectrum.intensity, (bands.eigenvalues.shape[0], 100)
         )
-        chex.assert_shape(spectrum.intensity, (bands.eigenvalues.shape[0], 100))
         chex.assert_shape(spectrum.energy_axis, (100,))
         chex.assert_tree_all_finite(spectrum.intensity)
 
@@ -575,14 +541,13 @@ class TestSimulateSoc(chex.TestCase):
         """
         bands, soc_proj = _make_synthetic_data_with_spin()
         expert_orb = make_orbital_projection(
-            projections=soc_proj.projections, spin=soc_proj.spin,
+            projections=soc_proj.projections,
+            spin=soc_proj.spin,
         )
         params = make_simulation_params(fidelity=100)
         pol = make_polarization_config(polarization_type="unpolarized")
         expert_spec = simulate_expert(bands, expert_orb, params, pol)
-        soc_spec = simulate_soc(
-            bands, soc_proj, params, pol, ls_scale=0.0
-        )
+        soc_spec = simulate_soc(bands, soc_proj, params, pol, ls_scale=0.0)
         chex.assert_trees_all_close(
             expert_spec.intensity, soc_spec.intensity, atol=1e-12
         )
@@ -611,14 +576,13 @@ class TestSimulateSoc(chex.TestCase):
         """
         bands, soc_proj = _make_synthetic_data_with_spin()
         expert_orb = make_orbital_projection(
-            projections=soc_proj.projections, spin=soc_proj.spin,
+            projections=soc_proj.projections,
+            spin=soc_proj.spin,
         )
         params = make_simulation_params(fidelity=100)
         pol = make_polarization_config(polarization_type="unpolarized")
         expert_spec = simulate_expert(bands, expert_orb, params, pol)
-        soc_spec = simulate_soc(
-            bands, soc_proj, params, pol, ls_scale=0.1
-        )
+        soc_spec = simulate_soc(bands, soc_proj, params, pol, ls_scale=0.1)
         diff = jnp.abs(soc_spec.intensity - expert_spec.intensity)
         self.assertGreater(jnp.max(diff), 1e-10)
 
@@ -629,8 +593,8 @@ class TestSimulateSoc(chex.TestCase):
         pol = make_polarization_config(
             polarization_type="LHP",
         )
-        spectrum = simulate_soc(
-            bands, soc_proj, params, pol, ls_scale=0.02
+        spectrum = simulate_soc(bands, soc_proj, params, pol, ls_scale=0.02)
+        chex.assert_shape(
+            spectrum.intensity, (bands.eigenvalues.shape[0], 100)
         )
-        chex.assert_shape(spectrum.intensity, (bands.eigenvalues.shape[0], 100))
         chex.assert_tree_all_finite(spectrum.intensity)

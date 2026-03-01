@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from arpyes.matrix_elements.dipole import (
+from arpyes.maths.dipole import (
     dipole_intensities_all_orbitals,
     dipole_intensity_orbital,
     dipole_matrix_element_single,
@@ -38,21 +38,29 @@ class TestDipoleMatrixElementSingle:
         """s-orbital (l=0, m=0) dipole element is nonzero for z-pol."""
         R_vals = slater_radial(r_grid, 1, 1.0)
         k_vec = jnp.array([0.0, 0.0, 1.0])
-        M = dipole_matrix_element_single(k_vec, r_grid, R_vals, 0, 0, z_polarized)
-        assert jnp.abs(M) > 1e-6, f"Expected nonzero, got |M|={float(jnp.abs(M))}"
+        M = dipole_matrix_element_single(
+            k_vec, r_grid, R_vals, 0, 0, z_polarized
+        )
+        assert (
+            jnp.abs(M) > 1e-6
+        ), f"Expected nonzero, got |M|={float(jnp.abs(M))}"
 
     def test_finite_output(self, r_grid, z_polarized):
         """Output is always finite."""
         R_vals = slater_radial(r_grid, 2, 2.0)
         k_vec = jnp.array([1.0, 0.5, 0.3])
-        M = dipole_matrix_element_single(k_vec, r_grid, R_vals, 1, 0, z_polarized)
+        M = dipole_matrix_element_single(
+            k_vec, r_grid, R_vals, 1, 0, z_polarized
+        )
         assert jnp.isfinite(M)
 
     def test_jit_compatible(self, r_grid, z_polarized):
         """Can be JIT-compiled."""
         R_vals = slater_radial(r_grid, 1, 1.0)
         f = jax.jit(
-            lambda k: dipole_matrix_element_single(k, r_grid, R_vals, 0, 0, z_polarized)
+            lambda k: dipole_matrix_element_single(
+                k, r_grid, R_vals, 0, 0, z_polarized
+            )
         )
         M = f(jnp.array([0.0, 0.0, 1.0]))
         assert jnp.isfinite(M)
@@ -84,7 +92,9 @@ class TestDipoleIntensityOrbital:
         """Intensity equals |M|^2."""
         R_vals = slater_radial(r_grid, 1, 1.0)
         k_vec = jnp.array([0.0, 0.0, 1.5])
-        M = dipole_matrix_element_single(k_vec, r_grid, R_vals, 0, 0, z_polarized)
+        M = dipole_matrix_element_single(
+            k_vec, r_grid, R_vals, 0, 0, z_polarized
+        )
         I = dipole_intensity_orbital(k_vec, r_grid, R_vals, 0, 0, z_polarized)
         assert jnp.allclose(I, jnp.abs(M) ** 2, atol=1e-12)
 

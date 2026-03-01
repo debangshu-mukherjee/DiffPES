@@ -126,15 +126,9 @@ class TestYehLindauWeights(chex.TestCase):
         var_fn = self.variant(yeh_lindau_weights)
         w = var_fn(20.0)
         chex.assert_shape(w, (9,))
-        chex.assert_trees_all_close(
-            w[0], jnp.float64(0.1), atol=1e-5
-        )
-        chex.assert_trees_all_close(
-            w[1], jnp.float64(0.6), atol=1e-5
-        )
-        chex.assert_trees_all_close(
-            w[4], jnp.float64(2.0), atol=1e-5
-        )
+        chex.assert_trees_all_close(w[0], jnp.float64(0.1), atol=1e-5)
+        chex.assert_trees_all_close(w[1], jnp.float64(0.6), atol=1e-5)
+        chex.assert_trees_all_close(w[4], jnp.float64(2.0), atol=1e-5)
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_interpolated(self):

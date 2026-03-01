@@ -89,7 +89,7 @@ class TestSlaterParams:
         )
 
         def loss(sp):
-            return jnp.sum(sp.zeta ** 2)
+            return jnp.sum(sp.zeta**2)
 
         sp = make_slater_params(
             zeta=jnp.array([2.0]),
@@ -132,7 +132,9 @@ class TestDiagonalizedBands:
         K, B, O = 2, 2, 2
         diag = make_diagonalized_bands(
             eigenvalues=jnp.array([[1.0, 2.0], [3.0, 4.0]]),
-            eigenvectors=jnp.eye(2, dtype=jnp.complex128)[None].repeat(2, axis=0),
+            eigenvectors=jnp.eye(2, dtype=jnp.complex128)[None].repeat(
+                2, axis=0
+            ),
             kpoints=jnp.zeros((2, 3)),
         )
         leaves, treedef = jax.tree_util.tree_flatten(diag)
@@ -175,7 +177,7 @@ class TestTBModel:
         )
 
         def loss(m):
-            return jnp.sum(m.hopping_params ** 2)
+            return jnp.sum(m.hopping_params**2)
 
         grad = jax.grad(loss)(model)
         assert jnp.allclose(grad.hopping_params, 2.0)

@@ -90,9 +90,7 @@ class TestDensityOfStates(chex.TestCase):
             path = Path(td) / "dos.h5"
             save_to_h5(path, dos=dos)
             loaded = load_from_h5(path, name="dos")
-        chex.assert_trees_all_close(
-            loaded.energy, dos.energy, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.energy, dos.energy, atol=1e-12)
         chex.assert_trees_all_close(
             loaded.total_dos,
             dos.total_dos,
@@ -126,9 +124,7 @@ class TestBandStructure(chex.TestCase):
         """
         nk, nb = 10, 4
         bands = make_band_structure(
-            eigenvalues=jnp.linspace(
-                -2.0, 0.5, nk * nb
-            ).reshape(nk, nb),
+            eigenvalues=jnp.linspace(-2.0, 0.5, nk * nb).reshape(nk, nb),
             kpoints=jnp.zeros((nk, 3)),
             fermi_energy=0.0,
         )
@@ -141,9 +137,7 @@ class TestBandStructure(chex.TestCase):
             bands.eigenvalues,
             atol=1e-12,
         )
-        chex.assert_trees_all_close(
-            loaded.kpoints, bands.kpoints, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.kpoints, bands.kpoints, atol=1e-12)
         chex.assert_trees_all_close(
             loaded.kpoint_weights,
             bands.kpoint_weights,
@@ -257,9 +251,7 @@ class TestOrbitalProjection(chex.TestCase):
             orb.projections,
             atol=1e-12,
         )
-        chex.assert_trees_all_close(
-            loaded.spin, orb.spin, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.spin, orb.spin, atol=1e-12)
         assert loaded.oam is None
 
     def test_round_trip_with_all(self):
@@ -289,12 +281,8 @@ class TestOrbitalProjection(chex.TestCase):
             orb.projections,
             atol=1e-12,
         )
-        chex.assert_trees_all_close(
-            loaded.spin, orb.spin, atol=1e-12
-        )
-        chex.assert_trees_all_close(
-            loaded.oam, orb.oam, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.spin, orb.spin, atol=1e-12)
+        chex.assert_trees_all_close(loaded.oam, orb.oam, atol=1e-12)
 
 
 class TestSimulationParams(chex.TestCase):
@@ -334,9 +322,7 @@ class TestSimulationParams(chex.TestCase):
             params.energy_min,
             atol=1e-12,
         )
-        chex.assert_trees_all_close(
-            loaded.sigma, params.sigma, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.sigma, params.sigma, atol=1e-12)
         chex.assert_trees_all_close(
             loaded.photon_energy,
             params.photon_energy,
@@ -374,12 +360,8 @@ class TestPolarizationConfig(chex.TestCase):
             path = Path(td) / "pol.h5"
             save_to_h5(path, pol=pol)
             loaded = load_from_h5(path, name="pol")
-        chex.assert_trees_all_close(
-            loaded.theta, pol.theta, atol=1e-12
-        )
-        chex.assert_trees_all_close(
-            loaded.phi, pol.phi, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.theta, pol.theta, atol=1e-12)
+        chex.assert_trees_all_close(loaded.phi, pol.phi, atol=1e-12)
         assert loaded.polarization_type == "LHP"
 
 
@@ -447,9 +429,7 @@ class TestCrystalGeometry(chex.TestCase):
         All four arrays match; symbols tuple preserved.
         """
         lattice = jnp.eye(3) * 5.43
-        coords = jnp.array(
-            [[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]]
-        )
+        coords = jnp.array([[0.0, 0.0, 0.0], [0.25, 0.25, 0.25]])
         geo = make_crystal_geometry(
             lattice=lattice,
             coords=coords,
@@ -460,17 +440,13 @@ class TestCrystalGeometry(chex.TestCase):
             path = Path(td) / "geo.h5"
             save_to_h5(path, geo=geo)
             loaded = load_from_h5(path, name="geo")
-        chex.assert_trees_all_close(
-            loaded.lattice, geo.lattice, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.lattice, geo.lattice, atol=1e-12)
         chex.assert_trees_all_close(
             loaded.reciprocal_lattice,
             geo.reciprocal_lattice,
             atol=1e-12,
         )
-        chex.assert_trees_all_close(
-            loaded.coords, geo.coords, atol=1e-12
-        )
+        chex.assert_trees_all_close(loaded.coords, geo.coords, atol=1e-12)
         chex.assert_trees_all_close(
             loaded.atom_counts,
             geo.atom_counts,
@@ -501,9 +477,7 @@ class TestMultiPyTree(chex.TestCase):
         """
         nk, nb, na = 8, 3, 2
         bands = make_band_structure(
-            eigenvalues=jnp.linspace(
-                -2.0, 0.5, nk * nb
-            ).reshape(nk, nb),
+            eigenvalues=jnp.linspace(-2.0, 0.5, nk * nb).reshape(nk, nb),
             kpoints=jnp.zeros((nk, 3)),
         )
         orb = make_orbital_projection(
@@ -512,9 +486,7 @@ class TestMultiPyTree(chex.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "multi.h5"
             save_to_h5(path, bands=bands, orb=orb)
-            loaded_bands = load_from_h5(
-                path, name="bands"
-            )
+            loaded_bands = load_from_h5(path, name="bands")
             loaded_orb = load_from_h5(path, name="orb")
         chex.assert_trees_all_close(
             loaded_bands.eigenvalues,
@@ -541,9 +513,7 @@ class TestMultiPyTree(chex.TestCase):
         """
         nk, nb = 8, 3
         bands = make_band_structure(
-            eigenvalues=jnp.linspace(
-                -2.0, 0.5, nk * nb
-            ).reshape(nk, nb),
+            eigenvalues=jnp.linspace(-2.0, 0.5, nk * nb).reshape(nk, nb),
             kpoints=jnp.zeros((nk, 3)),
         )
         spectrum = make_arpes_spectrum(
@@ -552,9 +522,7 @@ class TestMultiPyTree(chex.TestCase):
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "multi_all.h5"
-            save_to_h5(
-                path, bands=bands, spectrum=spectrum
-            )
+            save_to_h5(path, bands=bands, spectrum=spectrum)
             loaded = load_from_h5(path)
         assert isinstance(loaded, dict)
         assert "bands" in loaded
@@ -581,9 +549,7 @@ class TestErrorHandling(chex.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "empty.h5"
-            with pytest.raises(
-                ValueError, match="At least"
-            ):
+            with pytest.raises(ValueError, match="At least"):
                 save_to_h5(path)
 
     def test_unsupported_type_raises(self):
@@ -600,9 +566,7 @@ class TestErrorHandling(chex.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "bad.h5"
-            with pytest.raises(
-                TypeError, match="Unsupported"
-            ):
+            with pytest.raises(TypeError, match="Unsupported"):
                 save_to_h5(path, bad=(1, 2, 3))
 
     def test_missing_group_raises(self):
@@ -624,9 +588,7 @@ class TestErrorHandling(chex.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "missing.h5"
             save_to_h5(path, a=dos)
-            with pytest.raises(
-                KeyError, match="not found"
-            ):
+            with pytest.raises(KeyError, match="not found"):
                 load_from_h5(path, name="b")
 
     def test_load_unknown_pytree_type_raises(self):
@@ -730,9 +692,7 @@ class TestDatasetFlags(chex.TestCase):
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "bad_flags.h5"
-            with pytest.raises(
-                ValueError, match="compression_opts"
-            ):
+            with pytest.raises(ValueError, match="compression_opts"):
                 save_to_h5(
                     path,
                     compression_opts=4,

@@ -132,15 +132,15 @@ def vasp_to_diagonalized(
     # Map orbital basis to VASP orbital indices
     # VASP ordering: [s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2]
     vasp_lm_to_idx = {
-        (0, 0): 0,    # s
-        (1, -1): 1,   # py
-        (1, 0): 2,    # pz
-        (1, 1): 3,    # px
-        (2, -2): 4,   # dxy
-        (2, -1): 5,   # dyz
-        (2, 0): 6,    # dz2
-        (2, 1): 7,    # dxz
-        (2, 2): 8,    # dx2-y2
+        (0, 0): 0,  # s
+        (1, -1): 1,  # py
+        (1, 0): 2,  # pz
+        (1, 1): 3,  # px
+        (2, -2): 4,  # dxy
+        (2, -1): 5,  # dyz
+        (2, 0): 6,  # dz2
+        (2, 1): 7,  # dxz
+        (2, 2): 8,  # dx2-y2
     }
 
     n_orbs = len(orbital_basis.l_values)

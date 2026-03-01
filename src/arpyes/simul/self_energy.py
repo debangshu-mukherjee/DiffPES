@@ -37,13 +37,12 @@ def evaluate_self_energy(
 
     if mode == "constant":
         return jnp.broadcast_to(config.coefficients[0], energy.shape)
-    elif mode == "polynomial":
+    if mode == "polynomial":
         return jnp.polyval(config.coefficients, energy)
-    elif mode == "tabulated":
+    if mode == "tabulated":
         return jnp.interp(energy, config.energy_nodes, config.coefficients)
-    else:
-        msg = f"Unknown self-energy mode: {mode}"
-        raise ValueError(msg)
+    msg = f"Unknown self-energy mode: {mode}"
+    raise ValueError(msg)
 
 
 __all__: list[str] = ["evaluate_self_energy"]

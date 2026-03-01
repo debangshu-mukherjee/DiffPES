@@ -12,7 +12,11 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
 
-from arpyes.types import OrbitalBasis, TBModel, make_orbital_basis, make_tb_model
+from arpyes.types import (
+    TBModel,
+    make_orbital_basis,
+    make_tb_model,
+)
 from arpyes.types.aliases import ScalarFloat
 
 
@@ -92,7 +96,7 @@ def make_1d_chain_model(
         labels=("s",),
     )
     hopping_indices = (
-        (0, 0, (1, 0, 0)),   # +R hop
+        (0, 0, (1, 0, 0)),  # +R hop
         (0, 0, (-1, 0, 0)),  # -R hop
     )
     lattice = jnp.eye(3, dtype=jnp.float64)
@@ -138,13 +142,13 @@ def make_graphene_model(
 
     # Three nearest-neighbor hoppings A->B
     hopping_indices = (
-        (0, 1, (0, 0, 0)),    # same cell
-        (0, 1, (-1, 0, 0)),   # -a1
-        (0, 1, (0, -1, 0)),   # -a2
+        (0, 1, (0, 0, 0)),  # same cell
+        (0, 1, (-1, 0, 0)),  # -a1
+        (0, 1, (0, -1, 0)),  # -a2
         # Hermitian conjugates (B->A)
-        (1, 0, (0, 0, 0)),    # same cell
-        (1, 0, (1, 0, 0)),    # +a1
-        (1, 0, (0, 1, 0)),    # +a2
+        (1, 0, (0, 0, 0)),  # same cell
+        (1, 0, (1, 0, 0)),  # +a1
+        (1, 0, (0, 1, 0)),  # +a2
     )
     t_val = jnp.asarray(t, dtype=jnp.float64)
     hopping_params = jnp.array(

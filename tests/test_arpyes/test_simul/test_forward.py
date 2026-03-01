@@ -5,7 +5,11 @@ import jax.numpy as jnp
 import pytest
 
 from arpyes.simul.forward import simulate_tb_radial
-from arpyes.tb import diagonalize_tb, make_1d_chain_model, make_graphene_model
+from arpyes.tightb import (
+    diagonalize_tb,
+    make_1d_chain_model,
+    make_graphene_model,
+)
 from arpyes.types import (
     make_orbital_basis,
     make_polarization_config,
@@ -19,7 +23,9 @@ from arpyes.types import (
 def chain_setup():
     """1D chain model with Slater s-orbital."""
     model = make_1d_chain_model(t=-1.0)
-    kpoints = jnp.linspace(-0.4, 0.4, 10)[:, None] * jnp.array([[1.0, 0.0, 0.0]])
+    kpoints = jnp.linspace(-0.4, 0.4, 10)[:, None] * jnp.array(
+        [[1.0, 0.0, 0.0]]
+    )
     diag = diagonalize_tb(model, kpoints)
     basis = make_orbital_basis(
         n_values=(1,),
@@ -78,7 +84,9 @@ class TestSimulateTBRadial:
         """Self-energy mode runs without error."""
         diag, slater, params, pol = chain_setup
         se = make_self_energy_config(gamma=0.15, mode="constant")
-        spectrum = simulate_tb_radial(diag, slater, params, pol, self_energy=se)
+        spectrum = simulate_tb_radial(
+            diag, slater, params, pol, self_energy=se
+        )
         assert jnp.all(jnp.isfinite(spectrum.intensity))
 
     def test_with_momentum_broadening(self, chain_setup):
@@ -90,8 +98,12 @@ class TestSimulateTBRadial:
     def test_work_function_effect(self, chain_setup):
         """Changing work function changes the spectrum."""
         diag, slater, params, pol = chain_setup
-        spec1 = simulate_tb_radial(diag, slater, params, pol, work_function=4.0)
-        spec2 = simulate_tb_radial(diag, slater, params, pol, work_function=6.0)
+        spec1 = simulate_tb_radial(
+            diag, slater, params, pol, work_function=4.0
+        )
+        spec2 = simulate_tb_radial(
+            diag, slater, params, pol, work_function=6.0
+        )
         # Intensities should differ
         assert not jnp.allclose(spec1.intensity, spec2.intensity)
 
@@ -110,7 +122,10 @@ class TestSimulateTBRadial:
                 orbital_basis=basis,
             )
             spectrum = simulate_tb_radial(
-                diag, sp, params, pol,
+                diag,
+                sp,
+                params,
+                pol,
                 r_grid=jnp.linspace(1e-6, 30.0, 2000),
             )
             return jnp.sum(spectrum.intensity)
@@ -121,7 +136,9 @@ class TestSimulateTBRadial:
     def test_gradient_wrt_hopping(self):
         """End-to-end gradient through TB diag + simulate is finite."""
         model = make_1d_chain_model(t=-1.0)
-        kpoints = jnp.linspace(-0.3, 0.3, 5)[:, None] * jnp.array([[1.0, 0.0, 0.0]])
+        kpoints = jnp.linspace(-0.3, 0.3, 5)[:, None] * jnp.array(
+            [[1.0, 0.0, 0.0]]
+        )
         basis = make_orbital_basis(
             n_values=(1,),
             l_values=(0,),
@@ -146,22 +163,29 @@ class TestSimulateTBRadial:
             m = model._replace(hopping_params=hop)
             diag = diagonalize_tb(m, kpoints)
             spec = simulate_tb_radial(
-                diag, slater, params, pol,
+                diag,
+                slater,
+                params,
+                pol,
                 r_grid=jnp.linspace(1e-6, 30.0, 2000),
             )
             return jnp.sum(spec.intensity)
 
         grad = jax.grad(loss)(model.hopping_params)
-        assert jnp.all(jnp.isfinite(grad)), f"Gradient w.r.t. hopping is {grad}"
+        assert jnp.all(
+            jnp.isfinite(grad)
+        ), f"Gradient w.r.t. hopping is {grad}"
 
     def test_graphene_runs(self):
         """Graphene model with two pz orbitals runs end-to-end."""
         model = make_graphene_model(t=-2.7)
-        kpoints = jnp.array([
-            [0.0, 0.0, 0.0],
-            [1.0 / 3, 1.0 / 3, 0.0],
-            [2.0 / 3, 1.0 / 3, 0.0],
-        ])
+        kpoints = jnp.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0 / 3, 1.0 / 3, 0.0],
+                [2.0 / 3, 1.0 / 3, 0.0],
+            ]
+        )
         diag = diagonalize_tb(model, kpoints)
         basis = make_orbital_basis(
             n_values=(2, 2),
@@ -184,7 +208,10 @@ class TestSimulateTBRadial:
         )
         pol = make_polarization_config(polarization_type="LHP")
         spectrum = simulate_tb_radial(
-            diag, slater, params, pol,
+            diag,
+            slater,
+            params,
+            pol,
             r_grid=jnp.linspace(1e-6, 30.0, 2000),
         )
         assert spectrum.intensity.shape == (3, 300)

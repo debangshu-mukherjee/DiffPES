@@ -59,9 +59,9 @@ def _make_spectrum(nk=20, ne=120):
     spectrum : ArpesSpectrum
         PyTree with intensity (nk, ne) and energy_axis (ne,).
     """
-    intensity = jnp.linspace(
-        0.0, 1.0, nk * ne, dtype=jnp.float64
-    ).reshape(nk, ne)
+    intensity = jnp.linspace(0.0, 1.0, nk * ne, dtype=jnp.float64).reshape(
+        nk, ne
+    )
     energy_axis = jnp.linspace(-2.0, 0.5, ne)
     return make_arpes_spectrum(
         intensity=intensity,
@@ -87,15 +87,11 @@ class TestPlotArpesSpectrum(chex.TestCase):
         resources.
         """
         spectrum = _make_spectrum()
-        fig, ax, image = plot_arpes_spectrum(
-            spectrum, colorbar=False
-        )
+        fig, ax, image = plot_arpes_spectrum(spectrum, colorbar=False)
         chex.assert_equal(image.get_array().shape, (120, 20))
         chex.assert_equal(ax.get_xlabel(), "k-point index")
         chex.assert_equal(ax.get_ylabel(), "Energy (eV)")
-        chex.assert_equal(
-            ax.get_title(), "Simulated ARPES Spectrum"
-        )
+        chex.assert_equal(ax.get_title(), "Simulated ARPES Spectrum")
         plt.close(fig)
 
     def test_with_clim_and_colorbar(self):
@@ -125,7 +121,9 @@ class TestPlotArpesSpectrum(chex.TestCase):
             intensity=jnp.linspace(0.0, 1.0, 10),
             energy_axis=jnp.linspace(-1.0, 1.0, 10),
         )
-        with pytest.raises(ValueError, match="Expected spectrum.intensity to have shape"):
+        with pytest.raises(
+            ValueError, match="Expected spectrum.intensity to have shape"
+        ):
             plot_arpes_spectrum(spectrum, colorbar=False)
 
     def test_validation_rejects_wrong_energy_axis_ndim(self):
@@ -139,7 +137,9 @@ class TestPlotArpesSpectrum(chex.TestCase):
             intensity=jnp.zeros((5, 10)),
             energy_axis=jnp.zeros((10, 2)),
         )
-        with pytest.raises(ValueError, match="Expected spectrum.energy_axis to have shape"):
+        with pytest.raises(
+            ValueError, match="Expected spectrum.energy_axis to have shape"
+        ):
             plot_arpes_spectrum(spectrum, colorbar=False)
 
     def test_validation_rejects_shape_mismatch(self):

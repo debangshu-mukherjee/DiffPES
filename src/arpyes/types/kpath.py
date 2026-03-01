@@ -283,9 +283,7 @@ def make_kpath_info(  # noqa: PLR0913
     """
     nkpts_arr: Int[Array, " "] = jnp.asarray(num_kpoints, dtype=jnp.int32)
     indices_arr: Int[Array, " L"] = jnp.asarray(label_indices, dtype=jnp.int32)
-    pps_arr: Int[Array, " "] = jnp.asarray(
-        points_per_segment, dtype=jnp.int32
-    )
+    pps_arr: Int[Array, " "] = jnp.asarray(points_per_segment, dtype=jnp.int32)
     segments_arr: Int[Array, " "] = jnp.asarray(segments, dtype=jnp.int32)
     kpoints_arr: Optional[Float[Array, "K 3"]] = None
     if kpoints is not None:

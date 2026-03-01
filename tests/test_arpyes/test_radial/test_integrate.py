@@ -26,7 +26,9 @@ class TestRadialIntegral(chex.TestCase):
         expected = (
             2.0 * norm * (3.0 * zeta**2 - k**2) / ((zeta**2 + k**2) ** 3)
         )
-        chex.assert_trees_all_close(numeric, expected, atol=5.0e-3, rtol=5.0e-3)
+        chex.assert_trees_all_close(
+            numeric, expected, atol=5.0e-3, rtol=5.0e-3
+        )
 
     def test_gradient_wrt_zeta_matches_finite_difference(self):
         """Check gradient of radial integral with respect to Slater exponent."""

@@ -37,10 +37,14 @@ class TestApplyMomentumBroadening:
     def test_conservation(self):
         """Total intensity is approximately conserved."""
         K, E = 30, 20
-        intensity = jnp.abs(jnp.sin(jnp.linspace(0, 3, K))[:, None]) * jnp.ones((1, E))
+        intensity = jnp.abs(
+            jnp.sin(jnp.linspace(0, 3, K))[:, None]
+        ) * jnp.ones((1, E))
         k_distances = jnp.linspace(0, 1, K)
         result = apply_momentum_broadening(intensity, k_distances, 0.05)
-        assert float(jnp.sum(result)) == pytest.approx(float(jnp.sum(intensity)), rel=0.1)
+        assert float(jnp.sum(result)) == pytest.approx(
+            float(jnp.sum(intensity)), rel=0.1
+        )
 
     def test_output_shape(self):
         """Output shape matches input."""
@@ -57,7 +61,9 @@ class TestApplyMomentumBroadening:
         k_distances = jnp.linspace(0, 1, K)
 
         def loss(dk):
-            return jnp.sum(apply_momentum_broadening(intensity, k_distances, dk))
+            return jnp.sum(
+                apply_momentum_broadening(intensity, k_distances, dk)
+            )
 
         grad = jax.grad(loss)(jnp.array(0.1))
         assert jnp.isfinite(grad)

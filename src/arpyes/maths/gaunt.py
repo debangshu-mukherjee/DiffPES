@@ -19,7 +19,7 @@ The table is computed once at module load time using pure Python
 """
 
 import math
-from functools import lru_cache
+from functools import cache
 
 import jax.numpy as jnp
 from jaxtyping import Array, Float
@@ -72,8 +72,10 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
     return float((-1) ** (j1 - j2 - m3) * prefactor * triangle * total)
 
 
-@lru_cache(maxsize=None)
-def _complex_gaunt(l1: int, m1: int, l2: int, m2: int, l3: int, m3: int) -> float:
+@cache
+def _complex_gaunt(
+    l1: int, m1: int, l2: int, m2: int, l3: int, m3: int
+) -> float:
     """Complex Gaunt integral for three complex spherical harmonics.
 
     G = (-1)^m3 * sqrt((2l1+1)(2l2+1)(2l3+1)/(4pi))
@@ -113,23 +115,20 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 
     # Build transformation coefficients for Y_l^m(real)
     # in terms of complex Y_l^mu: Y_l^m(real) = sum_mu U_{m,mu} Y_l^mu
-    def _real_to_complex_coeffs(
-        ll: int, mm: int
-    ) -> list[tuple[complex, int]]:
+    def _real_to_complex_coeffs(ll: int, mm: int) -> list[tuple[complex, int]]:
         """Return [(coeff, mu), ...] such that Y_l^m(real) = sum coeff*Y_l^mu."""
         if mm > 0:
             return [
                 (1.0 / sqrt2, mm),
                 ((-1) ** mm / sqrt2, -mm),
             ]
-        elif mm == 0:
+        if mm == 0:
             return [(1.0, 0)]
-        else:
-            am = abs(mm)
-            return [
-                (-1j * (-1) ** am / sqrt2, am),
-                (1j / sqrt2, -am),
-            ]
+        am = abs(mm)
+        return [
+            (-1j * (-1) ** am / sqrt2, am),
+            (1j / sqrt2, -am),
+        ]
 
     # The dipole operator r_q in terms of complex Y_1^mu:
     # r_q is proportional to Y_1^q(complex)
@@ -166,7 +165,11 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
                 # Using our _complex_gaunt which computes
                 # integral Y_{l1}^{m1} Y_{l2}^{m2} Y_{l3}^{m3}:
                 cg = _complex_gaunt(lp, -rho, 1, nu, l, mu)
-                coeff = complex(c_final).conjugate() * complex(c_dip) * complex(c_init)
+                coeff = (
+                    complex(c_final).conjugate()
+                    * complex(c_dip)
+                    * complex(c_init)
+                )
                 total += coeff * (-1) ** rho * cg
 
     result = total.real
@@ -176,7 +179,9 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     return result
 
 
-def build_gaunt_table(l_max: int = 4) -> Float[Array, "L_src M_src 3 L_dst M_dst"]:
+def build_gaunt_table(
+    l_max: int = 4,
+) -> Float[Array, "L_src M_src 3 L_dst M_dst"]:
     """Build the dipole Gaunt coefficient lookup table.
 
     The table is indexed as ``GAUNT_TABLE[l, m + l_max, q + 1, lp, mp + l_max]``
@@ -226,9 +231,7 @@ L_MAX: int = 4
 """Maximum angular momentum supported by the precomputed table."""
 
 
-def gaunt_lookup(
-    l: int, m: int, q: int, lp: int, mp: int
-) -> float:
+def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
     """Look up a single Gaunt coefficient from the precomputed table.
 
     Parameters

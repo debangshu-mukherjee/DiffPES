@@ -37,7 +37,8 @@ def _normalization(l: int, m: int) -> float:
     """
     am = abs(m)
     return math.sqrt(
-        (2 * l + 1) / (4.0 * math.pi)
+        (2 * l + 1)
+        / (4.0 * math.pi)
         * math.factorial(l - am)
         / math.factorial(l + am)
     )
@@ -93,9 +94,9 @@ def _associated_legendre_plm(
         p_prev2, p_prev1 = state
         idx_f = jnp.asarray(idx, dtype=jnp.float64)
         m_f = jnp.asarray(m, dtype=jnp.float64)
-        p_curr = ((2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2) / (
-            idx_f - m_f
-        )
+        p_curr = (
+            (2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2
+        ) / (idx_f - m_f)
         return p_prev1, p_curr
 
     _, plm = jax.lax.fori_loop(m + 2, l + 1, _step, (pmm, pmm1))
@@ -141,12 +142,11 @@ def real_spherical_harmonic(
 
     if m > 0:
         return jnp.sqrt(2.0) * norm * plm * jnp.cos(m * phi)
-    elif m == 0:
+    if m == 0:
         return norm * plm
-    else:
-        # Cancel the Condon-Shortley phase (-1)^|m| embedded in P_l^|m|
-        # to match the real-to-complex transform used in the Gaunt table.
-        return (-1) ** am * jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
+    # Cancel the Condon-Shortley phase (-1)^|m| embedded in P_l^|m|
+    # to match the real-to-complex transform used in the Gaunt table.
+    return (-1) ** am * jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
 
 
 @jaxtyped(typechecker=beartype)
