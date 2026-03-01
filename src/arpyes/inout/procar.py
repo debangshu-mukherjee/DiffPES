@@ -35,6 +35,8 @@ from arpyes.types import (
 
 _NORBS: int = 9
 _NSPIN_COMPONENTS: int = 6
+_ISPIN2_BLOCKS: int = 2
+_SOC_BLOCKS: int = 4
 
 
 def read_procar(
@@ -85,8 +87,8 @@ def read_procar(
     nbands: int = blocks[0]["nbands"]
     natoms: int = blocks[0]["natoms"]
 
-    is_spin_polarized: bool = nblocks == 2
-    is_soc: bool = nblocks == 4
+    is_spin_polarized: bool = nblocks == _ISPIN2_BLOCKS
+    is_soc: bool = nblocks == _SOC_BLOCKS
 
     if return_mode == "legacy" or (not is_spin_polarized and not is_soc):
         proj_arr: Float[Array, " K B A 9"] = jnp.asarray(

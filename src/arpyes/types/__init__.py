@@ -94,7 +94,9 @@ from .params import (
     make_simulation_params,
 )
 from .volumetric import (
+    SOCVolumetricData,
     VolumetricData,
+    make_soc_volumetric_data,
     make_volumetric_data,
 )
 
@@ -115,6 +117,7 @@ __all__: list[str] = [
     "ScalarFloat",
     "ScalarInteger",
     "ScalarNumeric",
+    "SOCVolumetricData",
     "SimulationParams",
     "VolumetricData",
     "make_arpes_spectrum",
@@ -128,5 +131,6 @@ __all__: list[str] = [
     "make_spin_orbital_projection",
     "make_polarization_config",
     "make_simulation_params",
+    "make_soc_volumetric_data",
     "make_volumetric_data",
 ]

@@ -38,7 +38,7 @@ _NONSPIN_COLS: int = 3
 _SPIN_COLS: int = 5
 
 
-def read_doscar(
+def read_doscar(  # noqa: PLR0912, PLR0915
     filename: str = "DOSCAR",
     return_mode: Literal["legacy", "full"] = "legacy",
 ) -> Union[DensityOfStates, FullDensityOfStates]:
@@ -125,14 +125,15 @@ def read_doscar(
         pdos_arr = None
         pdos_blocks: list[np.ndarray] = []
         for _atom in range(natoms):
-            # Each PDOS block may have a header line repeating EMIN EMAX NEDOS EFERMI
+            # Each PDOS block may have a header line
+            # repeating EMIN EMAX NEDOS EFERMI
             # or just start with data lines
             line: str = fid.readline()
             if not line or not line.strip():
                 break
             # Check if this is a PDOS header (same format as total DOS header)
             line_vals: list[float] = [float(x) for x in line.split()]
-            if len(line_vals) <= _SPIN_COLS and len(line_vals) >= _NONSPIN_COLS:
+            if _NONSPIN_COLS <= len(line_vals) <= _SPIN_COLS:
                 # Could be either a header or short PDOS line
                 # PDOS header has same EMIN EMAX NEDOS EFERMI format
                 # We detect by checking if first value matches energy range

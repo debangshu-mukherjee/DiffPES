@@ -42,7 +42,9 @@ from arpyes.types import (
     OrbitalProjection,
     PolarizationConfig,
     SimulationParams,
+    SOCVolumetricData,
     SpinOrbitalProjection,
+    VolumetricData,
 )
 
 _ATTR_TYPE: str = "_pytree_type"
@@ -277,6 +279,30 @@ def _decode_kpath_aux(
     return (mode, labels, comment, coordinate_mode)
 
 
+def _encode_volumetric_aux(
+    aux: tuple[tuple[int, int, int], tuple[str, ...]],
+) -> list[Any]:
+    """Encode VolumetricData auxiliary data for JSON storage.
+
+    VolumetricData stores ``(grid_shape, symbols)`` as auxiliary data.
+    """
+    grid_shape, symbols = aux
+    return [list(grid_shape), list(symbols)]
+
+
+def _decode_volumetric_aux(
+    val: Any,  # noqa: ANN401
+) -> tuple[tuple[int, int, int], tuple[str, ...]]:
+    """Decode JSON list back to VolumetricData auxiliary data."""
+    grid_shape: tuple[int, int, int] = (
+        int(val[0][0]),
+        int(val[0][1]),
+        int(val[0][2]),
+    )
+    symbols: tuple[str, ...] = tuple(str(s) for s in val[1])
+    return (grid_shape, symbols)
+
+
 _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
     "DensityOfStates": _PyTreeMeta(
         cls=DensityOfStates,
@@ -376,6 +402,31 @@ _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
         ),
         aux_encoder=_encode_tuple_str,
         aux_decoder=_decode_tuple_str,
+    ),
+    "VolumetricData": _PyTreeMeta(
+        cls=VolumetricData,
+        children_fields=(
+            "lattice",
+            "coords",
+            "charge",
+            "magnetization",
+            "atom_counts",
+        ),
+        aux_encoder=_encode_volumetric_aux,
+        aux_decoder=_decode_volumetric_aux,
+    ),
+    "SOCVolumetricData": _PyTreeMeta(
+        cls=SOCVolumetricData,
+        children_fields=(
+            "lattice",
+            "coords",
+            "charge",
+            "magnetization",
+            "magnetization_vector",
+            "atom_counts",
+        ),
+        aux_encoder=_encode_volumetric_aux,
+        aux_decoder=_decode_volumetric_aux,
     ),
 }
 

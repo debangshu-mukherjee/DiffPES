@@ -95,7 +95,16 @@ class KPathInfo(NamedTuple):
     def tree_flatten(
         self,
     ) -> Tuple[
-        Tuple[Int[Array, " "], Int[Array, " L"]],
+        Tuple[
+            Int[Array, " "],
+            Int[Array, " L"],
+            Int[Array, " "],
+            Int[Array, " "],
+            Optional[Float[Array, "K 3"]],
+            Optional[Float[Array, " K"]],
+            Optional[Int[Array, " 3"]],
+            Optional[Float[Array, " 3"]],
+        ],
         Tuple[str, tuple[str, ...], str, str],
     ]:
         """Flatten into JAX children and auxiliary data.

@@ -49,7 +49,13 @@ def select_atoms(
     oam_sub = None
     if orb.oam is not None:
         oam_sub = orb.oam[:, :, idx, :]
-    return type(orb)(
+    if isinstance(orb, SpinOrbitalProjection):
+        return SpinOrbitalProjection(
+            projections=proj_sub,
+            spin=spin_sub,  # type: ignore[arg-type]
+            oam=oam_sub,
+        )
+    return OrbitalProjection(
         projections=proj_sub,
         spin=spin_sub,
         oam=oam_sub,

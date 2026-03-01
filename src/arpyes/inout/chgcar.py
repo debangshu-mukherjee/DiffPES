@@ -5,6 +5,8 @@ Extended Summary
 Reads VASP CHGCAR volumetric files and returns a
 :class:`~arpyes.types.VolumetricData` PyTree containing the crystal
 geometry, charge density, and optional magnetization density.
+For SOC calculations (4 grid blocks), returns an
+:class:`~arpyes.types.SOCVolumetricData` with vector magnetization.
 """
 
 from pathlib import Path
@@ -13,17 +15,31 @@ import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Optional, Tuple
 
-from arpyes.types import VolumetricData, make_volumetric_data
+from arpyes.types import (
+    SOCVolumetricData,
+    VolumetricData,
+    make_soc_volumetric_data,
+    make_volumetric_data,
+)
 
 _LATTICE_ROWS: int = 3
 _XYZ_COMPONENTS: int = 3
 _SCALAR_LINE_COMPONENTS: int = 3
 
 
+_N_SOC_MAG_BLOCKS: int = 3
+
+
 def read_chgcar(
     filename: str = "CHGCAR",
-) -> VolumetricData:
+) -> VolumetricData | SOCVolumetricData:
     """Parse a VASP CHGCAR file.
+
+    Supports three layouts:
+
+    - **ISPIN=1**: 1 grid block (charge only).
+    - **ISPIN=2**: 2 grid blocks (charge + scalar magnetization).
+    - **SOC** (LSORBIT): 4 grid blocks (charge, mx, my, mz).
 
     Parameters
     ----------
@@ -32,9 +48,9 @@ def read_chgcar(
 
     Returns
     -------
-    volumetric : VolumetricData
-        Parsed lattice, coordinates, charge grid, and optional
-        magnetization grid.
+    volumetric : VolumetricData or SOCVolumetricData
+        ``VolumetricData`` for ISPIN=1 or ISPIN=2 files.
+        ``SOCVolumetricData`` for SOC files (4 grid blocks).
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
@@ -68,31 +84,59 @@ def read_chgcar(
         charge_vals.reshape(grid_shape, order="F") / volume
     )
 
-    magnetization_grid: Optional[np.ndarray] = None
-    second_grid_idx, second_shape = _find_next_grid_line(rest_lines, end_idx)
-    if second_grid_idx is not None:
-        ngrid_mag: int = int(np.prod(np.asarray(second_shape, dtype=np.int64)))
-        mag_vals, _ = _parse_float_block(
+    # Read all remaining grid blocks (up to 3 for SOC: mx, my, mz)
+    mag_grids: list[np.ndarray] = []
+    scan_idx: int = end_idx
+    while len(mag_grids) < _N_SOC_MAG_BLOCKS:
+        next_idx, next_shape = _find_next_grid_line(rest_lines, scan_idx)
+        if next_idx is None:
+            break
+        ngrid_mag: int = int(
+            np.prod(np.asarray(next_shape, dtype=np.int64))
+        )
+        mag_vals, scan_idx = _parse_float_block(
             rest_lines,
-            second_grid_idx + 1,
+            next_idx + 1,
             ngrid_mag,
         )
-        magnetization_grid = mag_vals.reshape(second_shape, order="F") / volume
+        mag_grids.append(
+            mag_vals.reshape(next_shape, order="F") / volume
+        )
 
-    volumetric: VolumetricData = make_volumetric_data(
-        lattice=jnp.asarray(lattice, dtype=jnp.float64),
-        coords=jnp.asarray(coords, dtype=jnp.float64),
-        charge=jnp.asarray(charge_grid, dtype=jnp.float64),
+    lattice_arr = jnp.asarray(lattice, dtype=jnp.float64)
+    coords_arr = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr = jnp.asarray(charge_grid, dtype=jnp.float64)
+    counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
+
+    if len(mag_grids) == _N_SOC_MAG_BLOCKS:
+        # SOC: blocks are mx, my, mz
+        mag_vector: np.ndarray = np.stack(mag_grids, axis=-1)
+        return make_soc_volumetric_data(
+            lattice=lattice_arr,
+            coords=coords_arr,
+            charge=charge_arr,
+            magnetization=jnp.asarray(mag_grids[2], dtype=jnp.float64),
+            magnetization_vector=jnp.asarray(
+                mag_vector, dtype=jnp.float64
+            ),
+            grid_shape=grid_shape,
+            symbols=symbols,
+            atom_counts=counts_arr,
+        )
+
+    return make_volumetric_data(
+        lattice=lattice_arr,
+        coords=coords_arr,
+        charge=charge_arr,
         magnetization=(
             None
-            if magnetization_grid is None
-            else jnp.asarray(magnetization_grid, dtype=jnp.float64)
+            if not mag_grids
+            else jnp.asarray(mag_grids[0], dtype=jnp.float64)
         ),
         grid_shape=grid_shape,
         symbols=symbols,
-        atom_counts=jnp.asarray(atom_counts, dtype=jnp.int32),
+        atom_counts=counts_arr,
     )
-    return volumetric
 
 
 def _read_poscar_header(

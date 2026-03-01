@@ -42,8 +42,10 @@ from arpyes.inout import (
 from arpyes.types import (
     BandStructure,
     FullDensityOfStates,
+    SOCVolumetricData,
     SpinBandStructure,
     SpinOrbitalProjection,
+    VolumetricData,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -460,9 +462,10 @@ class TestReadChgcar(chex.TestCase):
     """Tests for :func:`arpyes.inout.read_chgcar`."""
 
     def test_charge_only(self):
-        """Read charge-only CHGCAR and assert shape and values."""
+        """Read charge-only CHGCAR returns VolumetricData."""
         path = _FIXTURES_DIR / "CHGCAR_charge"
         vol = read_chgcar(str(path))
+        assert isinstance(vol, VolumetricData)
         chex.assert_shape(vol.lattice, (3, 3))
         chex.assert_shape(vol.coords, (1, 3))
         assert vol.grid_shape == (2, 2, 2)
@@ -474,10 +477,34 @@ class TestReadChgcar(chex.TestCase):
         )
 
     def test_charge_with_magnetization(self):
-        """Read CHGCAR with magnetization block."""
+        """Read ISPIN=2 CHGCAR returns VolumetricData with magnetization."""
         path = _FIXTURES_DIR / "CHGCAR_spin"
         vol = read_chgcar(str(path))
+        assert isinstance(vol, VolumetricData)
         assert vol.grid_shape == (2, 2, 2)
         chex.assert_shape(vol.charge, (2, 2, 2))
         assert vol.magnetization is not None
         chex.assert_shape(vol.magnetization, (2, 2, 2))
+
+    def test_soc_chgcar(self):
+        """Read SOC CHGCAR returns SOCVolumetricData with vector magnetization."""
+        path = _FIXTURES_DIR / "CHGCAR_soc"
+        vol = read_chgcar(str(path))
+        assert isinstance(vol, SOCVolumetricData)
+        assert vol.grid_shape == (2, 2, 2)
+        chex.assert_shape(vol.charge, (2, 2, 2))
+        chex.assert_shape(vol.magnetization, (2, 2, 2))
+        chex.assert_shape(vol.magnetization_vector, (2, 2, 2, 3))
+        # magnetization should equal mz (4th block)
+        chex.assert_trees_all_close(
+            vol.magnetization,
+            vol.magnetization_vector[..., 2],
+            atol=1e-12,
+        )
+        # mx is block 2 (values 0.10-0.80), check first element
+        # volume = 27.0, raw value 0.10, so grid value = 0.10/27
+        chex.assert_trees_all_close(
+            vol.magnetization_vector[0, 0, 0, 0],
+            jnp.float64(0.10 / 27.0),
+            atol=1e-12,
+        )
