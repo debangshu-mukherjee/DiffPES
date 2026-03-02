@@ -175,7 +175,7 @@ def voigt(
     eta: Float[Array, " "] = (
         1.36603 * ratio - 0.47719 * ratio**2 + 0.11116 * ratio**3
     )
-    eta = jnp.clip(eta, 0.0, 1.0)
+    eta: Float[Array, ""] = jnp.clip(eta, 0.0, 1.0)
     sigma_v: Float[Array, " "] = safe_fv / (2.0 * jnp.sqrt(2.0 * _ln2))
     g_part: Float[Array, " E"] = gaussian(energy_range, center, sigma_v)
     diff: Float[Array, " E"] = energy_range - center

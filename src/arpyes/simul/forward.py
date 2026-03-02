@@ -50,6 +50,7 @@ from arpyes.radial import slater_radial
 from arpyes.types import (
     ArpesSpectrum,
     DiagonalizedBands,
+    OrbitalBasis,
     PolarizationConfig,
     SelfEnergyConfig,
     SimulationParams,
@@ -139,9 +140,9 @@ def _ekin_to_k_magnitude(
     (hbar*c in eV*Angstrom). The function is JAX-traceable and
     supports ``jax.grad`` through the ``jnp.maximum`` guard.
     """
-    e_kin = photon_energy - work_function - jnp.abs(binding_energy)
-    safe_ekin = jnp.maximum(e_kin, 0.0)
-    k_mag = jnp.sqrt(2.0 * _ME_EV * safe_ekin) / _HBAR_C_EV_A
+    e_kin: Float[Array, " "] = photon_energy - work_function - jnp.abs(binding_energy)
+    safe_ekin: Float[Array, " "] = jnp.maximum(e_kin, 0.0)
+    k_mag: Float[Array, " "] = jnp.sqrt(2.0 * _ME_EV * safe_ekin) / _HBAR_C_EV_A
     return k_mag
 
 
@@ -296,21 +297,21 @@ def simulate_tb_radial(
         r_grid = jnp.linspace(1e-6, 50.0, 10000)
 
     # Work function as JAX scalar
-    W = jnp.asarray(work_function, dtype=jnp.float64)
+    W: Float[Array, " "] = jnp.asarray(work_function, dtype=jnp.float64)
 
     # Build polarization E-field
     is_unpolarized: bool = (
         pol_config.polarization_type.lower() == "unpolarized"
     )
 
-    basis = slater_params.orbital_basis
-    n_orbitals = len(basis.n_values)
+    basis: OrbitalBasis = slater_params.orbital_basis
+    n_orbitals: int = len(basis.n_values)
 
     # Precompute radial wavefunctions on the grid for each orbital
     # (Python-level loop, unrolled by JAX tracer)
-    radial_on_grid = []
+    radial_on_grid: list[Float[Array, " R"]] = []
     for o in range(n_orbitals):
-        R_vals = slater_radial(
+        R_vals: Float[Array, " R"] = slater_radial(
             r_grid, basis.n_values[o], slater_params.zeta[o]
         )
         R_vals = R_vals * slater_params.coefficients[o, 0]
@@ -368,17 +369,21 @@ def simulate_tb_radial(
                 Squared modulus of the total dipole matrix element.
             """
             # Compute photoelectron k magnitude from kinematics
-            k_mag = _ekin_to_k_magnitude(params.photon_energy, W, eigenval)
+            k_mag: Float[Array, " "] = _ekin_to_k_magnitude(
+                params.photon_energy, W, eigenval
+            )
             # Use crystal k-direction, scale to photoelectron magnitude
             # Gradient-safe norm: eps avoids NaN grad at Gamma point (k=0)
-            k_norm = jnp.sqrt(jnp.dot(k_crystal, k_crystal) + 1e-30)
-            k_hat = k_crystal / k_norm
-            k_vec = k_hat * k_mag
+            k_norm: Float[Array, " "] = jnp.sqrt(
+                jnp.dot(k_crystal, k_crystal) + 1e-30
+            )
+            k_hat: Float[Array, " 3"] = k_crystal / k_norm
+            k_vec: Float[Array, " 3"] = k_hat * k_mag
 
             # Compute total M = sum_o c_{k,b,o} * M_o
-            M_total = jnp.zeros((), dtype=jnp.complex128)
+            M_total: Complex[Array, " "] = jnp.zeros((), dtype=jnp.complex128)
             for o in range(n_orbitals):
-                M_o = dipole_matrix_element_single(
+                M_o: Complex[Array, " "] = dipole_matrix_element_single(
                     k_vec,
                     r_grid,
                     radial_on_grid[o],
@@ -388,7 +393,8 @@ def simulate_tb_radial(
                 )
                 M_total = M_total + eigvec[o] * M_o
 
-            return jnp.abs(M_total) ** 2
+            intensity_kb: Float[Array, " "] = jnp.abs(M_total) ** 2
+            return intensity_kb
 
         # vmap over bands (B), then over k-points (K)
         _vmap_bands = jax.vmap(
@@ -399,22 +405,25 @@ def simulate_tb_radial(
             _vmap_bands,
             in_axes=(0, 0, 0),
         )
-        return _vmap_k(
+        result: Float[Array, "K B"] = _vmap_k(
             diag_bands.kpoints,
             diag_bands.eigenvectors,
             diag_bands.eigenvalues,
         )
+        return result
 
     # Compute band intensities
     if is_unpolarized:
+        e_s: Float[Array, " 3"]
+        e_p: Float[Array, " 3"]
         e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
-        e_s_c = e_s.astype(jnp.complex128)
-        e_p_c = e_p.astype(jnp.complex128)
-        i_s = _compute_band_intensity_single_efield(e_s_c)
-        i_p = _compute_band_intensity_single_efield(e_p_c)
+        e_s_c: Complex[Array, " 3"] = e_s.astype(jnp.complex128)
+        e_p_c: Complex[Array, " 3"] = e_p.astype(jnp.complex128)
+        i_s: Float[Array, "K B"] = _compute_band_intensity_single_efield(e_s_c)
+        i_p: Float[Array, "K B"] = _compute_band_intensity_single_efield(e_p_c)
         band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
-        efield = build_efield(pol_config)
+        efield: Complex[Array, " 3"] = build_efield(pol_config)
         band_intensity = _compute_band_intensity_single_efield(efield)
 
     # Broadening: Voigt profile with optional energy-dependent gamma
@@ -447,16 +456,17 @@ def simulate_tb_radial(
             Float[Array, " E"]
                 Weighted spectral contribution of this band.
             """
-            fd = fermi_dirac(
+            fd: Float[Array, " "] = fermi_dirac(
                 energy, diag_bands.fermi_energy, params.temperature
             )
             # Per-energy-point Voigt with varying gamma
-            profile = jax.vmap(
+            profile: Float[Array, " E"] = jax.vmap(
                 lambda e_pt, g: voigt(
                     jnp.expand_dims(e_pt, 0), energy, params.sigma, g
                 ).squeeze(),
             )(energy_axis, gamma_E)
-            return bi * fd * profile
+            contribution: Float[Array, " E"] = bi * fd * profile
+            return contribution
 
         def _single_kpoint_se(
             energies: Float[Array, " B"],
@@ -480,8 +490,11 @@ def simulate_tb_radial(
             Float[Array, " E"]
                 Total spectral intensity at this k-point.
             """
-            contributions = jax.vmap(_single_band_se)(energies, bi_k)
-            return jnp.sum(contributions, axis=0)
+            contributions: Float[Array, "B E"] = jax.vmap(_single_band_se)(
+                energies, bi_k
+            )
+            total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
+            return total
 
         intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint_se)(
             diag_bands.eigenvalues, band_intensity
@@ -511,11 +524,14 @@ def simulate_tb_radial(
             Float[Array, " E"]
                 Weighted spectral contribution of this band.
             """
-            fd = fermi_dirac(
+            fd: Float[Array, " "] = fermi_dirac(
                 energy, diag_bands.fermi_energy, params.temperature
             )
-            profile = voigt(energy_axis, energy, params.sigma, params.gamma)
-            return bi * fd * profile
+            profile: Float[Array, " E"] = voigt(
+                energy_axis, energy, params.sigma, params.gamma
+            )
+            contribution: Float[Array, " E"] = bi * fd * profile
+            return contribution
 
         def _single_kpoint(
             energies: Float[Array, " B"],
@@ -539,10 +555,13 @@ def simulate_tb_radial(
             Float[Array, " E"]
                 Total spectral intensity at this k-point.
             """
-            contributions = jax.vmap(_single_band)(energies, bi_k)
-            return jnp.sum(contributions, axis=0)
+            contributions: Float[Array, "B E"] = jax.vmap(_single_band)(
+                energies, bi_k
+            )
+            total: Float[Array, " E"] = jnp.sum(contributions, axis=0)
+            return total
 
-        intensity = jax.vmap(_single_kpoint)(
+        intensity: Float[Array, "K E"] = jax.vmap(_single_kpoint)(
             diag_bands.eigenvalues, band_intensity
         )
 
@@ -551,12 +570,17 @@ def simulate_tb_radial(
         from .resolution import apply_momentum_broadening
 
         # Compute cumulative k-distances
-        dk_vecs = jnp.diff(diag_bands.kpoints, axis=0)
-        dk_norms = jnp.linalg.norm(dk_vecs, axis=1)
-        k_distances = jnp.concatenate([jnp.zeros(1), jnp.cumsum(dk_norms)])
+        dk_vecs: Float[Array, "Km1 3"] = jnp.diff(diag_bands.kpoints, axis=0)
+        dk_norms: Float[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)
+        k_distances: Float[Array, " K"] = jnp.concatenate(
+            [jnp.zeros(1), jnp.cumsum(dk_norms)]
+        )
         intensity = apply_momentum_broadening(intensity, k_distances, dk)
 
-    return make_arpes_spectrum(intensity=intensity, energy_axis=energy_axis)
+    spectrum: ArpesSpectrum = make_arpes_spectrum(
+        intensity=intensity, energy_axis=energy_axis
+    )
+    return spectrum
 
 
 __all__: list[str] = ["simulate_tb_radial"]

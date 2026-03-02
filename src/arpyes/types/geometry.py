@@ -165,14 +165,19 @@ class CrystalGeometry(NamedTuple):
         geometry : CrystalGeometry
             Reconstructed instance with identical data.
         """
+        lattice: Float[Array, "3 3"]
+        reciprocal_lattice: Float[Array, "3 3"]
+        coords: Float[Array, "N 3"]
+        atom_counts: Int[Array, " S"]
         lattice, reciprocal_lattice, coords, atom_counts = children
-        return cls(
+        geometry: CrystalGeometry = cls(
             lattice=lattice,
             reciprocal_lattice=reciprocal_lattice,
             coords=coords,
             symbols=aux_data,
             atom_counts=atom_counts,
         )
+        return geometry
 
 
 def _compute_reciprocal_lattice(

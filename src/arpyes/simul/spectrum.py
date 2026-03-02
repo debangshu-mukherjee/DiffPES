@@ -37,7 +37,7 @@ The ``if is_unpolarized`` branches are intentional Python-side dispatch
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, jaxtyped
 
 from arpyes.types import (
     ArpesSpectrum,
@@ -285,7 +285,7 @@ def simulate_basic(
     )
     orb_w: Float[Array, " 9"] = heuristic_weights(params.photon_energy)
     proj: Float[Array, "K B A 9"] = orb_proj.projections
-    weighted_proj: Float[Array, "K B A 9"] = (
+    weighted_proj: Float[Array, "K B A 8"] = (
         proj[..., _NON_S_ORBITAL_SLICE] * orb_w[_NON_S_ORBITAL_SLICE]
     )
     weights: Float[Array, "K B"] = jnp.sum(
@@ -605,6 +605,8 @@ def simulate_advanced(
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
+        e_s: Float[Array, " 3"]
+        e_p: Float[Array, " 3"]
         e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
@@ -626,7 +628,7 @@ def simulate_advanced(
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
         band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
-        efield = build_efield(pol_config)
+        efield: Complex[Array, " 3"] = build_efield(pol_config)
         m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
         weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
@@ -636,7 +638,7 @@ def simulate_advanced(
             ),
             axis=-1,
         )
-        band_intensity = jnp.abs(w_sum) ** 2
+        band_intensity: Float[Array, "K B"] = jnp.abs(w_sum) ** 2
 
     def _single_band(
         energy: Float[Array, " "],
@@ -797,6 +799,8 @@ def simulate_expert(
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
+        e_s: Float[Array, " 3"]
+        e_p: Float[Array, " 3"]
         e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
@@ -818,7 +822,7 @@ def simulate_expert(
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
         band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
-        efield = build_efield(pol_config)
+        efield: Complex[Array, " 3"] = build_efield(pol_config)
         m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
         weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
@@ -828,7 +832,7 @@ def simulate_expert(
             ),
             axis=-1,
         )
-        band_intensity = jnp.abs(w_sum) ** 2
+        band_intensity: Float[Array, "K B"] = jnp.abs(w_sum) ** 2
 
     def _single_band(
         energy: Float[Array, " "],
@@ -978,6 +982,8 @@ def simulate_soc(
         pol_config.polarization_type.lower() == "unpolarized"
     )
     if is_unpolarized:
+        e_s: Float[Array, " 3"]
+        e_p: Float[Array, " 3"]
         e_s, e_p = build_polarization_vectors(pol_config.theta, pol_config.phi)
         m_s: Float[Array, " 9"] = dipole_matrix_elements(
             e_s.astype(jnp.complex128)
@@ -999,7 +1005,7 @@ def simulate_soc(
         i_p: Float[Array, "K B"] = jnp.abs(wp_sum) ** 2
         band_intensity: Float[Array, "K B"] = (i_s + i_p) / 2.0
     else:
-        efield = build_efield(pol_config)
+        efield: Complex[Array, " 3"] = build_efield(pol_config)
         m_elem: Float[Array, " 9"] = dipole_matrix_elements(efield)
         weighted: Float[Array, "K B A 9"] = proj * orb_w * m_elem
         w_sum: Float[Array, "K B"] = jnp.sum(
@@ -1009,7 +1015,7 @@ def simulate_soc(
             ),
             axis=-1,
         )
-        band_intensity = jnp.abs(w_sum) ** 2
+        band_intensity: Float[Array, "K B"] = jnp.abs(w_sum) ** 2
 
     k_photon: Float[Array, " 3"] = photon_wavevector(
         pol_config.theta, pol_config.phi

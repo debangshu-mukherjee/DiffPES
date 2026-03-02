@@ -123,16 +123,19 @@ def evaluate_self_energy(
     ``"tabulated"`` mode uses ``jnp.interp`` which has limited
     gradient support (piecewise-constant gradients).
     """
-    mode = config.mode
+    mode: str = config.mode
 
     if mode == "constant":
-        return jnp.broadcast_to(config.coefficients[0], energy.shape)
+        result: Float[Array, " ..."] = jnp.broadcast_to(config.coefficients[0], energy.shape)
+        return result
     if mode == "polynomial":
-        return jnp.polyval(config.coefficients, energy)
+        result: Float[Array, " ..."] = jnp.polyval(config.coefficients, energy)
+        return result
     if mode == "tabulated":
         assert config.energy_nodes is not None
-        return jnp.interp(energy, config.energy_nodes, config.coefficients)
-    msg = f"Unknown self-energy mode: {mode}"
+        result: Float[Array, " ..."] = jnp.interp(energy, config.energy_nodes, config.coefficients)
+        return result
+    msg: str = f"Unknown self-energy mode: {mode}"
     raise ValueError(msg)
 
 

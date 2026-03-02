@@ -32,6 +32,7 @@ Routine Listings
 import math
 from functools import cache
 
+import numpy as np
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -108,10 +109,10 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
     if j3 < abs(j1 - j2) or j3 > j1 + j2:
         return 0.0
 
-    t_min = max(0, j2 - j3 - m1, j1 - j3 + m2)
-    t_max = min(j1 + j2 - j3, j1 - m1, j2 + m2)
+    t_min: int = max(0, j2 - j3 - m1, j1 - j3 + m2)
+    t_max: int = min(j1 + j2 - j3, j1 - m1, j2 + m2)
 
-    prefactor = math.sqrt(
+    prefactor: float = math.sqrt(
         math.factorial(j1 + m1)
         * math.factorial(j1 - m1)
         * math.factorial(j2 + m2)
@@ -119,17 +120,17 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
         * math.factorial(j3 + m3)
         * math.factorial(j3 - m3)
     )
-    triangle = math.sqrt(
+    triangle: float = math.sqrt(
         math.factorial(j1 + j2 - j3)
         * math.factorial(j1 - j2 + j3)
         * math.factorial(-j1 + j2 + j3)
         / math.factorial(j1 + j2 + j3 + 1)
     )
 
-    total = 0.0
+    total: float = 0.0
     for t in range(t_min, t_max + 1):
-        sign = (-1) ** t
-        denom = (
+        sign: int = (-1) ** t
+        denom: int = (
             math.factorial(t)
             * math.factorial(j1 + j2 - j3 - t)
             * math.factorial(j1 - m1 - t)
@@ -139,7 +140,8 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
         )
         total += sign / denom
 
-    return float((-1) ** (j1 - j2 - m3) * prefactor * triangle * total)
+    value: float = float((-1) ** (j1 - j2 - m3) * prefactor * triangle * total)
+    return value
 
 
 @cache
@@ -184,17 +186,18 @@ def _complex_gaunt(
     value : float
         The complex Gaunt integral.
     """
-    w3j_000 = _wigner3j(l1, l2, l3, 0, 0, 0)
+    w3j_000: float = _wigner3j(l1, l2, l3, 0, 0, 0)
     if w3j_000 == 0.0:
         return 0.0
-    w3j_mmm = _wigner3j(l1, l2, l3, m1, m2, -m3)
+    w3j_mmm: float = _wigner3j(l1, l2, l3, m1, m2, -m3)
     if w3j_mmm == 0.0:
         return 0.0
 
-    prefactor = (-1) ** m3 * math.sqrt(
+    prefactor: float = (-1) ** m3 * math.sqrt(
         (2 * l1 + 1) * (2 * l2 + 1) * (2 * l3 + 1) / (4.0 * math.pi)
     )
-    return prefactor * w3j_000 * w3j_mmm
+    value: float = prefactor * w3j_000 * w3j_mmm
+    return value
 
 
 def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
@@ -274,7 +277,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     value : float
         The real Gaunt coefficient for the specified quantum numbers.
     """
-    sqrt2 = math.sqrt(2.0)
+    sqrt2: float = math.sqrt(2.0)
 
     # Build transformation coefficients for Y_l^m(real)
     # in terms of complex Y_l^mu: Y_l^m(real) = sum_mu U_{m,mu} Y_l^mu
@@ -307,7 +310,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
             ]
         if mm == 0:
             return [(1.0, 0)]
-        am = abs(mm)
+        am: int = abs(mm)
         return [
             (-1j * (-1) ** am / sqrt2, am),
             (1j / sqrt2, -am),
@@ -328,18 +331,18 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     # mapped to real spherical harmonics of l=1):
     #   r_q(real) corresponds to Y_1^q(real)
     # Transform Y_1^q(real) to complex basis:
-    dip_coeffs = _real_to_complex_coeffs(1, q)
+    dip_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(1, q)
 
     # Coefficients for initial state Y_l^m(real)
-    init_coeffs = _real_to_complex_coeffs(l, m)
+    init_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(l, m)
     # Coefficients for final state Y_{l'}^{m'}(real)
-    final_coeffs = _real_to_complex_coeffs(lp, mp)
+    final_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(lp, mp)
 
     # The real Gaunt integral is:
     # G_real = sum_{mu, nu, rho} conj(U_final(mp,rho)) * U_dip(q,nu) * U_init(m,mu)
     #          * integral Y_{lp}^{rho*} Y_1^nu Y_l^mu d Omega
     # where the integral is the complex Gaunt coefficient.
-    total = 0.0 + 0.0j
+    total: complex = 0.0 + 0.0j
     for c_init, mu in init_coeffs:
         for c_dip, nu in dip_coeffs:
             for c_final, rho in final_coeffs:
@@ -347,17 +350,17 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
                 # = (-1)^rho * integral Y_{lp}^{-rho} Y_1^nu Y_l^mu
                 # Using our _complex_gaunt which computes
                 # integral Y_{l1}^{m1} Y_{l2}^{m2} Y_{l3}^{m3}:
-                cg = _complex_gaunt(lp, -rho, 1, nu, l, mu)
-                coeff = (
+                cg: float = _complex_gaunt(lp, -rho, 1, nu, l, mu)
+                coeff: complex = (
                     complex(c_final).conjugate()
                     * complex(c_dip)
                     * complex(c_init)
                 )
                 total += coeff * (-1) ** rho * cg
 
-    result = total.real
+    result: float = total.real
     if abs(total.imag) > 1e-12:
-        msg = f"Imaginary part {total.imag} in real Gaunt coefficient"
+        msg: str = f"Imaginary part {total.imag} in real Gaunt coefficient"
         raise ValueError(msg)
     return result
 
@@ -412,15 +415,13 @@ def build_gaunt_table(
     array constant, so it does not appear as a trainable parameter in
     any gradient computation.
     """
-    l_src_dim = l_max + 1
-    m_src_dim = 2 * l_max + 1
-    q_dim = 3
-    l_dst_dim = l_max + 2
-    m_dst_dim = 2 * (l_max + 1) + 1
+    l_src_dim: int = l_max + 1
+    m_src_dim: int = 2 * l_max + 1
+    q_dim: int = 3
+    l_dst_dim: int = l_max + 2
+    m_dst_dim: int = 2 * (l_max + 1) + 1
 
-    import numpy as np
-
-    table = np.zeros(
+    table: np.ndarray = np.zeros(
         (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
         dtype=np.float64,
     )
@@ -432,7 +433,7 @@ def build_gaunt_table(
                     if lp < 0 or lp >= l_dst_dim:
                         continue
                     for mp in range(-lp, lp + 1):
-                        val = _real_gaunt_dipole(l, m, lp, mp, q)
+                        val: float = _real_gaunt_dipole(l, m, lp, mp, q)
                         table[l, m + l_max, q + 1, lp, mp + l_max] = val
 
     return jnp.asarray(table, dtype=jnp.float64)

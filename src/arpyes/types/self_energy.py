@@ -158,12 +158,15 @@ class SelfEnergyConfig(NamedTuple):
         config : SelfEnergyConfig
             Reconstructed instance with identical data.
         """
+        coefficients: Float[Array, " P"]
+        energy_nodes: Optional[Float[Array, " P"]]
         coefficients, energy_nodes = children
-        return cls(
+        config: SelfEnergyConfig = cls(
             coefficients=coefficients,
             energy_nodes=energy_nodes,
             mode=aux_data,
         )
+        return config
 
 
 @jaxtyped(typechecker=beartype)
@@ -238,11 +241,12 @@ def make_self_energy_config(
     SelfEnergyConfig : The PyTree class constructed by this factory.
     """
     if mode not in ("constant", "polynomial", "tabulated"):
-        msg = (
+        msg: str = (
             "mode must be 'constant', 'polynomial',"
             f" or 'tabulated', got '{mode}'"
         )
         raise ValueError(msg)
+    coeff_arr: Float[Array, " P"]
     if coefficients is None:
         coeff_arr = jnp.asarray([gamma], dtype=jnp.float64)
     else:
@@ -251,13 +255,14 @@ def make_self_energy_config(
     if energy_nodes is not None:
         nodes_arr = jnp.asarray(energy_nodes, dtype=jnp.float64)
     if mode == "tabulated" and nodes_arr is None:
-        msg = "energy_nodes required for tabulated mode"
+        msg: str = "energy_nodes required for tabulated mode"
         raise ValueError(msg)
-    return SelfEnergyConfig(
+    config: SelfEnergyConfig = SelfEnergyConfig(
         coefficients=coeff_arr,
         energy_nodes=nodes_arr,
         mode=mode,
     )
+    return config
 
 
 __all__: list[str] = [

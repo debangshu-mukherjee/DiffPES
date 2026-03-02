@@ -1,21 +1,24 @@
-r"""Minimal tight-binding infrastructure for testing.
+r"""Legacy tight-binding shim and ARPES-side adapters.
 
 Extended Summary
 ----------------
-Provides a JAX-traceable Hamiltonian builder, differentiable
-diagonalization, and convenience models (graphene, 1D chain)
-for testing the forward simulator pipeline.
+Tight-binding Hamiltonian construction and diagonalization are
+owned by the companion project **DiffTB** (``../DiffTB``).
+ARPyES is purely an ARPES calculator that consumes
+``DiagonalizedBands`` from any electronic-structure source.
+
+This module retains:
+
+- **ARPES-side adapters** that stay here permanently:
+  ``vasp_to_diagonalized``, ``eigenvector_orbital_weights``,
+  ``orbital_coefficients``.
+- **Legacy test fixtures** (no new development):
+  ``build_hamiltonian_k``, ``diagonalize_single_k``,
+  ``diagonalize_tb``, ``make_1d_chain_model``,
+  ``make_graphene_model``.
 
 Routine Listings
 ----------------
-:func:`build_hamiltonian_k`
-    Build the Bloch Hamiltonian H(k) at a single k-point from
-    hopping parameters and lattice vectors.
-:func:`diagonalize_single_k`
-    Diagonalize a Hermitian Hamiltonian at one k-point via
-    ``jnp.linalg.eigh``.
-:func:`diagonalize_tb`
-    Diagonalize a ``TBModel`` at all k-points (vmapped).
 :func:`vasp_to_diagonalized`
     Convert VASP ``BandStructure`` + ``OrbitalProjection`` to
     ``DiagonalizedBands`` (phase-less sqrt approximation).
@@ -24,16 +27,21 @@ Routine Listings
     eigenvectors.
 :func:`orbital_coefficients`
     Return raw complex orbital coefficients (identity accessor).
+:func:`build_hamiltonian_k`
+    (Legacy) Build the Bloch Hamiltonian H(k) at a single k-point.
+:func:`diagonalize_single_k`
+    (Legacy) Diagonalize a Hermitian Hamiltonian at one k-point.
+:func:`diagonalize_tb`
+    (Legacy) Diagonalize a ``TBModel`` at all k-points (vmapped).
 :func:`make_1d_chain_model`
-    Create a one-orbital 1D chain ``TBModel``.
+    (Legacy) Create a one-orbital 1D chain ``TBModel``.
 :func:`make_graphene_model`
-    Create a two-orbital honeycomb graphene ``TBModel``.
+    (Legacy) Create a two-orbital honeycomb graphene ``TBModel``.
 
 Notes
 -----
-All functions are JAX-compatible and fully differentiable with
-respect to ``TBModel.hopping_params``.  The Hamiltonian builder
-and diagonalizer are vmapped over k-points.
+For production tight-binding workflows, use DiffTB to produce
+``DiagonalizedBands`` and pass them to ``simulate_tb_radial``.
 """
 
 from .diagonalize import (

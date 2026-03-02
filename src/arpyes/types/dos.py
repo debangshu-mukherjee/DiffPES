@@ -137,7 +137,8 @@ class DensityOfStates(NamedTuple):
         dos : DensityOfStates
             Reconstructed instance with identical data.
         """
-        return cls(*children)
+        dos: DensityOfStates = cls(*children)
+        return dos
 
 
 @jaxtyped(typechecker=beartype)
@@ -368,6 +369,13 @@ class FullDensityOfStates(NamedTuple):
         dos : FullDensityOfStates
             Reconstructed instance with identical data.
         """
+        energy: Float[Array, " E"]
+        total_dos_up: Float[Array, " E"]
+        total_dos_down: Optional[Float[Array, " E"]]
+        integrated_dos_up: Float[Array, " E"]
+        integrated_dos_down: Optional[Float[Array, " E"]]
+        pdos: Optional[Float[Array, "A E C"]]
+        fermi_energy: Float[Array, " "]
         (
             energy,
             total_dos_up,
@@ -377,7 +385,7 @@ class FullDensityOfStates(NamedTuple):
             pdos,
             fermi_energy,
         ) = children
-        return cls(
+        dos: FullDensityOfStates = cls(
             energy=energy,
             total_dos_up=total_dos_up,
             total_dos_down=total_dos_down,
@@ -387,6 +395,7 @@ class FullDensityOfStates(NamedTuple):
             fermi_energy=fermi_energy,
             natoms=aux_data,
         )
+        return dos
 
 
 @jaxtyped(typechecker=beartype)
@@ -467,20 +476,20 @@ def make_full_density_of_states(
     FullDensityOfStates : The PyTree class constructed by this
         factory.
     """
-    energy_arr = jnp.asarray(energy, dtype=jnp.float64)
-    up_arr = jnp.asarray(total_dos_up, dtype=jnp.float64)
-    int_up_arr = jnp.asarray(integrated_dos_up, dtype=jnp.float64)
-    fermi_arr = jnp.asarray(fermi_energy, dtype=jnp.float64)
-    down_arr = None
+    energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
+    up_arr: Float[Array, " E"] = jnp.asarray(total_dos_up, dtype=jnp.float64)
+    int_up_arr: Float[Array, " E"] = jnp.asarray(integrated_dos_up, dtype=jnp.float64)
+    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    down_arr: Optional[Float[Array, " E"]] = None
     if total_dos_down is not None:
         down_arr = jnp.asarray(total_dos_down, dtype=jnp.float64)
-    int_down_arr = None
+    int_down_arr: Optional[Float[Array, " E"]] = None
     if integrated_dos_down is not None:
         int_down_arr = jnp.asarray(integrated_dos_down, dtype=jnp.float64)
-    pdos_arr = None
+    pdos_arr: Optional[Float[Array, "A E C"]] = None
     if pdos is not None:
         pdos_arr = jnp.asarray(pdos, dtype=jnp.float64)
-    return FullDensityOfStates(
+    dos: FullDensityOfStates = FullDensityOfStates(
         energy=energy_arr,
         total_dos_up=up_arr,
         total_dos_down=down_arr,
@@ -490,6 +499,7 @@ def make_full_density_of_states(
         fermi_energy=fermi_arr,
         natoms=natoms,
     )
+    return dos
 
 
 __all__: list[str] = [

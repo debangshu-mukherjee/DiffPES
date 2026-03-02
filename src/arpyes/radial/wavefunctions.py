@@ -88,10 +88,10 @@ def _associated_laguerre(
         If ``order`` or ``alpha`` is negative.
     """
     if order < 0:
-        msg = "order must be non-negative"
+        msg: str = "order must be non-negative"
         raise ValueError(msg)
     if alpha < 0:
-        msg = "alpha must be non-negative"
+        msg: str = "alpha must be non-negative"
         raise ValueError(msg)
 
     x_arr: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
@@ -108,6 +108,8 @@ def _associated_laguerre(
         current_order: int,
         state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
     ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+        laguerre_prev_prev: Float[Array, " ..."]
+        laguerre_prev: Float[Array, " ..."]
         laguerre_prev_prev, laguerre_prev = state
         order_arr: Float[Array, " "] = jnp.asarray(
             current_order, dtype=jnp.float64
@@ -123,6 +125,7 @@ def _associated_laguerre(
         )
         return laguerre_prev, laguerre_curr
 
+    laguerre_final: Float[Array, " ..."]
     _, laguerre_final = jax.lax.fori_loop(
         2,
         order + 1,
@@ -205,7 +208,7 @@ def slater_radial(
     workflows.
     """
     if n < 1:
-        msg = "n must be >= 1"
+        msg: str = "n must be >= 1"
         raise ValueError(msg)
 
     r_arr: Float[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)
@@ -299,10 +302,10 @@ def hydrogenic_radial(
     and are baked into the traced computation graph.
     """
     if n < 1:
-        msg = "n must be >= 1"
+        msg: str = "n must be >= 1"
         raise ValueError(msg)
     if angular_momentum < 0 or angular_momentum >= n:
-        msg = "angular_momentum must satisfy 0 <= angular_momentum < n"
+        msg: str = "angular_momentum must satisfy 0 <= angular_momentum < n"
         raise ValueError(msg)
 
     r_arr: Float[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)

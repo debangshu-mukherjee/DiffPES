@@ -43,9 +43,10 @@ class DiagonalizedBands(NamedTuple):
     ----------------
     The common interface between VASP-derived and TB-derived inputs
     for the forward simulator ``simulate_tb_radial``. The companion
-    TB-DFT project produces this PyTree by diagonalizing a
-    tight-binding Hamiltonian at each k-point; the VASP adapter
-    ``vasp_to_diagonalized`` constructs it from VASP eigenvectors.
+    DiffTB project (``../DiffTB``) produces this PyTree by
+    diagonalizing a tight-binding Hamiltonian at each k-point; the
+    VASP adapter ``vasp_to_diagonalized`` constructs it from VASP
+    eigenvectors.
 
     By unifying both data sources into a single PyTree type, the
     differentiable forward simulator can accept inputs from either
@@ -181,17 +182,31 @@ class DiagonalizedBands(NamedTuple):
         bands : DiagonalizedBands
             Reconstructed instance with the original array fields.
         """
-        return cls(*children)
+        eigenvalues: Float[Array, "K B"]
+        eigenvectors: Complex[Array, "K B O"]
+        kpoints: Float[Array, "K 3"]
+        fermi_energy: Float[Array, " "]
+        eigenvalues, eigenvectors, kpoints, fermi_energy = children
+        bands: DiagonalizedBands = cls(
+            eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
+            kpoints=kpoints,
+            fermi_energy=fermi_energy,
+        )
+        return bands
 
 
 @register_pytree_node_class
 class TBModel(NamedTuple):
-    """PyTree for tight-binding model parameters.
+    """PyTree for tight-binding model parameters (legacy).
 
     Extended Summary
     ----------------
-    Minimal Slater-Koster tight-binding model for testing the
-    differentiable forward simulator. The Hamiltonian is constructed
+    Minimal Slater-Koster tight-binding model retained for testing
+    the differentiable forward simulator. For production TB
+    workflows, use DiffTB (``../DiffTB``) to construct and
+    diagonalize tight-binding models, then pass the resulting
+    ``DiagonalizedBands`` to ARPyES. The Hamiltonian is constructed
     at each k-point by Fourier-transforming the real-space hopping
     matrix:
 
@@ -332,15 +347,21 @@ class TBModel(NamedTuple):
             Reconstructed instance with the original array and
             structural data.
         """
+        hopping_params: Float[Array, " H"]
+        lattice_vectors: Float[Array, "3 3"]
         hopping_params, lattice_vectors = children
+        hopping_indices: tuple
+        n_orbitals: int
+        orbital_basis: OrbitalBasis
         hopping_indices, n_orbitals, orbital_basis = aux_data
-        return cls(
+        model: TBModel = cls(
             hopping_params=hopping_params,
             lattice_vectors=lattice_vectors,
             hopping_indices=hopping_indices,
             n_orbitals=n_orbitals,
             orbital_basis=orbital_basis,
         )
+        return model
 
 
 @jaxtyped(typechecker=beartype)
@@ -401,16 +422,25 @@ def make_diagonalized_bands(
     --------
     DiagonalizedBands : The PyTree class constructed by this factory.
     """
-    eig_arr = jnp.asarray(eigenvalues, dtype=jnp.float64)
-    vec_arr = jnp.asarray(eigenvectors, dtype=jnp.complex128)
-    kpt_arr = jnp.asarray(kpoints, dtype=jnp.float64)
-    ef_arr = jnp.asarray(fermi_energy, dtype=jnp.float64)
-    return DiagonalizedBands(
+    eig_arr: Float[Array, "K B"] = jnp.asarray(
+        eigenvalues, dtype=jnp.float64
+    )
+    vec_arr: Complex[Array, "K B O"] = jnp.asarray(
+        eigenvectors, dtype=jnp.complex128
+    )
+    kpt_arr: Float[Array, "K 3"] = jnp.asarray(
+        kpoints, dtype=jnp.float64
+    )
+    ef_arr: Float[Array, " "] = jnp.asarray(
+        fermi_energy, dtype=jnp.float64
+    )
+    bands: DiagonalizedBands = DiagonalizedBands(
         eigenvalues=eig_arr,
         eigenvectors=vec_arr,
         kpoints=kpt_arr,
         fermi_energy=ef_arr,
     )
+    return bands
 
 
 @jaxtyped(typechecker=beartype)
@@ -477,15 +507,20 @@ def make_tb_model(
     TBModel : The PyTree class constructed by this factory.
     make_orbital_basis : Factory for the ``OrbitalBasis`` argument.
     """
-    hop_arr = jnp.asarray(hopping_params, dtype=jnp.float64)
-    lat_arr = jnp.asarray(lattice_vectors, dtype=jnp.float64)
-    return TBModel(
+    hop_arr: Float[Array, " H"] = jnp.asarray(
+        hopping_params, dtype=jnp.float64
+    )
+    lat_arr: Float[Array, "3 3"] = jnp.asarray(
+        lattice_vectors, dtype=jnp.float64
+    )
+    model: TBModel = TBModel(
         hopping_params=hop_arr,
         lattice_vectors=lat_arr,
         hopping_indices=hopping_indices,
         n_orbitals=n_orbitals,
         orbital_basis=orbital_basis,
     )
+    return model
 
 
 __all__: list[str] = [

@@ -61,10 +61,11 @@ def _odd_double_factorial(order: int) -> float:
         If ``order`` is not a positive odd integer.
     """
     if order < 1 or order % 2 == 0:
-        msg = "order must be a positive odd integer"
+        msg: str = "order must be a positive odd integer"
         raise ValueError(msg)
     product: int = math.prod(range(1, order + 1, 2))
-    return float(product)
+    value: float = float(product)
+    return value
 
 
 @jaxtyped(typechecker=beartype)
@@ -146,7 +147,7 @@ def spherical_bessel_jl(
     on ``order`` statically.
     """
     if order < 0:
-        msg = "order must be non-negative"
+        msg: str = "order must be non-negative"
         raise ValueError(msg)
 
     x_arr: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
@@ -155,19 +156,23 @@ def spherical_bessel_jl(
 
     j0_nonzero: Float[Array, " ..."] = jnp.sin(x_safe) / x_safe
     if order == 0:
-        return jnp.where(small_mask, 1.0, j0_nonzero)
+        j0_result: Float[Array, " ..."] = jnp.where(small_mask, 1.0, j0_nonzero)
+        return j0_result
 
     j1_nonzero: Float[Array, " ..."] = (
         jnp.sin(x_safe) / (x_safe * x_safe) - jnp.cos(x_safe) / x_safe
     )
     if order == 1:
         j1_limit: Float[Array, " ..."] = x_arr / 3.0
-        return jnp.where(small_mask, j1_limit, j1_nonzero)
+        j1_result: Float[Array, " ..."] = jnp.where(small_mask, j1_limit, j1_nonzero)
+        return j1_result
 
     def _recurrence_step(
         index: int,
         state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
     ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+        previous: Float[Array, " ..."]
+        current: Float[Array, " ..."]
         previous, current = state
         index_arr: Float[Array, " "] = jnp.asarray(index, dtype=jnp.float64)
         next_value: Float[Array, " ..."] = (
@@ -175,6 +180,7 @@ def spherical_bessel_jl(
         ) * current - previous
         return current, next_value
 
+    jl_nonzero: Float[Array, " ..."]
     _, jl_nonzero = jax.lax.fori_loop(
         1,
         order,

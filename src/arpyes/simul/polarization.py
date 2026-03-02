@@ -125,7 +125,7 @@ def build_polarization_vectors(
         ],
         dtype=jnp.float64,
     )
-    k_photon = k_photon / jnp.linalg.norm(k_photon)
+    k_photon: Float[Array, " 3"] = k_photon / jnp.linalg.norm(k_photon)
     z_hat: Float[Array, " 3"] = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float64)
     y_hat: Float[Array, " 3"] = jnp.array([0.0, 1.0, 0.0], dtype=jnp.float64)
     _collinear_threshold: float = 0.99
@@ -180,7 +180,8 @@ def photon_wavevector(
         ],
         dtype=jnp.float64,
     )
-    return k / jnp.linalg.norm(k)
+    k_hat: Float[Array, " 3"] = k / jnp.linalg.norm(k)
+    return k_hat
 
 
 @jaxtyped(typechecker=beartype)

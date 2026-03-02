@@ -99,6 +99,7 @@ def _faddeeva_taylor_coeffs() -> Complex[Array, " N"]:
         )
         return (c_curr, next_c), next_c
 
+    rest: Complex[Array, " N2"]
     _, rest = jax.lax.scan(
         body,
         (c0, c1),

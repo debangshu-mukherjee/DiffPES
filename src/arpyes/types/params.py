@@ -181,6 +181,12 @@ class SimulationParams(NamedTuple):
         params : SimulationParams
             Reconstructed instance with identical data.
         """
+        energy_min: Float[Array, " "]
+        energy_max: Float[Array, " "]
+        sigma: Float[Array, " "]
+        gamma: Float[Array, " "]
+        temperature: Float[Array, " "]
+        photon_energy: Float[Array, " "]
         (
             energy_min,
             energy_max,
@@ -189,7 +195,7 @@ class SimulationParams(NamedTuple):
             temperature,
             photon_energy,
         ) = children
-        return cls(
+        params: SimulationParams = cls(
             energy_min=energy_min,
             energy_max=energy_max,
             fidelity=aux_data,
@@ -198,6 +204,7 @@ class SimulationParams(NamedTuple):
             temperature=temperature,
             photon_energy=photon_energy,
         )
+        return params
 
 
 @register_pytree_node_class
@@ -328,13 +335,17 @@ class PolarizationConfig(NamedTuple):
         config : PolarizationConfig
             Reconstructed instance with identical data.
         """
+        theta: Float[Array, " "]
+        phi: Float[Array, " "]
+        polarization_angle: Float[Array, " "]
         theta, phi, polarization_angle = children
-        return cls(
+        config: PolarizationConfig = cls(
             theta=theta,
             phi=phi,
             polarization_angle=polarization_angle,
             polarization_type=aux_data,
         )
+        return config
 
 
 @jaxtyped(typechecker=beartype)

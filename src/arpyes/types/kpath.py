@@ -198,6 +198,14 @@ class KPathInfo(NamedTuple):
         kpath : KPathInfo
             Reconstructed instance with identical data.
         """
+        num_kpoints: Int[Array, " "]
+        label_indices: Int[Array, " L"]
+        points_per_segment: Int[Array, " "]
+        segments: Int[Array, " "]
+        kpoints: Optional[Float[Array, "K 3"]]
+        weights: Optional[Float[Array, " K"]]
+        grid: Optional[Int[Array, " 3"]]
+        shift: Optional[Float[Array, " 3"]]
         (
             num_kpoints,
             label_indices,
@@ -208,8 +216,12 @@ class KPathInfo(NamedTuple):
             grid,
             shift,
         ) = children
+        mode: str
+        labels: tuple[str, ...]
+        comment: str
+        coordinate_mode: str
         mode, labels, comment, coordinate_mode = aux_data
-        return cls(
+        kpath: KPathInfo = cls(
             num_kpoints=num_kpoints,
             label_indices=label_indices,
             points_per_segment=points_per_segment,
@@ -223,6 +235,7 @@ class KPathInfo(NamedTuple):
             comment=comment,
             coordinate_mode=coordinate_mode,
         )
+        return kpath
 
 
 @jaxtyped(typechecker=beartype)

@@ -81,23 +81,25 @@ def select_atoms(
     """
     idx: Int[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
     proj_sub: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
-    spin_sub = None
+    spin_sub: Optional[Float[Array, "K B N 9"]] = None
     if orb.spin is not None:
         spin_sub = orb.spin[:, :, idx, :]
-    oam_sub = None
+    oam_sub: Optional[Float[Array, "K B N 9"]] = None
     if orb.oam is not None:
         oam_sub = orb.oam[:, :, idx, :]
     if isinstance(orb, SpinOrbitalProjection):
-        return SpinOrbitalProjection(
+        result_soc: SpinOrbitalProjection = SpinOrbitalProjection(
             projections=proj_sub,
             spin=spin_sub,  # type: ignore[arg-type]
             oam=oam_sub,
         )
-    return OrbitalProjection(
+        return result_soc
+    result: OrbitalProjection = OrbitalProjection(
         projections=proj_sub,
         spin=spin_sub,
         oam=oam_sub,
     )
+    return result
 
 
 def aggregate_atoms(
@@ -146,11 +148,12 @@ def aggregate_atoms(
     the reduction manually.
     """
     if atom_indices is not None:
-        idx = jnp.asarray(atom_indices, dtype=jnp.int32)
-        proj = orb.projections[:, :, idx, :]
+        idx: Int[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
+        proj: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
     else:
         proj = orb.projections
-    return jnp.sum(proj, axis=2)
+    result: Float[Array, "K B 9"] = jnp.sum(proj, axis=2)
+    return result
 
 
 def reduce_orbitals(
@@ -198,7 +201,10 @@ def reduce_orbitals(
     d_total: Float[Array, "K B A"] = jnp.sum(
         projections[..., _D_SLICE], axis=-1
     )
-    return jnp.stack([s_total, p_total, d_total], axis=-1)
+    reduced: Float[Array, "K B A 3"] = jnp.stack(
+        [s_total, p_total, d_total], axis=-1
+    )
+    return reduced
 
 
 def check_consistency(

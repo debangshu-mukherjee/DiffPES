@@ -24,7 +24,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Literal, Union
+from beartype.typing import Literal, Optional, Union
 from jaxtyping import Array, Float
 
 from arpyes.types import (
@@ -155,19 +155,20 @@ def read_doscar(  # noqa: PLR0912, PLR0915
             total_dos: Float[Array, " E"] = jnp.asarray(
                 data[:, 1], dtype=jnp.float64
             )
-            return make_density_of_states(
+            result_legacy: DensityOfStates = make_density_of_states(
                 energy=energy,
                 total_dos=total_dos,
                 fermi_energy=efermi,
             )
+            return result_legacy
 
         # Full mode: extract all columns
         is_spin: bool = ncols == _SPIN_COLS
-        energy_arr = jnp.asarray(data[:, 0], dtype=jnp.float64)
-        dos_up_arr = jnp.asarray(data[:, 1], dtype=jnp.float64)
-        dos_down_arr = None
+        energy_arr: Float[Array, " E"] = jnp.asarray(data[:, 0], dtype=jnp.float64)
+        dos_up_arr: Float[Array, " E"] = jnp.asarray(data[:, 1], dtype=jnp.float64)
+        dos_down_arr: Optional[Float[Array, " E"]] = None
         int_up_arr: Float[Array, " E"]
-        int_down_arr = None
+        int_down_arr: Optional[Float[Array, " E"]] = None
 
         if is_spin:
             dos_down_arr = jnp.asarray(data[:, 2], dtype=jnp.float64)
@@ -177,7 +178,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
             int_up_arr = jnp.asarray(data[:, 2], dtype=jnp.float64)
 
         # Read PDOS blocks if present
-        pdos_arr = None
+        pdos_arr: Optional[Float[Array, "A E C"]] = None
         pdos_blocks: list[np.ndarray] = []
         for _atom in range(natoms):
             # Each PDOS block may have a header line
@@ -229,7 +230,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
                 np.stack(pdos_blocks, axis=0), dtype=jnp.float64
             )
 
-    return make_full_density_of_states(
+    result_full: FullDensityOfStates = make_full_density_of_states(
         energy=energy_arr,
         total_dos_up=dos_up_arr,
         integrated_dos_up=int_up_arr,
@@ -239,6 +240,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
         pdos=pdos_arr,
         natoms=natoms,
     )
+    return result_full
 
 
 __all__: list[str] = [

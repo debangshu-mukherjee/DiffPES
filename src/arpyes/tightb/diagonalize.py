@@ -21,7 +21,7 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Literal
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 from arpyes.types import (
     BandStructure,
@@ -86,8 +86,14 @@ def diagonalize_single_k(
     Degenerate eigenvalues can cause numerical instability in the
     backward pass; this is a known JAX limitation.
     """
+    eigenvalues: Float[Array, " O"]
+    eigenvectors: Complex[Array, "O O"]
     eigenvalues, eigenvectors = jnp.linalg.eigh(H_k)
-    return eigenvalues, eigenvectors
+    result: tuple[Float[Array, " O"], Complex[Array, "O O"]] = (
+        eigenvalues,
+        eigenvectors,
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -145,28 +151,33 @@ def diagonalize_tb(
     """
 
     def _build_and_diag(k: Float[Array, " 3"]) -> tuple:
-        H = build_hamiltonian_k(
+        H: Complex[Array, "O O"] = build_hamiltonian_k(
             k,
             tb_model.hopping_params,
             tb_model.hopping_indices,
             tb_model.n_orbitals,
             tb_model.lattice_vectors,
         )
+        evals: Float[Array, " O"]
+        evecs: Complex[Array, "O O"]
         evals, evecs = diagonalize_single_k(H)
         return evals, evecs
 
+    eigenvalues: Float[Array, "K O"]
+    eigenvectors: Complex[Array, "K O O"]
     eigenvalues, eigenvectors = jax.vmap(_build_and_diag)(kpoints)
     # eigenvectors from eigh: shape (K, O, O) where evecs[:, :, i] is i-th
     # We want (K, B, O) where B=O (number of bands = number of orbitals)
     # Transpose so evecs[k, b, o] = coefficient of orbital o in band b
     eigenvectors = jnp.transpose(eigenvectors, (0, 2, 1))
 
-    return make_diagonalized_bands(
+    bands: DiagonalizedBands = make_diagonalized_bands(
         eigenvalues=eigenvalues,
         eigenvectors=eigenvectors,
         kpoints=kpoints,
         fermi_energy=0.0,
     )
+    return bands
 
 
 @jaxtyped(typechecker=beartype)
@@ -257,7 +268,7 @@ def vasp_to_diagonalized(
     are purely real (zero imaginary part).
     """
     if phase_loss not in ("warn", "ignore", "error"):
-        msg = (
+        msg: str = (
             "phase_loss must be one of {'warn', 'ignore', 'error'}, "
             f"got '{phase_loss}'"
         )
@@ -271,11 +282,11 @@ def vasp_to_diagonalized(
         warnings.warn(_PHASE_LOSS_MESSAGE, RuntimeWarning, stacklevel=2)
 
     # Sum projections over atoms: (K, B, A, 9) -> (K, B, 9)
-    proj_summed = jnp.sum(orb_proj.projections, axis=2)
+    proj_summed: Float[Array, "K B 9"] = jnp.sum(orb_proj.projections, axis=2)
 
     # Map orbital basis to VASP orbital indices
     # VASP ordering: [s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2]
-    vasp_lm_to_idx = {
+    vasp_lm_to_idx: dict[tuple[int, int], int] = {
         (0, 0): 0,  # s
         (1, -1): 1,  # py
         (1, 0): 2,  # pz
@@ -287,12 +298,12 @@ def vasp_to_diagonalized(
         (2, 2): 8,  # dx2-y2
     }
 
-    n_orbs = len(orbital_basis.l_values)
-    orbital_indices = []
+    n_orbs: int = len(orbital_basis.l_values)
+    orbital_indices: list[int] = []
     for i in range(n_orbs):
-        l_val = orbital_basis.l_values[i]
-        m_val = orbital_basis.m_values[i]
-        idx = vasp_lm_to_idx.get((l_val, m_val))
+        l_val: int = orbital_basis.l_values[i]
+        m_val: int = orbital_basis.m_values[i]
+        idx: int | None = vasp_lm_to_idx.get((l_val, m_val))
         if idx is None:
             msg = f"Orbital (l={l_val}, m={m_val}) not in VASP 9-orbital set"
             raise ValueError(msg)
@@ -300,21 +311,26 @@ def vasp_to_diagonalized(
 
     # Extract and take sqrt as approximate coefficients
     # proj_summed shape: (K, B, 9), select columns -> (K, B, n_orbs)
-    idx_arr = jnp.array(orbital_indices)
-    approx_c2 = proj_summed[:, :, idx_arr]
-    approx_c = jnp.sqrt(jnp.maximum(approx_c2, 0.0))
+    idx_arr: Int[Array, " N"] = jnp.array(orbital_indices)
+    approx_c2: Float[Array, "K B N"] = proj_summed[:, :, idx_arr]
+    approx_c: Float[Array, "K B N"] = jnp.sqrt(jnp.maximum(approx_c2, 0.0))
 
     # Normalize eigenvectors per (k, band) so they sum to 1
-    norm = jnp.sqrt(jnp.sum(approx_c**2, axis=-1, keepdims=True))
-    safe_norm = jnp.where(norm > 1e-12, norm, 1.0)
-    eigenvectors = (approx_c / safe_norm).astype(jnp.complex128)
+    norm: Float[Array, "K B 1"] = jnp.sqrt(
+        jnp.sum(approx_c**2, axis=-1, keepdims=True)
+    )
+    safe_norm: Float[Array, "K B 1"] = jnp.where(norm > 1e-12, norm, 1.0)
+    eigenvectors: Complex[Array, "K B N"] = (approx_c / safe_norm).astype(
+        jnp.complex128
+    )
 
-    return make_diagonalized_bands(
+    diag: DiagonalizedBands = make_diagonalized_bands(
         eigenvalues=bands.eigenvalues,
         eigenvectors=eigenvectors,
         kpoints=bands.kpoints,
         fermi_energy=bands.fermi_energy,
     )
+    return diag
 
 
 __all__: list[str] = [

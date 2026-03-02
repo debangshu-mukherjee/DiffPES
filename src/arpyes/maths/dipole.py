@@ -84,11 +84,12 @@ def _cartesian_to_spherical_dipole(
     e_spherical : Complex[Array, " 3"]
         ``(e_{q=-1}, e_{q=0}, e_{q=+1})``.
     """
-    ex = efield[0]
-    ey = efield[1]
-    ez = efield[2]
+    ex: Complex[Array, ""] = efield[0]
+    ey: Complex[Array, ""] = efield[1]
+    ez: Complex[Array, ""] = efield[2]
     # q=+1 ~ x, q=-1 ~ y, q=0 ~ z (real spherical harmonic convention)
-    return jnp.array([ey, ez, ex], dtype=jnp.complex128)
+    e_spherical: Complex[Array, " 3"] = jnp.array([ey, ez, ex], dtype=jnp.complex128)
+    return e_spherical
 
 
 @jaxtyped(typechecker=beartype)
@@ -180,21 +181,23 @@ def dipole_matrix_element_single(
     XLA programs.
     """
     # Gradient-safe norm: eps prevents NaN grad at k_vec=0
-    k_mag = jnp.sqrt(jnp.dot(k_vec, k_vec) + 1e-30)
-    k_hat = k_vec / k_mag
+    k_mag: Float[Array, ""] = jnp.sqrt(jnp.dot(k_vec, k_vec) + 1e-30)
+    k_hat: Float[Array, " 3"] = k_vec / k_mag
 
     # Convert k_hat to spherical angles (safe for grad at poles/origin)
-    theta_k = jnp.arccos(jnp.clip(k_hat[2], -1.0 + 1e-7, 1.0 - 1e-7))
-    phi_k = jnp.arctan2(k_hat[1], k_hat[0] + 1e-30)
+    theta_k: Float[Array, ""] = jnp.arccos(
+        jnp.clip(k_hat[2], -1.0 + 1e-7, 1.0 - 1e-7)
+    )
+    phi_k: Float[Array, ""] = jnp.arctan2(k_hat[1], k_hat[0] + 1e-30)
 
     # Polarization in spherical dipole components
-    e_sph = _cartesian_to_spherical_dipole(efield)
+    e_sph: Complex[Array, " 3"] = _cartesian_to_spherical_dipole(efield)
 
-    M_total = jnp.zeros((), dtype=jnp.complex128)
+    M_total: Complex[Array, ""] = jnp.zeros((), dtype=jnp.complex128)
 
     for q_idx, q in enumerate((-1, 0, 1)):
-        mp = m + q  # final state m'
-        eq = e_sph[q_idx]
+        mp: int = m + q  # final state m'
+        eq: Complex[Array, ""] = e_sph[q_idx]
 
         for lp in (l - 1, l + 1):
             if lp < 0 or lp > L_MAX + 1:
@@ -203,17 +206,24 @@ def dipole_matrix_element_single(
                 continue
 
             # Radial integral B^{l'}(|k|)
-            B_lp = radial_integral(k_mag, r_grid, radial_values, lp)
+            B_lp: Float[Array, ""] = radial_integral(
+                k_mag, r_grid, radial_values, lp
+            )
 
             # Gaunt coefficient G(l, m, l', m')
-            G = GAUNT_TABLE[l, m + L_MAX, q + 1, lp, mp + L_MAX]
+            G: Float[Array, ""] = GAUNT_TABLE[
+                l, m + L_MAX, q + 1, lp, mp + L_MAX
+            ]
 
             # Spherical harmonic Y_{l'}^{m'}(k_hat)
-            Y_lp_mp = real_spherical_harmonic(lp, mp, theta_k, phi_k)
+            Y_lp_mp: Float[Array, ""] = real_spherical_harmonic(
+                lp, mp, theta_k, phi_k
+            )
 
             M_total = M_total + eq * B_lp * G * Y_lp_mp
 
-    return M_total
+    M: Complex[Array, ""] = M_total
+    return M
 
 
 @jaxtyped(typechecker=beartype)
@@ -264,10 +274,11 @@ def dipole_intensity_orbital(
     intensity : Float[Array, " "]
         Squared modulus of the matrix element.
     """
-    M = dipole_matrix_element_single(
+    M: Complex[Array, ""] = dipole_matrix_element_single(
         k_vec, r_grid, radial_values, l, m, efield
     )
-    return jnp.abs(M) ** 2
+    intensity: Float[Array, ""] = jnp.abs(M) ** 2
+    return intensity
 
 
 @jaxtyped(typechecker=beartype)
@@ -326,27 +337,28 @@ def dipole_intensities_all_orbitals(
     basis size requires re-tracing / re-JITting.
     """
     basis = slater_params.orbital_basis
-    n_orbitals = len(basis.n_values)
-    results = []
+    n_orbitals: int = len(basis.n_values)
+    results: list[Float[Array, ""]] = []
 
     for o in range(n_orbitals):
-        n_o = basis.n_values[o]
-        l_o = basis.l_values[o]
-        m_o = basis.m_values[o]
-        zeta_o = slater_params.zeta[o]
+        n_o: int = basis.n_values[o]
+        l_o: int = basis.l_values[o]
+        m_o: int = basis.m_values[o]
+        zeta_o: Float[Array, ""] = slater_params.zeta[o]
 
         # Compute radial wavefunction on the grid
-        R_values = slater_radial(r_grid, n_o, zeta_o)
+        R_values: Float[Array, " R"] = slater_radial(r_grid, n_o, zeta_o)
 
         # Weight by multi-zeta coefficient (first column for single-zeta)
         R_values = R_values * slater_params.coefficients[o, 0]
 
-        intensity = dipole_intensity_orbital(
+        intensity: Float[Array, ""] = dipole_intensity_orbital(
             k_vec, r_grid, R_values, l_o, m_o, efield
         )
         results.append(intensity)
 
-    return jnp.stack(results)
+    intensities: Float[Array, " O"] = jnp.stack(results)
+    return intensities
 
 
 __all__: list[str] = [

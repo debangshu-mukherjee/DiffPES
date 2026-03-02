@@ -120,6 +120,10 @@ def read_chgcar(
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
+        lattice: np.ndarray
+        coords: np.ndarray
+        symbols: tuple[str, ...]
+        atom_counts: list[int]
         lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
         rest_lines: list[str] = [line.rstrip("\n") for line in fid]
 
@@ -132,15 +136,19 @@ def read_chgcar(
         )
     )
     if volume == 0.0:
-        msg = "CHGCAR lattice volume is zero."
+        msg: str = "CHGCAR lattice volume is zero."
         raise ValueError(msg)
 
+    first_grid_idx: Optional[int]
+    grid_shape: tuple[int, int, int]
     first_grid_idx, grid_shape = _find_next_grid_line(rest_lines, 0)
     if first_grid_idx is None:
-        msg = "Could not locate CHGCAR charge-density grid dimensions."
+        msg: str = "Could not locate CHGCAR charge-density grid dimensions."
         raise ValueError(msg)
 
     ngrid: int = int(np.prod(np.asarray(grid_shape, dtype=np.int64)))
+    charge_vals: np.ndarray
+    end_idx: int
     charge_vals, end_idx = _parse_float_block(
         rest_lines,
         first_grid_idx + 1,
@@ -154,10 +162,13 @@ def read_chgcar(
     mag_grids: list[np.ndarray] = []
     scan_idx: int = end_idx
     while len(mag_grids) < _N_SOC_MAG_BLOCKS:
+        next_idx: Optional[int]
+        next_shape: tuple[int, int, int]
         next_idx, next_shape = _find_next_grid_line(rest_lines, scan_idx)
         if next_idx is None:
             break
         ngrid_mag: int = int(np.prod(np.asarray(next_shape, dtype=np.int64)))
+        mag_vals: np.ndarray
         mag_vals, scan_idx = _parse_float_block(
             rest_lines,
             next_idx + 1,
@@ -165,15 +176,15 @@ def read_chgcar(
         )
         mag_grids.append(mag_vals.reshape(next_shape, order="F") / volume)
 
-    lattice_arr = jnp.asarray(lattice, dtype=jnp.float64)
-    coords_arr = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr = jnp.asarray(charge_grid, dtype=jnp.float64)
-    counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
+    lattice_arr: jnp.ndarray = jnp.asarray(lattice, dtype=jnp.float64)
+    coords_arr: jnp.ndarray = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr: jnp.ndarray = jnp.asarray(charge_grid, dtype=jnp.float64)
+    counts_arr: jnp.ndarray = jnp.asarray(atom_counts, dtype=jnp.int32)
 
     if len(mag_grids) == _N_SOC_MAG_BLOCKS:
         # SOC: blocks are mx, my, mz
         mag_vector: np.ndarray = np.stack(mag_grids, axis=-1)
-        return make_soc_volumetric_data(
+        result_soc: SOCVolumetricData = make_soc_volumetric_data(
             lattice=lattice_arr,
             coords=coords_arr,
             charge=charge_arr,
@@ -183,8 +194,9 @@ def read_chgcar(
             symbols=symbols,
             atom_counts=counts_arr,
         )
+        return result_soc
 
-    return make_volumetric_data(
+    result: VolumetricData = make_volumetric_data(
         lattice=lattice_arr,
         coords=coords_arr,
         charge=charge_arr,
@@ -197,6 +209,7 @@ def read_chgcar(
         symbols=symbols,
         atom_counts=counts_arr,
     )
+    return result
 
 
 def _read_poscar_header(
@@ -264,7 +277,7 @@ def _read_poscar_header(
     for row in range(_LATTICE_ROWS):
         vals: list[float] = [float(x) for x in fid.readline().split()]
         if len(vals) < _XYZ_COMPONENTS:
-            msg = "Invalid CHGCAR lattice line."
+            msg: str = "Invalid CHGCAR lattice line."
             raise ValueError(msg)
         lattice[row, :] = vals[:_XYZ_COMPONENTS]
     lattice = lattice * scale
@@ -286,7 +299,7 @@ def _read_poscar_header(
     for atom_idx in range(natoms):
         vals = [float(x) for x in fid.readline().split()[:_XYZ_COMPONENTS]]
         if len(vals) < _XYZ_COMPONENTS:
-            msg = "Invalid CHGCAR coordinate line."
+            msg: str = "Invalid CHGCAR coordinate line."
             raise ValueError(msg)
         coords[atom_idx, :] = vals
 
@@ -435,7 +448,7 @@ def _parse_float_block(
         idx += 1
 
     if len(values) != nvals:
-        msg = "Unexpected end of CHGCAR data block."
+        msg: str = "Unexpected end of CHGCAR data block."
         raise ValueError(msg)
 
     return np.asarray(values, dtype=np.float64), idx

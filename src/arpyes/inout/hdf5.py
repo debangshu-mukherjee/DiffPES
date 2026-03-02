@@ -267,13 +267,18 @@ def _encode_kpath_aux(
     list[Any]
         JSON-serializable list representation.
     """
+    mode: str
+    labels: tuple[str, ...]
+    comment: str
+    coordinate_mode: str
     mode, labels, comment, coordinate_mode = aux
-    return [
+    result: list[Any] = [
         str(mode),
         list(labels),
         str(comment),
         str(coordinate_mode),
     ]
+    return result
 
 
 def _decode_kpath_aux(
@@ -342,8 +347,11 @@ def _encode_volumetric_aux(
     list[Any]
         JSON-serializable nested list representation.
     """
+    grid_shape: tuple[int, int, int]
+    symbols: tuple[str, ...]
     grid_shape, symbols = aux
-    return [list(grid_shape), list(symbols)]
+    result: list[Any] = [list(grid_shape), list(symbols)]
+    return result
 
 
 def _decode_volumetric_aux(
@@ -671,11 +679,13 @@ def save_to_h5(
                 raise TypeError(msg)
 
             meta: _PyTreeMeta = _PYTREE_REGISTRY[type_name]
+            children: list[Any]
+            aux_data: Any
             children, aux_data = pytree.tree_flatten()
 
             grp: h5py.Group = f.create_group(group_name)
             grp.attrs[_ATTR_TYPE] = type_name
-            aux_serializable = meta.aux_encoder(aux_data)
+            aux_serializable: Any = meta.aux_encoder(aux_data)
             grp.attrs[_ATTR_AUX] = json.dumps(aux_serializable)
 
             none_fields: list[str] = []
@@ -774,8 +784,8 @@ def load_from_h5(
             raise TypeError(msg)
 
         meta: _PyTreeMeta = _PYTREE_REGISTRY[type_name]
-        aux_json = json.loads(str(grp.attrs[_ATTR_AUX]))
-        aux_data = meta.aux_decoder(aux_json)
+        aux_json: Any = json.loads(str(grp.attrs[_ATTR_AUX]))
+        aux_data: Any = meta.aux_decoder(aux_json)
 
         none_fields: list[str] = json.loads(str(grp.attrs[_ATTR_NONE]))
 
@@ -784,7 +794,7 @@ def load_from_h5(
             if field_name in none_fields:
                 children.append(None)
             else:
-                arr = grp[field_name][()]
+                arr: np.ndarray = grp[field_name][()]
                 children.append(jnp.asarray(arr))
 
         return meta.cls.tree_unflatten(aux_data, tuple(children))

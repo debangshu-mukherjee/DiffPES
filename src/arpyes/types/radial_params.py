@@ -166,13 +166,18 @@ class OrbitalBasis(NamedTuple):
         basis : OrbitalBasis
             Reconstructed instance with identical quantum numbers.
         """
+        n_values: tuple[int, ...]
+        l_values: tuple[int, ...]
+        m_values: tuple[int, ...]
+        labels: tuple[str, ...]
         n_values, l_values, m_values, labels = aux_data
-        return cls(
+        basis: OrbitalBasis = cls(
             n_values=n_values,
             l_values=l_values,
             m_values=m_values,
             labels=labels,
         )
+        return basis
 
 
 @register_pytree_node_class
@@ -299,12 +304,15 @@ class SlaterParams(NamedTuple):
             Reconstructed instance with the original array and basis
             data.
         """
+        zeta: Float[Array, " O"]
+        coefficients: Float[Array, "O C"]
         zeta, coefficients = children
-        return cls(
+        params: SlaterParams = cls(
             zeta=zeta,
             coefficients=coefficients,
             orbital_basis=aux_data,
         )
+        return params
 
 
 @jaxtyped(typechecker=beartype)
@@ -367,21 +375,22 @@ def make_orbital_basis(
     --------
     OrbitalBasis : The PyTree class constructed by this factory.
     """
-    n_orbitals = len(n_values)
+    n_orbitals: int = len(n_values)
     if len(l_values) != n_orbitals or len(m_values) != n_orbitals:
-        msg = "n_values, l_values, m_values must have the same length"
+        msg: str = "n_values, l_values, m_values must have the same length"
         raise ValueError(msg)
     if labels is None:
         labels = tuple(f"orb_{i}" for i in range(n_orbitals))
     if len(labels) != n_orbitals:
-        msg = "labels must have the same length as quantum numbers"
+        msg: str = "labels must have the same length as quantum numbers"
         raise ValueError(msg)
-    return OrbitalBasis(
+    basis: OrbitalBasis = OrbitalBasis(
         n_values=n_values,
         l_values=l_values,
         m_values=m_values,
         labels=labels,
     )
+    return basis
 
 
 @jaxtyped(typechecker=beartype)
@@ -447,9 +456,9 @@ def make_slater_params(
     make_orbital_basis : Factory for the ``OrbitalBasis`` argument.
     """
     zeta_arr: Float[Array, " O"] = jnp.asarray(zeta, dtype=jnp.float64)
-    n_orbitals = zeta_arr.shape[0]
+    n_orbitals: int = zeta_arr.shape[0]
     if len(orbital_basis.n_values) != n_orbitals:
-        msg = "zeta length must match orbital_basis size"
+        msg: str = "zeta length must match orbital_basis size"
         raise ValueError(msg)
     if coefficients is None:
         coeff_arr: Float[Array, "O C"] = jnp.ones(
@@ -457,11 +466,12 @@ def make_slater_params(
         )
     else:
         coeff_arr = jnp.asarray(coefficients, dtype=jnp.float64)
-    return SlaterParams(
+    params: SlaterParams = SlaterParams(
         zeta=zeta_arr,
         coefficients=coeff_arr,
         orbital_basis=orbital_basis,
     )
+    return params
 
 
 __all__: list[str] = [

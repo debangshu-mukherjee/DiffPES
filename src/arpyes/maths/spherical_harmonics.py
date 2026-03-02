@@ -78,13 +78,14 @@ def _normalization(l: int, m: int) -> float:
     norm : float
         The normalization constant :math:`N_l^{|m|}`.
     """
-    am = abs(m)
-    return math.sqrt(
+    am: int = abs(m)
+    norm: float = math.sqrt(
         (2 * l + 1)
         / (4.0 * math.pi)
         * math.factorial(l - am)
         / math.factorial(l + am)
     )
+    return norm
 
 
 def _associated_legendre_plm(
@@ -157,10 +158,12 @@ def _associated_legendre_plm(
     the appropriate sign/phase correction externally.
     """
     # P_m^m = (-1)^m (2m-1)!! (1-x^2)^{m/2}
-    pmm = jnp.ones_like(x)
+    pmm: Float[Array, " ..."] = jnp.ones_like(x)
     if m > 0:
-        sin_theta = jnp.sqrt(jnp.maximum(1.0 - x * x, 0.0))
-        double_fact = 1.0
+        sin_theta: Float[Array, " ..."] = jnp.sqrt(
+            jnp.maximum(1.0 - x * x, 0.0)
+        )
+        double_fact: float = 1.0
         for i in range(1, m + 1):
             double_fact *= 2.0 * i - 1.0
         pmm = ((-1.0) ** m) * double_fact * (sin_theta**m)
@@ -169,7 +172,7 @@ def _associated_legendre_plm(
         return pmm
 
     # P_{m+1}^m = x (2m+1) P_m^m
-    pmm1 = x * (2.0 * m + 1.0) * pmm
+    pmm1: Float[Array, " ..."] = x * (2.0 * m + 1.0) * pmm
     if l == m + 1:
         return pmm1
 
@@ -179,9 +182,9 @@ def _associated_legendre_plm(
         state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
     ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
         p_prev2, p_prev1 = state
-        idx_f = jnp.asarray(idx, dtype=jnp.float64)
-        m_f = jnp.asarray(m, dtype=jnp.float64)
-        p_curr = (
+        idx_f: Float[Array, ""] = jnp.asarray(idx, dtype=jnp.float64)
+        m_f: Float[Array, ""] = jnp.asarray(m, dtype=jnp.float64)
+        p_curr: Float[Array, " ..."] = (
             (2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2
         ) / (idx_f - m_f)
         return p_prev1, p_curr
@@ -249,24 +252,28 @@ def real_spherical_harmonic(
         Real spherical harmonic values.
     """
     if l < 0:
-        msg = "l must be non-negative"
+        msg: str = "l must be non-negative"
         raise ValueError(msg)
     if abs(m) > l:
-        msg = f"|m|={abs(m)} must be <= l={l}"
+        msg: str = f"|m|={abs(m)} must be <= l={l}"
         raise ValueError(msg)
 
-    cos_theta = jnp.cos(theta)
-    am = abs(m)
-    plm = _associated_legendre_plm(l, am, cos_theta)
-    norm = _normalization(l, m)
+    cos_theta: Float[Array, " ..."] = jnp.cos(theta)
+    am: int = abs(m)
+    plm: Float[Array, " ..."] = _associated_legendre_plm(l, am, cos_theta)
+    norm: float = _normalization(l, m)
 
+    ylm: Float[Array, " ..."]
     if m > 0:
-        return jnp.sqrt(2.0) * norm * plm * jnp.cos(m * phi)
+        ylm = jnp.sqrt(2.0) * norm * plm * jnp.cos(m * phi)
+        return ylm
     if m == 0:
-        return norm * plm
+        ylm = norm * plm
+        return ylm
     # Cancel the Condon-Shortley phase (-1)^|m| embedded in P_l^|m|
     # to match the real-to-complex transform used in the Gaunt table.
-    return (-1) ** am * jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
+    ylm = (-1) ** am * jnp.sqrt(2.0) * norm * plm * jnp.sin(am * phi)
+    return ylm
 
 
 @jaxtyped(typechecker=beartype)
@@ -315,11 +322,12 @@ def real_spherical_harmonics_all(
         All spherical harmonics stacked along the last axis,
         where ``N = (l_max + 1)**2``.
     """
-    results = []
+    results: list[Float[Array, " ..."]] = []
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             results.append(real_spherical_harmonic(l, m, theta, phi))
-    return jnp.stack(results, axis=-1)
+    ylm_all: Float[Array, " ... N"] = jnp.stack(results, axis=-1)
+    return ylm_all
 
 
 __all__: list[str] = [

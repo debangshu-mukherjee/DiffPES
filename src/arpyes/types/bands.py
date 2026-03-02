@@ -726,22 +726,23 @@ def make_spin_band_structure(
     make_band_structure : Factory for single-spin-channel data.
     SpinBandStructure : The PyTree class constructed by this factory.
     """
-    up_arr = jnp.asarray(eigenvalues_up, dtype=jnp.float64)
-    down_arr = jnp.asarray(eigenvalues_down, dtype=jnp.float64)
-    kpts_arr = jnp.asarray(kpoints, dtype=jnp.float64)
-    nkpts = up_arr.shape[0]
+    up_arr: Float[Array, "K B"] = jnp.asarray(eigenvalues_up, dtype=jnp.float64)
+    down_arr: Float[Array, "K B"] = jnp.asarray(eigenvalues_down, dtype=jnp.float64)
+    kpts_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
+    nkpts: int = up_arr.shape[0]
     if kpoint_weights is None:
-        weights_arr = jnp.ones(nkpts, dtype=jnp.float64)
+        weights_arr: Float[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
     else:
         weights_arr = jnp.asarray(kpoint_weights, dtype=jnp.float64)
-    fermi_arr = jnp.asarray(fermi_energy, dtype=jnp.float64)
-    return SpinBandStructure(
+    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    bands: SpinBandStructure = SpinBandStructure(
         eigenvalues_up=up_arr,
         eigenvalues_down=down_arr,
         kpoints=kpts_arr,
         kpoint_weights=weights_arr,
         fermi_energy=fermi_arr,
     )
+    return bands
 
 
 @register_pytree_node_class

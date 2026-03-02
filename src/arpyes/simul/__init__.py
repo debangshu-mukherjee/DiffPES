@@ -53,6 +53,14 @@ Routine Listings
     Expert plus spin-orbit (S·k_photon) correction.
 :func:`simulate_soc_expanded`
     Expanded-input SOC wrapper (requires surface_spin).
+:func:`load_vasp_context`
+    Parse VASP files into a reusable workflow context.
+:func:`prepare_projection`
+    Select atom subsets and optionally attach OAM channels.
+:func:`simulate_context`
+    Run a level-dispatched simulation from workflow inputs.
+:func:`run_vasp_workflow`
+    End-to-end convenience wrapper for VASP workflows.
 :func:`voigt`
     Normalized Voigt profile via the Faddeeva function.
 :func:`yeh_lindau_weights`
@@ -66,9 +74,6 @@ for vectorized evaluation across k-points and bands.
 
 from .broadening import fermi_dirac, gaussian, voigt
 from .crosssections import heuristic_weights, yeh_lindau_weights
-from .forward import simulate_tb_radial
-from .resolution import apply_momentum_broadening
-from .self_energy import evaluate_self_energy
 from .expanded import (
     make_expanded_simulation_params,
     simulate_advanced_expanded,
@@ -79,6 +84,7 @@ from .expanded import (
     simulate_novice_expanded,
     simulate_soc_expanded,
 )
+from .forward import simulate_tb_radial
 from .oam import compute_oam
 from .polarization import (
     build_efield,
@@ -86,6 +92,8 @@ from .polarization import (
     dipole_matrix_elements,
     photon_wavevector,
 )
+from .resolution import apply_momentum_broadening
+from .self_energy import evaluate_self_energy
 from .spectrum import (
     simulate_advanced,
     simulate_basic,
@@ -93,6 +101,13 @@ from .spectrum import (
     simulate_expert,
     simulate_novice,
     simulate_soc,
+)
+from .workflow import (
+    WorkflowContext,
+    load_vasp_context,
+    prepare_projection,
+    run_vasp_workflow,
+    simulate_context,
 )
 
 __all__: list[str] = [
@@ -105,8 +120,11 @@ __all__: list[str] = [
     "fermi_dirac",
     "gaussian",
     "heuristic_weights",
+    "load_vasp_context",
     "make_expanded_simulation_params",
     "photon_wavevector",
+    "prepare_projection",
+    "run_vasp_workflow",
     "simulate_advanced_expanded",
     "simulate_advanced",
     "simulate_basic_expanded",
@@ -120,7 +138,9 @@ __all__: list[str] = [
     "simulate_novice",
     "simulate_soc_expanded",
     "simulate_soc",
+    "simulate_context",
     "simulate_tb_radial",
     "voigt",
+    "WorkflowContext",
     "yeh_lindau_weights",
 ]

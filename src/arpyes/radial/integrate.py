@@ -97,7 +97,7 @@ def radial_integral(
     custom JAX-traceable implementations.
     """
     if l_prime < 0:
-        msg = "l_prime must be non-negative"
+        msg: str = "l_prime must be non-negative"
         raise ValueError(msg)
 
     k_arr: Float[Array, " ..."] = jnp.asarray(k, dtype=jnp.float64)

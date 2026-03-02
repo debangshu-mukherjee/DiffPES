@@ -201,9 +201,16 @@ class VolumetricData(NamedTuple):
         vol : VolumetricData
             Reconstructed instance with identical data.
         """
+        lattice: Float[Array, "3 3"]
+        coords: Float[Array, "N 3"]
+        charge: Float[Array, "Nx Ny Nz"]
+        magnetization: Optional[Float[Array, "Nx Ny Nz"]]
+        atom_counts: Int[Array, " S"]
         lattice, coords, charge, magnetization, atom_counts = children
+        grid_shape: tuple[int, int, int]
+        symbols: tuple[str, ...]
         grid_shape, symbols = aux_data
-        return cls(
+        vol: VolumetricData = cls(
             lattice=lattice,
             coords=coords,
             charge=charge,
@@ -212,6 +219,7 @@ class VolumetricData(NamedTuple):
             symbols=symbols,
             atom_counts=atom_counts,
         )
+        return vol
 
 
 @jaxtyped(typechecker=beartype)
@@ -283,17 +291,17 @@ def make_volumetric_data(
     make_soc_volumetric_data : Factory for the SOC variant with
         vector magnetization.
     """
-    lattice_arr = jnp.asarray(lattice, dtype=jnp.float64)
-    coords_arr = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr = jnp.asarray(charge, dtype=jnp.float64)
-    mag_arr = None
+    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
+    coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(charge, dtype=jnp.float64)
+    mag_arr: Optional[Float[Array, "Nx Ny Nz"]] = None
     if magnetization is not None:
         mag_arr = jnp.asarray(magnetization, dtype=jnp.float64)
     if atom_counts is None:
-        counts_arr = jnp.zeros(0, dtype=jnp.int32)
+        counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
-    return VolumetricData(
+    vol: VolumetricData = VolumetricData(
         lattice=lattice_arr,
         coords=coords_arr,
         charge=charge_arr,
@@ -302,6 +310,7 @@ def make_volumetric_data(
         symbols=symbols,
         atom_counts=counts_arr,
     )
+    return vol
 
 
 @register_pytree_node_class
@@ -469,6 +478,12 @@ class SOCVolumetricData(NamedTuple):
         vol : SOCVolumetricData
             Reconstructed instance with identical data.
         """
+        lattice: Float[Array, "3 3"]
+        coords: Float[Array, "N 3"]
+        charge: Float[Array, "Nx Ny Nz"]
+        magnetization: Float[Array, "Nx Ny Nz"]
+        magnetization_vector: Float[Array, "Nx Ny Nz 3"]
+        atom_counts: Int[Array, " S"]
         (
             lattice,
             coords,
@@ -477,8 +492,10 @@ class SOCVolumetricData(NamedTuple):
             magnetization_vector,
             atom_counts,
         ) = children
+        grid_shape: tuple[int, int, int]
+        symbols: tuple[str, ...]
         grid_shape, symbols = aux_data
-        return cls(
+        vol: SOCVolumetricData = cls(
             lattice=lattice,
             coords=coords,
             charge=charge,
@@ -488,6 +505,7 @@ class SOCVolumetricData(NamedTuple):
             symbols=symbols,
             atom_counts=atom_counts,
         )
+        return vol
 
 
 @jaxtyped(typechecker=beartype)
@@ -564,10 +582,10 @@ def make_soc_volumetric_data(
     make_volumetric_data : Factory for the non-SOC variant.
     """
     if atom_counts is None:
-        counts_arr = jnp.zeros(0, dtype=jnp.int32)
+        counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
-    return SOCVolumetricData(
+    vol: SOCVolumetricData = SOCVolumetricData(
         lattice=jnp.asarray(lattice, dtype=jnp.float64),
         coords=jnp.asarray(coords, dtype=jnp.float64),
         charge=jnp.asarray(charge, dtype=jnp.float64),
@@ -579,6 +597,7 @@ def make_soc_volumetric_data(
         symbols=symbols,
         atom_counts=counts_arr,
     )
+    return vol
 
 
 __all__: list[str] = [
