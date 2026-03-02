@@ -27,6 +27,9 @@ from jaxtyping import Array, Float, jaxtyped
 
 from arpyes.types import ScalarFloat
 
+_EPS: float = 1e-12
+_MIN_SUM: float = 1e-30
+
 
 @jaxtyped(typechecker=beartype)
 def apply_momentum_broadening(
@@ -102,20 +105,17 @@ def apply_momentum_broadening(
     and ``intensity``. For very large numbers of k-points, memory
     usage scales as ``O(K^2)``.
     """
-    dk_arr = jnp.asarray(dk, dtype=jnp.float64)
-    safe_dk = jnp.where(dk_arr > 1e-12, dk_arr, 1e-12)
-
-    # Build Gaussian kernel matrix
-    k_i = k_distances[:, jnp.newaxis]  # (K, 1)
-    k_j = k_distances[jnp.newaxis, :]  # (1, K)
-    kernel = jnp.exp(-0.5 * ((k_i - k_j) / safe_dk) ** 2)
-
-    # Normalize each row
-    row_sum = jnp.sum(kernel, axis=1, keepdims=True)
-    safe_sum = jnp.where(row_sum > 1e-30, row_sum, 1.0)
-    kernel = kernel / safe_sum
-
-    broadened = kernel @ intensity
+    dk_arr: Float[Array, ""] = jnp.asarray(dk, dtype=jnp.float64)
+    safe_dk: Float[Array, ""] = jnp.where(dk_arr > _EPS, dk_arr, _EPS)
+    k_i: Float[Array, " K 1"] = k_distances[:, jnp.newaxis]
+    k_j: Float[Array, " 1 K"] = k_distances[jnp.newaxis, :]
+    kernel: Float[Array, " K K"] = jnp.exp(-0.5 * ((k_i - k_j) / safe_dk) ** 2)
+    row_sum: Float[Array, " K 1"] = jnp.sum(kernel, axis=1, keepdims=True)
+    safe_sum: Float[Array, " K 1"] = jnp.where(
+        row_sum > _MIN_SUM, row_sum, 1.0
+    )
+    kernel: Float[Array, " K K"] = kernel / safe_sum
+    broadened: Float[Array, " K E"] = kernel @ intensity
     return broadened
 
 

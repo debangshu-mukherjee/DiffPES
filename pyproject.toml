@@ -243,6 +243,12 @@ convention = "numpy"
     "F841",
     "PLR2004",
 ]
+# Physics modules: standard physics variable names (H=Hamiltonian,
+# l/m=quantum numbers, M=matrix element, R=radial/lattice, W=work fn)
+"src/arpyes/tightb/*.py" = ["E741", "N803", "N806"]
+"src/arpyes/maths/*.py" = ["E741", "N803", "N806", "ARG001"]
+"src/arpyes/simul/forward.py" = ["E741", "N806"]
+"src/arpyes/simul/self_energy.py" = ["S101"]
 
 [tool.ty.environment]
 python-version = "3.12"
