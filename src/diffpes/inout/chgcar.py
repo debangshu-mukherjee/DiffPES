@@ -19,6 +19,8 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Optional, Tuple
+from jaxtyping import Array, Float, Int
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     SOCVolumetricData,
@@ -120,8 +122,8 @@ def read_chgcar(
     """
     path: Path = Path(filename)
     with path.open("r") as fid:
-        lattice: np.ndarray
-        coords: np.ndarray
+        lattice: Float[NDArray, "3 3"]
+        coords: Float[NDArray, "N 3"]
         symbols: tuple[str, ...]
         atom_counts: list[int]
         lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
@@ -147,19 +149,19 @@ def read_chgcar(
         raise ValueError(msg)
 
     ngrid: int = int(np.prod(np.asarray(grid_shape, dtype=np.int64)))
-    charge_vals: np.ndarray
+    charge_vals: Float[NDArray, " ngrid"]
     end_idx: int
     charge_vals, end_idx = _parse_float_block(
         rest_lines,
         first_grid_idx + 1,
         ngrid,
     )
-    charge_grid: np.ndarray = (
+    charge_grid: Float[NDArray, "Nx Ny Nz"] = (
         charge_vals.reshape(grid_shape, order="F") / volume
     )
 
     # Read all remaining grid blocks (up to 3 for SOC: mx, my, mz)
-    mag_grids: list[np.ndarray] = []
+    mag_grids: list[Float[NDArray, "Nx Ny Nz"]] = []
     scan_idx: int = end_idx
     while len(mag_grids) < _N_SOC_MAG_BLOCKS:
         next_idx: Optional[int]
@@ -168,7 +170,7 @@ def read_chgcar(
         if next_idx is None:
             break
         ngrid_mag: int = int(np.prod(np.asarray(next_shape, dtype=np.int64)))
-        mag_vals: np.ndarray
+        mag_vals: Float[NDArray, " ngrid"]
         mag_vals, scan_idx = _parse_float_block(
             rest_lines,
             next_idx + 1,
@@ -176,14 +178,18 @@ def read_chgcar(
         )
         mag_grids.append(mag_vals.reshape(next_shape, order="F") / volume)
 
-    lattice_arr: jnp.ndarray = jnp.asarray(lattice, dtype=jnp.float64)
-    coords_arr: jnp.ndarray = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr: jnp.ndarray = jnp.asarray(charge_grid, dtype=jnp.float64)
-    counts_arr: jnp.ndarray = jnp.asarray(atom_counts, dtype=jnp.int32)
+    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
+    coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+        charge_grid, dtype=jnp.float64
+    )
+    counts_arr: Int[Array, " S"] = jnp.asarray(atom_counts, dtype=jnp.int32)
 
     if len(mag_grids) == _N_SOC_MAG_BLOCKS:
         # SOC: blocks are mx, my, mz
-        mag_vector: np.ndarray = np.stack(mag_grids, axis=-1)
+        mag_vector: Float[NDArray, "Nx Ny Nz 3"] = np.stack(
+            mag_grids, axis=-1
+        )
         result_soc: SOCVolumetricData = make_soc_volumetric_data(
             lattice=lattice_arr,
             coords=coords_arr,
@@ -214,7 +220,12 @@ def read_chgcar(
 
 def _read_poscar_header(
     fid,  # noqa: ANN001
-) -> tuple[np.ndarray, np.ndarray, tuple[str, ...], list[int]]:
+) -> Tuple[
+    Float[NDArray, "3 3"],
+    Float[NDArray, "N 3"],
+    tuple[str, ...],
+    list[int],
+]:
     """Read the POSCAR-like header section at the start of a CHGCAR file.
 
     Extended Summary
@@ -252,9 +263,9 @@ def _read_poscar_header(
 
     Returns
     -------
-    lattice : np.ndarray
+    lattice : Float[NDArray, "3 3"]
         Scaled lattice vectors, shape ``(3, 3)``.
-    coords : np.ndarray
+    coords : Float[NDArray, "N 3"]
         Fractional atomic coordinates, shape ``(natoms, 3)``.
     symbols : tuple[str, ...]
         Element symbols (empty tuple for VASP-4 style files).
@@ -270,7 +281,7 @@ def _read_poscar_header(
     _comment: str = fid.readline().strip()
     scale: float = float(fid.readline().strip())
 
-    lattice: np.ndarray = np.zeros(
+    lattice: Float[NDArray, "3 3"] = np.zeros(
         (_LATTICE_ROWS, _XYZ_COMPONENTS),
         dtype=np.float64,
     )
@@ -295,7 +306,9 @@ def _read_poscar_header(
         coord_line = fid.readline().strip()
     cartesian: bool = bool(coord_line) and coord_line[0].lower() in ("c", "k")
 
-    coords: np.ndarray = np.zeros((natoms, _XYZ_COMPONENTS), dtype=np.float64)
+    coords: Float[NDArray, "N 3"] = np.zeros(
+        (natoms, _XYZ_COMPONENTS), dtype=np.float64
+    )
     for atom_idx in range(natoms):
         vals = [float(x) for x in fid.readline().split()[:_XYZ_COMPONENTS]]
         if len(vals) < _XYZ_COMPONENTS:
@@ -374,7 +387,7 @@ def _parse_float_block(
     lines: list[str],
     start_idx: int,
     nvals: int,
-) -> tuple[np.ndarray, int]:
+) -> Tuple[Float[NDArray, " nvals"], int]:
     """Parse ``nvals`` whitespace-separated floats starting at ``start_idx``.
 
     Extended Summary
@@ -412,7 +425,7 @@ def _parse_float_block(
 
     Returns
     -------
-    values : np.ndarray
+    value_arr : Float[NDArray, " nvals"]
         1D array of shape ``(nvals,)`` with dtype ``float64``.
     end_idx : int
         Index of the first line *after* the last consumed line,
@@ -450,8 +463,8 @@ def _parse_float_block(
     if len(values) != nvals:
         msg: str = "Unexpected end of CHGCAR data block."
         raise ValueError(msg)
-
-    return np.asarray(values, dtype=np.float64), idx
+    value_arr: Float[NDArray, " nvals"] = np.asarray(values, dtype=np.float64)
+    return value_arr, idx
 
 
 __all__: list[str] = [

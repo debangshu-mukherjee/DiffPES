@@ -25,6 +25,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Literal, Optional, Union
 from jaxtyping import Array, Float
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     OrbitalProjection,
@@ -169,14 +170,16 @@ def read_procar(
         return make_orbital_projection(projections=proj_arr)
 
     if is_spin_polarized:
-        proj_up: np.ndarray = blocks[0]["projections"]
-        proj_down: np.ndarray = blocks[1]["projections"]
-        avg: np.ndarray = (proj_up + proj_down) / 2.0
+        proj_up: Float[NDArray, "K B A O"] = blocks[0]["projections"]
+        proj_down: Float[NDArray, "K B A O"] = blocks[1]["projections"]
+        avg: Float[NDArray, "K B A O"] = (proj_up + proj_down) / 2.0
         proj_arr = jnp.asarray(avg, dtype=jnp.float64)
-        spin_data: np.ndarray = np.zeros(
+        spin_data: Float[NDArray, "K B A 6"] = np.zeros(
             (nkpts, nbands, natoms, _NSPIN_COMPONENTS), dtype=np.float64
         )
-        sz_diff: np.ndarray = np.sum(proj_up - proj_down, axis=-1)
+        sz_diff: Float[NDArray, "K B A"] = np.sum(
+            proj_up - proj_down, axis=-1
+        )
         spin_data[:, :, :, 4] = np.maximum(sz_diff, 0.0)
         spin_data[:, :, :, 5] = np.maximum(-sz_diff, 0.0)
         spin_arr: Float[Array, " K B A 6"] = jnp.asarray(
@@ -187,18 +190,18 @@ def read_procar(
         )
 
     # SOC: 4 blocks = total, Sx, Sy, Sz
-    proj_total: np.ndarray = blocks[0]["projections"]
-    proj_sx: np.ndarray = blocks[1]["projections"]
-    proj_sy: np.ndarray = blocks[2]["projections"]
-    proj_sz: np.ndarray = blocks[3]["projections"]
+    proj_total: Float[NDArray, "K B A O"] = blocks[0]["projections"]
+    proj_sx: Float[NDArray, "K B A O"] = blocks[1]["projections"]
+    proj_sy: Float[NDArray, "K B A O"] = blocks[2]["projections"]
+    proj_sz: Float[NDArray, "K B A O"] = blocks[3]["projections"]
     proj_arr = jnp.asarray(proj_total, dtype=jnp.float64)
 
     spin_data = np.zeros(
         (nkpts, nbands, natoms, _NSPIN_COMPONENTS), dtype=np.float64
     )
-    sx_sum: np.ndarray = np.sum(proj_sx, axis=-1)
-    sy_sum: np.ndarray = np.sum(proj_sy, axis=-1)
-    sz_sum: np.ndarray = np.sum(proj_sz, axis=-1)
+    sx_sum: Float[NDArray, "K B A"] = np.sum(proj_sx, axis=-1)
+    sy_sum: Float[NDArray, "K B A"] = np.sum(proj_sy, axis=-1)
+    sz_sum: Float[NDArray, "K B A"] = np.sum(proj_sz, axis=-1)
     spin_data[:, :, :, 0] = np.maximum(sx_sum, 0.0)
     spin_data[:, :, :, 1] = np.maximum(-sx_sum, 0.0)
     spin_data[:, :, :, 2] = np.maximum(sy_sum, 0.0)
@@ -285,7 +288,7 @@ def _parse_procar_blocks(
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
-        projections: np.ndarray = np.zeros(
+        projections: Float[NDArray, "K B A O"] = np.zeros(
             (nkpts, nbands, natoms, _NORBS), dtype=np.float64
         )
         i += 1

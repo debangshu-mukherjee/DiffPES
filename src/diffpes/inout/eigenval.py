@@ -24,6 +24,8 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Literal, Optional, Union
+from jaxtyping import Float
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     BandStructure,
@@ -152,11 +154,13 @@ def read_eigenval(
         _nelect: int = meta[0]
         nkpoints: int = meta[1]
         nbands: int = meta[2]
-        kpoints: np.ndarray = np.zeros((nkpoints, 4), dtype=np.float64)
-        eigenvalues_up: np.ndarray = np.zeros(
+        kpoints: Float[NDArray, "K 4"] = np.zeros(
+            (nkpoints, 4), dtype=np.float64
+        )
+        eigenvalues_up: Float[NDArray, "K B"] = np.zeros(
             (nkpoints, nbands), dtype=np.float64
         )
-        eigenvalues_down: Optional[np.ndarray] = None
+        eigenvalues_down: Optional[Float[NDArray, "K B"]] = None
         if ispin == _ISPIN_SPIN_POLARIZED:
             eigenvalues_down = np.zeros((nkpoints, nbands), dtype=np.float64)
         for k in range(nkpoints):

@@ -32,6 +32,8 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any, Callable, Optional, Union
+from jaxtyping import Shaped
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     ArpesSpectrum,
@@ -515,7 +517,7 @@ _PYTREE_REGISTRY: dict[str, _PyTreeMeta] = {
 
 @beartype
 def _dataset_write_kwargs(
-    data: np.ndarray,
+    data: Shaped[NDArray, "..."],
     compression: Optional[str],
     compression_opts: Any,  # noqa: ANN401
     shuffle: bool,
@@ -697,7 +699,7 @@ def save_to_h5(
                 if child is None:
                     none_fields.append(field_name)
                 else:
-                    child_arr: np.ndarray = np.asarray(child)
+                    child_arr: Shaped[NDArray, "..."] = np.asarray(child)
                     ds_kwargs: dict[str, Any] = _dataset_write_kwargs(
                         data=child_arr,
                         compression=compression,
@@ -794,7 +796,7 @@ def load_from_h5(
             if field_name in none_fields:
                 children.append(None)
             else:
-                arr: np.ndarray = grp[field_name][()]
+                arr: Shaped[NDArray, "..."] = grp[field_name][()]
                 children.append(jnp.asarray(arr))
 
         return meta.cls.tree_unflatten(aux_data, tuple(children))

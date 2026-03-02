@@ -35,6 +35,7 @@ from functools import cache
 import numpy as np
 import jax.numpy as jnp
 from jaxtyping import Array, Float
+from numpy import ndarray as NDArray  # noqa: N812
 
 
 def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
@@ -421,7 +422,7 @@ def build_gaunt_table(
     l_dst_dim: int = l_max + 2
     m_dst_dim: int = 2 * (l_max + 1) + 1
 
-    table: np.ndarray = np.zeros(
+    table: Float[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
         (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
         dtype=np.float64,
     )

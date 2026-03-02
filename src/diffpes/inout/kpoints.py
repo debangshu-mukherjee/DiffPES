@@ -18,6 +18,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype.typing import Optional
+from jaxtyping import Array, Float, Int
 
 from diffpes.types import KPathInfo, make_kpath_info
 
@@ -137,24 +138,24 @@ def read_kpoints(  # noqa: PLR0915
             )
             total_kpts = points_per_segment
 
-    line_endpoints_arr: Optional[jnp.ndarray] = None
+    line_endpoints_arr: Optional[Float[Array, "K 3"]] = None
     if line_endpoints:
         line_endpoints_arr = jnp.asarray(line_endpoints, dtype=jnp.float64)
-    explicit_kpoints_arr: Optional[jnp.ndarray] = None
+    explicit_kpoints_arr: Optional[Float[Array, "K 3"]] = None
     if explicit_kpoints:
         explicit_kpoints_arr = jnp.asarray(explicit_kpoints, dtype=jnp.float64)
-    explicit_weights_arr: Optional[jnp.ndarray] = None
+    explicit_weights_arr: Optional[Float[Array, " K"]] = None
     if explicit_weights:
         explicit_weights_arr = jnp.asarray(explicit_weights, dtype=jnp.float64)
-    grid_arr: Optional[jnp.ndarray] = None
+    grid_arr: Optional[Int[Array, " 3"]] = None
     if grid is not None:
         grid_arr = jnp.asarray(grid, dtype=jnp.int32)
-    shift_arr: Optional[jnp.ndarray] = None
+    shift_arr: Optional[Float[Array, " 3"]] = None
     if shift is not None:
         shift_arr = jnp.asarray(shift, dtype=jnp.float64)
 
-    parsed_kpoints: Optional[jnp.ndarray] = line_endpoints_arr
-    parsed_weights: Optional[jnp.ndarray] = None
+    parsed_kpoints: Optional[Float[Array, "K 3"]] = line_endpoints_arr
+    parsed_weights: Optional[Float[Array, " K"]] = None
     if mode == "Explicit":
         parsed_kpoints = explicit_kpoints_arr
         parsed_weights = explicit_weights_arr

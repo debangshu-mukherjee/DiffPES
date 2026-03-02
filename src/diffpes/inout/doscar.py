@@ -26,6 +26,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Literal, Optional, Union
 from jaxtyping import Array, Float
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     DensityOfStates,
@@ -142,7 +143,9 @@ def read_doscar(  # noqa: PLR0912, PLR0915
         first_line: str = fid.readline()
         first_vals: list[float] = [float(x) for x in first_line.split()]
         ncols: int = len(first_vals)
-        data: np.ndarray = np.zeros((nedos, ncols), dtype=np.float64)
+        data: Float[NDArray, "E C"] = np.zeros(
+            (nedos, ncols), dtype=np.float64
+        )
         data[0, :] = first_vals
         for i in range(1, nedos):
             vals: list[float] = [float(x) for x in fid.readline().split()]
@@ -179,7 +182,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
         # Read PDOS blocks if present
         pdos_arr: Optional[Float[Array, "A E C"]] = None
-        pdos_blocks: list[np.ndarray] = []
+        pdos_blocks: list[Float[NDArray, "E C"]] = []
         for _atom in range(natoms):
             # Each PDOS block may have a header line
             # repeating EMIN EMAX NEDOS EFERMI
@@ -201,7 +204,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
                     float(x) for x in pdos_ncols_check.split()
                 ]
                 pdos_ncols: int = len(pdos_first)
-                atom_data: np.ndarray = np.zeros(
+                atom_data: Float[NDArray, "E C"] = np.zeros(
                     (nedos, pdos_ncols), dtype=np.float64
                 )
                 atom_data[0, :] = pdos_first
