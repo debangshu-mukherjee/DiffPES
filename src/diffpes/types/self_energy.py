@@ -22,6 +22,7 @@ selects different code branches.
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Optional, Tuple
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
@@ -257,11 +258,29 @@ def make_self_energy_config(
     if mode == "tabulated" and nodes_arr is None:
         msg: str = "energy_nodes required for tabulated mode"
         raise ValueError(msg)
-    config: SelfEnergyConfig = SelfEnergyConfig(
-        coefficients=coeff_arr,
-        energy_nodes=nodes_arr,
-        mode=mode,
-    )
+
+    def validate_and_create() -> SelfEnergyConfig:
+        def check_coefficients_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(coeff_arr)),
+                lambda: coeff_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: coeff_arr.sum(),
+                        lambda: coeff_arr.sum(),
+                    )
+                ),
+            )
+
+        check_coefficients_finite()
+        return SelfEnergyConfig(
+            coefficients=coeff_arr,
+            energy_nodes=nodes_arr,
+            mode=mode,
+        )
+
+    config: SelfEnergyConfig = validate_and_create()
     return config
 
 

@@ -20,6 +20,7 @@ All energy values are in electron-volts (eV).
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Optional, Tuple
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
@@ -183,11 +184,67 @@ def make_density_of_states(
     energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
     dos_arr: Float[Array, " E"] = jnp.asarray(total_dos, dtype=jnp.float64)
     fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
-    dos: DensityOfStates = DensityOfStates(
-        energy=energy_arr,
-        total_dos=dos_arr,
-        fermi_energy=fermi_arr,
-    )
+
+    def validate_and_create() -> DensityOfStates:
+        def check_energy_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(energy_arr)),
+                lambda: energy_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: energy_arr.sum(),
+                        lambda: energy_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_dos_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(dos_arr)),
+                lambda: dos_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: dos_arr.sum(),
+                        lambda: dos_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_dos_non_negative() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(dos_arr >= 0.0),
+                lambda: dos_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: dos_arr.sum(),
+                        lambda: dos_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_fermi_energy_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.isfinite(fermi_arr),
+                lambda: fermi_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: fermi_arr, lambda: fermi_arr)
+                ),
+            )
+
+        check_energy_finite()
+        check_dos_finite()
+        check_dos_non_negative()
+        check_fermi_energy_finite()
+        return DensityOfStates(
+            energy=energy_arr,
+            total_dos=dos_arr,
+            fermi_energy=fermi_arr,
+        )
+
+    dos: DensityOfStates = validate_and_create()
     return dos
 
 
@@ -491,16 +548,86 @@ def make_full_density_of_states(
     pdos_arr: Optional[Float[Array, "A E C"]] = None
     if pdos is not None:
         pdos_arr = jnp.asarray(pdos, dtype=jnp.float64)
-    dos: FullDensityOfStates = FullDensityOfStates(
-        energy=energy_arr,
-        total_dos_up=up_arr,
-        total_dos_down=down_arr,
-        integrated_dos_up=int_up_arr,
-        integrated_dos_down=int_down_arr,
-        pdos=pdos_arr,
-        fermi_energy=fermi_arr,
-        natoms=natoms,
-    )
+
+    def validate_and_create() -> FullDensityOfStates:
+        def check_energy_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(energy_arr)),
+                lambda: energy_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: energy_arr.sum(),
+                        lambda: energy_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_dos_up_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(up_arr)),
+                lambda: up_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: up_arr.sum(),
+                        lambda: up_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_dos_up_non_negative() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(up_arr >= 0.0),
+                lambda: up_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: up_arr.sum(),
+                        lambda: up_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_integrated_dos_up_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(int_up_arr)),
+                lambda: int_up_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: int_up_arr.sum(),
+                        lambda: int_up_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_fermi_energy_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.isfinite(fermi_arr),
+                lambda: fermi_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: fermi_arr, lambda: fermi_arr)
+                ),
+            )
+
+        check_energy_finite()
+        check_dos_up_finite()
+        check_dos_up_non_negative()
+        check_integrated_dos_up_finite()
+        check_fermi_energy_finite()
+        return FullDensityOfStates(
+            energy=energy_arr,
+            total_dos_up=up_arr,
+            total_dos_down=down_arr,
+            integrated_dos_up=int_up_arr,
+            integrated_dos_down=int_down_arr,
+            pdos=pdos_arr,
+            fermi_energy=fermi_arr,
+            natoms=natoms,
+        )
+
+    dos: FullDensityOfStates = validate_and_create()
     return dos
 
 

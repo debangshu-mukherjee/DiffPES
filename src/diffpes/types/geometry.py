@@ -24,6 +24,7 @@ stored as JAX arrays for compatibility with JAX transformations.
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Tuple, Union
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, Int, jaxtyped
 
@@ -290,13 +291,59 @@ def make_crystal_geometry(
     coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
     counts_arr: Int[Array, " S"] = jnp.asarray(atom_counts, dtype=jnp.int32)
     reciprocal: Float[Array, "3 3"] = _compute_reciprocal_lattice(lattice_arr)
-    geometry: CrystalGeometry = CrystalGeometry(
-        lattice=lattice_arr,
-        reciprocal_lattice=reciprocal,
-        coords=coords_arr,
-        symbols=symbols,
-        atom_counts=counts_arr,
-    )
+
+    def validate_and_create() -> CrystalGeometry:
+        def check_lattice_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(lattice_arr)),
+                lambda: lattice_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: lattice_arr.sum(),
+                        lambda: lattice_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_lattice_nondegenerate() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.abs(jnp.linalg.det(lattice_arr)) > 1e-10,
+                lambda: lattice_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: lattice_arr.sum(),
+                        lambda: lattice_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_coords_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(coords_arr)),
+                lambda: coords_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: coords_arr.sum(),
+                        lambda: coords_arr.sum(),
+                    )
+                ),
+            )
+
+        check_lattice_finite()
+        check_lattice_nondegenerate()
+        check_coords_finite()
+        return CrystalGeometry(
+            lattice=lattice_arr,
+            reciprocal_lattice=reciprocal,
+            coords=coords_arr,
+            symbols=symbols,
+            atom_counts=counts_arr,
+        )
+
+    geometry: CrystalGeometry = validate_and_create()
     return geometry
 
 

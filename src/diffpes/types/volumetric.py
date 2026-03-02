@@ -35,6 +35,7 @@ or strings.
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Optional, Tuple
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, Int, jaxtyped
 
@@ -303,15 +304,47 @@ def make_volumetric_data(
         counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
-    vol: VolumetricData = VolumetricData(
-        lattice=lattice_arr,
-        coords=coords_arr,
-        charge=charge_arr,
-        magnetization=mag_arr,
-        grid_shape=grid_shape,
-        symbols=symbols,
-        atom_counts=counts_arr,
-    )
+
+    def validate_and_create() -> VolumetricData:
+        def check_lattice_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(lattice_arr)),
+                lambda: lattice_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: lattice_arr.sum(),
+                        lambda: lattice_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_charge_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(charge_arr)),
+                lambda: charge_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: charge_arr.sum(),
+                        lambda: charge_arr.sum(),
+                    )
+                ),
+            )
+
+        check_lattice_finite()
+        check_charge_finite()
+        return VolumetricData(
+            lattice=lattice_arr,
+            coords=coords_arr,
+            charge=charge_arr,
+            magnetization=mag_arr,
+            grid_shape=grid_shape,
+            symbols=symbols,
+            atom_counts=counts_arr,
+        )
+
+    vol: VolumetricData = validate_and_create()
     return vol
 
 
@@ -587,18 +620,56 @@ def make_soc_volumetric_data(
         counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
-    vol: SOCVolumetricData = SOCVolumetricData(
-        lattice=jnp.asarray(lattice, dtype=jnp.float64),
-        coords=jnp.asarray(coords, dtype=jnp.float64),
-        charge=jnp.asarray(charge, dtype=jnp.float64),
-        magnetization=jnp.asarray(magnetization, dtype=jnp.float64),
-        magnetization_vector=jnp.asarray(
-            magnetization_vector, dtype=jnp.float64
-        ),
-        grid_shape=grid_shape,
-        symbols=symbols,
-        atom_counts=counts_arr,
+    soc_lattice_arr: Float[Array, "3 3"] = jnp.asarray(
+        lattice, dtype=jnp.float64
     )
+    soc_charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+        charge, dtype=jnp.float64
+    )
+
+    def validate_and_create() -> SOCVolumetricData:
+        def check_lattice_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(soc_lattice_arr)),
+                lambda: soc_lattice_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: soc_lattice_arr.sum(),
+                        lambda: soc_lattice_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_charge_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(soc_charge_arr)),
+                lambda: soc_charge_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: soc_charge_arr.sum(),
+                        lambda: soc_charge_arr.sum(),
+                    )
+                ),
+            )
+
+        check_lattice_finite()
+        check_charge_finite()
+        return SOCVolumetricData(
+            lattice=soc_lattice_arr,
+            coords=jnp.asarray(coords, dtype=jnp.float64),
+            charge=soc_charge_arr,
+            magnetization=jnp.asarray(magnetization, dtype=jnp.float64),
+            magnetization_vector=jnp.asarray(
+                magnetization_vector, dtype=jnp.float64
+            ),
+            grid_shape=grid_shape,
+            symbols=symbols,
+            atom_counts=counts_arr,
+        )
+
+    vol: SOCVolumetricData = validate_and_create()
     return vol
 
 

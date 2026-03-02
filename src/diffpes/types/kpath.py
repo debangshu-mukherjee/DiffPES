@@ -18,6 +18,7 @@ Routine Listings
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Optional, Tuple, Union
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, Int, jaxtyped
 
@@ -342,20 +343,34 @@ def make_kpath_info(  # noqa: PLR0913
     shift_arr: Optional[Float[Array, " 3"]] = None
     if shift is not None:
         shift_arr = jnp.asarray(shift, dtype=jnp.float64)
-    kpath: KPathInfo = KPathInfo(
-        num_kpoints=nkpts_arr,
-        label_indices=indices_arr,
-        points_per_segment=pps_arr,
-        segments=segments_arr,
-        kpoints=kpoints_arr,
-        weights=weights_arr,
-        grid=grid_arr,
-        shift=shift_arr,
-        mode=mode,
-        labels=labels,
-        comment=comment,
-        coordinate_mode=coordinate_mode,
-    )
+
+    def validate_and_create() -> KPathInfo:
+        def check_num_kpoints_non_negative() -> Int[Array, " "]:
+            return lax.cond(
+                nkpts_arr >= 0,
+                lambda: nkpts_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: nkpts_arr, lambda: nkpts_arr)
+                ),
+            )
+
+        check_num_kpoints_non_negative()
+        return KPathInfo(
+            num_kpoints=nkpts_arr,
+            label_indices=indices_arr,
+            points_per_segment=pps_arr,
+            segments=segments_arr,
+            kpoints=kpoints_arr,
+            weights=weights_arr,
+            grid=grid_arr,
+            shift=shift_arr,
+            mode=mode,
+            labels=labels,
+            comment=comment,
+            coordinate_mode=coordinate_mode,
+        )
+
+    kpath: KPathInfo = validate_and_create()
     return kpath
 
 

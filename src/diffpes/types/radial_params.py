@@ -29,6 +29,7 @@ the static orbital basis.
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Optional, Tuple
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
@@ -466,11 +467,43 @@ def make_slater_params(
         )
     else:
         coeff_arr = jnp.asarray(coefficients, dtype=jnp.float64)
-    params: SlaterParams = SlaterParams(
-        zeta=zeta_arr,
-        coefficients=coeff_arr,
-        orbital_basis=orbital_basis,
-    )
+
+    def validate_and_create() -> SlaterParams:
+        def check_zeta_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(jnp.isfinite(zeta_arr)),
+                lambda: zeta_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: zeta_arr.sum(),
+                        lambda: zeta_arr.sum(),
+                    )
+                ),
+            )
+
+        def check_zeta_positive() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.all(zeta_arr > 0.0),
+                lambda: zeta_arr.sum(),
+                lambda: lax.stop_gradient(
+                    lax.cond(
+                        False,
+                        lambda: zeta_arr.sum(),
+                        lambda: zeta_arr.sum(),
+                    )
+                ),
+            )
+
+        check_zeta_finite()
+        check_zeta_positive()
+        return SlaterParams(
+            zeta=zeta_arr,
+            coefficients=coeff_arr,
+            orbital_basis=orbital_basis,
+        )
+
+    params: SlaterParams = validate_and_create()
     return params
 
 

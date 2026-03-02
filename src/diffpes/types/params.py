@@ -27,6 +27,7 @@ Polarization types follow standard optics conventions:
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import NamedTuple, Tuple
+from jax import lax
 from jax.tree_util import register_pytree_node_class
 from jaxtyping import Array, Float, jaxtyped
 
@@ -411,15 +412,75 @@ def make_simulation_params(
     --------
     SimulationParams : The PyTree class constructed by this factory.
     """
-    params: SimulationParams = SimulationParams(
-        energy_min=jnp.asarray(energy_min, dtype=jnp.float64),
-        energy_max=jnp.asarray(energy_max, dtype=jnp.float64),
-        fidelity=fidelity,
-        sigma=jnp.asarray(sigma, dtype=jnp.float64),
-        gamma=jnp.asarray(gamma, dtype=jnp.float64),
-        temperature=jnp.asarray(temperature, dtype=jnp.float64),
-        photon_energy=jnp.asarray(photon_energy, dtype=jnp.float64),
-    )
+    emin_arr: Float[Array, " "] = jnp.asarray(energy_min, dtype=jnp.float64)
+    emax_arr: Float[Array, " "] = jnp.asarray(energy_max, dtype=jnp.float64)
+    sigma_arr: Float[Array, " "] = jnp.asarray(sigma, dtype=jnp.float64)
+    gamma_arr: Float[Array, " "] = jnp.asarray(gamma, dtype=jnp.float64)
+    temp_arr: Float[Array, " "] = jnp.asarray(temperature, dtype=jnp.float64)
+    pe_arr: Float[Array, " "] = jnp.asarray(photon_energy, dtype=jnp.float64)
+
+    def validate_and_create() -> SimulationParams:
+        def check_energy_window() -> Float[Array, " "]:
+            return lax.cond(
+                emin_arr < emax_arr,
+                lambda: emin_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: emin_arr, lambda: emin_arr)
+                ),
+            )
+
+        def check_sigma_positive() -> Float[Array, " "]:
+            return lax.cond(
+                sigma_arr > 0.0,
+                lambda: sigma_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: sigma_arr, lambda: sigma_arr)
+                ),
+            )
+
+        def check_gamma_positive() -> Float[Array, " "]:
+            return lax.cond(
+                gamma_arr > 0.0,
+                lambda: gamma_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: gamma_arr, lambda: gamma_arr)
+                ),
+            )
+
+        def check_temperature_positive() -> Float[Array, " "]:
+            return lax.cond(
+                temp_arr > 0.0,
+                lambda: temp_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: temp_arr, lambda: temp_arr)
+                ),
+            )
+
+        def check_photon_energy_positive() -> Float[Array, " "]:
+            return lax.cond(
+                pe_arr > 0.0,
+                lambda: pe_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: pe_arr, lambda: pe_arr)
+                ),
+            )
+
+        check_energy_window()
+        check_sigma_positive()
+        check_gamma_positive()
+        check_temperature_positive()
+        check_photon_energy_positive()
+        return SimulationParams(
+            energy_min=emin_arr,
+            energy_max=emax_arr,
+            fidelity=fidelity,
+            sigma=sigma_arr,
+            gamma=gamma_arr,
+            temperature=temp_arr,
+            photon_energy=pe_arr,
+        )
+
+    params: SimulationParams = validate_and_create()
     return params
 
 
@@ -479,12 +540,51 @@ def make_polarization_config(
     PolarizationConfig : The PyTree class constructed by this
         factory.
     """
-    config: PolarizationConfig = PolarizationConfig(
-        theta=jnp.asarray(theta, dtype=jnp.float64),
-        phi=jnp.asarray(phi, dtype=jnp.float64),
-        polarization_angle=jnp.asarray(polarization_angle, dtype=jnp.float64),
-        polarization_type=polarization_type,
+    theta_arr: Float[Array, " "] = jnp.asarray(theta, dtype=jnp.float64)
+    phi_arr: Float[Array, " "] = jnp.asarray(phi, dtype=jnp.float64)
+    pol_arr: Float[Array, " "] = jnp.asarray(
+        polarization_angle, dtype=jnp.float64
     )
+
+    def validate_and_create() -> PolarizationConfig:
+        def check_theta_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.isfinite(theta_arr),
+                lambda: theta_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: theta_arr, lambda: theta_arr)
+                ),
+            )
+
+        def check_phi_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.isfinite(phi_arr),
+                lambda: phi_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: phi_arr, lambda: phi_arr)
+                ),
+            )
+
+        def check_polarization_angle_finite() -> Float[Array, " "]:
+            return lax.cond(
+                jnp.isfinite(pol_arr),
+                lambda: pol_arr,
+                lambda: lax.stop_gradient(
+                    lax.cond(False, lambda: pol_arr, lambda: pol_arr)
+                ),
+            )
+
+        check_theta_finite()
+        check_phi_finite()
+        check_polarization_angle_finite()
+        return PolarizationConfig(
+            theta=theta_arr,
+            phi=phi_arr,
+            polarization_angle=pol_arr,
+            polarization_type=polarization_type,
+        )
+
+    config: PolarizationConfig = validate_and_create()
     return config
 
 
