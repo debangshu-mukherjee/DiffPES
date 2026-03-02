@@ -27,12 +27,12 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, Tuple, Union
 from jaxtyping import Float, Int
-from numpy import ndarray as NDArray  # noqa: N812
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
 from matplotlib.figure import Figure, SubFigure
 from matplotlib.image import AxesImage
+from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
     ArpesSpectrum,
@@ -127,7 +127,9 @@ def _prepare_plot_arrays(
         If array ranks are invalid or if intensity/energy sizes are
         incompatible.
     """
-    intensity: Float[NDArray, "K E"] = np.asarray(spectrum.intensity, dtype=np.float64)
+    intensity: Float[NDArray, "K E"] = np.asarray(
+        spectrum.intensity, dtype=np.float64
+    )
     energy_axis: Float[NDArray, " E"] = np.asarray(
         spectrum.energy_axis, dtype=np.float64
     )

@@ -88,7 +88,9 @@ def _cartesian_to_spherical_dipole(
     ey: Complex[Array, ""] = efield[1]
     ez: Complex[Array, ""] = efield[2]
     # q=+1 ~ x, q=-1 ~ y, q=0 ~ z (real spherical harmonic convention)
-    e_spherical: Complex[Array, " 3"] = jnp.array([ey, ez, ex], dtype=jnp.complex128)
+    e_spherical: Complex[Array, " 3"] = jnp.array(
+        [ey, ez, ex], dtype=jnp.complex128
+    )
     return e_spherical
 
 

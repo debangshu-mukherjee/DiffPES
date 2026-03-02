@@ -167,8 +167,12 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
         # Full mode: extract all columns
         is_spin: bool = ncols == _SPIN_COLS
-        energy_arr: Float[Array, " E"] = jnp.asarray(data[:, 0], dtype=jnp.float64)
-        dos_up_arr: Float[Array, " E"] = jnp.asarray(data[:, 1], dtype=jnp.float64)
+        energy_arr: Float[Array, " E"] = jnp.asarray(
+            data[:, 0], dtype=jnp.float64
+        )
+        dos_up_arr: Float[Array, " E"] = jnp.asarray(
+            data[:, 1], dtype=jnp.float64
+        )
         dos_down_arr: Optional[Float[Array, " E"]] = None
         int_up_arr: Float[Array, " E"]
         int_down_arr: Optional[Float[Array, " E"]] = None

@@ -34,6 +34,8 @@ from diffpes.types import (
 
 from .hamiltonian import build_hamiltonian_k
 
+_NORM_EPS: float = 1e-12
+
 _PHASE_LOSS_MESSAGE: str = (
     "vasp_to_diagonalized uses sqrt(|c|^2) magnitudes from PROCAR and "
     "cannot recover complex eigenvector phases. Matrix elements that "
@@ -277,7 +279,7 @@ def vasp_to_diagonalized(
     if phase_loss == "error":
         raise ValueError(_PHASE_LOSS_MESSAGE)
     if phase_loss == "warn":
-        import warnings
+        import warnings  # noqa: PLC0415
 
         warnings.warn(_PHASE_LOSS_MESSAGE, RuntimeWarning, stacklevel=2)
 
@@ -319,7 +321,7 @@ def vasp_to_diagonalized(
     norm: Float[Array, "K B 1"] = jnp.sqrt(
         jnp.sum(approx_c**2, axis=-1, keepdims=True)
     )
-    safe_norm: Float[Array, "K B 1"] = jnp.where(norm > 1e-12, norm, 1.0)
+    safe_norm: Float[Array, "K B 1"] = jnp.where(norm > _NORM_EPS, norm, 1.0)
     eigenvectors: Complex[Array, "K B N"] = (approx_c / safe_norm).astype(
         jnp.complex128
     )

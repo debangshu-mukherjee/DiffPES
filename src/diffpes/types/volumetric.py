@@ -293,7 +293,9 @@ def make_volumetric_data(
     """
     lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
     coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(charge, dtype=jnp.float64)
+    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+        charge, dtype=jnp.float64
+    )
     mag_arr: Optional[Float[Array, "Nx Ny Nz"]] = None
     if magnetization is not None:
         mag_arr = jnp.asarray(magnetization, dtype=jnp.float64)

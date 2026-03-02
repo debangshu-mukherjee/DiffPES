@@ -422,18 +422,12 @@ def make_diagonalized_bands(
     --------
     DiagonalizedBands : The PyTree class constructed by this factory.
     """
-    eig_arr: Float[Array, "K B"] = jnp.asarray(
-        eigenvalues, dtype=jnp.float64
-    )
+    eig_arr: Float[Array, "K B"] = jnp.asarray(eigenvalues, dtype=jnp.float64)
     vec_arr: Complex[Array, "K B O"] = jnp.asarray(
         eigenvectors, dtype=jnp.complex128
     )
-    kpt_arr: Float[Array, "K 3"] = jnp.asarray(
-        kpoints, dtype=jnp.float64
-    )
-    ef_arr: Float[Array, " "] = jnp.asarray(
-        fermi_energy, dtype=jnp.float64
-    )
+    kpt_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
+    ef_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
     bands: DiagonalizedBands = DiagonalizedBands(
         eigenvalues=eig_arr,
         eigenvectors=vec_arr,

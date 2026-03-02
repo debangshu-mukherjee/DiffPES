@@ -126,14 +126,18 @@ def evaluate_self_energy(
     mode: str = config.mode
 
     if mode == "constant":
-        result: Float[Array, " ..."] = jnp.broadcast_to(config.coefficients[0], energy.shape)
+        result: Float[Array, " ..."] = jnp.broadcast_to(
+            config.coefficients[0], energy.shape
+        )
         return result
     if mode == "polynomial":
         result: Float[Array, " ..."] = jnp.polyval(config.coefficients, energy)
         return result
     if mode == "tabulated":
         assert config.energy_nodes is not None
-        result: Float[Array, " ..."] = jnp.interp(energy, config.energy_nodes, config.coefficients)
+        result: Float[Array, " ..."] = jnp.interp(
+            energy, config.energy_nodes, config.coefficients
+        )
         return result
     msg: str = f"Unknown self-energy mode: {mode}"
     raise ValueError(msg)

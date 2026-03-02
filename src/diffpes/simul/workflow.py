@@ -25,7 +25,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal, NamedTuple, Optional, Union
+from beartype.typing import Literal, NamedTuple, Optional, Union, cast
 from jaxtyping import Array, Float
 
 from diffpes.inout.doscar import read_doscar
@@ -157,10 +157,13 @@ def load_vasp_context(
             if dos_path_opt.exists():
                 dos = read_doscar(str(dos_path_opt), return_mode=doscar_mode)
 
-    bands: BandStructure = read_eigenval(
-        str(root / eigenval_file),
-        fermi_energy=resolved_fermi,
-        return_mode="legacy",
+    bands: BandStructure = cast(
+        BandStructure,
+        read_eigenval(
+            str(root / eigenval_file),
+            fermi_energy=resolved_fermi,
+            return_mode="legacy",
+        ),
     )
     orb_proj: ProjectionType = read_procar(
         str(root / procar_file),

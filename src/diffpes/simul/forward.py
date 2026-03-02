@@ -61,6 +61,7 @@ from diffpes.types.aliases import ScalarFloat
 
 from .broadening import fermi_dirac, voigt
 from .polarization import build_efield, build_polarization_vectors
+from .resolution import apply_momentum_broadening
 from .self_energy import evaluate_self_energy
 
 # Physical constants
@@ -140,14 +141,18 @@ def _ekin_to_k_magnitude(
     (hbar*c in eV*Angstrom). The function is JAX-traceable and
     supports ``jax.grad`` through the ``jnp.maximum`` guard.
     """
-    e_kin: Float[Array, " "] = photon_energy - work_function - jnp.abs(binding_energy)
+    e_kin: Float[Array, " "] = (
+        photon_energy - work_function - jnp.abs(binding_energy)
+    )
     safe_ekin: Float[Array, " "] = jnp.maximum(e_kin, 0.0)
-    k_mag: Float[Array, " "] = jnp.sqrt(2.0 * _ME_EV * safe_ekin) / _HBAR_C_EV_A
+    k_mag: Float[Array, " "] = (
+        jnp.sqrt(2.0 * _ME_EV * safe_ekin) / _HBAR_C_EV_A
+    )
     return k_mag
 
 
 @jaxtyped(typechecker=beartype)
-def simulate_tb_radial(
+def simulate_tb_radial(  # noqa: PLR0915
     diag_bands: DiagonalizedBands,
     slater_params: SlaterParams,
     params: SimulationParams,
@@ -567,8 +572,6 @@ def simulate_tb_radial(
 
     # Optional momentum broadening
     if dk is not None:
-        from .resolution import apply_momentum_broadening
-
         # Compute cumulative k-distances
         dk_vecs: Float[Array, "Km1 3"] = jnp.diff(diag_bands.kpoints, axis=0)
         dk_norms: Float[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)

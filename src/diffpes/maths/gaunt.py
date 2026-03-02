@@ -32,10 +32,12 @@ Routine Listings
 import math
 from functools import cache
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 from jaxtyping import Array, Float
 from numpy import ndarray as NDArray  # noqa: N812
+
+_IMAG_TOL: float = 1e-12
 
 
 def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
@@ -320,7 +322,8 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     # The dipole operator r_q in terms of complex Y_1^mu:
     # r_q is proportional to Y_1^q(complex)
     # We need the complex m-value for the dipole component
-    # Convention: q=-1 -> m_dip=+1 (y), q=0 -> m_dip=0 (z), q=+1 -> m_dip=-1 (x)
+    # Convention: q=-1 -> m_dip=+1 (y), q=0 -> m_dip=0 (z),
+    # q=+1 -> m_dip=-1 (x)
     # Actually, using the standard convention:
     #   x = sqrt(4pi/3) * Y_1^{-1}(real)
     #   y = sqrt(4pi/3) * Y_1^{+1}(real) ... but let's use complex:
@@ -339,10 +342,8 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     # Coefficients for final state Y_{l'}^{m'}(real)
     final_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(lp, mp)
 
-    # The real Gaunt integral is:
-    # G_real = sum_{mu, nu, rho} conj(U_final(mp,rho)) * U_dip(q,nu) * U_init(m,mu)
-    #          * integral Y_{lp}^{rho*} Y_1^nu Y_l^mu d Omega
-    # where the integral is the complex Gaunt coefficient.
+    # Real Gaunt integral: G_real = sum over (mu, nu, rho) of
+    # conj(U_final) * U_dip * U_init * complex Gaunt integral.
     total: complex = 0.0 + 0.0j
     for c_init, mu in init_coeffs:
         for c_dip, nu in dip_coeffs:
@@ -360,7 +361,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
                 total += coeff * (-1) ** rho * cg
 
     result: float = total.real
-    if abs(total.imag) > 1e-12:
+    if abs(total.imag) > _IMAG_TOL:
         msg: str = f"Imaginary part {total.imag} in real Gaunt coefficient"
         raise ValueError(msg)
     return result
@@ -395,7 +396,8 @@ def build_gaunt_table(
     calls `_real_gaunt_dipole` for each. Zero entries (forbidden
     transitions) are left at their initialized value.
 
-    The table is indexed as ``GAUNT_TABLE[l, m + l_max, q + 1, lp, mp + l_max]``
+    The table is indexed as
+    ``GAUNT_TABLE[l, m + l_max, q + 1, lp, mp + l_max]``
     where q in {-1, 0, +1} indexes the three dipole components.
 
     Parameters

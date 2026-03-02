@@ -351,7 +351,9 @@ class TestPlotBandScatter(chex.TestCase):
     def test_spin_preset_requires_spin_data(self):
         """Spin presets raise when projection has no spin field."""
         bands, orb = _make_band_and_projection(nk=8, nb=2, na=1)
-        no_spin = make_orbital_projection(projections=orb.projections, spin=None)
+        no_spin = make_orbital_projection(
+            projections=orb.projections, spin=None
+        )
         with pytest.raises(ValueError, match="requires spin data"):
             plot_band_scatter_preset(
                 bands=bands,

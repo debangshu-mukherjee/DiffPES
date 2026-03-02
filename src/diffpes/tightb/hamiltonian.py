@@ -19,7 +19,7 @@ Routine Listings
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.types import (
     OrbitalBasis,
@@ -36,7 +36,7 @@ def build_hamiltonian_k(
     hopping_params: Float[Array, " H"],
     hopping_indices: tuple,
     n_orbitals: int,
-    lattice_vectors: Float[Array, "3 3"],
+    lattice_vectors: Float[Array, "3 3"],  # noqa: ARG001
 ) -> Complex[Array, "O O"]:
     r"""Build the Bloch Hamiltonian H(k) at a single k-point.
 
@@ -169,9 +169,7 @@ def make_1d_chain_model(
         m_values=(0,),
         labels=("s",),
     )
-    hopping_indices: tuple[
-        tuple[int, int, tuple[int, int, int]], ...
-    ] = (
+    hopping_indices: tuple[tuple[int, int, tuple[int, int, int]], ...] = (
         (0, 0, (1, 0, 0)),  # +R hop
         (0, 0, (-1, 0, 0)),  # -R hop
     )
@@ -254,9 +252,7 @@ def make_graphene_model(
     lattice: Float[Array, "3 3"] = jnp.stack([a1, a2, a3])
 
     # Three nearest-neighbor hoppings A->B
-    hopping_indices: tuple[
-        tuple[int, int, tuple[int, int, int]], ...
-    ] = (
+    hopping_indices: tuple[tuple[int, int, tuple[int, int, int]], ...] = (
         (0, 1, (0, 0, 0)),  # same cell
         (0, 1, (-1, 0, 0)),  # -a1
         (0, 1, (0, -1, 0)),  # -a2

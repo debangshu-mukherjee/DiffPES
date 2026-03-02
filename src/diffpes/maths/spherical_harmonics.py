@@ -38,7 +38,7 @@ from jaxtyping import Array, Float, jaxtyped
 
 
 def _normalization(l: int, m: int) -> float:
-    r"""Normalization factor for associated Legendre / real Y_lm.
+    r"""Compute normalization factor for associated Legendre / real Y_lm.
 
     Extended Summary
     ----------------
@@ -200,7 +200,9 @@ def real_spherical_harmonic(
     theta: Float[Array, " ..."],
     phi: Float[Array, " ..."],
 ) -> Float[Array, " ..."]:
-    r"""Evaluate a single real spherical harmonic :math:`Y_l^m(\theta, \varphi)`.
+    r"""Evaluate a single real spherical harmonic.
+
+    Computes :math:`Y_l^m(\theta, \varphi)`.
 
     Extended Summary
     ----------------

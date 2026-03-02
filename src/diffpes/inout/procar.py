@@ -177,9 +177,7 @@ def read_procar(
         spin_data: Float[NDArray, "K B A 6"] = np.zeros(
             (nkpts, nbands, natoms, _NSPIN_COMPONENTS), dtype=np.float64
         )
-        sz_diff: Float[NDArray, "K B A"] = np.sum(
-            proj_up - proj_down, axis=-1
-        )
+        sz_diff: Float[NDArray, "K B A"] = np.sum(proj_up - proj_down, axis=-1)
         spin_data[:, :, :, 4] = np.maximum(sz_diff, 0.0)
         spin_data[:, :, :, 5] = np.maximum(-sz_diff, 0.0)
         spin_arr: Float[Array, " K B A 6"] = jnp.asarray(

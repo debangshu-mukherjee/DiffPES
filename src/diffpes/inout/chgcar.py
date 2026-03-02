@@ -187,9 +187,7 @@ def read_chgcar(
 
     if len(mag_grids) == _N_SOC_MAG_BLOCKS:
         # SOC: blocks are mx, my, mz
-        mag_vector: Float[NDArray, "Nx Ny Nz 3"] = np.stack(
-            mag_grids, axis=-1
-        )
+        mag_vector: Float[NDArray, "Nx Ny Nz 3"] = np.stack(mag_grids, axis=-1)
         result_soc: SOCVolumetricData = make_soc_volumetric_data(
             lattice=lattice_arr,
             coords=coords_arr,

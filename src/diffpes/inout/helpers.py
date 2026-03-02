@@ -209,7 +209,7 @@ def reduce_orbitals(
 
 def check_consistency(
     bands: BandStructure,
-    orb: OrbitalProjection,
+    orb: Union[OrbitalProjection, SpinOrbitalProjection],
     kpath: Optional[KPathInfo] = None,
 ) -> None:
     """Check dimension agreement across parsed VASP files.

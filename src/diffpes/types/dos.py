@@ -478,7 +478,9 @@ def make_full_density_of_states(
     """
     energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
     up_arr: Float[Array, " E"] = jnp.asarray(total_dos_up, dtype=jnp.float64)
-    int_up_arr: Float[Array, " E"] = jnp.asarray(integrated_dos_up, dtype=jnp.float64)
+    int_up_arr: Float[Array, " E"] = jnp.asarray(
+        integrated_dos_up, dtype=jnp.float64
+    )
     fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
     down_arr: Optional[Float[Array, " E"]] = None
     if total_dos_down is not None:

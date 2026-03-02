@@ -156,7 +156,9 @@ def spherical_bessel_jl(
 
     j0_nonzero: Float[Array, " ..."] = jnp.sin(x_safe) / x_safe
     if order == 0:
-        j0_result: Float[Array, " ..."] = jnp.where(small_mask, 1.0, j0_nonzero)
+        j0_result: Float[Array, " ..."] = jnp.where(
+            small_mask, 1.0, j0_nonzero
+        )
         return j0_result
 
     j1_nonzero: Float[Array, " ..."] = (
@@ -164,7 +166,9 @@ def spherical_bessel_jl(
     )
     if order == 1:
         j1_limit: Float[Array, " ..."] = x_arr / 3.0
-        j1_result: Float[Array, " ..."] = jnp.where(small_mask, j1_limit, j1_nonzero)
+        j1_result: Float[Array, " ..."] = jnp.where(
+            small_mask, j1_limit, j1_nonzero
+        )
         return j1_result
 
     def _recurrence_step(

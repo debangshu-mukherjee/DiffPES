@@ -726,8 +726,12 @@ def make_spin_band_structure(
     make_band_structure : Factory for single-spin-channel data.
     SpinBandStructure : The PyTree class constructed by this factory.
     """
-    up_arr: Float[Array, "K B"] = jnp.asarray(eigenvalues_up, dtype=jnp.float64)
-    down_arr: Float[Array, "K B"] = jnp.asarray(eigenvalues_down, dtype=jnp.float64)
+    up_arr: Float[Array, "K B"] = jnp.asarray(
+        eigenvalues_up, dtype=jnp.float64
+    )
+    down_arr: Float[Array, "K B"] = jnp.asarray(
+        eigenvalues_down, dtype=jnp.float64
+    )
     kpts_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
     nkpts: int = up_arr.shape[0]
     if kpoint_weights is None:

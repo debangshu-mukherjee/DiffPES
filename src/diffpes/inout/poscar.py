@@ -137,9 +137,7 @@ def read_poscar(
     with path.open("r") as fid:
         _comment: str = fid.readline().strip()
         scale: float = float(fid.readline().strip())
-        lattice: Float[NDArray, "3 3"] = np.zeros(
-            (3, 3), dtype=np.float64
-        )
+        lattice: Float[NDArray, "3 3"] = np.zeros((3, 3), dtype=np.float64)
         for i in range(3):
             vals: list[float] = [float(x) for x in fid.readline().split()]
             lattice[i, :] = vals
@@ -157,9 +155,7 @@ def read_poscar(
             selective = True  # noqa: F841
             line = fid.readline().strip()
         cartesian: bool = line[0].lower() in ("c", "k")
-        coords: Float[NDArray, "N 3"] = np.zeros(
-            (natoms, 3), dtype=np.float64
-        )
+        coords: Float[NDArray, "N 3"] = np.zeros((natoms, 3), dtype=np.float64)
         for i in range(natoms):
             vals = [float(x) for x in fid.readline().split()[:3]]
             coords[i, :] = vals
