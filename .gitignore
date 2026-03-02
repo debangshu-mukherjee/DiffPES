@@ -2,17 +2,24 @@
 __pycache__/
 notebooks/__pycache__/
 /src/__pycache__/
-/src/arpyes/__pycache__/
-/src/arpyes/inout/__pycache__/
-/src/arpyes/simul/__pycache__/
-/src/arpyes/types/__pycache__/
-/src/arpyes/utils/__pycache__/
+/src/diffpes/__pycache__/
+/src/diffpes/inout/__pycache__/
+/src/diffpes/maths/__pycache__/
+/src/diffpes/radial/__pycache__/
+/src/diffpes/simul/__pycache__/
+/src/diffpes/tightb/__pycache__/
+/src/diffpes/types/__pycache__/
+/src/diffpes/utils/__pycache__/
 /data/__pycache__/
 /tests/__pycache__/
-/tests/inout/__pycache__/
-/tests/simul/__pycache__/
-/tests/types/__pycache__/
-/tests/utils/__pycache__/
+/tests/test_diffpes/__pycache__/
+/tests/test_diffpes/test_inout/__pycache__/
+/tests/test_diffpes/test_maths/__pycache__/
+/tests/test_diffpes/test_radial/__pycache__/
+/tests/test_diffpes/test_simul/__pycache__/
+/tests/test_diffpes/test_tightb/__pycache__/
+/tests/test_diffpes/test_types/__pycache__/
+/tests/test_diffpes/test_utils/__pycache__/
 /envs/__pycache__/
 /data/
 /.agents/
@@ -29,7 +36,7 @@ ${SCIPION_HOME}
 # VS Code settings
 /.vscode
 /src/.vscode
-/src/rheedium/.vscode
+/src/diffpes/.vscode
 /notebooks/.vscode
 /tests/.vscode
 /data/.vscode
@@ -41,9 +48,7 @@ ${SCIPION_HOME}
 
 .pyre_configuration
 /src/.pyre_configuration
-/src/rheedium/.pyre_configuration
-/src/rheedium/electrons/.pyre_configuration
-/src/rheedium/light/.pyre_configuration
+/src/diffpes/.pyre_configuration
 /notebooks/.pyre_configuration
 /tests/.pyre_configuration
 /tests/test_electrons/.pyre_configuration
@@ -69,7 +74,7 @@ parts/
 sdist/
 var/
 *.egg-info/
-/src/rheedium.egg-info
+/src/diffpes.egg-info
 .installed.cfg
 *.egg
 
@@ -87,7 +92,7 @@ pip-delete-this-directory.txt
 cufile.log
 tests/cufile.log
 src/cufile.log
-src/rheedium/cufile.log
+src/diffpes/cufile.log
 notebooks/cufile.log
 
 # Unit test / coverage reports
@@ -121,7 +126,7 @@ target/
 /.ipynb_checkpoints
 /src/.ipynb_checkpoints/
 /tutorials/.ipynb_checkpoints/
-/src/rheedium/.ipynb_checkpoints/
+/src/diffpes/.ipynb_checkpoints/
 /tests/.ipynb_checkpoints/
 /data/.ipynb_checkpoints/
 /data/*/.ipynb_checkpoints/

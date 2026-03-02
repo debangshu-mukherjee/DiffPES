@@ -1,4 +1,4 @@
-# arpyes
+# diffpes
 
 JAX-based ARPES simulation toolkit with Python-native APIs.
 
@@ -9,13 +9,13 @@ simulator with plain arrays/scalars while still running JAX kernels.
 
 ### Function mapping
 
-- `ARPES_simulation_Novice` -> `arpyes.simul.simulate_novice_expanded`
-- `ARPES_simulation_Basic` -> `arpyes.simul.simulate_basic_expanded`
-- `ARPES_simulation_Basicplus` -> `arpyes.simul.simulate_basicplus_expanded`
-- `ARPES_simulation_Advanced` -> `arpyes.simul.simulate_advanced_expanded`
-- `ARPES_simulation_Expert` -> `arpyes.simul.simulate_expert_expanded`
-- `ARPES_simulation_SOC` -> `arpyes.simul.simulate_soc_expanded`
-- Dynamic dispatch by level -> `arpyes.simul.simulate_expanded`
+- `ARPES_simulation_Novice` -> `diffpes.simul.simulate_novice_expanded`
+- `ARPES_simulation_Basic` -> `diffpes.simul.simulate_basic_expanded`
+- `ARPES_simulation_Basicplus` -> `diffpes.simul.simulate_basicplus_expanded`
+- `ARPES_simulation_Advanced` -> `diffpes.simul.simulate_advanced_expanded`
+- `ARPES_simulation_Expert` -> `diffpes.simul.simulate_expert_expanded`
+- `ARPES_simulation_SOC` -> `diffpes.simul.simulate_soc_expanded`
+- Dynamic dispatch by level -> `diffpes.simul.simulate_expanded`
   (use `level="soc"` with `surface_spin` for SOC)
 
 ### Notes
@@ -40,7 +40,7 @@ Do not use MATLAB-style indexing notation in Python code.
 ```python
 import jax.numpy as jnp
 
-from arpyes.simul import simulate_expanded
+from diffpes.simul import simulate_expanded
 
 # [nkpt, nband]
 eigenbands = jnp.linspace(-2.0, 0.5, 100).reshape(20, 5)
@@ -70,7 +70,7 @@ during tests. Run it with:
 
 ```bash
 source .venv/bin/activate
-pytest tests/ --cov=src/arpyes --cov-report=term-missing
+pytest tests/ --cov=src/diffpes --cov-report=term-missing
 ```
 
 To get as close to 100% as possible:

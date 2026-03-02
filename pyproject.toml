@@ -1,5 +1,5 @@
 [project]
-name = "arpyes"
+name = "diffpes"
 version = "2026.03.01"
 description = "Differentiable ARPES simulations in JAX"
 authors = [
@@ -80,7 +80,7 @@ notebooks = [
     "nbconvert>=7.16.6",
 ]
 dev = [
-    "arpyes[docs,test,notebooks]",
+    "diffpes[docs,test,notebooks]",
     "black[jupyter]>=25.1.0",
     "build>=1.2.2.post1",
     "twine>=6.1.0",
@@ -93,10 +93,10 @@ dev = [
     "jupyter-black>=0.4.0",
 ]
 dev_cuda = [
-    "arpyes[dev,cuda]",
+    "diffpes[dev,cuda]",
 ]
 all = [
-    "arpyes[docs,test,dev,notebooks,cuda]",
+    "diffpes[docs,test,dev,notebooks,cuda]",
 ]
 
 [build-system]
@@ -110,7 +110,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.coverage.run]
-source = ["arpyes"]
+source = ["diffpes"]
 omit = ["*/tests/*", "*/site-packages/*"]
 
 [tool.pydoclint]
@@ -245,10 +245,10 @@ convention = "numpy"
 ]
 # Physics modules: standard physics variable names (H=Hamiltonian,
 # l/m=quantum numbers, M=matrix element, R=radial/lattice, W=work fn)
-"src/arpyes/tightb/*.py" = ["E741", "N803", "N806"]
-"src/arpyes/maths/*.py" = ["E741", "N803", "N806", "ARG001"]
-"src/arpyes/simul/forward.py" = ["E741", "N806"]
-"src/arpyes/simul/self_energy.py" = ["S101"]
+"src/diffpes/tightb/*.py" = ["E741", "N803", "N806"]
+"src/diffpes/maths/*.py" = ["E741", "N803", "N806", "ARG001"]
+"src/diffpes/simul/forward.py" = ["E741", "N806"]
+"src/diffpes/simul/self_energy.py" = ["S101"]
 
 [tool.ty.environment]
 python-version = "3.12"
