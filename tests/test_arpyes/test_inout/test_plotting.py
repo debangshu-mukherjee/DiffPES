@@ -3,7 +3,8 @@
 Extended Summary
 ----------------
 Exercises the plotting module's public API: plot_arpes_spectrum,
-apply_kpath_ticks, and plot_arpes_with_kpath. Tests cover successful
+apply_kpath_ticks, plot_arpes_with_kpath, and projected-band scatter
+helpers. Tests cover successful
 rendering with default and custom options, validation of spectrum array
 shapes and compatibility, reuse of an existing axis, color limits and
 colorbar, and edge cases such as empty k-path labels. All logic is
@@ -17,6 +18,8 @@ Routine Listings
     Tests for plot_arpes_spectrum.
 :class:`TestPlotArpesWithKpath`
     Tests for plot_arpes_with_kpath.
+:class:`TestPlotBandScatter`
+    Tests for projected-band scatter plotting presets.
 :func:`_make_spectrum`
     Helper to build a minimal ArpesSpectrum for plotting tests.
 """
@@ -33,10 +36,19 @@ import matplotlib.pyplot as plt
 
 from arpyes.inout import (
     apply_kpath_ticks,
+    list_band_scatter_presets,
     plot_arpes_spectrum,
+    plot_band_scatter_preset,
+    plot_band_scatter_with_kpath,
     plot_arpes_with_kpath,
 )
-from arpyes.types import ArpesSpectrum, make_arpes_spectrum, make_kpath_info
+from arpyes.types import (
+    ArpesSpectrum,
+    make_arpes_spectrum,
+    make_band_structure,
+    make_kpath_info,
+    make_orbital_projection,
+)
 
 
 def _make_spectrum(nk=20, ne=120):
@@ -272,4 +284,97 @@ class TestPlotArpesWithKpath(chex.TestCase):
         labels = [tick.get_text() for tick in ax.get_xticklabels()]
         chex.assert_equal(labels, ["G", "M", "K"])
         chex.assert_equal(ax.get_xlabel(), "Momentum (k)")
+        plt.close(fig)
+
+
+def _make_band_and_projection(nk=12, nb=3, na=2):
+    """Build minimal band/projection inputs for band-scatter tests."""
+    eigen = jnp.linspace(-1.2, 0.8, nk * nb, dtype=jnp.float64).reshape(nk, nb)
+    kx = jnp.linspace(0.0, 1.0, nk, dtype=jnp.float64)
+    kpoints = jnp.stack(
+        [kx, jnp.zeros_like(kx), jnp.zeros_like(kx)],
+        axis=1,
+    )
+    bands = make_band_structure(
+        eigenvalues=eigen,
+        kpoints=kpoints,
+        fermi_energy=0.15,
+    )
+
+    projections = jnp.ones((nk, nb, na, 9), dtype=jnp.float64) * 0.05
+    projections = projections.at[..., 1:4].set(0.2)
+    spin = jnp.zeros((nk, nb, na, 6), dtype=jnp.float64)
+    spin = spin.at[: nk // 2, ..., 4].set(0.2)
+    spin = spin.at[nk // 2 :, ..., 5].set(0.3)
+    orb = make_orbital_projection(projections=projections, spin=spin)
+    return bands, orb
+
+
+class TestPlotBandScatter(chex.TestCase):
+    """Tests for projected-band scatter plotting presets."""
+
+    def test_lists_presets(self):
+        """list_band_scatter_presets returns known keys."""
+        presets = list_band_scatter_presets()
+        assert "p" in presets
+        assert "d" in presets
+        assert "spin_z" in presets
+        assert "oam_total" in presets
+
+    def test_orbital_preset_plot(self):
+        """Orbital preset renders a scatter with one point per (k, band)."""
+        bands, orb = _make_band_and_projection(nk=10, nb=4, na=2)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands,
+            orb_proj=orb,
+            preset="p",
+            colorbar=False,
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], 40)
+        chex.assert_equal(ax.get_xlabel(), "Momentum (k)")
+        chex.assert_equal(ax.get_ylabel(), "Energy (eV)")
+        plt.close(fig)
+
+    def test_signed_spin_preset_with_colorbar(self):
+        """Signed spin preset can render with colorbar."""
+        bands, orb = _make_band_and_projection(nk=8, nb=2, na=2)
+        fig, _, _ = plot_band_scatter_preset(
+            bands=bands,
+            orb_proj=orb,
+            preset="spin_z",
+            colorbar=True,
+        )
+        # main axis + colorbar axis
+        chex.assert_equal(len(fig.axes), 2)
+        plt.close(fig)
+
+    def test_spin_preset_requires_spin_data(self):
+        """Spin presets raise when projection has no spin field."""
+        bands, orb = _make_band_and_projection(nk=8, nb=2, na=1)
+        no_spin = make_orbital_projection(projections=orb.projections, spin=None)
+        with pytest.raises(ValueError, match="requires spin data"):
+            plot_band_scatter_preset(
+                bands=bands,
+                orb_proj=no_spin,
+                preset="spin_z",
+            )
+
+    def test_band_scatter_with_kpath(self):
+        """K-path wrapper applies symmetry labels on projected-band scatter."""
+        bands, orb = _make_band_and_projection(nk=10, nb=3, na=2)
+        kpath = make_kpath_info(
+            num_kpoints=10,
+            label_indices=[0, 4, 9],
+            labels=("G", "M", "K"),
+        )
+        fig, ax, scatter = plot_band_scatter_with_kpath(
+            bands=bands,
+            orb_proj=orb,
+            kpath=kpath,
+            preset="d",
+            colorbar=False,
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], 30)
+        labels = [tick.get_text() for tick in ax.get_xticklabels()]
+        chex.assert_equal(labels, ["G", "M", "K"])
         plt.close(fig)

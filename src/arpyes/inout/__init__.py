@@ -16,6 +16,12 @@ Routine Listings
     Plot an ARPES map from an ArpesSpectrum PyTree.
 :func:`plot_arpes_with_kpath`
     Plot an ARPES map and apply KPathInfo axis annotations.
+:func:`plot_band_scatter_preset`
+    Plot projected bands with size-weighted scatter markers.
+:func:`plot_band_scatter_with_kpath`
+    Plot projected-band scatter and annotate with KPathInfo.
+:func:`list_band_scatter_presets`
+    Return supported preset names for band-scatter plotting.
 :func:`read_doscar`
     Parse VASP DOSCAR into DensityOfStates.
 :func:`read_chgcar`
@@ -51,8 +57,11 @@ from .helpers import (
 from .kpoints import read_kpoints
 from .plotting import (
     apply_kpath_ticks,
+    list_band_scatter_presets,
     plot_arpes_spectrum,
     plot_arpes_with_kpath,
+    plot_band_scatter_preset,
+    plot_band_scatter_with_kpath,
 )
 from .poscar import read_poscar
 from .procar import read_procar
@@ -61,7 +70,10 @@ __all__: list[str] = [
     "aggregate_atoms",
     "apply_kpath_ticks",
     "check_consistency",
+    "list_band_scatter_presets",
     "load_from_h5",
+    "plot_band_scatter_preset",
+    "plot_band_scatter_with_kpath",
     "plot_arpes_spectrum",
     "plot_arpes_with_kpath",
     "read_chgcar",
