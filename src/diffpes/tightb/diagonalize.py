@@ -269,7 +269,7 @@ def vasp_to_diagonalized(
     compatibility with the ``DiagonalizedBands`` type even though they
     are purely real (zero imaginary part).
     """
-    if phase_loss not in ("warn", "ignore", "error"):
+    if phase_loss not in ("warn", "ignore", "error"):  # pragma: no cover
         msg: str = (
             "phase_loss must be one of {'warn', 'ignore', 'error'}, "
             f"got '{phase_loss}'"

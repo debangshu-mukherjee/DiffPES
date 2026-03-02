@@ -145,3 +145,47 @@ class TestGauntTable:
         # Actually just check it's a known positive value.
         val = gaunt_lookup(0, 0, 0, 1, 0)
         assert val > 0.0
+
+
+class TestWigner3jSelectionRules:
+    """Tests for internal Wigner 3-j and complex Gaunt zero paths.
+
+    Exercises the early-return branches in ``_wigner3j`` and
+    ``_complex_gaunt`` that return 0.0 when selection rules are
+    violated, ensuring those lines are covered.
+    """
+
+    def test_abs_m_exceeds_j_returns_zero(self):
+        """Verify |m1| > j1 causes _wigner3j to return 0.0.
+
+        Constructs a call where |m1| = 2 > j1 = 1, violating the
+        |mi| <= ji constraint, and asserts the result is 0.0 (line 111).
+        """
+        from diffpes.maths.gaunt import _wigner3j
+
+        val = _wigner3j(1, 1, 0, 2, -1, -1)
+        assert val == 0.0
+
+    def test_triangle_inequality_violated_returns_zero(self):
+        """Verify triangle inequality violation causes _wigner3j to return 0.0.
+
+        Uses j1=2, j2=1, j3=0 where j3 < |j1 - j2| = 1, violating the
+        triangle inequality, and asserts the result is 0.0 (line 113).
+        """
+        from diffpes.maths.gaunt import _wigner3j
+
+        # j3=0 < |j1-j2| = |2-1| = 1 → triangle violated
+        val = _wigner3j(2, 1, 0, 0, 0, 0)
+        assert val == 0.0
+
+    def test_complex_gaunt_zero_w3j_000_returns_zero(self):
+        """Verify that zero w3j_000 (parity violation) causes _complex_gaunt to return 0.0.
+
+        For l1=2, l2=1, l3=0 the three-j symbol (2,1,0 | 0,0,0) is zero
+        because l1+l2+l3 = 3 is odd (parity selection rule). Asserts
+        the complex Gaunt integral returns 0.0 (line 194).
+        """
+        from diffpes.maths.gaunt import _complex_gaunt
+
+        val = _complex_gaunt(2, 0, 1, 0, 0, 0)
+        assert val == 0.0

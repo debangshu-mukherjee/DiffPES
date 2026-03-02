@@ -87,3 +87,29 @@ class TestRadialIntegral(chex.TestCase):
         grad_auto = jax.grad(objective)(zeta0)
         fd = (objective(zeta0 + eps) - objective(zeta0 - eps)) / (2.0 * eps)
         chex.assert_trees_all_close(grad_auto, fd, atol=5.0e-3, rtol=5.0e-3)
+
+
+class TestRadialIntegrateErrors:
+    """Tests for invalid input handling in radial_integral.
+
+    Validates that ``radial_integral`` raises ``ValueError`` for
+    negative ``l_prime`` values.
+    """
+
+    def test_negative_l_prime_raises(self):
+        """Verify that l_prime < 0 raises ValueError.
+
+        Calls ``radial_integral`` with ``l_prime=-1`` and asserts a
+        ``ValueError`` matching "non-negative" is raised, covering the
+        guard at the top of the function.
+        """
+        import jax.numpy as jnp
+        import pytest
+
+        from diffpes.radial import radial_integral, slater_radial
+
+        r = jnp.linspace(0.0, 10.0, 100, dtype=jnp.float64)
+        radial = slater_radial(r, n=1, zeta=1.0)
+        k = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="non-negative"):
+            radial_integral(k, r, radial, l_prime=-1)

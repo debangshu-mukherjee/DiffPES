@@ -428,6 +428,20 @@ wheels = [
 ]
 
 [[package]]
+name = "cmocean"
+version = "4.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/93/6ce32a2749968071b5239c96c54a229f9cb666d1c2d2cead7246ef28282c/cmocean-4.0.3.tar.gz", hash = "sha256:37868399fb5f41b4eac596e69803f9bfaea49946514dfb2e7f48886854250d7c", size = 7145175, upload-time = "2024-04-06T01:05:26.398Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/7b/97754548e9da3d41d7334e375b2cd712e9406a3f48823a5f0a166f42d63d/cmocean-4.0.3-py3-none-any.whl", hash = "sha256:f2fc1d5e349db122ee0c9eac80bba969aa92dd2806548fce58dc8bef962f309e", size = 421873, upload-time = "2024-04-06T01:05:24.069Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -694,6 +708,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beartype" },
     { name = "chex" },
+    { name = "difftb" },
     { name = "h5py" },
     { name = "ipykernel" },
     { name = "jax", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win64'" },
@@ -829,6 +844,7 @@ requires-dist = [
     { name = "diffpes", extras = ["dev", "cuda"], marker = "extra == 'dev-cuda'" },
     { name = "diffpes", extras = ["docs", "test", "dev", "notebooks", "cuda"], marker = "extra == 'all'" },
     { name = "diffpes", extras = ["docs", "test", "notebooks"], marker = "extra == 'dev'" },
+    { name = "difftb", editable = "../DiffTB" },
     { name = "furo", marker = "extra == 'docs'", specifier = ">=2025.7.19" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "interrogate", marker = "extra == 'docs'", specifier = ">=1.7.0" },
@@ -866,6 +882,89 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.19" },
 ]
 provides-extras = ["cuda", "docs", "test", "notebooks", "dev", "dev-cuda", "all"]
+
+[[package]]
+name = "difftb"
+version = "2025.12.16"
+source = { editable = "../DiffTB" }
+dependencies = [
+    { name = "beartype" },
+    { name = "black", extra = ["jupyter"] },
+    { name = "chex" },
+    { name = "cmocean" },
+    { name = "ipykernel" },
+    { name = "jax", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win64'" },
+    { name = "jaxtyping" },
+    { name = "jupyter" },
+    { name = "jupyterlab" },
+    { name = "matplotlib" },
+    { name = "matplotlib-scalebar" },
+    { name = "numpy" },
+    { name = "optax" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beartype", specifier = ">=0.21.0" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
+    { name = "black", extras = ["jupyter"], specifier = ">=25.1.0" },
+    { name = "chex", specifier = ">=0.1.85" },
+    { name = "chex", marker = "extra == 'test'", specifier = ">=0.1.89" },
+    { name = "cmocean", specifier = ">=4.0.3" },
+    { name = "difftb", extras = ["cuda", "dev"], marker = "extra == 'dev-cuda'" },
+    { name = "difftb", extras = ["docs", "notebooks", "test"], marker = "extra == 'dev'" },
+    { name = "furo", marker = "extra == 'docs'", specifier = ">=2025.7.19" },
+    { name = "interrogate", marker = "extra == 'docs'", specifier = ">=1.7.0" },
+    { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.5" },
+    { name = "ipykernel", marker = "extra == 'docs'", specifier = ">=6.29.5" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29.5" },
+    { name = "ipywidgets", marker = "extra == 'notebooks'", specifier = ">=8.1.0" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=6.0.1" },
+    { name = "jax", marker = "sys_platform == 'darwin'", specifier = ">=0.7.0" },
+    { name = "jax", marker = "sys_platform == 'linux'", specifier = ">=0.7.0" },
+    { name = "jax", marker = "sys_platform == 'win64'", specifier = ">=0.7.0" },
+    { name = "jax", extras = ["cuda12"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=0.7.0" },
+    { name = "jaxtyping", specifier = ">0.3.2" },
+    { name = "jupyter", specifier = ">=1.1.1" },
+    { name = "jupyterlab", specifier = ">=4.4.5" },
+    { name = "matplotlib", specifier = ">=2.2.0" },
+    { name = "matplotlib-scalebar", specifier = ">=0.5.0" },
+    { name = "myst-parser", marker = "extra == 'dev'", specifier = ">=4.0.1" },
+    { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=4.0.1" },
+    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.16.6" },
+    { name = "nbsphinx", marker = "extra == 'dev'", specifier = ">=0.9.6" },
+    { name = "nbsphinx", marker = "extra == 'docs'", specifier = ">=0.9.6" },
+    { name = "numpy", specifier = ">=1.13.0" },
+    { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=9.5.0" },
+    { name = "optax", specifier = ">=0.1.8" },
+    { name = "pandoc", marker = "extra == 'docs'", specifier = ">=2.4" },
+    { name = "pydata-sphinx-theme", marker = "extra == 'dev'", specifier = ">=0.16.1" },
+    { name = "pydata-sphinx-theme", marker = "extra == 'docs'", specifier = ">=0.16.1" },
+    { name = "pydoclint", marker = "extra == 'docs'", specifier = ">=0.7.3" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.5" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
+    { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.9" },
+    { name = "scipy", specifier = ">=1.0.0" },
+    { name = "sphinx", marker = "extra == 'dev'", specifier = ">=8.1.3" },
+    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=8.1.3" },
+    { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=3.0.1" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'dev'", specifier = ">=3.0.2" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3.0.2" },
+    { name = "sphinxcontrib-napoleon", marker = "extra == 'dev'", specifier = ">=0.7" },
+    { name = "sphinxcontrib-napoleon", marker = "extra == 'docs'", specifier = ">=0.7" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.1.0" },
+]
+provides-extras = ["cuda", "docs", "notebooks", "test", "dev", "dev-cuda"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "black", extras = ["jupyter"], specifier = ">=25.1.0" }]
 
 [[package]]
 name = "distlib"
@@ -1927,6 +2026,18 @@ wheels = [
 ]
 
 [[package]]
+name = "matplotlib-scalebar"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c5/3d/e76e0e48c96e43b656446c35990824f20136de21940a7436020ab757a54d/matplotlib_scalebar-0.9.0.tar.gz", hash = "sha256:f91adc5e4e67ac920a8fa98a55f904d56e5c2da4d56286748c31ec62146362be", size = 1180588, upload-time = "2025-01-17T22:10:59.349Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/c0/2dfab7b319dabe23f5a7b515a797c74b501d15c72e7a03837cf0cf779b9e/matplotlib_scalebar-0.9.0-py3-none-any.whl", hash = "sha256:5140525cd4e0c60bcade541b86571dabaf446fa69192530bd82d60b54601aa79", size = 16411, upload-time = "2025-01-17T22:10:57.319Z" },
+]
+
+[[package]]
 name = "mdit-py-plugins"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2380,6 +2491,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8c/b9/2ac072041e899a52f20cf9510850ff58295003aa75525e58343591b0cbfb/opt_einsum-3.4.0.tar.gz", hash = "sha256:96ca72f1b886d148241348783498194c577fa30a8faac108586b14f1ba4473ac", size = 63004, upload-time = "2024-09-26T14:33:24.483Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/23/cd/066e86230ae37ed0be70aae89aabf03ca8d9f39c8aea0dec8029455b5540/opt_einsum-3.4.0-py3-none-any.whl", hash = "sha256:69bb92469f86a1565195ece4ac0323943e83477171b91d24c35afe028a90d7cd", size = 71932, upload-time = "2024-09-26T14:33:23.039Z" },
+]
+
+[[package]]
+name = "optax"
+version = "0.2.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "absl-py" },
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/f7/a63fc3d262d7a58d7d53050dea1408a63738739569af34f8f754cf181ab1/optax-0.2.7.tar.gz", hash = "sha256:8b6b2e5bd62bcc6c11f6172a1aff0d86da0eaeecbd5465b2b366b5d3d64f6efc", size = 297524, upload-time = "2026-02-05T20:49:28.749Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/1e/94ad43e06887244b4d25f58b689122270ba3c129d3448052958eecf7518a/optax-0.2.7-py3-none-any.whl", hash = "sha256:241f2dfa104eab4fec2e16e7919f88df24a3da1481f95e264b3db396b30d4ff6", size = 399395, upload-time = "2026-02-05T20:49:26.883Z" },
 ]
 
 [[package]]

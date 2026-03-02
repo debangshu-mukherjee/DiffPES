@@ -35,6 +35,7 @@ Routine Listings
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
 
 from diffpes.types import (
     ArpesSpectrum,
@@ -51,9 +52,11 @@ from diffpes.types import (
     make_density_of_states,
     make_kpath_info,
     make_orbital_projection,
+    make_orbital_basis,
     make_polarization_config,
     make_simulation_params,
 )
+from diffpes.types.radial_params import make_slater_params
 
 
 class TestMakeCrystalGeometry(chex.TestCase):
@@ -642,3 +645,107 @@ class TestMakeKPathInfo(chex.TestCase):
         chex.assert_shape(kpath.label_indices, (3,))
         chex.assert_equal(kpath.mode, "Line-mode")
         chex.assert_equal(kpath.labels, ("G", "M", "K"))
+
+
+class TestMakeOrbitalBasisErrors(chex.TestCase):
+    """Tests for validation errors in make_orbital_basis.
+
+    Verifies that ``make_orbital_basis`` raises ``ValueError`` when
+    the quantum number arrays have mismatched lengths or when a
+    ``labels`` tuple has the wrong length.
+    """
+
+    def test_length_mismatch_raises(self):
+        """Verify that mismatched n_values / l_values lengths raise ValueError.
+
+        Passes ``n_values=(1, 2)`` (length 2) with ``l_values=(0,)``
+        (length 1) and asserts a ``ValueError`` is raised, covering
+        the length-check guard in the factory.
+        """
+        with pytest.raises(ValueError, match="same length"):
+            make_orbital_basis(
+                n_values=(1, 2),
+                l_values=(0,),
+                m_values=(0,),
+            )
+
+    def test_labels_length_mismatch_raises(self):
+        """Verify that a mismatched labels tuple raises ValueError.
+
+        Passes a single-orbital basis but provides two labels, and
+        asserts a ``ValueError`` matching "same length" is raised,
+        covering the labels-length guard.
+        """
+        with pytest.raises(ValueError, match="same length"):
+            make_orbital_basis(
+                n_values=(1,),
+                l_values=(0,),
+                m_values=(0,),
+                labels=("s", "extra"),
+            )
+
+
+class TestMakeSlaterParamsErrors(chex.TestCase):
+    """Tests for validation errors and defaults in make_slater_params.
+
+    Verifies that ``make_slater_params`` raises ``ValueError`` when
+    the ``zeta`` array length does not match ``orbital_basis`` size,
+    and that the default ``coefficients=None`` path creates a
+    single-zeta ones array.
+    """
+
+    def test_zeta_length_mismatch_raises(self):
+        """Verify that a zeta length mismatch raises ValueError.
+
+        Creates a single-orbital basis but passes ``zeta`` of length 3,
+        and asserts a ``ValueError`` matching "zeta length" is raised.
+        """
+        basis = make_orbital_basis(
+            n_values=(1,),
+            l_values=(0,),
+            m_values=(0,),
+        )
+        zeta = jnp.ones(3, dtype=jnp.float64)
+        with pytest.raises(ValueError, match="zeta length"):
+            make_slater_params(zeta=zeta, orbital_basis=basis)
+
+    def test_default_coefficients_are_ones(self):
+        """Verify that coefficients=None produces a (O, 1) ones array in float64.
+
+        Creates a 2-orbital basis with ``coefficients=None`` and asserts
+        the resulting ``coefficients`` has shape ``(2, 1)``, dtype
+        ``float64``, and all values equal to 1.0.
+        """
+        basis = make_orbital_basis(
+            n_values=(1, 2),
+            l_values=(0, 1),
+            m_values=(0, 0),
+        )
+        zeta = jnp.array([1.0, 1.5], dtype=jnp.float64)
+        params = make_slater_params(zeta=zeta, orbital_basis=basis)
+        chex.assert_shape(params.coefficients, (2, 1))
+        assert params.coefficients.dtype == jnp.float64
+        chex.assert_trees_all_close(
+            params.coefficients,
+            jnp.ones((2, 1), dtype=jnp.float64),
+        )
+
+    def test_explicit_coefficients_are_cast_to_float64(self):
+        """Verify that explicit coefficients are cast to float64.
+
+        Creates a 2-orbital, 2-zeta basis with explicit float32 coefficients
+        and asserts the stored array is float64 with the correct shape.
+        This covers the ``coeff_arr = jnp.asarray(coefficients, ...)`` branch.
+        """
+        basis = make_orbital_basis(
+            n_values=(1, 2),
+            l_values=(0, 1),
+            m_values=(0, 0),
+        )
+        zeta = jnp.array([1.0, 1.5], dtype=jnp.float64)
+        coeffs = jnp.array([[0.8, 0.2], [0.6, 0.4]], dtype=jnp.float32)
+        params = make_slater_params(
+            zeta=zeta, orbital_basis=basis, coefficients=coeffs
+        )
+        chex.assert_shape(params.coefficients, (2, 2))
+        assert params.coefficients.dtype == jnp.float64

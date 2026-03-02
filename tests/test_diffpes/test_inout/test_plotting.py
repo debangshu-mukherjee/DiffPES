@@ -44,10 +44,12 @@ from diffpes.inout import (
 )
 from diffpes.types import (
     ArpesSpectrum,
+    BandStructure,
     make_arpes_spectrum,
     make_band_structure,
     make_kpath_info,
     make_orbital_projection,
+    make_spin_orbital_projection,
 )
 
 
@@ -380,3 +382,289 @@ class TestPlotBandScatter(chex.TestCase):
         labels = [tick.get_text() for tick in ax.get_xticklabels()]
         chex.assert_equal(labels, ["G", "M", "K"])
         plt.close(fig)
+
+
+class TestPlotBandScatterEdgeCases(chex.TestCase):
+    """Edge-case tests for the band-scatter plotting helpers.
+
+    Covers remaining uncovered lines in plotting.py:
+    - Lines 449-450: ``_prepare_band_arrays`` ValueError for wrong ndim
+    - Lines 463-464: ``_subset_atom_axis`` with explicit atom_indices
+    - Lines 497-498: orbital-index preset ("s")
+    - Line 502: "total" preset
+    - Line 528: spin_channel preset ("spin_z_up")
+    - Line 541: OAM array subsetting when oam is not None
+    - Lines 551-553: OAM preset requires OAM data (oam is None → ValueError)
+    - Lines 554-556: oam_component preset branch
+    - Lines 562-564: unknown preset → ValueError
+    - Lines 644-648: weight shape mismatch → ValueError
+    - Line 667: ``fig = ax.figure`` when ax is provided
+    """
+
+    def _make_bands_1d(self, nk=4, nb=2):
+        """Build BandStructure with 1D eigenvalues (bypassing factory)."""
+        return BandStructure(
+            eigenvalues=jnp.zeros(nk * nb, dtype=jnp.float64),  # 1D -> wrong ndim
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+            kpoint_weights=jnp.zeros(nk, dtype=jnp.float64),
+            fermi_energy=jnp.float64(0.0),
+        )
+
+    def _make_orb_with_spin_and_oam(self, nk=4, nb=2, na=1):
+        """Build OrbitalProjection with spin and OAM attached."""
+        proj = jnp.ones((nk, nb, na, 9), dtype=jnp.float64) * 0.1
+        spin = jnp.zeros((nk, nb, na, 6), dtype=jnp.float64)
+        spin = spin.at[..., 0].set(0.3)   # spin_x_up non-zero
+        spin = spin.at[..., 4].set(0.2)   # spin_z_up non-zero
+        oam = jnp.ones((nk, nb, na, 3), dtype=jnp.float64) * 0.05
+        return make_orbital_projection(projections=proj, spin=spin, oam=oam)
+
+    def test_prepare_band_arrays_wrong_ndim_raises(self):
+        """``_prepare_band_arrays`` with 1D eigenvalues raises ValueError (lines 449-450).
+
+        Constructs a BandStructure with 1D eigenvalues (bypassing the
+        factory), then calls ``plot_band_scatter_preset``. Asserts a
+        ``ValueError`` matching ``"shape (K, B)"``.
+        """
+        bands = self._make_bands_1d(nk=4, nb=2)
+        proj = jnp.ones((4, 2, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        with pytest.raises(ValueError, match="shape"):
+            plot_band_scatter_preset(
+                bands=bands, orb_proj=orb, preset="p"
+            )
+
+    def test_subset_atom_axis_with_indices(self):
+        """Passing atom_indices calls ``_subset_atom_axis`` (lines 463-464).
+
+        Plots the "p" preset with ``atom_indices=[0]`` so that
+        ``_subset_atom_axis`` is called with a non-None index array.
+        Asserts the scatter point count equals nk * nb.
+        """
+        nk, nb, na = 6, 2, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        kpoints = jnp.zeros((nk, 3), dtype=jnp.float64)
+        bands = make_band_structure(eigenvalues=eigen, kpoints=kpoints)
+        proj = jnp.ones((nk, nb, na, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands,
+            orb_proj=orb,
+            preset="p",
+            atom_indices=[0],  # triggers _subset_atom_axis
+            colorbar=False,
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_s_orbital_preset(self):
+        """'s' preset uses _ORBITAL_INDEX branch (lines 497-498).
+
+        Calls ``plot_band_scatter_preset`` with ``preset='s'``. Asserts
+        that the scatter renders without error and the point count is
+        correct (exercises the ``_ORBITAL_INDEX[key]`` branch).
+        """
+        nk, nb = 6, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="s", colorbar=False
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_total_preset(self):
+        """'total' preset sums all orbital channels (line 502).
+
+        Calls ``plot_band_scatter_preset`` with ``preset='total'``.
+        Asserts the scatter renders and the point count is correct
+        (exercises the ``elif key == 'total'`` branch at line 501-502).
+        """
+        nk, nb = 4, 3
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.05
+        orb = make_orbital_projection(projections=proj)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="total", colorbar=False
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_spin_channel_preset(self):
+        """'spin_z_up' preset uses the spin_channel branch (line 528).
+
+        Calls ``plot_band_scatter_preset`` with ``preset='spin_z_up'``.
+        This exercises the ``if key in spin_channel`` branch (line 527-528).
+        Asserts the scatter renders without error.
+        """
+        nk, nb = 4, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.1
+        spin = jnp.ones((nk, nb, 1, 6), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj, spin=spin)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="spin_z_up", colorbar=False
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_oam_preset_with_oam_data(self):
+        """OAM preset with OAM data exercises oam_arr subsetting and component branch.
+
+        Calls ``plot_band_scatter_preset`` with ``preset='oam_total'``
+        and an OrbitalProjection that has ``oam`` data. This exercises
+        line 541 (``oam_arr = _subset_atom_axis(...)``) and lines
+        554-556 (``if key in oam_component: weights = ...``).
+        """
+        nk, nb = 4, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        orb = self._make_orb_with_spin_and_oam(nk=nk, nb=nb, na=1)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="oam_total", colorbar=False
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_oam_abs_total_preset(self):
+        """'oam_abs_total' preset uses ``np.abs`` on OAM component 2 (lines 557-559).
+
+        Calls ``plot_band_scatter_preset`` with ``preset='oam_abs_total'``
+        and an OrbitalProjection with OAM data present. This exercises
+        the ``elif key == 'oam_abs_total'`` branch at lines 557-559,
+        which computes ``np.sum(np.abs(oam_arr[..., 2]), axis=2)`` and
+        sets ``signed = False``. Asserts the scatter renders without error.
+        """
+        nk, nb = 4, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        orb = self._make_orb_with_spin_and_oam(nk=nk, nb=nb, na=1)
+        fig, ax, scatter = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="oam_abs_total", colorbar=False
+        )
+        chex.assert_equal(scatter.get_offsets().shape[0], nk * nb)
+        plt.close(fig)
+
+    def test_oam_preset_without_oam_data_raises(self):
+        """OAM preset without OAM data raises ValueError (lines 551-553).
+
+        Calls ``plot_band_scatter_preset`` with ``preset='oam_p'`` but
+        provides an OrbitalProjection with ``oam=None``. Asserts
+        ``ValueError`` matching ``"requires OAM data"``.
+        """
+        nk, nb = 4, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)  # oam=None
+        with pytest.raises(ValueError, match="requires OAM data"):
+            plot_band_scatter_preset(
+                bands=bands, orb_proj=orb, preset="oam_p"
+            )
+
+    def test_unknown_preset_raises(self):
+        """Unknown preset string raises ValueError (lines 562-564).
+
+        Calls ``plot_band_scatter_preset`` with an unrecognized preset
+        name. Asserts ``ValueError`` matching ``"Unknown preset"``.
+        """
+        nk, nb = 4, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        with pytest.raises(ValueError, match="Unknown preset"):
+            plot_band_scatter_preset(
+                bands=bands, orb_proj=orb, preset="not_a_real_preset"
+            )
+
+    def test_weight_shape_mismatch_raises(self):
+        """Weights shape != eigenvalues shape raises ValueError (lines 644-648).
+
+        Creates a BandStructure with shape (4, 2) but an OrbitalProjection
+        with shape (4, 3, 1, 9), so the "p" preset produces weights of
+        shape (4, 3) != (4, 2). Asserts ``ValueError`` matching
+        ``"Preset weights must have shape"``.
+        """
+        nk = 4
+        nb_bands = 2
+        nb_proj = 3  # different number of bands
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb_bands, dtype=jnp.float64).reshape(
+            nk, nb_bands
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb_proj, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        with pytest.raises(ValueError, match="Preset weights must have shape"):
+            plot_band_scatter_preset(
+                bands=bands, orb_proj=orb, preset="p"
+            )
+
+    def test_uses_provided_ax(self):
+        """When ax is provided, ``fig = ax.figure`` is used (line 667).
+
+        Creates a figure and axis, passes them to ``plot_band_scatter_preset``,
+        and asserts the returned figure is the same object, confirming
+        that line 667 (``fig = ax.figure``) is executed instead of
+        ``fig, ax = plt.subplots()``.
+        """
+        nk, nb = 6, 2
+        eigen = jnp.linspace(-1.0, 0.5, nk * nb, dtype=jnp.float64).reshape(
+            nk, nb
+        )
+        bands = make_band_structure(
+            eigenvalues=eigen,
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        proj = jnp.ones((nk, nb, 1, 9), dtype=jnp.float64) * 0.1
+        orb = make_orbital_projection(projections=proj)
+        fig0, ax0 = plt.subplots()
+        out_fig, out_ax, _ = plot_band_scatter_preset(
+            bands=bands, orb_proj=orb, preset="p", ax=ax0, colorbar=False
+        )
+        chex.assert_equal(out_fig is fig0, True)
+        plt.close(fig0)

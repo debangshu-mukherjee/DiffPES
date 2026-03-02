@@ -288,3 +288,51 @@ class TestVaspToDiagonalized:
             _ = vasp_to_diagonalized(
                 bands, orb_proj, basis, phase_loss="error"
             )
+
+    def test_invalid_phase_loss_raises(self):
+        """Verify that an unrecognised phase_loss value raises an error.
+
+        The ``phase_loss`` parameter is annotated ``Literal['warn',
+        'ignore', 'error']``, so beartype rejects any other string.
+        Passes ``phase_loss="bad"`` (via an unsafe cast) and asserts
+        that any exception is raised.
+        """
+        bands = make_band_structure(
+            eigenvalues=jnp.zeros((1, 1)),
+            kpoints=jnp.zeros((1, 3)),
+        )
+        orb_proj = make_orbital_projection(
+            projections=jnp.ones((1, 1, 1, 9)) / 9.0
+        )
+        basis = make_orbital_basis(
+            n_values=(1,),
+            l_values=(0,),
+            m_values=(0,),
+        )
+        with pytest.raises(Exception):
+            _ = vasp_to_diagonalized(bands, orb_proj, basis, phase_loss="bad")
+
+    def test_f_orbital_raises(self):
+        """Verify that an f-orbital (l=3) in the basis raises ValueError.
+
+        VASP PROCAR covers only s, p, d channels (9-orbital set).
+        Passing an f-orbital (l=3, m=0) to ``vasp_to_diagonalized``
+        should raise a ``ValueError`` indicating the orbital is not in
+        the VASP 9-orbital set.
+        """
+        bands = make_band_structure(
+            eigenvalues=jnp.zeros((1, 1)),
+            kpoints=jnp.zeros((1, 3)),
+        )
+        orb_proj = make_orbital_projection(
+            projections=jnp.ones((1, 1, 1, 9)) / 9.0
+        )
+        basis = make_orbital_basis(
+            n_values=(4,),
+            l_values=(3,),
+            m_values=(0,),
+        )
+        with pytest.raises(ValueError, match="not in VASP 9-orbital set"):
+            _ = vasp_to_diagonalized(
+                bands, orb_proj, basis, phase_loss="ignore"
+            )

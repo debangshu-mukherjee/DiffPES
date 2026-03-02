@@ -109,3 +109,50 @@ class TestSphericalBessel(chex.TestCase):
         grad_val = grad_fn(x0)
         expected_grad = (x0 * jnp.cos(x0) - jnp.sin(x0)) / (x0 * x0)
         chex.assert_trees_all_close(grad_val, expected_grad, atol=1.0e-10)
+
+
+class TestBesselErrors:
+    """Tests for invalid input handling in the Bessel module.
+
+    Validates that ``spherical_bessel_jl`` and the private helper
+    ``_odd_double_factorial`` raise ``ValueError`` for out-of-range inputs.
+    """
+
+    def test_negative_order_raises(self):
+        """Verify that a negative order raises ValueError.
+
+        Calls ``spherical_bessel_jl`` with ``order=-1`` and asserts a
+        ``ValueError`` is raised, covering the guard at the top of the
+        function.
+        """
+        import jax.numpy as jnp
+        import pytest
+
+        from diffpes.radial import spherical_bessel_jl
+
+        x = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="non-negative"):
+            spherical_bessel_jl(-1, x)
+
+    def test_odd_double_factorial_even_input_raises(self):
+        """Verify that an even input to _odd_double_factorial raises ValueError.
+
+        The helper ``_odd_double_factorial`` is used internally to compute
+        the small-argument Taylor coefficient. It requires a positive odd
+        integer; even inputs are invalid.
+        """
+        import pytest
+
+        from diffpes.radial.bessel import _odd_double_factorial
+
+        with pytest.raises(ValueError, match="positive odd integer"):
+            _odd_double_factorial(0)
+
+    def test_odd_double_factorial_even_positive_raises(self):
+        """Verify that a positive even input to _odd_double_factorial raises ValueError."""
+        import pytest
+
+        from diffpes.radial.bessel import _odd_double_factorial
+
+        with pytest.raises(ValueError, match="positive odd integer"):
+            _odd_double_factorial(4)

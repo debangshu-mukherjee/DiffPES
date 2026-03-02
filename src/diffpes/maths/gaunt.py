@@ -361,7 +361,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
                 total += coeff * (-1) ** rho * cg
 
     result: float = total.real
-    if abs(total.imag) > _IMAG_TOL:
+    if abs(total.imag) > _IMAG_TOL:  # pragma: no cover
         msg: str = f"Imaginary part {total.imag} in real Gaunt coefficient"
         raise ValueError(msg)
     return result

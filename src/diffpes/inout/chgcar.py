@@ -18,8 +18,9 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+from beartype import beartype
 from beartype.typing import Optional, Tuple
-from jaxtyping import Array, Float, Int
+from jaxtyping import Array, Float, Int, jaxtyped
 from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
@@ -37,6 +38,7 @@ _SCALAR_LINE_COMPONENTS: int = 3
 _N_SOC_MAG_BLOCKS: int = 3
 
 
+@jaxtyped(typechecker=beartype)
 def read_chgcar(
     filename: str = "CHGCAR",
 ) -> VolumetricData | SOCVolumetricData:
@@ -216,6 +218,7 @@ def read_chgcar(
     return result
 
 
+@jaxtyped(typechecker=beartype)
 def _read_poscar_header(
     fid,  # noqa: ANN001
 ) -> Tuple[
@@ -321,6 +324,7 @@ def _read_poscar_header(
     return lattice, coords, symbols, atom_counts
 
 
+@jaxtyped(typechecker=beartype)
 def _find_next_grid_line(
     lines: list[str],
     start_idx: int,
@@ -381,6 +385,7 @@ def _find_next_grid_line(
     return None, (0, 0, 0)
 
 
+@jaxtyped(typechecker=beartype)
 def _parse_float_block(
     lines: list[str],
     start_idx: int,

@@ -182,3 +182,31 @@ class TestEvaluateSelfEnergy:
 
         grad = jax.grad(loss)(jnp.array([0.01, 0.1]))
         assert jnp.all(jnp.isfinite(grad))
+
+
+class TestSelfEnergyErrors:
+    """Tests for invalid mode handling in evaluate_self_energy.
+
+    Validates that ``evaluate_self_energy`` raises ``ValueError`` when
+    given a ``SelfEnergyConfig`` with an unsupported mode string.
+    """
+
+    def test_unknown_mode_raises(self):
+        """Verify that an unknown self-energy mode raises ValueError.
+
+        Directly constructs a ``SelfEnergyConfig`` with mode="bad_mode"
+        to bypass the factory validation, then calls
+        ``evaluate_self_energy``.  Asserts a ``ValueError`` matching
+        "Unknown self-energy mode" is raised, covering the final
+        fallthrough branch in ``evaluate_self_energy``.
+        """
+        from diffpes.types import SelfEnergyConfig
+
+        config = SelfEnergyConfig(
+            coefficients=jnp.array([0.1]),
+            energy_nodes=None,
+            mode="bad_mode",
+        )
+        energy = jnp.array([0.0, 1.0])
+        with pytest.raises(ValueError, match="Unknown self-energy mode"):
+            evaluate_self_energy(energy, config)

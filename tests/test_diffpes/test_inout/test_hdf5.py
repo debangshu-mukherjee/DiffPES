@@ -698,3 +698,43 @@ class TestDatasetFlags(chex.TestCase):
                     compression_opts=4,
                     dos=dos,
                 )
+
+
+class TestVolumetricAuxEncoding:
+    """Tests for the private volumetric auxiliary data encode/decode helpers.
+
+    Exercises ``_encode_volumetric_aux`` and ``_decode_volumetric_aux``
+    used internally to serialise VolumetricData and SOCVolumetricData
+    PyTree auxiliary data in HDF5 files.
+    """
+
+    def test_encode_and_decode_round_trip(self):
+        """Verify that encode followed by decode recovers the original auxiliary data.
+
+        Constructs a ``(grid_shape, symbols)`` tuple, encodes it via
+        ``_encode_volumetric_aux``, then decodes the result via
+        ``_decode_volumetric_aux``, and asserts the round-trip produces
+        equal ``grid_shape`` and ``symbols``.
+        """
+        from diffpes.inout.hdf5 import _decode_volumetric_aux, _encode_volumetric_aux
+
+        aux = ((8, 8, 8), ("Fe", "Co"))
+        encoded = _encode_volumetric_aux(aux)
+        decoded = _decode_volumetric_aux(encoded)
+        assert decoded[0] == (8, 8, 8)
+        assert decoded[1] == ("Fe", "Co")
+
+    def test_encode_returns_json_serializable_list(self):
+        """Verify that _encode_volumetric_aux returns a plain nested list.
+
+        The encoded form must be a list of two lists (grid_shape as ints,
+        symbols as strings) so that it can be stored as a JSON attribute.
+        """
+        from diffpes.inout.hdf5 import _encode_volumetric_aux
+
+        aux = ((4, 6, 8), ("H", "O"))
+        encoded = _encode_volumetric_aux(aux)
+        assert isinstance(encoded, list)
+        assert len(encoded) == 2
+        assert encoded[0] == [4, 6, 8]
+        assert encoded[1] == ["H", "O"]

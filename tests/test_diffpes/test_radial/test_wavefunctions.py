@@ -19,6 +19,7 @@ Routine Listings
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
 
 from diffpes.radial import hydrogenic_radial, slater_radial
 
@@ -125,3 +126,103 @@ class TestHydrogenicRadial(chex.TestCase):
             jnp.asarray([0.0], dtype=jnp.float64),
             atol=1.0e-12,
         )
+
+
+class TestSlaterRadialErrors:
+    """Tests for invalid input handling in slater_radial.
+
+    Validates that ``slater_radial`` raises ``ValueError`` when the
+    principal quantum number ``n`` is less than 1.
+    """
+
+    def test_n_zero_raises(self):
+        """Verify that n=0 raises ValueError.
+
+        Calls ``slater_radial`` with ``n=0`` and asserts a
+        ``ValueError`` matching "n must be >= 1" is raised.
+        """
+        r = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="n must be >= 1"):
+            slater_radial(r, n=0, zeta=1.0)
+
+
+class TestHydrogenicRadialErrors:
+    """Tests for invalid input handling in hydrogenic_radial.
+
+    Validates that ``hydrogenic_radial`` raises ``ValueError`` for
+    invalid principal quantum numbers (n < 1) and for angular momentum
+    that violates 0 <= l < n.
+    """
+
+    def test_n_zero_raises(self):
+        """Verify that n=0 raises ValueError for hydrogenic_radial.
+
+        Calls ``hydrogenic_radial`` with ``n=0`` and asserts a
+        ``ValueError`` matching "n must be >= 1" is raised.
+        """
+        r = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="n must be >= 1"):
+            hydrogenic_radial(r, n=0, angular_momentum=0, z_eff=1.0)
+
+    def test_angular_momentum_equals_n_raises(self):
+        """Verify that angular_momentum >= n raises ValueError.
+
+        Calls ``hydrogenic_radial`` with ``n=2, angular_momentum=2``
+        which violates the constraint ``angular_momentum < n``, and
+        asserts a ``ValueError`` matching "angular_momentum" is raised.
+        """
+        r = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="angular_momentum"):
+            hydrogenic_radial(r, n=2, angular_momentum=2, z_eff=1.0)
+
+
+class TestLaguerreRecurrence:
+    """Tests for the Laguerre polynomial recurrence path.
+
+    Exercises the ``order >= 2`` branch of ``_associated_laguerre``
+    that uses ``jax.lax.fori_loop`` for the recurrence, and validates
+    the error paths for negative order or alpha.
+    """
+
+    def test_negative_order_raises(self):
+        """Verify that order < 0 raises ValueError in _associated_laguerre."""
+        from diffpes.radial.wavefunctions import _associated_laguerre
+
+        r = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="non-negative"):
+            _associated_laguerre(-1, 0.5, r)
+
+    def test_negative_alpha_raises(self):
+        """Verify that alpha < 0 raises ValueError in _associated_laguerre."""
+        from diffpes.radial.wavefunctions import _associated_laguerre
+
+        r = jnp.array([1.0], dtype=jnp.float64)
+        with pytest.raises(ValueError, match="non-negative"):
+            _associated_laguerre(2, -0.1, r)
+
+    def test_order_one_early_return(self):
+        """Verify that order=1 takes the early-return branch.
+
+        L_1^0(x) = 1 - x, so at x=0 the value is 1.0 and at x=1 it is 0.0.
+        This exercises the ``if order == 1: return laguerre_one`` path.
+        """
+        from diffpes.radial.wavefunctions import _associated_laguerre
+
+        x = jnp.array([0.0, 1.0], dtype=jnp.float64)
+        result = _associated_laguerre(1, 0.0, x)
+        expected = jnp.array([1.0, 0.0], dtype=jnp.float64)
+        chex.assert_trees_all_close(result, expected, atol=1e-10)
+
+    def test_order_two_uses_recurrence(self):
+        """Verify that order=2 executes the fori_loop recurrence branch.
+
+        The order=0 and order=1 branches return early; order >= 2
+        uses the upward recurrence. Checks the known value
+        L_2^0(0) = 1 - 0 + 0 = 1.
+        """
+        from diffpes.radial.wavefunctions import _associated_laguerre
+
+        x = jnp.array([0.0], dtype=jnp.float64)
+        # L_2^0(x) = 1 - x + x^2/2, so L_2^0(0) = 1
+        result = _associated_laguerre(2, 0.0, x)
+        chex.assert_trees_all_close(result, jnp.array([1.0]), atol=1e-10)

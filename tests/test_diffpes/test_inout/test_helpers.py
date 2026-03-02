@@ -284,3 +284,46 @@ class TestCheckConsistency(chex.TestCase):
             mode="Line-mode",
         )
         check_consistency(bands, orb, kpath)
+
+    def test_kpath_line_mode_mismatch_raises(self):
+        """Verify ValueError when Line-mode KPathInfo has a different k-point count.
+
+        Constructs a BandStructure with 10 k-points and an OrbitalProjection
+        with matching dimensions, but a KPathInfo with ``num_kpoints=5`` in
+        ``"Line-mode"``. Asserts that ``check_consistency`` raises
+        ``ValueError`` matching ``"K-point count mismatch"``, covering the
+        ``kpath.mode == "Line-mode"`` branch at helpers.py lines 283-287.
+        """
+        bands = make_band_structure(
+            eigenvalues=jnp.zeros((10, 3)),
+            kpoints=jnp.zeros((10, 3)),
+        )
+        orb = make_orbital_projection(
+            projections=jnp.zeros((10, 3, 1, 9)),
+        )
+        kpath = make_kpath_info(
+            num_kpoints=5,
+            label_indices=[0, 4],
+            mode="Line-mode",
+        )
+        with pytest.raises(ValueError, match="K-point count mismatch"):
+            check_consistency(bands, orb, kpath)
+
+
+class TestSelectAtomsWithOAM(chex.TestCase):
+    """Test that select_atoms correctly propagates the OAM field."""
+
+    def test_select_atoms_preserves_oam(self):
+        """Verify OAM is sliced along the atom axis when selecting atoms.
+
+        Constructs an OrbitalProjection with OAM shape (2, 2, 3, 3) and
+        selects atoms 0 and 2. Asserts the resulting OAM has shape
+        (2, 2, 2, 3), confirming helpers.py line 89 is executed when
+        ``orb.oam is not None``.
+        """
+        proj = jnp.ones((2, 2, 3, 9), dtype=jnp.float64)
+        oam = jnp.ones((2, 2, 3, 3), dtype=jnp.float64)
+        orb = make_orbital_projection(projections=proj, oam=oam)
+        sub = select_atoms(orb, [0, 2])
+        assert sub.oam is not None
+        chex.assert_shape(sub.oam, (2, 2, 2, 3))

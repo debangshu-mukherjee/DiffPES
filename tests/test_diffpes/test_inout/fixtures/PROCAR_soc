@@ -1,0 +1,37 @@
+PROCAR lm decomposed + phase
+ # of k-points:   1 # of bands:   1 # of ions:   1
+
+ k-point    1 :    0.00000000 0.00000000 0.00000000
+
+ band    1
+ ion    s     py     pz     px    dxy    dyz    dz2    dxz   dx2-y2    tot
+   1  0.1  0.05  0.05  0.05  0.02  0.02  0.02  0.02  0.02  0.35
+ tot  0.1  0.05  0.05  0.05  0.02  0.02  0.02  0.02  0.02  0.35
+
+ # of k-points:   1 # of bands:   1 # of ions:   1
+
+ k-point    1 :    0.00000000 0.00000000 0.00000000
+
+ band    1
+ ion    s     py     pz     px    dxy    dyz    dz2    dxz   dx2-y2    tot
+   1  0.01  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.01
+ tot  0.01  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.01
+
+ # of k-points:   1 # of bands:   1 # of ions:   1
+
+ k-point    1 :    0.00000000 0.00000000 0.00000000
+
+ band    1
+ ion    s     py     pz     px    dxy    dyz    dz2    dxz   dx2-y2    tot
+   1  0.02  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.02
+ tot  0.02  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.02
+
+ # of k-points:   1 # of bands:   1 # of ions:   1
+
+ k-point    1 :    0.00000000 0.00000000 0.00000000
+
+ band    1
+ ion    s     py     pz     px    dxy    dyz    dz2    dxz   dx2-y2    tot
+   1  0.03  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.03
+ tot  0.03  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.03
+

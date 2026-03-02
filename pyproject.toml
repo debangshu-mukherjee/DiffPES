@@ -40,6 +40,7 @@ dependencies = [
     "jupyter>=1.1.1",
     "ipykernel>=7.2.0",
     "h5py>=3.15.1",
+    "difftb",
 ]
 
 [tool.setuptools]
@@ -98,6 +99,9 @@ dev_cuda = [
 all = [
     "diffpes[docs,test,dev,notebooks,cuda]",
 ]
+
+[tool.uv.sources]
+difftb = { path = "../DiffTB", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]

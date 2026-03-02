@@ -40,6 +40,7 @@ from diffpes.types import (
     make_orbital_basis,
     make_self_energy_config,
     make_slater_params,
+    make_spin_orbital_projection,
     make_tb_model,
 )
 
@@ -407,3 +408,191 @@ class TestSelfEnergyConfig:
         config2 = jax.tree_util.tree_unflatten(treedef, leaves)
         assert config2.mode == config.mode
         assert jnp.allclose(config2.coefficients, config.coefficients)
+
+
+class TestSpinOrbitalProjectionWithOAM:
+    """Tests for make_spin_orbital_projection with explicit OAM data.
+
+    Exercises the branch in ``make_spin_orbital_projection`` where
+    ``oam`` is not None, covering the OAM array casting code path.
+    """
+
+    def test_with_oam_stores_array(self):
+        """Verify that providing oam creates a float64 OAM array in the result.
+
+        Constructs a SpinOrbitalProjection with explicit OAM and asserts
+        the ``oam`` field is not None and has the correct shape.
+        """
+        K, B, A = 2, 3, 1
+        proj = jnp.ones((K, B, A, 9), dtype=jnp.float64)
+        spin = jnp.zeros((K, B, A, 6), dtype=jnp.float64)
+        oam = jnp.ones((K, B, A, 3), dtype=jnp.float64) * 0.5
+        sop = make_spin_orbital_projection(
+            projections=proj, spin=spin, oam=oam
+        )
+        assert sop.oam is not None
+        assert sop.oam.shape == (K, B, A, 3)
+        assert sop.oam.dtype == jnp.float64
+
+
+class TestVolumetricPyTree:
+    """PyTree round-trip tests for VolumetricData and SOCVolumetricData.
+
+    Exercises the ``tree_flatten`` / ``tree_unflatten`` methods and
+    the ``atom_counts=None`` default path in both factories.
+    """
+
+    def test_volumetric_data_pytree_round_trip(self):
+        """Verify VolumetricData survives a JAX PyTree flatten/unflatten round-trip.
+
+        Constructs a minimal VolumetricData, flattens and unflattens it,
+        then asserts the ``charge`` array is preserved.
+        """
+        from diffpes.types import make_volumetric_data
+
+        lattice = jnp.eye(3, dtype=jnp.float64)
+        coords = jnp.zeros((2, 3), dtype=jnp.float64)
+        charge = jnp.ones((4, 4, 4), dtype=jnp.float64)
+        vol = make_volumetric_data(
+            lattice=lattice,
+            coords=coords,
+            charge=charge,
+            grid_shape=(4, 4, 4),
+            symbols=("Fe", "Co"),
+        )
+        leaves, treedef = jax.tree_util.tree_flatten(vol)
+        vol2 = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert jnp.allclose(vol2.charge, vol.charge)
+        assert vol2.grid_shape == vol.grid_shape
+        assert vol2.symbols == vol.symbols
+
+    def test_volumetric_data_atom_counts_none_default(self):
+        """Verify that atom_counts=None creates a zero-length int32 array.
+
+        When ``atom_counts`` is omitted, the factory should default to
+        ``jnp.zeros(0, dtype=jnp.int32)`` so the field is always an array.
+        """
+        from diffpes.types import make_volumetric_data
+
+        vol = make_volumetric_data(
+            lattice=jnp.eye(3, dtype=jnp.float64),
+            coords=jnp.zeros((1, 3), dtype=jnp.float64),
+            charge=jnp.ones((2, 2, 2), dtype=jnp.float64),
+            grid_shape=(2, 2, 2),
+            symbols=("Fe",),
+        )
+        assert vol.atom_counts.dtype == jnp.int32
+        assert vol.atom_counts.shape == (0,)
+
+    def test_soc_volumetric_data_pytree_round_trip(self):
+        """Verify SOCVolumetricData survives a JAX PyTree flatten/unflatten round-trip."""
+        from diffpes.types import make_soc_volumetric_data
+
+        lattice = jnp.eye(3, dtype=jnp.float64)
+        coords = jnp.zeros((1, 3), dtype=jnp.float64)
+        charge = jnp.ones((2, 2, 2), dtype=jnp.float64)
+        mag = jnp.zeros((2, 2, 2), dtype=jnp.float64)
+        mag_vec = jnp.zeros((2, 2, 2, 3), dtype=jnp.float64)
+        vol = make_soc_volumetric_data(
+            lattice=lattice,
+            coords=coords,
+            charge=charge,
+            magnetization=mag,
+            magnetization_vector=mag_vec,
+            grid_shape=(2, 2, 2),
+            symbols=("Fe",),
+        )
+        leaves, treedef = jax.tree_util.tree_flatten(vol)
+        vol2 = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert jnp.allclose(vol2.charge, vol.charge)
+        assert vol2.grid_shape == vol.grid_shape
+
+    def test_soc_volumetric_data_atom_counts_none_default(self):
+        """Verify that atom_counts=None creates a zero-length int32 array in SOCVolumetricData."""
+        from diffpes.types import make_soc_volumetric_data
+
+        vol = make_soc_volumetric_data(
+            lattice=jnp.eye(3, dtype=jnp.float64),
+            coords=jnp.zeros((1, 3), dtype=jnp.float64),
+            charge=jnp.ones((2, 2, 2), dtype=jnp.float64),
+            magnetization=jnp.zeros((2, 2, 2), dtype=jnp.float64),
+            magnetization_vector=jnp.zeros((2, 2, 2, 3), dtype=jnp.float64),
+            grid_shape=(2, 2, 2),
+            symbols=("Fe",),
+        )
+        assert vol.atom_counts.dtype == jnp.int32
+        assert vol.atom_counts.shape == (0,)
+
+
+class TestFullDensityOfStatesPyTree:
+    """PyTree round-trip tests for FullDensityOfStates.
+
+    Exercises the ``tree_flatten`` / ``tree_unflatten`` of
+    ``FullDensityOfStates``, both with and without optional fields.
+    """
+
+    def test_pytree_round_trip(self):
+        """Verify FullDensityOfStates survives a JAX PyTree flatten/unflatten round-trip.
+
+        Constructs a minimal FullDensityOfStates (spin-up only),
+        flattens and unflattens it, then asserts the ``fermi_energy``
+        and ``total_dos_up`` arrays are preserved.
+        """
+        from diffpes.types import make_full_density_of_states
+
+        energy = jnp.linspace(-3, 1, 50, dtype=jnp.float64)
+        dos_up = jnp.ones(50, dtype=jnp.float64)
+        idos_up = jnp.cumsum(dos_up)
+        full_dos = make_full_density_of_states(
+            energy=energy,
+            total_dos_up=dos_up,
+            integrated_dos_up=idos_up,
+            fermi_energy=-0.5,
+        )
+        leaves, treedef = jax.tree_util.tree_flatten(full_dos)
+        full_dos2 = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert jnp.allclose(full_dos2.total_dos_up, full_dos.total_dos_up)
+        assert jnp.allclose(full_dos2.fermi_energy, full_dos.fermi_energy)
+        assert full_dos2.natoms == full_dos.natoms
+
+
+class TestBandsPyTree:
+    """PyTree round-trip tests for SpinOrbitalProjection and SpinBandStructure.
+
+    Exercises the ``tree_flatten`` / ``tree_unflatten`` methods for
+    the spin-aware band and projection types.
+    """
+
+    def test_spin_orbital_projection_pytree_round_trip(self):
+        """Verify SpinOrbitalProjection survives a JAX PyTree flatten/unflatten round-trip."""
+        from diffpes.types import make_spin_orbital_projection
+
+        K, B, A = 3, 4, 2
+        proj = jnp.ones((K, B, A, 9), dtype=jnp.float64)
+        spin = jnp.zeros((K, B, A, 6), dtype=jnp.float64)
+        sop = make_spin_orbital_projection(projections=proj, spin=spin)
+        leaves, treedef = jax.tree_util.tree_flatten(sop)
+        sop2 = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert jnp.allclose(sop2.projections, sop.projections)
+        assert jnp.allclose(sop2.spin, sop.spin)
+        assert sop2.oam is None
+
+    def test_spin_band_structure_pytree_round_trip(self):
+        """Verify SpinBandStructure survives a JAX PyTree flatten/unflatten round-trip."""
+        from diffpes.types import make_spin_band_structure
+
+        K, B = 5, 3
+        evals_up = jnp.zeros((K, B), dtype=jnp.float64)
+        evals_down = jnp.ones((K, B), dtype=jnp.float64)
+        kpoints = jnp.zeros((K, 3), dtype=jnp.float64)
+        sbs = make_spin_band_structure(
+            eigenvalues_up=evals_up,
+            eigenvalues_down=evals_down,
+            kpoints=kpoints,
+            fermi_energy=-1.0,
+        )
+        leaves, treedef = jax.tree_util.tree_flatten(sbs)
+        sbs2 = jax.tree_util.tree_unflatten(treedef, leaves)
+        assert jnp.allclose(sbs2.eigenvalues_up, sbs.eigenvalues_up)
+        assert jnp.allclose(sbs2.eigenvalues_down, sbs.eigenvalues_down)
+        assert jnp.allclose(sbs2.fermi_energy, sbs.fermi_energy)
