@@ -45,8 +45,8 @@ Routine Listings
     Build a fixed-kz ARPES raster in fractional coordinates.
 :func:`build_bz_mesh`
     Build a fixed-shape reciprocal mesh and its first-zone mask.
-:func:`build_kmesh_hv`
-    Build a photon-energy raster in fractional coordinates.
+:func:`build_kmesh_hv_at_fermi`
+    Build an at-Fermi photon-energy raster in fractional coordinates.
 :func:`build_kpath`
     Build a labeled path between k-space anchors.
 :func:`diagonalize_tb`
@@ -121,7 +121,7 @@ from .hamiltonian import (
 from .kspace import (
     build_arpes_kmesh,
     build_bz_mesh,
-    build_kmesh_hv,
+    build_kmesh_hv_at_fermi,
     build_kpath,
     first_bz_mask,
     kpath_arc_length,
@@ -153,7 +153,7 @@ __all__: list[str] = [
     "bloch_hamiltonian_batch",
     "build_arpes_kmesh",
     "build_bz_mesh",
-    "build_kmesh_hv",
+    "build_kmesh_hv_at_fermi",
     "build_kpath",
     "build_sk_model",
     "diagonalize_tb",

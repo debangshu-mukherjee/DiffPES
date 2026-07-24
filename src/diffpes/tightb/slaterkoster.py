@@ -28,10 +28,10 @@ Notes
 -----
 Neighbor selection is discrete. The selected atom/cell tuples define static
 topology. Derivatives remain meaningful while perturbations neither cross the
-cutoff nor merge a nonzero bond into zero length. A transformed builder uses
-the fixed candidate topology of the default ``5 x 5 x 5`` supercell. It masks
-bonds outside the cutoff. This keeps the same Hamiltonian away from the
-boundary and retains the local position derivative.
+cutoff nor merge a nonzero bond into zero length. The host setup derives a
+complete finite translation bound from the lattice singular values, the basis
+diameter, and the cutoff. A transformation without a concrete geometry is
+rejected because its neighbor topology cannot be certified.
 """
 
 from collections.abc import Sequence
@@ -47,7 +47,6 @@ from jaxtyping import Array, Complex, Float, jaxtyped
 from diffpes.types import (
     CARTESIAN_COMPONENTS,
     CHANNELS_BY_PAIR,
-    DEFAULT_SUPERCELL_RADIUS,
     KNOWN_CHANNELS,
     MAX_SK_ANGULAR_MOMENTUM,
     MIN_BOND_DISTANCE,
@@ -368,6 +367,53 @@ def _candidate_topology(
     return topology
 
 
+def _certified_supercell_radius(
+    geometry: CrystalGeometry,
+    cutoff: float,
+) -> int:
+    r"""Return a complete integer-translation search radius.
+
+    If ``A`` stores lattice vectors as rows, a retained displacement obeys
+    ``||(n + delta) A|| <= cutoff``. Therefore
+
+    ``||n|| <= (cutoff + ||delta A||) / sigma_min(A)``.
+
+    Maximizing the second term over all basis pairs gives one cube radius that
+    contains every possible retained translation. The outward floating-point
+    rounding keeps the host certificate conservative.
+    """
+    lattice: np.ndarray = np.asarray(geometry.lattice, dtype=np.float64)
+    positions: np.ndarray = np.asarray(geometry.positions, dtype=np.float64)
+    singular_values: np.ndarray = np.linalg.svd(
+        lattice,
+        compute_uv=False,
+    )
+    sigma_min: float = float(singular_values[-1])
+    if not np.isfinite(sigma_min) or sigma_min <= 0.0:
+        message: str = (
+            "neighbor-shell search requires a finite nonsingular lattice"
+        )
+        raise ValueError(message)
+
+    if positions.shape[0] <= 1:
+        basis_diameter: float = 0.0
+    else:
+        fractional_pairs: np.ndarray = (
+            positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+        )
+        cartesian_pairs: np.ndarray = fractional_pairs @ lattice
+        basis_diameter = float(
+            np.max(np.linalg.norm(cartesian_pairs, axis=-1))
+        )
+    bound: float = (cutoff + basis_diameter) / sigma_min
+    if not np.isfinite(bound):
+        message = "neighbor-shell search bound must be finite"
+        raise ValueError(message)
+    conservative_bound: float = float(np.nextafter(bound, np.inf))
+    radius: int = int(np.ceil(conservative_bound))
+    return radius
+
+
 def _displacements_and_distances(
     geometry: CrystalGeometry,
     atom_pairs: tuple[tuple[int, int], ...],
@@ -459,7 +505,7 @@ def _primal_geometry(
 def neighbor_shells(  # noqa: DOC502
     geometry: CrystalGeometry,
     cutoff: float,
-    supercell_radius: int = DEFAULT_SUPERCELL_RADIUS,
+    supercell_radius: int | None = None,
 ) -> tuple[
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
@@ -479,10 +525,10 @@ def neighbor_shells(  # noqa: DOC502
         Crystal lattice and fractional atom positions.
     cutoff : float
         Positive inclusive Cartesian distance cutoff in angstroms.
-    supercell_radius : int, optional
-        Number of translated cells to enumerate in each positive and negative
-        lattice direction. The default ``2`` scans a ``5 x 5 x 5``
-        supercell.
+    supercell_radius : int | None, optional
+        Requested number of translated cells in each positive and negative
+        lattice direction. ``None`` uses the certified complete radius.
+        An explicit radius smaller than the certificate is rejected.
 
     Returns
     -------
@@ -498,8 +544,9 @@ def neighbor_shells(  # noqa: DOC502
     Raises
     ------
     ValueError
-        If the cutoff or radius fails validation, tracing reaches this host
-        setup routine, or distinct atom records produce a zero-length bond.
+        If the cutoff or radius fails validation, an explicit radius is
+        incomplete, tracing reaches this host setup routine, or distinct atom
+        records produce a zero-length bond.
 
     Notes
     -----
@@ -511,7 +558,9 @@ def neighbor_shells(  # noqa: DOC502
     if not np.isfinite(cutoff) or cutoff <= 0.0:
         message: str = "cutoff must be a positive finite float"
         raise ValueError(message)
-    if type(supercell_radius) is not int or supercell_radius < 0:
+    if supercell_radius is not None and (
+        type(supercell_radius) is not int or supercell_radius < 0
+    ):
         message = "supercell_radius must be a non-negative integer"
         raise ValueError(message)
     if _geometry_is_traced(geometry):
@@ -521,11 +570,21 @@ def neighbor_shells(  # noqa: DOC502
         )
         raise ValueError(message)
 
+    certified_radius: int = _certified_supercell_radius(geometry, cutoff)
+    if supercell_radius is not None and supercell_radius < certified_radius:
+        message = (
+            f"supercell_radius={supercell_radius} is incomplete; "
+            f"certified minimum is {certified_radius}"
+        )
+        raise ValueError(message)
+    search_radius: int = (
+        certified_radius if supercell_radius is None else supercell_radius
+    )
     candidates: tuple[tuple[int, int], ...]
     candidate_cells: tuple[tuple[int, int, int], ...]
     candidates, candidate_cells = _candidate_topology(
         geometry.positions.shape[0],
-        supercell_radius,
+        search_radius,
     )
     with jax.ensure_compile_time_eval():
         candidate_displacements: Float[Array, "n_candidate 3"]
@@ -749,6 +808,155 @@ def _integral_vector(
     return result
 
 
+def _freeze_neighbor_topology(
+    geometry: CrystalGeometry,
+    cutoff: float,
+) -> tuple[
+    tuple[tuple[int, int], ...],
+    tuple[tuple[int, int, int], ...],
+    tuple[int, ...],
+]:
+    """Certify and freeze atom pairs, exact cells, and distance shells."""
+    atom_pairs: tuple[tuple[int, int], ...]
+    cells: tuple[tuple[int, int, int], ...]
+    atom_pairs, cells, _, _ = neighbor_shells(geometry, cutoff)
+    with jax.ensure_compile_time_eval():
+        distances: Float[Array, " n_bond"]
+        _, distances = _displacements_and_distances(
+            geometry,
+            atom_pairs,
+            cells,
+        )
+        shell_numbers: tuple[int, ...] = _shell_numbers(
+            geometry,
+            atom_pairs,
+            distances,
+        )
+    result: tuple[
+        tuple[tuple[int, int], ...],
+        tuple[tuple[int, int, int], ...],
+        tuple[int, ...],
+    ] = (atom_pairs, cells, shell_numbers)
+    return result
+
+
+def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
+    geometry: CrystalGeometry,
+    basis: OrbitalBasis,
+    sk_params: SlaterKosterParams,
+    onsite_energies: Float[Array, " n_orb"],
+    soc_lambdas: Float[Array, " n_shells"],
+    shell_index: tuple[int, ...],
+    atom_pairs: tuple[tuple[int, int], ...],
+    cells: tuple[tuple[int, int, int], ...],
+    shell_numbers: tuple[int, ...],
+    *,
+    spinor: bool,
+) -> TBModel:
+    """Assemble a model on one previously certified static topology."""
+    lookup: dict[tuple[str | None, int | None, str], int] = (
+        _parse_parameter_keys(sk_params.keys)
+    )
+    displacements: Float[Array, "n_bond 3"]
+    displacements, _ = _displacements_and_distances(
+        geometry,
+        atom_pairs,
+        cells,
+    )
+    orbitals_by_atom: tuple[tuple[int, ...], ...] = tuple(
+        tuple(
+            orbital
+            for orbital, atom in enumerate(basis.atom_indices)
+            if atom == atom_index
+        )
+        for atom_index in range(geometry.positions.shape[0])
+    )
+    amplitudes: list[Complex[Array, ""]] = []
+    hopping_pairs: list[tuple[int, int]] = []
+    hopping_cells: list[tuple[int, int, int]] = []
+    bond_index: int
+    atom_pair: tuple[int, int]
+    cell: tuple[int, int, int]
+    for bond_index, (atom_pair, cell) in enumerate(
+        zip(atom_pairs, cells, strict=True)
+    ):
+        forward_pair: str | None
+        reverse_pair: str | None
+        forward_pair, reverse_pair = _species_pair(geometry, atom_pair)
+        cartesian_bond: Float[Array, " 3"] = (
+            displacements[bond_index] @ geometry.lattice
+        )
+        block_cache: dict[tuple[int, int], Float[Array, "m1 m2"]] = {}
+        orbital_i: int
+        orbital_j: int
+        for orbital_i in orbitals_by_atom[atom_pair[0]]:
+            for orbital_j in orbitals_by_atom[atom_pair[1]]:
+                if spinor and basis.spin[orbital_i] != basis.spin[orbital_j]:
+                    continue
+                l1: int = basis.l[orbital_i]
+                l2: int = basis.l[orbital_j]
+                angular_pair: tuple[int, int] = tuple(sorted((l1, l2)))
+                channels: tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
+                integral_vector: Float[Array, " n_m"]
+                found_any: bool
+                integral_vector, found_any = _integral_vector(
+                    sk_params,
+                    lookup,
+                    forward_pair,
+                    reverse_pair,
+                    shell_numbers[bond_index],
+                    channels,
+                )
+                if not found_any:
+                    continue
+                cache_key: tuple[int, int] = (l1, l2)
+                if cache_key not in block_cache:
+                    block_cache[cache_key] = sk_block(
+                        l1,
+                        l2,
+                        integral_vector,
+                        cartesian_bond,
+                    )
+                block: Float[Array, "m1 m2"] = block_cache[cache_key]
+                amplitude: Float[Array, ""] = block[
+                    basis.m[orbital_i] + l1,
+                    basis.m[orbital_j] + l2,
+                ]
+                complex_amplitude: Complex[Array, ""] = jnp.asarray(
+                    amplitude,
+                    dtype=jnp.complex128,
+                )
+                hopping_pairs.extend(
+                    ((orbital_i, orbital_j), (orbital_j, orbital_i))
+                )
+                hopping_cells.extend(
+                    (
+                        cell,
+                        (-cell[0], -cell[1], -cell[2]),
+                    )
+                )
+                amplitudes.extend(
+                    (complex_amplitude, jnp.conj(complex_amplitude))
+                )
+
+    if amplitudes:
+        hopping_array: Complex[Array, " n_hop"] = jnp.stack(amplitudes)
+    else:
+        hopping_array = jnp.zeros((0,), dtype=jnp.complex128)
+    model: TBModel = make_tb_model(
+        hopping_amplitudes=hopping_array,
+        onsite_energies=onsite_energies,
+        soc_lambdas=soc_lambdas,
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=tuple(hopping_pairs),
+        hopping_cells=tuple(hopping_cells),
+        shell_index=shell_index,
+        spinor=spinor,
+    )
+    return model
+
+
 @jaxtyped(typechecker=beartype)
 def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     geometry: CrystalGeometry,
@@ -797,8 +1005,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     ------
     ValueError
         If keys fail their grammar, the basis contains an orbital beyond d,
-        traced geometry requests a later distance shell, or topology setup
-        fails.
+        fully traced geometry cannot certify topology, or topology setup fails.
     EquinoxRuntimeError
         If a traced numerical invariant of the resulting model fails.
 
@@ -810,11 +1017,12 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     channels are exactly zero. For example, a graphene model may provide only
     ``"C-C:pp_pi"``.
 
-    Concrete setup prunes the hopping metadata to the cutoff. If positions or
-    lattice are tracers, the builder keeps the static radius-two candidate
-    topology and multiplies outside-cutoff amplitudes by zero. This is the
-    topology-freeze contract: gradients are local and make no claim at a
-    cutoff crossing.
+    Concrete setup prunes the hopping metadata to the cutoff using a complete
+    singular-value search certificate. Eager automatic differentiation can
+    recover the concrete primal geometry and retains local derivatives on the
+    selected topology. A fully traced geometry without a concrete primal is
+    rejected. Use :func:`~diffpes.tightb.sk_model_parameter_view` to capture a
+    certified topology before compiling geometry optimization.
     """
     if any(
         angular < 0 or angular > MAX_SK_ANGULAR_MOMENTUM for angular in basis.l
@@ -824,170 +1032,37 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     if not np.isfinite(cutoff) or cutoff <= 0.0:
         message = "cutoff must be a positive finite float"
         raise ValueError(message)
-    lookup: dict[tuple[str | None, int | None, str], int] = (
-        _parse_parameter_keys(sk_params.keys)
-    )
-
     traced_geometry: bool = _geometry_is_traced(geometry)
     topology_geometry: CrystalGeometry | None = (
         _primal_geometry(geometry) if traced_geometry else geometry
     )
+    if topology_geometry is None:
+        message = (
+            "build_sk_model cannot certify neighbor topology from fully "
+            "traced geometry; freeze topology before compilation"
+        )
+        raise ValueError(message)
     atom_pairs: tuple[tuple[int, int], ...]
     cells: tuple[tuple[int, int, int], ...]
-    displacements: Float[Array, "n_bond 3"]
-    distances: Float[Array, " n_bond"]
-    if topology_geometry is None:
-        if any(shell is not None and shell != 1 for _, shell, _ in lookup):
-            message = (
-                "position/lattice differentiation supports base or @1 SK "
-                "keys; freeze higher distance-shell topology outside tracing"
-            )
-            raise ValueError(message)
-        atom_pairs, cells = _candidate_topology(
-            geometry.positions.shape[0],
-            DEFAULT_SUPERCELL_RADIUS,
-        )
-        displacements, distances = _displacements_and_distances(
-            geometry,
-            atom_pairs,
-            cells,
-        )
-        shell_numbers: tuple[int, ...] = (1,) * len(atom_pairs)
-        active: Array = (distances > MIN_BOND_DISTANCE) & (distances <= cutoff)
-    else:
-        topology_pairs: tuple[tuple[int, int], ...]
-        topology_cells: tuple[tuple[int, int, int], ...]
-        topology_displacements: Float[Array, "n_bond 3"]
-        topology_distances: Float[Array, " n_bond"]
-        (
-            topology_pairs,
-            topology_cells,
-            topology_displacements,
-            topology_distances,
-        ) = neighbor_shells(
-            topology_geometry,
-            cutoff,
-            DEFAULT_SUPERCELL_RADIUS,
-        )
-        del topology_displacements, topology_distances
-        atom_pairs = topology_pairs
-        cells = topology_cells
-        displacements, distances = _displacements_and_distances(
-            geometry,
-            atom_pairs,
-            cells,
-        )
-        with jax.ensure_compile_time_eval():
-            shell_distances: Float[Array, " n_bond"]
-            _, shell_distances = _displacements_and_distances(
-                topology_geometry,
-                atom_pairs,
-                cells,
-            )
-            shell_numbers = _shell_numbers(
-                topology_geometry,
-                atom_pairs,
-                shell_distances,
-            )
-        active = jnp.ones((len(atom_pairs),), dtype=jnp.bool_)
-
-    orbitals_by_atom: tuple[tuple[int, ...], ...] = tuple(
-        tuple(
-            orbital
-            for orbital, atom in enumerate(basis.atom_indices)
-            if atom == atom_index
-        )
-        for atom_index in range(geometry.positions.shape[0])
+    shell_numbers: tuple[int, ...]
+    (
+        atom_pairs,
+        cells,
+        shell_numbers,
+    ) = _freeze_neighbor_topology(
+        topology_geometry,
+        cutoff,
     )
-    amplitudes: list[Complex[Array, ""]] = []
-    hopping_pairs: list[tuple[int, int]] = []
-    hopping_cells: list[tuple[int, int, int]] = []
-    bond_index: int
-    atom_pair: tuple[int, int]
-    cell: tuple[int, int, int]
-    for bond_index, (atom_pair, cell) in enumerate(
-        zip(atom_pairs, cells, strict=True)
-    ):
-        forward_pair: str | None
-        reverse_pair: str | None
-        forward_pair, reverse_pair = _species_pair(geometry, atom_pair)
-        cartesian_bond: Float[Array, " 3"] = (
-            displacements[bond_index] @ geometry.lattice
-        )
-        safe_bond: Float[Array, " 3"] = jnp.where(
-            active[bond_index],
-            cartesian_bond,
-            jnp.asarray((0.0, 0.0, 1.0), dtype=cartesian_bond.dtype),
-        )
-        block_cache: dict[tuple[int, int], Float[Array, "m1 m2"]] = {}
-        orbital_i: int
-        orbital_j: int
-        for orbital_i in orbitals_by_atom[atom_pair[0]]:
-            for orbital_j in orbitals_by_atom[atom_pair[1]]:
-                if spinor and basis.spin[orbital_i] != basis.spin[orbital_j]:
-                    continue
-                l1: int = basis.l[orbital_i]
-                l2: int = basis.l[orbital_j]
-                angular_pair: tuple[int, int] = tuple(sorted((l1, l2)))
-                channels: tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
-                integral_vector: Float[Array, " n_m"]
-                found_any: bool
-                integral_vector, found_any = _integral_vector(
-                    sk_params,
-                    lookup,
-                    forward_pair,
-                    reverse_pair,
-                    shell_numbers[bond_index],
-                    channels,
-                )
-                if not found_any:
-                    continue
-                cache_key: tuple[int, int] = (l1, l2)
-                if cache_key not in block_cache:
-                    block_cache[cache_key] = sk_block(
-                        l1,
-                        l2,
-                        integral_vector,
-                        safe_bond,
-                    )
-                block: Float[Array, "m1 m2"] = block_cache[cache_key]
-                amplitude: Float[Array, ""] = (
-                    block[
-                        basis.m[orbital_i] + l1,
-                        basis.m[orbital_j] + l2,
-                    ]
-                    * active[bond_index]
-                )
-                complex_amplitude: Complex[Array, ""] = jnp.asarray(
-                    amplitude,
-                    dtype=jnp.complex128,
-                )
-                hopping_pairs.extend(
-                    ((orbital_i, orbital_j), (orbital_j, orbital_i))
-                )
-                hopping_cells.extend(
-                    (
-                        cell,
-                        (-cell[0], -cell[1], -cell[2]),
-                    )
-                )
-                amplitudes.extend(
-                    (complex_amplitude, jnp.conj(complex_amplitude))
-                )
-
-    if amplitudes:
-        hopping_array: Complex[Array, " n_hop"] = jnp.stack(amplitudes)
-    else:
-        hopping_array = jnp.zeros((0,), dtype=jnp.complex128)
-    model: TBModel = make_tb_model(
-        hopping_amplitudes=hopping_array,
+    model: TBModel = _build_sk_model_from_topology(
+        geometry,
+        basis=basis,
+        sk_params=sk_params,
         onsite_energies=onsite_energies,
         soc_lambdas=soc_lambdas,
-        geometry=geometry,
-        basis=basis,
-        hopping_pairs=tuple(hopping_pairs),
-        hopping_cells=tuple(hopping_cells),
         shell_index=shell_index,
+        atom_pairs=atom_pairs,
+        cells=cells,
+        shell_numbers=shell_numbers,
         spinor=spinor,
     )
     return model

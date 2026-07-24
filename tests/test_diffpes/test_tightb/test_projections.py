@@ -351,6 +351,55 @@ class TestExpectationPath:
             atol=1e-14,
         )
 
+    def test_chain_overlap_forms_one_consistent_component(self) -> None:
+        """Close overlapping tolerance edges into one component.
+
+        Three energies form a chain: the adjacent gaps are below tolerance,
+        while the endpoint gap is above it. A dense-neighborhood
+        implementation would assign three inconsistent averages.
+
+        Notes
+        -----
+        Rotate all three diagnostic states by a fixed unitary and require the
+        same trace-per-band component average before and after the basis
+        change. The unequal-energy rotation is a diagnostic stress test, not
+        a physical eigenstate gauge freedom.
+        """
+        values: Array = jnp.asarray([[0.0, 0.75, 1.5]], dtype=jnp.float64)
+        vectors: Array = jnp.eye(3, dtype=jnp.complex128)[None, :, :]
+        operator: Array = jnp.diag(
+            jnp.asarray([1.0, 4.0, 10.0], dtype=jnp.complex128)
+        )
+        rotation: Array = jnp.asarray(
+            [
+                [1.0, 1.0, 0.0],
+                [-1.0, 1.0, 1.0],
+                [1.0, -1.0, 2.0],
+            ],
+            dtype=jnp.complex128,
+        )
+        rotation, _ = jnp.linalg.qr(rotation)
+        rotated_vectors: Array = jnp.einsum(
+            "ab,kbo->kao",
+            rotation,
+            vectors,
+        )
+
+        original: Array = expectation_path(
+            _bands(values, vectors),
+            operator,
+            degen_tol=1.0,
+        )
+        rotated: Array = expectation_path(
+            _bands(values, rotated_vectors),
+            operator,
+            degen_tol=1.0,
+        )
+        expected: Array = jnp.full((1, 3), 5.0, dtype=jnp.float64)
+
+        assert jnp.allclose(original, expected, rtol=0.0, atol=1e-14)
+        assert jnp.allclose(rotated, expected, rtol=0.0, atol=1e-14)
+
 
 class TestGroupTrace:
     """Validate :func:`diffpes.tightb.group_trace`."""

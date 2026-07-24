@@ -59,6 +59,49 @@ def _voigt_width_loss(
     return loss
 
 
+def _gaussian_parameter_loss(
+    parameters: Float[Array, "2"],
+) -> Float[Array, ""]:
+    """Reduce a Gaussian profile without symmetry cancellation."""
+    energy_axis: Float[Array, "19"] = jnp.linspace(-1.1, 1.6, 19)
+    weights: Float[Array, "19"] = jnp.linspace(0.6, 1.3, 19)
+    profile: Float[Array, "19"] = gaussian(
+        energy_axis,
+        parameters[0],
+        parameters[1],
+    )
+    loss: Float[Array, ""] = jnp.sum(weights * profile)
+    return loss
+
+
+def _coordinate_five_point_fd(
+    fn: Callable[[Float[Array, "2"]], Float[Array, ""]],
+    point: Float[Array, "2"],
+    index: int,
+    *,
+    step: float,
+    forward: bool,
+) -> Float[Array, ""]:
+    """Estimate one coordinate derivative within the physical domain."""
+    delta: Float[Array, "2"] = jnp.zeros_like(point).at[index].set(step)
+    if forward:
+        derivative: Float[Array, ""] = (
+            -25.0 * fn(point)
+            + 48.0 * fn(point + delta)
+            - 36.0 * fn(point + 2.0 * delta)
+            + 16.0 * fn(point + 3.0 * delta)
+            - 3.0 * fn(point + 4.0 * delta)
+        ) / (12.0 * step)
+    else:
+        derivative = (
+            fn(point - 2.0 * delta)
+            - 8.0 * fn(point - delta)
+            + 8.0 * fn(point + delta)
+            - fn(point + 2.0 * delta)
+        ) / (12.0 * step)
+    return derivative
+
+
 class TestGaussian(chex.TestCase):
     """Validate :func:`diffpes.simul.broadening.gaussian`.
 
@@ -180,6 +223,56 @@ class TestGaussian(chex.TestCase):
         var_fn = self.variant(gaussian)
         profile = var_fn(e_range, 0.0, 0.5)
         chex.assert_trees_all_close(profile, profile[::-1], atol=1e-10)
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test_parameter_gradients_match_fd(self) -> None:
+        """Match center and positive-width derivatives to finite differences.
+
+        Extended Summary
+        ----------------
+        The test verifies Gaussian sensitivities at an interior physical point.
+        It covers both eager and JIT-transformed scalar losses.
+
+        Notes
+        -----
+        Build an asymmetric weighted profile reduction to prevent symmetry
+        cancellation. Compare both parameter derivatives with the shared
+        finite-difference harness.
+        """
+        loss: Callable[[Float[Array, "2"]], Float[Array, ""]] = self.variant(
+            _gaussian_parameter_loss
+        )
+        parameters: Float[Array, "2"] = jnp.array(
+            [0.17, 0.31],
+            dtype=jnp.float64,
+        )
+        assert_grad_matches_fd(loss, parameters)
+
+    def test_rejects_nonpositive_or_nonfinite_sigma(self) -> None:
+        """Reject nonpositive and nonfinite Gaussian widths.
+
+        Extended Summary
+        ----------------
+        The test verifies the Gaussian domain contract for negative, zero,
+        NaN, and infinite widths. Each invalid input must fail before
+        safe-power regularization can hide it.
+
+        Notes
+        -----
+        Evaluate each invalid width through the shared rejection helper.
+        Require the same domain diagnostic from eager and JIT execution.
+        """
+        sigma: float
+
+        energy_axis: Float[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
+        for sigma in (-0.2, 0.0, float("nan"), float("inf")):
+            assert_rejects(
+                gaussian,
+                energy_axis,
+                0.0,
+                sigma,
+                match="sigma must be finite and strictly positive",
+            )
 
 
 class TestVoigt(chex.TestCase):
@@ -343,24 +436,24 @@ class TestVoigt(chex.TestCase):
         )
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test_boundary_gradients_match_fd_plateau(self) -> None:
-        """Match both boundary-ray gradients to a multistep FD plateau.
+    def test_boundary_gradients_match_physical_fd(self) -> None:
+        """Match both boundary-ray gradients to domain-respecting FD.
 
         Extended Summary
         ----------------
         The test verifies sensitivities on the pure-Gaussian and pure-Lorentzian rays
-        remain finite, nonzero, and central-FD-correct to the stiff
-        ``rtol=1e-5`` gate.
+        remain finite, nonzero, and finite-difference correct. The zero-width
+        coordinate uses a five-point forward stencil so the numerical probe
+        never crosses into an unphysical negative width.
 
         Notes
         -----
-        The test applies the shared program-wide gradient harness at three step scales
-        to both width vectors, for eager and JIT-transformed scalar losses.
+        The nonzero coordinate uses a five-point central stencil. Check eager
+        and JIT-transformed losses at a ``1e-3`` eV step.
         """
         widths: Array
-        scale_floor: float
 
-        loss: Array
+        loss: Callable[[Float[Array, "2"]], Float[Array, ""]]
 
         loss = self.variant(_voigt_width_loss)
         boundary_widths: tuple[Float[Array, "2"], ...] = (
@@ -371,13 +464,65 @@ class TestVoigt(chex.TestCase):
             derivatives: Float[Array, "2"] = jax.grad(loss)(widths)
             chex.assert_tree_all_finite(derivatives)
             chex.assert_trees_all_equal(derivatives != 0.0, jnp.ones(2, bool))
-            for scale_floor in (0.5, 1.0, 2.0):
-                assert_grad_matches_fd(
-                    loss,
-                    widths,
-                    regime="stiff",
-                    scale_floor=scale_floor,
-                )
+            sigma_derivative: Float[Array, ""] = _coordinate_five_point_fd(
+                loss,
+                widths,
+                0,
+                step=1e-3,
+                forward=bool(widths[0] == 0.0),
+            )
+            gamma_derivative: Float[Array, ""] = _coordinate_five_point_fd(
+                loss,
+                widths,
+                1,
+                step=1e-3,
+                forward=bool(widths[1] == 0.0),
+            )
+            finite_difference: Float[Array, "2"] = jnp.stack(
+                [sigma_derivative, gamma_derivative]
+            )
+            chex.assert_trees_all_close(
+                derivatives,
+                finite_difference,
+                rtol=1e-5,
+                atol=2e-12,
+            )
+
+    def test_rejects_negative_or_nonfinite_widths(self) -> None:
+        """Reject negative and nonfinite Voigt component widths.
+
+        Extended Summary
+        ----------------
+        The test verifies separate domain diagnostics for Gaussian and
+        Lorentzian widths. It covers negative, NaN, and infinite values
+        without changing the other valid component.
+
+        Notes
+        -----
+        Evaluate each invalid pair through the shared rejection helper.
+        Require the same component-specific diagnostic from eager and JIT
+        execution.
+        """
+        sigma: float
+        gamma: float
+        message: str
+
+        energy_axis: Float[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
+        invalid_widths: tuple[tuple[float, float, str], ...] = (
+            (-0.1, 0.2, "sigma must be finite and nonnegative"),
+            (0.1, -0.2, "gamma must be finite and nonnegative"),
+            (float("nan"), 0.2, "sigma must be finite and nonnegative"),
+            (0.1, float("inf"), "gamma must be finite and nonnegative"),
+        )
+        for sigma, gamma, message in invalid_widths:
+            assert_rejects(
+                voigt,
+                energy_axis,
+                0.0,
+                sigma,
+                gamma,
+                match=message,
+            )
 
     def test_simultaneous_zero_width_is_rejected(self) -> None:
         """Reject the singular zero-width point eagerly and under JIT.
@@ -411,6 +556,35 @@ class TestFermiDirac(chex.TestCase):
 
     :see: :func:`~diffpes.simul.fermi_dirac`
     """
+
+    def test_rejects_nonpositive_and_nonfinite_temperature(self) -> None:
+        """Reject temperatures outside the finite positive domain.
+
+        The test verifies that the public finite-temperature model does not
+        fabricate a zero-temperature step or accept invalid thermal scales.
+
+        Notes
+        -----
+        Pass zero, a negative value, both infinities, and NaN through the
+        shared eager/JIT rejection helper. Require the temperature-domain
+        message for every case.
+        """
+        invalid_temperature: float
+        invalid_temperatures: tuple[float, ...] = (
+            0.0,
+            -1.0,
+            jnp.inf,
+            -jnp.inf,
+            jnp.nan,
+        )
+        for invalid_temperature in invalid_temperatures:
+            assert_rejects(
+                fermi_dirac,
+                0.0,
+                0.0,
+                invalid_temperature,
+                match="temperature must be finite and strictly positive",
+            )
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_at_fermi_level(self) -> None:

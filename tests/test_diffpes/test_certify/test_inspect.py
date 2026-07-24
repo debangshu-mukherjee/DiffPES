@@ -100,7 +100,8 @@ class TestExplainClaim:
         assert "Margin: 0.5" in explanation
         assert "reference-spectrum" in explanation
         assert "method: org.diffpes.method.reference" in explanation
-        assert "independent: True" in explanation
+        assert "lineage independence: qualified" in explanation
+        assert "generators: reference.generator" in explanation
         assert "tolerance: shape=(2,), values=[1.e-08, 1.e-08]" in explanation
 
     def test_explain_claim_rejects_missing_id(self) -> None:
@@ -151,7 +152,10 @@ class TestDiffCertificates:
         )
         scientific_changed = sample_certificate(model_version="1.1.0")
         environment_manifest = sample_certificate(
-            environment_checksum="crc32:canonical-1:environment:00000000"
+            environment_checksum=(
+                "sha256:1:environment:"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            )
         )
 
         audit = diff_certificates(original, audit_changed)

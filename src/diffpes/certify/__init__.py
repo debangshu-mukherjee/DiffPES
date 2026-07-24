@@ -4,8 +4,8 @@ Extended Summary
 ----------------
 The certification package combines static scientific identity and provenance
 with numerical evidence from the actual JAX forward program.
-Canonical records and CRC32 checksums provide non-security bookkeeping at the
-I/O boundary; they do not establish physical validity.  Runtime claims,
+Canonical records and SHA-256 digests provide collision-resistant identity at
+the I/O boundary; they do not establish physical validity.  Runtime claims,
 derivative checks, dependency maps, sensitivities, and information spectra are
 JAX-native numerical carriers.
 
@@ -14,7 +14,7 @@ The package contains these submodules:
 - :mod:`canonical`
     Represent scientific records canonically for certification.
 - :mod:`checksums`
-    Compute non-security consistency checksums for scientific records.
+    Compute collision-resistant identities for scientific records.
 - :mod:`checks`
     Register pure JAX scientific certification checks.
 - :mod:`contracts`
@@ -59,13 +59,13 @@ Routine Listings
 :func:`certify_forward_checked`
     Execute certification and return structured hard-domain errors.
 :func:`checksum_bytes`
-    Return a non-security consistency checksum for ``data``.
+    Return a collision-resistant scientific identity for ``data``.
 :func:`checksum_chunks`
-    Compute a consistency checksum over consecutive byte chunks.
+    Compute a scientific identity over consecutive byte chunks.
 :func:`checksum_file`
-    Stream exact file bytes into a consistency checksum.
+    Stream exact file bytes into a scientific identity.
 :func:`checksum_pytree`
-    Stream a canonical carrier into a consistency checksum.
+    Stream a canonical carrier into a scientific identity.
 :func:`compose_transformations`
     Compose contracts and raise for unsatisfied requirements.
 :func:`clear_dependency_cache`
@@ -88,6 +88,8 @@ Routine Listings
     Compare measured values with an external numerical reference.
 :func:`evaluate_policy`
     Derive cumulative certification outcomes from numerical claims.
+:func:`evidence_is_independent`
+    Derive lineage qualification relative to an implementation under test.
 :func:`execute_tb_radial`
     Execute the radial ARPES model from one certification input PyTree.
 :func:`explain_claim`
@@ -231,7 +233,7 @@ from .models import (
     register_builtin_models,
     tb_radial_model_spec,
 )
-from .policy import achieved_levels, evaluate_policy
+from .policy import achieved_levels, evaluate_policy, evidence_is_independent
 from .provenance import (
     build_provenance,
     effective_information,
@@ -290,6 +292,7 @@ __all__: list[str] = [
     "evaluate_domain",
     "evaluate_evidence",
     "evaluate_policy",
+    "evidence_is_independent",
     "execute_tb_radial",
     "explain_claim",
     "filesystem_artifact_resolver",

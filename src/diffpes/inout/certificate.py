@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 import math
 import os
@@ -64,10 +65,12 @@ from diffpes.types import (
     DerivativeEvidence,
     DomainPredicate,
     DomainResult,
+    EvidenceLineage,
     EvidenceRef,
     ExecutionManifest,
     ForwardCertificate,
     ForwardModelSpec,
+    HumanAttestationRef,
     InformationSpectrum,
     PolicyReport,
     SensitivityMap,
@@ -80,10 +83,12 @@ from diffpes.types import (
     make_derivative_evidence,
     make_domain_predicate,
     make_domain_result,
+    make_evidence_lineage,
     make_evidence_ref,
     make_execution_manifest,
     make_forward_certificate,
     make_forward_model_spec,
+    make_human_attestation_ref,
     make_information_spectrum,
     make_policy_report,
     make_sensitivity_map,
@@ -102,10 +107,12 @@ def _module_factories() -> dict[type[Any], Callable[..., Any]]:
         DerivativeEvidence: make_derivative_evidence,
         DomainPredicate: make_domain_predicate,
         DomainResult: make_domain_result,
+        EvidenceLineage: make_evidence_lineage,
         EvidenceRef: make_evidence_ref,
         ExecutionManifest: make_execution_manifest,
         ForwardCertificate: make_forward_certificate,
         ForwardModelSpec: make_forward_model_spec,
+        HumanAttestationRef: make_human_attestation_ref,
         InformationSpectrum: make_information_spectrum,
         PolicyReport: make_policy_report,
         SensitivityMap: make_sensitivity_map,
@@ -209,11 +216,17 @@ def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _document_identity(document: Mapping[str, Any]) -> str:
-    """Return the non-security identity of a certificate document."""
-    value: int = zlib.crc32(
-        _json_bytes(_identity_payload(document), newline=False)
+    """Return the domain-separated SHA-256 certificate identity."""
+    payload: bytes = _json_bytes(_identity_payload(document), newline=False)
+    digest: Any = hashlib.sha256()
+    digest.update(
+        b"DIFFPES-SCIENTIFIC-IDENTITY\x00"
+        b"sha256\x00"
+        b"1\x00"
+        b"org.diffpes.identity.certificate.v1\x00"
     )
-    identity: str = f"crc32:canonical-1:certificate:{value & 0xFFFFFFFF:08x}"
+    digest.update(payload)
+    identity: str = f"sha256:1:certificate:{digest.hexdigest()}"
     return identity
 
 
@@ -350,8 +363,8 @@ def certificate_identity(certificate: ForwardCertificate) -> str:
     """Compute the scientific identity of a canonical certificate.
 
     The identity covers scientific and numerical fields. It excludes the
-    self-reference, audit execution ID, and wall-clock timestamp. The CRC32
-    value detects accidental mismatches and does not authenticate the record.
+    self-reference, audit execution ID, and wall-clock timestamp. The SHA-256
+    digest provides content addressing and does not authenticate the record.
 
     :see: :class:`~.test_certificate.TestCertificateIdentity`
 
@@ -432,6 +445,7 @@ def finalize_certificate(
         certificate_checksum=identity,
         extensions_json=certificate.extensions_json,
         waivers=certificate.waivers,
+        attestations=certificate.attestations,
     )
     return result
 

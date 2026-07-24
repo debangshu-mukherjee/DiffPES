@@ -4,6 +4,8 @@ The tests cover public behavior, differentiability, validation, and stable
 scientific identity in the supported certification regime.
 """
 
+import zlib
+
 import jax.numpy as jnp
 import pytest
 from beartype.typing import Any
@@ -37,7 +39,7 @@ class TestParseChecksum:
 
         Notes
         -----
-        The test checks algorithm, record kind, and fixed-width CRC32 text.
+        The test checks algorithm, record kind, and fixed-width SHA-256 text.
         """
         checksum: str = checksum_bytes(b"physics", record_kind="result")
         parsed: tuple[str, str, str, str] = parse_checksum(checksum)
@@ -56,6 +58,14 @@ class TestParseChecksum:
         """
         with pytest.raises(ValueError, match="format"):
             parse_checksum("crc32:1234")
+
+    def test_legacy_crc32_scientific_identity_is_rejected(self) -> None:
+        """Reject a well-formed legacy CRC32 identity without an alias.
+
+        Scientific lookup accepts only the current SHA-256 identity syntax.
+        """
+        with pytest.raises(ValueError, match="scientific-identity"):
+            parse_checksum("crc32:canonical-1:result:4ddb0c25")
 
 
 class TestChecksumChunks:
@@ -86,10 +96,10 @@ class TestChecksumChunks:
         streamed = checksum_chunks((b"ab", b"c", b"def"), record_kind="result")
         assert whole == streamed
         algorithm, version, kind, value = parse_checksum(whole)
-        assert algorithm == CHECKSUM_ALGORITHM == "crc32"
+        assert algorithm == CHECKSUM_ALGORITHM == "sha256"
         assert version == "1"
         assert kind == "result"
-        assert len(value) == 8
+        assert len(value) == 64
 
     @pytest.mark.parametrize("record_kind", ["", "Result", "two words", "a/b"])
     def test_invalid_record_kind_is_rejected(self, record_kind: Any) -> None:
@@ -132,6 +142,23 @@ class TestChecksumBytes:
         semantic = checksum_bytes(b"\x00", record_kind="semantic")
         assert original != changed
         assert original != semantic
+
+
+def test_crc32_collision_cannot_alias_scientific_identity() -> None:
+    """Keep a known CRC32 collision distinct under scientific identity.
+
+    ``plumless`` and ``buckeroo`` are equal-length payloads with the same
+    CRC32. Their domain-separated SHA-256 identities must remain distinct.
+    """
+    left: bytes = b"plumless"
+    right: bytes = b"buckeroo"
+    assert left != right
+    assert zlib.crc32(left) == zlib.crc32(right) == 0x4DDB0C25
+    left_identity: str = checksum_bytes(left, record_kind="result")
+    right_identity: str = checksum_bytes(right, record_kind="result")
+    assert left_identity != right_identity
+    assert parse_checksum(left_identity)[:3] == ("sha256", "1", "result")
+    assert parse_checksum(right_identity)[:3] == ("sha256", "1", "result")
 
 
 class TestSemanticChecksum:

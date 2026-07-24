@@ -36,6 +36,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Optional
 from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 from diffpes.maths import real_harmonic_unitary
@@ -395,6 +396,12 @@ def spin_double_model(model: TBModel) -> TBModel:
         (orbital_i + n_orbitals, orbital_j + n_orbitals)
         for orbital_i, orbital_j in model.hopping_pairs
     )
+    doubled_orbital_positions: Optional[Float[Array, "n_so 3"]] = None
+    if model.orbital_positions is not None:
+        doubled_orbital_positions = jnp.concatenate(
+            (model.orbital_positions, model.orbital_positions),
+            axis=0,
+        )
     doubled: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate(
             (model.hopping_amplitudes, model.hopping_amplitudes)
@@ -409,6 +416,7 @@ def spin_double_model(model: TBModel) -> TBModel:
         hopping_cells=model.hopping_cells + model.hopping_cells,
         shell_index=model.shell_index + model.shell_index,
         spinor=True,
+        orbital_positions=doubled_orbital_positions,
     )
     return doubled
 

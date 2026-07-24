@@ -83,7 +83,7 @@ class TestValidateRegistry:
         assert report.valid, report.errors
         assert report.model_count >= 0
         assert report.transformation_count >= 0
-        assert report.checksum.startswith("crc32:canonical-1:registry:")
+        assert report.checksum.startswith("sha256:1:registry:")
 
 
 class TestRegistrySnapshot:
@@ -519,6 +519,26 @@ class TestValidateHandshake:
             for item in list_handshakes()
             if item.owner_id == "org.diffpes.plan.03"
         )
+        expected_refs: tuple[str, ...] = (
+            "org.diffpes.transform.kspace.fractional_cartesian@1.0.0",
+            "org.diffpes.transform.kinematics.detector_angle_kpar@1.0.0",
+            "org.diffpes.transform.kinematics.inner_potential@1.0.0",
+            "org.diffpes.transform.polarization.lab_polarization_to_sample@1.0.0",
+            "org.diffpes.transform.geometry.detector_axis_to_sample@1.0.0",
+        )
+        assert handshake.transformation_refs == expected_refs
+        assert tuple(declaration["transformation_refs"]) == expected_refs
+        photon: Any = get_transformation(
+            "org.diffpes.transform.polarization.lab_polarization_to_sample",
+            "1.0.0",
+        ).contract
+        detector_axis: Any = get_transformation(
+            "org.diffpes.transform.geometry.detector_axis_to_sample",
+            "1.0.0",
+        ).contract
+        assert "fixed_beam_across_detector_pixels" in photon.preserves
+        assert "detector_orientation" not in photon.requires
+        assert "detector_orientation" in detector_axis.requires
         report: Any = validate_handshake(
             handshake,
             evidence_ids=tuple(declaration["evidence_ids"]),

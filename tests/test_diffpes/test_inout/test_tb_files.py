@@ -384,6 +384,11 @@ class TestReadWannier90Hr:
         assert data.cells == cells
         assert data.degeneracies == degeneracies
         chex.assert_trees_all_close(data.centres_cart, centres)
+        assert model.orbital_positions is not None
+        chex.assert_trees_all_close(
+            model.orbital_positions,
+            centres @ jnp.linalg.inv(model.geometry.lattice),
+        )
 
         fractional_k: jax.Array = jnp.asarray(0.23)
 
@@ -760,13 +765,14 @@ class TestReadWannier90Tb:
                 "block_down_up",
             )
 
-    def test_rejects_inconsistent_spin_copy_centres(
+    def test_noncoincident_centres_require_explicit_atomic_geometry(
         self,
         tmp_path: Path,
     ) -> None:
-        """Reject orbital centres that cannot define one position per atom.
+        """Keep distinct orbital centres separate from atomic positions.
 
-        Spin partners on one atom must carry a consistent spatial centre.
+        A ``tb.dat`` file cannot infer one atom location from noncoincident
+        centres, but an explicit geometry makes that gauge well-defined.
 
         Notes
         -----
@@ -774,10 +780,9 @@ class TestReadWannier90Tb:
         """
         basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0, 0),
-            n=(1, 1),
+            n=(1, 2),
             l=(0, 0),
             m=(0, 0),
-            spin=(-1, 1),
         )
         hamiltonians: NDArray = np.zeros((1, 2, 2), dtype=np.complex128)
         positions: NDArray = np.zeros(
@@ -798,6 +803,34 @@ class TestReadWannier90Tb:
 
         with pytest.raises(ValueError, match="centres assigned to atom 0"):
             read_wannier90_tb(str(path), basis, "block_down_up")
+
+        geometry: CrystalGeometry = make_crystal_geometry(
+            lattice=jnp.eye(3, dtype=jnp.float64),
+            positions=jnp.asarray([[0.4, 0.0, 0.0]], dtype=jnp.float64),
+            species=("X",),
+        )
+        model: TBModel
+        data: WannierOperatorData
+        model, data = read_wannier90_tb(
+            str(path),
+            basis,
+            "block_down_up",
+            geometry,
+        )
+
+        assert model.orbital_positions is not None
+        chex.assert_trees_all_close(
+            model.geometry.positions,
+            geometry.positions,
+        )
+        chex.assert_trees_all_close(
+            model.orbital_positions,
+            positions[0, (0, 1), (0, 1)].real,
+        )
+        chex.assert_trees_all_close(
+            data.centres_cart,
+            positions[0, (0, 1), (0, 1)].real,
+        )
 
 
 class TestExplicitFormatDispatch:

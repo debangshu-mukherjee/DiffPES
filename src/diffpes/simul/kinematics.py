@@ -2,13 +2,16 @@ r"""Compute free-electron photoemission kinematics.
 
 Extended Summary
 ----------------
-This module maps photon energy, binding energy, and detector angles to
-photoelectron momenta. It implements the free-electron final-state model with
-an inner potential. All array operations support JAX transformations.
+This module maps photon energy, Fermi-relative electron energy, and detector
+angles to photoelectron momenta. It implements the free-electron final-state
+model with an inner potential.
+All array operations support JAX transformations.
 
-The work function has two roles in an inverse problem. Energy referencing has
-a work-function and Fermi-level offset gauge. The inner-potential relation
-also depends on the work function. A photon-energy scan can reduce this gauge.
+The work function and Fermi-relative energy enter kinematics only through
+``photon_energy_ev - work_function_ev + omega_rel_fermi_ev``. Consequently,
+``J_work_function = -J_omega`` exactly, and a photon-energy scan does not lift
+that gauge without an external energy or work-function reference. The scan
+can still constrain the inner potential through the ``kz`` dispersion.
 
 Routine Listings
 ----------------
@@ -17,13 +20,15 @@ Routine Listings
 :func:`emission_angles`
     Convert Cartesian momentum to emission angles.
 :func:`final_state_k_inv_ang`
-    Convert kinetic energy to final-state momentum magnitude.
+    Convert kinetic energy to momentum and return its validity mask.
 :func:`kinetic_energy_ev`
-    Compute the floored photoelectron kinetic energy.
+    Compute signed photoelectron kinetic energy and its validity mask.
 :func:`kpar_to_detector_angles`
     Convert parallel momentum to detector angles.
 :func:`kz_from_inner_potential`
     Compute complex out-of-plane momentum from the inner potential.
+:func:`kz_from_inner_potential_at_fermi`
+    Evaluate the named Fermi-level ``kz`` approximation.
 
 Notes
 -----
@@ -32,11 +37,11 @@ horizontal slit uses ``Rx(ty) @ Ry(tx)``. The vertical slit uses
 ``Rx(tx) @ Ry(ty)``.
 
 DiffPES maps Chinook's horizontal ``tilt.k_mesh`` angles as ``T=-tx`` and
-``P=ty``. It maps ``gen_all_pol`` angles as ``theta=-tx`` and ``phi=-ty``.
-For the vertical slit, the corresponding mappings are ``T=-ty, P=tx`` and
-``theta=-ty, phi=-tx``. These mappings give one active detector frame.
+``P=ty``. For the vertical slit, the corresponding mapping is
+``T=-ty, P=tx``. These mappings define one active detector frame.
 """
 
+import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
@@ -44,7 +49,6 @@ from jaxtyping import Array, Bool, Complex, Float, jaxtyped
 
 from diffpes.maths import safe_arctan2, safe_divide, safe_norm, safe_sqrt
 from diffpes.types import (
-    EKIN_FLOOR_EV,
     K_PREFACTOR_INV_ANG_SQRT_EV,
     TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
     ScalarFloat,
@@ -55,12 +59,12 @@ from diffpes.types import (
 def kinetic_energy_ev(
     photon_energy_ev: ScalarFloat,
     work_function_ev: ScalarFloat,
-    binding_energy_ev: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
-    r"""Compute the floored photoelectron kinetic energy.
+    omega_rel_fermi_ev: Float[Array, " ..."],
+) -> Tuple[Float[Array, " ..."], Bool[Array, " ..."]]:
+    r"""Compute signed photoelectron kinetic energy and its validity mask.
 
     The function applies energy conservation in the three-step photoemission
-    model [3]_. A physical floor defines the low-energy validity boundary.
+    model [3]_. It does not alter forbidden energies.
 
     :see: :class:`~.test_kinematics.TestKineticEnergyEv`
 
@@ -70,18 +74,23 @@ def kinetic_energy_ev(
         Photon energy in eV.
     work_function_ev : ScalarFloat
         Work function in eV.
-    binding_energy_ev : Float[Array, " ..."]
-        Binding energies in eV. The function accepts either sign convention.
+    omega_rel_fermi_ev : Float[Array, " ..."]
+        Electron energy relative to the Fermi level, ``E - E_F``, in eV.
 
     Returns
     -------
     kinetic_energies : Float[Array, " ..."]
-        Kinetic energies in eV with a lower bound of ``EKIN_FLOOR_EV``.
+        Signed kinetic energies in eV.
+    emission_valid : Bool[Array, " ..."]
+        Mask selecting strictly positive kinetic energies.
 
     Notes
     -----
-    The function computes :math:`h\nu-W-|E_b|`. Values at or below the floor
-    have a zero selected gradient. Values above the floor keep exact gradients.
+    The frozen convention is
+    :math:`E_{\mathrm{kin}}=h\nu-W+(E-E_F)`. The validity mask rejects zero
+    and negative energies. The returned raw energy retains unit derivative on
+    both sides of the threshold. The Boolean mask carries nondifferentiable
+    metadata.
 
     References
     ----------
@@ -90,31 +99,25 @@ def kinetic_energy_ev(
     """
     photon_energy_array: Float[Array, ""] = jnp.asarray(photon_energy_ev)
     work_function_array: Float[Array, ""] = jnp.asarray(work_function_ev)
-    raw_kinetic_energies: Float[Array, " ..."] = (
-        photon_energy_array - work_function_array - jnp.abs(binding_energy_ev)
+    kinetic_energies: Float[Array, " ..."] = (
+        photon_energy_array + omega_rel_fermi_ev - work_function_array
     )
-    above_floor: Bool[Array, " ..."] = raw_kinetic_energies > EKIN_FLOOR_EV
-    sanitized_energies: Float[Array, " ..."] = jnp.where(
-        above_floor,
-        raw_kinetic_energies,
-        EKIN_FLOOR_EV,
+    emission_valid: Bool[Array, " ..."] = kinetic_energies > 0.0
+    result: Tuple[Float[Array, " ..."], Bool[Array, " ..."]] = (
+        kinetic_energies,
+        emission_valid,
     )
-    kinetic_energies: Float[Array, " ..."] = jnp.where(
-        above_floor,
-        sanitized_energies,
-        EKIN_FLOOR_EV,
-    )
-    return kinetic_energies
+    return result
 
 
 @jaxtyped(typechecker=beartype)
 def final_state_k_inv_ang(
     kinetic_energy_ev: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
-    """Convert kinetic energy to final-state momentum magnitude.
+) -> Tuple[Float[Array, " ..."], Bool[Array, " ..."]]:
+    """Convert kinetic energy to momentum and return its validity mask.
 
-    The function applies the free-electron dispersion. A second floor guard
-    keeps direct calls finite outside the physical domain.
+    The function applies the free-electron dispersion. Forbidden inputs map
+    to a zero sentinel rather than a fabricated positive momentum.
 
     :see: :class:`~.test_kinematics.TestFinalStateKInvAng`
 
@@ -127,28 +130,35 @@ def final_state_k_inv_ang(
     -------
     momentum_magnitudes : Float[Array, " ..."]
         Final-state momentum magnitudes in 1/Angstrom.
+    emission_valid : Bool[Array, " ..."]
+        Mask selecting strictly positive kinetic energies.
 
     Notes
     -----
-    The function computes ``K_PREFACTOR_INV_ANG_SQRT_EV * sqrt(E_kin)``.
-    Inputs at or below ``EKIN_FLOOR_EV`` have a zero selected gradient.
+    The function computes ``K_PREFACTOR_INV_ANG_SQRT_EV * sqrt(E_kin)`` on
+    the physical domain. At and below threshold it returns zero with a zero
+    selected derivative. Consumers must propagate ``emission_valid`` rather
+    than interpreting the zero sentinel as an emitted state.
     """
-    above_floor: Bool[Array, " ..."] = kinetic_energy_ev > EKIN_FLOOR_EV
+    emission_valid: Bool[Array, " ..."] = kinetic_energy_ev > 0.0
     sanitized_energies: Float[Array, " ..."] = jnp.where(
-        above_floor,
+        emission_valid,
         kinetic_energy_ev,
-        EKIN_FLOOR_EV,
+        1.0,
     )
-    physical_momenta: Float[Array, " ..."] = (
+    rooted_momenta: Float[Array, " ..."] = (
         K_PREFACTOR_INV_ANG_SQRT_EV * jnp.sqrt(sanitized_energies)
     )
-    floor_momentum: float = K_PREFACTOR_INV_ANG_SQRT_EV * EKIN_FLOOR_EV**0.5
     momentum_magnitudes: Float[Array, " ..."] = jnp.where(
-        above_floor,
-        physical_momenta,
-        floor_momentum,
+        emission_valid,
+        rooted_momenta,
+        0.0,
     )
-    return momentum_magnitudes
+    result: Tuple[Float[Array, " ..."], Bool[Array, " ..."]] = (
+        momentum_magnitudes,
+        emission_valid,
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -156,6 +166,7 @@ def kz_from_inner_potential(
     photon_energy_ev: ScalarFloat,
     work_function_ev: ScalarFloat,
     inner_potential_ev: ScalarFloat,
+    omega_rel_fermi_ev: Float[Array, " ..."],
     k_par_inv_ang: Float[Array, " ..."],
 ) -> Tuple[Complex[Array, " ..."], Bool[Array, " ..."]]:
     r"""Compute complex out-of-plane momentum from the inner potential.
@@ -173,6 +184,8 @@ def kz_from_inner_potential(
         Work function in eV.
     inner_potential_ev : ScalarFloat
         Inner potential in eV.
+    omega_rel_fermi_ev : Float[Array, " ..."]
+        Electron energy relative to the Fermi level, ``E - E_F``, in eV.
     k_par_inv_ang : Float[Array, " ..."]
         Parallel momentum magnitudes in 1/Angstrom.
 
@@ -181,14 +194,15 @@ def kz_from_inner_potential(
     kz_values : Complex[Array, " ..."]
         Principal out-of-plane momenta in 1/Angstrom.
     propagating : Bool[Array, " ..."]
-        Mask that identifies positive real radicands.
+        Mask requiring both valid photoemission and a positive real radicand.
 
     Notes
     -----
     The radicand equals
-    :math:`(2m_e/\hbar^2)(h\nu-W+V_0)-k_\parallel^2` above the energy floor.
-    Negative radicands give positive imaginary roots. The branch point has no
-    assigned derivative.
+    :math:`(2m_e/\hbar^2)(h\nu-W+\omega+V_0)-k_\parallel^2`.
+    Negative radicands give positive imaginary roots. The propagation mask
+    also rejects forbidden surface emission. The branch point has no assigned
+    derivative.
 
     For a propagating channel,
     :math:`\partial k_z/\partial V_0=(2\,\hbar^2/2m_e)^{-1}/k_z`.
@@ -198,26 +212,96 @@ def kz_from_inner_potential(
     .. [4] A. Damascelli, Z. Hussain, and Z.-X. Shen, Rev. Mod. Phys. 75,
        473 (2003).
     """
-    zero_binding: Float[Array, " ..."] = jnp.zeros_like(k_par_inv_ang)
-    surface_kinetic_energies: Float[Array, " ..."] = kinetic_energy_ev(
+    surface_kinetic_energies: Float[Array, " ..."]
+    energy_valid: Bool[Array, " ..."]
+    surface_kinetic_energies, energy_valid = kinetic_energy_ev(
         photon_energy_ev,
         work_function_ev,
-        zero_binding,
+        omega_rel_fermi_ev,
     )
     inner_potential_array: Float[Array, ""] = jnp.asarray(inner_potential_ev)
+    surface_aperture_valid: Bool[Array, " ..."] = energy_valid & (
+        k_par_inv_ang * k_par_inv_ang
+        < TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 * surface_kinetic_energies
+    )
     radicand: Float[Array, " ..."] = (
         TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2
         * (surface_kinetic_energies + inner_potential_array)
         - k_par_inv_ang * k_par_inv_ang
     )
-    propagating: Bool[Array, " ..."] = radicand > 0.0
-    complex_radicand: Complex[Array, " ..."] = radicand.astype(jnp.complex128)
-    kz_values: Complex[Array, " ..."] = jnp.sqrt(complex_radicand)
+    propagating: Bool[Array, " ..."] = surface_aperture_valid & (
+        radicand > 0.0
+    )
+    sanitized_radicand: Float[Array, " ..."] = jnp.where(
+        surface_aperture_valid,
+        radicand,
+        1.0,
+    )
+    complex_radicand: Complex[Array, " ..."] = sanitized_radicand.astype(
+        jnp.complex128
+    )
+    rooted_values: Complex[Array, " ..."] = jnp.sqrt(complex_radicand)
+    kz_values: Complex[Array, " ..."] = jnp.where(
+        surface_aperture_valid,
+        rooted_values,
+        jnp.zeros_like(rooted_values),
+    )
     kinematics_result: Tuple[Complex[Array, " ..."], Bool[Array, " ..."]] = (
         kz_values,
         propagating,
     )
     return kinematics_result
+
+
+@jaxtyped(typechecker=beartype)
+def kz_from_inner_potential_at_fermi(
+    photon_energy_ev: ScalarFloat,
+    work_function_ev: ScalarFloat,
+    inner_potential_ev: ScalarFloat,
+    k_par_inv_ang: Float[Array, " ..."],
+) -> Tuple[Complex[Array, " ..."], Bool[Array, " ..."]]:
+    """Evaluate the named Fermi-level ``kz`` approximation.
+
+    This compatibility helper evaluates :func:`kz_from_inner_potential` at
+    ``omega_rel_fermi_ev = 0``. Production paths with an energy axis must call
+    the exact function and supply that axis.
+
+    :see: :class:`~.test_kinematics.TestKzFromInnerPotentialAtFermi`
+
+    Parameters
+    ----------
+    photon_energy_ev : ScalarFloat
+        Photon energy in eV.
+    work_function_ev : ScalarFloat
+        Work function in eV.
+    inner_potential_ev : ScalarFloat
+        Inner potential in eV.
+    k_par_inv_ang : Float[Array, " ..."]
+        Parallel momentum magnitudes in 1/Angstrom.
+
+    Returns
+    -------
+    kz_values : Complex[Array, " ..."]
+        Principal at-Fermi out-of-plane momenta in 1/Angstrom.
+    propagating : Bool[Array, " ..."]
+        Physical propagation mask.
+
+    Notes
+    -----
+    The helper constructs a zero energy array and delegates all validity,
+    aperture, and branch handling to the exact function.
+    """
+    omega_at_fermi: Float[Array, " ..."] = jnp.zeros_like(k_par_inv_ang)
+    result: Tuple[Complex[Array, " ..."], Bool[Array, " ..."]] = (
+        kz_from_inner_potential(
+            photon_energy_ev,
+            work_function_ev,
+            inner_potential_ev,
+            omega_at_fermi,
+            k_par_inv_ang,
+        )
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -302,6 +386,8 @@ def detector_angles_to_kpar(
     -----
     The horizontal slit uses ``Rx(ty) @ Ry(tx)``. The vertical slit uses
     ``Rx(tx) @ Ry(ty)``. These active rotations act on the positive z vector.
+    The public chart requires strictly positive kinetic energy and both angles
+    in ``(-pi/2, pi/2)``.
     """
     if slit not in {"H", "V"}:
         message: str = "slit must be 'H' or 'V'"
@@ -314,23 +400,34 @@ def detector_angles_to_kpar(
         ty,
         kinetic_energy_ev,
     )
-    momentum_magnitudes: Float[Array, " ..."] = final_state_k_inv_ang(
-        broadcast_energy
+    chart_valid: Bool[Array, " ..."] = (
+        (broadcast_energy > 0.0)
+        & (jnp.abs(broadcast_tx) < jnp.pi / 2.0)
+        & (jnp.abs(broadcast_ty) < jnp.pi / 2.0)
     )
+    checked_tx: Float[Array, " ..."] = eqx.error_if(
+        broadcast_tx,
+        ~jnp.all(chart_valid),
+        (
+            "detector_angles_to_kpar requires Ekin > 0 and "
+            "tx, ty in (-pi/2, pi/2)"
+        ),
+    )
+    checked_ty: Float[Array, " ..."] = jnp.where(
+        chart_valid,
+        broadcast_ty,
+        0.0,
+    )
+    momentum_magnitudes: Float[Array, " ..."]
+    momentum_magnitudes, _ = final_state_k_inv_ang(broadcast_energy)
     if slit == "H":
-        kx: Float[Array, " ..."] = momentum_magnitudes * jnp.sin(broadcast_tx)
+        kx: Float[Array, " ..."] = momentum_magnitudes * jnp.sin(checked_tx)
         ky: Float[Array, " ..."] = (
-            -momentum_magnitudes
-            * jnp.cos(broadcast_tx)
-            * jnp.sin(broadcast_ty)
+            -momentum_magnitudes * jnp.cos(checked_tx) * jnp.sin(checked_ty)
         )
     else:
-        kx = momentum_magnitudes * jnp.sin(broadcast_ty)
-        ky = (
-            -momentum_magnitudes
-            * jnp.sin(broadcast_tx)
-            * jnp.cos(broadcast_ty)
-        )
+        kx = momentum_magnitudes * jnp.sin(checked_ty)
+        ky = -momentum_magnitudes * jnp.sin(checked_tx) * jnp.cos(checked_ty)
     k_parallel: Float[Array, "... 2"] = jnp.stack((kx, ky), axis=-1)
     return k_parallel
 
@@ -372,8 +469,10 @@ def kpar_to_detector_angles(
 
     Notes
     -----
-    The inverse uses the positive detector-normal branch. Safe square roots
-    select finite boundary values outside the open physical domain.
+    The inverse uses the positive detector-normal branch, corresponding to
+    ``tx, ty`` in ``(-pi/2, pi/2)``. It rejects nonpositive kinetic energy and
+    ``norm(k_parallel) >= k_f``. The function fabricates no boundary value
+    outside that open chart.
     """
     if slit not in {"H", "V"}:
         message: str = "slit must be 'H' or 'V'"
@@ -390,17 +489,39 @@ def kpar_to_detector_angles(
         kinetic_energy_ev,
         target_shape,
     )
-    momentum_magnitudes: Float[Array, " ..."] = final_state_k_inv_ang(
+    momentum_magnitudes: Float[Array, " ..."]
+    emission_valid: Bool[Array, " ..."]
+    momentum_magnitudes, emission_valid = final_state_k_inv_ang(
         broadcast_energy
     )
-    normalized_k_parallel: Float[Array, "... 2"] = safe_divide(
+    aperture_sq: Float[Array, " ..."] = jnp.sum(
+        broadcast_k_parallel * broadcast_k_parallel,
+        axis=-1,
+    )
+    momentum_sq: Float[Array, " ..."] = (
+        momentum_magnitudes * momentum_magnitudes
+    )
+    chart_valid: Bool[Array, " ..."] = emission_valid & (
+        aperture_sq < momentum_sq
+    )
+    checked_k_parallel: Float[Array, "... 2"] = eqx.error_if(
         broadcast_k_parallel,
+        ~jnp.all(chart_valid),
+        "kpar_to_detector_angles requires Ekin > 0 and norm(kpar) < kf",
+    )
+    normalized_k_parallel: Float[Array, "... 2"] = safe_divide(
+        checked_k_parallel,
         momentum_magnitudes[..., None],
     )
     normalized_kx: Float[Array, " ..."] = normalized_k_parallel[..., 0]
     normalized_ky: Float[Array, " ..."] = normalized_k_parallel[..., 1]
-    normal_component: Float[Array, " ..."] = safe_sqrt(
-        1.0 - normalized_kx * normalized_kx - normalized_ky * normalized_ky
+    normal_component: Float[Array, " ..."] = jnp.sqrt(
+        jnp.maximum(
+            1.0
+            - normalized_kx * normalized_kx
+            - normalized_ky * normalized_ky,
+            0.0,
+        )
     )
     if slit == "H":
         tx: Float[Array, " ..."] = safe_arctan2(
@@ -431,4 +552,5 @@ __all__: list[str] = [
     "kinetic_energy_ev",
     "kpar_to_detector_angles",
     "kz_from_inner_potential",
+    "kz_from_inner_potential_at_fermi",
 ]

@@ -27,9 +27,12 @@ Routine Listings
 
 Notes
 -----
-These helpers choose explicit subgradients on guarded sets. Use them when the
-boundary convention belongs to the caller's contract. Do not use them to
-replace a known nonzero analytic limiting derivative.
+These helpers are boundary-convention primitives, not domain validators. They
+intentionally return finite values on their guarded sets and do not signal
+that an input is scientifically invalid. Every caller must validate any
+physical domain restriction before invoking them. Use a helper only when its
+guarded value and subgradient belong to the caller's contract. Never use a
+helper to hide invalid parameters or replace a known nonzero analytic limit.
 """
 
 import jax.numpy as jnp
@@ -71,7 +74,8 @@ def safe_divide(
     The function replaces a zero denominator with one before it evaluates the
     inactive division branch. At this boundary, both quotient operands have
     zero selected subgradients. A traced ``fallback`` retains its usual
-    selected-value gradient.
+    selected-value gradient. The function does not establish that a zero
+    denominator is valid for the calling model.
     """
     nonzero: Bool[Array, " ..."] = denominator != 0.0
     sanitized_denominator: Float[Array, " ..."] = jnp.where(
@@ -87,7 +91,8 @@ def safe_sqrt(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     """Evaluate sqrt on positive inputs and return zero otherwise.
 
     Applies the principal real square root only on its positive domain. The
-    guarded branch defines a finite value outside that domain.
+    guarded branch defines a finite boundary convention for nonpositive
+    inputs; it does not validate the mathematical or physical domain.
 
     :see: :class:`~.test_safe.TestSafeSqrt`
 
@@ -105,6 +110,7 @@ def safe_sqrt(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     -----
     The function replaces nonpositive inputs with one before it computes the
     square root. The selected value and subgradient are zero for ``x <= 0``.
+    Callers for which ``x < 0`` is invalid must reject it before this helper.
     """
     positive: Bool[Array, " ..."] = x > 0.0
     sanitized_x: Float[Array, " ..."] = jnp.where(positive, x, 1.0)
@@ -177,7 +183,9 @@ def safe_arccos(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     -----
     Inputs strictly inside ``(-1, 1)`` use the ordinary ``arccos`` operation.
     Constants supply values at or beyond either endpoint. This selection gives
-    zero subgradients and avoids the infinite endpoint derivative.
+    zero subgradients and avoids the infinite endpoint derivative. Saturation
+    is a convention, not proof that an out-of-range cosine is physically
+    acceptable.
     """
     interior: Bool[Array, " ..."] = jnp.abs(x) < 1.0
     sanitized_x: Float[Array, " ..."] = jnp.where(interior, x, 0.0)
@@ -237,7 +245,8 @@ def safe_log(
     """Evaluate log with a finite floor and zero gradients below it.
 
     Computes the natural logarithm on a positive guarded domain. The floor
-    keeps the returned values finite for small or nonpositive inputs.
+    keeps the returned values finite for small or nonpositive inputs without
+    validating that those inputs belong to the caller's domain.
 
     :see: :class:`~.test_safe.TestSafeLog`
 
@@ -257,7 +266,8 @@ def safe_log(
     -----
     The function replaces inputs at or below the positive floor before it
     computes the logarithm. Their selected subgradient with respect to ``x``
-    is zero.
+    is zero. Callers must separately reject nonpositive inputs when positivity
+    is a scientific requirement.
     """
     above_floor: Bool[Array, " ..."] = x > floor
     sanitized_x: Float[Array, " ..."] = jnp.where(above_floor, x, floor)
@@ -272,7 +282,8 @@ def safe_power(
     """Raise positive inputs to a power and return zero otherwise.
 
     Computes real powers on positive bases for arbitrary real exponents. A
-    guarded branch keeps fractional powers outside that domain finite.
+    guarded branch supplies a finite convention for nonpositive bases; it is
+    not a domain check.
 
     :see: :class:`~.test_safe.TestSafePower`
 
@@ -293,6 +304,8 @@ def safe_power(
     The function replaces nonpositive bases with one before exponentiation.
     This replacement prevents complex or invalid results from fractional
     powers. Both inputs have zero selected subgradients on the guarded set.
+    Callers must reject a negative base first when it indicates invalid
+    physics rather than a registered boundary convention.
     """
     positive: Bool[Array, " ..."] = x > 0.0
     sanitized_x: Float[Array, " ..."] = jnp.where(positive, x, 1.0)

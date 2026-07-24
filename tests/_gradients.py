@@ -37,6 +37,7 @@ RTOL_LADDER: dict[GradRegime, float] = {
     "singular": 1e-4,
 }
 EPS_F64: float = 2.220446049250313e-16
+FD_ROUNDOFF_FACTOR: float = 1.0
 
 
 @jaxtyped(typechecker=beartype)
@@ -143,15 +144,20 @@ def assert_grad_matches_fd(
     *,
     regime: GradRegime = "smooth",
     atol: Optional[ScalarFloat] = None,
+    directional_atol: Optional[ScalarFloat] = None,
     scale_floor: ScalarFloat = 1e-3,
     modes: tuple[str, ...] = ("fwd", "rev"),
 ) -> None:
     """Assert autodiff agrees with directional and elementwise FD checks.
 
     :data:`RTOL_LADDER` selects the relative tolerance. If the caller omits
-    ``atol``, the central-FD round-off floor estimates it from
-    ``EPS_F64**(2/3) * max(1, abs(fn(theta))) / median(h)``. Failures identify
-    the exact PyTree leaf path and largest absolute discrepancy.
+    ``atol``, each parameter uses the central-FD round-off bound
+    ``EPS_F64 * max(1, abs(fn(theta))) / h_i``. Its units are loss per
+    parameter, matching a gradient; the relative term covers the
+    ``O(h_i**2)`` truncation error. The randomized directional check has its
+    own scalar ``directional_atol`` and median step because
+    :func:`jax.test_util.check_grads` does not accept elementwise steps.
+    Failures identify the exact PyTree leaf path and largest discrepancy.
     """
     step_leaves: list[Array] = [
         fd_step(jnp.real(jnp.asarray(leaf)), scale_floor=scale_floor)
@@ -162,10 +168,13 @@ def assert_grad_matches_fd(
     )
     relative_tolerance: float = RTOL_LADDER[regime]
     value: Float[Array, ""] = fn(theta)
-    absolute_tolerance: ScalarFloat = (
-        EPS_F64 ** (2.0 / 3.0) * jnp.maximum(1.0, jnp.abs(value)) / median_step
-        if atol is None
-        else atol
+    directional_absolute_tolerance: ScalarFloat = (
+        FD_ROUNDOFF_FACTOR
+        * EPS_F64
+        * jnp.maximum(1.0, jnp.abs(value))
+        / median_step
+        if directional_atol is None
+        else directional_atol
     )
 
     def checked_fn(candidate: PyTree) -> Float[Array, ""]:
@@ -179,7 +188,7 @@ def assert_grad_matches_fd(
         order=1,
         modes=modes,
         eps=float(median_step),
-        atol=float(absolute_tolerance),
+        atol=float(directional_absolute_tolerance),
         rtol=relative_tolerance,
     )
     automatic: PyTree = jax.grad(fn)(theta)
@@ -196,14 +205,28 @@ def assert_grad_matches_fd(
     finite_leaves, finite_treedef = jax.tree_util.tree_flatten(
         finite_difference
     )
-    if automatic_treedef != finite_treedef:
+    step_treedef: jax.tree_util.PyTreeDef
+    step_treedef = jax.tree_util.tree_structure(theta)
+    if (
+        automatic_treedef != finite_treedef
+        or automatic_treedef != step_treedef
+    ):
         raise AssertionError("autodiff and finite-difference trees differ")
     path: tuple[object, ...]
     actual: Array
     expected: Array
-    for (path, actual), expected in zip(
-        automatic_paths, finite_leaves, strict=True
+    step: Array
+    for (path, actual), expected, step in zip(
+        automatic_paths, finite_leaves, step_leaves, strict=True
     ):
+        absolute_tolerance: Array = (
+            FD_ROUNDOFF_FACTOR
+            * EPS_F64
+            * jnp.maximum(1.0, jnp.abs(value))
+            / step
+            if atol is None
+            else jnp.full_like(step, atol)
+        )
         tolerance: Array = absolute_tolerance + relative_tolerance * jnp.abs(
             expected
         )
@@ -212,7 +235,7 @@ def assert_grad_matches_fd(
             message: str = (
                 f"gradient mismatch at {_path_name(path)}: "
                 f"max_abs_error={float(jnp.max(difference)):.6e}, "
-                f"atol={float(absolute_tolerance):.6e}, "
+                f"max_atol={float(jnp.max(absolute_tolerance)):.6e}, "
                 f"rtol={relative_tolerance:.6e}"
             )
             raise AssertionError(message)
@@ -225,12 +248,16 @@ def assert_nonzero_grad(
     *,
     sensitive_paths: Optional[tuple[str, ...]] = None,
     min_norm: ScalarFloat = 1e-12,
+    elementwise: bool = False,
 ) -> None:
-    """Assert every selected gradient leaf has physically useful sensitivity.
+    """Assert selected gradients have physically useful sensitivity.
 
     The helper checks every leaf by default. ``sensitive_paths`` selects exact JAX
-    key-path strings, and each selected leaf must have Euclidean norm strictly
-    greater than ``min_norm``.
+    key-path strings. By default, require each selected leaf to exceed
+    ``min_norm`` in Euclidean norm. This rule permits physical structural zeros
+    within a sensitive leaf. If ``elementwise`` is true, require every
+    coordinate to exceed ``min_norm`` in magnitude. Reserve elementwise mode
+    for contracts that explicitly register every coordinate as sensitive.
     """
     gradient: PyTree = jax.grad(fn)(theta)
     path_leaves: list[tuple[tuple[object, ...], Array]]
@@ -250,6 +277,25 @@ def assert_nonzero_grad(
     for path, leaf in path_leaves:
         path_name: str = _path_name(path)
         if path_name in selected_paths:
+            if elementwise:
+                magnitudes: Float[Array, " ..."] = jnp.abs(jnp.ravel(leaf))
+                if magnitudes.size == 0:
+                    message = (
+                        f"gradient at {path_name} is empty; "
+                        "elementwise sensitivity requires a coordinate"
+                    )
+                    raise AssertionError(message)
+                insensitive: Array = magnitudes <= min_norm
+                if bool(jnp.any(insensitive)):
+                    flat_index: int = int(jnp.argmax(insensitive))
+                    magnitude: float = float(magnitudes[flat_index])
+                    message = (
+                        f"gradient at {path_name} coordinate {flat_index} "
+                        f"has magnitude {magnitude:.6e}; "
+                        f"required > {float(min_norm):.6e}"
+                    )
+                    raise AssertionError(message)
+                continue
             norm: Float[Array, ""] = jnp.linalg.norm(jnp.ravel(leaf))
             if not bool(norm > min_norm):
                 message = (
@@ -266,18 +312,24 @@ def gradient_gate(
     *,
     regime: GradRegime = "smooth",
     sensitive_paths: Optional[tuple[str, ...]] = None,
+    elementwise: bool = False,
     **kwargs: Any,
 ) -> None:
     """Run finite, finite-difference, and nonzero gradient checks together.
 
-    This is the single entry point used by sibling-plan differentiability
-    gates. The helper forwards keyword arguments to
-    :func:`assert_grad_matches_fd`.
+    Sibling-plan differentiability gates use this single entry point. The helper
+    passes ``elementwise`` to :func:`assert_nonzero_grad`. It passes all other
+    keyword arguments to :func:`assert_grad_matches_fd`.
     """
     gradient: PyTree = jax.grad(fn)(theta)
     assert_tree_finite(gradient)
     assert_grad_matches_fd(fn, theta, regime=regime, **kwargs)
-    assert_nonzero_grad(fn, theta, sensitive_paths=sensitive_paths)
+    assert_nonzero_grad(
+        fn,
+        theta,
+        sensitive_paths=sensitive_paths,
+        elementwise=elementwise,
+    )
 
 
 @jaxtyped(typechecker=beartype)
@@ -306,25 +358,28 @@ def random_generic_complex(
 
 @jaxtyped(typechecker=beartype)
 def complex_step_derivative(
-    fn: Callable[[Float[Array, "..."]], Float[Array, "..."]],
+    fn: Callable[[Array], Array],
     x: Float[Array, "..."],
     *,
+    direction: Optional[Float[Array, "..."]] = None,
     h: ScalarFloat = 1e-20,
 ) -> Float[Array, "..."]:
-    """Calculate a complex-step derivative for a holomorphic sub-block.
+    """Estimate a directional derivative by complex step.
 
-    Evaluates ``imag(fn(x + 1j*h)) / h``. An identically real result raises
-    because it signals a non-holomorphic operation such as conjugation,
-    absolute value, or real-part extraction. This method is never valid across
-    a modulus-squared operation.
+    Evaluate ``imag(fn(x + 1j*h*direction)) / h`` for a holomorphic sub-block
+    that is numerically real on the real axis. The default direction is an
+    all-ones array. The result is an estimator, not a holomorphy detector:
+    zero is a valid derivative and conjugation can return a nonzero but wrong
+    value. Every certification use must compare against an independent
+    analytic derivative or JVP. General complex-to-real maps use stacked-real
+    central finite differences instead.
     """
-    complex_value: Array = fn(x.astype(jnp.complex128) + 1j * h)
+    resolved_direction: Float[Array, "..."] = (
+        jnp.ones_like(x) if direction is None else direction
+    )
+    complex_value: Array = fn(
+        x.astype(jnp.complex128) + 1j * h * resolved_direction
+    )
     imaginary_part: Array = jnp.imag(complex_value)
-    if bool(jnp.all(imaginary_part == 0.0)):
-        message: str = (
-            "complex-step output has zero imaginary part; the function may "
-            "be non-holomorphic"
-        )
-        raise ValueError(message)
     derivative: Float[Array, "..."] = imaginary_part / h
     return derivative

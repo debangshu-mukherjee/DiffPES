@@ -14,6 +14,10 @@ and the project uses calendar versioning.
   hoppings, traced onsite/SOC parameters, atom-resolved geometry, and a
   degeneracy-regularized eigensystem. This migration intentionally repins the
   graphene radial-gradient and deterministic tight-binding references.
+- Wannier ingestion now keeps explicit fractional positions for every
+  orbital through Hamiltonian assembly and diagonalization. Noncoincident
+  centres assigned to one atom require separately supplied atomic geometry
+  instead of being silently collapsed into one position.
 - The real-harmonic convention now fixes positive ``m=1`` to ``+p_x`` and
   keeps Gaunt transformations consistent with that sign.
 - `CrystalGeometry` now follows the roadmap field contract. It uses
@@ -80,8 +84,10 @@ and the project uses calendar versioning.
   complex inner-potential momentum. It also provides invertible detector-angle
   maps for both slit conventions.
 - The polarization layer now constructs explicit complex states, converts
-  them to spherical components, and rotates detector grids. A shared
-  Rodrigues primitive rotates polarization and real frame vectors.
+  them to spherical components, and maps a fixed laboratory photon field into
+  the sample frame independently of detector pixels. A separate detector-axis
+  composition and shared Rodrigues primitive rotate detector-fixed real frame
+  vectors.
 - JAX-native certified forward execution is now a defining capability.
   It provides typed certificate PyTrees and deterministic registries for models
   and transformations. It also provides provenance graphs, information-loss
@@ -91,8 +97,9 @@ and the project uses calendar versioning.
 - The package now provides an explicitly registered radial ARPES certification
   surface. It supports portable canonical JSON and HDF5 certificate storage.
   It also supports offline inspection, verification, and user and API
-  documentation. CRC32 consistency markers detect accidental mismatches only.
-  They do not provide security, authenticity, or physical assurance.
+  documentation. Domain-separated SHA-256 supplies scientific content
+  identities; the certificate document's separate CRC32 detects transport
+  corruption only. Neither provides authenticity or physical assurance.
 - A tag-gated, uv-native PyPI Trusted Publishing workflow now tests wheels and
   source distributions.
 - Equinox, Optimistix, Lineax, and Optax now form the differentiable software

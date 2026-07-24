@@ -13,6 +13,7 @@ multi-atom system runs end-to-end without error.
 
 """
 
+import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -26,6 +27,7 @@ from diffpes.tightb import (
     diagonalize_tb,
 )
 from diffpes.types import (
+    ArpesSpectrum,
     DiagonalizedBands,
     OrbitalBasis,
     PolarizationConfig,
@@ -117,6 +119,104 @@ class TestSimulateTBRadial:
 
     :see: :func:`~diffpes.simul.simulate_tb_radial`
     """
+
+    def test_nonzero_fermi_level_controls_emission_threshold(
+        self,
+        chain_setup,
+    ) -> None:
+        """Verify Fermi-level subtraction before photoelectron kinematics.
+
+        Set the absolute Fermi level to 30 eV. Every band then lies below the
+        emission threshold for 21.2 eV photons and a 4.5 eV work function.
+        The complete spectrum must vanish.
+
+        Notes
+        -----
+        Replace only the immutable Fermi-level leaf and run the complete
+        radial forward path at the original photon energy.
+        """
+        diag: DiagonalizedBands
+        slater: SlaterParams
+        params: SimulationParams
+        pol: PolarizationConfig
+        diag, slater, params, pol = chain_setup
+        shifted_fermi: DiagonalizedBands = eqx.tree_at(
+            lambda bands: bands.fermi_energy,
+            diag,
+            jnp.array(30.0),
+        )
+        spectrum: ArpesSpectrum = simulate_tb_radial(
+            shifted_fermi,
+            slater,
+            params,
+            pol,
+            work_function=4.5,
+        )
+        assert bool(jnp.all(spectrum.intensity == 0.0))
+
+    def test_nonorthogonal_reciprocal_map_sets_cartesian_direction(
+        self,
+        chain_setup,
+    ) -> None:
+        """Verify Cartesian direction handling on a nonorthogonal lattice.
+
+        Two carriers encode the same Cartesian momentum direction with
+        different fractional coordinates and reciprocal bases. Their radial
+        spectra must agree.
+
+        Notes
+        -----
+        Replace reciprocal and fractional leaves in one carrier. Construct a
+        second carrier with equivalent coordinates in the original basis.
+        """
+        diag: DiagonalizedBands
+        slater: SlaterParams
+        params: SimulationParams
+        pol: PolarizationConfig
+        diag, slater, params, pol = chain_setup
+        skew_reciprocal: Float[Array, "3 3"] = jnp.array(
+            [
+                [2.0 * jnp.pi, 0.0, 0.0],
+                [jnp.pi, 2.0 * jnp.pi, 0.0],
+                [0.0, 0.0, 2.0 * jnp.pi],
+            ]
+        )
+        skew_fractional: Float[Array, "10 3"] = jnp.broadcast_to(
+            jnp.array([0.2, 0.3, 0.1]),
+            diag.kpoints.shape,
+        )
+        cartesian: Float[Array, "10 3"] = skew_fractional @ skew_reciprocal
+        equivalent_fractional: Float[Array, "10 3"] = (
+            cartesian @ jnp.linalg.inv(diag.geometry.reciprocal)
+        )
+        skew_diag: DiagonalizedBands = eqx.tree_at(
+            lambda bands: (bands.geometry.reciprocal, bands.kpoints),
+            diag,
+            (skew_reciprocal, skew_fractional),
+        )
+        reference_diag: DiagonalizedBands = eqx.tree_at(
+            lambda bands: bands.kpoints,
+            diag,
+            equivalent_fractional,
+        )
+        skew_spectrum: ArpesSpectrum = simulate_tb_radial(
+            skew_diag,
+            slater,
+            params,
+            pol,
+        )
+        reference_spectrum: ArpesSpectrum = simulate_tb_radial(
+            reference_diag,
+            slater,
+            params,
+            pol,
+        )
+        chex.assert_trees_all_close(
+            skew_spectrum.intensity,
+            reference_spectrum.intensity,
+            rtol=1e-12,
+            atol=1e-14,
+        )
 
     def test_output_shape(self, chain_setup) -> None:
         """Verify that the spectrum intensity and energy axis have expected shapes.

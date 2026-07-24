@@ -261,7 +261,8 @@ def diagonalize_tb(
     Notes
     -----
     :func:`jax.vmap` applies :func:`eigh_safe` to each fractional k-point.
-    The result retains the model geometry and static orbital basis.
+    The result retains the model geometry, static orbital basis, and any
+    explicit orbital positions that define its basis-position gauge.
     """
 
     def diagonalize_point(
@@ -291,6 +292,7 @@ def diagonalize_tb(
         geometry=model.geometry,
         basis=model.basis,
         fermi_energy=0.0,
+        orbital_positions=model.orbital_positions,
     )
     return bands
 
@@ -350,6 +352,11 @@ def vasp_to_diagonalized(  # noqa: DOC503 -- traced checks raise indirectly.
     Every selected band vector must contain nonzero projection weight because
     a zero vector cannot define a normalized approximate eigenstate. Spinful
     bases remain unsupported until the adapter can resolve spin channels.
+    The adapter checks projection weights for finiteness and nonnegativity
+    before calling :func:`diffpes.maths.safe_sqrt`. It checks the resulting
+    norm before calling :func:`diffpes.maths.safe_divide`.
+    Those helpers provide registered boundary conventions; they do not
+    perform the adapter's domain validation.
     """
     if phase_loss not in ("warn", "ignore", "error"):
         message: str = (

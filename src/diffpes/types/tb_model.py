@@ -22,12 +22,13 @@ Notes
 -----
 The tight-binding phase convention is the basis-position gauge. Each physical
 fractional bond displacement follows ``R + tau_j - tau_i`` from exact
-integer-cell metadata and atomic positions.
+integer-cell metadata and either explicit orbital centres or atomic positions.
 """
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Optional
 from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 from .aliases import ScalarNumeric
@@ -39,6 +40,7 @@ _PAIR_LENGTH: int = 2
 _CELL_COMPONENTS: int = 3
 _EIGENVALUE_NDIM: int = 2
 _EIGENVECTOR_NDIM: int = 3
+_ORBITAL_POSITION_NDIM: int = 2
 
 
 def _validate_basis_geometry(
@@ -178,6 +180,7 @@ def _validate_tb_structure(
     hopping_cells: tuple[tuple[int, int, int], ...],
     shell_index: tuple[int, ...],
     spinor: bool,
+    orbital_positions: Optional[Float[Array, "n_orb 3"]],
 ) -> tuple[int, ...]:
     """Validate static tight-binding structure and return reverse indices."""
     if not isinstance(geometry, CrystalGeometry):
@@ -219,6 +222,12 @@ def _validate_tb_structure(
         )
         raise ValueError(message)
     _validate_basis_geometry(basis, geometry)
+    if orbital_positions is not None and (
+        orbital_positions.ndim != _ORBITAL_POSITION_NDIM
+        or orbital_positions.shape != (n_orbitals, _CELL_COMPONENTS)
+    ):
+        message = "orbital_positions must have shape (n_orbitals, 3)"
+        raise ValueError(message)
 
     _validate_shell_metadata(soc_lambdas, basis, shell_index)
     if type(spinor) is not bool:
@@ -293,12 +302,15 @@ class DiagonalizedBands(eqx.Module):
     basis : OrbitalBasis
         Orbital and atom metadata (**static** -- changing it triggers
         retracing).
+    orbital_positions : Optional[Float[Array, "n_orb 3"]]
+        Explicit fractional orbital centres associated with the
+        basis-position-gauge coefficients. ``None`` ties centres to atoms.
 
     Notes
     -----
-    The numerical eigensystem and geometry fields remain JAX leaves.
-    ``basis`` is static because its quantum numbers and atom mapping shape
-    compiled operator construction.
+    The numerical eigensystem, geometry, and optional orbital-position fields
+    remain JAX leaves. ``basis`` is static because its quantum numbers and
+    atom mapping shape compiled operator construction.
 
     See Also
     --------
@@ -312,6 +324,7 @@ class DiagonalizedBands(eqx.Module):
     fermi_energy: Float[Array, ""]
     geometry: CrystalGeometry
     basis: OrbitalBasis = eqx.field(static=True)
+    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static eigensystem invariants again."""
@@ -322,6 +335,7 @@ class DiagonalizedBands(eqx.Module):
             self.fermi_energy,
             self.geometry,
             self.basis,
+            self.orbital_positions,
         )
 
 
@@ -331,9 +345,10 @@ class TBModel(eqx.Module):
     Each hopping record is ``(i, j, R, t)`` with exact integer lattice
     translation ``R``. In the pinned basis-position gauge, Hamiltonian phases
     use the physical fractional displacement
-    :math:`R + \tau_j - \tau_i`, derived from ``geometry.positions`` and
-    ``basis.atom_indices``. Physical displacements are never stored in place
-    of ``R`` or rounded back into connectivity.
+    :math:`R + \tau_j - \tau_i`. Explicit ``orbital_positions`` provide one
+    :math:`\tau` per Wannier orbital. Otherwise they are derived from
+    ``geometry.positions`` and ``basis.atom_indices``. Physical displacements
+    are never stored in place of ``R`` or rounded back into connectivity.
 
     :see: :class:`~.test_tb_model.TestTBModel`
 
@@ -365,6 +380,10 @@ class TBModel(eqx.Module):
     spinor : bool
         Whether the basis carries explicit spin channels (**static** --
         changing it triggers retracing).
+    orbital_positions : Optional[Float[Array, "n_orb 3"]]
+        Explicit fractional orbital or Wannier centres. ``None`` ties every
+        orbital centre to its assigned atomic position. Explicit centres are
+        differentiable independently of the atomic geometry.
 
     Notes
     -----
@@ -388,6 +407,7 @@ class TBModel(eqx.Module):
     hopping_cells: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
     shell_index: tuple[int, ...] = eqx.field(static=True)
     spinor: bool = eqx.field(static=True)
+    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static tight-binding invariants again."""
@@ -401,6 +421,7 @@ class TBModel(eqx.Module):
             self.hopping_cells,
             self.shell_index,
             self.spinor,
+            self.orbital_positions,
         )
 
 
@@ -411,6 +432,7 @@ def _validate_diagonalized_structure(
     fermi_energy: Float[Array, ""],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
+    orbital_positions: Optional[Float[Array, "n_orb 3"]],
 ) -> None:
     """Validate static eigensystem shapes and context."""
     if not isinstance(geometry, CrystalGeometry):
@@ -443,6 +465,12 @@ def _validate_diagonalized_structure(
     if eigenvectors.shape[2] != len(basis.n):
         message = "eigenvector orbital axis must match basis"
         raise ValueError(message)
+    if orbital_positions is not None and (
+        orbital_positions.ndim != _ORBITAL_POSITION_NDIM
+        or orbital_positions.shape != (len(basis.n), _CELL_COMPONENTS)
+    ):
+        message = "orbital_positions must have shape (n_orbitals, 3)"
+        raise ValueError(message)
     _validate_basis_geometry(basis, geometry)
 
 
@@ -454,6 +482,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     fermi_energy: ScalarNumeric = 0.0,
+    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
 ) -> DiagonalizedBands:
     """Create a validated ``DiagonalizedBands`` instance.
 
@@ -477,6 +506,10 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         retracing).
     fermi_energy : ScalarNumeric, optional
         Fermi energy in eV. Default is 0.0.
+    orbital_positions : Optional[Float[Array, "n_orb 3"]], optional
+        Explicit fractional orbital centres associated with the
+        basis-position-gauge coefficients. ``None`` derives centres from
+        atom assignments. Default is ``None``.
 
     Returns
     -------
@@ -517,6 +550,12 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         fermi_energy,
         dtype=jnp.float64,
     )
+    orbital_position_array: Optional[Float[Array, "n_orb 3"]] = None
+    if orbital_positions is not None:
+        orbital_position_array = jnp.asarray(
+            orbital_positions,
+            dtype=jnp.float64,
+        )
     _validate_diagonalized_structure(
         eigenvalue_array,
         eigenvector_array,
@@ -524,6 +563,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         fermi_array,
         geometry,
         basis,
+        orbital_position_array,
     )
 
     eigenvalue_array = eqx.error_if(
@@ -546,6 +586,12 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         ~jnp.isfinite(fermi_array),
         "make_diagonalized_bands: fermi energy finite",
     )
+    if orbital_position_array is not None:
+        orbital_position_array = eqx.error_if(
+            orbital_position_array,
+            ~jnp.all(jnp.isfinite(orbital_position_array)),
+            "make_diagonalized_bands: orbital positions finite",
+        )
     checked_geometry: CrystalGeometry = _checked_geometry(
         geometry,
         "make_diagonalized_bands",
@@ -557,6 +603,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         fermi_energy=fermi_array,
         geometry=checked_geometry,
         basis=basis,
+        orbital_positions=orbital_position_array,
     )
     return bands
 
@@ -572,6 +619,7 @@ def make_tb_model(  # noqa: DOC502, DOC503
     hopping_cells: tuple[tuple[int, int, int], ...],
     shell_index: tuple[int, ...],
     spinor: bool = False,
+    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
 ) -> TBModel:
     r"""Create a validated ``TBModel`` instance.
 
@@ -605,6 +653,9 @@ def make_tb_model(  # noqa: DOC502, DOC503
     spinor : bool, optional
         Whether the basis has explicit spin channels (**static** -- changing
         it triggers retracing). Default is ``False``.
+    orbital_positions : Optional[Float[Array, "n_orb 3"]], optional
+        Explicit fractional orbital centres for the basis-position gauge.
+        ``None`` derives centres from atom assignments. Default is ``None``.
 
     Returns
     -------
@@ -632,7 +683,8 @@ def make_tb_model(  # noqa: DOC502, DOC503
        :math:`t_{ji}(-R) = t_{ij}(R)^*` under eager and compiled execution.
 
     The physical displacement is not stored. Hamiltonian consumers derive
-    ``R + tau_j - tau_i`` from this carrier in the basis-position gauge.
+    ``R + tau_j - tau_i`` from explicit orbital positions when present and
+    otherwise from assigned atomic positions.
 
     See Also
     --------
@@ -651,6 +703,12 @@ def make_tb_model(  # noqa: DOC502, DOC503
         soc_lambdas,
         dtype=jnp.float64,
     )
+    orbital_position_array: Optional[Float[Array, "n_orb 3"]] = None
+    if orbital_positions is not None:
+        orbital_position_array = jnp.asarray(
+            orbital_positions,
+            dtype=jnp.float64,
+        )
     closure: tuple[int, ...] = _validate_tb_structure(
         hopping_array,
         onsite_array,
@@ -661,6 +719,7 @@ def make_tb_model(  # noqa: DOC502, DOC503
         hopping_cells,
         shell_index,
         spinor,
+        orbital_position_array,
     )
 
     hopping_array = eqx.error_if(
@@ -678,6 +737,12 @@ def make_tb_model(  # noqa: DOC502, DOC503
         ~jnp.all(jnp.isfinite(soc_array)),
         "make_tb_model: soc lambdas finite",
     )
+    if orbital_position_array is not None:
+        orbital_position_array = eqx.error_if(
+            orbital_position_array,
+            ~jnp.all(jnp.isfinite(orbital_position_array)),
+            "make_tb_model: orbital positions finite",
+        )
     closure_indices: Int[Array, " n_hop"] = jnp.asarray(
         closure,
         dtype=jnp.int32,
@@ -707,6 +772,7 @@ def make_tb_model(  # noqa: DOC502, DOC503
         hopping_cells=hopping_cells,
         shell_index=shell_index,
         spinor=spinor,
+        orbital_positions=orbital_position_array,
     )
     return model
 

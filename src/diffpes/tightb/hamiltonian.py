@@ -80,13 +80,20 @@ def _assemble_bloch_hamiltonian(
 ) -> Complex[Array, "n_orb n_orb"]:
     """Assemble one Hamiltonian from already validated amplitudes."""
     n_orbitals: int = model.onsite_energies.shape[0]
-    atom_indices: Int[Array, " n_orb"] = jnp.asarray(
-        model.basis.atom_indices,
-        dtype=jnp.int32,
-    )
-    orbital_positions: Float[Array, "n_orb 3"] = model.geometry.positions[
-        atom_indices
-    ]
+    if model.orbital_positions is None:
+        atom_indices: Int[Array, " n_orb"] = jnp.asarray(
+            model.basis.atom_indices,
+            dtype=jnp.int32,
+        )
+        orbital_positions: Float[Array, "n_orb 3"] = model.geometry.positions[
+            atom_indices
+        ]
+    else:
+        orbital_positions = eqx.error_if(
+            model.orbital_positions,
+            ~jnp.all(jnp.isfinite(model.orbital_positions)),
+            "bloch_hamiltonian: orbital positions finite",
+        )
     pairs: Int[Array, "n_hop 2"] = jnp.asarray(
         model.hopping_pairs,
         dtype=jnp.int32,
@@ -154,8 +161,9 @@ def bloch_hamiltonian(  # noqa: DOC502
 
     The phase of hopping record ``(i, j, R)`` is
     :math:`\exp[2\pi i k\cdot(R+\tau_j-\tau_i)]`. Here ``R`` is the exact
-    model cell. ``basis.atom_indices`` selects each :math:`\tau` from
-    ``geometry.positions``.
+    model cell. Explicit ``model.orbital_positions`` supply each
+    :math:`\tau` when present. Otherwise ``basis.atom_indices`` selects them
+    from ``geometry.positions``.
 
     :see: :class:`~.test_hamiltonian.TestBlochHamiltonian`
 

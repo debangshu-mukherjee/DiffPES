@@ -44,8 +44,6 @@ Routine Listings
     Column index of spin-up eigenvalues in EIGENVAL.
 :obj:`ENERGY_AXIS_NDIM`
     Expected dimensionality of energy-axis arrays.
-:obj:`EKIN_FLOOR_EV`
-    Set the physical kinetic-energy floor in eV.
 :obj:`EPS`
     Epsilon floor guarding divisions and norms.
 :obj:`EPS_DEG`
@@ -80,8 +78,6 @@ Routine Listings
     Maximum angular momentum supported by the precomputed table.
 :obj:`LATTICE_ROWS`
     Number of lattice-vector rows in POSCAR/CHGCAR headers.
-:obj:`DEFAULT_SUPERCELL_RADIUS`
-    Default translation radius for tight-binding neighbor discovery.
 :obj:`M_D`
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
@@ -189,12 +185,10 @@ CHANNELS_BY_PAIR: Final[MappingProxyType] = MappingProxyType(
 COORDINATE_MODE_TOKENS: Final[frozenset[str]] = frozenset(
     {"cartesian", "reciprocal", "direct", "fractional"}
 )
-DEFAULT_SUPERCELL_RADIUS: Final[int] = 2
 D_ORBITAL_SLICE: Final[slice] = slice(4, 9)
 EIG_DOWN_INDEX: Final[int] = 2
 EIG_UP_INDEX: Final[int] = 1
 ENERGY_AXIS_NDIM: Final[int] = 1
-EKIN_FLOOR_EV: Final[float] = 1e-2
 EPS: Final[float] = 1e-12
 EPS_DEG: Final[float] = 1e-9
 FLOAT_TOKEN_RE: Final[re.Pattern[str]] = re.compile(
@@ -333,11 +327,9 @@ __all__: list[str] = [
     "CHANNELS_BY_PAIR",
     "COORDINATE_MODE_TOKENS",
     "D_ORBITAL_SLICE",
-    "DEFAULT_SUPERCELL_RADIUS",
     "EIG_DOWN_INDEX",
     "EIG_UP_INDEX",
     "ENERGY_AXIS_NDIM",
-    "EKIN_FLOOR_EV",
     "EPS",
     "EPS_DEG",
     "FLOAT_TOKEN_RE",

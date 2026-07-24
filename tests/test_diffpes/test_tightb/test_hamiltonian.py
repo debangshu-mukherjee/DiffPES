@@ -60,18 +60,15 @@ def _make_empty_model() -> TBModel:
 
 
 def _make_gauge_probe_model() -> TBModel:
-    """Build a two-site complex model with nontrivial basis positions."""
+    """Build two same-atom Wannier orbitals with distinct centres."""
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
-        positions=jnp.asarray(
-            [[0.1, 0.0, 0.0], [0.37, 0.0, 0.0]],
-            dtype=jnp.float64,
-        ),
-        species=("A", "B"),
+        positions=jnp.asarray([[0.05, 0.0, 0.0]], dtype=jnp.float64),
+        species=("A",),
     )
     basis: OrbitalBasis = make_orbital_basis(
-        atom_indices=(0, 1),
-        n=(1, 1),
+        atom_indices=(0, 0),
+        n=(1, 2),
         l=(0, 0),
         m=(0, 0),
     )
@@ -86,8 +83,12 @@ def _make_gauge_probe_model() -> TBModel:
         geometry=geometry,
         basis=basis,
         hopping_pairs=((0, 1), (1, 0)),
-        hopping_cells=((1, 0, 0), (-1, 0, 0)),
+        hopping_cells=((0, 0, 0), (0, 0, 0)),
         shell_index=(-1, -1),
+        orbital_positions=jnp.asarray(
+            [[0.1, 0.0, 0.0], [0.37, 0.0, 0.0]],
+            dtype=jnp.float64,
+        ),
     )
     return model
 
@@ -161,9 +162,11 @@ class TestBlochHamiltonian:
         assert jnp.all(jnp.isfinite(H))
 
     def test_basis_position_gauge_matches_diagonal_unitary(self) -> None:
-        """Match cell-origin assembly after the predicted gauge transform.
+        """Match Hamiltonian and operator covariance across Bloch gauges.
 
-        The case compares basis-position assembly with an explicit diagonal transform.
+        Noncoincident same-atom Wannier centres affect eigenvectors while
+        leaving eigenvalues unchanged, so a band-only check cannot pass this
+        counterexample.
 
         Notes
         -----
@@ -187,9 +190,8 @@ class TestBlochHamiltonian:
             cell_origin = cell_origin.at[orbital_i, orbital_j].add(
                 model.hopping_amplitudes[index] * phase
             )
-        orbital_positions: Array = model.geometry.positions[
-            jnp.asarray(model.basis.atom_indices)
-        ]
+        assert model.orbital_positions is not None
+        orbital_positions: Array = model.orbital_positions
         unitary: Array = jnp.diag(
             jnp.exp(2j * jnp.pi * (orbital_positions @ kpoint))
         )
@@ -200,6 +202,29 @@ class TestBlochHamiltonian:
             jnp.linalg.eigvalsh(actual),
             jnp.linalg.eigvalsh(cell_origin),
             atol=1e-13,
+        )
+        _, cell_vectors = jnp.linalg.eigh(cell_origin)
+        _, basis_vectors = jnp.linalg.eigh(actual)
+        cell_operator: Array = jnp.asarray(
+            [[0.2, 0.6 - 0.3j], [0.6 + 0.3j, -0.4]],
+            dtype=jnp.complex128,
+        )
+        basis_operator: Array = unitary.conj().T @ cell_operator @ unitary
+        cell_expectation: Array = jnp.real(
+            jnp.diag(cell_vectors.conj().T @ cell_operator @ cell_vectors)
+        )
+        basis_expectation: Array = jnp.real(
+            jnp.diag(basis_vectors.conj().T @ basis_operator @ basis_vectors)
+        )
+        wrong_gauge_expectation: Array = jnp.real(
+            jnp.diag(basis_vectors.conj().T @ cell_operator @ basis_vectors)
+        )
+
+        assert jnp.allclose(basis_expectation, cell_expectation, atol=1e-13)
+        assert not jnp.allclose(
+            wrong_gauge_expectation,
+            cell_expectation,
+            atol=1e-4,
         )
 
     @pytest.mark.parametrize("seed", range(5))

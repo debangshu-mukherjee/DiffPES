@@ -24,9 +24,12 @@ from diffpes.certify import (
 from diffpes.inout import load_certificate_json, save_certificate_json
 from diffpes.types import (
     CertificationContext,
+    make_artifact_ref,
     make_domain_result,
+    make_evidence_lineage,
     make_execution_manifest,
     make_forward_model_spec,
+    make_human_attestation_ref,
 )
 
 
@@ -94,6 +97,67 @@ class TestVerifyCertificate:
             result.certificate.information.singular_values, 4.0
         )
         assert bool(verify_certificate(result.certificate).structure_valid)
+
+    def test_lineage_and_attestation_propagate_separately(self) -> None:
+        """Carry named lineage and human review through certified execution.
+
+        The case prepares and certifies one reference with both record kinds.
+
+        Notes
+        -----
+        The assertions keep computational ancestry separate from human review.
+        """
+        context: CertificationContext = _context(lambda value: value**2)
+        evidence: Any = evaluate_evidence(
+            "evidence.lineage",
+            "method.closed_form",
+            jnp.zeros(1),
+            jnp.zeros(1),
+            jnp.zeros(1),
+            lineage=make_evidence_lineage(
+                implementation_refs=("reference.impl",),
+                generator_refs=("reference.generator",),
+                artifact_refs=("reference.artifact",),
+                derivation_refs=("reference.derivation",),
+                relationship_ids=(
+                    "independent-derivation:reference.derivation",
+                ),
+            ),
+            human_attestation_refs=("attestation.review",),
+        )
+        attestation: Any = make_human_attestation_ref(
+            "attestation.review",
+            "reviewer.test",
+            ("evidence.lineage",),
+            "Lineage reviewed.",
+            "2026-07-24T00:00:00Z",
+        )
+        artifact: Any = make_artifact_ref(
+            "reference.artifact",
+            "application/octet-stream",
+            None,
+            "content.reference",
+            "semantic.reference",
+            None,
+            "reference",
+        )
+        prepared: CertificationContext = prepare_certification(
+            context.model.model_id,
+            context.model.model_version,
+            context.manifest,
+            policy_id=context.policy_id,
+            artifacts=(artifact,),
+            evidence=(evidence,),
+            attestations=(attestation,),
+        )
+        certified: Any = certify_forward(
+            prepared,
+            jnp.array([2.0]),
+            spectrum_rank=1,
+        )
+        assert certified.certificate.evidence[0].lineage == evidence.lineage
+        assert certified.certificate.attestations == (attestation,)
+        assert bool(verify_certificate(certified.certificate).structure_valid)
 
     def test_one_sided_domain_claim_is_internally_consistent(self) -> None:
         """Verify a domain claim that uses a signed positive margin.

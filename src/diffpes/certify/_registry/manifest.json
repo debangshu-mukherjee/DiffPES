@@ -22,7 +22,8 @@
         "org.diffpes.transform.kspace.fractional_cartesian@1.0.0",
         "org.diffpes.transform.kinematics.detector_angle_kpar@1.0.0",
         "org.diffpes.transform.kinematics.inner_potential@1.0.0",
-        "org.diffpes.transform.polarization.detector_frame@1.0.0"
+        "org.diffpes.transform.polarization.lab_polarization_to_sample@1.0.0",
+        "org.diffpes.transform.geometry.detector_axis_to_sample@1.0.0"
       ]
     },
     {
@@ -67,6 +68,10 @@
       "transformation_version": "1.0.0"
     },
     {
+      "transformation_id": "org.diffpes.transform.geometry.detector_axis_to_sample",
+      "transformation_version": "1.0.0"
+    },
+    {
       "transformation_id": "org.diffpes.transform.kinematics.detector_angle_kpar",
       "transformation_version": "1.0.0"
     },
@@ -83,7 +88,7 @@
       "transformation_version": "1.0.0"
     },
     {
-      "transformation_id": "org.diffpes.transform.polarization.detector_frame",
+      "transformation_id": "org.diffpes.transform.polarization.lab_polarization_to_sample",
       "transformation_version": "1.0.0"
     },
     {

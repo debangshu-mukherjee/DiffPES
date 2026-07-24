@@ -2,7 +2,7 @@
 
 Extended Summary
 ----------------
-The tests cover energy floors, momentum values, complex out-of-plane roots,
+The tests cover emission thresholds, momentum values, complex out-of-plane roots,
 emission angles, detector maps, JAX transforms, and certified gradients.
 """
 
@@ -25,9 +25,9 @@ from diffpes.simul.kinematics import (
     kinetic_energy_ev,
     kpar_to_detector_angles,
     kz_from_inner_potential,
+    kz_from_inner_potential_at_fermi,
 )
 from diffpes.types import (
-    EKIN_FLOOR_EV,
     K_PREFACTOR_INV_ANG_SQRT_EV,
     TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
 )
@@ -37,33 +37,33 @@ from tests._gradients import assert_grad_matches_fd, gradient_gate
 class TestKineticEnergyEv(chex.TestCase):
     """Validate :func:`~diffpes.simul.kinetic_energy_ev`.
 
-    The tests cover energy conservation, the physical floor, JIT, and the
-    selected gradient on each side of the floor.
+    The tests cover the signed energy convention, threshold mask, JIT, and
+    derivatives on each side of the threshold.
 
     :see: :func:`~diffpes.simul.kinetic_energy_ev`
     """
 
-    def test_energy_conservation_and_floor_under_jit(self) -> None:
-        """Match energy conservation and apply the physical floor under JIT.
+    def test_signed_energy_and_validity_under_jit(self) -> None:
+        """Match signed energy conservation and preserve forbidden values.
 
-        The first three values remain above the floor. The last value cannot
-        produce a photoelectron and therefore maps to ``EKIN_FLOOR_EV``.
+        Positive Fermi-relative energy increases kinetic energy. The last
+        value is below threshold and remains negative with a false mask.
 
         Notes
         -----
-        Use 21.2 eV photons and a 4.3 eV work function. Compare four binding
-        energies with the closed-form values.
+        Use 21.2 eV photons and a 4.3 eV work function. Compare four signed
+        Fermi-relative electron energies with the closed-form values.
         """
-        binding_energies: Float[Array, " 4"] = jnp.array(
-            [-0.4, 0.0, 0.7, 40.0]
+        omega_rel_fermi: Float[Array, " 4"] = jnp.array(
+            [-0.4, 0.0, 0.7, -40.0]
         )
-        expected: Float[Array, " 4"] = jnp.array(
-            [16.5, 16.9, 16.2, EKIN_FLOOR_EV]
-        )
-        actual: Float[Array, " 4"] = jax.jit(kinetic_energy_ev)(
+        expected: Float[Array, " 4"] = jnp.array([16.5, 16.9, 17.6, -23.1])
+        actual: Float[Array, " 4"]
+        valid: Bool[Array, " 4"]
+        actual, valid = jax.jit(kinetic_energy_ev)(
             21.2,
             4.3,
-            binding_energies,
+            omega_rel_fermi,
         )
         chex.assert_shape(actual, (4,))
         self.assertEqual(actual.dtype, jnp.dtype("float64"))
@@ -73,39 +73,36 @@ class TestKineticEnergyEv(chex.TestCase):
             rtol=0.0,
             atol=1e-14,
         )
+        chex.assert_trees_all_equal(
+            valid,
+            jnp.array([True, True, True, False]),
+        )
 
-    def test_floor_selects_zero_gradient(self) -> None:
-        """Verify exact gradients above and below the kinetic-energy floor.
+    def test_raw_energy_has_unit_gradient_on_both_sides(self) -> None:
+        """Verify exact raw-energy gradients above and below threshold.
 
-        Photon energy has unit sensitivity above the floor. The floor selects
-        zero sensitivity outside the physical validity domain.
+        Photon energy has unit sensitivity on both sides because the function
+        does not floor or otherwise fabricate forbidden energies.
 
         Notes
         -----
-        Differentiate one allowed point, one boundary point, and one rejected
-        point. Check all gradients and their finiteness.
+        Differentiate one allowed point and one rejected point, staying away
+        from the nondifferentiable Boolean threshold itself.
         """
         allowed_gradient: Float[Array, ""] = jax.grad(
             lambda photon: kinetic_energy_ev(
                 photon,
                 4.3,
                 jnp.array(0.7),
-            )
+            )[0]
         )(jnp.array(21.2))
-        floor_gradient: Float[Array, ""] = jax.grad(
+        forbidden_gradient: Float[Array, ""] = jax.grad(
             lambda photon: kinetic_energy_ev(
                 photon,
                 4.3,
-                jnp.array(20.0),
-            )
+                jnp.array(-20.0),
+            )[0]
         )(jnp.array(10.0))
-        boundary_gradient: Float[Array, ""] = jax.grad(
-            lambda photon: kinetic_energy_ev(
-                photon,
-                0.0,
-                jnp.array(0.0),
-            )
-        )(jnp.array(EKIN_FLOOR_EV))
         chex.assert_trees_all_close(
             allowed_gradient,
             jnp.array(1.0),
@@ -113,27 +110,19 @@ class TestKineticEnergyEv(chex.TestCase):
             atol=0.0,
         )
         chex.assert_trees_all_close(
-            floor_gradient,
-            jnp.array(0.0),
+            forbidden_gradient,
+            jnp.array(1.0),
             rtol=0.0,
             atol=0.0,
         )
-        chex.assert_trees_all_close(
-            boundary_gradient,
-            jnp.array(0.0),
-            rtol=0.0,
-            atol=0.0,
-        )
-        chex.assert_tree_all_finite(
-            (allowed_gradient, boundary_gradient, floor_gradient)
-        )
+        chex.assert_tree_all_finite((allowed_gradient, forbidden_gradient))
 
 
 class TestFinalStateKInvAng(chex.TestCase):
     """Validate :func:`~diffpes.simul.final_state_k_inv_ang`.
 
     The tests compare the free-electron formula with closed-form values. They
-    also verify the floor guard and the momentum gradient.
+    also verify the forbidden-emission sentinel and momentum gradient.
 
     :see: :func:`~diffpes.simul.final_state_k_inv_ang`
     """
@@ -153,7 +142,9 @@ class TestFinalStateKInvAng(chex.TestCase):
         expected: Float[Array, " 3"] = K_PREFACTOR_INV_ANG_SQRT_EV * jnp.sqrt(
             energies
         )
-        actual: Float[Array, " 3"] = jax.jit(final_state_k_inv_ang)(energies)
+        actual: Float[Array, " 3"]
+        valid: Bool[Array, " 3"]
+        actual, valid = jax.jit(final_state_k_inv_ang)(energies)
         chex.assert_shape(actual, (3,))
         self.assertEqual(actual.dtype, jnp.dtype("float64"))
         chex.assert_trees_all_close(
@@ -162,31 +153,41 @@ class TestFinalStateKInvAng(chex.TestCase):
             rtol=1e-14,
             atol=1e-14,
         )
+        chex.assert_trees_all_equal(valid, jnp.ones(3, dtype=jnp.bool_))
 
-    def test_gradient_matches_formula_and_floor_guard(self) -> None:
-        """Match the analytic derivative and verify the floor subgradient.
+    def test_gradient_matches_formula_and_forbidden_sentinel(self) -> None:
+        """Match the analytic derivative and forbidden-emission sentinel.
 
         The derivative above the floor equals ``C/(2*sqrt(E))``. A negative
-        direct input uses the floor and has zero sensitivity.
+        direct input returns zero with a false validity mask.
 
         Notes
         -----
         Apply the shared finite-difference harness at 24 eV. Differentiate a
-        negative input and the exact floor separately.
+        negative input away from the threshold.
         """
         energy: Float[Array, ""] = jnp.array(24.0)
-        assert_grad_matches_fd(final_state_k_inv_ang, energy)
-        actual_gradient: Float[Array, ""] = jax.grad(final_state_k_inv_ang)(
-            energy
-        )
+
+        def momentum(candidate: Float[Array, ""]) -> Float[Array, ""]:
+            """Return only the differentiable momentum value."""
+            value: Float[Array, ""] = final_state_k_inv_ang(candidate)[0]
+            return value
+
+        assert_grad_matches_fd(momentum, energy)
+        actual_gradient: Float[Array, ""] = jax.grad(
+            final_state_k_inv_ang,
+            has_aux=True,
+        )(energy)[0]
         expected_gradient: Float[Array, ""] = K_PREFACTOR_INV_ANG_SQRT_EV / (
             2.0 * jnp.sqrt(energy)
         )
-        floor_gradient: Float[Array, ""] = jax.grad(final_state_k_inv_ang)(
+        forbidden_momentum: Float[Array, ""]
+        forbidden_valid: Bool[Array, ""]
+        forbidden_momentum, forbidden_valid = final_state_k_inv_ang(
             jnp.array(-1.0)
         )
-        boundary_gradient: Float[Array, ""] = jax.grad(final_state_k_inv_ang)(
-            jnp.array(EKIN_FLOOR_EV)
+        forbidden_gradient: Float[Array, ""] = jax.grad(momentum)(
+            jnp.array(-1.0)
         )
         chex.assert_trees_all_close(
             actual_gradient,
@@ -195,29 +196,339 @@ class TestFinalStateKInvAng(chex.TestCase):
             atol=1e-14,
         )
         chex.assert_trees_all_close(
-            floor_gradient,
+            forbidden_momentum,
             jnp.array(0.0),
             rtol=0.0,
             atol=0.0,
         )
         chex.assert_trees_all_close(
-            boundary_gradient,
+            forbidden_gradient,
             jnp.array(0.0),
             rtol=0.0,
             atol=0.0,
         )
-        chex.assert_tree_all_finite(
-            (actual_gradient, boundary_gradient, floor_gradient)
-        )
+        self.assertFalse(bool(forbidden_valid))
+        chex.assert_tree_all_finite((actual_gradient, forbidden_gradient))
 
 
 class TestKzFromInnerPotential(chex.TestCase):
-    """Validate :func:`~diffpes.simul.kz_from_inner_potential`.
+    """Validate :func:`diffpes.simul.kz_from_inner_potential`.
 
-    The tests cover Damascelli values, evanescent channels, analytic and
-    finite-difference gradients, vmap consistency, and a large JIT raster.
+    The tests cover threshold validity, the vacuum aperture, exact signed
+    energy dependence, the at-Fermi error, and smooth-domain derivatives.
+    """
 
-    :see: :func:`~diffpes.simul.kz_from_inner_potential`
+    def test_exact_threshold_and_aperture_boundary_are_invalid(self) -> None:
+        """Reject equality at both open physical boundaries.
+
+        Exactly zero kinetic energy is forbidden. At positive kinetic energy,
+        a parallel momentum equal to the vacuum final-state magnitude is also
+        outside the open emission aperture.
+
+        Notes
+        -----
+        Check raw kinetic energy, final-state momentum, and both ``kz``
+        boundaries under eager and compiled execution. Require exact zero
+        sentinels and false masks.
+        """
+        raw_energy: Float[Array, ""]
+        energy_valid: Bool[Array, ""]
+        raw_energy, energy_valid = kinetic_energy_ev(
+            4.5,
+            4.5,
+            jnp.array(0.0),
+        )
+        final_momentum: Float[Array, ""]
+        momentum_valid: Bool[Array, ""]
+        final_momentum, momentum_valid = final_state_k_inv_ang(raw_energy)
+        chex.assert_trees_all_equal(raw_energy, jnp.array(0.0))
+        chex.assert_trees_all_equal(final_momentum, jnp.array(0.0))
+        self.assertFalse(bool(energy_valid))
+        self.assertFalse(bool(momentum_valid))
+
+        operation: Callable[..., tuple[Array, Array]]
+        compiled: bool
+        for compiled in (False, True):
+            operation = kz_from_inner_potential
+            if compiled:
+                operation = jax.jit(operation)
+            threshold_value: Complex[Array, ""]
+            threshold_valid: Bool[Array, ""]
+            threshold_value, threshold_valid = operation(
+                4.5,
+                4.5,
+                10.0,
+                jnp.array(0.0),
+                jnp.array(0.0),
+            )
+            aperture_value: Complex[Array, ""]
+            aperture_valid: Bool[Array, ""]
+            aperture_value, aperture_valid = operation(
+                5.5,
+                4.5,
+                10.0,
+                jnp.array(0.0),
+                jnp.asarray(K_PREFACTOR_INV_ANG_SQRT_EV),
+            )
+            with self.subTest(compiled=compiled):
+                chex.assert_trees_all_equal(
+                    threshold_value,
+                    jnp.array(0.0 + 0.0j),
+                )
+                chex.assert_trees_all_equal(
+                    aperture_value,
+                    jnp.array(0.0 + 0.0j),
+                )
+                self.assertFalse(bool(threshold_valid))
+                self.assertFalse(bool(aperture_valid))
+
+    def test_forbidden_emission_returns_zero_and_false_mask(self) -> None:
+        """Do not let a positive inner potential fabricate photoemission.
+
+        The surface kinetic energy is negative although the inner-potential
+        radicand is positive. The returned sentinel must be exactly zero and
+        the propagation mask false under eager and JIT execution.
+
+        Notes
+        -----
+        Evaluate one forbidden point twice and differentiate its real sentinel
+        with respect to signed energy.
+        """
+        eager: tuple[Complex[Array, ""], Bool[Array, ""]] = (
+            kz_from_inner_potential(
+                4.0,
+                4.5,
+                20.0,
+                jnp.array(-1.0),
+                jnp.array(0.0),
+            )
+        )
+        compiled: tuple[Complex[Array, ""], Bool[Array, ""]] = jax.jit(
+            kz_from_inner_potential
+        )(
+            4.0,
+            4.5,
+            20.0,
+            jnp.array(-1.0),
+            jnp.array(0.0),
+        )
+        value: Complex[Array, ""]
+        valid: Bool[Array, ""]
+        for value, valid in (eager, compiled):
+            chex.assert_trees_all_equal(value, jnp.array(0.0 + 0.0j))
+            self.assertFalse(bool(valid))
+        forbidden_gradient: Float[Array, ""] = jax.grad(
+            lambda omega: jnp.real(
+                kz_from_inner_potential(
+                    4.0,
+                    4.5,
+                    20.0,
+                    omega,
+                    jnp.array(0.0),
+                )[0]
+            )
+        )(jnp.array(-1.0))
+        chex.assert_trees_all_equal(forbidden_gradient, jnp.array(0.0))
+        chex.assert_tree_all_finite(forbidden_gradient)
+
+    def test_super_aperture_returns_zero_and_false_mask(self) -> None:
+        """Reject vacuum momenta that a positive inner potential could hide.
+
+        A 1 eV photoelectron has magnitude about 0.512 inverse Angstrom.
+        Therefore, ``k_parallel = 1`` exceeds the vacuum aperture. A positive
+        inner potential still makes the internal radicand positive.
+
+        Notes
+        -----
+        Evaluate eager and compiled paths, then differentiate the rejected
+        sentinel away from the aperture boundary.
+        """
+        operation: Callable[..., tuple[Array, Array]]
+        compiled: bool
+        for compiled in (False, True):
+            operation = kz_from_inner_potential
+            if compiled:
+                operation = jax.jit(operation)
+            value: Complex[Array, ""]
+            valid: Bool[Array, ""]
+            value, valid = operation(
+                5.5,
+                4.5,
+                10.0,
+                jnp.array(0.0),
+                jnp.array(1.0),
+            )
+            with self.subTest(compiled=compiled):
+                chex.assert_trees_all_equal(value, jnp.array(0.0 + 0.0j))
+                self.assertFalse(bool(valid))
+
+        def rejected_value(k_parallel: Float[Array, ""]) -> Float[Array, ""]:
+            """Return the zero sentinel outside the aperture."""
+            value: Complex[Array, ""] = kz_from_inner_potential(
+                5.5,
+                4.5,
+                10.0,
+                jnp.array(0.0),
+                k_parallel,
+            )[0]
+            return jnp.real(value)
+
+        gradient: Float[Array, ""] = jax.grad(rejected_value)(jnp.array(1.0))
+        chex.assert_trees_all_equal(gradient, jnp.array(0.0))
+        chex.assert_tree_all_finite(gradient)
+
+    def test_exact_energy_axis_and_at_fermi_error(self) -> None:
+        """Verify the finite-window error of the at-Fermi approximation.
+
+        The exact path follows the closed form at five signed energies. The
+        named approximation is exact only at zero; its relative error is
+        nonzero elsewhere and remains below two percent on this window.
+
+        Notes
+        -----
+        Replay the committed five-point artifact and compare both paths with
+        the independent closed form.
+        """
+        reference_path: Path = (
+            Path(__file__).resolve().parents[2]
+            / "data"
+            / "kspace"
+            / "kz_energy_dependence_reference.json"
+        )
+        reference: dict[str, Any] = json.loads(reference_path.read_text())
+        inputs: dict[str, Any] = reference["inputs"]
+        omega: Float[Array, " 5"] = jnp.asarray(inputs["omega_rel_fermi_ev"])
+        k_parallel: Float[Array, " 5"] = jnp.full(
+            (5,),
+            inputs["k_parallel_inv_ang"],
+        )
+        exact: Complex[Array, " 5"]
+        propagating: Bool[Array, " 5"]
+        exact, propagating = kz_from_inner_potential(
+            inputs["photon_energy_ev"],
+            inputs["work_function_ev"],
+            inputs["inner_potential_ev"],
+            omega,
+            k_parallel,
+        )
+        approximate: Complex[Array, " 5"] = kz_from_inner_potential_at_fermi(
+            inputs["photon_energy_ev"],
+            inputs["work_function_ev"],
+            inputs["inner_potential_ev"],
+            k_parallel,
+        )[0]
+        expected: Complex[Array, " 5"] = jnp.sqrt(
+            (
+                TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2
+                * (
+                    inputs["photon_energy_ev"]
+                    - inputs["work_function_ev"]
+                    + omega
+                    + inputs["inner_potential_ev"]
+                )
+                - k_parallel**2
+            ).astype(jnp.complex128)
+        )
+        relative_error: Float[Array, " 5"] = jnp.abs(
+            approximate - exact
+        ) / jnp.abs(exact)
+        chex.assert_trees_all_close(exact, expected, rtol=1e-14, atol=1e-14)
+        chex.assert_trees_all_close(
+            jnp.real(exact),
+            jnp.asarray(reference["exact_kz_inv_ang"]),
+            rtol=1e-14,
+            atol=1e-14,
+        )
+        chex.assert_trees_all_close(
+            relative_error,
+            jnp.asarray(reference["at_fermi_relative_error"]),
+            rtol=1e-14,
+            atol=1e-14,
+        )
+        self.assertEqual(reference["gate"], "03.I2")
+        chex.assert_trees_all_equal(propagating, jnp.ones(5, dtype=jnp.bool_))
+        self.assertEqual(float(relative_error[2]), 0.0)
+        self.assertGreater(float(relative_error[0]), 0.0)
+        self.assertGreater(float(relative_error[-1]), 0.0)
+        self.assertLess(float(jnp.max(relative_error)), 0.02)
+
+    def test_omega_derivative_matches_closed_form_and_fd(self) -> None:
+        """Match the exact energy derivative away from both branch points.
+
+        The energy derivative equals the inner-potential derivative because
+        both quantities enter the radicand additively.
+
+        Notes
+        -----
+        Compare autodiff with central differences and the analytic derivative
+        at one smooth propagating point.
+        """
+        omega: Float[Array, ""] = jnp.array(-0.8)
+
+        def real_kz(candidate: Float[Array, ""]) -> Float[Array, ""]:
+            """Return one propagating real root."""
+            value: Complex[Array, ""] = kz_from_inner_potential(
+                50.0,
+                4.5,
+                12.0,
+                candidate,
+                jnp.array(0.7),
+            )[0]
+            return jnp.real(value)
+
+        assert_grad_matches_fd(real_kz, omega)
+        kz_value: Float[Array, ""] = real_kz(omega)
+        actual: Float[Array, ""] = jax.grad(real_kz)(omega)
+        expected: Float[Array, ""] = TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 / (
+            2.0 * kz_value
+        )
+        chex.assert_trees_all_close(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_work_function_and_energy_jacobians_are_exact_opposites(
+        self,
+    ) -> None:
+        """Verify the exact work-function and energy-reference gauge.
+
+        Kinematics depends on work function and Fermi-relative energy only
+        through their signed difference. A photon scan cannot lift this gauge.
+
+        Notes
+        -----
+        Differentiate one smooth real root with respect to both variables and
+        compare their Jacobian columns exactly.
+        """
+
+        def real_kz(
+            work_function: Float[Array, ""],
+            omega: Float[Array, ""],
+        ) -> Float[Array, ""]:
+            """Return one propagating real root."""
+            value: Complex[Array, ""] = kz_from_inner_potential(
+                50.0,
+                work_function,
+                12.0,
+                omega,
+                jnp.array(0.7),
+            )[0]
+            return jnp.real(value)
+
+        work_gradient: Float[Array, ""]
+        omega_gradient: Float[Array, ""]
+        work_gradient, omega_gradient = jax.grad(
+            real_kz,
+            argnums=(0, 1),
+        )(jnp.array(4.5), jnp.array(-0.8))
+        chex.assert_trees_all_equal(work_gradient, -omega_gradient)
+        self.assertGreater(float(jnp.abs(work_gradient)), 1e-12)
+
+
+class TestKzFromInnerPotentialAtFermi(chex.TestCase):
+    """Validate the named at-Fermi compatibility kinematics.
+
+    These parity tests cover Damascelli values, evanescent channels, analytic
+    and finite-difference gradients, vmap consistency, and a large JIT raster.
+
+    :see: :func:`~diffpes.simul.kz_from_inner_potential_at_fermi`
     """
 
     def test_matches_damascelli_grid(self) -> None:
@@ -263,7 +574,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 )
                 kz_value: Complex[Array, ""]
                 propagating: Bool[Array, ""]
-                kz_value, propagating = kz_from_inner_potential(
+                kz_value, propagating = kz_from_inner_potential_at_fermi(
                     photon_energy,
                     work_function,
                     inner_potential,
@@ -351,7 +662,7 @@ class TestKzFromInnerPotential(chex.TestCase):
             parallel_momentum: Float[Array, ""],
         ) -> Float[Array, ""]:
             """Return one real production out-of-plane momentum."""
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
                 photon_energy,
                 work_function,
                 inner_potential,
@@ -385,26 +696,26 @@ class TestKzFromInnerPotential(chex.TestCase):
     def test_preserves_evanescent_channels(self) -> None:
         """Verify principal complex roots and the propagation mask.
 
-        Small parallel momentum gives a positive real root. Large parallel
-        momentum gives a positive imaginary root and a false mask value.
+        Small parallel momentum gives a positive real root. A negative inner
+        potential gives an imaginary internal root inside the vacuum aperture.
 
         Notes
         -----
-        Evaluate parallel momenta 0 and 3 in 1/Angstrom. Compare both values
-        with the direct complex square root.
+        Evaluate parallel momenta 0 and 1.5 in 1/Angstrom at a -10 eV inner
+        potential. Compare both values with the direct complex square root.
         """
-        k_parallel: Float[Array, " 2"] = jnp.array([0.0, 3.0])
+        k_parallel: Float[Array, " 2"] = jnp.array([0.0, 1.5])
         kz_values: Complex[Array, " 2"]
         propagating: Bool[Array, " 2"]
-        kz_values, propagating = jax.jit(kz_from_inner_potential)(
+        kz_values, propagating = jax.jit(kz_from_inner_potential_at_fermi)(
             21.2,
             4.5,
-            8.0,
+            -10.0,
             k_parallel,
         )
         surface_energy: float = 21.2 - 4.5
         radicands: Float[Array, " 2"] = (
-            TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 * (surface_energy + 8.0)
+            TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 * (surface_energy - 10.0)
             - k_parallel**2
         )
         expected: Complex[Array, " 2"] = jnp.sqrt(
@@ -471,7 +782,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 inner: Float[Array, ""],
                 parallel: Float[Array, ""],
             ) -> Float[Array, ""]:
-                value: Complex[Array, ""] = kz_from_inner_potential(
+                value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
                     photon,
                     work,
                     inner,
@@ -510,7 +821,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         k_parallel: Float[Array, ""] = jnp.array(0.7)
 
         def real_kz(candidate: Float[Array, ""]) -> Float[Array, ""]:
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
                 50.0,
                 4.5,
                 candidate,
@@ -569,13 +880,13 @@ class TestKzFromInnerPotential(chex.TestCase):
         Hypothesis generates twenty photon energies and ordered potentials.
         Compare real roots at fixed work function and parallel momentum.
         """
-        lower_kz: Complex[Array, ""] = kz_from_inner_potential(
+        lower_kz: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
             photon_energy,
             4.5,
             lower_potential,
             jnp.array(0.4),
         )[0]
-        upper_kz: Complex[Array, ""] = kz_from_inner_potential(
+        upper_kz: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
             photon_energy,
             4.5,
             lower_potential + potential_step,
@@ -599,7 +910,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         )
 
         def real_kz(photon: Float[Array, ""]) -> Float[Array, ""]:
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
                 photon,
                 4.3,
                 12.0,
@@ -645,7 +956,7 @@ class TestKzFromInnerPotential(chex.TestCase):
             photon: Float[Array, ""],
         ) -> tuple[Complex[Array, " 65536"], Bool[Array, " 65536"]]:
             row: tuple[Complex[Array, " 65536"], Bool[Array, " 65536"]] = (
-                kz_from_inner_potential(
+                kz_from_inner_potential_at_fermi(
                     photon,
                     4.5,
                     12.0,
@@ -779,7 +1090,7 @@ class TestDetectorAnglesToKpar(chex.TestCase):
                 tx: Float[Array, ""] = jnp.array(0.23)
                 ty: Float[Array, ""] = jnp.array(-0.17)
                 energy: Float[Array, ""] = jnp.array(35.0)
-                momentum: Float[Array, ""] = final_state_k_inv_ang(energy)
+                momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
                 if slit == "H":
                     expected: Float[Array, "2"] = momentum * jnp.array(
                         [jnp.sin(tx), -jnp.cos(tx) * jnp.sin(ty)]
@@ -853,7 +1164,7 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         Compare each Jacobian with its closed form exactly.
         """
         energy: Float[Array, ""] = jnp.array(30.0)
-        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)
+        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
         angles: Float[Array, "2"] = jnp.zeros(2)
         slit: str
         for slit in ("H", "V"):
@@ -902,6 +1213,50 @@ class TestDetectorAnglesToKpar(chex.TestCase):
                 jnp.array(30.0),
                 "bad",
             )
+
+    def test_rejects_outside_principal_chart(self) -> None:
+        """Reject forbidden energy and angles outside the open chart.
+
+        The detector map accepts only positive kinetic energy and both angles
+        strictly between negative and positive pi over two.
+
+        Notes
+        -----
+        Exercise both slits and all three invalid cases under eager and
+        compiled execution.
+        """
+        invalid_cases: tuple[tuple[float, float, float], ...] = (
+            (0.0, 0.0, 0.0),
+            (jnp.pi / 2.0, 0.0, 30.0),
+            (0.0, -jnp.pi / 2.0, 30.0),
+        )
+        tx: float
+        ty: float
+        energy: float
+        compiled: bool
+        slit: str
+        for compiled in (False, True):
+            operation: Callable[..., Array] = detector_angles_to_kpar
+            if compiled:
+                operation = jax.jit(operation, static_argnames=("slit",))
+            for slit in ("H", "V"):
+                for tx, ty, energy in invalid_cases:
+                    with (
+                        self.subTest(
+                            compiled=compiled,
+                            slit=slit,
+                            tx=tx,
+                            ty=ty,
+                            energy=energy,
+                        ),
+                        pytest.raises(RuntimeError, match="requires Ekin > 0"),
+                    ):
+                        operation(
+                            jnp.asarray(tx),
+                            jnp.asarray(ty),
+                            jnp.asarray(energy),
+                            slit,
+                        )
 
 
 class TestKparToDetectorAngles(chex.TestCase):
@@ -1006,7 +1361,7 @@ class TestKparToDetectorAngles(chex.TestCase):
         and forward maps at absolute tolerance ``1e-12``.
         """
         energy: Float[Array, ""] = jnp.array(40.0)
-        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)
+        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
         k_parallel: Float[Array, "2"] = momentum * jnp.asarray(
             [normalized_kx, normalized_ky]
         )
@@ -1112,6 +1467,48 @@ class TestKparToDetectorAngles(chex.TestCase):
                     return value
 
                 gradient_gate(loss, (k_parallel, energy), regime="smooth")
+
+    def test_rejects_invalid_aperture_and_energy(self) -> None:
+        """Reject the threshold and closed detector-aperture boundary.
+
+        The inverse requires positive kinetic energy and parallel momentum
+        strictly smaller than the final-state magnitude.
+
+        Notes
+        -----
+        Exercise the energy threshold, aperture boundary, and exterior under
+        eager and compiled execution for both slits.
+        """
+        momentum: Float[Array, ""] = final_state_k_inv_ang(jnp.array(30.0))[0]
+        invalid_cases: tuple[
+            tuple[Float[Array, "2"], Float[Array, ""]], ...
+        ] = (
+            (jnp.zeros(2), jnp.array(0.0)),
+            (jnp.array([momentum, 0.0]), jnp.array(30.0)),
+            (jnp.array([1.01 * momentum, 0.0]), jnp.array(30.0)),
+        )
+        k_parallel: Float[Array, "2"]
+        energy: Float[Array, ""]
+        compiled: bool
+        slit: str
+        for compiled in (False, True):
+            operation: Callable[..., tuple[Array, Array]] = (
+                kpar_to_detector_angles
+            )
+            if compiled:
+                operation = jax.jit(operation, static_argnames=("slit",))
+            for slit in ("H", "V"):
+                for k_parallel, energy in invalid_cases:
+                    with (
+                        self.subTest(
+                            compiled=compiled,
+                            slit=slit,
+                            k_parallel=k_parallel,
+                            energy=energy,
+                        ),
+                        pytest.raises(RuntimeError, match="requires Ekin > 0"),
+                    ):
+                        operation(k_parallel, energy, slit)
 
     def test_rejects_unknown_slit(self) -> None:
         """Verify that the inverse map rejects an unknown slit.

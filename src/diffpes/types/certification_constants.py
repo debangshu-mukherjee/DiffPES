@@ -10,11 +10,11 @@ Routine Listings
 :obj:`CANONICAL_ARRAY_CHUNK_BYTES`
     Array chunk size used by canonical PyTree encoding in bytes.
 :obj:`CANONICAL_JSON_PREFIX`
-    Domain prefix for canonical JSON consistency checksums.
+    Domain prefix for canonical JSON identities.
 :obj:`CANONICAL_JSON_VERSION`
     Version of the canonical JSON representation.
 :obj:`CANONICAL_PYTREE_PREFIX`
-    Domain prefix for canonical PyTree consistency checksums.
+    Domain prefix for canonical PyTree identities.
 :obj:`CANONICAL_PYTREE_VERSION`
     Version of the canonical PyTree representation.
 :obj:`CANONICAL_SUPPORTED_ARRAY_KINDS`
@@ -48,15 +48,15 @@ Routine Listings
 :obj:`CERTIFICATION_SEMVER_PATTERN`
     Pattern matching certification semantic versions.
 :obj:`CHECKSUM_ALGORITHM`
-    Name of the non-security consistency-checksum algorithm.
+    Name of the scientific-identity digest algorithm.
 :obj:`CHECKSUM_FILE_CHUNK_BYTES`
-    File chunk size used by streaming consistency checksums in bytes.
+    File chunk size used by streaming scientific identities in bytes.
 :obj:`CHECKSUM_FORMAT_VERSION`
-    Version of the consistency-checksum text format.
+    Version of the scientific-identity text format.
 :obj:`CHECKSUM_PATTERN`
-    Pattern matching formatted consistency-checksum records.
+    Pattern matching formatted scientific-identity records.
 :obj:`CHECKSUM_RECORD_KIND_PATTERN`
-    Pattern matching consistency-checksum record-kind identifiers.
+    Pattern matching scientific-identity record-kind identifiers.
 :obj:`TB_RADIAL_INPUT_COUNT`
     Number of positional inputs accepted by the radial ARPES model adapter.
 :obj:`TB_RADIAL_MODEL_ID`
@@ -66,8 +66,8 @@ Routine Listings
 
 Notes
 -----
-Consistency-checksum constants describe CRC32 bookkeeping only; they are not
-scientific evidence or an authentication mechanism.
+SHA-256 provides collision-resistant content addressing, not authentication,
+authorship, physical validity, or scientific evidence.
 """
 
 import re
@@ -84,11 +84,11 @@ CANONICAL_SUPPORTED_ARRAY_KINDS: Final[frozenset[str]] = frozenset(
     {"b", "i", "u", "f", "c"}
 )
 
-CHECKSUM_ALGORITHM: Final[str] = "crc32"
+CHECKSUM_ALGORITHM: Final[str] = "sha256"
 CHECKSUM_FORMAT_VERSION: Final[str] = "1"
 CHECKSUM_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^crc32:canonical-(?P<canonical>[0-9]+):"
-    r"(?P<kind>[a-z][a-z0-9-]*):(?P<value>[0-9a-f]{8})$"
+    r"^sha256:(?P<canonical>[0-9]+):"
+    r"(?P<kind>[a-z][a-z0-9-]*):(?P<value>[0-9a-f]{64})$"
 )
 CHECKSUM_RECORD_KIND_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[a-z][a-z0-9-]*$"

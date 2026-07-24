@@ -165,6 +165,8 @@ Routine Listings
     Store a static declaration of one model-domain predicate.
 :class:`DomainResult`
     Store the traced evaluation of one declared domain predicate.
+:class:`EvidenceLineage`
+    Store named implementation, generator, artifact, and derivation ancestry.
 :class:`EvidenceRef`
     Store numerical evidence with static method and source identity.
 :class:`EvidenceReport`
@@ -179,6 +181,8 @@ Routine Listings
     Store the identity of a differentiable forward model.
 :class:`HandshakeReport`
     Store the validation outcome for one registration handshake.
+:class:`HumanAttestationRef`
+    Record a human review separately from computational evidence.
 :class:`InformationSpectrum`
     Store a matrix-free information spectrum in input coordinates.
 :class:`InformationState`
@@ -235,6 +239,8 @@ Routine Listings
     Create a validated domain-predicate declaration.
 :func:`make_domain_result`
     Create one traced domain evaluation.
+:func:`make_evidence_lineage`
+    Create named evidence lineage without asserting independence.
 :func:`make_evidence_ref`
     Create validated vector-valued numerical evidence.
 :func:`make_evidence_report`
@@ -245,6 +251,8 @@ Routine Listings
     Create and cross-validate a complete forward certificate.
 :func:`make_forward_model_spec`
     Create a validated stable forward-model specification.
+:func:`make_human_attestation_ref`
+    Create a named human-review record.
 :func:`make_information_spectrum`
     Create a validated local information spectrum.
 :func:`make_information_state`
@@ -329,8 +337,6 @@ Routine Listings
     Column index of spin-up eigenvalues in EIGENVAL.
 :obj:`ENERGY_AXIS_NDIM`
     Expected dimensionality of energy-axis arrays.
-:obj:`EKIN_FLOOR_EV`
-    Set the physical kinetic-energy floor in eV.
 :obj:`EPS`
     Epsilon floor guarding divisions and norms.
 :obj:`EPS_DEG`
@@ -373,8 +379,6 @@ Routine Listings
     Maximum angular momentum supported by the precomputed table.
 :obj:`LATTICE_ROWS`
     Number of lattice-vector rows in POSCAR/CHGCAR headers.
-:obj:`DEFAULT_SUPERCELL_RADIUS`
-    Default translation radius for tight-binding neighbor discovery.
 :obj:`M_D`
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
@@ -575,12 +579,14 @@ from .certification import (
     DerivativeEvidence,
     DomainPredicate,
     DomainResult,
+    EvidenceLineage,
     EvidenceRef,
     EvidenceReport,
     ExecutionManifest,
     ForwardCertificate,
     ForwardModelSpec,
     HandshakeReport,
+    HumanAttestationRef,
     InformationSpectrum,
     PolicyReport,
     RegisteredModel,
@@ -603,12 +609,14 @@ from .certification import (
     make_derivative_evidence,
     make_domain_predicate,
     make_domain_result,
+    make_evidence_lineage,
     make_evidence_ref,
     make_evidence_report,
     make_execution_manifest,
     make_forward_certificate,
     make_forward_model_spec,
     make_handshake_report,
+    make_human_attestation_ref,
     make_information_spectrum,
     make_policy_report,
     make_registered_model,
@@ -665,10 +673,8 @@ from .constants import (
     CHANNELS_BY_PAIR,
     COORDINATE_MODE_TOKENS,
     D_ORBITAL_SLICE,
-    DEFAULT_SUPERCELL_RADIUS,
     EIG_DOWN_INDEX,
     EIG_UP_INDEX,
-    EKIN_FLOOR_EV,
     ENERGY_AXIS_NDIM,
     EPS,
     EPS_DEG,
@@ -870,7 +876,6 @@ __all__: list[str] = [
     "CheckFunction",
     "ConventionRef",
     "D_ORBITAL_SLICE",
-    "DEFAULT_SUPERCELL_RADIUS",
     "DensityOfStates",
     "DependencyMap",
     "DiagonalizedBands",
@@ -881,9 +886,9 @@ __all__: list[str] = [
     "EIG_DOWN_INDEX",
     "EIG_UP_INDEX",
     "ENERGY_AXIS_NDIM",
-    "EKIN_FLOOR_EV",
     "EPS",
     "EPS_DEG",
+    "EvidenceLineage",
     "EvidenceRef",
     "EvidenceReport",
     "ExecutionManifest",
@@ -899,6 +904,7 @@ __all__: list[str] = [
     "HOPPING_LIST_COMPLEX_FIELDS",
     "HOPPING_LIST_REAL_FIELDS",
     "HandshakeReport",
+    "HumanAttestationRef",
     "INTENSITY_NDIM",
     "InformationState",
     "InformationSpectrum",
@@ -936,6 +942,7 @@ __all__: list[str] = [
     "make_expanded_simulation_params",
     "make_domain_predicate",
     "make_domain_result",
+    "make_evidence_lineage",
     "make_evidence_ref",
     "make_evidence_report",
     "make_execution_manifest",
@@ -944,6 +951,7 @@ __all__: list[str] = [
     "make_forward_model_spec",
     "make_full_density_of_states",
     "make_handshake_report",
+    "make_human_attestation_ref",
     "make_information_spectrum",
     "make_information_state",
     "make_kgrid",

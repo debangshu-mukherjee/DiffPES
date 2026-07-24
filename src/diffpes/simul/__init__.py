@@ -22,7 +22,7 @@ The following list describes the submodules:
 - :mod:`oam`
     Compute orbital angular momentum.
 - :mod:`polarization`
-    Compute photon polarization and detector-frame transformations.
+    Compute photon polarization and explicit frame transformations.
 - :mod:`resolution`
     Apply momentum resolution broadening to ARPES simulations.
 - :mod:`self_energy`
@@ -42,6 +42,8 @@ Routine Listings
     Construct s- and p-polarization basis vectors.
 :func:`detector_angles_to_kpar`
     Convert detector angles to parallel momentum.
+:func:`detector_axis_to_sample`
+    Convert a detector-fixed axis to sample coordinates.
 :func:`detector_rotation`
     Build the detector-frame rotation.
 :func:`compute_oam`
@@ -55,17 +57,21 @@ Routine Listings
 :func:`fermi_dirac`
     Compute Fermi-Dirac distribution value.
 :func:`final_state_k_inv_ang`
-    Convert kinetic energy to final-state momentum magnitude.
+    Convert kinetic energy to momentum and return its validity mask.
 :func:`gaussian`
     Compute normalized Gaussian broadening profile.
 :func:`heuristic_weights`
     Compute heuristic orbital weights based on photon energy.
 :func:`kinetic_energy_ev`
-    Compute the floored photoelectron kinetic energy.
+    Compute signed photoelectron kinetic energy and its validity mask.
+:func:`lab_polarization_to_sample`
+    Convert fixed laboratory polarization to sample coordinates.
 :func:`kpar_to_detector_angles`
     Convert parallel momentum to detector angles.
 :func:`kz_from_inner_potential`
     Compute complex out-of-plane momentum from the inner potential.
+:func:`kz_from_inner_potential_at_fermi`
+    Evaluate the named Fermi-level ``kz`` approximation.
 :func:`load_vasp_context`
     Load a simulation-ready context from VASP output files.
 :func:`photon_wavevector`
@@ -79,9 +85,9 @@ Routine Listings
 :func:`run_vasp_workflow`
     Run an end-to-end VASP-to-ARPES workflow in one call.
 :func:`rotate_frame_vectors`
-    Rotate a real vector across a detector-angle grid.
-:func:`rotate_polarization_grid`
-    Rotate polarization across a detector-angle grid.
+    Rotate a detector-fixed real axis across a detector-angle grid.
+:func:`sample_azimuth_rotation`
+    Build the active sample-to-laboratory azimuth rotation.
 :func:`simulate_advanced`
     Simulate ARPES with Gaussian broadening and polarization rules.
 :func:`simulate_advanced_expanded`
@@ -142,18 +148,21 @@ from .kinematics import (
     kinetic_energy_ev,
     kpar_to_detector_angles,
     kz_from_inner_potential,
+    kz_from_inner_potential_at_fermi,
 )
 from .oam import compute_oam
 from .polarization import (
     build_efield,
     build_polarization_vectors,
+    detector_axis_to_sample,
     detector_rotation,
     dipole_matrix_elements,
+    lab_polarization_to_sample,
     photon_wavevector,
     polarization_from_angles,
     polarization_to_spherical,
     rotate_frame_vectors,
-    rotate_polarization_grid,
+    sample_azimuth_rotation,
 )
 from .resolution import apply_momentum_broadening
 from .self_energy import evaluate_self_energy
@@ -178,6 +187,7 @@ __all__: list[str] = [
     "build_polarization_vectors",
     "compute_oam",
     "detector_angles_to_kpar",
+    "detector_axis_to_sample",
     "detector_rotation",
     "dipole_matrix_elements",
     "emission_angles",
@@ -187,8 +197,10 @@ __all__: list[str] = [
     "gaussian",
     "heuristic_weights",
     "kinetic_energy_ev",
+    "lab_polarization_to_sample",
     "kpar_to_detector_angles",
     "kz_from_inner_potential",
+    "kz_from_inner_potential_at_fermi",
     "load_vasp_context",
     "photon_wavevector",
     "polarization_from_angles",
@@ -196,7 +208,7 @@ __all__: list[str] = [
     "prepare_projection",
     "run_vasp_workflow",
     "rotate_frame_vectors",
-    "rotate_polarization_grid",
+    "sample_azimuth_rotation",
     "simulate_advanced",
     "simulate_advanced_expanded",
     "simulate_basic",

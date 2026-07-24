@@ -59,7 +59,7 @@ class TestCertificateProcessFixture:
 
 
 class TestChecksumMemoryFixture:
-    """Measure bounded allocation during streamed CRC32 computation.
+    """Measure bounded allocation during streamed SHA-256 computation.
 
     The case streams 1 GiB through one reusable 1 MiB memory view.
     """
@@ -86,7 +86,7 @@ class TestChecksumMemoryFixture:
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
         del current
-        assert checksum.startswith("crc32:canonical-1:memory-fixture:")
+        assert checksum.startswith("sha256:1:memory-fixture:")
         assert peak < _MEBIBYTE // 10
 
 

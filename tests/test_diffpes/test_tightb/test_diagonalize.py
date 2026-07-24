@@ -315,6 +315,43 @@ class TestDiagonalizeTB:
         assert diag.eigenvectors.shape == (2, 2, 2)
         assert diag.kpoints.shape == (2, 3)
 
+    def test_preserves_explicit_orbital_positions(self) -> None:
+        """Carry Wannier centres through the electronic-structure seam.
+
+        Distinct per-orbital centres define the gauge of the returned
+        eigenvectors and must remain available to coherent consumers.
+
+        Notes
+        -----
+        Rebuild graphene with explicit centres, diagonalize it, and compare
+        the downstream carrier field exactly.
+        """
+        template: diffpes.types.TBModel = make_graphene_model()
+        centres: Array = jnp.asarray(
+            [[0.13, 0.07, 0.0], [0.41, 0.22, 0.0]],
+            dtype=jnp.float64,
+        )
+        model: diffpes.types.TBModel = diffpes.types.make_tb_model(
+            hopping_amplitudes=template.hopping_amplitudes,
+            onsite_energies=template.onsite_energies,
+            soc_lambdas=template.soc_lambdas,
+            geometry=template.geometry,
+            basis=template.basis,
+            hopping_pairs=template.hopping_pairs,
+            hopping_cells=template.hopping_cells,
+            shell_index=template.shell_index,
+            spinor=template.spinor,
+            orbital_positions=centres,
+        )
+
+        bands: diffpes.types.DiagonalizedBands = diagonalize_tb(
+            model,
+            jnp.asarray([[0.17, 0.09, 0.0]], dtype=jnp.float64),
+        )
+
+        assert bands.orbital_positions is not None
+        assert jnp.array_equal(bands.orbital_positions, centres)
+
     def test_eigenvalues_sorted(self) -> None:
         """Verify eigenvalues have ascending order at each k-point.
 

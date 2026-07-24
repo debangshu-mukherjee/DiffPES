@@ -3,7 +3,7 @@
 Extended Summary
 ----------------
 The test parses every source module and detects direct normalization of
-fractional momentum. It pins the one legacy site that plan 06 must remove.
+fractional momentum. It pins an empty allowlist so no legacy site can return.
 """
 
 import ast
@@ -13,7 +13,7 @@ from pathlib import Path
 _FRACTIONAL_K_NAME: re.Pattern[str] = re.compile(
     r"^(?:k_frac|kpoints_frac|k_crystal|kpoints)$"
 )
-_LEGACY_ALLOWLIST: frozenset[Path] = frozenset({Path("simul/forward.py")})
+_LEGACY_ALLOWLIST: frozenset[Path] = frozenset()
 
 
 def _matching_names(node: ast.AST) -> set[str]:
@@ -107,15 +107,15 @@ def _fractional_norm_lines(tree: ast.AST) -> set[int]:
 
 
 def test_fractional_momentum_is_converted_before_normalization() -> None:
-    """Reject direct normalization of fractional momentum outside the legacy site.
+    """Reject direct normalization of fractional momentum anywhere.
 
     The test parses all Python source files, collects matching syntax lines,
-    and compares their file set with the exact Plan 03 allowlist.
+    and requires an empty finding set.
 
     Notes
     -----
-    Walk each parsed module once. Require the finding set to equal the pinned
-    legacy allowlist so stale entries also fail.
+    Walk each parsed module once. Compare the finding set with the pinned
+    empty allowlist.
     """
     repository_root: Path = Path(__file__).resolve().parents[3]
     source_root: Path = repository_root / "src" / "diffpes"

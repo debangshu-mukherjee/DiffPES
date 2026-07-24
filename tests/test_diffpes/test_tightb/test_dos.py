@@ -139,6 +139,35 @@ class TestDosGaussian:
         ).total_dos
         assert jnp.allclose(compiled, eager, rtol=1e-14, atol=1e-14)
 
+    @pytest.mark.parametrize(
+        ("weights", "diagnostic"),
+        (
+            ([0.0, 0.0], "sum to one"),
+            ([-0.1, 1.1], "nonnegative"),
+            ([0.4, 0.4], "sum to one"),
+            ([0.5, np.inf], "finite"),
+        ),
+    )
+    def test_rejects_invalid_weight_measures(
+        self,
+        weights: list[float],
+        diagnostic: str,
+    ) -> None:
+        """Reject zero, negative, unnormalized, and non-finite weights."""
+        eigenvalues: Array = jnp.asarray(
+            [[-1.0, 1.0], [-0.5, 0.5]],
+            dtype=jnp.float64,
+        )
+        axis: Array = jnp.linspace(-2.0, 2.0, 21)
+
+        with pytest.raises(RuntimeError, match=diagnostic):
+            dos_gaussian(
+                eigenvalues,
+                jnp.asarray(weights, dtype=jnp.float64),
+                axis,
+                0.1,
+            )
+
 
 class TestFermiLevelFromFilling:
     """Validate :func:`diffpes.tightb.fermi_level_from_filling`."""
@@ -314,3 +343,120 @@ class TestFermiLevelFromFilling:
                 1.0,
                 300.0,
             )
+
+    @pytest.mark.parametrize("filling", (-0.1, 0.0, 2.0, 2.1, np.inf))
+    def test_rejects_out_of_range_counts(self, filling: float) -> None:
+        """Reject non-finite counts and both closed capacity endpoints."""
+        eigenvalues: Array = jnp.asarray(
+            [[-1.0, 1.0], [-0.5, 0.5]],
+            dtype=jnp.float64,
+        )
+        weights: Array = jnp.asarray([0.25, 0.75], dtype=jnp.float64)
+
+        with pytest.raises(RuntimeError, match="band capacity"):
+            fermi_level_from_filling(
+                eigenvalues,
+                weights,
+                filling,
+                300.0,
+            )
+
+    def test_analytic_bracket_handles_near_endpoint_filling(self) -> None:
+        """Solve a small positive filling without heuristic expansion.
+
+        The analytic logits bracket the monotone count while holding the
+        normalized weights, positive temperature, and spectrum fixed.
+        """
+        eigenvalues: Array = jnp.asarray(
+            [[-2.0, 0.5], [-0.2, 1.7]],
+            dtype=jnp.float64,
+        )
+        weights: Array = jnp.asarray([0.3, 0.7], dtype=jnp.float64)
+        filling: float = 1e-12
+        temperature: float = 120.0
+        chemical_potential: Array = fermi_level_from_filling(
+            eigenvalues,
+            weights,
+            filling,
+            temperature,
+        )
+        occupations: Array = jax.nn.sigmoid(
+            -(eigenvalues - chemical_potential)
+            / (8.617333262145e-5 * temperature)
+        )
+        count: Array = jnp.sum(weights[:, None] * occupations)
+
+        assert float(count) == pytest.approx(filling, rel=2e-6, abs=1e-20)
+
+    def test_open_endpoint_grid_converges_at_both_capacity_edges(self) -> None:
+        """Converge across lower and upper open-endpoint fillings.
+
+        A logarithmic deficit grid includes the former high-filling Newton
+        failure. Normalized weights, spectrum, and temperature are held fixed.
+        """
+        eigenvalues: Array = jnp.asarray(
+            [[-2.0, 0.5], [-0.2, 1.7]],
+            dtype=jnp.float64,
+        )
+        weights: Array = jnp.asarray([0.3, 0.7], dtype=jnp.float64)
+        deficits: Array = jnp.asarray(
+            [1e-5, 1e-8, 1e-11, 1e-13],
+            dtype=jnp.float64,
+        )
+        fillings: Array = jnp.concatenate((deficits, 2.0 - deficits))
+        temperature: float = 120.0
+        chemical_potentials: Array = jax.vmap(
+            lambda filling: fermi_level_from_filling(
+                eigenvalues,
+                weights,
+                filling,
+                temperature,
+            )
+        )(fillings)
+        occupations: Array = jax.nn.sigmoid(
+            -(eigenvalues[None, :, :] - chemical_potentials[:, None, None])
+            / (8.617333262145e-5 * temperature)
+        )
+        counts: Array = jnp.sum(
+            weights[None, :, None] * occupations,
+            axis=(1, 2),
+        )
+
+        assert jnp.all(jnp.isfinite(chemical_potentials))
+        assert jnp.allclose(counts, fillings, rtol=2e-6, atol=2e-14)
+
+    def test_near_normalized_weights_are_normalized_before_capacity(
+        self,
+    ) -> None:
+        """Normalize an accepted near-one measure before solving near capacity.
+
+        The raw weight sum is five times ``1e-13`` below one, within the
+        declared validation tolerance. The requested filling would exceed the
+        raw measure capacity, so successful solution proves that the accepted
+        measure is normalized before defining the two-band capacity.
+        """
+        eigenvalues: Array = jnp.asarray(
+            [[-1.0, 0.4], [-0.3, 1.2]],
+            dtype=jnp.float64,
+        )
+        weights: Array = jnp.asarray(
+            [0.5, 0.5 - 5e-13],
+            dtype=jnp.float64,
+        )
+        filling: float = 2.0 - 1e-13
+        temperature: float = 200.0
+        chemical_potential: Array = fermi_level_from_filling(
+            eigenvalues,
+            weights,
+            filling,
+            temperature,
+        )
+        normalized_weights: Array = weights / jnp.sum(weights)
+        occupations: Array = jax.nn.sigmoid(
+            -(eigenvalues - chemical_potential)
+            / (8.617333262145e-5 * temperature)
+        )
+        count: Array = jnp.sum(normalized_weights[:, None] * occupations)
+
+        assert jnp.isfinite(chemical_potential)
+        assert float(count) == pytest.approx(filling, rel=0.0, abs=2e-14)

@@ -97,9 +97,10 @@ print(float(occ))  # 0.003 - 10 meV above E_F at 20 K is essentially empty
 ```
 
 The thermal energy $k_B T$ is 1.3 meV at 15 K. It is 25 meV at room
-temperature. At low temperature, `sigma` usually controls the observed Fermi
-edge width. The implementation clamps $k_B T$ to $10^{-10}$ eV. Therefore,
-`temperature=0.0` produces a sharp numerical step without division by zero.
+temperature. At low positive temperature, `sigma` usually controls the
+observed Fermi edge width. The finite-temperature function rejects
+nonpositive or non-finite temperature. Diffpes defines no implicit numerical
+zero-temperature step.
 
 diffpes applies $f$ at each **band center** $E_b(\mathbf{k})$. It does not
 multiply the final spectrum pointwise. This difference matters only for peaks

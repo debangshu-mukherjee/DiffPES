@@ -22,8 +22,8 @@ Routine Listings
     Build a fixed-shape reciprocal mesh and its first-zone mask.
 :func:`build_arpes_kmesh`
     Build a fixed-kz ARPES raster in fractional coordinates.
-:func:`build_kmesh_hv`
-    Build a photon-energy raster in fractional coordinates.
+:func:`build_kmesh_hv_at_fermi`
+    Build an at-Fermi photon-energy raster in fractional coordinates.
 
 Notes
 -----
@@ -39,7 +39,7 @@ from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex, Float, Int, jaxtyped
 
 from diffpes.maths import safe_norm
-from diffpes.simul import kz_from_inner_potential
+from diffpes.simul import kz_from_inner_potential_at_fermi
 from diffpes.types import (
     CrystalGeometry,
     KGrid,
@@ -321,7 +321,10 @@ def first_bz_mask(  # noqa: DOC503, PLR2004
     -----
     The comparisons use squared distances and include ties. The Boolean mask
     has no boundary derivative. Consumers must not differentiate through its
-    discrete membership changes.
+    discrete membership changes. Treating its current values as fixed does
+    not supply a lattice-shape derivative for a mask-weighted observable.
+    Such an observable needs a preregistered fixed mask or a separate smooth
+    shape-derivative scheme.
 
     For any unseen reciprocal vector ``G = n @ B``, its norm is at least
     ``sigma_min(B) * norm(n)``. A vector can beat the origin only when
@@ -625,7 +628,7 @@ def build_arpes_kmesh(
 
 
 @jaxtyped(typechecker=beartype)
-def build_kmesh_hv(  # noqa: DOC502, PLR2004
+def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
     kpar_axis_inv_ang: Float[Array, " n_kpar"],
     photon_energies_ev: Float[Array, " n_hv"],
     work_function_ev: ScalarFloat,
@@ -634,12 +637,14 @@ def build_kmesh_hv(  # noqa: DOC502, PLR2004
     kpar_direction: Float[Array, "2"],
     geometry: CrystalGeometry,
 ) -> KGrid:
-    """Build a photon-energy raster in fractional coordinates.
+    """Build an at-Fermi photon-energy raster in fractional coordinates.
 
     Each row contains one photon energy and all requested parallel momenta.
-    The free-electron final-state model supplies the row-dependent ``kz``.
+    The free-electron final-state model supplies row-dependent ``kz`` at
+    ``omega_rel_fermi_ev = 0``. Use exact energy-dependent kinematics for
+    finite-energy spectra.
 
-    :see: :class:`~.test_kspace.TestBuildKmeshHv`
+    :see: :class:`~.test_kspace.TestBuildKmeshHvAtFermi`
 
     Implementation Logic
     --------------------
@@ -708,7 +713,7 @@ def build_kmesh_hv(  # noqa: DOC502, PLR2004
         """Compute one out-of-plane row for a photon energy."""
         kz_row: Complex[Array, " n_kpar"]
         propagating_row: Bool[Array, " n_kpar"]
-        kz_row, propagating_row = kz_from_inner_potential(
+        kz_row, propagating_row = kz_from_inner_potential_at_fermi(
             photon_energy,
             work_function_ev,
             inner_potential_ev,
@@ -726,7 +731,7 @@ def build_kmesh_hv(  # noqa: DOC502, PLR2004
     checked_kz_rows: Complex[Array, "n_hv n_kpar"] = eqx.error_if(
         kz_rows,
         ~jnp.all(propagating),
-        "build_kmesh_hv requires propagating channels",
+        "build_kmesh_hv_at_fermi requires propagating channels",
     )
     real_kz_rows: Float[Array, "n_hv n_kpar"] = jnp.real(checked_kz_rows)
     lab_x: Float[Array, "n_hv n_kpar"] = jnp.broadcast_to(
@@ -757,7 +762,7 @@ def build_kmesh_hv(  # noqa: DOC502, PLR2004
 __all__: list[str] = [
     "build_arpes_kmesh",
     "build_bz_mesh",
-    "build_kmesh_hv",
+    "build_kmesh_hv_at_fermi",
     "build_kpath",
     "first_bz_mask",
     "kpath_arc_length",

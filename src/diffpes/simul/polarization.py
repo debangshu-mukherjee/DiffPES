@@ -1,11 +1,13 @@
-"""Compute photon polarization and detector-frame transformations.
+"""Compute photon polarization and explicit frame transformations.
 
 Extended Summary
 ----------------
-The module computes complex polarization vectors from photon geometry. It
-also converts polarization to the spherical basis and rotates vectors through
-the detector frame. Legacy orbital weights remain until plan 06 replaces
-their only simulation consumers.
+The module computes complex polarization vectors from photon geometry and
+converts them to the spherical basis. A fixed laboratory photon field maps
+to sample coordinates through the inverse sample orientation only. Detector
+rotations instead map emission directions and detector-fixed spin axes.
+Legacy orbital weights remain until plan 06 replaces their only simulation
+consumers.
 
 Routine Listings
 ----------------
@@ -15,8 +17,12 @@ Routine Listings
     Construct s- and p-polarization basis vectors.
 :func:`detector_rotation`
     Build the detector-frame rotation.
+:func:`detector_axis_to_sample`
+    Convert a detector-fixed axis to sample coordinates.
 :func:`dipole_matrix_elements`
     Compute dipole matrix elements for all 9 orbitals.
+:func:`lab_polarization_to_sample`
+    Convert fixed laboratory polarization to sample coordinates.
 :func:`photon_wavevector`
     Build the unit photon wavevector from incidence angles.
 :func:`polarization_from_angles`
@@ -24,9 +30,9 @@ Routine Listings
 :func:`polarization_to_spherical`
     Convert Cartesian polarization to spherical components.
 :func:`rotate_frame_vectors`
-    Rotate a real vector across a detector-angle grid.
-:func:`rotate_polarization_grid`
-    Rotate polarization across a detector-angle grid.
+    Rotate a detector-fixed real axis across a detector-angle grid.
+:func:`sample_azimuth_rotation`
+    Build the active sample-to-laboratory azimuth rotation.
 
 Notes
 -----
@@ -35,10 +41,12 @@ Orbital direction vectors follow VASP orbital ordering:
 The s-orbital has zero directionality.
 
 The horizontal detector frame uses ``Rx(ty) @ Ry(tx)``. DiffPES maps the
-Chinook ``tilt.k_mesh`` angles as ``T=-tx, P=ty``. It maps the Chinook
-``gen_all_pol`` angles as ``theta=-tx, phi=-ty``. The vertical frame uses
-``Rx(tx) @ Ry(ty)``. Its mappings are ``T=-ty, P=tx`` and
-``theta=-ty, phi=-tx``.
+Chinook ``tilt.k_mesh`` angles as ``T=-tx, P=ty``. The vertical frame uses
+``Rx(tx) @ Ry(ty)`` and maps ``T=-ty, P=tx``. These detector rotations do
+not act on the fixed photon beam. If ``S`` maps sample components into
+laboratory components and ``D`` maps detector components into laboratory
+components, the binding frame equations are ``epsilon_sample = S.T @
+epsilon_lab`` and ``axis_sample = S.T @ D @ axis_detector``.
 """
 
 import jax
@@ -84,8 +92,9 @@ def build_polarization_vectors(
                   -cos(theta) sin(phi),
                    sin(theta)]
 
-       This vector equals ``e_s cross k``. It is perpendicular to the photon
-       direction and completes the orthonormal transverse basis.
+       This vector equals ``k_photon cross e_s`` for the incoming propagation
+       direction. It completes a right-handed transverse basis with
+       ``e_s cross e_p = k_photon``.
 
     Parameters
     ----------
@@ -139,17 +148,18 @@ def photon_wavevector(
 ) -> Float[Array, " 3"]:
     """Build the unit photon wavevector from incidence angles.
 
-    The function constructs the unit photon propagation vector from spherical
-    coordinates. Theta starts at the surface normal, and phi is the azimuthal
-    angle. Spin-orbit ARPES simulations use the vector in the S·k_photon
-    correction for circular dichroism.
+    The function constructs the incoming unit photon propagation vector from
+    spherical incidence angles. Theta starts at the outward surface normal,
+    and phi is the azimuthal angle. The propagation vector points toward the
+    sample. Spin-orbit ARPES simulations use it in the S·k_photon correction
+    for circular dichroism.
 
     :see: :class:`~.test_polarization.TestPhotonWavevector`
 
     Notes
     -----
-    Form the Cartesian spherical-coordinate vector, normalize it with its
-    Euclidean norm, bind the unit result to ``k_hat``, and return it.
+    Form the source-pointing spherical vector and negate it to obtain incoming
+    propagation. Normalize the result and return it as ``k_hat``.
 
     Parameters
     ----------
@@ -161,7 +171,7 @@ def photon_wavevector(
     Returns
     -------
     k_photon : Float[Array, " 3"]
-        Unit wavevector in Cartesian coordinates.
+        Incoming unit wavevector in Cartesian coordinates.
 
     See Also
     --------
@@ -169,7 +179,7 @@ def photon_wavevector(
         p-polarization basis. Use this function only for the propagation
         direction.
     """
-    k: Float[Array, " 3"] = jnp.array(
+    k: Float[Array, " 3"] = -jnp.array(
         [
             jnp.sin(theta) * jnp.cos(phi),
             jnp.sin(theta) * jnp.sin(phi),
@@ -241,6 +251,10 @@ def polarization_from_angles(
     -----
     The ``kind`` value is static and selects a Python branch before tracing.
     JAX differentiates the result with respect to all angle arguments.
+    With incoming propagation ``q`` and the right-handed basis
+    ``e_s cross e_p = q``, ``"c+"`` has eigenvalue ``+1`` under
+    ``i q cross``. The ``"c-"`` state has eigenvalue ``-1``. These algebraic
+    labels avoid observer-dependent circular-polarization names.
 
     See Also
     --------
@@ -390,12 +404,9 @@ def detector_rotation(
     Notes
     -----
     ``"H"`` uses ``R_x(ty) R_y(tx)``. ``"V"`` uses
-    ``R_x(tx) R_y(ty)``. The same matrix rotates the emitted direction,
-    polarization, and spin axis.
-
-    Chinook uses opposite raw signs for its horizontal Ty momentum and
-    polarization coordinates. The declared source-coordinate mappings give
-    one active DiffPES frame.
+    ``R_x(tx) R_y(ty)``. The matrix rotates the emitted direction and
+    detector-fixed axes into the laboratory frame. Do not apply it to a fixed
+    laboratory photon polarization.
     """
     if slit not in ("H", "V"):
         msg: str = "detector_rotation: slit must be 'H' or 'V'"
@@ -420,16 +431,138 @@ def detector_rotation(
 
 
 @jaxtyped(typechecker=beartype)
+def sample_azimuth_rotation(
+    sample_azimuth: ScalarFloat,
+) -> Float[Array, "3 3"]:
+    """Build the active sample-to-laboratory azimuth rotation.
+
+    The sample orientation is a right-handed rotation about the common
+    surface normal. Its transpose maps laboratory components into sample
+    components.
+
+    :see: :class:`~.test_polarization.TestFrameSemantics`
+
+    Parameters
+    ----------
+    sample_azimuth : ScalarFloat
+        Sample azimuth in radians.
+
+    Returns
+    -------
+    sample_orientation : Float[Array, "3 3"]
+        Proper rotation mapping sample components to laboratory components.
+
+    Notes
+    -----
+    A laboratory vector ``v_lab`` therefore has sample components
+    ``sample_azimuth_rotation(phi).T @ v_lab``. This matches the negative
+    azimuth used by the ARPES k-mesh builders.
+    """
+    azimuth: Float[Array, ""] = jnp.asarray(
+        sample_azimuth,
+        dtype=jnp.float64,
+    )
+    cosine: Float[Array, ""] = jnp.cos(azimuth)
+    sine: Float[Array, ""] = jnp.sin(azimuth)
+    zero: Float[Array, ""] = jnp.zeros_like(azimuth)
+    one: Float[Array, ""] = jnp.ones_like(azimuth)
+    sample_orientation: Float[Array, "3 3"] = jnp.stack(
+        (
+            jnp.stack((cosine, -sine, zero)),
+            jnp.stack((sine, cosine, zero)),
+            jnp.stack((zero, zero, one)),
+        )
+    )
+    return sample_orientation
+
+
+@jaxtyped(typechecker=beartype)
+def lab_polarization_to_sample(
+    polarization_lab: Complex[Array, " 3"],
+    sample_orientation: Float[Array, "3 3"],
+) -> Complex[Array, " 3"]:
+    """Convert fixed laboratory polarization to sample coordinates.
+
+    The function applies only the inverse sample orientation. It leaves the
+    physical beam independent of detector coordinates.
+
+    :see: :class:`~.test_polarization.TestFrameSemantics`
+
+    Parameters
+    ----------
+    polarization_lab : Complex[Array, " 3"]
+        Complex photon polarization in laboratory coordinates.
+    sample_orientation : Float[Array, "3 3"]
+        Active rotation mapping sample components to laboratory components.
+
+    Returns
+    -------
+    polarization_sample : Complex[Array, " 3"]
+        The same physical photon field in sample coordinates.
+
+    Notes
+    -----
+    The mapping is ``sample_orientation.T @ polarization_lab``. No detector
+    angle enters. The incident beam stays fixed across detector pixels. The
+    operation is complex-linear and preserves optical phase.
+    """
+    polarization_sample: Complex[Array, " 3"] = (
+        sample_orientation.T @ polarization_lab
+    )
+    return polarization_sample
+
+
+@jaxtyped(typechecker=beartype)
+def detector_axis_to_sample(
+    axis_detector: Float[Array, " 3"],
+    detector_orientation: Float[Array, "3 3"],
+    sample_orientation: Float[Array, "3 3"],
+) -> Float[Array, " 3"]:
+    """Convert a detector-fixed axis to sample coordinates.
+
+    The function composes detector-to-laboratory orientation with the inverse
+    sample orientation.
+
+    :see: :class:`~.test_polarization.TestFrameSemantics`
+
+    Parameters
+    ----------
+    axis_detector : Float[Array, " 3"]
+        Real axis expressed in detector coordinates.
+    detector_orientation : Float[Array, "3 3"]
+        Active rotation mapping detector components to laboratory components.
+    sample_orientation : Float[Array, "3 3"]
+        Active rotation mapping sample components to laboratory components.
+
+    Returns
+    -------
+    axis_sample : Float[Array, " 3"]
+        Detector-fixed axis expressed in sample coordinates.
+
+    Notes
+    -----
+    The binding composition is ``sample_orientation.T @
+    detector_orientation @ axis_detector``. This composition is appropriate
+    for analyzer spin axes, not for the fixed photon polarization.
+    """
+    axis_sample: Float[Array, " 3"] = (
+        sample_orientation.T @ detector_orientation @ axis_detector
+    )
+    return axis_sample
+
+
+@jaxtyped(typechecker=beartype)
 def rotate_frame_vectors(
     vector: Float[Array, " 3"],
     tx: Float[Array, " n_tx"],
     ty: Float[Array, " n_ty"],
     slit: str,
+    sample_azimuth: ScalarFloat = 0.0,
 ) -> Float[Array, "n_tx n_ty 3"]:
-    """Rotate a real vector across a detector-angle grid.
+    """Rotate a detector-fixed real axis across a detector-angle grid.
 
-    The function applies each detector-frame rotation to one real laboratory
-    vector. It preserves both detector axes in the output.
+    The function composes each detector orientation with the inverse sample
+    orientation. It preserves both detector axes in the output.
 
     :see: :class:`~.test_polarization.TestRotateFrameVectors`
 
@@ -441,33 +574,40 @@ def rotate_frame_vectors(
 
        Nested mapping builds one rotation for every detector coordinate.
 
-    2. **Apply each rotation**::
+    2. **Apply the detector/sample composition**::
 
-           rotated = rotations @ vector
+           rotated = sample_orientation.T @ rotations @ vector
 
        Matrix multiplication preserves the vector norm.
 
     Parameters
     ----------
     vector : Float[Array, " 3"]
-        Real vector in the reference laboratory frame.
+        Real axis fixed in the detector frame.
     tx : Float[Array, " n_tx"]
         First detector-angle axis in radians.
     ty : Float[Array, " n_ty"]
         Second detector-angle axis in radians.
     slit : str
         Slit orientation (**static**). Use ``"H"`` or ``"V"``.
+    sample_azimuth : ScalarFloat, optional
+        Sample azimuth in radians. Default is 0.0.
 
     Returns
     -------
     rotated : Float[Array, "n_tx n_ty 3"]
-        Rotated vector at each detector coordinate.
+        Detector-fixed axis in sample coordinates at each detector point.
 
     Notes
     -----
     The output has fixed shape for fixed angle-axis lengths. JAX can compile
-    and differentiate the two mapped angle axes without Python data loops.
+    and differentiate the two mapped detector axes and sample azimuth without
+    Python data loops. Transform laboratory-fixed vectors directly with
+    :func:`lab_polarization_to_sample`, not with this grid function.
     """
+    sample_orientation: Float[Array, "3 3"] = sample_azimuth_rotation(
+        sample_azimuth
+    )
 
     def rotate_one_tx(
         tx_value: Float[Array, " "],
@@ -505,110 +645,17 @@ def rotate_frame_vectors(
                 ty_value,
                 slit,
             )
-            rotated_vector: Float[Array, " 3"] = rotation @ vector
+            rotated_vector: Float[Array, " 3"] = detector_axis_to_sample(
+                vector,
+                rotation,
+                sample_orientation,
+            )
             return rotated_vector
 
         rotated_row: Float[Array, "n_ty 3"] = jax.vmap(rotate_one_ty)(ty)
         return rotated_row
 
     rotated: Float[Array, "n_tx n_ty 3"] = jax.vmap(rotate_one_tx)(tx)
-    return rotated
-
-
-@jaxtyped(typechecker=beartype)
-def rotate_polarization_grid(
-    polarization: Complex[Array, " 3"],
-    tx: Float[Array, " n_tx"],
-    ty: Float[Array, " n_ty"],
-    slit: str,
-) -> Complex[Array, "n_tx n_ty 3"]:
-    """Rotate polarization across a detector-angle grid.
-
-    The function applies the shared detector frame to a complex polarization
-    vector without reducing its phase or amplitude.
-
-    :see: :class:`~.test_polarization.TestRotatePolarizationGrid`
-
-    Implementation Logic
-    --------------------
-    1. **Map over both angle axes**::
-
-           rotated = vmap(vmap(rotate_one))(tx, ty)
-
-       Nested mapping applies the same frame convention at every coordinate.
-
-    2. **Return the complex vectors**::
-
-           return rotated
-
-       The result retains coherent complex components for later models.
-
-    Parameters
-    ----------
-    polarization : Complex[Array, " 3"]
-        Complex polarization in the reference laboratory frame.
-    tx : Float[Array, " n_tx"]
-        First detector-angle axis in radians.
-    ty : Float[Array, " n_ty"]
-        Second detector-angle axis in radians.
-    slit : str
-        Slit orientation (**static**). Use ``"H"`` or ``"V"``.
-
-    Returns
-    -------
-    rotated : Complex[Array, "n_tx n_ty 3"]
-        Rotated polarization at each detector coordinate.
-
-    Notes
-    -----
-    Real rotation matrices act on the complex vector components. Therefore,
-    the map is complex-linear in ``polarization`` and differentiable in both
-    detector-angle axes.
-    """
-
-    def rotate_one_tx(
-        tx_value: Float[Array, " "],
-    ) -> Complex[Array, "n_ty 3"]:
-        """Rotate polarization across the second angle axis.
-
-        Parameters
-        ----------
-        tx_value : Float[Array, " "]
-            Fixed first detector angle in radians.
-
-        Returns
-        -------
-        rotated_row : Complex[Array, "n_ty 3"]
-            Rotated polarization vectors for the second angle axis.
-        """
-
-        def rotate_one_ty(
-            ty_value: Float[Array, " "],
-        ) -> Complex[Array, " 3"]:
-            """Rotate polarization at one detector coordinate.
-
-            Parameters
-            ----------
-            ty_value : Float[Array, " "]
-                Second detector angle in radians.
-
-            Returns
-            -------
-            rotated_vector : Complex[Array, " 3"]
-                Rotated polarization at the detector coordinate.
-            """
-            rotation: Float[Array, "3 3"] = detector_rotation(
-                tx_value,
-                ty_value,
-                slit,
-            )
-            rotated_vector: Complex[Array, " 3"] = rotation @ polarization
-            return rotated_vector
-
-        rotated_row: Complex[Array, "n_ty 3"] = jax.vmap(rotate_one_ty)(ty)
-        return rotated_row
-
-    rotated: Complex[Array, "n_tx n_ty 3"] = jax.vmap(rotate_one_tx)(tx)
     return rotated
 
 
@@ -866,11 +913,13 @@ def dipole_matrix_elements(
 __all__: list[str] = [
     "build_efield",
     "build_polarization_vectors",
+    "detector_axis_to_sample",
     "detector_rotation",
     "dipole_matrix_elements",
+    "lab_polarization_to_sample",
     "photon_wavevector",
     "polarization_from_angles",
     "polarization_to_spherical",
     "rotate_frame_vectors",
-    "rotate_polarization_grid",
+    "sample_azimuth_rotation",
 ]

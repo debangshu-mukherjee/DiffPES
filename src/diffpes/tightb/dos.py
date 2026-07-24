@@ -83,11 +83,13 @@ def _validate_spectrum_inputs(
         jnp.any(weights < 0.0),
         f"{context}: k_weights must be nonnegative",
     )
+    weight_sum: Float[Array, ""] = jnp.sum(weights)
     weights = eqx.error_if(
         weights,
-        jnp.abs(jnp.sum(weights) - 1.0) > EPS,
+        jnp.abs(weight_sum - 1.0) > EPS,
         f"{context}: k_weights must sum to one",
     )
+    weights = weights / weight_sum
     result: tuple[
         Float[Array, "n_k n_bands"],
         Float[Array, " n_k"],
@@ -228,34 +230,20 @@ def _solve_filling(
     tolerance: float,
 ) -> Float[Array, ""]:
     """Compute one validated filling root at a static tolerance."""
-    midpoint: Float[Array, ""] = 0.5 * (lower + upper)
-    bracket_solver: optx.Bisection = optx.Bisection(
-        rtol=max(100.0 * tolerance, 1e-14),
-        atol=max(10.0 * tolerance, 1e-14),
-        expand_if_necessary=True,
-    )
-    bracket_solution: optx.Solution = optx.root_find(
-        _filling_residual,
-        bracket_solver,
-        midpoint,
-        args=arguments,
-        options={"lower": lower, "upper": upper},
-        max_steps=256,
-        throw=True,
-    )
-    initial_newton: Float[Array, ""] = jax.lax.stop_gradient(
-        bracket_solution.value
-    )
-    newton_solver: optx.Newton = optx.Newton(
+    midpoint: Float[Array, ""] = lower + 0.5 * (upper - lower)
+    solver: optx.Bisection = optx.Bisection(
         rtol=tolerance,
         atol=tolerance,
+        flip=False,
+        expand_if_necessary=False,
     )
     solution: optx.Solution = optx.root_find(
         _filling_residual,
-        newton_solver,
-        initial_newton,
+        solver,
+        midpoint,
         args=arguments,
-        max_steps=64,
+        options={"lower": lower, "upper": upper},
+        max_steps=2048,
         throw=True,
     )
     chemical_potential: Float[Array, ""] = solution.value
@@ -277,8 +265,9 @@ def fermi_level_from_filling(  # noqa: DOC502
 
        \sum_{kn}w_k f_\mathrm{FD}(\epsilon_{kn};\mu,T)=N_e.
 
-    A bisection solve supplies a robust initial value. A tight Newton solve
-    then supplies the returned root and Optimistix's implicit derivative.
+    A bracket-preserving bisection solve supplies the returned root.
+    Optimistix applies the implicit-function derivative to the converged
+    filling equation rather than differentiating the bisection iterations.
 
     :see: :class:`~.test_dos.TestFermiLevelFromFilling`
 
@@ -341,18 +330,34 @@ def fermi_level_from_filling(  # noqa: DOC502
         ~jnp.isfinite(filling) | (filling <= 0.0) | (filling >= capacity),
         "fermi_level_from_filling: n_electrons must lie inside band capacity",
     )
-    thermal_padding: Float[Array, ""] = jnp.maximum(
-        1.0,
-        64.0 * KB_EV_PER_K * temperature,
+    thermal_energy: Float[Array, ""] = KB_EV_PER_K * temperature
+    thermal_energy = eqx.error_if(
+        thermal_energy,
+        ~jnp.isfinite(thermal_energy),
+        "fermi_level_from_filling: thermal energy must be finite",
     )
-    lower: Float[Array, ""] = jnp.min(energies) - thermal_padding
-    upper: Float[Array, ""] = jnp.max(energies) + thermal_padding
+    filling_fraction: Float[Array, ""] = filling / capacity
+    lower_logit: Float[Array, ""] = jnp.log(filling_fraction) - jnp.log(
+        2.0 - filling_fraction
+    )
+    upper_logit: Float[Array, ""] = jnp.log1p(filling_fraction) - jnp.log1p(
+        -filling_fraction
+    )
+    lower: Float[Array, ""] = jnp.min(energies) + thermal_energy * lower_logit
+    upper: Float[Array, ""] = jnp.max(energies) + thermal_energy * upper_logit
     arguments: tuple[
         Float[Array, "n_k n_bands"],
         Float[Array, " n_k"],
         Float[Array, ""],
         Float[Array, ""],
     ] = (energies, weights, temperature, filling)
+    lower_residual: Float[Array, ""] = _filling_residual(lower, arguments)
+    upper_residual: Float[Array, ""] = _filling_residual(upper, arguments)
+    lower = eqx.error_if(
+        lower,
+        (lower_residual > 0.0) | (upper_residual < 0.0),
+        "fermi_level_from_filling: analytic root bracket is invalid",
+    )
     solved: Float[Array, ""] = _solve_filling(
         arguments,
         lower,

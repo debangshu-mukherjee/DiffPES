@@ -23,10 +23,12 @@ from diffpes.types import (
     make_derivative_evidence,
     make_domain_predicate,
     make_domain_result,
+    make_evidence_lineage,
     make_evidence_ref,
     make_execution_manifest,
     make_forward_certificate,
     make_forward_model_spec,
+    make_human_attestation_ref,
     make_information_spectrum,
     make_policy_report,
     make_sensitivity_map,
@@ -44,6 +46,7 @@ def _certificate() -> ForwardCertificate:
     artifact: Any
     transformation: Any
     evidence: Any
+    attestation: Any
     claim: Any
     domain: Any
     derivatives: Any
@@ -103,13 +106,26 @@ def _certificate() -> ForwardCertificate:
     evidence = make_evidence_ref(
         evidence_id="evidence-1",
         method_id="org.diffpes.method.reference",
-        artifact_refs=("input-1",),
         source_type="analytic",
-        independent=True,
         measured=jnp.array([1.0, 2.0]),
         reference=jnp.array([1.0, 2.0]),
         residual=jnp.zeros(2),
         tolerance=jnp.full(2, 1.0e-12),
+        lineage=make_evidence_lineage(
+            implementation_refs=("reference.impl",),
+            generator_refs=("reference.generator",),
+            artifact_refs=("input-1",),
+            derivation_refs=("reference.derivation",),
+            relationship_ids=("independent-derivation:reference.derivation",),
+        ),
+        human_attestation_refs=("attestation-1",),
+    )
+    attestation = make_human_attestation_ref(
+        "attestation-1",
+        "reviewer.test",
+        ("evidence-1",),
+        "Lineage reviewed.",
+        "2026-07-24T00:00:00Z",
     )
     claim = make_certification_claim(
         claim_id="claim-1",
@@ -185,6 +201,7 @@ def _certificate() -> ForwardCertificate:
         artifacts=(artifact,),
         transformations=(transformation,),
         evidence=(evidence,),
+        attestations=(attestation,),
         claims=(claim,),
         domains=(domain,),
         derivatives=derivatives,
@@ -446,6 +463,46 @@ class TestDomainresult:
         The test compares the result with explicit numerical or structural assertions.
         """
         symbol: object = getattr(diffpes.types, "DomainResult")
+        assert isinstance(symbol, type)
+        assert issubclass(symbol, eqx.Module)
+
+
+class TestEvidenceLineage:
+    """Verify :class:`~diffpes.types.EvidenceLineage`.
+
+    The cases cover the public carrier and its static JAX tree behavior.
+    """
+
+    def test_public_symbol_has_expected_kind(self) -> None:
+        """Expose the lineage carrier through the types package.
+
+        The case resolves the canonical public import and its carrier type.
+
+        Notes
+        -----
+        The test checks the symbol directly without constructing authority.
+        """
+        symbol: object = getattr(diffpes.types, "EvidenceLineage")
+        assert isinstance(symbol, type)
+        assert issubclass(symbol, eqx.Module)
+
+
+class TestHumanAttestationRef:
+    """Verify :class:`~diffpes.types.HumanAttestationRef`.
+
+    The cases cover the separate public human-review carrier.
+    """
+
+    def test_public_symbol_has_expected_kind(self) -> None:
+        """Expose the attestation carrier through the types package.
+
+        The case resolves the canonical public import and its carrier type.
+
+        Notes
+        -----
+        The test checks the symbol without treating review as evidence.
+        """
+        symbol: object = getattr(diffpes.types, "HumanAttestationRef")
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -1184,6 +1241,57 @@ class TestMakeDomainResult:
         assert jnp.array_equal(result.passed, jnp.array([True, False]))
 
 
+class TestMakeEvidenceLineage:
+    """Verify :func:`~diffpes.types.make_evidence_lineage`.
+
+    The cases cover construction without caller-supplied authority.
+    """
+
+    def test_factory_records_named_ancestry(self) -> None:
+        """Record all named lineage categories without an authority flag.
+
+        The case constructs a complete external lineage record.
+
+        Notes
+        -----
+        The test compares static identifiers and confirms no Boolean shortcut.
+        """
+        lineage: Any = make_evidence_lineage(
+            implementation_refs=("reference.impl",),
+            generator_refs=("reference.generator",),
+            artifact_refs=("reference.artifact",),
+            derivation_refs=("reference.derivation",),
+            relationship_ids=("independent-derivation:reference.derivation",),
+        )
+        assert lineage.generator_refs == ("reference.generator",)
+        assert not hasattr(lineage, "independent")
+
+
+class TestMakeHumanAttestationRef:
+    """Verify :func:`~diffpes.types.make_human_attestation_ref`.
+
+    The cases cover separate human-review construction and validation.
+    """
+
+    def test_factory_requires_review_scope(self) -> None:
+        """Reject a human attestation that names no reviewed evidence.
+
+        The case passes an empty review scope to the public factory.
+
+        Notes
+        -----
+        The test checks the eager structural validation boundary.
+        """
+        with pytest.raises(ValueError, match="scope_ids must be non-empty"):
+            make_human_attestation_ref(
+                "attestation",
+                "reviewer",
+                (),
+                "Reviewed.",
+                "2026-07-24T00:00:00Z",
+            )
+
+
 class TestMakeEvidenceRef:
     """Verify :func:`~diffpes.types.make_evidence_ref`.
 
@@ -1219,15 +1327,13 @@ class TestMakeEvidenceRef:
         """
         with pytest.raises(ValueError, match="equal shapes"):
             make_evidence_ref(
-                "evidence",
-                "method",
-                (),
-                "analytic",
-                True,
-                jnp.ones(2),
-                jnp.ones(1),
-                jnp.ones(2),
-                jnp.ones(2),
+                evidence_id="evidence",
+                method_id="method",
+                source_type="analytic",
+                measured=jnp.ones(2),
+                reference=jnp.ones(1),
+                residual=jnp.ones(2),
+                tolerance=jnp.ones(2),
             )
         assert_rejects(
             make_domain_result,
@@ -1253,15 +1359,13 @@ class TestMakeEvidenceRef:
         empty: Any = jnp.asarray([], dtype=jnp.float64)
         with pytest.raises(ValueError, match="must not be empty"):
             make_evidence_ref(
-                "evidence",
-                "method",
-                (),
-                "analytic",
-                True,
-                empty,
-                empty,
-                empty,
-                empty,
+                evidence_id="evidence",
+                method_id="method",
+                source_type="analytic",
+                measured=empty,
+                reference=empty,
+                residual=empty,
+                tolerance=empty,
             )
 
 
@@ -1358,6 +1462,7 @@ class TestMakeForwardCertificate:
                 certificate.policy_report,
                 "org.diffpes.policy.other.v1",
                 certificate.certificate_checksum,
+                attestations=certificate.attestations,
             )
         with pytest.raises(ValueError, match="duplicate artifact_id"):
             make_forward_certificate(
@@ -1375,6 +1480,7 @@ class TestMakeForwardCertificate:
                 certificate.policy_report,
                 certificate.policy_id,
                 certificate.certificate_checksum,
+                attestations=certificate.attestations,
             )
 
 

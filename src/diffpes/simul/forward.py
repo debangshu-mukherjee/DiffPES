@@ -33,9 +33,9 @@ Physical constants used in this module:
 - ``HBAR_C_EV_A``: hbar*c in eV*Angstrom (1973.27)
 - ``BOHR_TO_ANGSTROM``: Bohr radius in Angstroms (0.5292)
 
-The private helper ``_ekin_to_k_magnitude`` converts photon
-energy and binding energy to a photoelectron wavevector magnitude
-using the free-electron final-state approximation.
+The private helper ``_ekin_to_k_magnitude`` converts photon energy and signed
+Fermi-relative electron energy to a photoelectron wavevector magnitude and
+an explicit emission-validity mask.
 """
 
 from functools import partial
@@ -44,18 +44,12 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Callable, Optional
-from jaxtyping import Array, Complex, Float, Integer, jaxtyped
+from jaxtyping import Array, Bool, Complex, Float, Integer, jaxtyped
 
-from diffpes.maths import (
-    dipole_matrix_element_single,
-    safe_divide,
-    safe_norm,
-    safe_sqrt,
-)
+from diffpes.maths import dipole_matrix_element_single, safe_divide, safe_norm
 from diffpes.radial import slater_radial
+from diffpes.simul.kinematics import final_state_k_inv_ang, kinetic_energy_ev
 from diffpes.types import (
-    HBAR_C_EV_A,
-    ME_EV,
     ArpesSpectrum,
     DiagonalizedBands,
     OrbitalBasis,
@@ -76,12 +70,12 @@ from .self_energy import evaluate_self_energy
 def _ekin_to_k_magnitude(
     photon_energy: Float[Array, " "],
     work_function: Float[Array, " "],
-    binding_energy: Float[Array, " "],
-) -> Float[Array, " "]:
-    r"""Compute photoelectron momentum magnitude from kinematics.
+    omega_rel_fermi: Float[Array, " "],
+) -> tuple[Float[Array, " "], Bool[Array, " "]]:
+    r"""Compute photoelectron momentum and its emission-validity mask.
 
-    Converts photon energy, work function, and binding energy into the
-    magnitude of the photoelectron wavevector using the free-electron
+    Converts photon energy, work function, and Fermi-relative electron energy
+    into the magnitude of the photoelectron wavevector using the free-electron
     final-state approximation.
 
     In the three-step model of photoemission, the photoelectron kinetic
@@ -89,12 +83,10 @@ def _ekin_to_k_magnitude(
 
     .. math::
 
-        E_{\mathrm{kin}} = h\nu - W - |E_b|
+        E_{\mathrm{kin}} = h\nu - W + (E-E_F)
 
-    where :math:`h\nu` is the photon energy, :math:`W` is the work
-    function, and :math:`E_b` is the binding energy with the negative
-    convention. The following equation gives the free-electron wavevector
-    magnitude:
+    where :math:`h\nu` is the photon energy, :math:`W` is the work function,
+    and :math:`E-E_F` is the signed electron energy.
 
     .. math::
 
@@ -103,14 +95,11 @@ def _ekin_to_k_magnitude(
     Implementation Logic
     --------------------
     1. **Compute the kinetic energy**:
-       ``e_kin = photon_energy - work_function - |binding_energy|``
-       Use the absolute value of ``binding_energy`` to accept either sign
-       convention.
+       ``e_kin = photon_energy - work_function + omega_rel_fermi``
 
-    2. **Guard against negative kinetic energy**:
-       ``safe_sqrt`` returns zero for a non-positive radicand. Negative
-       kinetic energy is unphysical (the photon cannot eject this electron),
-       so this yields ``|k| = 0`` with a zero selected subgradient.
+    2. **Propagate forbidden emission**:
+       The helpers return raw energy, zero momentum, and a false validity mask
+       for nonpositive energy.
 
     3. **Convert to wavevector magnitude**:
        ``k_mag = safe_sqrt(2 * m_e * e_kin) / (hbar * c)``
@@ -125,27 +114,35 @@ def _ekin_to_k_magnitude(
         Incident photon energy in eV.
     work_function : Float[Array, " "]
         Material work function in eV.
-    binding_energy : Float[Array, " "]
-        Electron binding energy in eV. The function uses its absolute value.
+    omega_rel_fermi : Float[Array, " "]
+        Signed electron energy ``E - E_F`` in eV.
 
     Returns
     -------
     k_mag : Float[Array, " "]
         Photoelectron wavevector magnitude in inverse Angstroms.
+    emission_valid : Bool[Array, " "]
+        Mask selecting strictly positive kinetic energy.
 
     Notes
     -----
-    Uses physical constants defined at module level:
-    ``ME_EV`` (electron mass in eV/c^2) and ``HBAR_C_EV_A``
-    (hbar*c in eV*Angstrom). The function is JAX-traceable and
-    supports ``jax.grad`` through the named square-root guard.
+    The function supports JAX transformations. Differentiate only away from
+    the emission threshold.
     """
-    e_kin: Float[Array, " "] = (
-        photon_energy - work_function - jnp.abs(binding_energy)
+    e_kin: Float[Array, " "]
+    emission_valid: Bool[Array, " "]
+    e_kin, emission_valid = kinetic_energy_ev(
+        photon_energy,
+        work_function,
+        omega_rel_fermi,
     )
-    radicand: Float[Array, " "] = 2.0 * ME_EV * e_kin
-    k_mag: Float[Array, " "] = safe_sqrt(radicand) / HBAR_C_EV_A
-    return k_mag
+    k_mag: Float[Array, " "]
+    k_mag, _ = final_state_k_inv_ang(e_kin)
+    result: tuple[Float[Array, " "], Bool[Array, " "]] = (
+        k_mag,
+        emission_valid,
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -264,9 +261,10 @@ def simulate_tb_radial(  # noqa: PLR0915
         ``fidelity``, ``sigma`` (Gaussian width), ``gamma``
         (Lorentzian width), ``temperature``, and ``photon_energy``.
     pol_config : PolarizationConfig
-        Photon polarization configuration specifying
+        Legacy sample-frame photon polarization configuration specifying
         ``polarization_type``, incidence angles ``theta`` and ``phi``,
-        and ``polarization_angle``.
+        and ``polarization_angle``. This path applies no laboratory-to-sample
+        or detector-to-sample frame transform.
     work_function : ScalarFloat, optional
         Material work function in eV. Default is 4.5.
     self_energy : Optional[SelfEnergyConfig]
@@ -296,10 +294,14 @@ def simulate_tb_radial(  # noqa: PLR0915
     -----
     The inner function ``_single_k_band`` uses :func:`safe_norm` and
     :func:`safe_divide` to select a zero direction and zero gradient at the
-    Gamma point. It preserves the fractional crystal-momentum direction when
-    it forms the photoelectron momentum. Both radial construction and coherent
+    Gamma point. The outer path first maps fractional k-points through the
+    reciprocal lattice. It then preserves the Cartesian direction when it
+    forms photoelectron momentum. Both radial construction and coherent
     orbital summation use ``jax.lax.scan``. Static quantum numbers select
     specialized branches with ``jax.lax.switch``.
+
+    ``pol_config`` follows the legacy sample-frame convention of this radial
+    path. The function performs no detector-pixel or sample-azimuth transform.
 
     See Also
     --------
@@ -335,6 +337,9 @@ def simulate_tb_radial(  # noqa: PLR0915
     r_grid: Float[Array, " R"]
 
     W: Float[Array, " "] = jnp.asarray(work_function, dtype=jnp.float64)
+    cartesian_kpoints: Float[Array, "K 3"] = (
+        diag_bands.kpoints @ diag_bands.geometry.reciprocal
+    )
 
     is_unpolarized: bool = (
         pol_config.polarization_type.lower() == "unpolarized"
@@ -465,7 +470,7 @@ def simulate_tb_radial(  # noqa: PLR0915
         """
 
         def _single_k_band(
-            k_crystal: Float[Array, " 3"],
+            k_cartesian: Float[Array, " 3"],
             eigvec: Complex[Array, " O"],
             eigenval: Float[Array, " "],
         ) -> Float[Array, " "]:
@@ -479,23 +484,30 @@ def simulate_tb_radial(  # noqa: PLR0915
 
             Parameters
             ----------
-            k_crystal : Float[Array, " 3"]
-                Crystal momentum vector for this k-point.
+            k_cartesian : Float[Array, " 3"]
+                Cartesian crystal momentum in inverse Angstroms.
             eigvec : Complex[Array, " O"]
                 Eigenvector coefficients for this band at this k-point.
             eigenval : Float[Array, " "]
-                Band eigenvalue (binding energy) in eV.
+                Absolute band eigenvalue in eV.
 
             Returns
             -------
             Float[Array, " "]
                 Squared modulus of the total dipole matrix element.
             """
-            k_mag: Float[Array, " "] = _ekin_to_k_magnitude(
-                params.photon_energy, W, eigenval
+            k_mag: Float[Array, " "]
+            emission_valid: Bool[Array, " "]
+            omega_rel_fermi: Float[Array, " "] = (
+                eigenval - diag_bands.fermi_energy
             )
-            k_norm: Float[Array, " "] = safe_norm(k_crystal)
-            k_hat: Float[Array, " 3"] = safe_divide(k_crystal, k_norm)
+            k_mag, emission_valid = _ekin_to_k_magnitude(
+                params.photon_energy,
+                W,
+                omega_rel_fermi,
+            )
+            k_norm: Float[Array, " "] = safe_norm(k_cartesian)
+            k_hat: Float[Array, " 3"] = safe_divide(k_cartesian, k_norm)
             k_vec: Float[Array, " 3"] = k_hat * k_mag
 
             def _scan_orbital(
@@ -538,7 +550,11 @@ def simulate_tb_radial(  # noqa: PLR0915
             )
             M_total: Complex[Array, ""] = orbital_scan[0]
 
-            intensity_kb: Float[Array, " "] = jnp.abs(M_total) ** 2
+            intensity_kb: Float[Array, " "] = jnp.where(
+                emission_valid,
+                jnp.abs(M_total) ** 2,
+                0.0,
+            )
             return intensity_kb
 
         _vmap_bands: Callable[..., Float[Array, " B"]] = jax.vmap(
@@ -550,7 +566,7 @@ def simulate_tb_radial(  # noqa: PLR0915
             in_axes=(0, 0, 0),
         )
         result: Float[Array, "K B"] = _vmap_k(
-            diag_bands.kpoints,
+            cartesian_kpoints,
             diag_bands.eigenvectors,
             diag_bands.eigenvalues,
         )

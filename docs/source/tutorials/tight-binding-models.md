@@ -110,7 +110,10 @@ $\exp[2\pi i\,k\cdot(R+\tau_j-\tau_i)]$, where `R` is the exact integer cell
 and $\tau_i$ is the fractional basis position. A cell-origin convention gives
 the same eigenvalues but eigenvectors that differ by a diagonal,
 momentum-dependent phase. Keep this distinction when comparing orbital
-coefficients between codes.
+coefficients between codes. Native atom-centred models derive $\tau_i$ from
+the assigned atom. Wannier models instead carry one explicit
+`orbital_positions` row per orbital, so distinct centres on the same atom are
+not collapsed.
 ```
 
 Build the fractional $\Gamma$--K--M--$\Gamma$ path and diagonalize the model.
@@ -404,7 +407,9 @@ For a material model generated elsewhere, use a format-specific reader rather
 than rewriting its rows by hand. `read_wannier90_hr` requires explicit
 Cartesian Wannier centres because `hr.dat` does not contain them;
 `read_wannier90_tb` reads both the centres and full position matrices from
-`seedname_tb.dat`.
+`seedname_tb.dat`. If multiple orbitals assigned to one atom have distinct
+centres, pass the atomic `geometry` explicitly: Wannier centres do not by
+themselves determine nuclear positions.
 
 ```python
 from diffpes.inout import read_wannier90_hr, read_wannier90_tb
@@ -420,9 +425,12 @@ model, operators = read_wannier90_tb(
     "seedname_tb.dat",
     basis,
     spin_layout="block_down_up",
+    geometry=geometry,
 )
 ```
 
 Parsing is deliberately a host-side operation. The returned model's numerical
 leaves can be fine-tuned with JAX, while exact cells, orbital metadata, and
-the one-time serialized spin permutation remain static.
+the one-time serialized spin permutation remain static. Native
+diagonalization propagates explicit orbital positions into
+`DiagonalizedBands` for later phase-sensitive matrix elements.

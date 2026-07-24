@@ -268,9 +268,10 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
 ) -> Float[Array, "n_k n_bands"]:
     r"""Compute operator expectations with diagnostic degeneracy averaging.
 
-    Average raw quadratic forms between bands whose energy separation falls
-    below ``degen_tol``. The fixed-shape mask makes the result invariant under
-    a complete unitary rotation of an exactly degenerate block.
+    Average raw quadratic forms over connected components of bands whose
+    pairwise energy separation falls below ``degen_tol``. The fixed-shape
+    component mask makes the result invariant under a complete unitary
+    rotation of an exactly degenerate block.
 
     :see: :class:`~.test_projections.TestExpectationPath`
 
@@ -298,8 +299,11 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
 
     Notes
     -----
-    The threshold mask is nondifferentiable and exists for diagnostics only.
-    Exact-crossing gradient claims must use a fixed :func:`group_trace`.
+    The threshold graph and its connected components are nondifferentiable
+    and exist for diagnostics only. Transitive closure prevents overlapping
+    pairwise neighborhoods from assigning inconsistent averages to a chain
+    of nearby bands. Exact-crossing gradient claims must use a fixed
+    :func:`group_trace`.
     """
     n_orbitals: int = bands.eigenvectors.shape[2]
     checked_operator: Complex[Array, "n_orb n_orb"] = _checked_operator(
@@ -323,9 +327,13 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
     gaps: Float[Array, "n_k n_bands n_bands"] = jnp.abs(
         bands.eigenvalues[:, :, None] - bands.eigenvalues[:, None, :]
     )
-    mask: Float[Array, "n_k n_bands n_bands"] = (gaps < tolerance).astype(
-        jnp.float64
-    )
+    connected: Array = gaps < tolerance
+    pivot: int
+    for pivot in range(bands.eigenvalues.shape[1]):
+        connected = connected | (
+            connected[:, :, pivot, None] & connected[:, None, pivot, :]
+        )
+    mask: Float[Array, "n_k n_bands n_bands"] = connected.astype(jnp.float64)
     numerator: Float[Array, "n_k n_bands"] = jnp.einsum(
         "kij,kj->ki",
         mask,

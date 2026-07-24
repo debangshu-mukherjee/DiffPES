@@ -43,7 +43,7 @@
 
 ### `tb_radial_graphene.npz`
 
-- SHA-256: `aab46ed26e668d05be1adaaaffa4910941835168c22db9e419f376a7a9dcaa23`
+- SHA-256: `b99b81c1861a5bf5605b64735561b792d707f246867a067fea9f549db96eca2d`
 - Arrays:
   - `leaf_000_intensity`: shape `(12, 512)`, dtype `float64`
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
@@ -52,7 +52,7 @@
 
 ### `tb_radial_chain.npz`
 
-- SHA-256: `7ecc4c2df60129764fc0696aced30282836eb157f4686a3bf1e5f69691a60b0e`
+- SHA-256: `0ebc8129c5273771a367a35315f01a043f03199a6009ba01938719d5c6d17cdb`
 - Arrays:
   - `leaf_000_intensity`: shape `(16, 512)`, dtype `float64`
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`

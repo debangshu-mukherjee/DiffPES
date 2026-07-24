@@ -15,6 +15,7 @@ from diffpes.certify import (
     evaluate_domain,
     evaluate_evidence,
 )
+from diffpes.types import make_evidence_lineage
 
 
 class TestEvaluateClaim:
@@ -102,8 +103,18 @@ class TestEvaluateEvidence:
             jnp.array([1.1, 1.9]),
             jnp.array([1.0, 2.0]),
             jnp.array([0.2, 0.2]),
+            lineage=make_evidence_lineage(
+                implementation_refs=("reference.impl",),
+                generator_refs=("reference.generator",),
+                artifact_refs=("reference.artifact",),
+                derivation_refs=("reference.derivation",),
+                relationship_ids=(
+                    "independent-derivation:reference.derivation",
+                ),
+            ),
         )
         assert jnp.allclose(result.residual, jnp.array([0.1, -0.1]))
+        assert not hasattr(result, "independent")
 
 
 class TestDerivativeEvidence:

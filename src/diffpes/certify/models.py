@@ -294,17 +294,34 @@ def _register_transformations() -> None:
             ),
         ),
         make_transformation_contract(
-            "org.diffpes.transform.polarization.detector_frame",
+            "org.diffpes.transform.polarization.lab_polarization_to_sample",
             "1.0.0",
             requires=(
                 "laboratory_polarization",
-                "sample_detector_geometry",
+                "sample_orientation",
             ),
             produces=("sample_frame_polarization",),
             preserves=(
                 "polarization_norm",
                 "polarization_helicity",
-                "convention.sample_rotation_rz_rx_ry",
+                "optical_phase",
+                "fixed_beam_across_detector_pixels",
+                "convention.sample_orientation_inverse",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.geometry.detector_axis_to_sample",
+            "1.0.0",
+            requires=(
+                "detector_frame_axis",
+                "detector_orientation",
+                "sample_orientation",
+            ),
+            produces=("sample_frame_detector_axis",),
+            preserves=(
+                "axis_norm",
+                "detector_axis_identity",
+                "convention.detector_to_lab_then_lab_to_sample",
             ),
         ),
         make_transformation_contract(
@@ -434,7 +451,8 @@ def _register_plan03_handshake() -> None:
             "org.diffpes.transform.kspace.fractional_cartesian@1.0.0",
             "org.diffpes.transform.kinematics.detector_angle_kpar@1.0.0",
             "org.diffpes.transform.kinematics.inner_potential@1.0.0",
-            "org.diffpes.transform.polarization.detector_frame@1.0.0",
+            "org.diffpes.transform.polarization.lab_polarization_to_sample@1.0.0",
+            "org.diffpes.transform.geometry.detector_axis_to_sample@1.0.0",
         ),
         evidence_ids=(
             "org.diffpes.evidence.03.graphene.closed_form",

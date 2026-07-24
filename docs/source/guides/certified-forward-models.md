@@ -79,8 +79,8 @@ premature, or expired waiver before compiled execution.
 ## Artifact resolution and reproduction
 
 An artifact resolver returns normalized scientific content. It can also return
-the exact source bytes. diffpes checks the content and byte CRC32 values as
-separate bookkeeping identities.
+the exact source bytes. diffpes checks separate domain-separated SHA-256
+identities for normalized content and exact bytes.
 
 The reproduction runner requires one normalized-input artifact and one result
 artifact. It resolves both artifacts and runs the exact registered model. The
@@ -167,8 +167,10 @@ A load and save cycle therefore preserves that data.
 
 The I/O boundary replaces the traced kernel placeholder with the canonical
 certificate identity. This identity covers all scientific and numerical
-fields. It excludes the audit execution ID and wall-clock timestamp. The outer
-storage CRC32 still covers the complete document.
+fields. It excludes the audit execution ID and wall-clock timestamp. SHA-256
+provides collision-resistant content addressing, not authentication. The outer
+storage CRC32 remains a separate transport-corruption check over the complete
+document and never participates in scientific identity.
 
 ## Reading claims responsibly
 

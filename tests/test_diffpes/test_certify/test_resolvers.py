@@ -1,6 +1,6 @@
 """Validate artifact resolution and external evidence checks.
 
-The tests compare normalized and byte content with explicit CRC32 identities.
+The tests compare normalized and byte content with explicit SHA-256 identities.
 They also check missing artifacts and changed content.
 """
 
@@ -18,7 +18,11 @@ from diffpes.certify import (
     resolve_artifact,
     verify_evidence,
 )
-from diffpes.types import make_artifact_ref, make_evidence_ref
+from diffpes.types import (
+    make_artifact_ref,
+    make_evidence_lineage,
+    make_evidence_ref,
+)
 
 
 def _artifact(value: Any, artifact_id: str = "input") -> Any:
@@ -31,7 +35,10 @@ def _artifact(value: Any, artifact_id: str = "input") -> Any:
             value,
             record_kind="normalized-content",
         ),
-        semantic_checksum="crc32:canonical-1:semantic:00000000",
+        semantic_checksum=(
+            "sha256:1:semantic:"
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        ),
         locator=None,
         role="normalized-input",
     )
@@ -80,7 +87,7 @@ class TestFilesystemArtifactResolver:
 
         Notes
         -----
-        The test writes four bytes and checks both independent CRC32 fields.
+        The test writes four bytes and checks both independent SHA-256 fields.
         """
         path: Path = tmp_path / "artifact.bin"
         data: bytes = b"data"
@@ -93,7 +100,10 @@ class TestFilesystemArtifactResolver:
                 data,
                 record_kind="normalized-content",
             ),
-            semantic_checksum="crc32:canonical-1:semantic:00000000",
+            semantic_checksum=(
+                "sha256:1:semantic:"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            ),
             locator=str(path),
             role="source",
         )
@@ -115,7 +125,7 @@ class TestResolveArtifact:
     def test_changed_content_is_rejected(self) -> None:
         """Reject a value that differs from the referenced normalized value.
 
-        The content CRC32 must detect the changed numerical array.
+        The content identity must detect the changed numerical array.
 
         Notes
         -----
@@ -146,7 +156,10 @@ class TestResolveArtifact:
                 value,
                 record_kind="normalized-content",
             ),
-            semantic_checksum="crc32:canonical-1:semantic:00000000",
+            semantic_checksum=(
+                "sha256:1:semantic:"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            ),
             locator=None,
             role="normalized-input",
         )
@@ -177,13 +190,20 @@ class TestVerifyEvidence:
         evidence: Any = make_evidence_ref(
             evidence_id="reference",
             method_id="org.diffpes.method.test",
-            artifact_refs=(artifact.artifact_id,),
             source_type="analytic_reference",
-            independent=True,
             measured=jnp.array([1.0]),
             reference=jnp.array([1.0]),
             residual=jnp.array([0.0]),
             tolerance=jnp.array([1e-12]),
+            lineage=make_evidence_lineage(
+                implementation_refs=("reference.impl",),
+                generator_refs=("reference.generator",),
+                artifact_refs=(artifact.artifact_id,),
+                derivation_refs=("reference.derivation",),
+                relationship_ids=(
+                    "independent-derivation:reference.derivation",
+                ),
+            ),
         )
         report: Any = verify_evidence(
             evidence,
@@ -208,13 +228,20 @@ class TestVerifyEvidence:
         evidence: Any = make_evidence_ref(
             evidence_id="reference",
             method_id="org.diffpes.method.test",
-            artifact_refs=(artifact.artifact_id,),
             source_type="analytic_reference",
-            independent=True,
             measured=jnp.array([2.0]),
             reference=jnp.array([1.0]),
             residual=jnp.array([0.0]),
             tolerance=jnp.array([1e-12]),
+            lineage=make_evidence_lineage(
+                implementation_refs=("reference.impl",),
+                generator_refs=("reference.generator",),
+                artifact_refs=(artifact.artifact_id,),
+                derivation_refs=("reference.derivation",),
+                relationship_ids=(
+                    "independent-derivation:reference.derivation",
+                ),
+            ),
         )
         report: Any = verify_evidence(
             evidence,

@@ -12,8 +12,8 @@ Complex representatives cross the optimizer boundary through
 
 Slater--Koster models have a separate view. Their primary coordinates are the
 fundamental two-center integrals rather than the redundant materialized
-hoppings. Its inverse closure rebuilds the model through
-``diffpes.tightb.build_sk_model``.
+hoppings. Its inverse closure captures one certified neighbor topology before
+tracing and rebuilds all numerical leaves on those exact pairs and cells.
 
 Routine Listings
 ----------------
@@ -48,7 +48,11 @@ from diffpes.types import (
 )
 from diffpes.utils import pack_complex, unpack_complex
 
-from .slaterkoster import build_sk_model
+from .slaterkoster import (
+    _build_sk_model_from_topology,
+    _freeze_neighbor_topology,
+    build_sk_model,
+)
 
 
 def _reverse_indices(model: TBModel) -> tuple[int, ...]:
@@ -164,6 +168,12 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     This view exposes materialized complex hoppings and cannot recover
     Slater--Koster fundamentals that the model does not retain. Use
     :func:`sk_model_parameter_view` for that parameterization.
+
+    Geometry coordinates do not define a distance-dependent hopping law.
+    At fixed fractional k-points, changing fractional basis positions only
+    changes the basis-position Bloch gauge and therefore leaves band energies
+    invariant. Changing lattice rows recomputes reciprocal metadata but
+    leaves the materialized hoppings and fractional-k Hamiltonian unchanged.
 
     The onsite block contains a band-energy-zero gauge direction: a uniform
     onsite shift is degenerate with the Fermi-energy/energy-offset nuisance.
@@ -305,6 +315,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
             model.hopping_cells,
             model.shell_index,
             model.spinor,
+            model.orbital_positions,
         )
         return rebuilt
 
@@ -366,7 +377,8 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         Flat float64 vector ordered as SK values, onsite energies, SOC
         strengths, optional positions, and optional lattice rows.
     rebuild : Callable[[Float[Array, " n_par"]], TBModel]
-        Pure closure that reconstructs through :func:`build_sk_model`.
+        Pure closure that rebuilds on the certified topology captured from
+        ``geometry`` and ``cutoff``.
 
     Raises
     ------
@@ -382,6 +394,19 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     This view is intentionally disjoint from :func:`tb_parameter_view`: it
     exposes fundamental SK values and never additionally packs the derived
     materialized hoppings.
+
+    Setup certifies and freezes atom pairs, exact integer cells, and distance
+    shell numbers from the initial geometry. Compiled rebuilding never repeats
+    discrete neighbor selection. Position and lattice optimization is valid
+    only while no bond crosses the cutoff or changes distance-shell membership;
+    construct a new view when topology changes.
+
+    The captured two-center integrals are distance independent. With topology
+    and fractional k-points held fixed, position and lattice derivatives cover
+    bond-direction changes only. A uniform fractional translation and a
+    uniform real-space dilation are structural null directions. Shear and
+    relative-position changes can remain sensitive through their change of
+    bond directions. No radial strain law is implied by this optimizer view.
 
     The onsite block retains the band-energy-zero gauge. A uniform onsite
     shift matches the fitted Fermi-energy or energy-offset shift. Downstream
@@ -403,6 +428,13 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         shell_index,
         cutoff,
         spinor=spinor,
+    )
+    atom_pairs: tuple[tuple[int, int], ...]
+    cells: tuple[tuple[int, int, int], ...]
+    shell_numbers: tuple[int, ...]
+    atom_pairs, cells, shell_numbers = _freeze_neighbor_topology(
+        geometry,
+        cutoff,
     )
     parts: list[Float[Array, " n_part"]] = [
         jnp.ravel(sk_params.values),
@@ -467,14 +499,16 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
             values=values,
             keys=sk_params.keys,
         )
-        rebuilt: TBModel = build_sk_model(
-            rebuilt_geometry,
-            basis,
-            rebuilt_params,
-            onsite,
-            soc,
-            shell_index,
-            cutoff,
+        rebuilt: TBModel = _build_sk_model_from_topology(
+            geometry=rebuilt_geometry,
+            basis=basis,
+            sk_params=rebuilt_params,
+            onsite_energies=onsite,
+            soc_lambdas=soc,
+            shell_index=shell_index,
+            atom_pairs=atom_pairs,
+            cells=cells,
+            shell_numbers=shell_numbers,
             spinor=spinor,
         )
         return rebuilt

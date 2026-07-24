@@ -81,6 +81,50 @@ def _near_wrong_sine_jvp(
     return result
 
 
+@jax.custom_jvp
+def _tiny_linear(x: Float[Array, ""]) -> Float[Array, ""]:
+    """Return an order-one loss with a resolvable ``1e-7`` derivative."""
+    result: Float[Array, ""] = 1.0 + 1e-7 * x
+    return result
+
+
+@_tiny_linear.defjvp
+def _tiny_linear_jvp(
+    primals: tuple[Float[Array, ""], ...],
+    tangents: tuple[Float[Array, ""], ...],
+) -> tuple[Float[Array, ""], Float[Array, ""]]:
+    """Plant an exactly zero tangent for the nonzero linear primal."""
+    x: Float[Array, ""]
+    (x,) = primals
+    primal: Float[Array, ""] = _tiny_linear(x)
+    tangent: Float[Array, ""] = jnp.zeros_like(x)
+    result: tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    return result
+
+
+@jax.custom_jvp
+def _mixed_scale_linear(x: Float[Array, "2"]) -> Float[Array, ""]:
+    """Return a loss whose large parameter has a tiny nonzero sensitivity."""
+    result: Float[Array, ""] = 1.0 + 1e-4 * x[0] + 1e-10 * x[1]
+    return result
+
+
+@_mixed_scale_linear.defjvp
+def _mixed_scale_linear_jvp(
+    primals: tuple[Float[Array, "2"], ...],
+    tangents: tuple[Float[Array, "2"], ...],
+) -> tuple[Float[Array, ""], Float[Array, ""]]:
+    """Plant zero for only the large parameter's resolvable tangent."""
+    x: Float[Array, "2"]
+    x_tangent: Float[Array, "2"]
+    (x,) = primals
+    (x_tangent,) = tangents
+    primal: Float[Array, ""] = _mixed_scale_linear(x)
+    tangent: Float[Array, ""] = 1e-4 * x_tangent[0]
+    result: tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    return result
+
+
 class TestGradientHarness(chex.TestCase):
     """Validate the shared gradient harness and gates 01.G3 and 01.G4.
 
@@ -209,6 +253,81 @@ class TestGradientHarness(chex.TestCase):
                 lambda x: jnp.sum(_near_wrong_sine(x)), theta
             )
 
+    def test_tiny_zeroed_gradient_is_not_hidden_by_fd_atol(self) -> None:
+        """Reject a missing ``1e-7`` derivative beside an order-one loss.
+
+        The central-FD roundoff bound has gradient units
+        ``eps * max(1, abs(loss)) / h``. The historical extra division by
+        ``eps**(1/3)`` inflated this bound to roughly ``6e-6`` and admitted
+        this 100%-wrong tangent.
+
+        Notes
+        -----
+        The test evaluates the planted zero tangent without directional
+        checks. It requires the elementwise finite-difference comparison to
+        raise.
+        """
+        theta: Float[Array, ""] = jnp.asarray(1.0)
+        with pytest.raises(AssertionError):
+            assert_grad_matches_fd(_tiny_linear, theta, modes=())
+
+    def test_mixed_scale_uses_per_parameter_fd_atol(self) -> None:
+        """Reject a tiny defect on a parameter with a large FD step.
+
+        The second parameter's step is one million times the first one's.
+        Its resolvable ``1e-10`` derivative must use its own roundoff floor,
+        not a global tolerance derived from the median step.
+
+        Notes
+        -----
+        The test evaluates a two-coordinate custom tangent. It requires the
+        per-coordinate finite-difference comparison to expose the suppressed
+        second sensitivity.
+        """
+        theta: Float[Array, "2"] = jnp.array([1e-3, 1e3])
+        with pytest.raises(AssertionError):
+            assert_grad_matches_fd(_mixed_scale_linear, theta, modes=())
+
+    def test_fd_atol_tracks_loss_rescaling(self) -> None:
+        """Reject the same missing relative sensitivity after loss rescaling.
+
+        Scale an order-one loss and its derivative equally. The absolute
+        tolerance must retain the defect at each scale.
+
+        Notes
+        -----
+        The test repeats the finite-difference gate at unit and million-fold
+        scales. It requires both comparisons to reject the planted tangent.
+        """
+        theta: Float[Array, ""] = jnp.asarray(1.0)
+        loss_scale: float
+        for loss_scale in (1.0, 1e6):
+            with (
+                self.subTest(loss_scale=loss_scale),
+                pytest.raises(AssertionError),
+            ):
+                assert_grad_matches_fd(
+                    lambda x: loss_scale * _tiny_linear(x),
+                    theta,
+                    modes=(),
+                )
+
+    def test_directional_tolerance_is_independent(self) -> None:
+        """Reject a tiny defect through the randomized directional anchor.
+
+        ``check_grads`` has one scalar perturbation and therefore uses a
+        separately derived directional roundoff tolerance. It must not reuse
+        an elementwise or historically inflated absolute tolerance.
+
+        Notes
+        -----
+        The test enables only forward-mode directional checking. It requires
+        that independent check to reject the planted zero tangent.
+        """
+        theta: Float[Array, ""] = jnp.asarray(1.0)
+        with pytest.raises(AssertionError):
+            assert_grad_matches_fd(_tiny_linear, theta, modes=("fwd",))
+
     def test_planted_zero_gradient(self) -> None:
         """Verify finite-but-zero stopped gradients fail both tripwires.
 
@@ -232,6 +351,37 @@ class TestGradientHarness(chex.TestCase):
         with pytest.raises(AssertionError):
             assert_nonzero_grad(stopped_loss, theta)
 
+    def test_elementwise_tripwire_rejects_masked_zero_coordinate(self) -> None:
+        """Prevent one sensitive coordinate from masking a zero coordinate.
+
+        Leaf-level sensitivity remains the default because structural zeros
+        can be physical. A gate that registers every coordinate must opt in
+        to the elementwise tripwire.
+
+        Notes
+        -----
+        The test first accepts the partially sensitive leaf under the default
+        norm check. It then requires the elementwise mode to identify index
+        one.
+        """
+        theta: Float[Array, "3"] = jnp.asarray((0.4, -0.2, 0.7))
+
+        def partially_sensitive(x: Float[Array, "3"]) -> Float[Array, ""]:
+            """Return a loss independent of the middle coordinate."""
+            result: Float[Array, ""] = x[0] + x[2] ** 2
+            return result
+
+        assert_nonzero_grad(partially_sensitive, theta)
+        with pytest.raises(
+            AssertionError,
+            match=r"coordinate 1 has magnitude 0\.000000e\+00",
+        ):
+            assert_nonzero_grad(
+                partially_sensitive,
+                theta,
+                elementwise=True,
+            )
+
     def test_in_tree_zero_gradient(self) -> None:
         """Verify the known heuristic photon-energy dead gradient is caught.
 
@@ -251,25 +401,123 @@ class TestGradientHarness(chex.TestCase):
                 photon_energy,
             )
 
-    def test_complex_step_derivative(self) -> None:
-        """Verify complex-step sine accuracy and reject modulus-squared.
+    def test_complex_step_matches_directional_truth(self) -> None:
+        """Compare complex step with an analytic directional derivative.
 
-        Complex-step differentiation must retain machine precision for a
-        holomorphic function and reject a non-holomorphic operation.
+        Complex step retains machine precision for a real-on-real holomorphic
+        function. Correctness comes from the independent cosine expression,
+        not from inspecting whether the estimate is nonzero.
 
         Notes
         -----
-        The test compares the holomorphic sine derivative with cosine at relative
-        tolerance 1e-15, then confirms conjugation in ``abs(x)**2`` triggers
-        the zero-imaginary guard (01.G3).
+        The test compares explicit, default, and compiled directions against
+        the cosine derivative. It uses a nonuniform direction to expose
+        accidental scalar treatment.
         """
         x: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
-        derivative: Float[Array, "3"] = complex_step_derivative(jnp.sin, x)
-        chex.assert_trees_all_close(
-            derivative, jnp.cos(x), rtol=1e-15, atol=0.0
+        direction: Float[Array, "3"] = jnp.array([0.5, -2.0, 1.25])
+        derivative: Float[Array, "3"] = complex_step_derivative(
+            jnp.sin,
+            x,
+            direction=direction,
         )
-        with pytest.raises(ValueError, match="non-holomorphic"):
-            complex_step_derivative(lambda value: jnp.abs(value) ** 2, x)
+        chex.assert_trees_all_close(
+            derivative,
+            jnp.cos(x) * direction,
+            rtol=1e-15,
+            atol=0.0,
+        )
+        default_direction: Float[Array, "3"] = complex_step_derivative(
+            jnp.sin,
+            x,
+        )
+        chex.assert_trees_all_close(
+            default_direction,
+            jnp.cos(x),
+            rtol=1e-15,
+            atol=0.0,
+        )
+        compiled: Float[Array, "3"] = jax.jit(
+            lambda value: complex_step_derivative(
+                jnp.sin,
+                value,
+                direction=direction,
+            )
+        )(x)
+        chex.assert_trees_all_close(
+            compiled,
+            jnp.cos(x) * direction,
+            rtol=1e-15,
+            atol=0.0,
+        )
+
+    def test_complex_step_accepts_valid_zero_derivatives(self) -> None:
+        """Keep stationary and constant holomorphic derivatives equal to zero.
+
+        A zero imaginary response is not evidence of non-holomorphy. Constants
+        and ``z**2`` at the origin are explicit counterexamples to the former
+        value-based guard.
+
+        Notes
+        -----
+        The test applies complex step to a constant and a stationary
+        quadratic. It compares both estimates with exact zero arrays.
+        """
+        x: Float[Array, "3"] = jnp.zeros((3,))
+        constant: Float[Array, "3"] = complex_step_derivative(
+            jnp.ones_like,
+            x,
+        )
+        stationary: Float[Array, "3"] = complex_step_derivative(
+            lambda value: value**2,
+            x,
+        )
+        chex.assert_trees_all_equal(constant, jnp.zeros_like(x))
+        chex.assert_trees_all_equal(stationary, jnp.zeros_like(x))
+
+    def test_complex_step_requires_independent_holomorphy_truth(self) -> None:
+        """Expose conjugation through an independent analytic comparison.
+
+        At real inputs complex step returns ``-1`` for conjugation, although
+        the real-direction derivative is ``+1``. A nonzero estimate therefore
+        cannot certify holomorphy.
+
+        Notes
+        -----
+        The test records the misleading conjugation estimate. It then compares
+        that estimate with the independent positive derivative and requires
+        failure.
+        """
+        x: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        estimate: Float[Array, "3"] = complex_step_derivative(jnp.conj, x)
+        chex.assert_trees_all_equal(estimate, -jnp.ones_like(x))
+        with pytest.raises(AssertionError):
+            chex.assert_trees_all_close(
+                estimate,
+                jnp.ones_like(x),
+                rtol=1e-15,
+                atol=0.0,
+            )
+
+    def test_nonholomorphic_maps_use_stacked_real_fd(self) -> None:
+        """Validate a general complex-to-real map with stacked-real differences.
+
+        Modulus-squared is intentionally outside complex-step's domain. The
+        program-wide central-FD gate handles its real and imaginary directions.
+
+        Notes
+        -----
+        The test supplies asymmetric complex values to the shared gradient
+        gate. The gate compares autodiff with separate real and imaginary
+        perturbations.
+        """
+        values: Complex[Array, "3"] = jnp.array(
+            [0.2 + 0.3j, -0.7 + 0.5j, 1.1 - 0.4j]
+        )
+        assert_grad_matches_fd(
+            lambda value: jnp.sum(jnp.abs(value) ** 2),
+            values,
+        )
 
     def test_check_grads_semantics_anchor(self) -> None:
         """Pin JAX check_grads behavior on truth and a planted tangent defect.

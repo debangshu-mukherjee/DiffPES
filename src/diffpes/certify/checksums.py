@@ -1,27 +1,27 @@
-"""Compute non-security consistency checksums for scientific records.
+"""Compute collision-resistant identities for scientific records.
 
 Extended Summary
 ----------------
-Checksums in this module detect accidental disagreement between canonical
-records.  They are ordinary CRC32 bookkeeping values and provide no evidence
-of authorship, authenticity, physical validity, numerical correctness, or
-reproducibility. Certification policy must not treat a checksum as a
-scientific claim.
+Identities in this module use domain-separated SHA-256 over canonical records.
+They provide collision-resistant content addressing, but no evidence of
+authorship, authenticity, physical validity, numerical correctness, or
+reproducibility. Certification policy must not treat a digest as a scientific
+claim.
 
 Every returned string records the algorithm, canonicalization version, record
-kind, and checksum value. The functions process large carrier and file
+kind, and digest value. The functions process large carrier and file
 payloads in bounded chunks.
 
 Routine Listings
 ----------------
 :func:`checksum_bytes`
-    Return a non-security consistency checksum for ``data``.
+    Return a collision-resistant scientific identity for ``data``.
 :func:`checksum_chunks`
-    Compute a consistency checksum over consecutive byte chunks.
+    Compute a scientific identity over consecutive byte chunks.
 :func:`checksum_file`
-    Stream exact file bytes into a consistency checksum.
+    Stream exact file bytes into a scientific identity.
 :func:`checksum_pytree`
-    Stream a canonical carrier into a consistency checksum.
+    Stream a canonical carrier into a scientific identity.
 :func:`parse_checksum`
     Parse and validate one checksum string.
 :func:`artifact_ref`
@@ -34,8 +34,8 @@ Routine Listings
 
 from __future__ import annotations
 
+import hashlib
 import re
-import zlib
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -68,11 +68,26 @@ def _validate_record_kind(record_kind: str) -> None:
         raise ValueError(msg)
 
 
-def _format_checksum(value: int, *, record_kind: str) -> str:
-    """Format a CRC32 value with its bookkeeping context."""
+def _identity_prefix(record_kind: str) -> bytes:
+    """Return the domain-separated preimage prefix for one record kind."""
+    schema_id: str = f"org.diffpes.identity.{record_kind}.v1"
+    prefix: bytes = (
+        b"DIFFPES-SCIENTIFIC-IDENTITY\x00"
+        + CHECKSUM_ALGORITHM.encode("ascii")
+        + b"\x00"
+        + CANONICAL_PYTREE_VERSION.encode("ascii")
+        + b"\x00"
+        + schema_id.encode("ascii")
+        + b"\x00"
+    )
+    return prefix
+
+
+def _format_checksum(value: str, *, record_kind: str) -> str:
+    """Format a SHA-256 digest with its identity context."""
     checksum: str = (
-        f"{CHECKSUM_ALGORITHM}:canonical-{CANONICAL_PYTREE_VERSION}:"
-        f"{record_kind}:{value & 0xFFFFFFFF:08x}"
+        f"{CHECKSUM_ALGORITHM}:{CANONICAL_PYTREE_VERSION}:"
+        f"{record_kind}:{value}"
     )
     return checksum
 
@@ -83,10 +98,10 @@ def checksum_chunks(
     *,
     record_kind: str,
 ) -> str:
-    """Compute a consistency checksum over consecutive byte chunks.
+    """Compute a scientific identity over consecutive byte chunks.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestChecksumChunks`
 
@@ -95,7 +110,9 @@ def checksum_chunks(
     --------------------
     1. **Bind the documented output**::
 
-           checksum: str = _format_checksum(value, record_kind=record_kind)
+           checksum: str = _format_checksum(
+               digest.hexdigest(), record_kind=record_kind
+           )
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -110,23 +127,27 @@ def checksum_chunks(
     Returns
     -------
     checksum : str
-        Versioned, typed CRC32 consistency checksum.
+        Versioned, typed SHA-256 scientific identity.
     """
     chunk: Any
     _validate_record_kind(record_kind)
-    value: int = 0
+    digest: Any = hashlib.sha256()
+    digest.update(_identity_prefix(record_kind))
     for chunk in chunks:
-        value = zlib.crc32(chunk, value)
-    checksum: str = _format_checksum(value, record_kind=record_kind)
+        digest.update(chunk)
+    checksum: str = _format_checksum(
+        digest.hexdigest(),
+        record_kind=record_kind,
+    )
     return checksum
 
 
 @jaxtyped(typechecker=beartype)
 def checksum_bytes(data: bytes, *, record_kind: str) -> str:
-    """Return a non-security consistency checksum for ``data``.
+    """Return a collision-resistant scientific identity for ``data``.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestChecksumBytes`
 
@@ -150,7 +171,7 @@ def checksum_bytes(data: bytes, *, record_kind: str) -> str:
     Returns
     -------
     checksum : str
-        Typed CRC32 bookkeeping value.
+        Typed SHA-256 scientific identity.
     """
     checksum: str = checksum_chunks((data,), record_kind=record_kind)
     return checksum
@@ -158,10 +179,10 @@ def checksum_bytes(data: bytes, *, record_kind: str) -> str:
 
 @jaxtyped(typechecker=beartype)
 def checksum_pytree(tree: object, *, record_kind: str) -> str:
-    """Stream a canonical carrier into a consistency checksum.
+    """Stream a canonical carrier into a scientific identity.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestChecksumPytree`
 
@@ -185,7 +206,7 @@ def checksum_pytree(tree: object, *, record_kind: str) -> str:
     Returns
     -------
     checksum : str
-        Typed CRC32 bookkeeping value.
+        Typed SHA-256 scientific identity.
     """
     chunks: Iterable[bytes | memoryview] = iter_canonical_pytree_chunks(tree)
     checksum: str = checksum_chunks(chunks, record_kind=record_kind)
@@ -194,10 +215,10 @@ def checksum_pytree(tree: object, *, record_kind: str) -> str:
 
 @jaxtyped(typechecker=beartype)
 def checksum_file(path: str | Path, *, record_kind: str) -> str:
-    """Stream exact file bytes into a consistency checksum.
+    """Stream exact file bytes into a scientific identity.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestChecksumFile`
 
@@ -221,7 +242,7 @@ def checksum_file(path: str | Path, *, record_kind: str) -> str:
     Returns
     -------
     checksum : str
-        Typed CRC32 bookkeeping value.
+        Typed SHA-256 scientific identity.
     """
     source: Path = Path(path)
 
@@ -240,8 +261,9 @@ def checksum_file(path: str | Path, *, record_kind: str) -> str:
 def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
     """Parse and validate one checksum string.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Legacy CRC32 strings are rejected. Domain-separated SHA-256 supplies
+    collision-resistant content addressing, not authentication or scientific
+    evidence.
 
     :see: :class:`~.test_checksums.TestParseChecksum`
 
@@ -278,7 +300,7 @@ def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
     """
     match: re.Match[str] | None = CHECKSUM_PATTERN.fullmatch(checksum)
     if match is None:
-        msg: str = "invalid DiffPES consistency-checksum format"
+        msg: str = "invalid DiffPES scientific-identity format"
         raise ValueError(msg)
     parsed: tuple[str, str, str, str] = (
         CHECKSUM_ALGORITHM,
@@ -296,8 +318,8 @@ def semantic_checksum(
 ) -> str:
     """Identify content together with its declared scientific meaning.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestSemanticChecksum`
 
@@ -322,7 +344,7 @@ def semantic_checksum(
     Returns
     -------
     checksum : str
-        Non-security semantic consistency checksum.
+        Collision-resistant semantic identity.
     """
     payload: tuple[str, object, object] = (
         "org.diffpes.semantic-record.v1",
@@ -337,8 +359,8 @@ def semantic_checksum(
 def result_checksum(value: object, numerical: object) -> str:
     """Identify a result under a declared numerical configuration.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestResultChecksum`
 
@@ -363,7 +385,7 @@ def result_checksum(value: object, numerical: object) -> str:
     Returns
     -------
     checksum : str
-        Non-security result consistency checksum.
+        Collision-resistant result identity.
     """
     payload: tuple[str, object, object] = (
         "org.diffpes.result-record.v1",
@@ -386,8 +408,8 @@ def artifact_ref(
 ) -> ArtifactRef:
     """Build separate byte, normalized-content, and semantic identities.
 
-    The CRC32 value detects accidental disagreement in canonical scientific
-    records. It is bookkeeping evidence, not cryptographic authentication.
+    Domain-separated SHA-256 supplies collision-resistant content addressing.
+    It is not authentication or scientific evidence.
 
     :see: :class:`~.test_checksums.TestArtifactRef`
 
@@ -430,7 +452,7 @@ def artifact_ref(
     -------
     reference : ArtifactRef
         Immutable certification carrier with three deliberately separate
-        consistency checksums.
+        scientific identities.
     """
     source: Path = Path(path)
     byte_value: str = checksum_file(source, record_kind="artifact-bytes")

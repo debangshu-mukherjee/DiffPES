@@ -17,7 +17,9 @@ Routine Listings
 Notes
 -----
 The factory removes the norm of the polarization vector. This operation fixes
-the intensity-scale gauge at the experiment boundary.
+the intensity-scale gauge at the experiment boundary. It also verifies that
+the declared electric field is transverse to the photon propagation direction
+defined by the incidence angles.
 """
 
 import equinox as eqx
@@ -28,6 +30,7 @@ from jaxtyping import Array, Complex, Float, jaxtyped
 from .aliases import ScalarFloat
 
 _SLIT_ORIENTATIONS: tuple[str, ...] = ("H", "V")
+_TRANSVERSALITY_ATOL: float = 1.0e-10
 
 
 class ExperimentGeometry(eqx.Module):
@@ -44,7 +47,9 @@ class ExperimentGeometry(eqx.Module):
     photon_energy_ev : Float[Array, ""]
         Photon energy in eV.
     polarization : Complex[Array, "3"]
-        Unit polarization vector in the laboratory frame.
+        Unit polarization vector in the laboratory frame, transverse to the
+        photon direction declared by ``incidence_theta`` and
+        ``incidence_phi``.
     incidence_theta : Float[Array, ""]
         Incidence angle from the surface normal in radians.
     incidence_phi : Float[Array, ""]
@@ -56,7 +61,7 @@ class ExperimentGeometry(eqx.Module):
     inner_potential_ev : Float[Array, ""]
         Inner potential in eV.
     temperature_k : Float[Array, ""]
-        Sample temperature in kelvin.
+        Strictly positive sample temperature in kelvin.
     energy_resolution_ev : Float[Array, ""]
         Full width at half maximum of the energy resolution in eV.
     momentum_resolution_inv_ang : Float[Array, ""]
@@ -71,7 +76,15 @@ class ExperimentGeometry(eqx.Module):
     Notes
     -----
     The traced fields support calibration and geometry inversion. The
-    normalized polarization removes its intensity-scale gauge.
+    normalized polarization removes its intensity-scale gauge. The carrier
+    represents a propagating electromagnetic field, so its polarization is
+    transverse to the incidence direction.
+
+    Treat polarization and incidence angles as constrained coordinates during
+    inversion. Build transverse fields from two Jones coefficients at each
+    incidence direction, or project updates onto that tangent space.
+    Independent PyTree updates can leave the physical manifold and bypass
+    factory validation.
 
     See Also
     --------
@@ -111,7 +124,8 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
     """Create a validated geometry for an ARPES experiment.
 
     The factory converts all numerical inputs to JAX arrays. It then fixes the
-    intensity-scale gauge by normalizing the complex polarization vector.
+    intensity-scale gauge by normalizing the complex polarization vector and
+    checks that it is transverse to the declared photon direction.
 
     :see: :class:`~.test_experiment.TestMakeExperimentGeometry`
 
@@ -129,11 +143,13 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
 
        The runtime checks remain active during compiled execution.
 
-    3. **Normalize the polarization**::
+    3. **Normalize and validate the polarization**::
 
            normalized_polarization = checked_polarization / safe_norm
 
-       The safe denominator keeps the invalid zero-norm branch finite.
+       The safe denominator keeps the invalid zero-norm branch finite. The
+       normalized field must obey ``abs(k_hat dot epsilon) <= 1e-10`` with
+       ``k_hat`` derived from the incidence angles.
 
     4. **Return the named carrier**::
 
@@ -146,7 +162,9 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
     photon_energy_ev : ScalarFloat
         Photon energy in eV.
     polarization : Complex[Array, "3"]
-        Nonzero complex polarization vector in the laboratory frame.
+        Nonzero complex polarization vector in the laboratory frame. It must
+        be transverse to the photon direction declared by the incidence
+        angles.
     incidence_theta : ScalarFloat, optional
         Incidence angle from the surface normal in radians. Default is 0.0.
     incidence_phi : ScalarFloat, optional
@@ -158,7 +176,7 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
     inner_potential_ev : ScalarFloat, optional
         Inner potential in eV. Default is 10.0.
     temperature_k : ScalarFloat, optional
-        Sample temperature in kelvin. Default is 10.0.
+        Strictly positive sample temperature in kelvin. Default is 10.0.
     energy_resolution_ev : ScalarFloat, optional
         Energy-resolution width in eV. Default is 0.02.
     momentum_resolution_inv_ang : ScalarFloat, optional
@@ -180,12 +198,17 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         If ``slit`` is not ``"H"`` or ``"V"``.
     EquinoxRuntimeError
         If an input is non-finite or violates its physical range. The factory
-        also rejects a zero polarization vector.
+        also rejects a zero or non-transverse polarization vector.
 
     Notes
     -----
     The normalization is differentiable for every accepted polarization.
     The factory assigns no derivative at the rejected zero vector.
+    The finite-temperature Fermi-Dirac model requires positive temperature.
+    The carrier defines no separate static zero-temperature branch.
+    The factory validates values, not later arbitrary PyTree mutations.
+    Inversion code must rebuild polarization from a transverse basis when it
+    changes incidence angles.
     """
     if slit not in _SLIT_ORIENTATIONS:
         message: str = "slit must be 'H' or 'V'"
@@ -254,6 +277,23 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         theta, ~jnp.isfinite(theta), "incidence_theta must be finite"
     )
     phi = eqx.error_if(phi, ~jnp.isfinite(phi), "incidence_phi must be finite")
+    safe_theta: Float[Array, ""] = jnp.where(jnp.isfinite(theta), theta, 0.0)
+    safe_phi: Float[Array, ""] = jnp.where(jnp.isfinite(phi), phi, 0.0)
+    photon_direction: Float[Array, "3"] = -jnp.stack(
+        (
+            jnp.sin(safe_theta) * jnp.cos(safe_phi),
+            jnp.sin(safe_theta) * jnp.sin(safe_phi),
+            jnp.cos(safe_theta),
+        )
+    )
+    longitudinal_amplitude: Complex[Array, ""] = jnp.sum(
+        photon_direction * normalized_polarization
+    )
+    normalized_polarization = eqx.error_if(
+        normalized_polarization,
+        jnp.abs(longitudinal_amplitude) > _TRANSVERSALITY_ATOL,
+        "polarization must be transverse to the photon incidence direction",
+    )
     azimuth = eqx.error_if(
         azimuth, ~jnp.isfinite(azimuth), "sample_azimuth must be finite"
     )
@@ -271,8 +311,8 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
     )
     temperature = eqx.error_if(
         temperature,
-        ~jnp.isfinite(temperature) | (temperature < 0.0),
-        "temperature_k must be finite and nonnegative",
+        ~jnp.isfinite(temperature) | (temperature <= 0.0),
+        "temperature_k must be finite and positive",
     )
     energy_resolution = eqx.error_if(
         energy_resolution,

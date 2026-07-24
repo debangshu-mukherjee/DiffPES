@@ -33,6 +33,8 @@ Routine Listings
     Store a static declaration of one model-domain predicate.
 :class:`DomainResult`
     Store the traced evaluation of one declared domain predicate.
+:class:`EvidenceLineage`
+    Store named implementation, generator, artifact, and derivation ancestry.
 :class:`EvidenceRef`
     Store numerical evidence with static method and source identity.
 :class:`EvidenceReport`
@@ -43,6 +45,8 @@ Routine Listings
     Store the complete assurance record for one forward execution.
 :class:`ForwardModelSpec`
     Store the identity of a differentiable forward model.
+:class:`HumanAttestationRef`
+    Record a human review separately from computational evidence.
 :class:`InformationSpectrum`
     Store a matrix-free information spectrum in input coordinates.
 :class:`PolicyReport`
@@ -89,6 +93,8 @@ Routine Listings
     Create a validated domain-predicate declaration.
 :func:`make_domain_result`
     Create one traced domain evaluation.
+:func:`make_evidence_lineage`
+    Create named evidence lineage without asserting independence.
 :func:`make_evidence_ref`
     Create validated vector-valued numerical evidence.
 :func:`make_evidence_report`
@@ -99,6 +105,8 @@ Routine Listings
     Create and cross-validate a complete forward certificate.
 :func:`make_forward_model_spec`
     Create a validated stable forward-model specification.
+:func:`make_human_attestation_ref`
+    Create a named human-review record.
 :func:`make_information_spectrum`
     Create a validated local information spectrum.
 :func:`make_policy_report`
@@ -563,6 +571,66 @@ class TransformationRecord(eqx.Module):
     parameters_checksum: str = eqx.field(static=True)
 
 
+class EvidenceLineage(eqx.Module):
+    """Store named implementation, generator, artifact & derivation ancestry.
+
+    The record contains identifiers only. Policy derives independence relative
+    to an implementation under test; no field stores a trusted Boolean.
+
+    :see: :class:`~.test_certification.TestEvidenceLineage`
+
+    Attributes
+    ----------
+    implementation_refs : tuple[str, ...]
+        Implementations that produced or contributed to the evidence.
+    generator_refs : tuple[str, ...]
+        Named generators or execution recipes.
+    artifact_refs : tuple[str, ...]
+        Referenced immutable artifacts.
+    derivation_refs : tuple[str, ...]
+        Named analytic or numerical derivations.
+    conflict_refs : tuple[str, ...]
+        Known conflicts requiring an explicit resolution relationship.
+    relationship_ids : tuple[str, ...]
+        Typed lineage relationships.
+    """
+
+    implementation_refs: tuple[str, ...] = eqx.field(static=True)
+    generator_refs: tuple[str, ...] = eqx.field(static=True)
+    artifact_refs: tuple[str, ...] = eqx.field(static=True)
+    derivation_refs: tuple[str, ...] = eqx.field(static=True)
+    conflict_refs: tuple[str, ...] = eqx.field(static=True)
+    relationship_ids: tuple[str, ...] = eqx.field(static=True)
+
+
+class HumanAttestationRef(eqx.Module):
+    """Record a human review separately from computational evidence.
+
+    Keep review identity and scope outside computational lineage authority.
+
+    :see: :class:`~.test_certification.TestHumanAttestationRef`
+
+    Attributes
+    ----------
+    attestation_id : str
+        Stable attestation identifier.
+    reviewer_ref : str
+        Named reviewer identity.
+    scope_ids : tuple[str, ...]
+        Evidence or lineage identifiers reviewed.
+    statement : str
+        Review statement.
+    recorded_at_utc : str
+        Absolute UTC record time.
+    """
+
+    attestation_id: str = eqx.field(static=True)
+    reviewer_ref: str = eqx.field(static=True)
+    scope_ids: tuple[str, ...] = eqx.field(static=True)
+    statement: str = eqx.field(static=True)
+    recorded_at_utc: str = eqx.field(static=True)
+
+
 class EvidenceRef(eqx.Module):
     """Store numerical evidence with static method and source identity.
 
@@ -579,15 +647,13 @@ class EvidenceRef(eqx.Module):
     method_id : str
         Method id (**static** -- a compile-time constant; changing it
         triggers retracing).
-    artifact_refs : tuple[str, ...]
-        Artifact refs (**static** -- a compile-time constant; changing
-        it triggers retracing).
     source_type : str
         Source type (**static** -- a compile-time constant; changing it
         triggers retracing).
-    independent : bool
-        Independent (**static** -- a compile-time constant; changing it
-        triggers retracing).
+    lineage : EvidenceLineage
+        Named computational and derivation ancestry.
+    human_attestation_refs : tuple[str, ...]
+        Separate human-review references. These never establish independence.
     measured : Float[Array, " n_measure"]
         Measured retained as a differentiable JAX leaf in the declared
         physical units.
@@ -604,9 +670,9 @@ class EvidenceRef(eqx.Module):
 
     evidence_id: str = eqx.field(static=True)
     method_id: str = eqx.field(static=True)
-    artifact_refs: tuple[str, ...] = eqx.field(static=True)
     source_type: str = eqx.field(static=True)
-    independent: bool = eqx.field(static=True)
+    lineage: EvidenceLineage
+    human_attestation_refs: tuple[str, ...] = eqx.field(static=True)
     measured: Float[Array, " n_measure"]
     reference: Float[Array, " n_measure"]
     residual: Float[Array, " n_measure"]
@@ -978,6 +1044,8 @@ class CertificationContext(eqx.Module):
     evidence : tuple[EvidenceRef, ...]
         Evidence retained as a differentiable JAX leaf in the declared
         physical units.
+    attestations : tuple[HumanAttestationRef, ...]
+        Human-review records kept separate from numerical evidence.
     policy_id : str
         Policy id (**static** -- a compile-time constant; changing it
         triggers retracing).
@@ -996,6 +1064,7 @@ class CertificationContext(eqx.Module):
     artifacts: tuple[ArtifactRef, ...]
     transformations: tuple[TransformationRecord, ...]
     evidence: tuple[EvidenceRef, ...]
+    attestations: tuple[HumanAttestationRef, ...]
     policy_id: str = eqx.field(static=True)
     check_ids: tuple[str, ...] = eqx.field(static=True)
     input_checksums: tuple[str, ...] = eqx.field(static=True)
@@ -1027,6 +1096,8 @@ class ForwardCertificate(eqx.Module):
     evidence : tuple[EvidenceRef, ...]
         Evidence retained as a differentiable JAX leaf in the declared
         physical units.
+    attestations : tuple[HumanAttestationRef, ...]
+        Human-review records kept separate from numerical evidence.
     claims : tuple[CertificationClaim, ...]
         Claims retained as a differentiable JAX leaf in the declared
         physical units.
@@ -1066,6 +1137,7 @@ class ForwardCertificate(eqx.Module):
     artifacts: tuple[ArtifactRef, ...]
     transformations: tuple[TransformationRecord, ...]
     evidence: tuple[EvidenceRef, ...]
+    attestations: tuple[HumanAttestationRef, ...]
     claims: tuple[CertificationClaim, ...]
     domains: tuple[DomainResult, ...]
     derivatives: DerivativeEvidence
@@ -2001,16 +2073,123 @@ def make_transformation_record(
 
 
 @jaxtyped(typechecker=beartype)
+def make_evidence_lineage(
+    implementation_refs: tuple[str, ...] = (),
+    generator_refs: tuple[str, ...] = (),
+    artifact_refs: tuple[str, ...] = (),
+    derivation_refs: tuple[str, ...] = (),
+    conflict_refs: tuple[str, ...] = (),
+    relationship_ids: tuple[str, ...] = (),
+) -> EvidenceLineage:
+    """Create named evidence lineage without asserting independence.
+
+    Validate each named lineage category as static identifier tuples.
+
+    :see: :class:`~.test_certification.TestMakeEvidenceLineage`
+
+    Parameters
+    ----------
+    implementation_refs : tuple[str, ...]
+        Contributing implementation identifiers.
+    generator_refs : tuple[str, ...]
+        Generator or execution-recipe identifiers.
+    artifact_refs : tuple[str, ...]
+        Immutable artifact identifiers.
+    derivation_refs : tuple[str, ...]
+        Analytic or numerical derivation identifiers.
+    conflict_refs : tuple[str, ...]
+        Known conflict identifiers.
+    relationship_ids : tuple[str, ...]
+        Typed relationships such as ``derived-from:<identifier>``.
+
+    Returns
+    -------
+    result : EvidenceLineage
+        Validated static lineage record.
+
+    Notes
+    -----
+    Empty categories remain explicit and fail policies that require complete
+    independent lineage.
+    """
+    result: EvidenceLineage = EvidenceLineage(
+        implementation_refs=_text_tuple(
+            implementation_refs, "implementation_refs"
+        ),
+        generator_refs=_text_tuple(generator_refs, "generator_refs"),
+        artifact_refs=_text_tuple(artifact_refs, "artifact_refs"),
+        derivation_refs=_text_tuple(derivation_refs, "derivation_refs"),
+        conflict_refs=_text_tuple(conflict_refs, "conflict_refs"),
+        relationship_ids=_text_tuple(relationship_ids, "relationship_ids"),
+    )
+    return result
+
+
+@jaxtyped(typechecker=beartype)
+def make_human_attestation_ref(
+    attestation_id: str,
+    reviewer_ref: str,
+    scope_ids: tuple[str, ...],
+    statement: str,
+    recorded_at_utc: str,
+) -> HumanAttestationRef:
+    """Create a named human-review record.
+
+    Validate review identity and scope without changing evidence authority.
+
+    :see: :class:`~.test_certification.TestMakeHumanAttestationRef`
+
+    Parameters
+    ----------
+    attestation_id : str
+        Stable attestation identifier.
+    reviewer_ref : str
+        Named reviewer identity.
+    scope_ids : tuple[str, ...]
+        Evidence or lineage identifiers reviewed.
+    statement : str
+        Review statement.
+    recorded_at_utc : str
+        Absolute UTC record time.
+
+    Returns
+    -------
+    result : HumanAttestationRef
+        Validated static attestation record.
+
+    Raises
+    ------
+    ValueError
+        If the review scope is empty.
+
+    Notes
+    -----
+    Policy evaluates this record separately from computational lineage.
+    """
+    if not scope_ids:
+        raise ValueError("scope_ids must be non-empty")
+    result: HumanAttestationRef = HumanAttestationRef(
+        attestation_id=_require_text(attestation_id, "attestation_id"),
+        reviewer_ref=_require_text(reviewer_ref, "reviewer_ref"),
+        scope_ids=_text_tuple(scope_ids, "scope_ids"),
+        statement=_require_text(statement, "statement"),
+        recorded_at_utc=_require_text(recorded_at_utc, "recorded_at_utc"),
+    )
+    return result
+
+
+@jaxtyped(typechecker=beartype)
 def make_evidence_ref(
     evidence_id: str,
     method_id: str,
-    artifact_refs: tuple[str, ...],
     source_type: str,
-    independent: bool,
     measured: Any,
     reference: Any,
     residual: Any,
     tolerance: Any,
+    *,
+    lineage: EvidenceLineage | None = None,
+    human_attestation_refs: tuple[str, ...] = (),
 ) -> EvidenceRef:
     """Create validated vector-valued numerical evidence.
 
@@ -2027,15 +2206,8 @@ def make_evidence_ref(
     method_id : str
         Method id used to construct the validated carrier (**static**
         -- a compile-time constant; changing it triggers retracing).
-    artifact_refs : tuple[str, ...]
-        Artifact refs used to construct the validated carrier
-        (**static** -- a compile-time constant; changing it triggers
-        retracing).
     source_type : str
         Source type used to construct the validated carrier (**static**
-        -- a compile-time constant; changing it triggers retracing).
-    independent : bool
-        Independent used to construct the validated carrier (**static**
         -- a compile-time constant; changing it triggers retracing).
     measured : Any
         Measured used to construct the validated carrier as a traced
@@ -2049,6 +2221,11 @@ def make_evidence_ref(
     tolerance : Any
         Tolerance used to construct the validated carrier as a traced
         numerical value in the declared physical units.
+    lineage : EvidenceLineage | None, optional
+        Named ancestry. An omitted value creates explicitly incomplete
+        lineage and cannot satisfy publication or parity policy.
+    human_attestation_refs : tuple[str, ...]
+        Separate human-review references.
 
     Returns
     -------
@@ -2084,9 +2261,11 @@ def make_evidence_ref(
     result: EvidenceRef = EvidenceRef(
         evidence_id=_require_text(evidence_id, "evidence_id"),
         method_id=_require_text(method_id, "method_id"),
-        artifact_refs=_text_tuple(artifact_refs, "artifact_refs"),
         source_type=_require_text(source_type, "source_type"),
-        independent=independent,
+        lineage=(make_evidence_lineage() if lineage is None else lineage),
+        human_attestation_refs=_text_tuple(
+            human_attestation_refs, "human_attestation_refs"
+        ),
         measured=measured_array,
         reference=reference_array,
         residual=residual_array,
@@ -2756,6 +2935,7 @@ def make_certification_context(
     check_ids: tuple[str, ...] = (),
     input_checksums: tuple[str, ...] = (),
     waivers: tuple[WaiverRecord, ...] = (),
+    attestations: tuple[HumanAttestationRef, ...] = (),
 ) -> CertificationContext:
     """Create a prepared certification context.
 
@@ -2794,6 +2974,8 @@ def make_certification_context(
         retracing).
     waivers : tuple[WaiverRecord, ...]
         Policy-waiver records. Default is an empty tuple.
+    attestations : tuple[HumanAttestationRef, ...]
+        Human-review records kept separate from evidence.
 
     Returns
     -------
@@ -2821,6 +3003,7 @@ def make_certification_context(
         artifacts=tuple(artifacts),
         transformations=tuple(transformations),
         evidence=tuple(evidence),
+        attestations=tuple(attestations),
         policy_id=_require_text(policy_id, "policy_id"),
         check_ids=_text_tuple(check_ids, "check_ids"),
         input_checksums=_text_tuple(input_checksums, "input_checksums"),
@@ -2856,6 +3039,7 @@ def make_forward_certificate(  # noqa: PLR0913
     certificate_checksum: str,
     extensions_json: str = "{}",
     waivers: tuple[WaiverRecord, ...] = (),
+    attestations: tuple[HumanAttestationRef, ...] = (),
 ) -> ForwardCertificate:
     """Create and cross-validate a complete forward certificate.
 
@@ -2916,6 +3100,8 @@ def make_forward_certificate(  # noqa: PLR0913
         retracing).
     waivers : tuple[WaiverRecord, ...]
         Policy-waiver records. Default is an empty tuple.
+    attestations : tuple[HumanAttestationRef, ...]
+        Human-review records kept separate from evidence.
 
     Returns
     -------
@@ -2945,6 +3131,20 @@ def make_forward_certificate(  # noqa: PLR0913
         raise ValueError(
             "dependency model_id does not match model specification"
         )
+    attestation_ids: frozenset[str] = frozenset(
+        item.attestation_id for item in attestations
+    )
+    unresolved_attestations: tuple[str, ...] = tuple(
+        reference
+        for item in evidence
+        for reference in item.human_attestation_refs
+        if reference not in attestation_ids
+    )
+    if unresolved_attestations:
+        raise ValueError(
+            "evidence references missing human attestations: "
+            + ", ".join(unresolved_attestations)
+        )
     identity_groups: tuple[tuple[tuple[Any, ...], str], ...] = (
         (artifacts, "artifact_id"),
         (transformations, "transformation_id"),
@@ -2952,6 +3152,7 @@ def make_forward_certificate(  # noqa: PLR0913
         (claims, "claim_id"),
         (domains, "predicate_id"),
         (waivers, "waiver_id"),
+        (attestations, "attestation_id"),
     )
     for values, attribute in identity_groups:
         if not _unique_module_ids(values, attribute):
@@ -2962,6 +3163,7 @@ def make_forward_certificate(  # noqa: PLR0913
         artifacts=tuple(artifacts),
         transformations=tuple(transformations),
         evidence=tuple(evidence),
+        attestations=tuple(attestations),
         claims=tuple(claims),
         domains=tuple(domains),
         derivatives=derivatives,
@@ -3397,12 +3599,14 @@ __all__: list[str] = [
     "DerivativeEvidence",
     "DomainPredicate",
     "DomainResult",
+    "EvidenceLineage",
     "EvidenceRef",
     "EvidenceReport",
     "ExecutionManifest",
     "ForwardCertificate",
     "ForwardModelSpec",
     "HandshakeReport",
+    "HumanAttestationRef",
     "InformationSpectrum",
     "PolicyReport",
     "RegisteredModel",
@@ -3425,12 +3629,14 @@ __all__: list[str] = [
     "make_derivative_evidence",
     "make_domain_predicate",
     "make_domain_result",
+    "make_evidence_lineage",
     "make_evidence_ref",
     "make_evidence_report",
     "make_execution_manifest",
     "make_forward_certificate",
     "make_forward_model_spec",
     "make_handshake_report",
+    "make_human_attestation_ref",
     "make_information_spectrum",
     "make_policy_report",
     "make_registered_model",

@@ -19,6 +19,8 @@ polarization = polarization_from_angles(0.75, 0.1, "p")
 experiment = make_experiment_geometry(
     photon_energy_ev=50.0,
     polarization=polarization,
+    incidence_theta=0.75,
+    incidence_phi=0.1,
     sample_azimuth=0.05,
     work_function_ev=4.5,
     inner_potential_ev=12.0,
@@ -26,7 +28,8 @@ experiment = make_experiment_geometry(
 )
 ```
 
-The factory normalizes the polarization vector. This operation removes its
+The factory normalizes the polarization vector and verifies that it is
+transverse to the declared photon direction. This operation removes its
 intensity-scale gauge. The factory rejects invalid inputs during eager and
 compiled execution.
 
@@ -65,10 +68,16 @@ instead of returning an uncertified mask. The mesh builder also rejects a basis 
 reciprocal-vector inequalities cannot prove that its fixed fractional cube
 contains the complete first zone. Use a reduced basis in that case.
 
+The hard Boolean membership mask has no boundary derivative. Holding its
+current values fixed does not define a lattice-shape derivative for a
+mask-weighted observable. Lattice-shape inference therefore requires either a
+preregistered fixed mask or a separate smooth shape-derivative scheme.
+
 Two builders create ARPES rasters:
 
 - {func}`~diffpes.tightb.build_arpes_kmesh` creates a fixed-$k_z$ map.
-- {func}`~diffpes.tightb.build_kmesh_hv` creates a $(k_\parallel,h\nu)$ map.
+- {func}`~diffpes.tightb.build_kmesh_hv_at_fermi` creates an explicitly
+  at-Fermi $(k_\parallel,h\nu)$ parity map.
 
 Both builders rotate laboratory momentum into the sample frame. Their
 {class}`~diffpes.types.KGrid` outputs retain static raster shapes.
@@ -78,12 +87,12 @@ Both builders rotate laboratory momentum into the sample frame. Their
 The three-step model gives the vacuum kinetic energy:
 
 $$
-E_{\mathrm{kin}}=h\nu-W-|E_B|.
+E_{\mathrm{kin}}=h\nu-W+\omega,\qquad \omega=E-E_F.
 $$
 
-{func}`~diffpes.simul.kinetic_energy_ev` applies a named validity floor of
-`0.01 eV`. Values above this floor keep their exact derivatives. Values below
-it receive a zero selected derivative.
+{func}`~diffpes.simul.kinetic_energy_ev` returns this signed raw energy and
+the explicit mask `Ekin > 0`. It never replaces forbidden emission with a
+positive energy.
 
 The final-state magnitude is
 
@@ -92,21 +101,26 @@ k_f=\sqrt{\frac{E_{\mathrm{kin}}}
 {\hbar^2/(2m_e)}}.
 $$
 
-{func}`~diffpes.simul.final_state_k_inv_ang` evaluates this expression in
-inverse Angstrom. Diffpes uses
+{func}`~diffpes.simul.final_state_k_inv_ang` returns this expression and its
+validity mask. Forbidden inputs receive a zero sentinel and false mask.
+DiffPES uses
 $\hbar^2/(2m_e)=3.8099821\,\mathrm{eV\,\mathring{A}^2}$.
 
 The free-electron inner-potential model gives
 
 $$
-k_z=\sqrt{\frac{(h\nu-W)-
+k_z(\omega)=\sqrt{\frac{(h\nu-W+\omega)-
 (\hbar^2/2m_e)k_\parallel^2+V_0}
 {\hbar^2/(2m_e)}}.
 $$
 
 {func}`~diffpes.simul.kz_from_inner_potential` returns complex $k_z$ and a
-propagating-channel mask. A negative radicand produces an evanescent channel.
-The function does not replace that channel with a real value.
+propagating-channel mask for an explicit $\omega$. A negative radicand
+produces an evanescent channel. Forbidden surface emission returns a zero
+sentinel and false mask, including when $k_\parallel^2$ exceeds the vacuum
+aperture $(2m_e/\hbar^2)E_{\rm kin}$. The separately named
+{func}`~diffpes.simul.kz_from_inner_potential_at_fermi` is only the
+$\omega=0$ parity approximation.
 
 For a propagating channel,
 
@@ -151,9 +165,15 @@ returns a guarded value there, but derivative tests exclude that point.
 linear polarization. It returns the complex Cartesian amplitude without an
 intensity reduction.
 
-{func}`~diffpes.simul.rotate_polarization_grid` applies the detector frame to
-each complex vector. {func}`~diffpes.simul.rotate_frame_vectors` applies the
-same operation to real vectors, including future spin axes.
+{func}`~diffpes.simul.sample_azimuth_rotation` constructs the active
+sample-to-laboratory orientation.
+{func}`~diffpes.simul.lab_polarization_to_sample` applies its inverse to the
+fixed laboratory photon field. No detector angle enters this transformation,
+so the sample-frame polarization is identical at every detector pixel.
+
+{func}`~diffpes.simul.rotate_frame_vectors` has a different role: it maps
+detector-fixed real axes, such as analyzer spin axes, through the composed
+detector and inverse-sample orientations.
 
 The spherical components use order $(q=-1,0,+1)$:
 
@@ -191,6 +211,7 @@ def scan(parameters):
             energy,
             work_function,
             v0,
+            jnp.asarray(0.0),
             k_parallel,
         )
     )(energies)
@@ -200,10 +221,10 @@ parameters = jnp.concatenate((jnp.array([12.0, 4.5]), photon_energy))
 jacobian = jax.jacfwd(scan)(parameters)
 ```
 
-The work function also shifts the kinetic-energy reference. A simultaneous
-Fermi-level offset can compensate that role. This direction is the
-$W\leftrightarrow E_F$ gauge. A photon-energy scan adds separate $k_z$
-information and can reduce the gauge.
+The work function and Fermi-relative energy enter only as
+$h\nu-W+\omega$, so $J_W=-J_\omega$ exactly. A photon-energy scan does not
+lift this gauge without an external energy or work-function reference. It can
+still constrain $V_0$ through the $k_z$ dispersion.
 
 See [Geometry and kinematics](../tutorials/geometry-and-kinematics.md) for a
 complete executable example.

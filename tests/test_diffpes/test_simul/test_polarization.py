@@ -19,21 +19,24 @@ import pytest
 from beartype.typing import Any, Callable
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Array
+from jaxtyping import Array, Complex, Float
 
 import diffpes
+from diffpes.maths import rodrigues_rotation
 from diffpes.simul import (
     build_efield,
     build_polarization_vectors,
     detector_angles_to_kpar,
+    detector_axis_to_sample,
     detector_rotation,
     dipole_matrix_elements,
     final_state_k_inv_ang,
+    lab_polarization_to_sample,
     photon_wavevector,
     polarization_from_angles,
     polarization_to_spherical,
     rotate_frame_vectors,
-    rotate_polarization_grid,
+    sample_azimuth_rotation,
 )
 from diffpes.types import make_polarization_config
 from tests._gradients import complex_step_derivative, gradient_gate
@@ -213,8 +216,8 @@ class TestPhotonWavevector(chex.TestCase):
     def test_matches_cardinal_incidence_directions(self) -> None:
         """Match normal and grazing incidence to Cartesian unit vectors.
 
-        Map zero polar angle to positive z. Map a right-angle polar angle
-        at zero azimuth to positive x within float64 tolerance.
+        Map zero polar angle to negative z. Map a right-angle polar angle
+        at zero azimuth to negative x within float64 tolerance.
 
         Notes
         -----
@@ -228,13 +231,13 @@ class TestPhotonWavevector(chex.TestCase):
         grazing = photon_wavevector(jnp.pi / 2.0, 0.0)
         chex.assert_trees_all_close(
             normal,
-            jnp.array([0.0, 0.0, 1.0]),
+            jnp.array([0.0, 0.0, -1.0]),
             rtol=0.0,
             atol=1e-12,
         )
         chex.assert_trees_all_close(
             grazing,
-            jnp.array([1.0, 0.0, 0.0]),
+            jnp.array([-1.0, 0.0, 0.0]),
             rtol=0.0,
             atol=1e-12,
         )
@@ -661,6 +664,45 @@ class TestPolarizationFromAngles(chex.TestCase):
         with pytest.raises(ValueError, match="kind must be one of"):
             polarization_from_angles(0.5, 0.0, "unknown")
 
+    def test_circular_labels_match_incoming_helicity_operator(self) -> None:
+        """Match both circular labels to their photon-helicity eigenvalues.
+
+        The incoming propagation direction and transverse basis define the
+        operator ``i q cross`` without observer-dependent naming.
+
+        Notes
+        -----
+        Evaluate a generic incidence direction. Apply the Cartesian cross
+        product and compare with eigenvalues plus and minus one.
+        """
+        theta: Float[Array, ""] = jnp.asarray(0.61)
+        phi: Float[Array, ""] = jnp.asarray(-0.37)
+        direction: Float[Array, "3"] = photon_wavevector(theta, phi)
+        plus: Complex[Array, "3"] = polarization_from_angles(
+            theta,
+            phi,
+            "c+",
+        )
+        minus: Complex[Array, "3"] = polarization_from_angles(
+            theta,
+            phi,
+            "c-",
+        )
+        plus_action: Complex[Array, "3"] = 1j * jnp.cross(direction, plus)
+        minus_action: Complex[Array, "3"] = 1j * jnp.cross(direction, minus)
+        chex.assert_trees_all_close(
+            plus_action,
+            plus,
+            rtol=0.0,
+            atol=1e-14,
+        )
+        chex.assert_trees_all_close(
+            minus_action,
+            -minus,
+            rtol=0.0,
+            atol=1e-14,
+        )
+
 
 class TestPolarizationToSpherical(chex.TestCase):
     """Validate :func:`diffpes.simul.polarization.polarization_to_spherical`.
@@ -957,16 +999,18 @@ class TestDetectorRotation(chex.TestCase):
             atol=1e-14,
         )
 
-    def test_matches_pinned_chinook_artifact(self) -> None:
-        """Match the pinned Chinook direction and polarization table.
+    def test_matches_pinned_chinook_detector_artifact(self) -> None:
+        """Match the pinned Chinook detector-direction table.
 
-        The artifact records both declared coordinate remaps. It contains the
-        full rotation, direction, and three complex polarization states.
+        The artifact contains the full detector rotation and direction. The
+        test intentionally excludes its legacy pixel-rotated polarization
+        records because a fixed beam is not an analyzer-frame vector.
 
         Notes
         -----
-        Load gate 03.G4 without a Chinook import. Compare all points on the
-        two 5 by 5 angle grids at the recorded relative tolerance.
+        Load the offline artifact without a Chinook import. Compare the
+        detector-only records on both 5 by 5 angle grids at the recorded
+        relative tolerance.
         """
         tests_root: Path = Path(__file__).resolve().parents[2]
         artifact_path: Path = (
@@ -978,29 +1022,29 @@ class TestDetectorRotation(chex.TestCase):
         expected_mapping: dict[str, dict[str, str]] = {
             "H": {
                 "active_rotation": "Rx(diffpes_ty) @ Ry(diffpes_tx)",
-                "gen_all_pol": (
-                    "chinook_theta=-diffpes_tx, chinook_phi=-diffpes_ty"
-                ),
                 "tilt_k_mesh": (
                     "chinook_Tx=-diffpes_tx, chinook_Ty=diffpes_ty"
                 ),
             },
             "V": {
                 "active_rotation": "Rx(diffpes_tx) @ Ry(diffpes_ty)",
-                "gen_all_pol": (
-                    "chinook_theta=-diffpes_ty, chinook_phi=-diffpes_tx"
-                ),
                 "tilt_k_mesh": (
                     "chinook_Tx=-diffpes_ty, chinook_Ty=diffpes_tx"
                 ),
             },
         }
         self.assertEqual(reference["gate"], "03.G4")
-        self.assertEqual(reference["mapping"], expected_mapping)
         tolerance: float = float(reference["rtol"])
-        polarization_records: dict[str, Any] = reference["polarization_inputs"]
         slit: str
         for slit in ("H", "V"):
+            self.assertEqual(
+                reference["mapping"][slit]["active_rotation"],
+                expected_mapping[slit]["active_rotation"],
+            )
+            self.assertEqual(
+                reference["mapping"][slit]["tilt_k_mesh"],
+                expected_mapping[slit]["tilt_k_mesh"],
+            )
             records: list[dict[str, Any]] = [
                 record
                 for record in reference["records"]
@@ -1036,7 +1080,7 @@ class TestDetectorRotation(chex.TestCase):
                 [record["detector_direction"] for record in records]
             ).reshape(axis_size, axis_size, 3)
             energy: Array = jnp.asarray(35.0)
-            momentum: Array = final_state_k_inv_ang(energy)
+            momentum: Array = final_state_k_inv_ang(energy)[0]
             actual_k_parallel: Array = detector_angles_to_kpar(
                 tx[:, None],
                 ty[None, :],
@@ -1049,35 +1093,6 @@ class TestDetectorRotation(chex.TestCase):
                 rtol=tolerance,
                 atol=1e-12,
             )
-            polarization_name: str
-            for polarization_name in ("s", "p", "c_plus"):
-                input_parts: dict[str, list[float]] = polarization_records[
-                    polarization_name
-                ]
-                polarization: Array = jnp.asarray(input_parts["real"]) + (
-                    1j * jnp.asarray(input_parts["imag"])
-                )
-                expected_parts: list[dict[str, list[float]]] = [
-                    record["rotated_polarizations"][polarization_name]
-                    for record in records
-                ]
-                expected_polarization: Array = (
-                    jnp.asarray([part["real"] for part in expected_parts])
-                    + 1j
-                    * jnp.asarray([part["imag"] for part in expected_parts])
-                ).reshape(axis_size, axis_size, 3)
-                actual_polarization: Array = rotate_polarization_grid(
-                    polarization,
-                    tx,
-                    ty,
-                    slit,
-                )
-                chex.assert_trees_all_close(
-                    actual_polarization,
-                    expected_polarization,
-                    rtol=tolerance,
-                    atol=1e-12,
-                )
 
     def test_rejects_unknown_slit(self) -> None:
         """Verify rejection of an unknown slit orientation.
@@ -1097,8 +1112,8 @@ class TestDetectorRotation(chex.TestCase):
 class TestRotateFrameVectors(chex.TestCase):
     """Validate :func:`diffpes.simul.polarization.rotate_frame_vectors`.
 
-    The test checks the detector-grid shape, vector norms, and mapped frame
-    values for a real vector.
+    The tests check the detector-grid shape, vector norms, and explicit
+    detector/sample composition for detector-fixed axes.
 
     :see: :func:`~diffpes.simul.rotate_frame_vectors`
     """
@@ -1111,13 +1126,20 @@ class TestRotateFrameVectors(chex.TestCase):
 
         Notes
         -----
-        Use a 2 by 3 horizontal angle grid. Check its shape, norms, and one
-        direct matrix product at 1e-14.
+        Use a 2 by 3 horizontal angle grid and nonzero sample azimuth. Check
+        its shape, norms, and one direct composition at 1e-14.
         """
         vector: Array = jnp.asarray([0.0, 0.0, 1.0])
         tx: Array = jnp.asarray([-0.2, 0.1])
         ty: Array = jnp.asarray([-0.1, 0.0, 0.3])
-        rotated: Array = rotate_frame_vectors(vector, tx, ty, "H")
+        sample_azimuth: Array = jnp.asarray(0.27)
+        rotated: Array = rotate_frame_vectors(
+            vector,
+            tx,
+            ty,
+            "H",
+            sample_azimuth,
+        )
         chex.assert_shape(rotated, (2, 3, 3))
         chex.assert_trees_all_close(
             jnp.linalg.norm(rotated, axis=-1),
@@ -1126,80 +1148,222 @@ class TestRotateFrameVectors(chex.TestCase):
         )
         chex.assert_trees_all_close(
             rotated[1, 2],
-            detector_rotation(tx[1], ty[2], "H") @ vector,
+            sample_azimuth_rotation(sample_azimuth).T
+            @ detector_rotation(tx[1], ty[2], "H")
+            @ vector,
+            atol=1e-14,
+        )
+
+    def test_detector_axis_fixture(self) -> None:
+        """Pin detector/sample axis orientation at cardinal rotations.
+
+        The fixture verifies the explicit detector and sample composition at
+        a cardinal orientation.
+
+        Notes
+        -----
+        At the detector origin, a detector x axis is a laboratory x axis.
+        A positive quarter-turn sample azimuth maps it to negative sample y.
+        """
+        detector_x: Array = jnp.asarray([1.0, 0.0, 0.0])
+        mapped: Array = rotate_frame_vectors(
+            detector_x,
+            jnp.asarray([0.0]),
+            jnp.asarray([0.0]),
+            "H",
+            jnp.pi / 2.0,
+        )
+        chex.assert_trees_all_close(
+            mapped[0, 0],
+            jnp.asarray([0.0, -1.0, 0.0]),
+            rtol=0.0,
             atol=1e-14,
         )
 
 
-class TestRotatePolarizationGrid(chex.TestCase):
-    """Validate :func:`diffpes.simul.polarization.rotate_polarization_grid`.
+class TestFrameSemantics(chex.TestCase):
+    """Validate fixed-beam and detector-axis frame semantics.
 
-    The test checks complex phase preservation, detector-grid shape, and
-    differentiation through the mapped detector angles.
-
-    :see: :func:`~diffpes.simul.rotate_polarization_grid`
+    :see: :func:`~diffpes.simul.lab_polarization_to_sample`
+    :see: :func:`~diffpes.simul.detector_axis_to_sample`
     """
 
-    def test_maps_complex_polarization_and_gradients(self) -> None:
-        """Verify complex grid values and angle gradients.
+    def test_fixed_beam_is_pixel_independent(self) -> None:
+        """Verify a laboratory beam does not rotate with detector pixels.
 
-        The test rotates a generic complex vector and compares one cell with
-        direct multiplication. It also checks a nonzero mapped derivative.
+        A sample-frame polarization has one value for the full detector map.
+        Detector rotations vary across the same pixels, providing a direct
+        counterexample to the removed analyzer-rotation semantics.
 
         Notes
         -----
-        Use a 2 by 2 vertical angle grid. Compare one cell and differentiate
-        one real component with respect to the first angle.
+        Map one generic complex field through a nonzero sample azimuth and
+        broadcast it over a 2 by 3 detector grid. Require exact pixel
+        independence and confirm detector orientations are nonconstant.
+        """
+        polarization_lab: Array = jnp.asarray(
+            [0.2 + 0.5j, -0.3 + 0.1j, 0.7 - 0.2j],
+            dtype=jnp.complex128,
+        )
+        tx: Array = jnp.asarray([-0.2, 0.1])
+        ty: Array = jnp.asarray([-0.1, 0.0, 0.3])
+        sample_orientation: Array = sample_azimuth_rotation(0.37)
+        polarization_sample: Array = lab_polarization_to_sample(
+            polarization_lab,
+            sample_orientation,
+        )
+        polarization_grid: Array = jnp.broadcast_to(
+            polarization_sample,
+            (tx.shape[0], ty.shape[0], 3),
+        )
+        chex.assert_shape(polarization_grid, (2, 3, 3))
+        chex.assert_trees_all_close(
+            polarization_grid,
+            jnp.broadcast_to(polarization_grid[0, 0], polarization_grid.shape),
+            rtol=0.0,
+            atol=0.0,
+        )
+        detector_directions: Array = rotate_frame_vectors(
+            jnp.asarray([0.0, 0.0, 1.0]),
+            tx,
+            ty,
+            "H",
+            0.37,
+        )
+        assert not bool(
+            jnp.allclose(
+                detector_directions,
+                detector_directions[0, 0],
+                rtol=0.0,
+                atol=1e-14,
+            )
+        )
+
+    def test_full_frame_covariance(self) -> None:
+        """Verify covariance under a generic laboratory-frame rotation.
+
+        The test checks both fixed photon polarization and a detector-fixed
+        analyzer axis under one common frame change.
+
+        Notes
+        -----
+        Left-multiply sample and detector orientations and rotate the
+        laboratory polarization by the same proper matrix. Both resulting
+        sample-frame vectors must remain invariant.
+        """
+        covariance_rotation: Array = rodrigues_rotation(
+            jnp.asarray([0.3, -0.4, 0.8]),
+            0.41,
+        )
+        sample_orientation: Array = sample_azimuth_rotation(-0.23)
+        detector_orientation: Array = detector_rotation(0.19, -0.31, "V")
+        polarization_lab: Array = jnp.asarray(
+            [0.3 + 0.2j, -0.4 + 0.6j, 0.7 - 0.1j],
+            dtype=jnp.complex128,
+        )
+        detector_axis: Array = jnp.asarray([0.2, -0.7, 0.5])
+        detector_axis = detector_axis / jnp.linalg.norm(detector_axis)
+
+        reference_polarization: Array = lab_polarization_to_sample(
+            polarization_lab,
+            sample_orientation,
+        )
+        transformed_polarization: Array = lab_polarization_to_sample(
+            covariance_rotation @ polarization_lab,
+            covariance_rotation @ sample_orientation,
+        )
+        reference_axis: Array = detector_axis_to_sample(
+            detector_axis,
+            detector_orientation,
+            sample_orientation,
+        )
+        transformed_axis: Array = detector_axis_to_sample(
+            detector_axis,
+            covariance_rotation @ detector_orientation,
+            covariance_rotation @ sample_orientation,
+        )
+        chex.assert_trees_all_close(
+            transformed_polarization,
+            reference_polarization,
+            rtol=0.0,
+            atol=1e-14,
+        )
+        chex.assert_trees_all_close(
+            transformed_axis,
+            reference_axis,
+            rtol=0.0,
+            atol=1e-14,
+        )
+
+    def test_frame_maps_match_finite_differences(self) -> None:
+        """Verify gradients through sample and detector orientations.
+
+        The test checks the sensitivity of both frame maps against numerical
+        derivatives.
+
+        Notes
+        -----
+        Reduce generic fixed-beam and detector-axis outputs with generic
+        weights. Compare autodiff with the shared finite-difference gate for
+        polarization, detector angles, and sample azimuth.
         """
         polarization: Array = jnp.asarray(
             [0.2 + 0.5j, -0.3 + 0.1j, 0.7 - 0.2j],
             dtype=jnp.complex128,
         )
+        detector_axis: Array = jnp.asarray([0.3, -0.5, 0.8])
         tx: Array = jnp.asarray([-0.2, 0.1])
         ty: Array = jnp.asarray([0.0, 0.3])
-        rotated: Array = rotate_polarization_grid(
-            polarization,
-            tx,
-            ty,
-            "V",
-        )
-        chex.assert_shape(rotated, (2, 2, 3))
-        chex.assert_trees_all_close(
-            rotated[0, 1],
-            detector_rotation(tx[0], ty[1], "V") @ polarization,
-            atol=1e-14,
-        )
         weights: Array = jnp.asarray(
             [
-                0.7 - 0.2j,
-                -0.4 + 0.6j,
-                0.3 + 0.8j,
-                -0.5 - 0.1j,
-                0.9 + 0.4j,
-                -0.6 + 0.7j,
-                0.2 - 0.9j,
-                0.8 + 0.3j,
-                -0.7 + 0.5j,
-                0.4 + 0.2j,
-                -0.3 - 0.8j,
-                0.6 - 0.4j,
+                0.7,
+                -0.4,
+                0.3,
+                -0.5,
+                0.9,
+                -0.6,
+                0.2,
+                0.8,
+                -0.7,
+                0.4,
+                -0.3,
+                0.6,
             ],
-            dtype=jnp.complex128,
+            dtype=jnp.float64,
         ).reshape((2, 2, 3))
 
-        def loss(arguments: tuple[Array, Array, Array]) -> Array:
-            """Reduce a rotated grid with generic complex weights."""
+        def loss(arguments: tuple[Array, Array, Array, Array]) -> Array:
+            """Reduce fixed-beam and detector-axis frame outputs."""
             candidate_polarization: Array
             candidate_tx: Array
             candidate_ty: Array
-            candidate_polarization, candidate_tx, candidate_ty = arguments
-            candidate_grid: Array = rotate_polarization_grid(
+            candidate_azimuth: Array
+            (
                 candidate_polarization,
                 candidate_tx,
                 candidate_ty,
-                "V",
+                candidate_azimuth,
+            ) = arguments
+            candidate_sample_orientation: Array = sample_azimuth_rotation(
+                candidate_azimuth
             )
-            result: Array = jnp.real(jnp.vdot(weights, candidate_grid))
+            candidate_beam: Array = lab_polarization_to_sample(
+                candidate_polarization,
+                candidate_sample_orientation,
+            )
+            candidate_axes: Array = rotate_frame_vectors(
+                detector_axis,
+                candidate_tx,
+                candidate_ty,
+                "V",
+                candidate_azimuth,
+            )
+            beam_weights: Array = jnp.asarray(
+                [0.4 - 0.2j, -0.1 + 0.6j, 0.8 + 0.3j]
+            )
+            result: Array = jnp.real(
+                jnp.vdot(beam_weights, candidate_beam)
+            ) + jnp.sum(weights * candidate_axes)
             return result
 
-        gradient_gate(loss, (polarization, tx, ty))
+        gradient_gate(loss, (polarization, tx, ty, jnp.asarray(0.23)))

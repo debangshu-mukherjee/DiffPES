@@ -32,7 +32,7 @@ from diffpes.types import KB_EV_PER_K, ScalarFloat
 
 
 @jaxtyped(typechecker=beartype)
-def gaussian(
+def gaussian(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     energy_range: Float[Array, " E"],
     center: ScalarFloat,
     sigma: ScalarFloat,
@@ -79,17 +79,34 @@ def gaussian(
     center : ScalarFloat
         Center energy of the peak in eV.
     sigma : ScalarFloat
-        Gaussian standard deviation in eV.
+        Strictly positive Gaussian standard deviation in eV.
 
     Returns
     -------
     profile : Float[Array, " E"]
         Normalized Gaussian profile values.
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If ``sigma`` is non-finite or not strictly positive.
+
+    Notes
+    -----
+    No normalized Gaussian density exists at ``sigma = 0``. The function
+    therefore validates the physical width rather than fabricating a finite
+    profile through a guarded elementary operation.
     """
+    sigma_array: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
+    checked_sigma: Float[Array, ""] = eqx.error_if(
+        sigma_array,
+        ~jnp.isfinite(sigma_array) | (sigma_array <= 0.0),
+        "sigma must be finite and strictly positive",
+    )
     diff: Float[Array, " E"] = energy_range - center
-    norm_factor: Float[Array, " "] = jnp.sqrt(2.0 * jnp.pi) * sigma
+    norm_factor: Float[Array, " "] = jnp.sqrt(2.0 * jnp.pi) * checked_sigma
     profile: Float[Array, " E"] = (
-        jnp.exp(-(diff**2) / (2.0 * sigma**2)) / norm_factor
+        jnp.exp(-(diff**2) / (2.0 * checked_sigma**2)) / norm_factor
     )
     return profile
 
@@ -168,9 +185,9 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     center : ScalarFloat
         Center energy of the peak in eV.
     sigma : ScalarFloat
-        Gaussian standard deviation in eV.
+        Nonnegative Gaussian standard deviation in eV.
     gamma : ScalarFloat
-        Lorentzian half-width at half-maximum in eV.
+        Nonnegative Lorentzian half-width at half-maximum in eV.
 
     Returns
     -------
@@ -180,16 +197,19 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     Raises
     ------
     EquinoxRuntimeError
-        If ``sigma`` and ``gamma`` are both zero. The normalized profile and
-        its directional derivative have no definition at this point.
+        If either width is non-finite or negative.
+        Also raised when ``sigma`` and ``gamma`` both equal zero because no
+        normalized profile or directional derivative exists there.
 
     Notes
     -----
-    Quotients use :func:`diffpes.maths.safe_divide`, so inactive zero-width
-    branches cannot inject NaNs into reverse-mode gradients. The
-    pure-Gaussian ray ``gamma = 0`` and pure-Lorentzian ray ``sigma = 0``
-    retain their finite boundary sensitivities. The function rejects only
-    their singular intersection.
+    The function validates widths before
+    :func:`diffpes.maths.safe_power` supplies its boundary convention; that
+    helper does not validate domains. Quotients use
+    :func:`diffpes.maths.safe_divide`, so inactive zero-width branches cannot
+    inject NaNs into reverse-mode gradients. The pure-Gaussian ray
+    ``gamma = 0`` and pure-Lorentzian ray ``sigma = 0`` retain finite
+    one-sided boundary sensitivities.
 
     References
     ----------
@@ -201,12 +221,22 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     gamma_array: Float[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
     checked_sigma: Float[Array, ""] = eqx.error_if(
         sigma_array,
-        (sigma_array == 0.0) & (gamma_array == 0.0),
+        ~jnp.isfinite(sigma_array) | (sigma_array < 0.0),
+        "sigma must be finite and nonnegative",
+    )
+    checked_gamma: Float[Array, ""] = eqx.error_if(
+        gamma_array,
+        ~jnp.isfinite(gamma_array) | (gamma_array < 0.0),
+        "gamma must be finite and nonnegative",
+    )
+    checked_sigma = eqx.error_if(
+        checked_sigma,
+        (checked_sigma == 0.0) & (checked_gamma == 0.0),
         "sigma and gamma must not both be zero",
     )
     ln_two: Float[Array, ""] = jnp.log(jnp.float64(2.0))
     f_g: Float[Array, ""] = 2.0 * checked_sigma * jnp.sqrt(2.0 * ln_two)
-    f_l: Float[Array, ""] = 2.0 * gamma_array
+    f_l: Float[Array, ""] = 2.0 * checked_gamma
     poly: Float[Array, ""] = (
         f_g**5
         + 2.69269 * f_g**4 * f_l
@@ -232,7 +262,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
 
 @jaxtyped(typechecker=beartype)
-def fermi_dirac(
+def fermi_dirac(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     energy: ScalarFloat,
     fermi_energy: ScalarFloat,
     temperature: ScalarFloat,
@@ -256,18 +286,17 @@ def fermi_dirac(
        temperature in Kelvin to obtain the thermal energy scale. Both
        values are cast to float64 for numerical precision.
 
-    2. **Guard against T = 0**::
+    2. **Validate the thermal domain**::
 
-           safe_kt = max(kt, 1e-10)
+           checked_temperature = error_if(T, ~isfinite(T) or T <= 0)
 
-       At zero temperature the distribution becomes a step function,
-       but the exponential would diverge. Clamping kT to a small
-       positive value (1e-10 eV) avoids division by zero while
-       preserving the sharp step-function behavior numerically.
+       Rejects zero, negative, and non-finite temperatures. The finite-
+       temperature Fermi-Dirac formula has no classical derivative at its
+       zero-temperature limit.
 
     3. **Evaluate Fermi-Dirac function**::
 
-           exponent = (E - Ef) / safe_kt
+           exponent = (E - Ef) / kt
            occupation = sigmoid(-exponent)
 
        Computes the occupation probability. For E << Ef the result
@@ -281,12 +310,17 @@ def fermi_dirac(
     fermi_energy : ScalarFloat
         Fermi level energy in eV.
     temperature : ScalarFloat
-        Temperature in Kelvin.
+        Finite, strictly positive temperature in kelvin.
 
     Returns
     -------
     occupation : Float[Array, " "]
         Fermi-Dirac occupation (0 to 1).
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If ``temperature`` is non-finite or not strictly positive.
 
     Notes
     -----
@@ -295,19 +329,26 @@ def fermi_dirac(
     identical to the reciprocal-exponential expression but has an
     overflow-safe JVP. Values and derivatives therefore underflow to finite
     exact zeros far above the Fermi level instead of becoming NaN. The
-    existing ``1e-10`` eV thermal-scale clamp keeps the public function total
-    at nonpositive temperature; validated simulation parameters require a
-    strictly positive temperature.
+    function does not approximate the discontinuous zero-temperature step.
+    A separate static zero-temperature model must define that limit and its
+    derivative policy.
     """
-    kt: Float[Array, " "] = jnp.asarray(
-        KB_EV_PER_K, dtype=jnp.float64
-    ) * jnp.asarray(temperature, dtype=jnp.float64)
-    safe_kt: Float[Array, " "] = jnp.maximum(kt, jnp.float64(1e-10))
-    exponent: Float[Array, " "] = safe_divide(
-        jnp.asarray(energy, dtype=jnp.float64)
-        - jnp.asarray(fermi_energy, dtype=jnp.float64),
-        safe_kt,
+    temperature_array: Float[Array, ""] = jnp.asarray(
+        temperature,
+        dtype=jnp.float64,
     )
+    checked_temperature: Float[Array, ""] = eqx.error_if(
+        temperature_array,
+        ~jnp.isfinite(temperature_array) | (temperature_array <= 0.0),
+        "temperature must be finite and strictly positive",
+    )
+    kt: Float[Array, " "] = (
+        jnp.asarray(KB_EV_PER_K, dtype=jnp.float64) * checked_temperature
+    )
+    exponent: Float[Array, " "] = (
+        jnp.asarray(energy, dtype=jnp.float64)
+        - jnp.asarray(fermi_energy, dtype=jnp.float64)
+    ) / kt
     occupation: Float[Array, " "] = jax.nn.sigmoid(-exponent)
     return occupation
 

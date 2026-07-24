@@ -45,6 +45,7 @@ from diffpes.types import (
     EvidenceReport,
     ExecutionManifest,
     ForwardCertificate,
+    HumanAttestationRef,
     InformationSpectrum,
     PolicyReport,
     RegisteredModel,
@@ -169,7 +170,7 @@ def _probe_directions(inputs: PyTree) -> PyTree:
 
 
 @jaxtyped(typechecker=beartype)
-def prepare_certification(
+def prepare_certification(  # noqa: PLR0913
     model_id: str,
     model_version: str,
     manifest: ExecutionManifest,
@@ -178,6 +179,7 @@ def prepare_certification(
     artifacts: tuple[ArtifactRef, ...] = (),
     transformations: tuple[TransformationRecord, ...] = (),
     evidence: tuple[EvidenceRef, ...] = (),
+    attestations: tuple[HumanAttestationRef, ...] = (),
     check_ids: tuple[str, ...] = (),
     input_checksums: tuple[str, ...] = (),
     waivers: tuple[WaiverRecord, ...] = (),
@@ -214,7 +216,9 @@ def prepare_certification(
     transformations : tuple[TransformationRecord, ...]
         Ordered information-flow records.
     evidence : tuple[EvidenceRef, ...]
-        Independent numerical evidence records.
+        Numerical evidence with named lineage.
+    attestations : tuple[HumanAttestationRef, ...]
+        Human reviews kept separate from computational evidence.
     check_ids : tuple[str, ...]
         Domain checks to run (**static** -- changing them retraces).
     input_checksums : tuple[str, ...]
@@ -249,6 +253,7 @@ def prepare_certification(
         artifacts=artifacts,
         transformations=transformations,
         evidence=evidence,
+        attestations=attestations,
         policy_id=policy_id,
         check_ids=(
             check_ids
@@ -453,6 +458,9 @@ def _certify_kernel(  # noqa: PLR0915
     policy_report: PolicyReport = evaluate_policy(
         claims,
         context.policy_id,
+        evidence=context.evidence,
+        implementation_ref=context.model.implementation_ref,
+        artifact_ids=tuple(item.artifact_id for item in context.artifacts),
         waivers=context.waivers,
     )
     certificate: ForwardCertificate = make_forward_certificate(
@@ -462,6 +470,7 @@ def _certify_kernel(  # noqa: PLR0915
         transformations=context.transformations,
         domains=domains,
         evidence=context.evidence,
+        attestations=context.attestations,
         claims=claims,
         derivatives=derivatives,
         dependencies=dependencies,
@@ -693,11 +702,6 @@ def verify_certificate(
     Verification recomputes recorded relations only. It does not rerun the
     forward model or convert bookkeeping checksums into scientific evidence.
     """
-    recomputed: PolicyReport = evaluate_policy(
-        certificate.claims,
-        certificate.policy_id,
-        waivers=certificate.waivers,
-    )
     domains: dict[str, DomainResult] = {
         domain.predicate_id: domain for domain in certificate.domains
     }
@@ -723,7 +727,7 @@ def verify_certificate(
     artifact_refs_consistent: bool = all(
         artifact_id in artifact_ids
         for evidence in certificate.evidence
-        for artifact_id in evidence.artifact_refs
+        for artifact_id in evidence.lineage.artifact_refs
     )
     evidence_residuals_consistent: bool = all(
         bool(
@@ -740,8 +744,36 @@ def verify_certificate(
             verify_evidence(item, certificate.artifacts, resolver)
             for item in certificate.evidence
         )
+    recomputed: PolicyReport = evaluate_policy(
+        certificate.claims,
+        certificate.policy_id,
+        evidence=certificate.evidence,
+        evidence_reports=evidence_reports,
+        implementation_ref=certificate.model.implementation_ref,
+        artifact_ids=tuple(item.artifact_id for item in certificate.artifacts),
+        waivers=certificate.waivers,
+    )
     resolved_evidence_valid: bool = resolver is None or all(
         bool(report.passed) for report in evidence_reports
+    )
+    resolver_may_upgrade_policy: bool = resolver is not None and (
+        certificate.policy_id
+        in {
+            "org.diffpes.policy.publication.v1",
+            "org.diffpes.policy.parity.v1",
+        }
+    )
+    achievement_consistent: bool = (
+        bool(
+            jnp.all(~certificate.policy_report.achieved | recomputed.achieved)
+        )
+        if resolver_may_upgrade_policy
+        else bool(
+            jnp.array_equal(
+                recomputed.achieved,
+                certificate.policy_report.achieved,
+            )
+        )
     )
     policy_consistent: bool = (
         recomputed.level_ids == certificate.policy_report.level_ids
@@ -765,12 +797,7 @@ def verify_certificate(
                 certificate.policy_report.claim_in_domain,
             )
         )
-        and bool(
-            jnp.array_equal(
-                recomputed.achieved,
-                certificate.policy_report.achieved,
-            )
-        )
+        and achievement_consistent
     )
     report: VerificationReport = make_verification_report(
         certificate_checksum=certificate.certificate_checksum,

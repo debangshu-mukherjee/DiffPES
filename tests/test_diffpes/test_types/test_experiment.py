@@ -39,7 +39,7 @@ class TestExperimentGeometry:
         resulting leaves and tree definition.
         """
         polarization: Complex[Array, "3"] = jnp.array(
-            [1.0 + 0.0j, 0.0 + 2.0j, 0.5 + 0.0j]
+            [1.0 + 0.0j, 0.0 + 2.0j, 0.0 + 0.0j]
         )
         geometry: ExperimentGeometry = make_experiment_geometry(
             21.2, polarization, sample_azimuth=0.2, slit="V"
@@ -119,13 +119,13 @@ class TestMakeExperimentGeometry:
                     allow_nan=False,
                     allow_infinity=False,
                 )
-                for _ in range(6)
+                for _ in range(4)
             ]
         ).filter(lambda values: sum(value * value for value in values) > 1e-4)
     )
     @settings(max_examples=20, deadline=None)
     def test_normalizes_each_nonzero_complex_polarization(
-        self, components: tuple[float, float, float, float, float, float]
+        self, components: tuple[float, float, float, float]
     ) -> None:
         """Normalize each accepted complex polarization to unit norm.
 
@@ -133,14 +133,15 @@ class TestMakeExperimentGeometry:
 
         Notes
         -----
-        Hypothesis supplies six bounded components. The test combines them
-        into three complex values and checks the Hermitian vector norm.
+        Hypothesis supplies four bounded transverse components. The test
+        combines them into two complex values and checks the Hermitian vector
+        norm.
         """
         polarization: Complex[Array, "3"] = jnp.array(
             [
                 components[0] + 1j * components[1],
                 components[2] + 1j * components[3],
-                components[4] + 1j * components[5],
+                0.0 + 0.0j,
             ]
         )
         geometry: ExperimentGeometry = make_experiment_geometry(
@@ -162,6 +163,7 @@ class TestMakeExperimentGeometry:
             ("work_function_ev", 21.2, "work_function_ev"),
             ("inner_potential_ev", -1.0, "inner_potential_ev"),
             ("temperature_k", -1.0, "temperature_k"),
+            ("temperature_k", 0.0, "temperature_k"),
             ("energy_resolution_ev", -1.0, "energy_resolution_ev"),
             (
                 "momentum_resolution_inv_ang",
@@ -218,6 +220,105 @@ class TestMakeExperimentGeometry:
             match="polarization",
         )
 
+    @pytest.mark.parametrize(
+        ("theta", "phi", "polarization"),
+        [
+            (
+                0.0,
+                0.0,
+                jnp.array([0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j]),
+            ),
+            (
+                jnp.pi / 2.0,
+                0.0,
+                jnp.array([1.0 + 1.0j, 0.0 + 0.0j, 0.0 + 0.0j]),
+            ),
+        ],
+    )
+    def test_rejects_longitudinal_polarization_under_jit(
+        self,
+        theta: object,
+        phi: object,
+        polarization: Complex[Array, "3"],
+    ) -> None:
+        """Reject electric fields with a longitudinal photon component.
+
+        Real and complex counterexamples must fail with the same
+        transversality diagnostic in eager and compiled execution.
+
+        Notes
+        -----
+        The shared rejection assertion evaluates each longitudinal field
+        directly and through :func:`equinox.filter_jit`.
+        """
+        assert_rejects(
+            make_experiment_geometry,
+            21.2,
+            polarization,
+            incidence_theta=theta,
+            incidence_phi=phi,
+            match="transverse",
+        )
+
+    def test_preserves_transversality_under_incidence_azimuth_rotation(
+        self,
+    ) -> None:
+        """Rotate photon direction and polarization covariantly about z.
+
+        Each azimuth reconstructs the p-polarization basis. Every resulting
+        carrier must retain unit norm and zero longitudinal amplitude.
+
+        Notes
+        -----
+        Vectorize four azimuths, reconstruct the matching photon directions,
+        and compare their complex longitudinal amplitudes with zero.
+        """
+        theta: Float[Array, ""] = jnp.asarray(0.43)
+        phis: Float[Array, " 4"] = jnp.asarray([-1.1, -0.2, 0.7, 2.2])
+
+        def one_geometry(phi: Float[Array, ""]) -> ExperimentGeometry:
+            """Construct a covariantly rotated p-polarized geometry."""
+            polarization: Complex[Array, "3"] = jnp.asarray(
+                [
+                    jnp.cos(theta) * jnp.cos(phi),
+                    jnp.cos(theta) * jnp.sin(phi),
+                    -jnp.sin(theta),
+                ],
+                dtype=jnp.complex128,
+            )
+            return make_experiment_geometry(
+                21.2,
+                polarization,
+                incidence_theta=theta,
+                incidence_phi=phi,
+            )
+
+        geometries: ExperimentGeometry = eqx.filter_vmap(one_geometry)(phis)
+        directions: Float[Array, "4 3"] = jnp.stack(
+            (
+                jnp.sin(theta) * jnp.cos(phis),
+                jnp.sin(theta) * jnp.sin(phis),
+                jnp.full_like(phis, jnp.cos(theta)),
+            ),
+            axis=-1,
+        )
+        longitudinal: Complex[Array, " 4"] = jnp.sum(
+            directions * geometries.polarization,
+            axis=-1,
+        )
+        chex.assert_trees_all_close(
+            jnp.linalg.norm(geometries.polarization, axis=-1),
+            jnp.ones_like(phis),
+            rtol=1e-15,
+            atol=1e-15,
+        )
+        chex.assert_trees_all_close(
+            longitudinal,
+            jnp.zeros_like(longitudinal),
+            rtol=0.0,
+            atol=2e-16,
+        )
+
     def test_rejects_an_unknown_static_slit(self) -> None:
         """Reject a slit selector outside the two detector conventions.
 
@@ -251,12 +352,17 @@ class TestMakeExperimentGeometry:
             [30.0, 0.2, -0.3, 0.1, 4.5, 12.0, 20.0, 0.03, 0.02, 8.0]
         )
         weights: Float[Array, "10"] = jnp.arange(1.0, 11.0)
-        polarization: Complex[Array, "3"] = jnp.array(
-            [1.0 + 0.2j, 0.3 + 0.4j, -0.1 + 0.5j]
-        )
 
         def loss(candidate: Float[Array, "10"]) -> Float[Array, ""]:
             """Read all scalar fields from one constructed carrier."""
+            polarization: Complex[Array, "3"] = jnp.asarray(
+                [
+                    -jnp.sin(candidate[2]),
+                    jnp.cos(candidate[2]),
+                    0.0,
+                ],
+                dtype=jnp.complex128,
+            )
             geometry: ExperimentGeometry = make_experiment_geometry(
                 candidate[0],
                 polarization,

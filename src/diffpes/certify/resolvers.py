@@ -4,7 +4,7 @@ Extended Summary
 ----------------
 Resolvers operate at the eager I/O boundary. They return normalized scientific
 content and may also return exact source bytes. The module checks both forms
-against their separate non-security CRC32 identities. No resolver participates
+against their separate SHA-256 identities. No resolver participates
 in a traced physics calculation.
 
 Routine Listings
@@ -227,7 +227,7 @@ def verify_evidence(
     resolved: bool = True
     compatible: bool = True
     artifact_id: str
-    for artifact_id in reference.artifact_refs:
+    for artifact_id in reference.lineage.artifact_refs:
         artifact: ArtifactRef | None = by_id.get(artifact_id)
         if artifact is None:
             resolved = False

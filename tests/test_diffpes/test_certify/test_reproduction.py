@@ -66,7 +66,10 @@ def _certificate(inputs: Any, expected: Any) -> Any:
                 value,
                 record_kind="normalized-content",
             ),
-            semantic_checksum="crc32:canonical-1:semantic:00000000",
+            semantic_checksum=(
+                "sha256:1:semantic:"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            ),
             locator=None,
             role=role,
         )

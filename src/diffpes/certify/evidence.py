@@ -29,6 +29,7 @@ from diffpes.types import (
     CertificationClaim,
     DerivativeEvidence,
     DomainResult,
+    EvidenceLineage,
     EvidenceRef,
     InformationSpectrum,
     make_certification_claim,
@@ -57,9 +58,9 @@ def evaluate_evidence(
     reference: Array,
     tolerance: Array,
     *,
-    artifact_refs: tuple[str, ...] = (),
     source_type: str = "external_reference",
-    independent: bool = True,
+    lineage: EvidenceLineage | None = None,
+    human_attestation_refs: tuple[str, ...] = (),
 ) -> EvidenceRef:
     """Compare measured values with an external numerical reference.
 
@@ -81,12 +82,13 @@ def evaluate_evidence(
         Independent reference values in the same units.
     tolerance : Array
         Nonnegative component tolerances in the same units.
-    artifact_refs : tuple[str, ...]
-        Source artifact identifiers (**static** -- changing them retraces).
     source_type : str
         Evidence-source category (**static** -- changing it retraces).
-    independent : bool
-        Whether the source is independent (**static** -- changing it retraces).
+    lineage : EvidenceLineage | None, optional
+        Named implementation, generator, artifact, derivation, conflict, and
+        relationship ancestry. Omission is explicitly incomplete lineage.
+    human_attestation_refs : tuple[str, ...]
+        Separate human-review references. They never establish independence.
 
     Returns
     -------
@@ -115,13 +117,13 @@ def evaluate_evidence(
     evidence: EvidenceRef = make_evidence_ref(
         evidence_id=evidence_id,
         method_id=method_id,
-        artifact_refs=artifact_refs,
         source_type=source_type,
-        independent=independent,
         measured=measured_array,
         reference=reference_array,
         residual=residual,
         tolerance=tolerance_array,
+        lineage=lineage,
+        human_attestation_refs=human_attestation_refs,
     )
     return evidence
 

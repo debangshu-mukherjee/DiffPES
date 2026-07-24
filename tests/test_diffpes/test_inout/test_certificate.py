@@ -33,10 +33,12 @@ from diffpes.types import (
     make_derivative_evidence,
     make_domain_predicate,
     make_domain_result,
+    make_evidence_lineage,
     make_evidence_ref,
     make_execution_manifest,
     make_forward_certificate,
     make_forward_model_spec,
+    make_human_attestation_ref,
     make_information_spectrum,
     make_policy_report,
     make_sensitivity_map,
@@ -49,7 +51,10 @@ def sample_certificate(
     execution_id: str = "run-001",
     started_at_utc: str = "2026-07-21T12:00:00Z",
     model_version: str = "1.0.0",
-    environment_checksum: str = "crc32:canonical-1:environment:89abcdef",
+    environment_checksum: str = (
+        "sha256:1:environment:"
+        "89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef"
+    ),
     extensions_json: str = '{"project":"demo","unicode":"Å"}',
 ) -> ForwardCertificate:
     """Return one small, fully populated certificate test fixture."""
@@ -59,6 +64,7 @@ def sample_certificate(
     manifest: Any
     artifact: Any
     transformation: Any
+    attestation: Any
     evidence: Any
     claim: Any
     domain: Any
@@ -91,7 +97,10 @@ def sample_certificate(
         model_ref=f"{model.model_id}@{model.model_version}",
         schema_version="1.0.0",
         package_version="2026.06.02",
-        source_checksum="crc32:canonical-1:source:01234567",
+        source_checksum=(
+            "sha256:1:source:"
+            "0123456701234567012345670123456701234567012345670123456701234567"
+        ),
         environment_checksum=environment_checksum,
         backend="cpu",
         precision_policy="float64",
@@ -101,9 +110,18 @@ def sample_certificate(
     artifact = make_artifact_ref(
         artifact_id="bands",
         media_type="application/x-vasp-eigenval",
-        byte_checksum="crc32:canonical-1:artifact-bytes:10203040",
-        content_checksum="crc32:canonical-1:normalized-content:20304050",
-        semantic_checksum="crc32:canonical-1:semantic:30405060",
+        byte_checksum=(
+            "sha256:1:artifact-bytes:"
+            "1020304010203040102030401020304010203040102030401020304010203040"
+        ),
+        content_checksum=(
+            "sha256:1:normalized-content:"
+            "2030405020304050203040502030405020304050203040502030405020304050"
+        ),
+        semantic_checksum=(
+            "sha256:1:semantic:"
+            "3040506030405060304050603040506030405060304050603040506030405060"
+        ),
         locator="/private/data/EIGENVAL",
         role="initial_state",
     )
@@ -115,18 +133,34 @@ def sample_certificate(
         preserves=("energy_reference",),
         destroys=("overall_phase",),
         invalidates_claims=("claim.phase",),
-        parameters_checksum="crc32:canonical-1:parameters:40506070",
+        parameters_checksum=(
+            "sha256:1:parameters:"
+            "4050607040506070405060704050607040506070405060704050607040506070"
+        ),
+    )
+    attestation = make_human_attestation_ref(
+        attestation_id="attestation.reference-review",
+        reviewer_ref="reviewer.example",
+        scope_ids=("reference-spectrum",),
+        statement="Reviewed the named evidence lineage.",
+        recorded_at_utc="2026-07-24T12:00:00Z",
     )
     evidence = make_evidence_ref(
         evidence_id="reference-spectrum",
         method_id="org.diffpes.method.reference",
-        artifact_refs=("bands",),
         source_type="analytic_reference",
-        independent=True,
         measured=jnp.array([1.0, 2.0]),
         reference=jnp.array([1.0, 2.0]),
         residual=jnp.zeros(2),
         tolerance=jnp.full(2, 1e-8),
+        lineage=make_evidence_lineage(
+            implementation_refs=("reference.impl",),
+            generator_refs=("reference.generator",),
+            artifact_refs=("bands",),
+            derivation_refs=("reference.derivation",),
+            relationship_ids=("independent-derivation:reference.derivation",),
+        ),
+        human_attestation_refs=(attestation.attestation_id,),
     )
     claim = make_certification_claim(
         claim_id="claim.output.finite",
@@ -215,6 +249,7 @@ def sample_certificate(
         artifacts=(artifact,),
         transformations=(transformation,),
         evidence=(evidence,),
+        attestations=(attestation,),
         claims=(claim,),
         domains=(domain,),
         derivatives=derivatives,
@@ -223,7 +258,10 @@ def sample_certificate(
         information=information,
         policy_report=policy,
         policy_id=policy.policy_id,
-        certificate_checksum="crc32:canonical-1:certificate:50607080",
+        certificate_checksum=(
+            "sha256:1:certificate:"
+            "5060708050607080506070805060708050607080506070805060708050607080"
+        ),
         extensions_json=extensions_json,
     )
 
@@ -310,7 +348,7 @@ class TestSaveCertificateJson:
         document = _read_json(first)
         assert document["format"] == CERTIFICATE_FORMAT
         assert document["consistency_checksum"] == (
-            "crc32:certificate-json-v1:2ec9ad51"
+            "crc32:certificate-json-v1:315ecf71"
         )
         jvp_node = document["certificate"]["fields"]["derivatives"]["fields"][
             "jvp_probes"
@@ -448,9 +486,25 @@ class TestLoadCertificateJson:
         save_certificate_json(sample_certificate(), path)
         document: dict[str, Any] = _read_json(path)
         document["certificate"]["fields"]["certificate_checksum"] = (
+            "sha256:1:certificate:"
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        _write_document(path, document)
+        with pytest.raises(ValueError, match="canonical identity mismatch"):
+            load_certificate_json(path)
+
+    def test_legacy_crc32_scientific_identity_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject legacy CRC32 even when the outer transport CRC is valid."""
+        path: Path = tmp_path / "legacy-identity.json"
+        save_certificate_json(sample_certificate(), path)
+        document: dict[str, Any] = _read_json(path)
+        document["certificate"]["fields"]["certificate_checksum"] = (
             "crc32:canonical-1:certificate:00000000"
         )
         _write_document(path, document)
+
         with pytest.raises(ValueError, match="canonical identity mismatch"):
             load_certificate_json(path)
 

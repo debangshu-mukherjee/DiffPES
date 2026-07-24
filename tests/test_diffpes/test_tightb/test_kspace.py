@@ -18,11 +18,14 @@ from beartype.typing import Any, Callable, Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Bool, Complex, Float, Int, jaxtyped
 
-from diffpes.simul import kz_from_inner_potential
+from diffpes.simul import (
+    detector_angles_to_kpar,
+    kz_from_inner_potential_at_fermi,
+)
 from diffpes.tightb import (
     build_arpes_kmesh,
     build_bz_mesh,
-    build_kmesh_hv,
+    build_kmesh_hv_at_fermi,
     build_kpath,
     first_bz_mask,
     kpath_arc_length,
@@ -226,7 +229,7 @@ class TestKpointsFracToCart:
         Notes
         -----
         A weighted Cartesian reduction makes every reciprocal-lattice entry
-        relevant. The shared gate checks reverse mode and each gradient leaf.
+        relevant. The shared gate checks reverse mode and every coordinate.
         """
         lattice: Float[Array, "3 3"] = jnp.array(
             [[2.4, 0.2, 0.1], [0.1, 2.8, 0.3], [0.2, 0.1, 3.2]]
@@ -247,7 +250,12 @@ class TestKpointsFracToCart:
             result: Float[Array, ""] = jnp.sum(cartesian * weights)
             return result
 
-        gradient_gate(loss, lattice, modes=("rev",))
+        gradient_gate(
+            loss,
+            lattice,
+            modes=("rev",),
+            elementwise=True,
+        )
 
 
 class TestKpointsCartToFrac:
@@ -765,6 +773,68 @@ class TestBuildArpesKmesh:
     :see: :func:`~diffpes.tightb.build_arpes_kmesh`
     """
 
+    def test_composes_detector_lab_momentum_with_sample_azimuth(self) -> None:
+        """Match the laboratory-to-sample composition at nonzero azimuth.
+
+        Detector kinematics supplies laboratory parallel components. The
+        raster builder must apply the inverse sample orientation exactly once
+        before fractional conversion.
+
+        Notes
+        -----
+        Compose both slit maps with a generic sample azimuth. Convert the
+        one-point rasters back to Cartesian coordinates and compare with
+        ``S.T @ [kpar_lab, kz]``.
+        """
+        geometry: CrystalGeometry = _make_geometry(
+            jnp.array([[2.4, 0.2, 0.0], [0.1, 2.7, 0.0], [0.0, 0.0, 4.1]])
+        )
+        tx: Float[Array, ""] = jnp.array(0.23)
+        ty: Float[Array, ""] = jnp.array(-0.17)
+        energy: Float[Array, ""] = jnp.array(35.0)
+        kz: Float[Array, ""] = jnp.array(1.4)
+        azimuth: Float[Array, ""] = jnp.array(0.41)
+        cosine: Float[Array, ""] = jnp.cos(azimuth)
+        sine: Float[Array, ""] = jnp.sin(azimuth)
+        sample_orientation: Float[Array, "3 3"] = jnp.array(
+            [
+                [cosine, -sine, 0.0],
+                [sine, cosine, 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        slit: str
+        for slit in ("H", "V"):
+            k_parallel_lab: Float[Array, "2"] = detector_angles_to_kpar(
+                tx,
+                ty,
+                energy,
+                slit,
+            )
+            lab_momentum: Float[Array, "3"] = jnp.concatenate(
+                (k_parallel_lab, kz[None])
+            )
+            expected: Float[Array, "1 3"] = (
+                sample_orientation.T @ lab_momentum
+            )[None, :]
+            kgrid: KGrid = build_arpes_kmesh(
+                k_parallel_lab[0:1],
+                k_parallel_lab[1:2],
+                kz,
+                azimuth,
+                geometry,
+            )
+            actual: Float[Array, "1 3"] = kpoints_frac_to_cart(
+                kgrid.kpoints,
+                geometry,
+            )
+            chex.assert_trees_all_close(
+                actual,
+                expected,
+                rtol=1e-13,
+                atol=1e-13,
+            )
+
     def test_rotates_the_laboratory_raster_into_the_sample(self) -> None:
         """Rotate a positive laboratory x point to negative sample y.
 
@@ -850,7 +920,7 @@ class TestBuildArpesKmesh:
                 azimuth,
                 geometry,
             )
-            photon_grid: KGrid = build_kmesh_hv(
+            photon_grid: KGrid = build_kmesh_hv_at_fermi(
                 jnp.array([-0.2, 0.2]),
                 photon_energies,
                 4.5,
@@ -874,12 +944,12 @@ class TestBuildArpesKmesh:
         chex.assert_equal(trace_count[0], 1)
 
 
-class TestBuildKmeshHv:
-    """Validate :func:`~diffpes.tightb.build_kmesh_hv`.
+class TestBuildKmeshHvAtFermi:
+    """Validate :func:`~diffpes.tightb.build_kmesh_hv_at_fermi`.
 
     The case checks direct free-electron composition and photon-axis metadata.
 
-    :see: :func:`~diffpes.tightb.build_kmesh_hv`
+    :see: :func:`~diffpes.tightb.build_kmesh_hv_at_fermi`
     """
 
     def test_composes_the_free_electron_kz_rows(self) -> None:
@@ -891,12 +961,12 @@ class TestBuildKmeshHv:
         Notes
         -----
         The test computes the expected rows by direct vectorization of
-        :func:`diffpes.simul.kz_from_inner_potential`.
+        :func:`diffpes.simul.kz_from_inner_potential_at_fermi`.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
         parallel_axis: Float[Array, "3"] = jnp.array([-0.5, 0.0, 0.5])
         photon_energies: Float[Array, "2"] = jnp.array([30.0, 50.0])
-        kgrid: KGrid = build_kmesh_hv(
+        kgrid: KGrid = build_kmesh_hv_at_fermi(
             parallel_axis,
             photon_energies,
             4.5,
@@ -915,7 +985,7 @@ class TestBuildKmeshHv:
             """Compute one direct free-electron row."""
             kz_values: Complex[Array, "3"]
             propagating: Bool[Array, "3"]
-            kz_values, propagating = kz_from_inner_potential(
+            kz_values, propagating = kz_from_inner_potential_at_fermi(
                 photon_energy, 4.5, 12.0, jnp.abs(parallel_axis)
             )
             result: Tuple[Complex[Array, "3"], Bool[Array, "3"]] = (
@@ -953,10 +1023,10 @@ class TestBuildKmeshHv:
 
         Notes
         -----
-        ``build_kmesh_hv`` internally vmaps
-        :func:`diffpes.simul.kz_from_inner_potential` over all 64 photon
-        energies. The RSS fixture caps retained growth at 700 MiB while this
-        test checks the exact dense-result byte count.
+        ``build_kmesh_hv_at_fermi`` internally vmaps
+        :func:`diffpes.simul.kz_from_inner_potential_at_fermi` over all 64
+        photon energies. The RSS fixture caps retained growth at 700 MiB while
+        this test checks the exact dense-result byte count.
         """
         n_photon: int = 64
         n_parallel: int = 256 * 256
@@ -977,7 +1047,7 @@ class TestBuildKmeshHv:
             energies: Float[Array, " 64"],
         ) -> KGrid:
             """Build one full photon-energy raster through the kz primitive."""
-            kgrid: KGrid = build_kmesh_hv(
+            kgrid: KGrid = build_kmesh_hv_at_fermi(
                 axis,
                 energies,
                 4.5,

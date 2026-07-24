@@ -457,6 +457,91 @@ class TestNeighborShells:
             atol=0.0,
         )
 
+    def test_small_cell_search_extends_beyond_radius_two(self) -> None:
+        """Find every cutoff bond in a lattice shorter than the cutoff.
+
+        A radius-two search omits the third translated copy at 1.2 Angstrom.
+        The singular-value certificate must extend the enumeration.
+
+        Notes
+        -----
+        Pin exact translation metadata as well as the Cartesian distances.
+        """
+        geometry: CrystalGeometry = make_crystal_geometry(
+            jnp.diag(jnp.asarray((0.4, 10.0, 10.0), dtype=jnp.float64)),
+            jnp.zeros((1, 3), dtype=jnp.float64),
+            ("X",),
+        )
+        atom_pairs: tuple[tuple[int, int], ...]
+        cells: tuple[tuple[int, int, int], ...]
+        distances: Float[Array, " 3"]
+        atom_pairs, cells, _, distances = neighbor_shells(geometry, 1.25)
+
+        assert atom_pairs == ((0, 0), (0, 0), (0, 0))
+        assert cells == ((-3, 0, 0), (-2, 0, 0), (-1, 0, 0))
+        np.testing.assert_allclose(
+            distances,
+            jnp.asarray((1.2, 0.8, 0.4), dtype=jnp.float64),
+            rtol=0.0,
+            atol=1e-14,
+        )
+
+    def test_skew_lattice_search_extends_beyond_radius_two(self) -> None:
+        """Retain a distant integer cell made short by lattice skew.
+
+        The ``(-3, 3, 0)`` translation nearly cancels the first two lattice
+        rows and lies inside the cutoff despite both indices exceeding two.
+
+        Notes
+        -----
+        This is a counterexample to any componentwise radius chosen without
+        the lattice's smallest singular value.
+        """
+        geometry: CrystalGeometry = make_crystal_geometry(
+            jnp.asarray(
+                (
+                    (1.0, 0.0, 0.0),
+                    (0.99, 0.1, 0.0),
+                    (0.0, 0.0, 10.0),
+                ),
+                dtype=jnp.float64,
+            ),
+            jnp.zeros((1, 3), dtype=jnp.float64),
+            ("X",),
+        )
+        cells: tuple[tuple[int, int, int], ...]
+        distances: Float[Array, " n_bond"]
+        _, cells, _, distances = neighbor_shells(geometry, 0.31)
+
+        target_index: int = cells.index((-3, 3, 0))
+        np.testing.assert_allclose(
+            distances[target_index],
+            np.sqrt(0.03**2 + 0.3**2),
+            rtol=1e-13,
+            atol=1e-14,
+        )
+
+    def test_undersized_explicit_radius_is_rejected(self) -> None:
+        """Reject a caller override that cannot certify completeness.
+
+        The small-cell geometry needs translations beyond the legacy default.
+
+        Notes
+        -----
+        Require the diagnostic to expose the computed minimum radius.
+        """
+        geometry: CrystalGeometry = make_crystal_geometry(
+            jnp.diag(jnp.asarray((0.4, 10.0, 10.0), dtype=jnp.float64)),
+            jnp.zeros((1, 3), dtype=jnp.float64),
+            ("X",),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"supercell_radius=2 is incomplete; certified minimum is 4",
+        ):
+            neighbor_shells(geometry, 1.25, supercell_radius=2)
+
 
 class TestBuildSkModel:
     """Validate :func:`diffpes.tightb.build_sk_model`."""
@@ -562,6 +647,58 @@ class TestBuildSkModel:
             rtol=0.0,
             atol=1e-14,
         )
+
+    def test_jit_rejects_uncertified_traced_geometry(self) -> None:
+        """Reject neighbor discovery when compilation hides its geometry.
+
+        The compiled lattice is a tracer without a concrete primal, so no
+        singular-value topology certificate can be frozen on the host.
+
+        Notes
+        -----
+        Static-geometry compiled rebuilds remain supported because their
+        topology is selected before tracing.
+        """
+        geometry: CrystalGeometry = make_crystal_geometry(
+            jnp.eye(3, dtype=jnp.float64),
+            jnp.zeros((1, 3), dtype=jnp.float64),
+            ("X",),
+        )
+        basis: OrbitalBasis = make_orbital_basis(
+            (0,),
+            (1,),
+            (0,),
+            (0,),
+            labels=("X_s",),
+        )
+        params: SlaterKosterParams = make_slater_koster_params(
+            jnp.asarray((-1.0,), dtype=jnp.float64),
+            ("X-X:ss_sigma",),
+        )
+
+        def hopping(lattice: Float[Array, "3 3"]) -> Float[Array, " n_hop"]:
+            """Build hopping amplitudes from a traced lattice."""
+            candidate: CrystalGeometry = eqx.tree_at(
+                lambda item: item.lattice,
+                geometry,
+                lattice,
+            )
+            model: TBModel = build_sk_model(
+                candidate,
+                basis,
+                params,
+                jnp.zeros((1,), dtype=jnp.float64),
+                jnp.zeros((0,), dtype=jnp.float64),
+                (-1,),
+                1.1,
+            )
+            return jnp.real(model.hopping_amplitudes)
+
+        with pytest.raises(
+            ValueError,
+            match="cannot certify neighbor topology from fully traced geometry",
+        ):
+            jax.jit(hopping)(geometry.lattice)
 
     @pytest.mark.parametrize("pole", (1.0, -1.0))
     def test_position_gradient_flows_through_frozen_topology(
@@ -700,4 +837,4 @@ class TestBuildSkModel:
             return loss
 
         assert_grad_matches_fd(spectral_loss, initial)
-        assert_nonzero_grad(spectral_loss, initial)
+        assert_nonzero_grad(spectral_loss, initial, elementwise=True)

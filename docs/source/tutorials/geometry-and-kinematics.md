@@ -14,7 +14,7 @@ kernelspec:
 # Geometry and Kinematics
 
 Build a graphene momentum path and first-zone mesh. Then inspect inner-potential
-dispersion, detector-frame polarization, and a geometry Jacobian.
+dispersion, sample-frame polarization, and a geometry Jacobian.
 
 ```{code-cell} ipython3
 import jax
@@ -23,9 +23,10 @@ import matplotlib.pyplot as plt
 
 from diffpes.simul import (
     kz_from_inner_potential,
+    lab_polarization_to_sample,
     polarization_from_angles,
     polarization_to_spherical,
-    rotate_polarization_grid,
+    sample_azimuth_rotation,
 )
 from diffpes.tightb import (
     build_bz_mesh,
@@ -56,7 +57,13 @@ lattice = jnp.array(
 positions = jnp.array([[0.0, 0.0, 0.0], [1.0 / 3.0, 2.0 / 3.0, 0.0]])
 crystal = make_crystal_geometry(lattice, positions, ("C", "C"))
 polarization = polarization_from_angles(0.75, 0.0, "p")
-experiment = make_experiment_geometry(50.0, polarization, inner_potential_ev=12.0)
+experiment = make_experiment_geometry(
+    50.0,
+    polarization,
+    incidence_theta=0.75,
+    incidence_phi=0.0,
+    inner_potential_ev=12.0,
+)
 print(crystal.reciprocal)
 print(jnp.linalg.norm(experiment.polarization))
 ```
@@ -112,6 +119,7 @@ def kz_curve(inner_potential):
                 energy,
                 experiment.work_function_ev,
                 inner_potential,
+                jnp.asarray(0.0),
                 k_parallel,
             )[0]
         )
@@ -127,17 +135,21 @@ ax.legend()
 plt.show()
 ```
 
-## Rotate the Polarization
+## Map the Fixed Polarization
 
-Rotate one p-polarized amplitude across the horizontal slit. The spherical
-weights show how the detector frame redistributes its components.
+Map one p-polarized laboratory amplitude through the inverse sample
+orientation. The spherical weights remain fixed across detector pixels
+because analyzer angles rotate emission directions, not the incident beam.
 
 ```{code-cell} ipython3
 tx = jnp.deg2rad(jnp.linspace(-15.0, 15.0, 61))
-ty = jnp.asarray([0.0])
-rotated = rotate_polarization_grid(experiment.polarization, tx, ty, "H")
-spherical = jax.vmap(polarization_to_spherical)(rotated[:, 0, :])
-weights = jnp.abs(spherical) ** 2
+sample_orientation = sample_azimuth_rotation(experiment.sample_azimuth)
+polarization_sample = lab_polarization_to_sample(
+    experiment.polarization,
+    sample_orientation,
+)
+spherical = polarization_to_spherical(polarization_sample)
+weights = jnp.broadcast_to(jnp.abs(spherical) ** 2, (tx.shape[0], 3))
 
 fig, ax = plt.subplots(figsize=(6, 4))
 for index, label in enumerate(("q=-1", "q=0", "q=+1")):
@@ -165,6 +177,7 @@ def scan(parameters):
             energy,
             work_function,
             inner_potential,
+            jnp.asarray(0.0),
             k_parallel,
         )
     )(energies)

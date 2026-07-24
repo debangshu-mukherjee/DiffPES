@@ -245,6 +245,43 @@ class TestTBParameterView:
             model.hopping_amplitudes,
         )
 
+    def test_materialized_geometry_is_spectrally_structural(self) -> None:
+        """Expose geometry metadata without inventing hopping strain physics.
+
+        At a fixed fractional k-point the materialized hopping values and
+        integer cells are held fixed. Basis positions change only the Bloch
+        gauge, while lattice rows do not enter the Hamiltonian.
+
+        Notes
+        -----
+        Differentiate a band-energy invariant with respect to every optional
+        geometry coordinate and require the documented structural zero.
+        """
+        model: TBModel = _materialized_model()
+        parameters: Float[Array, " 17"]
+        rebuild: Callable[[Float[Array, " 17"]], TBModel]
+        parameters, rebuild = tb_parameter_view(
+            model,
+            include_positions=True,
+            include_lattice=True,
+        )
+        kpoint: Float[Array, " 3"] = jnp.asarray(
+            (0.231, -0.117, 0.083),
+            dtype=jnp.float64,
+        )
+
+        def loss(vector: Float[Array, " 12"]) -> jax.Array:
+            """Return a spectral invariant with hoppings and k fixed."""
+            candidate: TBModel = rebuild(parameters.at[5:].set(vector))
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(candidate, kpoint)
+            )
+            return jnp.sum(eigenvalues**2)
+
+        derivative: Float[Array, " 12"] = jax.grad(loss)(parameters[5:])
+
+        np.testing.assert_allclose(derivative, 0.0, rtol=0.0, atol=1e-13)
+
     def test_view_gradient_matches_direct_complex_coordinate(self) -> None:
         """Match gradients through the view with a direct analytic chain.
 
@@ -549,6 +586,87 @@ class TestSKModelParameterView:
         assert jnp.abs(actual) > 1e-8
         np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-13)
 
+    def test_geometry_null_directions_with_distance_independent_sk(
+        self,
+    ) -> None:
+        """Pin translation and isotropic-scale structural null directions.
+
+        The fixed neighbor topology, cutoff, fractional k-point, SK values,
+        onsite values, and SOC values are held fixed. Because the built-in SK
+        law depends on bond direction but not bond length, a uniform
+        translation or dilation cannot change the band spectrum.
+
+        Notes
+        -----
+        The neighboring shear test supplies the retained nonzero angular
+        sensitivity. Here autodiff must return zero for the two absent
+        physical channels instead of implying radial strain sensitivity.
+        """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
+        geometry, basis, params, onsite = _sp_context()
+        parameters: Float[Array, " 18"]
+        rebuild: Callable[[Float[Array, " 18"]], TBModel]
+        parameters, rebuild = sk_model_parameter_view(
+            geometry,
+            basis,
+            params,
+            onsite,
+            jnp.zeros((0,), dtype=jnp.float64),
+            (-1, -1),
+            2.0,
+            include_positions=True,
+            include_lattice=True,
+        )
+        kpoint: Float[Array, " 3"] = jnp.asarray(
+            (0.17, -0.09, 0.03),
+            dtype=jnp.float64,
+        )
+        position_slice: slice = slice(3, 9)
+        lattice_slice: slice = slice(9, 18)
+
+        def band_loss(vector: Float[Array, " 18"]) -> jax.Array:
+            """Return a spectral invariant at fixed fractional k."""
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(rebuild(vector), kpoint)
+            )
+            return jnp.sum(eigenvalues**2)
+
+        def translated(shift: Float[Array, " 3"]) -> jax.Array:
+            """Translate every fractional basis position equally."""
+            positions: Float[Array, "2 3"] = jnp.reshape(
+                parameters[position_slice],
+                (2, 3),
+            )
+            vector: Float[Array, " 18"] = parameters.at[position_slice].set(
+                jnp.ravel(positions + shift[None, :])
+            )
+            return band_loss(vector)
+
+        def dilated(scale: Float[Array, ""]) -> jax.Array:
+            """Dilate every real-space lattice row by one scale."""
+            vector: Float[Array, " 18"] = parameters.at[lattice_slice].set(
+                scale * parameters[lattice_slice]
+            )
+            return band_loss(vector)
+
+        translation_gradient: Float[Array, " 3"] = jax.grad(translated)(
+            jnp.zeros((3,), dtype=jnp.float64)
+        )
+        dilation_gradient: Float[Array, ""] = jax.grad(dilated)(
+            jnp.asarray(1.0, dtype=jnp.float64)
+        )
+
+        np.testing.assert_allclose(
+            translation_gradient,
+            0.0,
+            rtol=0.0,
+            atol=1e-13,
+        )
+        assert float(dilation_gradient) == pytest.approx(0.0, abs=1e-13)
+
     def test_jit_and_static_vector_validation(self) -> None:
         """Compile the rebuilding closure and reject a wrong vector length.
 
@@ -584,6 +702,92 @@ class TestSKModelParameterView:
             jax.jit(rebuild)(
                 jnp.zeros((parameters.size + 1,), dtype=jnp.float64)
             )
+
+    @pytest.mark.rss_limit_mb(700)
+    def test_jit_gradient_uses_captured_geometry_topology(self) -> None:
+        """Compile geometry-sensitive rebuilding on frozen neighbor cells.
+
+        Position and lattice coordinates are fully traced inside ``jit``.
+        Setup must capture certified pairs, cells, and shell numbers first.
+
+        Notes
+        -----
+        This is the optimizer counterexample to rediscovering neighbors from
+        traced geometry. Require an identical compiled model and finite,
+        nonzero position and lattice derivatives that match eager automatic
+        differentiation.
+        """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
+        geometry, basis, params, onsite = _sp_context()
+        parameters: Float[Array, " 18"]
+        rebuild: Callable[[Float[Array, " 18"]], TBModel]
+        parameters, rebuild = sk_model_parameter_view(
+            geometry,
+            basis,
+            params,
+            onsite,
+            jnp.zeros((0,), dtype=jnp.float64),
+            (-1, -1),
+            2.0,
+            include_positions=True,
+            include_lattice=True,
+        )
+        kpoint: Float[Array, " 3"] = jnp.asarray(
+            (0.17, -0.09, 0.03),
+            dtype=jnp.float64,
+        )
+
+        def loss(vector: Float[Array, " 18"]) -> Float[Array, ""]:
+            """Return a spectral invariant from the frozen-topology view."""
+            model: TBModel = rebuild(vector)
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(model, kpoint)
+            )
+            return jnp.sum(eigenvalues**2)
+
+        def loss_with_model(
+            vector: Float[Array, " 18"],
+        ) -> tuple[Float[Array, ""], TBModel]:
+            """Return the spectral invariant and rebuilt auxiliary model."""
+            model: TBModel = rebuild(vector)
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(model, kpoint)
+            )
+            value: Float[Array, ""] = jnp.sum(eigenvalues**2)
+            return value, model
+
+        expected_value: Float[Array, ""]
+        expected_gradient: Float[Array, " 18"]
+        expected_value, expected_gradient = jax.value_and_grad(loss)(
+            parameters
+        )
+        expected_model: TBModel = rebuild(parameters)
+        actual_value: Float[Array, ""]
+        actual_model: TBModel
+        actual_gradient: Float[Array, " 18"]
+        (actual_value, actual_model), actual_gradient = jax.jit(
+            jax.value_and_grad(loss_with_model, has_aux=True)
+        )(parameters)
+
+        _assert_models_bitwise(actual_model, expected_model)
+        assert jnp.all(jnp.isfinite(actual_gradient))
+        assert jnp.abs(actual_gradient[6]) > 1e-8
+        assert jnp.abs(actual_gradient[9]) > 1e-8
+        np.testing.assert_allclose(
+            actual_value,
+            expected_value,
+            rtol=1e-13,
+            atol=1e-13,
+        )
+        np.testing.assert_allclose(
+            actual_gradient,
+            expected_gradient,
+            rtol=1e-12,
+            atol=1e-13,
+        )
 
     def test_docstrings_register_the_energy_zero_gauge(self) -> None:
         """Keep the identifiability warning visible on both public views.

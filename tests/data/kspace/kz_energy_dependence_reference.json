@@ -1,0 +1,32 @@
+{
+  "gate": "03.I2",
+  "convention": {
+    "omega_rel_fermi_ev": "E - E_F",
+    "kinetic_energy_ev": "photon_energy_ev - work_function_ev + omega_rel_fermi_ev",
+    "exact_kz": "sqrt((2m/hbar^2)*(Ekin + inner_potential_ev) - k_parallel_inv_ang^2)",
+    "approximation": "omega_rel_fermi_ev = 0"
+  },
+  "inputs": {
+    "photon_energy_ev": 50.0,
+    "work_function_ev": 4.5,
+    "inner_potential_ev": 12.0,
+    "k_parallel_inv_ang": 0.7,
+    "omega_rel_fermi_ev": [-2.0, -1.0, 0.0, 1.0, 2.0]
+  },
+  "exact_kz_inv_ang": [
+    3.7519325116509417,
+    3.7867487369382937,
+    3.821247757136952,
+    3.8554380874479888,
+    3.8893278687795174
+  ],
+  "at_fermi_kz_inv_ang": 3.821247757136952,
+  "at_fermi_relative_error": [
+    0.018474544856754316,
+    0.009110459287180402,
+    0.0,
+    0.008868079200220888,
+    0.017504338523131324
+  ],
+  "maximum_relative_error": 0.018474544856754316
+}

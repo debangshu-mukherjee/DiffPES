@@ -36,6 +36,7 @@ from diffpes.types import (
     make_soc_volumetric_data,
     make_spin_band_structure,
     make_spin_orbital_projection,
+    make_tb_model,
     make_volumetric_data,
     make_workflow_context,
 )
@@ -59,7 +60,23 @@ def _all_carriers() -> dict[str, eqx.Module]:
     kpoints = jnp.zeros((2, 3), dtype=jnp.float64)
     bands = make_band_structure(energy[:, None], kpoints)
     projections = make_orbital_projection(jnp.ones((2, 1, 1, 9)))
-    tb_model = make_1d_chain_model()
+    template: diffpes.types.TBModel = make_1d_chain_model()
+    orbital_positions: Array = jnp.asarray(
+        [[0.125, 0.0, 0.0]],
+        dtype=jnp.float64,
+    )
+    tb_model = make_tb_model(
+        hopping_amplitudes=template.hopping_amplitudes,
+        onsite_energies=template.onsite_energies,
+        soc_lambdas=template.soc_lambdas,
+        geometry=template.geometry,
+        basis=template.basis,
+        hopping_pairs=template.hopping_pairs,
+        hopping_cells=template.hopping_cells,
+        shell_index=template.shell_index,
+        spinor=template.spinor,
+        orbital_positions=orbital_positions,
+    )
     geometry = tb_model.geometry
     basis = tb_model.basis
     diagonalized = make_diagonalized_bands(
@@ -68,6 +85,7 @@ def _all_carriers() -> dict[str, eqx.Module]:
         kpoints=kpoints,
         geometry=geometry,
         basis=basis,
+        orbital_positions=orbital_positions,
     )
     charge = jnp.ones((2, 2, 2), dtype=jnp.float64)
     carriers: dict[str, eqx.Module] = {

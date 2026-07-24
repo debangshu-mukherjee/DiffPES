@@ -34,6 +34,7 @@ from diffpes.types import (
 )
 
 from .canonical import canonical_pytree
+from .policy import evidence_is_independent
 
 
 def _scalar_bool(value: Any) -> bool:
@@ -365,7 +366,24 @@ def explain_claim(
                 f"  - {evidence.evidence_id}",
                 f"    method: {evidence.method_id}",
                 f"    source: {evidence.source_type}",
-                f"    independent: {evidence.independent}",
+                "    lineage independence: "
+                + (
+                    "qualified"
+                    if evidence_is_independent(
+                        evidence, certificate.model.implementation_ref
+                    )
+                    else "not qualified"
+                ),
+                "    implementations: "
+                + ", ".join(evidence.lineage.implementation_refs),
+                "    generators: "
+                + ", ".join(evidence.lineage.generator_refs),
+                "    artifacts: " + ", ".join(evidence.lineage.artifact_refs),
+                "    derivations: "
+                + ", ".join(evidence.lineage.derivation_refs),
+                "    conflicts: " + ", ".join(evidence.lineage.conflict_refs),
+                "    attestations: "
+                + ", ".join(evidence.human_attestation_refs),
                 f"    measured: {_array_text(evidence.measured)}",
                 f"    reference: {_array_text(evidence.reference)}",
                 f"    residual: {_array_text(evidence.residual)}",

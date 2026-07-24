@@ -786,6 +786,7 @@ def _make_model(
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     path: Path,
+    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
 ) -> TBModel:
     """Convert normalized matrix blocks to a validated native model."""
     onsite: NDArray
@@ -805,6 +806,7 @@ def _make_model(
         hopping_cells=tuple(record.cell for record in records),
         shell_index=(-1,) * n_orbitals,
         spinor=bool(basis.spin),
+        orbital_positions=orbital_positions,
     )
     return model
 
@@ -987,6 +989,48 @@ def _validated_explicit_centres(
         message = f"{path}: centres_cart must be finite"
         raise ValueError(message)
     return centres
+
+
+def _fractional_wannier_centres(
+    lattice: NDArray,
+    centres_cart: NDArray,
+    path: Path,
+) -> NDArray:
+    """Convert Cartesian Wannier centres to fractional coordinates."""
+    try:
+        inverse_lattice: NDArray = np.linalg.inv(lattice)
+    except np.linalg.LinAlgError as error:
+        error: np.linalg.LinAlgError
+        message: str = f"{path}: lattice must be nonsingular"
+        raise ValueError(message) from error
+    fractional: NDArray = centres_cart @ inverse_lattice
+    return np.asarray(fractional, dtype=np.float64)
+
+
+def _resolve_tb_geometry(
+    lattice: NDArray,
+    centres_cart: NDArray,
+    basis: OrbitalBasis,
+    path: Path,
+    geometry: Optional[CrystalGeometry],
+) -> CrystalGeometry:
+    """Resolve atomic geometry without conflating atoms and Wannier centres."""
+    if geometry is None:
+        return _geometry_from_centres(lattice, centres_cart, basis, path)
+    if geometry.positions.shape[0] <= max(basis.atom_indices, default=-1):
+        message: str = (
+            f"{path}: geometry positions do not cover basis atom_indices"
+        )
+        raise ValueError(message)
+    if not np.allclose(
+        np.asarray(geometry.lattice),
+        lattice,
+        rtol=0.0,
+        atol=WANNIER_CENTRE_CONSISTENCY_TOLERANCE,
+    ):
+        message = f"{path}: supplied geometry lattice differs from tb.dat"
+        raise ValueError(message)
+    return geometry
 
 
 @jaxtyped(typechecker=beartype)
@@ -1273,7 +1317,18 @@ def read_wannier90_hr(  # noqa: DOC502
         n_orbitals,
         path,
     )
-    model: TBModel = _make_model(blocks, geometry, basis, path)
+    orbital_positions: NDArray = _fractional_wannier_centres(
+        np.asarray(geometry.lattice),
+        centres,
+        path,
+    )
+    model: TBModel = _make_model(
+        blocks,
+        geometry,
+        basis,
+        path,
+        jnp.asarray(orbital_positions, dtype=jnp.float64),
+    )
     operator_data: WannierOperatorData = make_wannier_operator_data(
         position_matrices=None,
         centres_cart=jnp.asarray(centres, dtype=jnp.float64),
@@ -1291,6 +1346,7 @@ def read_wannier90_tb(  # noqa: DOC502
     filename: str,
     basis: OrbitalBasis,
     spin_layout: str,
+    geometry: Optional[CrystalGeometry] = None,
 ) -> tuple[TBModel, WannierOperatorData]:
     """Parse a normative Wannier90 ``seedname_tb.dat`` file.
 
@@ -1308,6 +1364,10 @@ def read_wannier90_tb(  # noqa: DOC502
     spin_layout : str
         Serialized ordering, ``"block_down_up"`` or
         ``"interleaved_up_down"``.
+    geometry : Optional[CrystalGeometry], optional
+        Atomic geometry. It is required when orbitals assigned to one atom
+        have noncoincident Wannier centres. When omitted, atomic positions
+        are inferred only if every atom's assigned centres coincide.
 
     Returns
     -------
@@ -1374,13 +1434,25 @@ def read_wannier90_tb(  # noqa: DOC502
         blocks.cells,
         path,
     )
-    geometry: CrystalGeometry = _geometry_from_centres(
+    resolved_geometry: CrystalGeometry = _resolve_tb_geometry(
         lattice,
         centres,
         basis,
         path,
+        geometry,
     )
-    model: TBModel = _make_model(blocks, geometry, basis, path)
+    orbital_positions: NDArray = _fractional_wannier_centres(
+        lattice,
+        centres,
+        path,
+    )
+    model: TBModel = _make_model(
+        blocks,
+        resolved_geometry,
+        basis,
+        path,
+        jnp.asarray(orbital_positions, dtype=jnp.float64),
+    )
     operator_data: WannierOperatorData = make_wannier_operator_data(
         position_matrices=jnp.asarray(
             position_matrices,
