@@ -87,3 +87,8 @@ Validation and regression tests for :mod:`diffpes.types`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_types.test_wannier
+   :members:
+   :undoc-members:
+   :show-inheritance:

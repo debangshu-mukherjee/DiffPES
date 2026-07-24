@@ -28,6 +28,8 @@ The following list describes the submodules:
     Parse a VASP POSCAR/CONTCAR file.
 - :mod:`procar`
     Parse a VASP PROCAR file.
+- :mod:`tb_files`
+    Parse explicit hopping lists and normative Wannier90 TB files.
 
 Routine Listings
 ----------------
@@ -71,6 +73,12 @@ Routine Listings
     Parse a VASP POSCAR/CONTCAR file.
 :func:`read_procar`
     Parse a VASP PROCAR file.
+:func:`read_hopping_list`
+    Parse a zero-based Cartesian hopping list.
+:func:`read_wannier90_hr`
+    Parse a normative Wannier90 ``seedname_hr.dat`` file.
+:func:`read_wannier90_tb`
+    Parse a normative Wannier90 ``seedname_tb.dat`` file.
 :func:`reduce_orbitals`
     Reduce 9 orbital channels to s/p/d totals.
 :func:`save_to_h5`
@@ -115,6 +123,11 @@ from .plotting import (
 )
 from .poscar import read_poscar
 from .procar import read_procar
+from .tb_files import (
+    read_hopping_list,
+    read_wannier90_hr,
+    read_wannier90_tb,
+)
 
 __all__: list[str] = [
     "aggregate_atoms",
@@ -134,9 +147,12 @@ __all__: list[str] = [
     "read_chgcar",
     "read_doscar",
     "read_eigenval",
+    "read_hopping_list",
     "read_kpoints",
     "read_poscar",
     "read_procar",
+    "read_wannier90_hr",
+    "read_wannier90_tb",
     "reduce_orbitals",
     "save_certificate_json",
     "save_to_h5",

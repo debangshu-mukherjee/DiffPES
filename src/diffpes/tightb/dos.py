@@ -1,0 +1,370 @@
+"""Construct broadened tight-binding densities of states and fillings.
+
+Extended Summary
+----------------
+This module evaluates a normalized Gaussian k-sum density of states and solves
+the finite-temperature filling equation for the chemical potential. Both
+operations are pure JAX programs. The filling solve uses Optimistix with an
+initial bracketing solve followed by an implicitly differentiated Newton solve.
+
+Routine Listings
+----------------
+:func:`dos_gaussian`
+    Evaluate a Gaussian-broadened tight-binding density of states.
+:func:`fermi_level_from_filling`
+    Compute the finite-temperature Fermi level from the filling equation.
+
+Notes
+-----
+Require nonnegative k-point weights normalized to one. Integrating the
+returned DOS over the full real line then gives the number of bands. A finite
+sampled energy window carries the corresponding Gaussian tail truncation
+error.
+"""
+
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+import optimistix as optx
+from beartype import beartype
+from jaxtyping import Array, Float, jaxtyped
+
+from diffpes.simul.broadening import fermi_dirac
+from diffpes.types import (
+    EPS,
+    KB_EV_PER_K,
+    DensityOfStates,
+    ScalarFloat,
+    make_density_of_states,
+)
+
+_SPECTRUM_NDIM: int = 2
+_MINIMUM_AXIS_POINTS: int = 2
+
+
+def _validate_spectrum_inputs(
+    eigenvalues: Float[Array, "n_k n_bands"],
+    k_weights: Float[Array, " n_k"],
+    *,
+    context: str,
+) -> tuple[Float[Array, "n_k n_bands"], Float[Array, " n_k"]]:
+    """Normalize arrays and enforce the shared weighted-spectrum contract."""
+    energies: Float[Array, "n_k n_bands"] = jnp.asarray(
+        eigenvalues,
+        dtype=jnp.float64,
+    )
+    weights: Float[Array, " n_k"] = jnp.asarray(
+        k_weights,
+        dtype=jnp.float64,
+    )
+    if energies.ndim != _SPECTRUM_NDIM:
+        raise ValueError(f"{context}: eigenvalues must be two-dimensional")
+    if weights.ndim != 1:
+        raise ValueError(f"{context}: k_weights must be one-dimensional")
+    if energies.shape[0] != weights.shape[0]:
+        raise ValueError(
+            f"{context}: eigenvalues and k_weights k-point counts disagree"
+        )
+    if energies.shape[0] == 0 or energies.shape[1] == 0:
+        raise ValueError(
+            f"{context}: spectrum must contain at least one state"
+        )
+    energies = eqx.error_if(
+        energies,
+        ~jnp.all(jnp.isfinite(energies)),
+        f"{context}: eigenvalues must be finite",
+    )
+    weights = eqx.error_if(
+        weights,
+        ~jnp.all(jnp.isfinite(weights)),
+        f"{context}: k_weights must be finite",
+    )
+    weights = eqx.error_if(
+        weights,
+        jnp.any(weights < 0.0),
+        f"{context}: k_weights must be nonnegative",
+    )
+    weights = eqx.error_if(
+        weights,
+        jnp.abs(jnp.sum(weights) - 1.0) > EPS,
+        f"{context}: k_weights must sum to one",
+    )
+    return energies, weights
+
+
+@jaxtyped(typechecker=beartype)
+def dos_gaussian(  # noqa: DOC502, DOC503 -- traced validation raises under JAX.
+    eigenvalues: Float[Array, "n_k n_bands"],
+    k_weights: Float[Array, " n_k"],
+    energy_axis: Float[Array, " n_e"],
+    sigma: ScalarFloat,
+) -> DensityOfStates:
+    r"""Evaluate a Gaussian-broadened tight-binding density of states.
+
+    The returned values implement
+
+    .. math::
+
+       N(E)=\sum_{kn}w_k\frac{\exp[-(E-\epsilon_{kn})^2/(2\sigma^2)]}
+       {\sqrt{2\pi}\sigma}.
+
+    :see: :class:`~.test_dos.TestDosGaussian`
+
+    Parameters
+    ----------
+    eigenvalues : Float[Array, "n_k n_bands"]
+        Band energies in eV.
+    k_weights : Float[Array, " n_k"]
+        Nonnegative k-point weights normalized to one.
+    energy_axis : Float[Array, " n_e"]
+        Strictly increasing output energy axis in eV.
+    sigma : ScalarFloat
+        Positive Gaussian standard deviation in eV.
+
+    Returns
+    -------
+    dos : DensityOfStates
+        Validated DOS carrier. Its reference energy is zero.
+
+    Raises
+    ------
+    ValueError
+        If array ranks or static dimensions are invalid.
+    EquinoxRuntimeError
+        If numerical inputs are nonfinite, weights are invalid, or ``sigma``
+        is not positive.
+
+    Notes
+    -----
+    Broadcasting constructs every sampled Gaussian profile. Weighted
+    reductions over k-points and bands produce the carrier values.
+    """
+    energies: Float[Array, "n_k n_bands"]
+    weights: Float[Array, " n_k"]
+    energies, weights = _validate_spectrum_inputs(
+        eigenvalues,
+        k_weights,
+        context="dos_gaussian",
+    )
+    axis: Float[Array, " n_e"] = jnp.asarray(
+        energy_axis,
+        dtype=jnp.float64,
+    )
+    width: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
+    if axis.ndim != 1:
+        raise ValueError("dos_gaussian: energy_axis must be one-dimensional")
+    if axis.shape[0] < _MINIMUM_AXIS_POINTS:
+        raise ValueError(
+            "dos_gaussian: energy_axis must contain at least two points"
+        )
+    width = eqx.error_if(
+        width,
+        ~jnp.isfinite(width) | (width <= 0.0),
+        "dos_gaussian: sigma must be finite and positive",
+    )
+    differences: Float[Array, "n_e n_k n_bands"] = (
+        axis[:, None, None] - energies[None, :, :]
+    )
+    normalization: Float[Array, ""] = jnp.sqrt(2.0 * jnp.pi) * width
+    profiles: Float[Array, "n_e n_k n_bands"] = (
+        jnp.exp(-0.5 * (differences / width) ** 2) / normalization
+    )
+    values: Float[Array, " n_e"] = jnp.sum(
+        profiles * weights[None, :, None],
+        axis=(1, 2),
+    )
+    dos: DensityOfStates = make_density_of_states(
+        energy=axis,
+        total_dos=values,
+        fermi_energy=0.0,
+    )
+    return dos
+
+
+def _filling_residual(
+    chemical_potential: Float[Array, ""],
+    arguments: tuple[
+        Float[Array, "n_k n_bands"],
+        Float[Array, " n_k"],
+        Float[Array, ""],
+        Float[Array, ""],
+    ],
+) -> Float[Array, ""]:
+    """Evaluate the weighted occupation minus the requested filling."""
+    eigenvalues: Float[Array, "n_k n_bands"]
+    k_weights: Float[Array, " n_k"]
+    temperature_k: Float[Array, ""]
+    n_electrons: Float[Array, ""]
+    eigenvalues, k_weights, temperature_k, n_electrons = arguments
+    flat_occupations: Float[Array, " n_states"] = jax.vmap(
+        lambda energy: fermi_dirac(
+            energy,
+            chemical_potential,
+            temperature_k,
+        )
+    )(jnp.ravel(eigenvalues))
+    occupations: Float[Array, "n_k n_bands"] = jnp.reshape(
+        flat_occupations,
+        eigenvalues.shape,
+    )
+    count: Float[Array, ""] = jnp.sum(k_weights[:, None] * occupations)
+    residual: Float[Array, ""] = count - n_electrons
+    return residual
+
+
+def _solve_filling(
+    arguments: tuple[
+        Float[Array, "n_k n_bands"],
+        Float[Array, " n_k"],
+        Float[Array, ""],
+        Float[Array, ""],
+    ],
+    lower: Float[Array, ""],
+    upper: Float[Array, ""],
+    *,
+    tolerance: float,
+) -> Float[Array, ""]:
+    """Compute one validated filling root at a static tolerance."""
+    midpoint: Float[Array, ""] = 0.5 * (lower + upper)
+    bracket_solver: optx.Bisection = optx.Bisection(
+        rtol=max(100.0 * tolerance, 1e-14),
+        atol=max(10.0 * tolerance, 1e-14),
+        expand_if_necessary=True,
+    )
+    bracket_solution: optx.Solution = optx.root_find(
+        _filling_residual,
+        bracket_solver,
+        midpoint,
+        args=arguments,
+        options={"lower": lower, "upper": upper},
+        max_steps=256,
+        throw=True,
+    )
+    initial_newton: Float[Array, ""] = jax.lax.stop_gradient(
+        bracket_solution.value
+    )
+    newton_solver: optx.Newton = optx.Newton(
+        rtol=tolerance,
+        atol=tolerance,
+    )
+    solution: optx.Solution = optx.root_find(
+        _filling_residual,
+        newton_solver,
+        initial_newton,
+        args=arguments,
+        max_steps=64,
+        throw=True,
+    )
+    chemical_potential: Float[Array, ""] = solution.value
+    return chemical_potential
+
+
+@jaxtyped(typechecker=beartype)
+def fermi_level_from_filling(  # noqa: DOC502
+    eigenvalues: Float[Array, "n_k n_bands"],
+    k_weights: Float[Array, " n_k"],
+    n_electrons: ScalarFloat,
+    temperature_k: ScalarFloat = 300.0,
+) -> Float[Array, ""]:
+    r"""Compute the finite-temperature Fermi level from the filling equation.
+
+    The root satisfies
+
+    .. math::
+
+       \sum_{kn}w_k f_\mathrm{FD}(\epsilon_{kn};\mu,T)=N_e.
+
+    A bisection solve supplies a robust initial value. A tight Newton solve
+    then supplies the returned root and Optimistix's implicit derivative.
+
+    :see: :class:`~.test_dos.TestFermiLevelFromFilling`
+
+    Parameters
+    ----------
+    eigenvalues : Float[Array, "n_k n_bands"]
+        Band energies in eV.
+    k_weights : Float[Array, " n_k"]
+        Nonnegative k-point weights normalized to one.
+    n_electrons : ScalarFloat
+        Electron count per cell, strictly between zero and the band capacity.
+    temperature_k : ScalarFloat, optional
+        Positive electronic temperature in kelvin. Default is 300 K.
+
+    Returns
+    -------
+    chemical_potential : Float[Array, ""]
+        Fermi level in eV.
+
+    Raises
+    ------
+    ValueError
+        If array ranks or static dimensions are invalid.
+    EquinoxRuntimeError
+        If numerical inputs, temperature, or filling are outside the declared
+        domain, or if the solve does not produce a finite root.
+
+    Notes
+    -----
+    The discrete band capacity is ``n_bands`` because k-point weights sum to
+    one. The domain excludes end-point fillings because their chemical
+    potentials occur only in infinite limits at positive temperature.
+    """
+    energies: Float[Array, "n_k n_bands"]
+    weights: Float[Array, " n_k"]
+    energies, weights = _validate_spectrum_inputs(
+        eigenvalues,
+        k_weights,
+        context="fermi_level_from_filling",
+    )
+    filling: Float[Array, ""] = jnp.asarray(
+        n_electrons,
+        dtype=jnp.float64,
+    )
+    temperature: Float[Array, ""] = jnp.asarray(
+        temperature_k,
+        dtype=jnp.float64,
+    )
+    capacity: Float[Array, ""] = jnp.asarray(
+        energies.shape[1],
+        dtype=jnp.float64,
+    )
+    temperature = eqx.error_if(
+        temperature,
+        ~jnp.isfinite(temperature) | (temperature <= 0.0),
+        "fermi_level_from_filling: temperature_k must be finite and positive",
+    )
+    filling = eqx.error_if(
+        filling,
+        ~jnp.isfinite(filling) | (filling <= 0.0) | (filling >= capacity),
+        "fermi_level_from_filling: n_electrons must lie inside band capacity",
+    )
+    thermal_padding: Float[Array, ""] = jnp.maximum(
+        1.0,
+        64.0 * KB_EV_PER_K * temperature,
+    )
+    lower: Float[Array, ""] = jnp.min(energies) - thermal_padding
+    upper: Float[Array, ""] = jnp.max(energies) + thermal_padding
+    arguments: tuple[
+        Float[Array, "n_k n_bands"],
+        Float[Array, " n_k"],
+        Float[Array, ""],
+        Float[Array, ""],
+    ] = (energies, weights, temperature, filling)
+    solved: Float[Array, ""] = _solve_filling(
+        arguments,
+        lower,
+        upper,
+        tolerance=1e-12,
+    )
+    chemical_potential: Float[Array, ""] = eqx.error_if(
+        solved,
+        ~jnp.isfinite(solved),
+        "fermi_level_from_filling: root must be finite",
+    )
+    return chemical_potential
+
+
+__all__: list[str] = [
+    "dos_gaussian",
+    "fermi_level_from_filling",
+]

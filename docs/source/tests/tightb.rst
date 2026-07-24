@@ -3,7 +3,17 @@ diffpes.tightb tests
 
 Validation and regression tests for :mod:`diffpes.tightb`.
 
+.. automodule:: tests.test_diffpes.test_tightb.test_chinook_compatibility
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_tightb.test_diagonalize
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_dos
    :members:
    :undoc-members:
    :show-inheritance:
@@ -18,7 +28,32 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_tightb.test_operators
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_parameters
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_tightb.test_projections
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_scalability
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slaterkoster
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_soc
    :members:
    :undoc-members:
    :show-inheritance:

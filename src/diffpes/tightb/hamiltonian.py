@@ -30,6 +30,8 @@ from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 from diffpes.types import EPS, TBModel
 
+from .soc import soc_matrix
+
 
 def _reverse_hopping_indices(model: TBModel) -> Int[Array, " n_hop"]:
     """Derive the reverse-entry permutation from exact static metadata."""
@@ -55,7 +57,7 @@ def _reverse_hopping_indices(model: TBModel) -> Int[Array, " n_hop"]:
 def _validated_hopping_amplitudes(
     model: TBModel,
 ) -> Complex[Array, " n_hop"]:
-    """Validate unsupported physics and traced hopping invariants again."""
+    """Validate traced hopping invariants again."""
     amplitudes: Complex[Array, " n_hop"] = eqx.error_if(
         model.hopping_amplitudes,
         ~jnp.all(jnp.isfinite(model.hopping_amplitudes)),
@@ -118,11 +120,18 @@ def _assemble_bloch_hamiltonian(
         diagonal_indices,
         diagonal_indices,
     ].add(model.onsite_energies)
-    hamiltonian = eqx.error_if(
-        hamiltonian,
-        ~jnp.all(model.soc_lambdas == 0.0),
-        "bloch_hamiltonian: nonzero SOC requires the WP4.5 SOC engine",
-    )
+    if model.spinor:
+        hamiltonian = hamiltonian + soc_matrix(
+            model.basis,
+            model.shell_index,
+            model.soc_lambdas,
+        )
+    else:
+        hamiltonian = eqx.error_if(
+            hamiltonian,
+            ~jnp.all(model.soc_lambdas == 0.0),
+            "bloch_hamiltonian: nonzero SOC requires spin doubling",
+        )
     hamiltonian = eqx.error_if(
         hamiltonian,
         ~jnp.all(jnp.isfinite(hamiltonian)),
@@ -166,17 +175,18 @@ def bloch_hamiltonian(  # noqa: DOC502
     Raises
     ------
     EquinoxRuntimeError
-        If SOC is nonzero, hopping amplitudes are non-finite or no longer
-        conjugate-closed, or the assembled Hamiltonian is non-finite or
-        non-Hermitian.
+        If hopping amplitudes or SOC couplings are non-finite, hopping
+        amplitudes are no longer conjugate-closed, or the assembled
+        Hamiltonian is non-finite or non-Hermitian.
 
     Notes
     -----
     The algorithm derives all bond displacements at once, evaluates their
     phases, and performs one flattened scatter-add. It then adds onsite
-    energies to the diagonal. The Plan 04 SOC workstream adds atomic SOC;
-    this implementation supports the spin-diagonal kinetic block and zero SOC
-    couplings.
+    energies to the diagonal and, for a spinor model, adds the shell-resolved
+    atomic SOC matrix exactly once. The onsite and basis lengths already
+    represent the complete Hamiltonian dimension; ``spinor=True`` never
+    doubles it again.
     """
     amplitudes: Complex[Array, " n_hop"] = _validated_hopping_amplitudes(model)
     hamiltonian: Complex[Array, "n_orb n_orb"] = _assemble_bloch_hamiltonian(
@@ -213,9 +223,9 @@ def bloch_hamiltonian_batch(  # noqa: DOC502
     Raises
     ------
     EquinoxRuntimeError
-        If SOC is nonzero, hopping amplitudes are non-finite or no longer
-        conjugate-closed, or an assembled Hamiltonian is non-finite or
-        non-Hermitian.
+        If hopping amplitudes or SOC couplings are non-finite, hopping
+        amplitudes are no longer conjugate-closed, or an assembled
+        Hamiltonian is non-finite or non-Hermitian.
 
     Notes
     -----

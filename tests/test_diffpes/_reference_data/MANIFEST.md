@@ -21,6 +21,16 @@
 - `novice_toy`: `simulate_novice(toy_band_structure(key), toy_orbital_projection(key), toy_simulation_params(fidelity=512))`
 - `tb_radial_graphene`: `simulate_tb_radial(toy_graphene_diagonalized(n_k=12)[1], toy_slater_params(), toy_simulation_params(fidelity=512), toy_polarization_config())`, plus intensity sum and zeta gradient
 - `tb_radial_chain`: `simulate_tb_radial(toy_chain_diagonalized(n_k=16)[1], make_slater_params(zeta=[1.625], orbital_basis=bands.basis), toy_simulation_params(fidelity=512), toy_polarization_config())`, plus intensity sum and zeta gradient
+- `plan04_chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
+  outputs for the independently C-gated graphene, square-lattice Rashba, and
+  atomic t2g+SOC models. The generator and isolated environment freeze live
+  outside the DiffPES repository under
+  `diffpes-plans/verification/tightb/`; pytest reads only this inert JSON.
+- `plan04_wannier90_wse2_reference`: independent NumPy parsing, Fourier
+  assembly, and eigensolution of the publicly distributed dynamics-w90
+  `data/WSe2_soc/wse2_soc_11bnd_hr.dat` at Γ and reduced-coordinate
+  X = (1/2, 0, 0). The exact normative input is stored losslessly compressed;
+  its decompressed SHA-256 authenticates the local public snapshot.
 
 ## Artifacts
 
@@ -48,3 +58,48 @@
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
   - `leaf_002_intensity_sum`: shape `()`, dtype `float64`
   - `leaf_003_zeta_gradient`: shape `(1,)`, dtype `float64`
+
+### `plan04_chinook_tightb_reference.json`
+
+- Classification: Plan 04 gate 04.G6, K-type behavioral compatibility only
+- Chinook commit: `24913de8cc5b8c162f7c1b4acc64bd1b54dd548b`
+- Isolated-environment SHA-256:
+  `6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531`
+- Artifact SHA-256:
+  `db52d72562f2efb49d25f9ce2b9affefed1af6f6fac927d1e20f9bb96f1510dc`
+- Arrays encoded as JSON numbers:
+  - graphene eigenvalues: shape `(33, 2)`, eV
+  - square-lattice Rashba eigenvalues: shape `(5, 2)`, eV
+  - atomic t2g+SOC eigenvalues: shape `(3, 6)`, eV
+
+### `plan04_wse2_soc_11bnd_hr.dat.xz`
+
+- Classification: Plan 04 gate 04.G7, publicly distributed normative-format
+  input
+- Upstream repository:
+  `https://github.com/michaelschueler/dynamics-w90`
+- Upstream snapshot path: `data/WSe2_soc/wse2_soc_11bnd_hr.dat`
+- Upstream commit:
+  `6f6d99e7fe4b2839a735c609d7df19d1886e8deb` (byte-for-byte verified)
+- License qualification: the upstream repository displays no license, so no
+  license grant is claimed; only this normative input crosses the
+  independent-implementation boundary
+- Decompressed size: `5,543,022` bytes
+- Decompressed SHA-256:
+  `8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1`
+- Compressed SHA-256:
+  `756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4`
+
+### `plan04_wannier90_wse2_reference.json`
+
+- Classification: Plan 04 gate 04.G7, K-type published-input companion
+  benchmark; normative-format and analytic gates remain authoritative
+- Generator:
+  `diffpes-plans/verification/tightb/gen_wannier90_wse2_reference.py`
+- Generator SHA-256:
+  `9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8`
+- Artifact SHA-256:
+  `afd95f0e6f26771b10e6d825f4e487f88bab0bdc5b326348d43bb6a24194d18c`
+- Arrays encoded as JSON numbers:
+  - Γ eigenvalues: shape `(22,)`, eV
+  - X = `(0.5, 0.0, 0.0)` eigenvalues: shape `(22,)`, eV

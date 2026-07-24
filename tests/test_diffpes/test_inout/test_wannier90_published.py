@@ -1,0 +1,106 @@
+"""Exercise the published-input companion benchmark for Plan 04 gate G7."""
+
+import hashlib
+import json
+import lzma
+from pathlib import Path
+from typing import Any
+
+import jax.numpy as jnp
+import numpy as np
+
+from diffpes.inout import read_wannier90_hr
+from diffpes.tightb import eigvalsh_bands
+from diffpes.types import (
+    CrystalGeometry,
+    OrbitalBasis,
+    make_crystal_geometry,
+    make_orbital_basis,
+)
+
+_REFERENCE_DIRECTORY = Path(__file__).parents[1] / "_reference_data"
+_COMPRESSED_INPUT = _REFERENCE_DIRECTORY / "plan04_wse2_soc_11bnd_hr.dat.xz"
+_FROZEN_REFERENCE = (
+    _REFERENCE_DIRECTORY / "plan04_wannier90_wse2_reference.json"
+)
+_COMPRESSED_SHA256 = (
+    "756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4"
+)
+_REFERENCE_SHA256 = (
+    "afd95f0e6f26771b10e6d825f4e487f88bab0bdc5b326348d43bb6a24194d18c"
+)
+_SOURCE_SHA256 = (
+    "8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1"
+)
+
+
+def _sha256(payload: bytes) -> str:
+    """Return the hexadecimal SHA-256 digest of a byte payload."""
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _wannier_context(
+    n_wannier: int,
+) -> tuple[CrystalGeometry, OrbitalBasis]:
+    """Build a neutral hr-gauge carrier context for eigenvalue comparison."""
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=jnp.eye(3, dtype=jnp.float64),
+        positions=jnp.zeros((1, 3), dtype=jnp.float64),
+        species=("WSe2 Wannier cell",),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0,) * n_wannier,
+        n=(1,) * n_wannier,
+        l=(0,) * n_wannier,
+        m=(0,) * n_wannier,
+        labels=tuple(f"wannier_{index}" for index in range(n_wannier)),
+    )
+    return geometry, basis
+
+
+def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
+    """Parse the authenticated input and reproduce frozen Γ/X eigenvalues."""
+    compressed: bytes = _COMPRESSED_INPUT.read_bytes()
+    reference_payload: bytes = _FROZEN_REFERENCE.read_bytes()
+    assert _sha256(compressed) == _COMPRESSED_SHA256
+    assert _sha256(reference_payload) == _REFERENCE_SHA256
+
+    source: bytes = lzma.decompress(compressed)
+    assert _sha256(source) == _SOURCE_SHA256
+    hr_path: Path = tmp_path / "wse2_soc_11bnd_hr.dat"
+    hr_path.write_bytes(source)
+
+    reference: dict[str, Any] = json.loads(reference_payload)
+    assert reference["metadata"]["gate"] == "04.G7"
+    assert reference["metadata"]["source_sha256"] == _SOURCE_SHA256
+    n_wannier: int = int(reference["num_wann"])
+    geometry: CrystalGeometry
+    basis: OrbitalBasis
+    geometry, basis = _wannier_context(n_wannier)
+
+    model, operator_data = read_wannier90_hr(
+        str(hr_path),
+        geometry,
+        basis,
+        jnp.zeros((n_wannier, 3), dtype=jnp.float64),
+    )
+    assert operator_data.source_format == "hr"
+    assert operator_data.position_matrices is None
+    assert len(operator_data.cells) == int(reference["num_cells"])
+
+    labels: tuple[str, ...] = ("Gamma", "X")
+    kpoints = jnp.asarray(
+        [reference["kpoints_fractional"][label] for label in labels],
+        dtype=jnp.float64,
+    )
+    expected = np.asarray(
+        [reference["eigenvalues_ev"][label] for label in labels],
+        dtype=np.float64,
+    )
+    actual = np.asarray(eigvalsh_bands(model, kpoints))
+    np.testing.assert_allclose(
+        actual,
+        expected,
+        rtol=0.0,
+        atol=1e-10,
+    )

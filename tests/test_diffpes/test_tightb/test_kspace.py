@@ -12,6 +12,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable, Tuple
 from hypothesis import given, settings, strategies
@@ -131,6 +132,48 @@ class TestKpointsFracToCart:
         )
         chex.assert_trees_all_close(
             azimuth, jnp.pi / 3.0, atol=1e-12, rtol=1e-12
+        )
+
+    @given(
+        strategies.floats(1.0, 6.0),
+        strategies.floats(1.0, 6.0),
+        strategies.floats(1.0, 6.0),
+        strategies.floats(-0.4, 0.4),
+        strategies.floats(-0.4, 0.4),
+        strategies.floats(-0.4, 0.4),
+    )
+    @settings(max_examples=24, deadline=None)
+    def test_random_reciprocal_rows_satisfy_the_direct_identity(
+        self,
+        a: float,
+        b: float,
+        c: float,
+        xy: float,
+        xz: float,
+        yz: float,
+    ) -> None:
+        r"""Satisfy :math:`A B^T=2\pi I` for random lattice rows.
+
+        The direct real--reciprocal identity must hold within ``1e-10`` for
+        every generated right-handed, non-degenerate lattice.
+
+        Notes
+        -----
+        Hypothesis generates positive triangular cells with bounded shear.
+        The test multiplies the real-space rows by the independently stored
+        reciprocal rows rather than relying on a coordinate round trip.
+        """
+        lattice: Float[Array, "3 3"] = jnp.array(
+            [[a, xy, xz], [0.0, b, yz], [0.0, 0.0, c]]
+        )
+        geometry: CrystalGeometry = _make_geometry(lattice)
+        direct_identity: Float[Array, "3 3"] = lattice @ geometry.reciprocal.T
+        expected: Float[Array, "3 3"] = 2.0 * jnp.pi * jnp.eye(3)
+        chex.assert_trees_all_close(
+            direct_identity,
+            expected,
+            rtol=1e-10,
+            atol=1e-10,
         )
 
     def test_matches_the_analytic_graphene_scale_derivative(self) -> None:
@@ -897,3 +940,67 @@ class TestBuildKmeshHv:
             kgrid.photon_energy_axis_ev, photon_energies
         )
         chex.assert_equal(kgrid.mesh_shape, (2, 3))
+
+    @pytest.mark.big_mem
+    @pytest.mark.rss_limit_mb(700)
+    def test_large_composed_raster_has_static_shape_and_linear_memory(
+        self,
+    ) -> None:
+        """Build the full 64 by 256-squared photon-energy raster.
+
+        The JIT-compiled builder must retain its static carrier metadata and
+        allocate the expected 96 MiB float64 coordinate result without a
+        point-quadratic intermediate.
+
+        Notes
+        -----
+        ``build_kmesh_hv`` internally vmaps
+        :func:`diffpes.simul.kz_from_inner_potential` over all 64 photon
+        energies. The RSS fixture caps retained growth at 700 MiB while this
+        test checks the exact dense-result byte count.
+        """
+        n_photon: int = 64
+        n_parallel: int = 256 * 256
+        geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
+        parallel_axis: Float[Array, " 65536"] = jnp.linspace(
+            -1.5,
+            1.5,
+            n_parallel,
+        )
+        photon_energies: Float[Array, " 64"] = jnp.linspace(
+            20.0,
+            150.0,
+            n_photon,
+        )
+
+        def composed_builder(
+            axis: Float[Array, " 65536"],
+            energies: Float[Array, " 64"],
+        ) -> KGrid:
+            """Build one full photon-energy raster through the kz primitive."""
+            kgrid: KGrid = build_kmesh_hv(
+                axis,
+                energies,
+                4.5,
+                12.0,
+                0.23,
+                jnp.array([1.0, 0.0]),
+                geometry,
+            )
+            return kgrid
+
+        kgrid: KGrid = jax.jit(composed_builder)(
+            parallel_axis,
+            photon_energies,
+        )
+        kgrid.kpoints.block_until_ready()
+        chex.assert_shape(kgrid.kpoints, (n_photon * n_parallel, 3))
+        chex.assert_shape(kgrid.photon_energy_axis_ev, (n_photon,))
+        chex.assert_equal(kgrid.mesh_shape, (n_photon, n_parallel))
+        chex.assert_tree_all_finite(
+            (kgrid.kpoints, kgrid.photon_energy_axis_ev)
+        )
+        chex.assert_equal(
+            kgrid.kpoints.nbytes,
+            n_photon * n_parallel * 3 * jnp.dtype(jnp.float64).itemsize,
+        )

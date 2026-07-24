@@ -16,6 +16,10 @@ from diffpes.types import (
     make_orbital_basis,
     make_slater_params,
 )
+from diffpes.types.radial_params import (
+    SlaterKosterParams,
+    make_slater_koster_params,
+)
 from tests._assertions import assert_rejects
 
 
@@ -96,6 +100,72 @@ class TestSlaterParams(chex.TestCase):
         gradient: SlaterParams = jax.grad(loss)(params)
 
         chex.assert_trees_all_close(gradient.zeta, 4.0)
+
+
+class TestSlaterKosterParams(chex.TestCase):
+    """Validate :class:`~diffpes.types.SlaterKosterParams`."""
+
+    def test_values_are_the_only_differentiable_leaf(self) -> None:
+        """Keep material keys static while differentiating every value.
+
+        The case constructs two carbon hopping channels and differentiates a
+        weighted quadratic loss.
+
+        Notes
+        -----
+        Require one float64 leaf and compare its gradient analytically.
+        """
+        params: SlaterKosterParams = make_slater_koster_params(
+            jnp.asarray((-2.7, 0.8), dtype=jnp.float32),
+            ("C-C:pp_pi", "C-C:pp_sigma"),
+        )
+        leaves: list[jax.Array] = jax.tree.leaves(params)
+
+        def loss(candidate: SlaterKosterParams) -> jax.Array:
+            """Return a weighted quadratic parameter loss."""
+            result: jax.Array = jnp.sum(
+                jnp.asarray((1.0, 2.0)) * candidate.values**2
+            )
+            return result
+
+        gradient: SlaterKosterParams = jax.grad(loss)(params)
+
+        assert len(leaves) == 1
+        assert leaves[0].dtype == jnp.float64
+        assert params.keys == ("C-C:pp_pi", "C-C:pp_sigma")
+        chex.assert_trees_all_close(
+            gradient.values,
+            jnp.asarray((-5.4, 3.2)),
+        )
+
+    def test_rejects_invalid_keys_and_values_eager_and_jit(self) -> None:
+        """Reject duplicate keys, length mismatches, and non-finite values.
+
+        The cases isolate static carrier defects and one traced numerical
+        defect.
+
+        Notes
+        -----
+        Route factory failures through the shared eager/compiled gate.
+        """
+        assert_rejects(
+            make_slater_koster_params,
+            jnp.ones((2,), dtype=jnp.float64),
+            ("X-X:ss_sigma",),
+            match="same length",
+        )
+        assert_rejects(
+            make_slater_koster_params,
+            jnp.ones((2,), dtype=jnp.float64),
+            ("X-X:ss_sigma", "X-X:ss_sigma"),
+            match="must be unique",
+        )
+        assert_rejects(
+            make_slater_koster_params,
+            jnp.asarray((jnp.nan,), dtype=jnp.float64),
+            ("X-X:ss_sigma",),
+            match="values finite",
+        )
 
 
 class TestMakeOrbitalBasis(chex.TestCase):

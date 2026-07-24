@@ -1,0 +1,84 @@
+{
+  "eigenvalues_ev": {
+    "Gamma": [
+      -7.065022455892002,
+      -7.0650224382060545,
+      -3.407794514063833,
+      -3.4077944177250026,
+      -3.3086162986070873,
+      -3.308615712040041,
+      -2.98455848766121,
+      -2.9845580384725836,
+      -2.400070421247591,
+      -2.4000698912079295,
+      -2.0013065613315693,
+      -2.0013062109778144,
+      -1.167331459562864,
+      -1.1673313033613815,
+      1.789533495326234,
+      1.7895339733732827,
+      2.0425265831841553,
+      2.042527473501337,
+      2.1154233692388433,
+      2.115423667503004,
+      2.294267329341677,
+      2.294268318888423
+    ],
+    "X": [
+      -7.196680377834627,
+      -7.196680248749513,
+      -5.976697858215434,
+      -5.976697505963029,
+      -5.088593346572202,
+      -5.088593165716833,
+      -3.93061752576789,
+      -3.930617278988577,
+      -3.09167563347383,
+      -3.091675183547993,
+      -2.0437801890510063,
+      -2.0437795610227463,
+      -1.7473699120370625,
+      -1.7473692677842312,
+      1.3299343442612381,
+      1.3299345538292178,
+      1.8464002486119273,
+      1.8464005254236,
+      2.7907482802366474,
+      2.7907483339958015,
+      3.4386572153897377,
+      3.4386575529768004
+    ]
+  },
+  "kpoints_fractional": {
+    "Gamma": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "X": [
+      0.5,
+      0.0,
+      0.0
+    ]
+  },
+  "metadata": {
+    "classification": "K-type published-input companion benchmark",
+    "energy_unit": "eV",
+    "fourier_convention": "H(k)=sum_R exp(+2*pi*i*k.R)*H(R)/degeneracy(R)",
+    "gate": "04.G7",
+    "generated_utc_date": "2026-07-24",
+    "generator": "gen_wannier90_wse2_reference.py",
+    "generator_sha256": "9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8",
+    "numpy_version": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "policy": "Generated offline from the normative input with an independent NumPy parser/Fourier assembly. This K artifact checks DiffPES behavior only; analytic and normative-format C gates remain authoritative.",
+    "python_version": "3.13.6",
+    "source_qualification": "Wannier90 output publicly distributed by dynamics-w90; the local downloaded snapshot has no verifiable commit metadata or license file.",
+    "source_repository": "https://github.com/michaelschueler/dynamics-w90",
+    "source_sha256": "8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1",
+    "source_size_bytes": 5543022,
+    "source_snapshot_path": "data/WSe2_soc/wse2_soc_11bnd_hr.dat"
+  },
+  "num_cells": 229,
+  "num_wann": 22
+}

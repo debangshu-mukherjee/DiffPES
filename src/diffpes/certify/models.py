@@ -4,15 +4,16 @@ Extended Summary
 ----------------
 This module defines the stable scientific identity for the current radial
 tight-binding ARPES forward model. It also defines the one-PyTree executor
-adapter. Registration is explicit and idempotent. Importing DiffPES does not
-mutate the registry.
+adapter, versioned transformation contracts, and Plan 03/04 owner handshakes.
+Registration is explicit and idempotent. Importing DiffPES does not mutate
+the registry.
 
 Routine Listings
 ----------------
 :func:`execute_tb_radial`
     Execute the radial ARPES model from one certification input PyTree.
 :func:`register_builtin_models`
-    Register built-in models and information-loss transformations.
+    Register built-in models, transformations, and owner handshakes.
 :func:`tb_radial_model_spec`
     Return the stable scientific specification for radial ARPES.
 """
@@ -306,6 +307,107 @@ def _register_transformations() -> None:
                 "convention.sample_rotation_rz_rx_ry",
             ),
         ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.bloch_basis_position",
+            "1.0.0",
+            requires=(
+                "validated_hermitian_closed_hopping_list",
+                "exact_integer_hopping_cells",
+                "basis_fractional_positions",
+                "fractional_reciprocal_coordinates",
+            ),
+            produces=("complex_hermitian_bloch_hamiltonian",),
+            preserves=(
+                "energy_reference",
+                "fractional_reciprocal_coordinates",
+                "orbital_spin_basis",
+            ),
+            introduces=("convention.bloch.basis_position_gauge",),
+            destroys=("real_space_hopping_record_attribution",),
+            invalidates_claims=(
+                "claim.tightb.single_k_real_space_hoppings_recoverable",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.dos_gaussian",
+            "1.0.0",
+            requires=(
+                "band_eigenvalues",
+                "normalized_kpoint_weights",
+                "energy_axis",
+                "positive_gaussian_width",
+            ),
+            produces=("gaussian_broadened_density_of_states",),
+            preserves=(
+                "energy_reference",
+                "integrated_state_count",
+            ),
+            introduces=("finite_gaussian_energy_resolution",),
+            destroys=(
+                "delta_resolved_spectral_information",
+                "kpoint_resolved_attribution",
+                "band_resolved_attribution",
+            ),
+            invalidates_claims=(
+                "claim.dos.delta_resolved",
+                "claim.dos.kpoint_attribution_preserved",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.eigensystem_fixed_group",
+            "1.0.0",
+            requires=("complex_hermitian_bloch_hamiltonian",),
+            produces=(
+                "sorted_band_eigenvalues",
+                "degeneracy_safe_eigensystem",
+                "fixed_group_gauge_invariant_observable",
+            ),
+            preserves=(
+                "energy_reference",
+                "fractional_reciprocal_coordinates",
+                "orbital_spin_basis",
+                "degenerate_group_subspace",
+            ),
+            introduces=(
+                "regularized_eigenvector_differential",
+                "fixed_group_gauge_invariance",
+            ),
+            destroys=(
+                "individual_eigenvector_phase",
+                "degenerate_subspace_basis_choice",
+            ),
+            invalidates_claims=(
+                "claim.band.individual_eigenvector_phase_observable",
+                "claim.band.degenerate_sorted_band_derivative",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.filling_fermi_level",
+            "1.0.0",
+            requires=(
+                "band_eigenvalues",
+                "normalized_kpoint_weights",
+                "target_filling",
+                "positive_electronic_temperature",
+            ),
+            produces=("finite_temperature_fermi_level",),
+            preserves=(
+                "energy_reference",
+                "target_filling_constraint",
+            ),
+            introduces=(
+                "fermi_dirac_occupation",
+                "implicit_root_differential",
+            ),
+            destroys=(
+                "band_resolved_attribution",
+                "kpoint_resolved_attribution",
+                "full_spectrum_recoverability",
+            ),
+            invalidates_claims=(
+                "claim.fermi_level.full_band_structure_recoverable",
+            ),
+        ),
     )
     existing: set[tuple[str, str]] = {
         (item.transformation_id, item.transformation_version)
@@ -341,6 +443,43 @@ def _register_plan03_handshake() -> None:
             "org.diffpes.evidence.03.chinook.tilt",
             "org.diffpes.evidence.03.chinook.mesh",
             "org.diffpes.evidence.03.polarization.spherical_basis",
+        ),
+    )
+    register_handshake(handshake)
+
+
+def _register_plan04_handshake() -> None:
+    """Register the Plan 04 certification handshake idempotently."""
+    owner_id: str = "org.diffpes.plan.04"
+    existing: set[str] = {item.owner_id for item in list_handshakes()}
+    if owner_id in existing:
+        return
+    handshake: Any = make_registration_handshake(
+        owner_id=owner_id,
+        transformation_refs=(
+            "org.diffpes.transform.tightb.bloch_basis_position@1.0.0",
+            "org.diffpes.transform.tightb.eigensystem_fixed_group@1.0.0",
+            "org.diffpes.transform.tightb.dos_gaussian@1.0.0",
+            "org.diffpes.transform.tightb.filling_fermi_level@1.0.0",
+        ),
+        evidence_ids=(
+            "org.diffpes.evidence.04.g1.hopping_structure",
+            "org.diffpes.evidence.04.g2.wigner_rotation",
+            "org.diffpes.evidence.04.g3.slater_koster_table_i",
+            "org.diffpes.evidence.04.g4.analytic_bands",
+            "org.diffpes.evidence.04.g5.atomic_soc_kramers",
+            "org.diffpes.evidence.04.g6.chinook_k_compatibility_resolved",
+            "org.diffpes.evidence.04.g7.wannier90_normative_ingestion",
+            "org.diffpes.evidence.04.g8.fixed_group_gauge_invariance",
+            "org.diffpes.evidence.04.g9.dos_filling_closed_form",
+            "org.diffpes.evidence.04.d1.generic_parameter_gradients",
+            "org.diffpes.evidence.04.d2.degenerate_invariant_gradients",
+            "org.diffpes.evidence.04.d3.eigh_regularization_bias",
+            "org.diffpes.evidence.04.d4.complex_holomorphic_gradients",
+            "org.diffpes.evidence.04.d5.fermi_implicit_gradient",
+            "org.diffpes.evidence.04.s1.bloch_jaxpr_compile_count",
+            "org.diffpes.evidence.04.s2.batch_memory_shapes",
+            "org.diffpes.evidence.04.s3.eigvalsh_reverse_memory",
         ),
     )
     register_handshake(handshake)
@@ -408,7 +547,7 @@ def _register_checks() -> None:
 
 @jaxtyped(typechecker=beartype)
 def register_builtin_models() -> None:
-    """Register built-in models and information-loss transformations.
+    """Register built-in models, transformations, and owner handshakes.
 
     The operation uses the built-in radial ARPES adapter and its declared
     conventions. It preserves JAX differentiation through numerical model
@@ -430,6 +569,7 @@ def register_builtin_models() -> None:
     _register_transformations()
     _register_checks()
     _register_plan03_handshake()
+    _register_plan04_handshake()
 
 
 __all__: list[str] = [

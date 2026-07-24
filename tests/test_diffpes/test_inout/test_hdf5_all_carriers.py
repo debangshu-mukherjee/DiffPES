@@ -2,7 +2,7 @@
 
 Extended Summary
 ----------------
-Exercises the introspected recursive codec over all twenty-two carrier classes,
+Exercises the introspected recursive codec over all twenty-three carrier classes,
 including nested modules, static tuple metadata, complex arrays, and absent
 optional leaves.
 """
@@ -39,6 +39,7 @@ from diffpes.types import (
     make_volumetric_data,
     make_workflow_context,
 )
+from diffpes.types.wannier import make_wannier_operator_data
 from tests._factories import make_1d_chain_model
 
 
@@ -121,6 +122,20 @@ def _all_carriers() -> dict[str, eqx.Module]:
             symbols=("X",),
             atom_counts=jnp.ones(1, dtype=jnp.int32),
         ),
+        "wannier": make_wannier_operator_data(
+            position_matrices=jnp.asarray(
+                [
+                    [[[(0.25 + 0.5j), 1.0, -0.5j]]],
+                    [[[(0.75 - 0.25j), -1.0j, 2.0]]],
+                ],
+                dtype=jnp.complex128,
+            ),
+            centres_cart=jnp.asarray([[0.1, 0.2, 0.3]]),
+            cells=((0, 0, 0), (1, -2, 3)),
+            degeneracies=(1, 4),
+            spin_layout="interleaved_up_down",
+            source_format="tb",
+        ),
         "context": make_workflow_context(bands, projections),
     }
     return carriers
@@ -131,7 +146,7 @@ def test_all_carriers_round_trip_bitwise() -> None:
 
     Extended Summary
     ----------------
-    Saves all twenty-two deterministic carriers into one HDF5 file and reloads
+    Saves all twenty-three deterministic carriers into one HDF5 file and reloads
     them together. Each reconstructed module must retain its exact class,
     numerical leaves, nested modules, optional ``None`` leaves, and static
     metadata.
@@ -155,3 +170,27 @@ def test_all_carriers_round_trip_bitwise() -> None:
     for name, carrier in carriers.items():
         chex.assert_equal(type(loaded[name]) is type(carrier), True)
         chex.assert_equal(eqx.tree_equal(loaded[name], carrier), True)
+
+
+def test_wannier_hr_round_trip_preserves_absent_position_matrices() -> None:
+    """Round-trip the ``hr.dat`` sidecar with its optional array absent."""
+    temporary_directory: str
+
+    carrier: eqx.Module = make_wannier_operator_data(
+        position_matrices=None,
+        centres_cart=jnp.asarray(
+            [[0.0, 0.25, 0.5], [0.75, 1.0, 1.25]],
+            dtype=jnp.float64,
+        ),
+        cells=((-1, 0, 0), (0, 0, 0), (1, 0, 0)),
+        degeneracies=(2, 1, 2),
+        spin_layout="block_down_up",
+        source_format="hr",
+    )
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        path: Path = Path(temporary_directory) / "wannier_hr.h5"
+        save_to_h5(path, wannier=carrier)
+        loaded: eqx.Module = load_from_h5(path, name="wannier")
+
+    chex.assert_equal(type(loaded) is type(carrier), True)
+    chex.assert_equal(eqx.tree_equal(loaded, carrier), True)

@@ -155,6 +155,144 @@ def make_graphene_model(t: ScalarFloat = -2.7) -> TBModel:
 
 
 @jaxtyped(typechecker=beartype)
+def make_rashba_model(
+    hopping: ScalarFloat = -0.63,
+    rashba: ScalarFloat = 0.27,
+) -> TBModel:
+    """Build a closed square-lattice Rashba spinor fixture.
+
+    Parameters
+    ----------
+    hopping : ScalarFloat, optional
+        Spin-independent nearest-neighbor hopping in eV.
+    rashba : ScalarFloat, optional
+        Rashba coupling in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Validated two-state spinor model in down--up block order.
+    """
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=jnp.diag(jnp.asarray([3.2, 3.2, 12.0], dtype=jnp.float64)),
+        positions=jnp.zeros((1, 3), dtype=jnp.float64),
+        species=("X",),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0, 0),
+        n=(1, 1),
+        l=(0, 0),
+        m=(0, 0),
+        spin=(-1, 1),
+        labels=("s_down", "s_up"),
+    )
+    hopping_value: Complex[Array, ""] = jnp.asarray(
+        hopping,
+        dtype=jnp.complex128,
+    )
+    rashba_value: Complex[Array, ""] = jnp.asarray(
+        rashba,
+        dtype=jnp.complex128,
+    )
+    amplitudes: list[Complex[Array, ""]] = []
+    pairs: list[tuple[int, int]] = []
+    cells: list[tuple[int, int, int]] = []
+    cell: tuple[int, int, int]
+    spin: int
+    nearest_cells: tuple[tuple[int, int, int], ...] = (
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+    )
+    for spin in (0, 1):
+        for cell in nearest_cells:
+            amplitudes.append(hopping_value)
+            pairs.append((spin, spin))
+            cells.append(cell)
+    forward_amplitudes: tuple[Complex[Array, ""], ...] = (
+        -0.5 * rashba_value,
+        0.5 * rashba_value,
+        -0.5j * rashba_value,
+        0.5j * rashba_value,
+    )
+    amplitude: Complex[Array, ""]
+    for cell, amplitude in zip(
+        nearest_cells,
+        forward_amplitudes,
+        strict=True,
+    ):
+        amplitudes.append(amplitude)
+        pairs.append((0, 1))
+        cells.append(cell)
+        amplitudes.append(jnp.conj(amplitude))
+        pairs.append((1, 0))
+        cells.append(tuple(-component for component in cell))
+    model: TBModel = make_tb_model(
+        hopping_amplitudes=jnp.stack(amplitudes),
+        onsite_energies=jnp.zeros((2,), dtype=jnp.float64),
+        soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=tuple(pairs),
+        hopping_cells=tuple(cells),
+        shell_index=(-1, -1),
+        spinor=True,
+    )
+    _assert_finite(model)
+    return model
+
+
+@jaxtyped(typechecker=beartype)
+def make_t2g_soc_model(coupling: ScalarFloat = 0.4) -> TBModel:
+    """Build an isolated projected-t2g spin--orbit fixture.
+
+    Parameters
+    ----------
+    coupling : ScalarFloat, optional
+        Atomic spin--orbit coupling in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Validated six-state t2g model in down--up block order.
+    """
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=4.0 * jnp.eye(3, dtype=jnp.float64),
+        positions=jnp.zeros((1, 3), dtype=jnp.float64),
+        species=("Ti",),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0,) * 6,
+        n=(3,) * 6,
+        l=(2,) * 6,
+        m=(-2, -1, 1, -2, -1, 1),
+        spin=(-1, -1, -1, 1, 1, 1),
+        labels=(
+            "dxy_down",
+            "dyz_down",
+            "dxz_down",
+            "dxy_up",
+            "dyz_up",
+            "dxz_up",
+        ),
+    )
+    model: TBModel = make_tb_model(
+        hopping_amplitudes=jnp.zeros((0,), dtype=jnp.complex128),
+        onsite_energies=jnp.zeros((6,), dtype=jnp.float64),
+        soc_lambdas=jnp.asarray([coupling], dtype=jnp.float64),
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=(),
+        hopping_cells=(),
+        shell_index=(0,) * 6,
+        spinor=True,
+    )
+    _assert_finite(model)
+    return model
+
+
+@jaxtyped(typechecker=beartype)
 def toy_band_structure(
     key: PRNGKeyArray,
     n_k: int = 8,

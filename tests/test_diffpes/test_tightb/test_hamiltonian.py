@@ -433,7 +433,12 @@ class TestMake1DChainModel:
 
         diag = diagonalize_tb(model, kpoints)
         expected = -2.0 * jnp.cos(2.0 * jnp.pi * jnp.linspace(-0.5, 0.5, 101))
-        assert jnp.allclose(diag.eigenvalues[:, 0], expected, atol=1e-10)
+        assert jnp.allclose(
+            diag.eigenvalues[:, 0],
+            expected,
+            rtol=0.0,
+            atol=1e-12,
+        )
 
     def test_eigenvalue_range(self) -> None:
         """Verify eigenvalue bandwidth spans [-2|t|, 2|t|].
@@ -494,8 +499,8 @@ class TestMakeGrapheneModel:
 
         diag = diagonalize_tb(model, Gamma)
         evals = jnp.sort(diag.eigenvalues[0])
-        assert float(evals[0]) == pytest.approx(-8.1, abs=0.01)
-        assert float(evals[1]) == pytest.approx(8.1, abs=0.01)
+        assert float(evals[0]) == pytest.approx(-8.1, abs=1e-12)
+        assert float(evals[1]) == pytest.approx(8.1, abs=1e-12)
 
     def test_k_point_dirac(self) -> None:
         """Verify the Dirac point at K=(2/3, 1/3, 0) has zero-energy eigenvalues.
@@ -518,7 +523,53 @@ class TestMakeGrapheneModel:
         from diffpes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, K)
-        assert jnp.allclose(diag.eigenvalues[0], 0.0, atol=1e-10)
+        assert jnp.allclose(
+            diag.eigenvalues[0],
+            0.0,
+            rtol=0.0,
+            atol=1e-12,
+        )
+
+    def test_matches_closed_form_along_gamma_k_m(self) -> None:
+        r"""Match both graphene bands along the full Gamma--K--M path.
+
+        The nearest-neighbour honeycomb spectrum is
+        :math:`E_\pm(k)=\pm |t|\,|1+e^{-2\pi i k_1}
+        +e^{-2\pi i k_2}|` in the cell-origin gauge. The basis-position
+        gauge used by production changes eigenvector phases but not these
+        eigenvalues.
+
+        Notes
+        -----
+        Build 65 points on each path segment, including both endpoints.
+        Require the complete two-band path to agree at absolute tolerance
+        ``1e-12`` with zero relative tolerance.
+        """
+        hopping: float = -2.7
+        model: TBModel = make_graphene_model(t=hopping)
+        gamma: Array = jnp.asarray([0.0, 0.0, 0.0], dtype=jnp.float64)
+        k_point: Array = jnp.asarray(
+            [2.0 / 3.0, 1.0 / 3.0, 0.0],
+            dtype=jnp.float64,
+        )
+        m_point: Array = jnp.asarray([0.5, 0.0, 0.0], dtype=jnp.float64)
+        interpolation: Array = jnp.linspace(0.0, 1.0, 65)[:, None]
+        gamma_to_k: Array = gamma + interpolation * (k_point - gamma)
+        k_to_m: Array = k_point + interpolation[1:] * (m_point - k_point)
+        kpoints: Array = jnp.concatenate((gamma_to_k, k_to_m), axis=0)
+
+        from diffpes.tightb.diagonalize import eigvalsh_bands
+
+        actual: Array = eigvalsh_bands(model, kpoints)
+        structure_factor: Array = (
+            1.0
+            + jnp.exp(-2j * jnp.pi * kpoints[:, 0])
+            + jnp.exp(-2j * jnp.pi * kpoints[:, 1])
+        )
+        magnitude: Array = jnp.abs(hopping) * jnp.abs(structure_factor)
+        expected: Array = jnp.stack((-magnitude, magnitude), axis=-1)
+
+        assert jnp.allclose(actual, expected, rtol=0.0, atol=1e-12)
 
     def test_gradient_wrt_hopping(self) -> None:
         """Match hopping autodiff to FD on the conjugate-closed manifold.

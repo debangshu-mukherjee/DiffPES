@@ -9,10 +9,11 @@ and the project uses calendar versioning.
 
 ### Changed
 
-- Plan 04 begins the native tight-binding carrier migration. Bloch assembly
-  now uses exact integer hopping cells and the basis-position gauge. This
-  migration intentionally repins the graphene radial-gradient and
-  deterministic tight-binding references.
+- Plan 04 completes the native tight-binding core. Bloch assembly now uses
+  exact integer hopping cells and the basis-position gauge, with complex
+  hoppings, traced onsite/SOC parameters, atom-resolved geometry, and a
+  degeneracy-regularized eigensystem. This migration intentionally repins the
+  graphene radial-gradient and deterministic tight-binding references.
 - The real-harmonic convention now fixes positive ``m=1`` to ``+p_x`` and
   keeps Gaunt transformations consistent with that sign.
 - `CrystalGeometry` now follows the roadmap field contract. It uses
@@ -57,6 +58,19 @@ and the project uses calendar versioning.
 
 - Plan 03 adds `ExperimentGeometry`, generated `KPath`, and fixed-shape
   `KGrid` carriers. Their factories keep numerical geometry inside JAX.
+- Plan 04 adds independently derived s/p/d Slater--Koster construction,
+  neighbor-shell discovery, spin doubling, atomic L·S coupling, fixed-group
+  projectors and operator expectations, fat bands, Gaussian DOS, implicit
+  fixed-filling Fermi levels, and flat-real inversion parameter views.
+- Distinct strict parsers now ingest explicit hopping lists and normative
+  Wannier90 `_hr.dat` and `_tb.dat` files. A typed `WannierOperatorData`
+  sidecar preserves required centres, optional position matrices, exact
+  cells, degeneracies, source grammar, and normalized spin layout through
+  HDF5 round trips.
+- Frozen offline Chinook eigenvalue artifacts cover graphene, square-lattice
+  Rashba, and projected-t2g SOC compatibility without importing Chinook at
+  runtime or in tests. Analytic spectra, symmetry laws, normative formats,
+  and independent calculations remain the correctness authorities.
 - The tight-binding layer now builds labeled paths, first-zone masks, fixed
   ARPES rasters, and photon-energy rasters. It uses one explicit conversion
   between fractional and Cartesian momentum. First-zone masks use a static
@@ -109,11 +123,18 @@ and the project uses calendar versioning.
 
 - The project removes the unused `difftb` dependency and its broken editable
   `[tool.uv.sources]` path. diffpes now installs as a standalone package.
+- Legacy real-only tight-binding storage, source-package analytic fixtures,
+  silent Hamiltonian Hermitianization, and obsolete projection accessors are
+  removed without compatibility shims.
 - The development environment no longer includes Black, isort, jupyter-black,
   build, or Twine. Ruff formats the code. uv builds and publishes the package.
 
 ### Fixed
 
+- Plan 03 evidence now exercises reciprocal-coordinate identities with
+  generated lattices, the full photon-energy raster memory target, and
+  complex polarization phase/gradient paths including a machine-precision
+  complex-step phase check.
 - Python 3.14 imports now work while beartype 0.22.9 references the removed
   `collections.abc.ByteString` name.
 - The supported Python range is now `>=3.12,<3.15`. The documentation now

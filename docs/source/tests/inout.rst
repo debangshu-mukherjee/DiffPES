@@ -58,3 +58,13 @@ Validation and regression tests for :mod:`diffpes.inout`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_tb_files
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_wannier90_published
+   :members:
+   :undoc-members:
+   :show-inheritance:

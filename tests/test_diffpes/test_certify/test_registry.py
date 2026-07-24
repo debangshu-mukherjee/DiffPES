@@ -525,6 +525,109 @@ class TestValidateHandshake:
         )
         assert bool(report.complete), report.missing_ids
 
+    def test_plan04_handshake_is_idempotent_and_green_with_declared_evidence(
+        self,
+    ) -> None:
+        """Validate Plan 04 contracts and all declared gate evidence.
+
+        Plan 04 registers transformation semantics without inventing a new
+        executable model identity. Repeated built-in registration must leave
+        the complete process-local registry unchanged.
+
+        Notes
+        -----
+        Resolve the packaged declaration by owner rather than list position,
+        require one explicit evidence ID for every G, D, and S gate, and
+        validate the handshake using exactly that declared evidence.
+        """
+        register_builtin_models()
+        transformations_before: tuple[Any, ...] = list_transformations()
+        handshakes_before: tuple[Any, ...] = list_handshakes()
+        register_builtin_models()
+        assert list_transformations() == transformations_before
+        assert list_handshakes() == handshakes_before
+
+        manifest: dict[str, Any] = registry_manifest()
+        declaration: dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.plan.04"
+        )
+        handshake: Any = next(
+            item
+            for item in list_handshakes()
+            if item.owner_id == "org.diffpes.plan.04"
+        )
+        expected_refs: tuple[str, ...] = (
+            "org.diffpes.transform.tightb.bloch_basis_position@1.0.0",
+            "org.diffpes.transform.tightb.eigensystem_fixed_group@1.0.0",
+            "org.diffpes.transform.tightb.dos_gaussian@1.0.0",
+            "org.diffpes.transform.tightb.filling_fermi_level@1.0.0",
+        )
+        assert handshake.model_refs == ()
+        assert handshake.transformation_refs == expected_refs
+        assert tuple(declaration["transformation_refs"]) == expected_refs
+        assert declaration["model_refs"] == []
+
+        evidence_ids: tuple[str, ...] = tuple(declaration["evidence_ids"])
+        gate: int
+        for gate in range(1, 10):
+            assert any(f".g{gate}." in item for item in evidence_ids)
+        for gate in range(1, 6):
+            assert any(f".d{gate}." in item for item in evidence_ids)
+        for gate in range(1, 4):
+            assert any(f".s{gate}." in item for item in evidence_ids)
+        assert (
+            "org.diffpes.evidence.04.g6.chinook_k_compatibility_resolved"
+            in evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.04.g7.wannier90_normative_ingestion"
+            in evidence_ids
+        )
+
+        reference: str
+        for reference in expected_refs:
+            transformation_id: str
+            version: str
+            transformation_id, version = reference.rsplit("@", maxsplit=1)
+            contract: Any = get_transformation(
+                transformation_id,
+                version,
+            ).contract
+            assert contract.jax_pure
+        bloch: Any = get_transformation(
+            "org.diffpes.transform.tightb.bloch_basis_position",
+            "1.0.0",
+        ).contract
+        eigensystem: Any = get_transformation(
+            "org.diffpes.transform.tightb.eigensystem_fixed_group",
+            "1.0.0",
+        ).contract
+        dos: Any = get_transformation(
+            "org.diffpes.transform.tightb.dos_gaussian",
+            "1.0.0",
+        ).contract
+        filling: Any = get_transformation(
+            "org.diffpes.transform.tightb.filling_fermi_level",
+            "1.0.0",
+        ).contract
+        assert "convention.bloch.basis_position_gauge" in bloch.introduces
+        assert "degenerate_subspace_basis_choice" in eigensystem.destroys
+        assert "delta_resolved_spectral_information" in dos.destroys
+        assert "implicit_root_differential" in filling.introduces
+
+        report: Any = validate_handshake(
+            handshake,
+            evidence_ids=evidence_ids,
+        )
+        assert bool(report.complete), report.missing_ids
+        assert report.missing_ids == ()
+        assert {item.owner_id for item in list_handshakes()} >= {
+            "org.diffpes.plan.03",
+            "org.diffpes.plan.04",
+        }
+
 
 class TestRegistryManifest:
     """Verify :func:`~diffpes.certify.registry_manifest`.

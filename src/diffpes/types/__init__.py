@@ -38,6 +38,8 @@ The package contains these submodules:
     Define self-energy configuration data structures.
 - :mod:`tb_model`
     Define tight-binding model and diagonalized-band data structures.
+- :mod:`wannier`
+    Define operator metadata for ingested Wannier models.
 - :mod:`volumetric`
     Define volumetric data structures for VASP CHGCAR files.
 - :mod:`context`
@@ -381,6 +383,8 @@ Routine Listings
     Create a validated SimulationParams instance.
 :func:`make_slater_params`
     Create a validated ``SlaterParams`` instance.
+:func:`make_slater_koster_params`
+    Create validated Slater--Koster two-center parameters.
 :func:`make_soc_volumetric_data`
     Create a validated ``SOCVolumetricData`` instance.
 :func:`make_spin_band_structure`
@@ -389,6 +393,8 @@ Routine Listings
     Create a validated ``SpinOrbitalProjection`` instance.
 :func:`make_tb_model`
     Create a validated ``TBModel`` instance.
+:func:`make_wannier_operator_data`
+    Create validated Wannier operator metadata.
 :func:`make_volumetric_data`
     Create a validated ``VolumetricData`` instance.
 :func:`make_workflow_context`
@@ -451,6 +457,8 @@ Routine Listings
     Store ARPES simulation parameters in a JAX PyTree.
 :class:`SlaterParams`
     Store Slater radial-wavefunction parameters in a JAX PyTree.
+:class:`SlaterKosterParams`
+    Store differentiable Slater--Koster two-center integrals.
 :obj:`SMALL_ARGUMENT`
     Small-argument cutoff for spherical Bessel seeds.
 :obj:`SOC_BLOCKS`
@@ -465,6 +473,8 @@ Routine Listings
     Store orbital projections with spin data in a JAX PyTree.
 :class:`TBModel`
     Store tight-binding parameters in a JAX PyTree.
+:class:`WannierOperatorData`
+    Store centres and position matrices for an ingested Wannier model.
 :class:`VolumetricData`
     Store CHGCAR volumetric-grid data in a JAX PyTree.
 :obj:`WEIGHT_COMPONENT_COUNT`
@@ -699,8 +709,10 @@ from .provenance import (
 )
 from .radial_params import (
     OrbitalBasis,
+    SlaterKosterParams,
     SlaterParams,
     make_orbital_basis,
+    make_slater_koster_params,
     make_slater_params,
 )
 from .self_energy import (
@@ -725,6 +737,7 @@ from .volumetric import (
     make_soc_volumetric_data,
     make_volumetric_data,
 )
+from .wannier import WannierOperatorData, make_wannier_operator_data
 
 __all__: list[str] = [
     "ArpesSpectrum",
@@ -865,6 +878,7 @@ __all__: list[str] = [
     "make_self_energy_config",
     "make_simulation_params",
     "make_sensitivity_map",
+    "make_slater_koster_params",
     "make_slater_params",
     "make_soc_volumetric_data",
     "make_spin_band_structure",
@@ -876,6 +890,7 @@ __all__: list[str] = [
     "make_waiver_record",
     "make_waiver_report",
     "make_volumetric_data",
+    "make_wannier_operator_data",
     "make_workflow_context",
     "ME_EV",
     "MIN_SUM",
@@ -915,6 +930,7 @@ __all__: list[str] = [
     "SelfEnergyConfig",
     "SensitivityMap",
     "SimulationParams",
+    "SlaterKosterParams",
     "SlaterParams",
     "SMALL_ARGUMENT",
     "SOC_BLOCKS",
@@ -930,6 +946,7 @@ __all__: list[str] = [
     "TransformationContract",
     "TransformationRecord",
     "VolumetricData",
+    "WannierOperatorData",
     "VerificationReport",
     "WaiverRecord",
     "WaiverReport",

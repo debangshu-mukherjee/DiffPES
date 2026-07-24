@@ -23,6 +23,7 @@ from diffpes.tightb import (
     vasp_to_diagonalized,
 )
 from diffpes.types import (
+    EPS_DEG,
     make_band_structure,
     make_crystal_geometry,
     make_orbital_basis,
@@ -196,6 +197,70 @@ class TestEighSafe:
 
         theta: Array = jnp.asarray(0.0, dtype=jnp.float64)
         gradient_gate(loss, theta, regime="smooth")
+
+    def test_regularization_bias_matches_analytic_gap_law(self) -> None:
+        r"""Measure the eigenvector-gradient bias over an avoided-gap sweep.
+
+        Rotating a two-level Hamiltonian with fixed gap ``g`` gives the exact
+        projector observable :math:`I(\theta)=\cos^2\theta`. The regularized
+        inverse gap in :func:`eigh_safe` scales its derivative by
+        :math:`g^2/(g^2+\epsilon^2)`, so the relative bias is exactly
+        :math:`\epsilon^2/(g^2+\epsilon^2)`.
+
+        Notes
+        -----
+        Sweep gaps from ``2`` through ``1e6`` times ``EPS_DEG``. Match the
+        measured bias to the analytic law and require relative error below
+        ``1.1e-10`` once ``g >= 1e5 * EPS_DEG``. The ``1e5`` threshold follows
+        directly from the declared quadratic law; ``1e3`` would imply a
+        ``1e-6`` rather than ``1e-10`` relative bias.
+        """
+        theta: Array = jnp.asarray(0.37, dtype=jnp.float64)
+        gap_ratios: Array = jnp.asarray(
+            [2.0, 5.0, 10.0, 1e2, 1e3, 1e4, 1e5, 1e6],
+            dtype=jnp.float64,
+        )
+        exact_derivative: Array = -jnp.sin(2.0 * theta)
+
+        def derivative_for_gap(gap: Array) -> Array:
+            def loss(angle: Array) -> Array:
+                cosine: Array = jnp.cos(angle)
+                sine: Array = jnp.sin(angle)
+                rotation: Array = jnp.asarray(
+                    [[cosine, -sine], [sine, cosine]],
+                    dtype=jnp.float64,
+                )
+                diagonal: Array = jnp.diag(
+                    jnp.asarray(
+                        [-gap / 2.0, gap / 2.0],
+                        dtype=jnp.float64,
+                    )
+                )
+                hamiltonian: Array = (rotation @ diagonal @ rotation.T).astype(
+                    jnp.complex128
+                )
+                eigenvectors: Array = eigh_safe(hamiltonian)[1]
+                observable: Array = jnp.abs(eigenvectors[0, 0]) ** 2
+                return observable
+
+            derivative: Array = jax.grad(loss)(theta)
+            return derivative
+
+        gaps: Array = gap_ratios * EPS_DEG
+        derivatives: Array = jax.vmap(derivative_for_gap)(gaps)
+        measured_bias: Array = jnp.abs(
+            (derivatives - exact_derivative) / exact_derivative
+        )
+        expected_bias: Array = EPS_DEG**2 / (gaps**2 + EPS_DEG**2)
+
+        assert jnp.allclose(
+            measured_bias,
+            expected_bias,
+            rtol=5e-6,
+            atol=5e-15,
+        )
+        assert measured_bias[-2] <= 1.1e-10
+        assert measured_bias[-1] <= 1.1e-12
 
 
 class TestEigvalshBands:

@@ -1,130 +1,391 @@
-"""Convert eigenvectors to orbital weights.
+"""Reduce tight-binding eigenvectors to gauge-invariant observables.
 
 Extended Summary
 ----------------
-The module extracts orbital weights and coefficients from diagonalized band
-structures. These functions convert complex tight-binding eigenvectors into
-ARPES observables. The observables include orbital-resolved spectral weights
-and complex amplitudes for coherent photoemission matrix elements.
+This module exposes squared orbital weights, band and fixed-group projectors,
+operator traces, degeneracy-averaged expectation values, and fat-band
+weights. Scientific calculations at an exact degeneracy use a registered
+fixed group rather than selecting a group from a differentiable threshold.
 
 Routine Listings
 ----------------
-:func:`eigenvector_orbital_weights`
-    Compute orbital weights from eigenvectors.
-:func:`orbital_coefficients`
-    Return the raw complex orbital coefficients.
+:func:`orbital_weights`
+    Compute the squared orbital amplitudes of normalized eigenvectors.
+:func:`band_projectors`
+    Materialize each U(1)-gauge-invariant rank-one band projector.
+:func:`group_projector`
+    Construct the projector onto one registered, fixed band group.
+:func:`group_trace`
+    Trace a Hermitian operator over one fixed band group.
+:func:`expectation_path`
+    Compute operator expectations with diagnostic degeneracy averaging.
+:func:`fat_bands`
+    Compute degeneracy-averaged weights of selected model orbitals.
 """
 
+import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
 
+from diffpes.types import EPS, DiagonalizedBands
+
+from .operators import orbital_projector
+
+_MATRIX_NDIM: int = 2
+
+
+def _validate_selection(
+    selection: tuple[int, ...],
+    upper_bound: int,
+    *,
+    name: str,
+) -> None:
+    """Validate a static tuple of unique array indices."""
+    if type(selection) is not tuple:
+        message: str = f"{name} must be a tuple"
+        raise ValueError(message)
+    if not selection:
+        message = f"{name} must contain at least one index"
+        raise ValueError(message)
+    if any(type(index) is not int for index in selection):
+        message = f"{name} must contain integers"
+        raise ValueError(message)
+    if any(index < 0 or index >= upper_bound for index in selection):
+        message = f"{name} indices must lie in [0, {upper_bound})"
+        raise ValueError(message)
+    if len(set(selection)) != len(selection):
+        message = f"{name} must not contain duplicate indices"
+        raise ValueError(message)
+
+
+def _checked_operator(
+    operator: Complex[Array, "n_orb n_orb"],
+    n_orbitals: int,
+    *,
+    context: str,
+) -> Complex[Array, "n_orb n_orb"]:
+    """Validate the static shape and traced Hermitian-operator contract."""
+    if operator.ndim != _MATRIX_NDIM or operator.shape != (
+        n_orbitals,
+        n_orbitals,
+    ):
+        message: str = (
+            f"{context}: operator must have shape ({n_orbitals}, {n_orbitals})"
+        )
+        raise ValueError(message)
+    checked: Complex[Array, "n_orb n_orb"] = eqx.error_if(
+        operator,
+        ~jnp.all(jnp.isfinite(operator)),
+        f"{context}: operator entries must be finite",
+    )
+    checked = eqx.error_if(
+        checked,
+        ~jnp.allclose(checked, checked.conj().T, rtol=0.0, atol=EPS),
+        f"{context}: operator must be Hermitian",
+    )
+    return checked  # noqa: RET504 -- both runtime checks must be threaded.
+
 
 @jaxtyped(typechecker=beartype)
-def eigenvector_orbital_weights(
-    eigenvectors: Complex[Array, "K B O"],
-) -> Float[Array, "K B O"]:
-    r"""Compute orbital weights from eigenvectors.
+def orbital_weights(
+    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
+) -> Float[Array, "n_k n_bands n_orb"]:
+    r"""Compute the squared orbital amplitudes of normalized eigenvectors.
 
-    For each eigenstate ``|psi_{k,b}>`` expanded in the orbital basis
+    Multiplication by an arbitrary per-band U(1) phase leaves every returned
+    value unchanged.
 
-    .. math::
-
-        |\psi_{k,b}\rangle = \sum_o c_{k,b,o} |o\rangle,
-
-    the orbital weight of orbital ``o`` in band ``b`` at k-point ``k``
-    is the squared modulus of the expansion coefficient:
-
-    .. math::
-
-        w_{k,b,o} = |c_{k,b,o}|^2.
-
-    This is the probability of finding the electron in orbital ``o``
-    given that it occupies eigenstate ``(k, b)``.  By construction,
-    normalized eigenvectors give weights that sum to 1 over orbitals for each
-    ``(k, b)`` pair.
-
-    Fat-band plots and orbital-resolved DOS use orbital weights. Photoemission
-    matrix element computations also start from these weights. These
-    computations also need the complex coefficients; see
-    ``orbital_coefficients``.
-
-    :see: :class:`~.test_projections.TestEigenvectorOrbitalWeights`
+    :see: :class:`~.test_projections.TestOrbitalWeights`
 
     Parameters
     ----------
-    eigenvectors : Complex[Array, "K B O"]
-        Complex orbital coefficients c_{k,b,orb}.
+    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+        Band-major complex orbital coefficients.
 
     Returns
     -------
-    weights : Float[Array, "K B O"]
-        ``|c_{k,b,orb}|^2`` per orbital.
+    weights : Float[Array, "n_k n_bands n_orb"]
+        Values :math:`|c_{kno}|^2`.
 
     Notes
     -----
-    The implementation uses ``jnp.abs(eigenvectors) ** 2`` rather than
-    ``(eigenvectors * eigenvectors.conj()).real`` for clarity.  Both
-    expressions are mathematically identical for complex arrays and
-    produce the same JAX trace; the former is marginally more readable.
+    Individual band weights are not invariant under rotations inside an
+    exactly degenerate subspace. Use :func:`group_trace` for a scientific
+    observable at such a degeneracy.
     """
-    weights: Float[Array, "K B O"] = jnp.abs(eigenvectors) ** 2
+    weights: Float[Array, "n_k n_bands n_orb"] = jnp.abs(eigenvectors) ** 2
     return weights
 
 
 @jaxtyped(typechecker=beartype)
-def orbital_coefficients(
-    eigenvectors: Complex[Array, "K B O"],
-) -> Complex[Array, "K B O"]:
-    """Return the raw complex orbital coefficients.
+def band_projectors(
+    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
+) -> Complex[Array, "n_k n_bands n_orb n_orb"]:
+    r"""Materialize each U(1)-gauge-invariant rank-one band projector.
 
-    A full matrix element computation needs the complex coefficients
-    c_{k,b,orb}, not only ``|c|^2``.
+    Form an outer product from every band-major eigenvector without choosing
+    an orbital phase convention.
 
-    This is an **identity function**: it returns its input unchanged.
-    Its purpose gives a clear name to each call site. A pipeline can need both
-    ``eigenvector_orbital_weights`` and the raw coefficients.
-    Callers can write::
-
-        weights = eigenvector_orbital_weights(evecs)
-        coeffs = orbital_coefficients(evecs)
-
-    Thus, each downstream path clearly identifies whether it uses only
-    magnitudes or the full phase information.
-
-    In the Chinook-style matrix element computation, the function multiplies
-    each complex coefficient by the applicable one-electron dipole matrix
-    element. It then adds the products coherently. Interference between
-    orbital channels depends on the relative phases of these coefficients.
-    Therefore, this computation needs the complex values, not only ``|c|^2``.
-
-    When ``vasp_to_diagonalized`` supplies the eigenvectors, the adapter loses
-    the phases. The adapter then returns real, nonnegative coefficients. In
-    that regime, the coherent interference terms are approximate.
-
-    :see: :class:`~.test_projections.TestOrbitalCoefficients`
+    :see: :class:`~.test_projections.TestBandProjectors`
 
     Parameters
     ----------
-    eigenvectors : Complex[Array, "K B O"]
-        Complex orbital coefficients.
+    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+        Band-major complex orbital coefficients.
 
     Returns
     -------
-    coefficients : Complex[Array, "K B O"]
-        Same as input (identity, for API clarity).
+    projectors : Complex[Array, "n_k n_bands n_orb n_orb"]
+        Outer products :math:`|\psi_{kn}\rangle\langle\psi_{kn}|`.
 
     Notes
     -----
-    Because this is an identity, ``jax.grad`` through
-    ``orbital_coefficients`` adds zero overhead -- the function
-    compiles away entirely.
+    This result occupies ``n_k * n_bands * n_orb**2`` complex elements.
+    Hot paths that need only an observable should use :func:`group_trace` or
+    :func:`expectation_path` and avoid this materialization.
     """
-    coefficients: Complex[Array, "K B O"] = eigenvectors
-    return coefficients
+    projectors: Complex[Array, "n_k n_bands n_orb n_orb"] = jnp.einsum(
+        "kbi,kbj->kbij",
+        eigenvectors,
+        eigenvectors.conj(),
+    )
+    return projectors
+
+
+@jaxtyped(typechecker=beartype)
+def group_projector(  # noqa: DOC502 -- validation is delegated.
+    bands: DiagonalizedBands,
+    group: tuple[int, ...],
+) -> Complex[Array, "n_k n_orb n_orb"]:
+    r"""Construct the projector onto one registered, fixed band group.
+
+    The sum is invariant under arbitrary unitary rotations among the selected
+    eigenvectors, including rotations inside a Kramers pair.
+
+    :see: :class:`~.test_projections.TestGroupProjector`
+
+    Parameters
+    ----------
+    bands : DiagonalizedBands
+        Geometry-bearing, band-major eigensystem.
+    group : tuple[int, ...]
+        Fixed unique band indices (**static** -- changing them retraces).
+
+    Returns
+    -------
+    projector : Complex[Array, "n_k n_orb n_orb"]
+        Fixed-group projector at every k-point.
+
+    Raises
+    ------
+    ValueError
+        If ``group`` is empty, duplicated, or outside the band axis.
+
+    Notes
+    -----
+    Static validation fixes group membership before the traced outer-product
+    reduction. The sum removes every internal basis choice.
+    """
+    _validate_selection(
+        group,
+        bands.eigenvalues.shape[1],
+        name="group",
+    )
+    selected: Complex[Array, "n_k n_group n_orb"] = bands.eigenvectors[
+        :, group, :
+    ]
+    projector: Complex[Array, "n_k n_orb n_orb"] = jnp.einsum(
+        "kgi,kgj->kij",
+        selected,
+        selected.conj(),
+    )
+    return projector
+
+
+@jaxtyped(typechecker=beartype)
+def group_trace(  # noqa: DOC502 -- validation is delegated.
+    bands: DiagonalizedBands,
+    operator: Complex[Array, "n_orb n_orb"],
+    group: tuple[int, ...],
+) -> Float[Array, " n_k"]:
+    r"""Trace a Hermitian operator over one fixed band group.
+
+    This is the normative exact-degeneracy observable. It equals
+    :math:`\operatorname{Tr}(P_G O)` and is invariant under every unitary
+    basis change within the registered group.
+
+    :see: :class:`~.test_projections.TestGroupTrace`
+
+    Parameters
+    ----------
+    bands : DiagonalizedBands
+        Geometry-bearing, band-major eigensystem.
+    operator : Complex[Array, "n_orb n_orb"]
+        Finite Hermitian operator in the model basis.
+    group : tuple[int, ...]
+        Fixed unique band indices (**static** -- changing them retraces).
+
+    Returns
+    -------
+    traces : Float[Array, "n_k"]
+        Real fixed-group operator trace at each k-point.
+
+    Raises
+    ------
+    ValueError
+        If static shapes or group indices are invalid.
+    EquinoxRuntimeError
+        If ``operator`` is non-finite or non-Hermitian.
+
+    Notes
+    -----
+    The implementation contracts the fixed-group projector with the
+    Hermitian operator and returns the real component.
+    """
+    n_orbitals: int = bands.eigenvectors.shape[2]
+    checked_operator: Complex[Array, "n_orb n_orb"] = _checked_operator(
+        operator,
+        n_orbitals,
+        context="group_trace",
+    )
+    projector: Complex[Array, "n_k n_orb n_orb"] = group_projector(
+        bands,
+        group,
+    )
+    traces_complex: Complex[Array, " n_k"] = jnp.einsum(
+        "kij,ji->k",
+        projector,
+        checked_operator,
+    )
+    traces: Float[Array, " n_k"] = jnp.real(traces_complex)
+    return traces
+
+
+@jaxtyped(typechecker=beartype)
+def expectation_path(  # noqa: DOC502 -- validation is delegated.
+    bands: DiagonalizedBands,
+    operator: Complex[Array, "n_orb n_orb"],
+    degen_tol: float = 1e-10,
+) -> Float[Array, "n_k n_bands"]:
+    r"""Compute operator expectations with diagnostic degeneracy averaging.
+
+    Average raw quadratic forms between bands whose energy separation falls
+    below ``degen_tol``. The fixed-shape mask makes the result invariant under
+    a complete unitary rotation of an exactly degenerate block.
+
+    :see: :class:`~.test_projections.TestExpectationPath`
+
+    Parameters
+    ----------
+    bands : DiagonalizedBands
+        Geometry-bearing, band-major eigensystem.
+    operator : Complex[Array, "n_orb n_orb"]
+        Finite Hermitian operator in the model basis.
+    degen_tol : float, optional
+        Positive diagnostic energy threshold in eV. Default is ``1e-10``.
+
+    Returns
+    -------
+    expectations : Float[Array, "n_k n_bands"]
+        Degeneracy-averaged values :math:`\langle\psi|O|\psi\rangle`.
+
+    Raises
+    ------
+    ValueError
+        If the operator shape is invalid.
+    EquinoxRuntimeError
+        If the operator is invalid or ``degen_tol`` is not finite and
+        positive.
+
+    Notes
+    -----
+    The threshold mask is nondifferentiable and exists for diagnostics only.
+    Exact-crossing gradient claims must use a fixed :func:`group_trace`.
+    """
+    n_orbitals: int = bands.eigenvectors.shape[2]
+    checked_operator: Complex[Array, "n_orb n_orb"] = _checked_operator(
+        operator,
+        n_orbitals,
+        context="expectation_path",
+    )
+    tolerance: Float[Array, ""] = jnp.asarray(degen_tol, dtype=jnp.float64)
+    tolerance = eqx.error_if(
+        tolerance,
+        ~jnp.isfinite(tolerance) | (tolerance <= 0.0),
+        "expectation_path: degen_tol must be finite and positive",
+    )
+    raw_complex: Complex[Array, "n_k n_bands"] = jnp.einsum(
+        "kbi,ij,kbj->kb",
+        bands.eigenvectors.conj(),
+        checked_operator,
+        bands.eigenvectors,
+    )
+    raw: Float[Array, "n_k n_bands"] = jnp.real(raw_complex)
+    gaps: Float[Array, "n_k n_bands n_bands"] = jnp.abs(
+        bands.eigenvalues[:, :, None] - bands.eigenvalues[:, None, :]
+    )
+    mask: Float[Array, "n_k n_bands n_bands"] = (gaps < tolerance).astype(
+        jnp.float64
+    )
+    numerator: Float[Array, "n_k n_bands"] = jnp.einsum(
+        "kij,kj->ki",
+        mask,
+        raw,
+    )
+    denominator: Float[Array, "n_k n_bands"] = jnp.sum(mask, axis=-1)
+    expectations: Float[Array, "n_k n_bands"] = numerator / denominator
+    return expectations
+
+
+@jaxtyped(typechecker=beartype)
+def fat_bands(  # noqa: DOC502 -- validation is delegated.
+    bands: DiagonalizedBands,
+    orbital_select: tuple[int, ...],
+) -> Float[Array, "n_k n_bands"]:
+    """Compute degeneracy-averaged weights of selected model orbitals.
+
+    Build one orbital-selection projector and evaluate it along the complete
+    diagonalized path.
+
+    :see: :class:`~.test_projections.TestFatBands`
+
+    Parameters
+    ----------
+    bands : DiagonalizedBands
+        Geometry-bearing, band-major eigensystem.
+    orbital_select : tuple[int, ...]
+        Fixed unique orbital indices (**static** -- changing them retraces).
+
+    Returns
+    -------
+    weights : Float[Array, "n_k n_bands"]
+        Selected-orbital weights, averaged within diagnostic degeneracies.
+
+    Raises
+    ------
+    ValueError
+        If the selection is empty, duplicated, or outside the orbital axis.
+
+    Notes
+    -----
+    This convenience function uses the default threshold of
+    :func:`expectation_path`. Use :func:`group_trace` for scientific
+    derivatives at an exact degeneracy.
+    """
+    operator: Complex[Array, "n_orb n_orb"] = orbital_projector(
+        bands.basis,
+        orbital_select,
+    )
+    weights: Float[Array, "n_k n_bands"] = expectation_path(bands, operator)
+    return weights
 
 
 __all__: list[str] = [
-    "eigenvector_orbital_weights",
-    "orbital_coefficients",
+    "band_projectors",
+    "expectation_path",
+    "fat_bands",
+    "group_projector",
+    "group_trace",
+    "orbital_weights",
 ]

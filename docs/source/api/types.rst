@@ -26,3 +26,35 @@ K-space carriers
    :members:
    :undoc-members:
    :show-inheritance:
+
+Crystal geometry
+----------------
+
+.. automodule:: diffpes.types.geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Orbital and Slater--Koster parameters
+-------------------------------------
+
+.. automodule:: diffpes.types.radial_params
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Tight-binding carriers
+----------------------
+
+.. automodule:: diffpes.types.tb_model
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Wannier operator metadata
+-------------------------
+
+.. automodule:: diffpes.types.wannier
+   :members:
+   :undoc-members:
+   :show-inheritance:

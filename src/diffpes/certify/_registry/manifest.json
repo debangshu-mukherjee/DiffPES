@@ -24,6 +24,36 @@
         "org.diffpes.transform.kinematics.inner_potential@1.0.0",
         "org.diffpes.transform.polarization.detector_frame@1.0.0"
       ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
+        "org.diffpes.evidence.04.g1.hopping_structure",
+        "org.diffpes.evidence.04.g2.wigner_rotation",
+        "org.diffpes.evidence.04.g3.slater_koster_table_i",
+        "org.diffpes.evidence.04.g4.analytic_bands",
+        "org.diffpes.evidence.04.g5.atomic_soc_kramers",
+        "org.diffpes.evidence.04.g6.chinook_k_compatibility_resolved",
+        "org.diffpes.evidence.04.g7.wannier90_normative_ingestion",
+        "org.diffpes.evidence.04.g8.fixed_group_gauge_invariance",
+        "org.diffpes.evidence.04.g9.dos_filling_closed_form",
+        "org.diffpes.evidence.04.d1.generic_parameter_gradients",
+        "org.diffpes.evidence.04.d2.degenerate_invariant_gradients",
+        "org.diffpes.evidence.04.d3.eigh_regularization_bias",
+        "org.diffpes.evidence.04.d4.complex_holomorphic_gradients",
+        "org.diffpes.evidence.04.d5.fermi_implicit_gradient",
+        "org.diffpes.evidence.04.s1.bloch_jaxpr_compile_count",
+        "org.diffpes.evidence.04.s2.batch_memory_shapes",
+        "org.diffpes.evidence.04.s3.eigvalsh_reverse_memory"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.plan.04",
+      "transformation_refs": [
+        "org.diffpes.transform.tightb.bloch_basis_position@1.0.0",
+        "org.diffpes.transform.tightb.eigensystem_fixed_group@1.0.0",
+        "org.diffpes.transform.tightb.dos_gaussian@1.0.0",
+        "org.diffpes.transform.tightb.filling_fermi_level@1.0.0"
+      ]
     }
   ],
   "schema_version": "1.0.0",
@@ -58,6 +88,22 @@
     },
     {
       "transformation_id": "org.diffpes.transform.resolution.energy_voigt",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.bloch_basis_position",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.dos_gaussian",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.eigensystem_fixed_group",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.filling_fermi_level",
       "transformation_version": "1.0.0"
     }
   ]

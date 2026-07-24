@@ -15,7 +15,7 @@ Routine Listings
 
 Notes
 -----
-The codec supports all twenty-two numerical types-owned carriers.
+The codec supports all twenty-three numerical types-owned carriers.
 Dataclass fields define the serialization metadata.
 The codec stores dynamic fields as datasets or recursive module groups.
 It encodes ``eqx.field(static=True)`` values as tuple-preserving JSON.
@@ -65,6 +65,7 @@ from diffpes.types import (
     VolumetricData,
     WorkflowContext,
 )
+from diffpes.types.wannier import WannierOperatorData
 
 
 def _pytree_classes() -> tuple[type[eqx.Module], ...]:
@@ -91,6 +92,7 @@ def _pytree_classes() -> tuple[type[eqx.Module], ...]:
         SpinOrbitalProjection,
         TBModel,
         VolumetricData,
+        WannierOperatorData,
         WorkflowContext,
     )
     return classes
