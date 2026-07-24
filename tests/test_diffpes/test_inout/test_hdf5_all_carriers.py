@@ -173,7 +173,14 @@ def test_all_carriers_round_trip_bitwise() -> None:
 
 
 def test_wannier_hr_round_trip_preserves_absent_position_matrices() -> None:
-    """Round-trip the ``hr.dat`` sidecar with its optional array absent."""
+    """Round-trip the ``hr.dat`` sidecar with its optional array absent.
+
+    The case protects optional Wannier operator metadata through persistence.
+
+    Notes
+    -----
+    Compare the complete reconstructed carrier with Equinox tree equality.
+    """
     temporary_directory: str
 
     carrier: eqx.Module = make_wannier_operator_data(

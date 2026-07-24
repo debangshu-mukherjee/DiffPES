@@ -6,6 +6,7 @@ gradient equivalence with direct parameterizations.
 """
 
 import inspect
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -154,6 +155,8 @@ def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
     actual_leaves: list[jax.Array] = jax.tree.leaves(actual)
     expected_leaves: list[jax.Array] = jax.tree.leaves(expected)
     assert len(actual_leaves) == len(expected_leaves)
+    actual_leaf: jax.Array
+    expected_leaf: jax.Array
     for actual_leaf, expected_leaf in zip(
         actual_leaves,
         expected_leaves,
@@ -169,10 +172,12 @@ def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
 
 
 class TestTBParameterView:
-    """Validate independent coordinates for a materialized model."""
+    """Validate :func:`~diffpes.tightb.tb_parameter_view`."""
 
     def test_round_trip_is_bitwise_and_hoppings_are_independent(self) -> None:
         """Pack one complex pair and one self-reverse record without redundancy.
+
+        The case pins every coordinate in the compact real vector.
 
         Notes
         -----
@@ -180,6 +185,8 @@ class TestTBParameterView:
         reconstruction of all numerical leaves.
         """
         model: TBModel = _materialized_model()
+        parameters: Float[Array, " 5"]
+        rebuild: Callable[[Float[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
 
         np.testing.assert_array_equal(
@@ -199,12 +206,16 @@ class TestTBParameterView:
     def test_optional_geometry_and_jit_rebuild(self) -> None:
         """Append fractional positions and lattice rows through JIT.
 
+        The case checks geometry reconstruction alongside unchanged hoppings.
+
         Notes
         -----
         Perturb one position and one lattice coordinate while preserving the
         static hopping topology. Require reciprocal-lattice recomputation.
         """
         model: TBModel = _materialized_model()
+        parameters: Float[Array, " 17"]
+        rebuild: Callable[[Float[Array, " 17"]], TBModel]
         parameters, rebuild = tb_parameter_view(
             model,
             include_positions=True,
@@ -237,11 +248,15 @@ class TestTBParameterView:
     def test_view_gradient_matches_direct_complex_coordinate(self) -> None:
         """Match gradients through the view with a direct analytic chain.
 
+        The case differentiates the same scalar through two parameterizations.
+
         Notes
         -----
         Compare the two stacked-real hopping derivatives at ``1e-12``.
         """
         model: TBModel = _materialized_model()
+        parameters: Float[Array, " 5"]
+        rebuild: Callable[[Float[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
         kpoint: float = 0.231
         phase: complex = np.exp(2.0j * np.pi * kpoint)
@@ -250,7 +265,7 @@ class TestTBParameterView:
             """Evaluate the scalar band loss through the inverse view."""
             vector: Float[Array, " 5"] = parameters.at[:2].set(packed)
             candidate: TBModel = rebuild(vector)
-            hamiltonian = bloch_hamiltonian(
+            hamiltonian: Complex[Array, "1 1"] = bloch_hamiltonian(
                 candidate,
                 jnp.asarray((kpoint, 0.0, 0.0), dtype=jnp.float64),
             )
@@ -258,8 +273,8 @@ class TestTBParameterView:
 
         def direct_loss(packed: Float[Array, " 2"]) -> jax.Array:
             """Evaluate the same scalar band loss from the closed form."""
-            amplitude = unpack_complex(packed)
-            energy = (
+            amplitude: Complex[Array, ""] = unpack_complex(packed)
+            energy: Complex[Array, ""] = (
                 model.onsite_energies[0]
                 + jnp.real(model.hopping_amplitudes[2])
                 + amplitude * phase
@@ -277,6 +292,8 @@ class TestTBParameterView:
     ) -> None:
         """Reject lossy near-closure and malformed rebuilding coordinates.
 
+        The case distinguishes carrier tolerance from optimizer exactness.
+
         Notes
         -----
         The carrier tolerance admits the constructed residual, but the
@@ -288,6 +305,8 @@ class TestTBParameterView:
         with pytest.raises(ValueError, match="exactly conjugate-closed"):
             tb_parameter_view(tolerance_close)
 
+        parameters: Float[Array, " 5"]
+        rebuild: Callable[[Float[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(_materialized_model())
         with pytest.raises(ValueError, match="must have shape"):
             rebuild(jnp.zeros((parameters.size + 1,), dtype=jnp.float64))
@@ -296,15 +315,21 @@ class TestTBParameterView:
 
 
 class TestSKModelParameterView:
-    """Validate fundamental-integral optimizer coordinates."""
+    """Validate :func:`~diffpes.tightb.sk_model_parameter_view`."""
 
     def test_round_trip_and_position_layout(self) -> None:
-        """Rebuild the initial graphene SK model and append positions last.
+        """Return the initial graphene SK model and append positions last.
+
+        The case pins the optional position and lattice coordinate layout.
 
         Notes
         -----
         Compare the non-position view bitwise and pin the optional flat layout.
         """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
         expected: TBModel = build_sk_model(
             geometry,
@@ -315,6 +340,8 @@ class TestSKModelParameterView:
             (-1, -1),
             1.5,
         )
+        parameters: Float[Array, " 3"]
+        rebuild: Callable[[Float[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -326,6 +353,8 @@ class TestSKModelParameterView:
         )
         _assert_models_bitwise(rebuild(parameters), expected)
 
+        positioned: Float[Array, " 9"]
+        rebuild_positioned: Callable[[Float[Array, " 9"]], TBModel]
         positioned, rebuild_positioned = sk_model_parameter_view(
             geometry,
             basis,
@@ -339,13 +368,15 @@ class TestSKModelParameterView:
         assert parameters.shape == (3,)
         assert positioned.shape == (9,)
         np.testing.assert_array_equal(positioned[:3], parameters)
-        shifted = positioned.at[-3].add(1e-4)
+        shifted: Float[Array, " 9"] = positioned.at[-3].add(1e-4)
         shifted_model: TBModel = rebuild_positioned(shifted)
         np.testing.assert_array_equal(
             shifted_model.geometry.positions,
             geometry.positions.at[1, 0].add(1e-4),
         )
 
+        geometric: Float[Array, " 18"]
+        rebuild_geometric: Callable[[Float[Array, " 18"]], TBModel]
         geometric, rebuild_geometric = sk_model_parameter_view(
             geometry,
             basis,
@@ -375,12 +406,20 @@ class TestSKModelParameterView:
     def test_gradient_through_view_matches_direct_sk_value(self) -> None:
         """Match the SK-integral band gradient through the rebuilding view.
 
+        The case compares an optimizer view against direct model construction.
+
         Notes
         -----
         Hold onsite coordinates fixed and compare the fundamental pp-pi
         derivative at ``1e-12``.
         """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
+        parameters: Float[Array, " 3"]
+        rebuild: Callable[[Float[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -397,21 +436,25 @@ class TestSKModelParameterView:
 
         def band_loss(model: TBModel) -> jax.Array:
             """Return a gauge-invariant spectral polynomial."""
-            eigenvalues = jnp.linalg.eigvalsh(bloch_hamiltonian(model, kpoint))
-            return jnp.sum(eigenvalues**2)
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(model, kpoint)
+            )
+            result: jax.Array = jnp.sum(eigenvalues**2)
+            return result
 
         def through_view(value: Float[Array, ""]) -> jax.Array:
-            """Rebuild from the optimizer vector and evaluate the bands."""
-            vector = parameters.at[0].set(value)
-            return band_loss(rebuild(vector))
+            """Return bands after rebuilding from optimizer coordinates."""
+            vector: Float[Array, " 3"] = parameters.at[0].set(value)
+            result: jax.Array = band_loss(rebuild(vector))
+            return result
 
         def direct(value: Float[Array, ""]) -> jax.Array:
-            """Rebuild directly from the fundamental SK value."""
+            """Return bands rebuilt from the fundamental SK value."""
             direct_params: SlaterKosterParams = SlaterKosterParams(
                 values=jnp.reshape(value, (1,)),
                 keys=params.keys,
             )
-            model = build_sk_model(
+            model: TBModel = build_sk_model(
                 geometry,
                 basis,
                 direct_params,
@@ -420,7 +463,8 @@ class TestSKModelParameterView:
                 (-1, -1),
                 1.5,
             )
-            return band_loss(model)
+            result: jax.Array = band_loss(model)
+            return result
 
         actual: Float[Array, ""] = jax.grad(through_view)(parameters[0])
         expected: Float[Array, ""] = jax.grad(direct)(parameters[0])
@@ -432,13 +476,21 @@ class TestSKModelParameterView:
     ) -> None:
         """Match a nonzero strain derivative through the SK view.
 
+        The case compares flat lattice coordinates with direct geometry input.
+
         Notes
         -----
         An oblique s--px bond makes its direction cosine sensitive to the
         first lattice row. Compare the flat-view derivative with direct
         reconstruction and reject a silently zero strain channel.
         """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
         geometry, basis, params, onsite = _sp_context()
+        parameters: Float[Array, " 12"]
+        rebuild: Callable[[Float[Array, " 12"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -457,16 +509,22 @@ class TestSKModelParameterView:
 
         def band_loss(model: TBModel) -> jax.Array:
             """Return a spectral invariant with bond-direction sensitivity."""
-            eigenvalues = jnp.linalg.eigvalsh(bloch_hamiltonian(model, kpoint))
-            return jnp.sum(eigenvalues**2)
+            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+                bloch_hamiltonian(model, kpoint)
+            )
+            result: jax.Array = jnp.sum(eigenvalues**2)
+            return result
 
         def through_view(value: Float[Array, ""]) -> jax.Array:
             """Replace one lattice coordinate in the flat view."""
-            vector = parameters.at[lattice_offset].set(value)
-            return band_loss(rebuild(vector))
+            vector: Float[Array, " 12"] = parameters.at[lattice_offset].set(
+                value
+            )
+            result: jax.Array = band_loss(rebuild(vector))
+            return result
 
         def direct(value: Float[Array, ""]) -> jax.Array:
-            """Rebuild directly from the same lattice coordinate."""
+            """Return bands rebuilt from the same lattice coordinate."""
             direct_geometry: CrystalGeometry = make_crystal_geometry(
                 geometry.lattice.at[0, 0].set(value),
                 geometry.positions,
@@ -481,7 +539,8 @@ class TestSKModelParameterView:
                 (-1, -1),
                 2.0,
             )
-            return band_loss(model)
+            result: jax.Array = band_loss(model)
+            return result
 
         initial: Float[Array, ""] = parameters[lattice_offset]
         actual: Float[Array, ""] = jax.grad(through_view)(initial)
@@ -493,11 +552,19 @@ class TestSKModelParameterView:
     def test_jit_and_static_vector_validation(self) -> None:
         """Compile the rebuilding closure and reject a wrong vector length.
 
+        The case confirms one captured topology supports compiled rebuilding.
+
         Notes
         -----
-        The static topology is fixed by the captured geometry and cutoff.
+        The captured geometry and cutoff fix the static topology.
         """
+        geometry: CrystalGeometry
+        basis: OrbitalBasis
+        params: SlaterKosterParams
+        onsite: Float[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
+        parameters: Float[Array, " 3"]
+        rebuild: Callable[[Float[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -519,7 +586,14 @@ class TestSKModelParameterView:
             )
 
     def test_docstrings_register_the_energy_zero_gauge(self) -> None:
-        """Keep the identifiability warning visible on both public views."""
+        """Keep the identifiability warning visible on both public views.
+
+        The case protects the inversion-facing gauge documentation.
+
+        Notes
+        -----
+        Inspect both public docstrings for the registered warning phrase.
+        """
         tb_doc: str = inspect.getdoc(tb_parameter_view)
         sk_doc: str = inspect.getdoc(sk_model_parameter_view)
 

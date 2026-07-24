@@ -133,7 +133,7 @@ Routine Listings
 :func:`register_handshake`
     Register declarative requirements from one owning plan.
 :func:`register_builtin_models`
-    Register built-in models and information-loss transformations.
+    Register built-in models, transformations, and owner handshakes.
 :func:`register_check`
     Register a stable predicate identity and pure JAX callable.
 :func:`register_model`

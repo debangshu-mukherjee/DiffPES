@@ -29,17 +29,16 @@ import optimistix as optx
 from beartype import beartype
 from jaxtyping import Array, Float, jaxtyped
 
-from diffpes.simul.broadening import fermi_dirac
+from diffpes.simul import fermi_dirac
 from diffpes.types import (
     EPS,
     KB_EV_PER_K,
+    MINIMUM_AXIS_POINTS,
+    SPECTRUM_NDIM,
     DensityOfStates,
     ScalarFloat,
     make_density_of_states,
 )
-
-_SPECTRUM_NDIM: int = 2
-_MINIMUM_AXIS_POINTS: int = 2
 
 
 def _validate_spectrum_inputs(
@@ -57,7 +56,7 @@ def _validate_spectrum_inputs(
         k_weights,
         dtype=jnp.float64,
     )
-    if energies.ndim != _SPECTRUM_NDIM:
+    if energies.ndim != SPECTRUM_NDIM:
         raise ValueError(f"{context}: eigenvalues must be two-dimensional")
     if weights.ndim != 1:
         raise ValueError(f"{context}: k_weights must be one-dimensional")
@@ -89,7 +88,11 @@ def _validate_spectrum_inputs(
         jnp.abs(jnp.sum(weights) - 1.0) > EPS,
         f"{context}: k_weights must sum to one",
     )
-    return energies, weights
+    result: tuple[
+        Float[Array, "n_k n_bands"],
+        Float[Array, " n_k"],
+    ] = (energies, weights)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -153,7 +156,7 @@ def dos_gaussian(  # noqa: DOC502, DOC503 -- traced validation raises under JAX.
     width: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
     if axis.ndim != 1:
         raise ValueError("dos_gaussian: energy_axis must be one-dimensional")
-    if axis.shape[0] < _MINIMUM_AXIS_POINTS:
+    if axis.shape[0] < MINIMUM_AXIS_POINTS:
         raise ValueError(
             "dos_gaussian: energy_axis must contain at least two points"
         )

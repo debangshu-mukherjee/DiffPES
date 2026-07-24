@@ -45,6 +45,16 @@ from jax import core
 from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.types import (
+    CARTESIAN_COMPONENTS,
+    CHANNELS_BY_PAIR,
+    DEFAULT_SUPERCELL_RADIUS,
+    KNOWN_CHANNELS,
+    MAX_SK_ANGULAR_MOMENTUM,
+    MIN_BOND_DISTANCE,
+    PARAMETER_KEY_PARTS,
+    SHELL_ATOLERANCE,
+    SHELL_RTOLERANCE,
+    SPECIES_PAIR_PARTS,
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
@@ -52,34 +62,13 @@ from diffpes.types import (
     make_tb_model,
 )
 
-_CARTESIAN_COMPONENTS: int = 3
-_DEFAULT_SUPERCELL_RADIUS: int = 2
-_MAX_SK_ANGULAR_MOMENTUM: int = 2
-_MIN_BOND_DISTANCE: float = 1e-12
-_PARAMETER_KEY_PARTS: int = 2
-_SHELL_ATOLERANCE: float = 1e-8
-_SHELL_RTOLERANCE: float = 1e-8
-_SPECIES_PAIR_PARTS: int = 2
-
-_CHANNELS_BY_PAIR: dict[tuple[int, int], tuple[str, ...]] = {
-    (0, 0): ("ss_sigma",),
-    (0, 1): ("sp_sigma",),
-    (0, 2): ("sd_sigma",),
-    (1, 1): ("pp_sigma", "pp_pi"),
-    (1, 2): ("pd_sigma", "pd_pi"),
-    (2, 2): ("dd_sigma", "dd_pi", "dd_delta"),
-}
-_KNOWN_CHANNELS: frozenset[str] = frozenset(
-    channel for channels in _CHANNELS_BY_PAIR.values() for channel in channels
-)
-
 
 def _validate_angular_momentum(l: int, name: str) -> None:  # noqa: E741
     """Validate one static Slater--Koster shell angular momentum."""
-    if type(l) is not int or not 0 <= l <= _MAX_SK_ANGULAR_MOMENTUM:
+    if type(l) is not int or not 0 <= l <= MAX_SK_ANGULAR_MOMENTUM:
         message: str = (
             f"{name} must be an integer from 0 through "
-            f"{_MAX_SK_ANGULAR_MOMENTUM}"
+            f"{MAX_SK_ANGULAR_MOMENTUM}"
         )
         raise ValueError(message)
 
@@ -90,7 +79,7 @@ def _rotation_z_to_direction(
     """Construct a proper rotation taking positive z onto ``direction``."""
     dtype: jnp.dtype = direction.dtype
     identity: Float[Array, "3 3"] = jnp.eye(
-        _CARTESIAN_COMPONENTS,
+        CARTESIAN_COMPONENTS,
         dtype=dtype,
     )
     direction_x: Float[Array, ""] = direction[0]
@@ -372,7 +361,11 @@ def _candidate_topology(
                         if record < reverse:
                             atom_pairs.append((atom_i, atom_j))
                             cells.append(cell)
-    return tuple(atom_pairs), tuple(cells)
+    topology: tuple[
+        tuple[tuple[int, int], ...],
+        tuple[tuple[int, int, int], ...],
+    ] = (tuple(atom_pairs), tuple(cells))
+    return topology
 
 
 def _displacements_and_distances(
@@ -383,14 +376,18 @@ def _displacements_and_distances(
     """Derive differentiable fractional bonds and Cartesian distances."""
     if not atom_pairs:
         empty_displacements: Float[Array, "0 3"] = jnp.zeros(
-            (0, _CARTESIAN_COMPONENTS),
+            (0, CARTESIAN_COMPONENTS),
             dtype=geometry.positions.dtype,
         )
         empty_distances: Float[Array, " 0"] = jnp.zeros(
             (0,),
             dtype=geometry.positions.dtype,
         )
-        return empty_displacements, empty_distances
+        empty_result: tuple[
+            Float[Array, "0 3"],
+            Float[Array, " 0"],
+        ] = (empty_displacements, empty_distances)
+        return empty_result
     atom_i: Array = jnp.asarray(
         tuple(pair[0] for pair in atom_pairs),
         dtype=jnp.int32,
@@ -411,7 +408,11 @@ def _displacements_and_distances(
         cartesian,
         axis=1,
     )
-    return displacements, distances
+    result: tuple[
+        Float[Array, "n_bond 3"],
+        Float[Array, " n_bond"],
+    ] = (displacements, distances)
+    return result
 
 
 def _geometry_is_traced(geometry: CrystalGeometry) -> bool:
@@ -427,11 +428,14 @@ def _concrete_primal(value: Array) -> Array | None:
     candidate: object = value
     while isinstance(candidate, core.Tracer):
         if not hasattr(candidate, "primal"):
-            return None
+            missing: Array | None = None
+            return missing
         candidate = candidate.primal
     if isinstance(candidate, jax.Array):
-        return candidate
-    return None
+        primal: Array | None = candidate
+        return primal
+    missing = None
+    return missing  # noqa: RET504 -- repository returns bound names.
 
 
 def _primal_geometry(
@@ -441,7 +445,8 @@ def _primal_geometry(
     primal_lattice: Array | None = _concrete_primal(geometry.lattice)
     primal_positions: Array | None = _concrete_primal(geometry.positions)
     if primal_lattice is None or primal_positions is None:
-        return None
+        missing: CrystalGeometry | None = None
+        return missing
     primal: CrystalGeometry = eqx.tree_at(
         lambda item: (item.lattice, item.positions),
         geometry,
@@ -454,7 +459,7 @@ def _primal_geometry(
 def neighbor_shells(  # noqa: DOC502
     geometry: CrystalGeometry,
     cutoff: float,
-    supercell_radius: int = _DEFAULT_SUPERCELL_RADIUS,
+    supercell_radius: int = DEFAULT_SUPERCELL_RADIUS,
 ) -> tuple[
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
@@ -533,7 +538,7 @@ def neighbor_shells(  # noqa: DOC502
             )
         )
         host_distances: np.ndarray = np.asarray(candidate_distances)
-    if np.any(host_distances <= _MIN_BOND_DISTANCE):
+    if np.any(host_distances <= MIN_BOND_DISTANCE):
         message = "neighbor_shells encountered a zero-length atom pair"
         raise ValueError(message)
     keep: np.ndarray = host_distances <= cutoff
@@ -553,7 +558,13 @@ def neighbor_shells(  # noqa: DOC502
         atom_pairs,
         cells,
     )
-    return atom_pairs, cells, displacements, distances
+    result: tuple[
+        tuple[tuple[int, int], ...],
+        tuple[tuple[int, int, int], ...],
+        Float[Array, "n_bond 3"],
+        Float[Array, " n_bond"],
+    ] = (atom_pairs, cells, displacements, distances)
+    return result
 
 
 def _parse_parameter_keys(
@@ -571,9 +582,10 @@ def _parse_parameter_keys(
         if len(pieces) == 1:
             pair = None
             channel = pieces[0]
-        elif len(pieces) == _PARAMETER_KEY_PARTS:
+        elif len(pieces) == PARAMETER_KEY_PARTS:
             pair, channel = pieces
             if "@" in pair:
+                shell_text: str
                 pair, shell_text = pair.rsplit("@", maxsplit=1)
                 if not shell_text.isdecimal() or int(shell_text) < 1:
                     message: str = (
@@ -582,13 +594,13 @@ def _parse_parameter_keys(
                     raise ValueError(message)
                 shell = int(shell_text)
             species: list[str] = pair.split("-")
-            if len(species) != _SPECIES_PAIR_PARTS or not all(species):
+            if len(species) != SPECIES_PAIR_PARTS or not all(species):
                 message = f"invalid species pair in SK key {key!r}"
                 raise ValueError(message)
         else:
             message = f"invalid SK key grammar {key!r}"
             raise ValueError(message)
-        if channel not in _KNOWN_CHANNELS:
+        if channel not in KNOWN_CHANNELS:
             message = f"unknown Slater--Koster channel {channel!r}"
             raise ValueError(message)
         parsed[(pair, shell, channel)] = index
@@ -601,10 +613,15 @@ def _species_pair(
 ) -> tuple[str | None, str | None]:
     """Return forward and reversed material-pair identifiers."""
     if not geometry.species:
-        return None, None
+        empty_pairs: tuple[str | None, str | None] = (None, None)
+        return empty_pairs
     species_i: str = geometry.species[atom_pair[0]]
     species_j: str = geometry.species[atom_pair[1]]
-    return f"{species_i}-{species_j}", f"{species_j}-{species_i}"
+    pairs: tuple[str | None, str | None] = (
+        f"{species_i}-{species_j}",
+        f"{species_j}-{species_i}",
+    )
+    return pairs
 
 
 def _shell_numbers(
@@ -617,6 +634,7 @@ def _shell_numbers(
     grouped: dict[tuple[str, str], list[float]] = {}
     pair_groups: list[tuple[str, str]] = []
     atom_pair: tuple[int, int]
+    distance: np.float64
     for atom_pair in atom_pairs:
         if geometry.species:
             group: tuple[str, str] = tuple(
@@ -649,8 +667,8 @@ def _shell_numbers(
             if not values or not np.isclose(
                 distance,
                 values[-1],
-                rtol=_SHELL_RTOLERANCE,
-                atol=_SHELL_ATOLERANCE,
+                rtol=SHELL_RTOLERANCE,
+                atol=SHELL_ATOLERANCE,
             ):
                 values.append(distance)
         grouped[group] = values
@@ -668,12 +686,13 @@ def _shell_numbers(
             if np.isclose(
                 distance,
                 reference,
-                rtol=_SHELL_RTOLERANCE,
-                atol=_SHELL_ATOLERANCE,
+                rtol=SHELL_RTOLERANCE,
+                atol=SHELL_ATOLERANCE,
             )
         ]
         shell_numbers.append(matching[0] + 1)
-    return tuple(shell_numbers)
+    result: tuple[int, ...] = tuple(shell_numbers)
+    return result
 
 
 def _parameter_index(
@@ -694,8 +713,10 @@ def _parameter_index(
     candidate: tuple[str | None, int | None, str]
     for candidate in candidates:
         if candidate in lookup:
-            return lookup[candidate]
-    return None
+            index: int | None = lookup[candidate]
+            return index
+    missing: int | None = None
+    return missing
 
 
 def _integral_vector(
@@ -724,7 +745,8 @@ def _integral_vector(
             values.append(sk_params.values[index])
             found_any = True
     vector: Float[Array, " n_m"] = jnp.stack(values)
-    return vector, found_any
+    result: tuple[Float[Array, " n_m"], bool] = (vector, found_any)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -795,8 +817,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     cutoff crossing.
     """
     if any(
-        angular < 0 or angular > _MAX_SK_ANGULAR_MOMENTUM
-        for angular in basis.l
+        angular < 0 or angular > MAX_SK_ANGULAR_MOMENTUM for angular in basis.l
     ):
         message: str = "build_sk_model supports only s, p, and d orbitals"
         raise ValueError(message)
@@ -824,7 +845,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
             raise ValueError(message)
         atom_pairs, cells = _candidate_topology(
             geometry.positions.shape[0],
-            _DEFAULT_SUPERCELL_RADIUS,
+            DEFAULT_SUPERCELL_RADIUS,
         )
         displacements, distances = _displacements_and_distances(
             geometry,
@@ -832,9 +853,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
             cells,
         )
         shell_numbers: tuple[int, ...] = (1,) * len(atom_pairs)
-        active: Array = (distances > _MIN_BOND_DISTANCE) & (
-            distances <= cutoff
-        )
+        active: Array = (distances > MIN_BOND_DISTANCE) & (distances <= cutoff)
     else:
         topology_pairs: tuple[tuple[int, int], ...]
         topology_cells: tuple[tuple[int, int, int], ...]
@@ -848,7 +867,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
         ) = neighbor_shells(
             topology_geometry,
             cutoff,
-            _DEFAULT_SUPERCELL_RADIUS,
+            DEFAULT_SUPERCELL_RADIUS,
         )
         del topology_displacements, topology_distances
         atom_pairs = topology_pairs
@@ -859,6 +878,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
             cells,
         )
         with jax.ensure_compile_time_eval():
+            shell_distances: Float[Array, " n_bond"]
             _, shell_distances = _displacements_and_distances(
                 topology_geometry,
                 atom_pairs,
@@ -909,7 +929,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
                 l1: int = basis.l[orbital_i]
                 l2: int = basis.l[orbital_j]
                 angular_pair: tuple[int, int] = tuple(sorted((l1, l2)))
-                channels: tuple[str, ...] = _CHANNELS_BY_PAIR[angular_pair]
+                channels: tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
                 integral_vector: Float[Array, " n_m"]
                 found_any: bool
                 integral_vector, found_any = _integral_vector(

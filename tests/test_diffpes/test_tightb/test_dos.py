@@ -12,12 +12,12 @@ import pytest
 from jaxtyping import Array
 from scipy import integrate
 
-from diffpes.tightb.diagonalize import eigvalsh_bands
-from diffpes.tightb.dos import (
-    _solve_filling,
+from diffpes.tightb import (
     dos_gaussian,
+    eigvalsh_bands,
     fermi_level_from_filling,
 )
+from diffpes.tightb.dos import _solve_filling
 from tests._factories import make_graphene_model
 from tests._gradients import gradient_gate
 

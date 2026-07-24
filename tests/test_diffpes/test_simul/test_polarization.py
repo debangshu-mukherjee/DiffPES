@@ -804,9 +804,9 @@ class TestPolarizationToSpherical(chex.TestCase):
         """Match the spherical-basis derivative by complex step and JVP.
 
         The repository complex-step harness uses ``imag(f(x+i*h))/h``.
-        Phase-adjusted channel probes are real on real inputs, so all five
-        nonzero coefficients of the complex-linear transform can be checked
-        at ``h=1e-20`` without baseline-imaginary contamination.
+        Phase adjustment makes channel probes real on real inputs. The test
+        checks all five nonzero coefficients at ``h=1e-20`` without baseline
+        imaginary contamination.
 
         Notes
         -----

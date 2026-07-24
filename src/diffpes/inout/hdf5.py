@@ -63,9 +63,9 @@ from diffpes.types import (
     SpinOrbitalProjection,
     TBModel,
     VolumetricData,
+    WannierOperatorData,
     WorkflowContext,
 )
-from diffpes.types.wannier import WannierOperatorData
 
 
 def _pytree_classes() -> tuple[type[eqx.Module], ...]:

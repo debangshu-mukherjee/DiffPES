@@ -13,17 +13,21 @@ import numpy as np
 import pytest
 from numpy import ndarray as NDArray  # noqa: N812
 
-import diffpes.inout.tb_files as tb_files
-from diffpes.inout.tb_files import (
+import diffpes.inout as inout
+from diffpes.inout import (
     read_hopping_list,
     read_wannier90_hr,
     read_wannier90_tb,
 )
-from diffpes.tightb.hamiltonian import bloch_hamiltonian
-from diffpes.types.geometry import CrystalGeometry, make_crystal_geometry
-from diffpes.types.radial_params import OrbitalBasis, make_orbital_basis
-from diffpes.types.tb_model import TBModel
-from diffpes.types.wannier import WannierOperatorData
+from diffpes.tightb import bloch_hamiltonian
+from diffpes.types import (
+    CrystalGeometry,
+    OrbitalBasis,
+    TBModel,
+    WannierOperatorData,
+    make_crystal_geometry,
+    make_orbital_basis,
+)
 
 
 def _write_degeneracies(
@@ -31,6 +35,7 @@ def _write_degeneracies(
     degeneracies: tuple[int, ...],
 ) -> None:
     """Append normative groups of at most fifteen degeneracies."""
+    start: int
     for start in range(0, len(degeneracies), 15):
         lines.append(
             " ".join(str(value) for value in degeneracies[start : start + 15])
@@ -62,8 +67,12 @@ def _write_hr_fixture(
     ]
     _write_degeneracies(lines, degeneracies)
     order: tuple[tuple[int, int], ...] = _pair_order(n_orbitals)
+    cell_index: int
+    cell: tuple[int, int, int]
     for cell_index, cell in enumerate(cells):
         raw_matrix: NDArray = matrices[cell_index] * degeneracies[cell_index]
+        first: int
+        second: int
         for first, second in order:
             value: complex = complex(raw_matrix[first, second])
             lines.append(
@@ -91,6 +100,10 @@ def _write_tb_fixture(
     lines.extend((str(n_orbitals), str(len(cells))))
     _write_degeneracies(lines, degeneracies)
     order: tuple[tuple[int, int], ...] = _pair_order(n_orbitals)
+    cell_index: int
+    cell: tuple[int, int, int]
+    first: int
+    second: int
     for cell_index, cell in enumerate(cells):
         lines.append("")
         lines.append(f"{cell[0]} {cell[1]} {cell[2]}")
@@ -110,6 +123,7 @@ def _write_tb_fixture(
         for first, second in order:
             components: NDArray = raw_matrix[first, second]
             fields: list[str] = [f"{first + 1}", f"{second + 1}"]
+            component: np.complexfloating
             for component in components:
                 value = complex(component)
                 fields.extend((f"{value.real:.17g}", f"{value.imag:.17g}"))
@@ -528,6 +542,8 @@ class TestReadWannier90Tb:
                 [1.2, 0.6, 0.8],
             ]
         )
+        orbital: int
+        centre: NDArray
         for orbital, centre in enumerate(centres):
             positions[1, orbital, orbital] = centre
         positions[1, 0, 1] = np.asarray([0.2 + 0.1j, -0.3 + 0.4j, 0.5 - 0.2j])
@@ -815,4 +831,4 @@ class TestExplicitFormatDispatch:
                 basis,
                 "block_down_up",
             )
-        assert not hasattr(tb_files, "read_tb_file")
+        assert not hasattr(inout, "read_tb_file")

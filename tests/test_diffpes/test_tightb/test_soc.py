@@ -13,10 +13,10 @@ import jax.numpy as jnp
 import pytest
 from jaxtyping import Array, Complex
 
-from diffpes.maths.rotations import real_harmonic_unitary
-from diffpes.tightb.diagonalize import eigh_safe
-from diffpes.tightb.hamiltonian import bloch_hamiltonian
-from diffpes.tightb.soc import (
+from diffpes.maths import real_harmonic_unitary
+from diffpes.tightb import (
+    bloch_hamiltonian,
+    eigh_safe,
     l_matrices,
     soc_matrix,
     soc_shell_block,

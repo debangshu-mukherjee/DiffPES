@@ -74,7 +74,7 @@ Routine Listings
 :func:`read_procar`
     Parse a VASP PROCAR file.
 :func:`read_hopping_list`
-    Parse a zero-based Cartesian hopping list.
+    Parse a zero-based Cartesian tight-binding hopping list.
 :func:`read_wannier90_hr`
     Parse a normative Wannier90 ``seedname_hr.dat`` file.
 :func:`read_wannier90_tb`

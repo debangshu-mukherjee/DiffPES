@@ -152,7 +152,7 @@ class TestKpointsFracToCart:
         xz: float,
         yz: float,
     ) -> None:
-        r"""Satisfy :math:`A B^T=2\pi I` for random lattice rows.
+        r"""Verify :math:`A B^T=2\pi I` for random lattice rows.
 
         The direct real--reciprocal identity must hold within ``1e-10`` for
         every generated right-handed, non-degenerate lattice.
@@ -948,9 +948,8 @@ class TestBuildKmeshHv:
     ) -> None:
         """Build the full 64 by 256-squared photon-energy raster.
 
-        The JIT-compiled builder must retain its static carrier metadata and
-        allocate the expected 96 MiB float64 coordinate result without a
-        point-quadratic intermediate.
+        The case retains static carrier metadata under JIT compilation. It
+        allocates the expected 96 MiB result without point-quadratic storage.
 
         Notes
         -----

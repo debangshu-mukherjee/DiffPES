@@ -1,4 +1,7 @@
-"""Exercise the published-input companion benchmark for Plan 04 gate G7."""
+"""Exercise the published-input companion benchmark for Plan 04 gate G7.
+
+The test authenticates a compressed WSe2 Wannier input and frozen eigenvalues.
+"""
 
 import hashlib
 import json
@@ -8,12 +11,15 @@ from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Array, Float
 
 from diffpes.inout import read_wannier90_hr
 from diffpes.tightb import eigvalsh_bands
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,
+    TBModel,
+    WannierOperatorData,
     make_crystal_geometry,
     make_orbital_basis,
 )
@@ -59,7 +65,14 @@ def _wannier_context(
 
 
 def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
-    """Parse the authenticated input and reproduce frozen Γ/X eigenvalues."""
+    """Parse the authenticated input and reproduce frozen Γ/X eigenvalues.
+
+    The case verifies both source bytes and the independent reference payload.
+
+    Notes
+    -----
+    Compare all 22 bands at both registered fractional momenta.
+    """
     compressed: bytes = _COMPRESSED_INPUT.read_bytes()
     reference_payload: bytes = _FROZEN_REFERENCE.read_bytes()
     assert _sha256(compressed) == _COMPRESSED_SHA256
@@ -78,6 +91,8 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     basis: OrbitalBasis
     geometry, basis = _wannier_context(n_wannier)
 
+    model: TBModel
+    operator_data: WannierOperatorData
     model, operator_data = read_wannier90_hr(
         str(hr_path),
         geometry,
@@ -89,15 +104,15 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     assert len(operator_data.cells) == int(reference["num_cells"])
 
     labels: tuple[str, ...] = ("Gamma", "X")
-    kpoints = jnp.asarray(
+    kpoints: Float[Array, "2 3"] = jnp.asarray(
         [reference["kpoints_fractional"][label] for label in labels],
         dtype=jnp.float64,
     )
-    expected = np.asarray(
+    expected: np.ndarray = np.asarray(
         [reference["eigenvalues_ev"][label] for label in labels],
         dtype=np.float64,
     )
-    actual = np.asarray(eigvalsh_bands(model, kpoints))
+    actual: np.ndarray = np.asarray(eigvalsh_bands(model, kpoints))
     np.testing.assert_allclose(
         actual,
         expected,

@@ -168,6 +168,27 @@ class TestSlaterKosterParams(chex.TestCase):
         )
 
 
+class TestMakeSlaterKosterParams(chex.TestCase):
+    """Validate :func:`~diffpes.types.make_slater_koster_params`."""
+
+    def test_normalizes_values_and_preserves_keys(self) -> None:
+        """Normalize input values while preserving static channel identifiers.
+
+        The case separates the factory contract from the carrier leaf test.
+
+        Notes
+        -----
+        Require float64 values and exact static keys after construction.
+        """
+        params: SlaterKosterParams = make_slater_koster_params(
+            jnp.asarray((-1.0, 2.0), dtype=jnp.float32),
+            ("X-X:ss_sigma", "X-X:pp_pi"),
+        )
+
+        assert params.values.dtype == jnp.float64
+        assert params.keys == ("X-X:ss_sigma", "X-X:pp_pi")
+
+
 class TestMakeOrbitalBasis(chex.TestCase):
     """Validate :func:`~diffpes.types.make_orbital_basis`."""
 

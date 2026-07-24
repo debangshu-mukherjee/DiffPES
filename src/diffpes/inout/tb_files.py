@@ -35,6 +35,18 @@ from jaxtyping import Array, Float, jaxtyped
 from numpy import ndarray as NDArray  # noqa: N812
 
 from diffpes.types import (
+    HOPPING_LIST_COMPLEX_FIELDS,
+    HOPPING_LIST_REAL_FIELDS,
+    WANNIER_CELL_FIELDS,
+    WANNIER_CENTRE_CONSISTENCY_TOLERANCE,
+    WANNIER_DEGENERACIES_PER_LINE,
+    WANNIER_HERMITICITY_TOLERANCE,
+    WANNIER_HR_HAMILTONIAN_FIELDS,
+    WANNIER_HR_SUFFIX,
+    WANNIER_INTEGER_RECOVERY_TOLERANCE,
+    WANNIER_TB_HAMILTONIAN_FIELDS,
+    WANNIER_TB_POSITION_FIELDS,
+    WANNIER_TB_SUFFIX,
     CrystalGeometry,
     OrbitalBasis,
     TBModel,
@@ -43,19 +55,6 @@ from diffpes.types import (
     make_tb_model,
     make_wannier_operator_data,
 )
-
-_DEGENERACIES_PER_LINE: int = 15
-_HERMITICITY_TOLERANCE: float = 1e-12
-_INTEGER_RECOVERY_TOLERANCE: float = 1e-10
-_CENTRE_CONSISTENCY_TOLERANCE: float = 1e-10
-_CELL_FIELDS: int = 3
-_HR_HAMILTONIAN_FIELDS: int = 7
-_TB_HAMILTONIAN_FIELDS: int = 4
-_TB_POSITION_FIELDS: int = 8
-_HOPPING_REAL_FIELDS: int = 6
-_HOPPING_COMPLEX_FIELDS: int = 7
-_HR_SUFFIX: str = "_hr.dat"
-_TB_SUFFIX: str = "_tb.dat"
 
 
 @dataclass(frozen=True)
@@ -90,7 +89,11 @@ class _LineCursor:
     def from_path(cls, path: Path) -> "_LineCursor":
         """Read one UTF-8 text file into a line cursor."""
         text: str = path.read_text(encoding="utf-8")
-        return cls(path=path, lines=tuple(text.splitlines()))
+        cursor: _LineCursor = cls(
+            path=path,
+            lines=tuple(text.splitlines()),
+        )
+        return cursor
 
     def next_line(self, context: str) -> tuple[int, str]:
         """Return the next physical line without skipping blanks."""
@@ -102,7 +105,8 @@ class _LineCursor:
         line_number: int = self.index + 1
         text: str = self.lines[self.index]
         self.index += 1
-        return line_number, text
+        result: tuple[int, str] = (line_number, text)
+        return result
 
     def next_nonempty(self, context: str) -> tuple[int, str]:
         """Return the next nonblank line."""
@@ -111,7 +115,8 @@ class _LineCursor:
             text: str
             line_number, text = self.next_line(context)
             if text.strip():
-                return line_number, text
+                result: tuple[int, str] = (line_number, text)
+                return result
         message: str = (
             f"{self.path}: unexpected end of file while reading {context}"
         )
@@ -133,7 +138,8 @@ class _LineCursor:
 
 def _line_error(path: Path, line_number: int, message: str) -> ValueError:
     """Build a line-numbered parser error."""
-    return ValueError(f"{path}: line {line_number}: {message}")
+    error: ValueError = ValueError(f"{path}: line {line_number}: {message}")
+    return error
 
 
 def _parse_integer(
@@ -146,6 +152,7 @@ def _parse_integer(
     try:
         value: int = int(token)
     except ValueError as error:
+        error: ValueError
         message: ValueError = _line_error(
             path,
             line_number,
@@ -165,6 +172,7 @@ def _parse_finite_float(
     try:
         value: float = float(token)
     except ValueError as error:
+        error: ValueError
         message: ValueError = _line_error(
             path,
             line_number,
@@ -220,7 +228,7 @@ def _parse_cell(
     context: str,
 ) -> tuple[int, int, int]:
     """Parse one exact three-integer cell."""
-    if len(tokens) != _CELL_FIELDS:
+    if len(tokens) != WANNIER_CELL_FIELDS:
         message: ValueError = _line_error(
             path,
             line_number,
@@ -261,7 +269,8 @@ def _parse_one_based_pair(
             f"matrix indices must be in [1, {n_orbitals}]",
         )
         raise message
-    return first - 1, second - 1
+    pair: tuple[int, int] = (first - 1, second - 1)
+    return pair
 
 
 def _parse_degeneracies(
@@ -276,7 +285,7 @@ def _parse_degeneracies(
         line_number, text = cursor.next_nonempty("degeneracy weights")
         tokens: list[str] = text.split()
         expected: int = min(
-            _DEGENERACIES_PER_LINE,
+            WANNIER_DEGENERACIES_PER_LINE,
             n_cells - len(values),
         )
         if len(tokens) != expected:
@@ -286,6 +295,7 @@ def _parse_degeneracies(
                 f"degeneracy line must contain exactly {expected} integer(s)",
             )
             raise message
+        token: str
         for token in tokens:
             weight: int = _parse_integer(
                 token,
@@ -301,7 +311,8 @@ def _parse_degeneracies(
                 )
                 raise message
             values.append(weight)
-    return tuple(values)
+    degeneracies: tuple[int, ...] = tuple(values)
+    return degeneracies
 
 
 def _parse_wannier_dimensions(
@@ -311,7 +322,12 @@ def _parse_wannier_dimensions(
     n_orbitals: int = _parse_single_positive_integer(cursor, "num_wann")
     n_cells: int = _parse_single_positive_integer(cursor, "nrpts")
     degeneracies: tuple[int, ...] = _parse_degeneracies(cursor, n_cells)
-    return n_orbitals, n_cells, degeneracies
+    dimensions: tuple[int, int, tuple[int, ...]] = (
+        n_orbitals,
+        n_cells,
+        degeneracies,
+    )
+    return dimensions
 
 
 def _parse_header(cursor: _LineCursor) -> None:
@@ -354,6 +370,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
         dtype=np.int64,
     )
     cells: list[tuple[int, int, int]] = []
+    cell_index: int
     for cell_index in range(n_cells):
         block_cell: Optional[tuple[int, int, int]] = None
         seen_pairs: set[tuple[int, int]] = set()
@@ -363,7 +380,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
             text: str
             line_number, text = cursor.next_nonempty("hr Hamiltonian row")
             tokens: list[str] = text.split()
-            if len(tokens) != _HR_HAMILTONIAN_FIELDS:
+            if len(tokens) != WANNIER_HR_HAMILTONIAN_FIELDS:
                 message: ValueError = _line_error(
                     cursor.path,
                     line_number,
@@ -422,23 +439,25 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
             message = f"{cursor.path}: duplicate Hamiltonian cell {block_cell}"
             raise ValueError(message)
         cells.append(block_cell)
-    return _HamiltonianBlocks(
+    blocks: _HamiltonianBlocks = _HamiltonianBlocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=tuple(cells),
         degeneracies=degeneracies,
     )
+    return blocks
 
 
 def _parse_tb_lattice(cursor: _LineCursor) -> NDArray:
     """Parse three Cartesian lattice rows in Angstrom."""
     lattice: NDArray = np.empty((3, 3), dtype=np.float64)
+    row: int
     for row in range(3):
         line_number: int
         text: str
         line_number, text = cursor.next_nonempty("tb lattice")
         tokens: list[str] = text.split()
-        if len(tokens) != _CELL_FIELDS:
+        if len(tokens) != WANNIER_CELL_FIELDS:
             message: ValueError = _line_error(
                 cursor.path,
                 line_number,
@@ -473,6 +492,7 @@ def _parse_tb_hamiltonian_blocks(
         dtype=np.int64,
     )
     cells: list[tuple[int, int, int]] = []
+    cell_index: int
     for cell_index in range(n_cells):
         cell_line: int
         cell_text: str
@@ -498,7 +518,7 @@ def _parse_tb_hamiltonian_blocks(
             text: str
             line_number, text = cursor.next_nonempty("tb Hamiltonian row")
             tokens: list[str] = text.split()
-            if len(tokens) != _TB_HAMILTONIAN_FIELDS:
+            if len(tokens) != WANNIER_TB_HAMILTONIAN_FIELDS:
                 message = _line_error(
                     cursor.path,
                     line_number,
@@ -535,12 +555,13 @@ def _parse_tb_hamiltonian_blocks(
                 real + 1j * imaginary
             ) / weight
             source_lines[cell_index, pair[0], pair[1]] = line_number
-    return _HamiltonianBlocks(
+    blocks: _HamiltonianBlocks = _HamiltonianBlocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=tuple(cells),
         degeneracies=degeneracies,
     )
+    return blocks
 
 
 def _parse_tb_position_blocks(
@@ -592,7 +613,7 @@ def _parse_tb_position_blocks(
             text: str
             line_number, text = cursor.next_nonempty("tb position row")
             tokens: list[str] = text.split()
-            if len(tokens) != _TB_POSITION_FIELDS:
+            if len(tokens) != WANNIER_TB_POSITION_FIELDS:
                 message = _line_error(
                     cursor.path,
                     line_number,
@@ -614,6 +635,7 @@ def _parse_tb_position_blocks(
                 raise message
             seen_pairs.add(pair)
             components: list[complex] = []
+            axis: int
             for axis in range(3):
                 real: float = _parse_finite_float(
                     tokens[2 + 2 * axis],
@@ -660,6 +682,7 @@ def _validate_hopping_closure(
         tuple[int, int, tuple[int, int, int]],
         _HoppingRecord,
     ] = {}
+    record: _HoppingRecord
     for record in records:
         key: tuple[int, int, tuple[int, int, int]] = (
             record.pair[0],
@@ -692,7 +715,7 @@ def _validate_hopping_closure(
             )
             raise ValueError(message)
         difference: float = abs(reverse.amplitude - np.conj(record.amplitude))
-        if difference > _HERMITICITY_TOLERANCE:
+        if difference > WANNIER_HERMITICITY_TOLERANCE:
             message = (
                 f"{path}: rows {record.line_number} and "
                 f"{reverse.line_number}: reverse hopping amplitudes differ "
@@ -718,6 +741,10 @@ def _extract_model_data(
     n_orbitals: int = blocks.matrices.shape[1]
     onsite: NDArray = np.empty((n_orbitals,), dtype=np.float64)
     records: list[_HoppingRecord] = []
+    cell_index: int
+    cell: tuple[int, int, int]
+    orbital_i: int
+    orbital_j: int
     for cell_index, cell in enumerate(blocks.cells):
         for orbital_i in range(n_orbitals):
             for orbital_j in range(n_orbitals):
@@ -728,7 +755,7 @@ def _extract_model_data(
                     blocks.source_lines[cell_index, orbital_i, orbital_j]
                 )
                 if cell_index == origin and orbital_i == orbital_j:
-                    if abs(amplitude.imag) > _HERMITICITY_TOLERANCE:
+                    if abs(amplitude.imag) > WANNIER_HERMITICITY_TOLERANCE:
                         message: ValueError = _line_error(
                             path,
                             line_number,
@@ -747,7 +774,11 @@ def _extract_model_data(
                     )
     record_tuple: tuple[_HoppingRecord, ...] = tuple(records)
     _validate_hopping_closure(record_tuple, path)
-    return onsite, record_tuple
+    result: tuple[NDArray, tuple[_HoppingRecord, ...]] = (
+        onsite,
+        record_tuple,
+    )
+    return result
 
 
 def _make_model(
@@ -797,7 +828,8 @@ def _spin_permutation(
                 f"{path}: interleaved spin layout requires a spinor basis"
             )
             raise ValueError(message)
-        return tuple(range(n_orbitals))
+        permutation: tuple[int, ...] = tuple(range(n_orbitals))
+        return permutation  # noqa: RET504
     if n_orbitals % 2:
         message = f"{path}: spinor basis must contain an even orbital count"
         raise ValueError(message)
@@ -806,6 +838,8 @@ def _spin_permutation(
     if basis.spin != expected_spin:
         message = f"{path}: basis must use native block_down_up spin metadata"
         raise ValueError(message)
+    field_name: str
+    values: tuple[int, ...]
     for field_name, values in (
         ("atom_indices", basis.atom_indices),
         ("n", basis.n),
@@ -819,14 +853,16 @@ def _spin_permutation(
             )
             raise ValueError(message)
     if spin_layout == "block_down_up":
-        return tuple(range(n_orbitals))
+        permutation = tuple(range(n_orbitals))
+        return permutation  # noqa: RET504
     down_serialized: tuple[int, ...] = tuple(
         2 * index + 1 for index in range(n_spatial)
     )
     up_serialized: tuple[int, ...] = tuple(
         2 * index for index in range(n_spatial)
     )
-    return down_serialized + up_serialized
+    permutation = down_serialized + up_serialized
+    return permutation  # noqa: RET504
 
 
 def _permute_hamiltonian_blocks(
@@ -842,12 +878,13 @@ def _permute_hamiltonian_blocks(
         axis=1,
     )
     source_lines = np.take(source_lines, permutation, axis=2)
-    return _HamiltonianBlocks(
+    permuted_blocks: _HamiltonianBlocks = _HamiltonianBlocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=blocks.cells,
         degeneracies=blocks.degeneracies,
     )
+    return permuted_blocks
 
 
 def _permute_position_matrices(
@@ -856,7 +893,8 @@ def _permute_position_matrices(
 ) -> NDArray:
     """Apply one state permutation to both position-operator axes."""
     permuted: NDArray = np.take(matrices, permutation, axis=1)
-    return np.take(permuted, permutation, axis=2)
+    result: NDArray = np.take(permuted, permutation, axis=2)
+    return result
 
 
 def _centres_from_position_matrices(
@@ -868,6 +906,7 @@ def _centres_from_position_matrices(
     try:
         origin: int = cells.index((0, 0, 0))
     except ValueError as error:
+        error: ValueError
         message: str = f"{path}: position matrices require an origin cell"
         raise ValueError(message) from error
     diagonal: NDArray = np.diagonal(
@@ -875,10 +914,10 @@ def _centres_from_position_matrices(
         axis1=0,
         axis2=1,
     ).T
-    if np.any(np.abs(diagonal.imag) > _HERMITICITY_TOLERANCE):
+    if np.any(np.abs(diagonal.imag) > WANNIER_HERMITICITY_TOLERANCE):
         message = (
             f"{path}: origin-diagonal position entries must be real "
-            f"within {_HERMITICITY_TOLERANCE:.0e} Angstrom"
+            f"within {WANNIER_HERMITICITY_TOLERANCE:.0e} Angstrom"
         )
         raise ValueError(message)
     centres: NDArray = np.asarray(diagonal.real, dtype=np.float64)
@@ -901,6 +940,7 @@ def _geometry_from_centres(
         message = f"{path}: basis atom_indices must be contiguous from zero"
         raise ValueError(message)
     atom_centres: NDArray = np.empty((n_atoms, 3), dtype=np.float64)
+    atom: int
     for atom in range(n_atoms):
         orbital_rows: list[int] = [
             index
@@ -909,16 +949,18 @@ def _geometry_from_centres(
         ]
         reference: NDArray = centres_cart[orbital_rows[0]]
         differences: NDArray = np.abs(centres_cart[orbital_rows] - reference)
-        if np.any(differences > _CENTRE_CONSISTENCY_TOLERANCE):
+        if np.any(differences > WANNIER_CENTRE_CONSISTENCY_TOLERANCE):
             message = (
                 f"{path}: Wannier centres assigned to atom {atom} differ by "
-                f"more than {_CENTRE_CONSISTENCY_TOLERANCE:.0e} Angstrom"
+                "more than "
+                f"{WANNIER_CENTRE_CONSISTENCY_TOLERANCE:.0e} Angstrom"
             )
             raise ValueError(message)
         atom_centres[atom] = reference
     try:
         fractional: NDArray = atom_centres @ np.linalg.inv(lattice)
     except np.linalg.LinAlgError as error:
+        error: np.linalg.LinAlgError
         message = f"{path}: lattice must be nonsingular"
         raise ValueError(message) from error
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -1014,20 +1056,23 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
     try:
         inverse_lattice: NDArray = np.linalg.inv(lattice)
     except np.linalg.LinAlgError as error:
+        error: np.linalg.LinAlgError
         message: str = f"{path}: geometry lattice must be nonsingular"
         raise ValueError(message) from error
     onsite: NDArray = np.zeros((n_orbitals,), dtype=np.float64)
     onsite_lines: dict[int, int] = {}
     records: list[_HoppingRecord] = []
     saw_row: bool = False
+    line_number: int
+    text: str
     for line_number, text in enumerate(lines, start=1):
         if not text.strip():
             continue
         saw_row = True
         tokens: list[str] = [token.strip() for token in text.split(",")]
         if len(tokens) not in (
-            _HOPPING_REAL_FIELDS,
-            _HOPPING_COMPLEX_FIELDS,
+            HOPPING_LIST_REAL_FIELDS,
+            HOPPING_LIST_COMPLEX_FIELDS,
         ) or any(not token for token in tokens):
             message: ValueError = _line_error(
                 path,
@@ -1079,7 +1124,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
                 line_number,
                 "hopping imaginary part",
             )
-            if len(tokens) == _HOPPING_COMPLEX_FIELDS
+            if len(tokens) == HOPPING_LIST_COMPLEX_FIELDS
             else 0.0
         )
         atom_i: int = basis.atom_indices[orbital_i]
@@ -1090,13 +1135,13 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         )
         nearest: NDArray = np.rint(candidate)
         deviation: NDArray = np.abs(candidate - nearest)
-        if np.any(deviation > _INTEGER_RECOVERY_TOLERANCE):
+        if np.any(deviation > WANNIER_INTEGER_RECOVERY_TOLERANCE):
             message = _line_error(
                 path,
                 line_number,
                 "bond vector gives noninteger cell candidate "
                 f"{candidate.tolist()} beyond "
-                f"{_INTEGER_RECOVERY_TOLERANCE:.0e} tolerance",
+                f"{WANNIER_INTEGER_RECOVERY_TOLERANCE:.0e} tolerance",
             )
             raise message
         cell: tuple[int, int, int] = tuple(
@@ -1111,7 +1156,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
                     f"duplicate onsite entry for orbital {orbital_i}"
                 )
                 raise message
-            if abs(imaginary) > _HERMITICITY_TOLERANCE:
+            if abs(imaginary) > WANNIER_HERMITICITY_TOLERANCE:
                 message = _line_error(
                     path,
                     line_number,
@@ -1207,7 +1252,7 @@ def read_wannier90_hr(  # noqa: DOC502
     centres never replace or modify connectivity.
     """
     path: Path = Path(filename)
-    _require_filename_suffix(path, _HR_SUFFIX)
+    _require_filename_suffix(path, WANNIER_HR_SUFFIX)
     cursor: _LineCursor = _LineCursor.from_path(path)
     _parse_header(cursor)
     n_orbitals: int
@@ -1237,7 +1282,8 @@ def read_wannier90_hr(  # noqa: DOC502
         spin_layout="block_down_up",
         source_format="hr",
     )
-    return model, operator_data
+    result: tuple[TBModel, WannierOperatorData] = (model, operator_data)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -1289,7 +1335,7 @@ def read_wannier90_tb(  # noqa: DOC502
     repeats that permutation.
     """
     path: Path = Path(filename)
-    _require_filename_suffix(path, _TB_SUFFIX)
+    _require_filename_suffix(path, WANNIER_TB_SUFFIX)
     cursor: _LineCursor = _LineCursor.from_path(path)
     _parse_header(cursor)
     lattice: NDArray = _parse_tb_lattice(cursor)
@@ -1346,7 +1392,8 @@ def read_wannier90_tb(  # noqa: DOC502
         spin_layout=spin_layout,
         source_format="tb",
     )
-    return model, operator_data
+    result: tuple[TBModel, WannierOperatorData] = (model, operator_data)
+    return result
 
 
 __all__: list[str] = [

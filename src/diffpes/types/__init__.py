@@ -39,7 +39,7 @@ The package contains these submodules:
 - :mod:`tb_model`
     Define tight-binding model and diagonalized-band data structures.
 - :mod:`wannier`
-    Define operator metadata for ingested Wannier models.
+    Define operator metadata carried alongside an ingested Wannier model.
 - :mod:`volumetric`
     Define volumetric data structures for VASP CHGCAR files.
 - :mod:`context`
@@ -129,6 +129,30 @@ Routine Listings
     Semantic version of the radial ARPES forward model.
 :obj:`TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2`
     Store the inverse free-electron dispersion constant.
+:obj:`HOPPING_LIST_COMPLEX_FIELDS`
+    Number of fields in a complex Cartesian hopping-list row.
+:obj:`HOPPING_LIST_REAL_FIELDS`
+    Number of fields in a real Cartesian hopping-list row.
+:obj:`WANNIER_CELL_FIELDS`
+    Number of integer components in a Wannier translation.
+:obj:`WANNIER_CENTRE_CONSISTENCY_TOLERANCE`
+    Cartesian tolerance for centres assigned to one atom.
+:obj:`WANNIER_DEGENERACIES_PER_LINE`
+    Maximum degeneracy weights on one Wannier90 line.
+:obj:`WANNIER_HERMITICITY_TOLERANCE`
+    Absolute tolerance for real-space Hermitian closure.
+:obj:`WANNIER_HR_HAMILTONIAN_FIELDS`
+    Number of fields in a Wannier90 HR Hamiltonian row.
+:obj:`WANNIER_HR_SUFFIX`
+    Required suffix for a Wannier90 HR file.
+:obj:`WANNIER_INTEGER_RECOVERY_TOLERANCE`
+    Fractional tolerance for recovering an exact translation.
+:obj:`WANNIER_TB_HAMILTONIAN_FIELDS`
+    Number of fields in a Wannier90 TB Hamiltonian row.
+:obj:`WANNIER_TB_POSITION_FIELDS`
+    Number of fields in a Wannier90 TB position row.
+:obj:`WANNIER_TB_SUFFIX`
+    Required suffix for a Wannier90 TB file.
 :class:`CompositionReport`
     Store a conservative transformation-composition result.
 :class:`ConventionRef`
@@ -275,6 +299,10 @@ Routine Listings
     Store electronic band-structure data in a JAX PyTree.
 :obj:`BOHR_TO_ANGSTROM`
     Bohr radius in Angstrom.
+:obj:`CARTESIAN_COMPONENTS`
+    Number of Cartesian components used by tight-binding bond vectors.
+:obj:`CHANNELS_BY_PAIR`
+    Slater--Koster channels supported for each angular-momentum pair.
 :obj:`COORDINATE_MODE_TOKENS`
     Recognized KPOINTS coordinate-mode tokens.
 :obj:`CROSS_SECTION_ENERGIES`
@@ -345,6 +373,8 @@ Routine Listings
     Maximum angular momentum supported by the precomputed table.
 :obj:`LATTICE_ROWS`
     Number of lattice-vector rows in POSCAR/CHGCAR headers.
+:obj:`DEFAULT_SUPERCELL_RADIUS`
+    Default translation radius for tight-binding neighbor discovery.
 :obj:`M_D`
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
@@ -403,6 +433,10 @@ Routine Listings
     Electron rest energy in eV.
 :obj:`MIN_SUM`
     Minimum-sum floor guarding normalizations.
+:obj:`MIN_BOND_DISTANCE`
+    Minimum nonzero distance accepted by neighbor discovery.
+:obj:`MINIMUM_AXIS_POINTS`
+    Minimum number of points accepted on a sampled DOS energy axis.
 :obj:`N_ORBITALS`
     Number of orbitals in the VASP projection basis.
 :obj:`N_SOC_MAG_BLOCKS`
@@ -419,6 +453,12 @@ Routine Listings
     DOSCAR column count without spin polarization.
 :obj:`NORM_EPS`
     Epsilon floor guarding eigenvector normalization.
+:obj:`KNOWN_CHANNELS`
+    Complete set of supported Slater--Koster channel names.
+:obj:`MATRIX_NDIM`
+    Expected dimensionality of tight-binding operator matrices.
+:obj:`MAX_SK_ANGULAR_MOMENTUM`
+    Maximum angular momentum supported by Slater--Koster construction.
 :obj:`ORBITAL_DIRS_NORMALIZED`
     Unit-normalized orbital directions in VASP orbital order.
 :obj:`ORBITAL_INDEX`
@@ -431,6 +471,8 @@ Routine Listings
     Slice selecting the three p orbitals.
 :obj:`PHASE_LOSS_MESSAGE`
     Warning text for PROCAR magnitude-only eigenvectors.
+:obj:`PARAMETER_KEY_PARTS`
+    Number of colon-delimited parts in a qualified Slater--Koster key.
 :class:`PolarizationConfig`
     Store photon-polarization geometry in a JAX PyTree.
 :obj:`PRESET_NAMES`
@@ -461,12 +503,20 @@ Routine Listings
     Store differentiable Slater--Koster two-center integrals.
 :obj:`SMALL_ARGUMENT`
     Small-argument cutoff for spherical Bessel seeds.
+:obj:`SHELL_ATOLERANCE`
+    Absolute tolerance for grouping equal-distance neighbor shells.
+:obj:`SHELL_RTOLERANCE`
+    Relative tolerance for grouping equal-distance neighbor shells.
 :obj:`SOC_BLOCKS`
     PROCAR block count for SOC calculations.
+:obj:`SPECIES_PAIR_PARTS`
+    Number of species labels in a Slater--Koster material-pair key.
 :class:`SOCVolumetricData`
     Store SOC CHGCAR volumetric-grid data in a JAX PyTree.
 :obj:`SPIN_COLS`
     DOSCAR column count with spin polarization.
+:obj:`SPECTRUM_NDIM`
+    Expected dimensionality of tight-binding eigenspectra.
 :class:`SpinBandStructure`
     Store spin-resolved electronic band-structure data in a JAX PyTree.
 :class:`SpinOrbitalProjection`
@@ -474,7 +524,7 @@ Routine Listings
 :class:`TBModel`
     Store tight-binding parameters in a JAX PyTree.
 :class:`WannierOperatorData`
-    Store centres and position matrices for an ingested Wannier model.
+    Store operator metadata for a parsed Wannier tight-binding model.
 :class:`VolumetricData`
     Store CHGCAR volumetric-grid data in a JAX PyTree.
 :obj:`WEIGHT_COMPONENT_COUNT`
@@ -611,8 +661,11 @@ from .constants import (
     BAND_LINE_SPIN_VALUES,
     BAND_NDIM,
     BOHR_TO_ANGSTROM,
+    CARTESIAN_COMPONENTS,
+    CHANNELS_BY_PAIR,
     COORDINATE_MODE_TOKENS,
     D_ORBITAL_SLICE,
+    DEFAULT_SUPERCELL_RADIUS,
     EIG_DOWN_INDEX,
     EIG_UP_INDEX,
     EKIN_FLOOR_EV,
@@ -629,6 +682,7 @@ from .constants import (
     ISPIN_SPIN_POLARIZED,
     K_PREFACTOR_INV_ANG_SQRT_EV,
     KB_EV_PER_K,
+    KNOWN_CHANNELS,
     KPATH_AUX_WITH_COMMENT_LEN,
     KPATH_AUX_WITH_COORD_MODE_LEN,
     KPOINT_LINE_VALUES,
@@ -636,8 +690,12 @@ from .constants import (
     LATTICE_ROWS,
     M_D,
     M_P,
+    MATRIX_NDIM,
+    MAX_SK_ANGULAR_MOMENTUM,
     ME_EV,
+    MIN_BOND_DISTANCE,
     MIN_SUM,
+    MINIMUM_AXIS_POINTS,
     N_ORBITALS,
     N_SOC_MAG_BLOCKS,
     N_SPIN_COMPONENTS,
@@ -648,12 +706,17 @@ from .constants import (
     ORBITAL_DIRS_NORMALIZED,
     ORBITAL_INDEX,
     P_ORBITAL_SLICE,
+    PARAMETER_KEY_PARTS,
     PHASE_LOSS_MESSAGE,
     PRESET_NAMES,
     S_IDX,
     SCALAR_LINE_COMPONENTS,
+    SHELL_ATOLERANCE,
+    SHELL_RTOLERANCE,
     SMALL_ARGUMENT,
     SOC_BLOCKS,
+    SPECIES_PAIR_PARTS,
+    SPECTRUM_NDIM,
     SPIN_COLS,
     TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
     WEIGHT_COMPONENT_COUNT,
@@ -737,7 +800,22 @@ from .volumetric import (
     make_soc_volumetric_data,
     make_volumetric_data,
 )
-from .wannier import WannierOperatorData, make_wannier_operator_data
+from .wannier import (
+    HOPPING_LIST_COMPLEX_FIELDS,
+    HOPPING_LIST_REAL_FIELDS,
+    WANNIER_CELL_FIELDS,
+    WANNIER_CENTRE_CONSISTENCY_TOLERANCE,
+    WANNIER_DEGENERACIES_PER_LINE,
+    WANNIER_HERMITICITY_TOLERANCE,
+    WANNIER_HR_HAMILTONIAN_FIELDS,
+    WANNIER_HR_SUFFIX,
+    WANNIER_INTEGER_RECOVERY_TOLERANCE,
+    WANNIER_TB_HAMILTONIAN_FIELDS,
+    WANNIER_TB_POSITION_FIELDS,
+    WANNIER_TB_SUFFIX,
+    WannierOperatorData,
+    make_wannier_operator_data,
+)
 
 __all__: list[str] = [
     "ArpesSpectrum",
@@ -751,6 +829,7 @@ __all__: list[str] = [
     "BAND_NDIM",
     "BandStructure",
     "BOHR_TO_ANGSTROM",
+    "CARTESIAN_COMPONENTS",
     "CANONICAL_ARRAY_CHUNK_BYTES",
     "CANONICAL_JSON_PREFIX",
     "CANONICAL_JSON_VERSION",
@@ -776,6 +855,7 @@ __all__: list[str] = [
     "CHECKSUM_FORMAT_VERSION",
     "CHECKSUM_PATTERN",
     "CHECKSUM_RECORD_KIND_PATTERN",
+    "CHANNELS_BY_PAIR",
     "COORDINATE_MODE_TOKENS",
     "CompositionReport",
     "CROSS_SECTION_ENERGIES",
@@ -790,6 +870,7 @@ __all__: list[str] = [
     "CheckFunction",
     "ConventionRef",
     "D_ORBITAL_SLICE",
+    "DEFAULT_SUPERCELL_RADIUS",
     "DensityOfStates",
     "DependencyMap",
     "DiagonalizedBands",
@@ -815,6 +896,8 @@ __all__: list[str] = [
     "HBAR_C_EV_A",
     "HBAR_EV_S",
     "HBAR_SQ_OVER_2ME_EV_ANG2",
+    "HOPPING_LIST_COMPLEX_FIELDS",
+    "HOPPING_LIST_REAL_FIELDS",
     "HandshakeReport",
     "INTENSITY_NDIM",
     "InformationState",
@@ -831,8 +914,11 @@ __all__: list[str] = [
     "K_PREFACTOR_INV_ANG_SQRT_EV",
     "L_MAX",
     "LATTICE_ROWS",
+    "KNOWN_CHANNELS",
     "M_D",
     "M_P",
+    "MATRIX_NDIM",
+    "MAX_SK_ANGULAR_MOMENTUM",
     "make_artifact_ref",
     "make_arpes_spectrum",
     "make_band_structure",
@@ -893,6 +979,8 @@ __all__: list[str] = [
     "make_wannier_operator_data",
     "make_workflow_context",
     "ME_EV",
+    "MIN_BOND_DISTANCE",
+    "MINIMUM_AXIS_POINTS",
     "MIN_SUM",
     "N_ORBITALS",
     "N_SOC_MAG_BLOCKS",
@@ -907,6 +995,7 @@ __all__: list[str] = [
     "OrbitalBasis",
     "OrbitalProjection",
     "P_ORBITAL_SLICE",
+    "PARAMETER_KEY_PARTS",
     "PHASE_LOSS_MESSAGE",
     "PolarizationConfig",
     "PolicyReport",
@@ -933,7 +1022,11 @@ __all__: list[str] = [
     "SlaterKosterParams",
     "SlaterParams",
     "SMALL_ARGUMENT",
+    "SHELL_ATOLERANCE",
+    "SHELL_RTOLERANCE",
     "SOC_BLOCKS",
+    "SPECIES_PAIR_PARTS",
+    "SPECTRUM_NDIM",
     "SOCVolumetricData",
     "SPIN_COLS",
     "SpinBandStructure",
@@ -946,6 +1039,16 @@ __all__: list[str] = [
     "TransformationContract",
     "TransformationRecord",
     "VolumetricData",
+    "WANNIER_CELL_FIELDS",
+    "WANNIER_CENTRE_CONSISTENCY_TOLERANCE",
+    "WANNIER_DEGENERACIES_PER_LINE",
+    "WANNIER_HERMITICITY_TOLERANCE",
+    "WANNIER_HR_HAMILTONIAN_FIELDS",
+    "WANNIER_HR_SUFFIX",
+    "WANNIER_INTEGER_RECOVERY_TOLERANCE",
+    "WANNIER_TB_HAMILTONIAN_FIELDS",
+    "WANNIER_TB_POSITION_FIELDS",
+    "WANNIER_TB_SUFFIX",
     "WannierOperatorData",
     "VerificationReport",
     "WaiverRecord",

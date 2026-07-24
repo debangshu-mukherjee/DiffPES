@@ -30,6 +30,10 @@ Routine Listings
     Expected dimensionality of band-energy arrays.
 :obj:`BOHR_TO_ANGSTROM`
     Bohr radius in Angstrom.
+:obj:`CARTESIAN_COMPONENTS`
+    Number of Cartesian components used by tight-binding bond vectors.
+:obj:`CHANNELS_BY_PAIR`
+    Slater--Koster channels supported for each angular-momentum pair.
 :obj:`COORDINATE_MODE_TOKENS`
     Recognized KPOINTS coordinate-mode tokens.
 :obj:`D_ORBITAL_SLICE`
@@ -76,6 +80,8 @@ Routine Listings
     Maximum angular momentum supported by the precomputed table.
 :obj:`LATTICE_ROWS`
     Number of lattice-vector rows in POSCAR/CHGCAR headers.
+:obj:`DEFAULT_SUPERCELL_RADIUS`
+    Default translation radius for tight-binding neighbor discovery.
 :obj:`M_D`
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
@@ -84,6 +90,10 @@ Routine Listings
     Electron rest energy in eV.
 :obj:`MIN_SUM`
     Minimum-sum floor guarding normalizations.
+:obj:`MIN_BOND_DISTANCE`
+    Minimum nonzero distance accepted by neighbor discovery.
+:obj:`MINIMUM_AXIS_POINTS`
+    Minimum number of points accepted on a sampled DOS energy axis.
 :obj:`N_ORBITALS`
     Number of orbitals in the VASP projection basis.
 :obj:`N_SOC_MAG_BLOCKS`
@@ -98,6 +108,12 @@ Routine Listings
     DOSCAR column count without spin polarization.
 :obj:`NORM_EPS`
     Epsilon floor guarding eigenvector normalization.
+:obj:`KNOWN_CHANNELS`
+    Complete set of supported Slater--Koster channel names.
+:obj:`MATRIX_NDIM`
+    Expected dimensionality of tight-binding operator matrices.
+:obj:`MAX_SK_ANGULAR_MOMENTUM`
+    Maximum angular momentum supported by Slater--Koster construction.
 :obj:`ORBITAL_DIRS_NORMALIZED`
     Unit-normalized orbital directions in VASP orbital order.
 :obj:`ORBITAL_INDEX`
@@ -106,6 +122,8 @@ Routine Listings
     Slice selecting the three p orbitals.
 :obj:`PHASE_LOSS_MESSAGE`
     Warning text for PROCAR magnitude-only eigenvectors.
+:obj:`PARAMETER_KEY_PARTS`
+    Number of colon-delimited parts in a qualified Slater--Koster key.
 :obj:`PRESET_NAMES`
     Recognized band-scatter plotting preset names.
 :obj:`S_IDX`
@@ -114,10 +132,18 @@ Routine Listings
     Tokens on a scalar CHGCAR header line.
 :obj:`SMALL_ARGUMENT`
     Small-argument cutoff for spherical Bessel seeds.
+:obj:`SHELL_ATOLERANCE`
+    Absolute tolerance for grouping equal-distance neighbor shells.
+:obj:`SHELL_RTOLERANCE`
+    Relative tolerance for grouping equal-distance neighbor shells.
 :obj:`SOC_BLOCKS`
     PROCAR block count for SOC calculations.
+:obj:`SPECIES_PAIR_PARTS`
+    Number of species labels in a Slater--Koster material-pair key.
 :obj:`SPIN_COLS`
     DOSCAR column count with spin polarization.
+:obj:`SPECTRUM_NDIM`
+    Expected dimensionality of tight-binding eigenspectra.
 :obj:`TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2`
     Store the inverse free-electron dispersion constant.
 :obj:`WEIGHT_COMPONENT_COUNT`
@@ -149,9 +175,21 @@ BAND_LINE_MIN_VALUES: Final[int] = 2
 BAND_LINE_SPIN_VALUES: Final[int] = 3
 BAND_NDIM: Final[int] = 2
 BOHR_TO_ANGSTROM: Final[float] = 0.529177
+CARTESIAN_COMPONENTS: Final[int] = 3
+CHANNELS_BY_PAIR: Final[MappingProxyType] = MappingProxyType(
+    {
+        (0, 0): ("ss_sigma",),
+        (0, 1): ("sp_sigma",),
+        (0, 2): ("sd_sigma",),
+        (1, 1): ("pp_sigma", "pp_pi"),
+        (1, 2): ("pd_sigma", "pd_pi"),
+        (2, 2): ("dd_sigma", "dd_pi", "dd_delta"),
+    }
+)
 COORDINATE_MODE_TOKENS: Final[frozenset[str]] = frozenset(
     {"cartesian", "reciprocal", "direct", "fractional"}
 )
+DEFAULT_SUPERCELL_RADIUS: Final[int] = 2
 D_ORBITAL_SLICE: Final[slice] = slice(4, 9)
 EIG_DOWN_INDEX: Final[int] = 2
 EIG_UP_INDEX: Final[int] = 1
@@ -179,12 +217,19 @@ KPATH_AUX_WITH_COORD_MODE_LEN: Final[int] = 4
 KPOINT_LINE_VALUES: Final[int] = 4
 L_MAX: Final[int] = 4
 LATTICE_ROWS: Final[int] = 3
+KNOWN_CHANNELS: Final[frozenset[str]] = frozenset(
+    channel for channels in CHANNELS_BY_PAIR.values() for channel in channels
+)
+MATRIX_NDIM: Final[int] = 2
+MAX_SK_ANGULAR_MOMENTUM: Final[int] = 2
 M_D: Float[Array, " 5"] = jnp.array(
     [-2.0, -1.0, 0.0, 1.0, 2.0], dtype=jnp.float64
 )
 M_P: Float[Array, " 3"] = jnp.array([1.0, 0.0, -1.0], dtype=jnp.float64)
 ME_EV: Final[float] = 510998.95
 MIN_SUM: Final[float] = 1e-30
+MIN_BOND_DISTANCE: Final[float] = 1e-12
+MINIMUM_AXIS_POINTS: Final[int] = 2
 N_ORBITALS: Final[int] = 9
 N_SOC_MAG_BLOCKS: Final[int] = 3
 N_SPIN_COMPONENTS: Final[int] = 6
@@ -211,6 +256,7 @@ PHASE_LOSS_MESSAGE: Final[str] = (
     "recover complex eigenvector phases. Matrix elements that depend on phase "
     "interference are approximate."
 )
+PARAMETER_KEY_PARTS: Final[int] = 2
 PRESET_NAMES: Final[tuple[str, ...]] = (
     "s",
     "py",
@@ -242,8 +288,12 @@ PRESET_NAMES: Final[tuple[str, ...]] = (
 S_IDX: Final[int] = 0
 SCALAR_LINE_COMPONENTS: Final[int] = 3
 SMALL_ARGUMENT: Final[float] = 1e-8
+SHELL_ATOLERANCE: Final[float] = 1e-8
+SHELL_RTOLERANCE: Final[float] = 1e-8
 SOC_BLOCKS: Final[int] = 4
+SPECIES_PAIR_PARTS: Final[int] = 2
 SPIN_COLS: Final[int] = 5
+SPECTRUM_NDIM: Final[int] = 2
 WEIGHT_COMPONENT_COUNT: Final[int] = 4
 WEIGHT_COMPONENT_INDEX: Final[int] = 3
 XYZ_COMPONENTS: Final[int] = 3
@@ -279,8 +329,11 @@ __all__: list[str] = [
     "BAND_LINE_SPIN_VALUES",
     "BAND_NDIM",
     "BOHR_TO_ANGSTROM",
+    "CARTESIAN_COMPONENTS",
+    "CHANNELS_BY_PAIR",
     "COORDINATE_MODE_TOKENS",
     "D_ORBITAL_SLICE",
+    "DEFAULT_SUPERCELL_RADIUS",
     "EIG_DOWN_INDEX",
     "EIG_UP_INDEX",
     "ENERGY_AXIS_NDIM",
@@ -302,9 +355,14 @@ __all__: list[str] = [
     "K_PREFACTOR_INV_ANG_SQRT_EV",
     "L_MAX",
     "LATTICE_ROWS",
+    "KNOWN_CHANNELS",
     "M_D",
     "M_P",
+    "MATRIX_NDIM",
+    "MAX_SK_ANGULAR_MOMENTUM",
     "ME_EV",
+    "MIN_BOND_DISTANCE",
+    "MINIMUM_AXIS_POINTS",
     "MIN_SUM",
     "N_ORBITALS",
     "N_SOC_MAG_BLOCKS",
@@ -316,13 +374,18 @@ __all__: list[str] = [
     "ORBITAL_DIRS_NORMALIZED",
     "ORBITAL_INDEX",
     "P_ORBITAL_SLICE",
+    "PARAMETER_KEY_PARTS",
     "PHASE_LOSS_MESSAGE",
     "PRESET_NAMES",
     "S_IDX",
     "SCALAR_LINE_COMPONENTS",
+    "SHELL_ATOLERANCE",
+    "SHELL_RTOLERANCE",
     "SMALL_ARGUMENT",
     "SOC_BLOCKS",
+    "SPECIES_PAIR_PARTS",
     "SPIN_COLS",
+    "SPECTRUM_NDIM",
     "TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2",
     "WEIGHT_COMPONENT_COUNT",
     "WEIGHT_COMPONENT_INDEX",

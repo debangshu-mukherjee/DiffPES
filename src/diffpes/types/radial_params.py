@@ -13,13 +13,13 @@ Routine Listings
 :class:`SlaterParams`
     Store Slater radial-wavefunction parameters in a JAX PyTree.
 :class:`SlaterKosterParams`
-    Store differentiable two-center hopping integrals.
+    Store differentiable Slater--Koster two-center integrals.
 :func:`make_orbital_basis`
     Create a validated ``OrbitalBasis`` instance.
 :func:`make_slater_params`
     Create a validated ``SlaterParams`` instance.
 :func:`make_slater_koster_params`
-    Create validated Slater--Koster parameters.
+    Create validated Slater--Koster two-center parameters.
 
 Notes
 -----
@@ -261,6 +261,8 @@ class SlaterKosterParams(eqx.Module):
     Slater--Koster material model. Their keys are static identifiers such as
     ``"C-C:pp_sigma"`` or ``"Ru-O:pd_pi"``. A key change alters the material
     topology and therefore triggers JAX retracing.
+
+    :see: :class:`~.test_radial_params.TestSlaterKosterParams`
 
     Attributes
     ----------
@@ -542,6 +544,11 @@ def make_slater_koster_params(  # noqa: DOC502, DOC503
     keys: tuple[str, ...],
 ) -> SlaterKosterParams:
     """Create validated Slater--Koster two-center parameters.
+
+    The factory normalizes numerical values and validates every static channel
+    identifier before constructing the carrier.
+
+    :see: :class:`~.test_radial_params.TestMakeSlaterKosterParams`
 
     Parameters
     ----------

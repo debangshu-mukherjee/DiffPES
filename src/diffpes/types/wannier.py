@@ -9,6 +9,30 @@ from tight-binding Hamiltonian parameters.
 
 Routine Listings
 ----------------
+:obj:`HOPPING_LIST_COMPLEX_FIELDS`
+    Number of fields in a complex Cartesian hopping-list row.
+:obj:`HOPPING_LIST_REAL_FIELDS`
+    Number of fields in a real Cartesian hopping-list row.
+:obj:`WANNIER_CELL_FIELDS`
+    Number of integer components in a Wannier translation.
+:obj:`WANNIER_CENTRE_CONSISTENCY_TOLERANCE`
+    Cartesian tolerance for centres assigned to one atom.
+:obj:`WANNIER_DEGENERACIES_PER_LINE`
+    Maximum degeneracy weights on one Wannier90 line.
+:obj:`WANNIER_HERMITICITY_TOLERANCE`
+    Absolute tolerance for real-space Hermitian closure.
+:obj:`WANNIER_HR_HAMILTONIAN_FIELDS`
+    Number of fields in a Wannier90 HR Hamiltonian row.
+:obj:`WANNIER_HR_SUFFIX`
+    Required suffix for a Wannier90 HR file.
+:obj:`WANNIER_INTEGER_RECOVERY_TOLERANCE`
+    Fractional tolerance for recovering an exact translation.
+:obj:`WANNIER_TB_HAMILTONIAN_FIELDS`
+    Number of fields in a Wannier90 TB Hamiltonian row.
+:obj:`WANNIER_TB_POSITION_FIELDS`
+    Number of fields in a Wannier90 TB position row.
+:obj:`WANNIER_TB_SUFFIX`
+    Required suffix for a Wannier90 TB file.
 :class:`WannierOperatorData`
     Store operator metadata for a parsed Wannier tight-binding model.
 :func:`make_wannier_operator_data`
@@ -26,6 +50,19 @@ import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
 from jaxtyping import Array, Complex, Float, jaxtyped
+
+HOPPING_LIST_COMPLEX_FIELDS: int = 7
+HOPPING_LIST_REAL_FIELDS: int = 6
+WANNIER_CELL_FIELDS: int = 3
+WANNIER_CENTRE_CONSISTENCY_TOLERANCE: float = 1e-10
+WANNIER_DEGENERACIES_PER_LINE: int = 15
+WANNIER_HERMITICITY_TOLERANCE: float = 1e-12
+WANNIER_HR_HAMILTONIAN_FIELDS: int = 7
+WANNIER_HR_SUFFIX: str = "_hr.dat"
+WANNIER_INTEGER_RECOVERY_TOLERANCE: float = 1e-10
+WANNIER_TB_HAMILTONIAN_FIELDS: int = 4
+WANNIER_TB_POSITION_FIELDS: int = 8
+WANNIER_TB_SUFFIX: str = "_tb.dat"
 
 _CELL_COMPONENTS: int = 3
 _POSITION_COMPONENTS: int = 3
@@ -252,6 +289,18 @@ def make_wannier_operator_data(  # noqa: DOC502
 
 
 __all__: list[str] = [
+    "HOPPING_LIST_COMPLEX_FIELDS",
+    "HOPPING_LIST_REAL_FIELDS",
+    "WANNIER_CELL_FIELDS",
+    "WANNIER_CENTRE_CONSISTENCY_TOLERANCE",
+    "WANNIER_DEGENERACIES_PER_LINE",
+    "WANNIER_HERMITICITY_TOLERANCE",
+    "WANNIER_HR_HAMILTONIAN_FIELDS",
+    "WANNIER_HR_SUFFIX",
+    "WANNIER_INTEGER_RECOVERY_TOLERANCE",
+    "WANNIER_TB_HAMILTONIAN_FIELDS",
+    "WANNIER_TB_POSITION_FIELDS",
+    "WANNIER_TB_SUFFIX",
     "WannierOperatorData",
     "make_wannier_operator_data",
 ]

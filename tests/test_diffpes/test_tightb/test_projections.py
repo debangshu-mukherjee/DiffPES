@@ -14,14 +14,15 @@ from jaxtyping import Array
 from diffpes.tightb import (
     band_projectors,
     diagonalize_tb,
+    eigh_safe,
     expectation_path,
     fat_bands,
     group_projector,
     group_trace,
     orbital_weights,
 )
-from diffpes.tightb.diagonalize import eigh_safe
 from diffpes.types import (
+    CrystalGeometry,
     DiagonalizedBands,
     OrbitalBasis,
     make_crystal_geometry,
@@ -365,7 +366,7 @@ class TestGroupTrace:
         Differentiate the operator trace through a parameterized Hamiltonian.
         """
         basis: OrbitalBasis = _basis(3)
-        geometry = make_crystal_geometry(
+        geometry: CrystalGeometry = make_crystal_geometry(
             lattice=jnp.eye(3, dtype=jnp.float64),
             positions=jnp.zeros((1, 3), dtype=jnp.float64),
             species=("X",),

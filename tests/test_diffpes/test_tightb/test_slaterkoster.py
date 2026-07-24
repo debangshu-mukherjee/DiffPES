@@ -6,6 +6,8 @@ exact integer connectivity, hand-counted honeycomb/fcc shells, and the
 transverse derivative at both bond poles.
 """
 
+from collections.abc import Callable
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -13,16 +15,18 @@ import numpy as np
 import pytest
 from jaxtyping import Array, Float
 
-from diffpes.tightb.hamiltonian import bloch_hamiltonian
-from diffpes.tightb.slaterkoster import (
+from diffpes.tightb import (
+    bloch_hamiltonian,
     build_sk_model,
     neighbor_shells,
     sk_block,
 )
-from diffpes.types.geometry import CrystalGeometry, make_crystal_geometry
-from diffpes.types.radial_params import (
+from diffpes.types import (
+    CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
+    TBModel,
+    make_crystal_geometry,
     make_orbital_basis,
     make_slater_koster_params,
 )
@@ -342,7 +346,10 @@ class TestSkBlock:
         -----
         Pin the rectangular real float64 output and zero-bond diagnostic.
         """
-        compiled = jax.jit(sk_block, static_argnums=(0, 1))
+        compiled: Callable[[int, int, Array, Array], Array] = jax.jit(
+            sk_block,
+            static_argnums=(0, 1),
+        )
         block: Float[Array, "5 3"] = compiled(
             2,
             1,
@@ -433,6 +440,9 @@ class TestNeighborShells:
             jnp.zeros((1, 3), dtype=jnp.float64),
             ("Cu",),
         )
+        atom_pairs: tuple[tuple[int, int], ...]
+        cells: tuple[tuple[int, int, int], ...]
+        distances: Float[Array, " 6"]
         atom_pairs, cells, _, distances = neighbor_shells(
             geometry,
             float(lattice_constant / np.sqrt(2.0) + 1e-8),
@@ -476,7 +486,7 @@ class TestBuildSkModel:
             jnp.asarray((-1.0, -0.3), dtype=jnp.float64),
             ("X-X@1:ss_sigma", "X-X@2:ss_sigma"),
         )
-        model = build_sk_model(
+        model: TBModel = build_sk_model(
             geometry,
             basis,
             params,
@@ -520,7 +530,7 @@ class TestBuildSkModel:
             jnp.asarray((-2.7,), dtype=jnp.float64),
             ("C-C:pp_pi",),
         )
-        model = build_sk_model(
+        model: TBModel = build_sk_model(
             geometry,
             basis,
             params,
@@ -601,7 +611,7 @@ class TestBuildSkModel:
                 geometry,
                 positions,
             )
-            model = build_sk_model(
+            model: TBModel = build_sk_model(
                 candidate,
                 basis,
                 params,
@@ -674,7 +684,7 @@ class TestBuildSkModel:
                 values,
                 _ALL_SK_KEYS,
             )
-            model = build_sk_model(
+            model: TBModel = build_sk_model(
                 geometry,
                 basis,
                 params,

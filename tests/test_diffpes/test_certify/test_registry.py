@@ -536,9 +536,9 @@ class TestValidateHandshake:
 
         Notes
         -----
-        Resolve the packaged declaration by owner rather than list position,
-        require one explicit evidence ID for every G, D, and S gate, and
-        validate the handshake using exactly that declared evidence.
+        Resolve the packaged declaration by owner instead of list position.
+        Require evidence for every G, D, and S gate. Validate exactly that
+        evidence.
         """
         register_builtin_models()
         transformations_before: tuple[Any, ...] = list_transformations()

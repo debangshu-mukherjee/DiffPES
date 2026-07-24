@@ -8,26 +8,25 @@ independently. This module packs one representative of each pair, followed by
 onsite energies, spin--orbit strengths, and optional fractional positions and
 lattice vectors.
 Complex representatives cross the optimizer boundary through
-:func:`~diffpes.utils.pack_complex`.
+``diffpes.utils.pack_complex``.
 
 Slater--Koster models have a separate view. Their primary coordinates are the
 fundamental two-center integrals rather than the redundant materialized
 hoppings. Its inverse closure rebuilds the model through
-:func:`~diffpes.tightb.slaterkoster.build_sk_model`.
+``diffpes.tightb.build_sk_model``.
 
 Routine Listings
 ----------------
 :func:`tb_parameter_view`
-    Pack a materialized model into independent real coordinates.
+    Pack a materialized tight-binding model into independent coordinates.
 :func:`sk_model_parameter_view`
     Pack Slater--Koster fundamentals and return a rebuilding closure.
 
 Notes
 -----
-Both views retain the band-energy-zero gauge: adding a uniform constant to all
-onsite energies is indistinguishable from shifting the Fermi-energy/energy
-offset by the same constant. Downstream inversion must quotient or constrain
-that direction; these lossless views deliberately do not remove it.
+Both views retain the band-energy-zero gauge. A uniform onsite shift matches
+the same Fermi-energy or energy-offset shift. Downstream inversion must
+constrain that direction because these lossless views retain it.
 """
 
 from collections.abc import Callable
@@ -105,11 +104,12 @@ def _checked_vector(
             f"{context}: parameter vector must have shape ({expected_size},)"
         )
         raise ValueError(message)
-    return eqx.error_if(
+    checked: Float[Array, " n_par"] = eqx.error_if(
         array,
         ~jnp.all(jnp.isfinite(array)),
         f"{context}: parameters finite",
     )
+    return checked
 
 
 @jaxtyped(typechecker=beartype)
@@ -122,6 +122,11 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     Callable[[Float[Array, " n_par"]], TBModel],
 ]:
     """Pack a materialized tight-binding model into independent coordinates.
+
+    The view removes redundant Hermitian partners while preserving every
+    independent real model coordinate.
+
+    :see: :class:`~.test_parameters.TestTBParameterView`
 
     Parameters
     ----------
@@ -137,11 +142,10 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     Returns
     -------
     parameters : Float[Array, " n_par"]
-        Flat float64 optimizer coordinates. The order is one independent
-        hopping representative per conjugate pair (real then imaginary for a
-        complex pair; one real value for a self-reverse record), onsite
-        energies, SOC strengths, optional positions, and optional lattice
-        rows.
+        Flat float64 optimizer coordinates. Each conjugate pair contributes
+        one representative. Complex representatives contribute real and
+        imaginary parts. Self-reverse records contribute one real value.
+        Onsite, SOC, position, and lattice values follow.
     rebuild : Callable[[Float[Array, " n_par"]], TBModel]
         Pure inverse closure that reconstructs an exactly Hermitian-closed
         model.
@@ -218,7 +222,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     expected_size: int = parameters.shape[0]
 
     def rebuild(vector: Float[Array, " n_par"]) -> TBModel:
-        """Reconstruct the model from independent real coordinates."""
+        """Return the model reconstructed from independent coordinates."""
         checked: Float[Array, " n_par"] = _checked_vector(
             vector,
             expected_size,
@@ -228,12 +232,15 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
             model.hopping_amplitudes
         )
         offset: int = 0
+        representative: int
+        is_self_reverse: bool
         for representative, is_self_reverse in zip(
             representatives,
             self_reverse,
             strict=True,
         ):
             reverse: int = reverse_indices[representative]
+            amplitude: Complex[Array, ""]
             if is_self_reverse:
                 preserved_zero: Float[Array, ""] = jnp.asarray(
                     np.imag(host_amplitudes[representative]),
@@ -301,7 +308,11 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         )
         return rebuilt
 
-    return parameters, rebuild
+    result: tuple[
+        Float[Array, " n_par"],
+        Callable[[Float[Array, " n_par"]], TBModel],
+    ] = (parameters, rebuild)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -320,6 +331,11 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     Callable[[Float[Array, " n_par"]], TBModel],
 ]:
     """Pack Slater--Koster fundamentals and return a rebuilding closure.
+
+    The closure rebuilds all derived hoppings from independent two-center
+    integrals and optional geometry coordinates.
+
+    :see: :class:`~.test_parameters.TestSKModelParameterView`
 
     Parameters
     ----------
@@ -368,8 +384,8 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     materialized hoppings.
 
     The onsite block retains the band-energy-zero gauge. A uniform onsite
-    shift is indistinguishable from the fitted Fermi-energy/energy offset, so
-    downstream inversion must constrain or quotient that nuisance direction.
+    shift matches the fitted Fermi-energy or energy-offset shift. Downstream
+    inversion must constrain that nuisance direction.
     """
     if type(include_positions) is not bool:
         message: str = "include_positions must be a bool"
@@ -404,7 +420,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     n_soc: int = template.soc_lambdas.size
 
     def rebuild(vector: Float[Array, " n_par"]) -> TBModel:
-        """Rebuild the Slater--Koster model from optimizer coordinates."""
+        """Return the Slater--Koster model from optimizer coordinates."""
         checked: Float[Array, " n_par"] = _checked_vector(
             vector,
             expected_size,
@@ -463,7 +479,11 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         )
         return rebuilt
 
-    return parameters, rebuild
+    result: tuple[
+        Float[Array, " n_par"],
+        Callable[[Float[Array, " n_par"]], TBModel],
+    ] = (parameters, rebuild)
+    return result
 
 
 __all__: list[str] = [

@@ -58,15 +58,15 @@ and the project uses calendar versioning.
 
 - Plan 03 adds `ExperimentGeometry`, generated `KPath`, and fixed-shape
   `KGrid` carriers. Their factories keep numerical geometry inside JAX.
-- Plan 04 adds independently derived s/p/d Slater--Koster construction,
-  neighbor-shell discovery, spin doubling, atomic L·S coupling, fixed-group
-  projectors and operator expectations, fat bands, Gaussian DOS, implicit
-  fixed-filling Fermi levels, and flat-real inversion parameter views.
+- Plan 04 adds independently derived s/p/d Slater--Koster construction and
+  neighbor-shell discovery. It adds spin doubling and atomic L·S coupling.
+  Fixed-group observables, fat bands, Gaussian DOS, Fermi levels, and
+  flat-real inversion views complete the layer.
 - Distinct strict parsers now ingest explicit hopping lists and normative
   Wannier90 `_hr.dat` and `_tb.dat` files. A typed `WannierOperatorData`
-  sidecar preserves required centres, optional position matrices, exact
-  cells, degeneracies, source grammar, and normalized spin layout through
-  HDF5 round trips.
+  sidecar preserves required centres and optional position matrices. It keeps
+  exact cells, degeneracies, source grammar, and normalized spin layout
+  through HDF5 round trips.
 - Frozen offline Chinook eigenvalue artifacts cover graphene, square-lattice
   Rashba, and projected-t2g SOC compatibility without importing Chinook at
   runtime or in tests. Analytic spectra, symmetry laws, normative formats,
@@ -131,10 +131,10 @@ and the project uses calendar versioning.
 
 ### Fixed
 
-- Plan 03 evidence now exercises reciprocal-coordinate identities with
-  generated lattices, the full photon-energy raster memory target, and
-  complex polarization phase/gradient paths including a machine-precision
-  complex-step phase check.
+- Plan 03 evidence now exercises reciprocal identities with generated
+  lattices. It covers the full photon-energy raster memory target.
+  Complex polarization checks include phase, gradient, and
+  machine-precision complex-step evidence.
 - Python 3.14 imports now work while beartype 0.22.9 references the removed
   `collections.abc.ByteString` name.
 - The supported Python range is now `>=3.12,<3.15`. The documentation now

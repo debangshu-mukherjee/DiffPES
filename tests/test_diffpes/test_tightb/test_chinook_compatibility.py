@@ -58,7 +58,14 @@ class TestChinookCompatibility:
     """Resolve the three-model Plan 04 K-type compatibility battery."""
 
     def test_graphene_bands_agree_after_the_c_gates(self) -> None:
-        """Match frozen Chinook nearest-neighbor graphene eigenvalues."""
+        """Match frozen Chinook nearest-neighbor graphene eigenvalues.
+
+        The case uses an authenticated inert compatibility artifact.
+
+        Notes
+        -----
+        Compare the complete registered k-point path after native construction.
+        """
         reference: dict[str, Any] = _reference()["graphene"]
         kpoints: Array = jnp.asarray(reference["kpoints_fractional"])
         model: TBModel = make_graphene_model(
@@ -74,7 +81,14 @@ class TestChinookCompatibility:
         )
 
     def test_rashba_bands_agree_after_the_c_gates(self) -> None:
-        """Match frozen Chinook square-lattice Rashba eigenvalues."""
+        """Match frozen Chinook square-lattice Rashba eigenvalues.
+
+        The case checks the spinful square-lattice convention independently.
+
+        Notes
+        -----
+        Compare every frozen band after native model construction.
+        """
         reference: dict[str, Any] = _reference()["rashba"]
         conventions: dict[str, Any] = reference["conventions"]
         model: TBModel = make_rashba_model(
@@ -94,7 +108,14 @@ class TestChinookCompatibility:
         )
 
     def test_t2g_soc_bands_agree_after_the_c_gates(self) -> None:
-        """Match frozen Chinook projected atomic t2g SOC multiplets."""
+        """Match frozen Chinook projected atomic t2g SOC multiplets.
+
+        The case checks the registered real-cubic basis convention.
+
+        Notes
+        -----
+        Compare the complete frozen multiplet after native SOC construction.
+        """
         reference: dict[str, Any] = _reference()["t2g_soc"]
         model: TBModel = make_t2g_soc_model(
             coupling=reference["conventions"]["lambda_ev"],

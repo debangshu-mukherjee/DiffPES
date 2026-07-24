@@ -28,11 +28,9 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
 
-from diffpes.types import EPS, DiagonalizedBands
+from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
 
 from .operators import orbital_projector
-
-_MATRIX_NDIM: int = 2
 
 
 def _validate_selection(
@@ -66,7 +64,7 @@ def _checked_operator(
     context: str,
 ) -> Complex[Array, "n_orb n_orb"]:
     """Validate the static shape and traced Hermitian-operator contract."""
-    if operator.ndim != _MATRIX_NDIM or operator.shape != (
+    if operator.ndim != MATRIX_NDIM or operator.shape != (
         n_orbitals,
         n_orbitals,
     ):

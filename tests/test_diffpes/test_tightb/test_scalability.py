@@ -3,19 +3,18 @@ r"""Validate Plan 04 tight-binding differentiation and scalability gates.
 Extended Summary
 ----------------
 This module supplies bounded CI evidence for gates 04.D4 and 04.S1--S3. It
-checks that Bloch assembly has a hopping-count-independent JAXPR, records one
-trace per static hopping shape, executes representative batched
-diagonalization and reverse-mode cases, and derives the production-shape
-memory floor without allocating production-sized arrays.
+checks hopping-count-independent Bloch JAXPRs and one trace per static shape.
+It also runs bounded diagonalization and reverse-mode cases. Shape analysis
+derives the production memory floor without large allocations.
 
 Notes
 -----
 The production S2 Hamiltonian output has shape ``(10000, 64, 64)`` and
 therefore contains 625 MiB of complex128 data. Tests use
 :func:`jax.eval_shape` for that case and execute smaller arrays in CI to avoid
-an intentional out-of-memory hazard. Compiler-reported temporary memory is
-compared across two batch sizes in S3; the comparison detects superlinear
-growth in the reverse-mode tape without imposing a fragile wall-clock limit.
+an intentional out-of-memory hazard. S3 compares compiler temporary memory
+across two batch sizes. This comparison detects superlinear reverse-tape
+growth without fragile timing limits.
 """
 
 import math
@@ -164,7 +163,7 @@ def _kpoints(n_kpoints: int) -> Float[Array, "n_k 3"]:
 
 
 def _count_jaxpr_equations(value: object) -> int:
-    """Count equations recursively through nested JAXPR parameters."""
+    """Return the recursive equation count across nested JAXPR parameters."""
     if isinstance(value, ClosedJaxpr):
         return _count_jaxpr_equations(value.jaxpr)
     if isinstance(value, Jaxpr):
@@ -195,11 +194,14 @@ def _collect_jaxpr_shapes(
             *value.invars,
             *value.outvars,
         ]
+        equation: Any
+        parameter: object
         for equation in value.eqns:
             variables.extend(equation.invars)
             variables.extend(equation.outvars)
             for parameter in equation.params.values():
                 _collect_jaxpr_shapes(parameter, shapes)
+        variable: object
         for variable in variables:
             if isinstance(variable, Literal):
                 continue
@@ -210,10 +212,12 @@ def _collect_jaxpr_shapes(
                 shapes.append(tuple(int(axis) for axis in shape))
         return
     if isinstance(value, (tuple, list)):
+        item: object
         for item in value:
             _collect_jaxpr_shapes(item, shapes)
         return
     if isinstance(value, dict):
+        item: object
         for item in value.values():
             _collect_jaxpr_shapes(item, shapes)
 
@@ -247,6 +251,8 @@ class TestBlochAssemblyScalability:
     ) -> None:
         """Keep the recursive JAXPR equation count exactly shape-independent.
 
+        The case sweeps four closed hopping-list sizes.
+
         Notes
         -----
         Trace the production ``bloch_hamiltonian`` at 10, 100, 1,000, and
@@ -275,7 +281,14 @@ class TestBlochAssemblyScalability:
         self,
         hopping_sweep_models: tuple[TBModel, ...],
     ) -> None:
-        """Compile once for each shape and reuse it for dynamic leaf changes."""
+        """Compile once for each shape and reuse it for dynamic leaf changes.
+
+        The case changes numerical leaves without changing static topology.
+
+        Notes
+        -----
+        Count Python traces after each original and modified model call.
+        """
         trace_count: list[int] = [0]
 
         def counted(
@@ -315,7 +328,9 @@ class TestBatchScalability:
     def test_production_shapes_and_memory_are_derived_without_allocation(
         self,
     ) -> None:
-        """Prove the production output shapes and dominant byte bounds.
+        """Verify the production output shapes and dominant byte bounds.
+
+        The case covers Hamiltonians, eigenvalues, and full eigensystems.
 
         Notes
         -----
@@ -397,7 +412,14 @@ class TestBatchScalability:
         assert diagonalize_bytes == 65 * _MIB
 
     def test_ci_sized_batch_and_full_diagonalization_execute(self) -> None:
-        """Execute shape-faithful S2 proxies and record compiled output bytes."""
+        """Execute shape-faithful S2 proxies and record compiled output bytes.
+
+        The case runs batched assembly and both eigensystem paths.
+
+        Notes
+        -----
+        Compare compiled output sizes and diagonal-model analytic eigenvalues.
+        """
         n_kpoints: int = 32
         n_orbitals: int = 64
         model: TBModel = _make_dispersive_diagonal_model(n_orbitals)
@@ -474,6 +496,8 @@ class TestEigenvalueReverseScalability:
 
     def test_reverse_mode_executes_with_linear_batch_memory(self) -> None:
         """Reject a superlinear tape while matching an analytic gradient.
+
+        The case compares two batch sizes for the same static orbital count.
 
         Notes
         -----
@@ -571,7 +595,9 @@ class TestBlochPhaseDifferentiability:
     def test_phase_direction_matches_complex_step_at_machine_precision(
         self,
     ) -> None:
-        r"""Complex-step the real channels of :math:`e^{2\pi i k\cdot d}`.
+        r"""Verify real-channel complex steps for :math:`e^{2\pi i k\cdot d}`.
+
+        The case also compares the recombined derivative with a direct JVP.
 
         Notes
         -----

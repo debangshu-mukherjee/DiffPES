@@ -22,8 +22,8 @@ tight-binding-models
 - [Geometry and kinematics](geometry-and-kinematics.md): Build k-space rasters,
   detector frames, inner-potential scans, and a geometry Jacobian.
 - [Native tight-binding models](tight-binding-models.md): Build graphene by
-  hand and with Slater--Koster parameters, add atomic and Rashba spin--orbit
-  coupling, and inspect fat bands, spin texture, and the density of states.
+  hand and with Slater--Koster parameters. Add spin--orbit coupling, then
+  inspect fat bands, spin texture, and density of states.
 
 The project is developing more complete examples:
 

@@ -212,8 +212,8 @@ class TestEighSafe:
         Sweep gaps from ``2`` through ``1e6`` times ``EPS_DEG``. Match the
         measured bias to the analytic law and require relative error below
         ``1.1e-10`` once ``g >= 1e5 * EPS_DEG``. The ``1e5`` threshold follows
-        directly from the declared quadratic law; ``1e3`` would imply a
-        ``1e-6`` rather than ``1e-10`` relative bias.
+        directly from the declared quadratic law. A ``1e3`` threshold implies
+        ``1e-6`` relative bias instead of ``1e-10``.
         """
         theta: Array = jnp.asarray(0.37, dtype=jnp.float64)
         gap_ratios: Array = jnp.asarray(

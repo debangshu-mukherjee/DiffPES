@@ -1,13 +1,14 @@
-r"""Audit Plan 04 tight-binding differentiation and eigensystem evidence.
+r"""Validate Plan 04 tight-binding differentiation and eigensystem evidence.
 
 The tests close the parameter-class matrix not already covered by the
 all-channel Slater--Koster gate in
 ``test_slaterkoster.TestBuildSlaterKosterModel.
-test_every_integral_has_fd_correct_band_spectral_gradient``.  They add
-generic-k checks for atomic positions and atomic SOC, exact-degeneracy checks
-using only symmetric spectral polynomials, a dimension-scaled gauge budget,
-and independent NumPy eigenpair truth.
+test_every_integral_has_fd_correct_band_spectral_gradient``. They check
+generic-k atomic-position and atomic-SOC derivatives. Further tests cover
+exact-degeneracy invariants, gauge budgets, and independent NumPy truth.
 """
+
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -94,10 +95,10 @@ def _pz_honeycomb_model(
 ) -> TBModel:
     """Build a fixed-topology pz honeycomb through the public SK kernel.
 
-    The three nearest-neighbor cells are exact static metadata.  Recomputing
-    each two-center block from ``R + tau_B - tau_A`` is equivalent to the
-    production SK builder away from a cutoff crossing, without making
-    topology discovery part of this small derivative gate.
+    The three nearest-neighbor cells are exact static metadata. Each
+    two-center block uses ``R + tau_B - tau_A``. This matches the production
+    builder away from cutoff crossings. The small gate excludes topology
+    discovery.
     """
     geometry: CrystalGeometry = _honeycomb_geometry(second_position)
     sk_params: SlaterKosterParams = make_slater_koster_params(
@@ -259,17 +260,22 @@ def _normwise_roundoff_budget(
 
 
 class TestD1GenericK:
-    """Close generic-k derivatives missing from the all-SK-key gate."""
+    """Validate generic-k derivatives missing from the all-SK-key gate."""
 
     def test_soc_lambda_forward_reverse_fd_and_nonzero(self) -> None:
         """Differentiate one nondegenerate magnetic t2g+SOC band.
 
         A small exchange/crystal-field pattern lifts the atomic Kramers
-        pairs.  This is the physically relevant equivalent when an individual
-        ``dE_n/dlambda`` is requested: the unmodified t2g fixture is Kramers
-        degenerate at every k and belongs to the invariant D2 gate below.
+        pairs. This gives the physical individual ``dE_n/dlambda`` case. The
+        unmodified t2g fixture instead belongs to the invariant D2 gate.
+
+        Notes
+        -----
+        Compare forward and reverse derivatives with finite differences.
         """
         model: TBModel = make_t2g_soc_model(coupling=0.41)
+        parameters: Float[Array, " 7"]
+        rebuild: Callable[[Float[Array, " 7"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
         onsite: Float[Array, " 6"] = jnp.asarray(
             (-0.31, 0.08, 0.22, 0.29, -0.14, 0.37),
@@ -308,6 +314,10 @@ class TestD1GenericK:
         transformations.  A buckled pz honeycomb with unequal pp-sigma and
         pp-pi integrals is the minimal physical fixture with genuine atomic
         position sensitivity.
+
+        Notes
+        -----
+        Compare forward and reverse derivatives with finite differences.
         """
         sk_values: Float[Array, " 2"] = jnp.asarray(
             (1.35, -2.7),
@@ -347,11 +357,12 @@ class TestD2ExactDegeneracy:
     def test_graphene_k_sk_invariant_matches_fd(self) -> None:
         """Match FD for pp-pi at the exact graphene Dirac point.
 
-        The derivative is allowed to vanish: at K, ``Tr(H**2)`` is quadratic
-        in the Dirac splitting.  The test claims no derivative of either
-        individually sorted band and uses no energy-threshold mask.  All ten
-        SK keys already have nonzero generic-k evidence in
-        ``test_slaterkoster.py``.
+        At K, ``Tr(H**2)`` is quadratic in the Dirac splitting. The derivative
+        may vanish without invalidating this invariant gate.
+
+        Notes
+        -----
+        Avoid sorted-band derivatives and energy-threshold masks at crossing.
         """
         planar_position: Float[Array, " 3"] = jnp.asarray(
             (1.0 / 3.0, 1.0 / 3.0, 0.0),
@@ -387,12 +398,16 @@ class TestD2ExactDegeneracy:
         assert bool(jnp.isfinite(jax.grad(loss)(pi)))
 
     def test_kramers_sk_and_position_invariant_is_nonzero(self) -> None:
-        """Gate SK and position classes through exact Kramers pairs.
+        """Validate SK and position classes through exact Kramers pairs.
 
         The spin-independent buckled honeycomb is two identical spin blocks,
         so every band is exactly double-degenerate at arbitrary k.  Its
         ``Tr(H**2)`` loss is invariant under pair rotations and has nonzero
         sensitivity to pp-sigma, pp-pi, and the second-atom position.
+
+        Notes
+        -----
+        Require exact pair equality and nonzero invariant gradients.
         """
         initial: Float[Array, " 5"] = jnp.asarray(
             (1.35, -2.7, 0.34, 0.31, 0.035),
@@ -434,8 +449,17 @@ class TestD2ExactDegeneracy:
         assert jnp.all(jnp.abs(derivative) > 1e-4)
 
     def test_kramers_soc_lambda_invariant_is_nonzero(self) -> None:
-        """Gate lambda through an exact t2g Kramers-degenerate polynomial."""
+        """Validate lambda through an exact Kramers-degenerate polynomial.
+
+        The case differentiates a symmetric t2g spectral loss.
+
+        Notes
+        -----
+        Require exact Kramers pairs and a nonzero invariant gradient.
+        """
         model: TBModel = make_t2g_soc_model(coupling=0.41)
+        parameters: Float[Array, " 7"]
+        rebuild: Callable[[Float[Array, " 7"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
         coupling: Float[Array, ""] = parameters[-1]
 
@@ -466,7 +490,14 @@ class TestG8GaugeInvariance:
     """Apply phases and independent rotations to every degenerate block."""
 
     def test_multiple_blocks_obey_dimension_derived_budget(self) -> None:
-        """Preserve fixed-group projectors and traces within a gamma-n bound."""
+        """Preserve fixed-group projectors and traces within a gamma-n bound.
+
+        The case rotates three exact two-band blocks independently.
+
+        Notes
+        -----
+        Derive each tolerance from contraction dimensions and float64 epsilon.
+        """
         n_k: int = 2
         n_orbitals: int = 6
         group_size: int = 2
@@ -495,6 +526,8 @@ class TestG8GaugeInvariance:
         )
         rotated: Complex[Array, "2 6 6"] = phases[:, :, None] * vectors
         key_index: int = 3
+        k_index: int
+        start: int
         for k_index in range(n_k):
             for start in range(0, n_orbitals, group_size):
                 block_raw: Complex[Array, "2 2"] = jax.random.normal(
@@ -571,8 +604,16 @@ class TestEighSafeNumPyTruth:
     """Compare production eigenpairs with independent NumPy/LAPACK truth."""
 
     def test_random_complex_hermitian_eigenpairs(self) -> None:
-        """Match eigenvalues, projectors, residuals, and orthonormality."""
+        """Match eigenvalues, projectors, residuals, and orthonormality.
+
+        The cases span three independently generated complex dimensions.
+
+        Notes
+        -----
+        Compare production results with NumPy and explicit residual equations.
+        """
         rng: np.random.Generator = np.random.default_rng(407)
+        dimension: int
         for dimension in (2, 5, 8):
             raw: np.ndarray = rng.normal(size=(dimension, dimension)) + 1j * (
                 0.73 * rng.normal(size=(dimension, dimension))

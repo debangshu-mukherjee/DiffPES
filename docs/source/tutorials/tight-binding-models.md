@@ -15,9 +15,9 @@ kernelspec:
 
 Build nearest-neighbor graphene twice: first from an explicit, Hermitian-closed
 hopping list and then from one Slater--Koster integral. Add atomic spin--orbit
-coupling, calculate fat bands and a Rashba spin texture, and finish with a
-broadened density of states. Every numerical object remains a JAX PyTree, so
-the same models can later become optimization variables.
+coupling and calculate fat bands with a Rashba spin texture. Finish with a
+broadened density of states. Every numerical object remains a JAX PyTree.
+The same models can later become optimization variables.
 
 ```{code-cell} ipython3
 import jax.numpy as jnp
@@ -142,8 +142,8 @@ print("Dirac-point energies (eV):", hand_bands.eigenvalues[51])
 
 For an in-plane carbon--carbon bond, two $p_z$ orbitals couple through
 $V_{pp\pi}$. The builder discovers the static neighbor topology once,
-retains exact cells, and differentiates through the bond geometry and
-Slater--Koster value away from a cutoff crossing.
+then retains exact cells. Away from cutoff crossings, differentiation covers
+the bond geometry and Slater--Koster value.
 
 ```{code-cell} ipython3
 graphene_sk_params = make_slater_koster_params(

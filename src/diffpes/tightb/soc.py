@@ -38,7 +38,7 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
-from diffpes.maths.rotations import real_harmonic_unitary
+from diffpes.maths import real_harmonic_unitary
 from diffpes.types import (
     L_MAX,
     OrbitalBasis,
@@ -156,7 +156,12 @@ def _shell_maps(
         + angular_momentum
         for orbital in global_indices
     )
-    return global_indices, local_indices, angular_momentum
+    result: tuple[tuple[int, ...], tuple[int, ...], int] = (
+        global_indices,
+        local_indices,
+        angular_momentum,
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -221,7 +226,12 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
         coefficient: float = math.sqrt(l * (l + 1) - magnetic * (magnetic + 1))
         raising = raising.at[row, column].set(coefficient)
     lowering: Complex[Array, "m1 m2"] = raising.conj().T
-    return lz, raising, lowering
+    result: tuple[
+        Complex[Array, "m1 m2"],
+        Complex[Array, "m1 m2"],
+        Complex[Array, "m1 m2"],
+    ] = (lz, raising, lowering)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -272,7 +282,10 @@ def soc_shell_block(  # noqa: DOC502 -- validation is shared.
     def to_real(
         operator: Complex[Array, "m1 m2"],
     ) -> Complex[Array, "m1 m2"]:
-        return unitary.conj() @ operator @ unitary.T
+        transformed: Complex[Array, "m1 m2"] = (
+            unitary.conj() @ operator @ unitary.T
+        )
+        return transformed
 
     lx_real: Complex[Array, "m1 m2"] = to_real(lx_complex)
     ly_real: Complex[Array, "m1 m2"] = to_real(ly_complex)

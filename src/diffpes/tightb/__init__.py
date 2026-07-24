@@ -1,4 +1,4 @@
-"""Provide native tight-binding tools and ARPES-side adapters.
+r"""Provide native tight-binding tools and ARPES-side adapters.
 
 Extended Summary
 ----------------
@@ -21,17 +21,17 @@ The following list describes the submodules:
 - :mod:`kspace`
     Build differentiable paths and fixed-shape rasters in k-space.
 - :mod:`projections`
-    Reduce eigenvectors to gauge-invariant observables.
+    Reduce tight-binding eigenvectors to gauge-invariant observables.
 - :mod:`operators`
-    Construct spin, orbital, and atomic spin--orbit observables.
+    Construct Hermitian observables in a tight-binding orbital basis.
 - :mod:`parameters`
-    Expose independent flat-real optimizer parameter views.
+    Expose independent real optimizer coordinates for tight-binding models.
 - :mod:`slaterkoster`
-    Build s/p/d two-center hopping blocks and materialized models.
+    Build tight-binding hoppings from Slater--Koster integrals.
 - :mod:`soc`
-    Construct and scatter atomic spin-orbit coupling.
+    Construct atomic spin--orbit coupling in the real-cubic basis.
 - :mod:`dos`
-    Compute broadened densities of states and fixed-filling Fermi levels.
+    Construct broadened tight-binding densities of states and fillings.
 
 Routine Listings
 ----------------
@@ -40,7 +40,7 @@ Routine Listings
 :func:`bloch_hamiltonian_batch`
     Assemble Bloch Hamiltonians for a batch of fractional k-points.
 :func:`build_sk_model`
-    Build a tight-binding model from Slater-Koster fundamentals.
+    Build a validated tight-binding model from two-center integrals.
 :func:`build_arpes_kmesh`
     Build a fixed-kz ARPES raster in fractional coordinates.
 :func:`build_bz_mesh`
@@ -56,15 +56,15 @@ Routine Listings
 :func:`eigvalsh_bands`
     Compute only native tight-binding eigenvalues over k-points.
 :func:`band_projectors`
-    Materialize rank-one band projectors.
+    Materialize each U(1)-gauge-invariant rank-one band projector.
 :func:`dos_gaussian`
-    Compute a Gaussian-broadened density of states.
+    Evaluate a Gaussian-broadened tight-binding density of states.
 :func:`expectation_path`
-    Compute degeneracy-averaged operator expectations.
+    Compute operator expectations with diagnostic degeneracy averaging.
 :func:`fat_bands`
-    Compute selected-orbital fat-band weights.
+    Compute degeneracy-averaged weights of selected model orbitals.
 :func:`fermi_level_from_filling`
-    Solve for the chemical potential at a fixed filling.
+    Compute the finite-temperature Fermi level from the filling equation.
 :func:`first_bz_mask`
     Mark Cartesian points inside the first Brillouin zone.
 :func:`kpath_arc_length`
@@ -74,35 +74,35 @@ Routine Listings
 :func:`kpoints_frac_to_cart`
     Convert fractional k-points to Cartesian momenta.
 :func:`group_projector`
-    Construct a fixed-group projector.
+    Construct the projector onto one registered, fixed band group.
 :func:`group_trace`
-    Trace an operator over a fixed band group.
+    Trace a Hermitian operator over one fixed band group.
 :func:`ls_operator`
-    Construct atomic L dot S operators.
+    Construct unit-strength atomic :math:`L\cdot S` by shell.
 :func:`l_matrices`
-    Construct complex-harmonic orbital angular-momentum matrices.
+    Construct orbital angular-momentum matrices in the complex basis.
 :func:`neighbor_shells`
-    Discover unique undirected neighbor bonds with exact integer cells.
+    Find unique undirected neighbor bonds at host setup time.
 :func:`orbital_projector`
-    Construct an orbital-selection projector.
+    Construct a diagonal projector onto selected basis orbitals.
 :func:`orbital_weights`
-    Compute squared orbital amplitudes.
+    Compute the squared orbital amplitudes of normalized eigenvectors.
 :func:`sk_block`
-    Construct an s/p/d Slater-Koster hopping block.
+    Construct a real-harmonic Slater--Koster hopping block.
 :func:`sk_model_parameter_view`
-    Pack Slater-Koster fundamentals into optimizer coordinates.
+    Pack Slater--Koster fundamentals and return a rebuilding closure.
 :func:`soc_matrix`
-    Scatter shell-resolved atomic spin-orbit coupling.
+    Assemble shell-resolved atomic SOC in an arbitrary spinor basis.
 :func:`soc_shell_block`
-    Construct a unit-strength real-cubic atomic SOC block.
+    Construct a unit-strength real-cubic :math:`\mathbf L\cdot\mathbf S`.
 :func:`spin_double_basis`
-    Duplicate a spinless basis in down-up block order.
+    Create a spin-doubled basis in the declared down--up block order.
 :func:`spin_double_model`
-    Duplicate a spinless model into spin-diagonal blocks.
+    Create a spin-doubled model with spin-diagonal down--up blocks.
 :func:`spin_operator`
-    Construct spin along a Cartesian unit axis.
+    Construct :math:`S_{\widehat n}=\widehat n\cdot\sigma/2`.
 :func:`tb_parameter_view`
-    Pack a materialized model into independent optimizer coordinates.
+    Pack a materialized tight-binding model into independent coordinates.
 :func:`vasp_to_diagonalized`
     Convert atom-resolved VASP projections to approximate band vectors.
 """
