@@ -2,9 +2,8 @@
 
 Extended Summary
 ----------------
-Exercise build_polarization_vectors, build_efield, and
-dipole_matrix_elements. Verify the polarization basis and each field
-mode. Check dipole matrix element shape and sign. Compare the detector frame
+Exercise build_polarization_vectors and build_efield. Verify the polarization
+basis and each field mode. Compare the detector frame
 with an offline table from the pinned Chinook source.
 
 """
@@ -29,7 +28,6 @@ from diffpes.simul import (
     detector_angles_to_kpar,
     detector_axis_to_sample,
     detector_rotation,
-    dipole_matrix_elements,
     final_state_k_inv_ang,
     lab_polarization_to_sample,
     photon_wavevector,
@@ -469,132 +467,6 @@ class TestBuildEfield(chex.TestCase):
             e_s.astype(jnp.float64),
             atol=1e-10,
         )
-
-
-class TestDipoleMatrixElements(chex.TestCase):
-    """Validate :func:`diffpes.simul.polarization.dipole_matrix_elements`.
-
-    Verify the output shape and the zero s-orbital element. Check px
-    coupling and non-negative elements for arbitrary polarization.
-
-    :see: :func:`~diffpes.simul.dipole_matrix_elements`
-    """
-
-    def test_shape(self) -> None:
-        """Verify that the output has shape ``(9,)`` for the 9-orbital basis.
-
-        The test establishes the shape contract for dipole matrix elements with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create x-polarized E-field**:
-           Constructs a complex E-field vector along the x-axis.
-
-        2. **Compute matrix elements**:
-           Calls ``dipole_matrix_elements`` and checks the output shape.
-
-        **Expected assertions**
-
-        The output array has shape ``(9,)``, one element per orbital in
-        the [s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2] basis.
-        """
-        efield: Array
-        m: Array
-
-        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
-        m = dipole_matrix_elements(efield)
-        chex.assert_shape(m, (9,))
-
-    def test_s_orbital_zero(self) -> None:
-        """Verify that the s-orbital dipole matrix element is always zero.
-
-        The test establishes the s orbital zero contract for dipole matrix elements
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create x-polarized E-field**:
-           Constructs a complex E-field vector along the x-axis.
-
-        2. **Compute matrix elements**:
-           Calls ``dipole_matrix_elements`` and inspects the s-orbital
-           entry (index 0).
-
-        **Expected assertions**
-
-        The s-orbital direction vector is [0, 0, 0]. Its matrix element
-        is zero within tolerance 1e-10 for any electric field.
-        """
-        efield: Array
-        m: Array
-
-        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
-        m = dipole_matrix_elements(efield)
-        chex.assert_trees_all_close(m[0], jnp.float64(0.0), atol=1e-10)
-
-    def test_px_with_x_field(self) -> None:
-        """Verify that an x-polarized field produces a positive px matrix element.
-
-        The test establishes the px with x field contract for dipole matrix elements
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create x-polarized E-field**:
-           Constructs a complex E-field vector purely along the x-axis.
-
-        2. **Compute matrix elements**:
-           Calls ``dipole_matrix_elements`` and inspects the px-orbital
-           entry (index 3), whose direction vector is [1, 0, 0].
-
-        **Expected assertions**
-
-        The px-orbital matrix element (index 3) is strictly positive,
-        confirming that the x-polarized field couples to the px-orbital
-        via the dipole selection rule.
-        """
-        efield: Array
-        m: Array
-
-        efield = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex128)
-        m = dipole_matrix_elements(efield)
-        chex.assert_scalar_positive(float(m[3]))
-
-    def test_all_nonnegative(self) -> None:
-        """Verify that all dipole matrix elements are non-negative for arbitrary polarization.
-
-        The test establishes the all nonnegative contract for dipole matrix elements
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create arbitrary normalized E-field**:
-           Create a complex field with components [0.5, 0.3, 0.8].
-           Normalize it to unit length.
-
-        2. **Compute matrix elements**:
-           Calls ``dipole_matrix_elements`` on the normalized field.
-
-        3. **Check non-negativity of all elements**:
-           Iterates over all 9 entries and asserts each is >= 0.
-
-        **Expected assertions**
-
-        Every element of the 9-element matrix element vector is non-negative,
-        as expected from the squared-modulus definition
-        ``|e . d|^2 >= 0``.
-        """
-        i: int
-
-        efield: Array
-        m: Array
-
-        efield = jnp.array([0.5, 0.3, 0.8], dtype=jnp.complex128)
-        efield = efield / jnp.linalg.norm(efield)
-        m = dipole_matrix_elements(efield)
-        for i in range(9):
-            assert float(m[i]) >= 0.0
 
 
 class TestPolarizationFromAngles(chex.TestCase):

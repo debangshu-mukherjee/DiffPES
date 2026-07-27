@@ -1,219 +1,387 @@
-"""Compute photoionization cross-section weights for ARPES.
+"""Interpolate authenticated Yeh--Lindau photoionization cross sections.
 
 Extended Summary
 ----------------
-The module provides orbital-dependent photoionization cross-section
-calculations based on Yeh-Lindau tabulated data and simple
-heuristic models for different photon energies.
+This module exposes the element- and subshell-resolved Yeh--Lindau (1985)
+tables in megabarn. The generator derives the packaged data from the CC BY 4.0
+Regoutz-group digitisation. Interpolation uses shape-preserving cubic Hermite
+in log cross section versus log photon energy. Missing and published-zero
+entries remain missing. The interpolator never adds a floor or extrapolates.
 
 Routine Listings
 ----------------
-:func:`heuristic_weights`
-    Compute heuristic orbital weights based on photon energy.
-:func:`yeh_lindau_weights`
-    Compute Yeh-Lindau cross-section weights per orbital.
+:func:`yeh_lindau_cross_section_table`
+    Return one raw Yeh--Lindau subshell row.
+:func:`yeh_lindau_cross_section`
+    Interpolate an atomic subshell photoionization cross section.
+:func:`yeh_lindau_orbital_weights`
+    Return Yeh--Lindau weights for every orbital in a basis.
 
 Notes
 -----
-Simplified tabulations from Yeh and Lindau provide the cross-section data.
-Their 1985 article appears in Atomic Data and Nuclear Data Tables 32, 1-155.
-Values at 20, 40, and 60 eV approximate the s, p, and d cross-sections.
+The tables describe isolated-atom cross sections.  They provide the grounded
+weighting for the deliberately incoherent ``simulate_basic`` tier; coherent
+matrix-element calculations use :mod:`diffpes.simul.matrixel` instead.
 """
 
-import jax.numpy as jnp
-from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from __future__ import annotations
 
-from diffpes.types import (
-    CROSS_SECTION_ENERGIES,
-    CROSS_SECTION_SIGMA_D,
-    CROSS_SECTION_SIGMA_P,
-    CROSS_SECTION_SIGMA_S,
-    ScalarFloat,
-)
+from functools import cache
+from importlib import resources
+from importlib.resources.abc import Traversable
+
+import equinox as eqx
+import jax.numpy as jnp
+import numpy as np
+from beartype import beartype
+from jaxtyping import Array, Bool, Float, Int, jaxtyped
+
+from diffpes.types import OrbitalBasis, ScalarFloat
+
+
+@cache
+def _load_data() -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    dict[tuple[int, int, int], int],
+]:
+    """Load and cache the immutable packed table arrays."""
+    data_resource: Traversable = resources.files("diffpes.simul").joinpath(
+        "data",
+        "yeh_lindau_1985.npz",
+    )
+    archive: np.lib.npyio.NpzFile
+    with np.load(data_resource) as archive:
+        keys: np.ndarray = np.asarray(archive["keys"], dtype=np.int16)
+        offsets: np.ndarray = np.asarray(archive["offsets"], dtype=np.int32)
+        energy_nodes: np.ndarray = np.asarray(
+            archive["photon_energy_ev"],
+            dtype=np.float64,
+        )
+        sigma_nodes: np.ndarray = np.asarray(
+            archive["sigma_megabarn"],
+            dtype=np.float64,
+        )
+        log_slopes: np.ndarray = np.asarray(
+            archive["log_slopes"],
+            dtype=np.float64,
+        )
+    key_to_row: dict[tuple[int, int, int], int] = {
+        tuple(int(value) for value in key): index
+        for index, key in enumerate(keys)
+    }
+    loaded: tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        dict[tuple[int, int, int], int],
+    ] = (
+        offsets,
+        energy_nodes,
+        sigma_nodes,
+        log_slopes,
+        key_to_row,
+    )
+    return loaded
+
+
+def _table_slice(
+    atomic_number: int,
+    principal_quantum_number: int,
+    angular_momentum: int,
+) -> slice:
+    """Resolve a static subshell key to its packed-data slice."""
+    key: tuple[int, int, int] = (
+        atomic_number,
+        principal_quantum_number,
+        angular_momentum,
+    )
+    offsets: np.ndarray
+    key_to_row: dict[tuple[int, int, int], int]
+    offsets, _, _, _, key_to_row = _load_data()
+    if key not in key_to_row:
+        message: str = (
+            "unsupported Yeh--Lindau subshell "
+            f"(Z, n, l)={key}; consult yeh_lindau_1985.json"
+        )
+        raise ValueError(message)
+    row: int = key_to_row[key]
+    table_slice: slice = slice(
+        int(offsets[row]),
+        int(offsets[row + 1]),
+    )
+    return table_slice
 
 
 @jaxtyped(typechecker=beartype)
-def heuristic_weights(
-    photon_energy: ScalarFloat,
-) -> Float[Array, " 9"]:
-    """Compute heuristic orbital weights based on photon energy.
+def yeh_lindau_cross_section_table(
+    atomic_number: int,
+    n: int,
+    l: int,  # noqa: E741
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return one raw Yeh--Lindau subshell row.
 
-    Provides a simple two-regime model for orbital-dependent
-    photoionization cross-sections. This is a simplified approximation
-    useful when tabulated cross-section data is unavailable.
+    The accessor returns missing entries as ``NaN`` and preserves published
+    zeros.
+    A finite ``log_slopes`` entry marks a node belonging to a positive
+    interpolation interval.
 
-    :see: :class:`~.test_crosssections.TestHeuristicWeights`
-
-    Implementation Logic
-    --------------------
-    The function selects between two pre-defined weight vectors
-    based on a 50 eV energy threshold:
-
-    1. **Below 50 eV (low-energy regime)**::
-
-           weights = [1, 2, 2, 2, 1, 1, 1, 1, 1]
-
-       Give p-orbitals at indices 1-3 a weight of 2. This value
-       reflecting the stronger p-orbital cross-section at low
-       photon energies typical of He-I or laser ARPES.
-
-    2. **Above 50 eV (high-energy regime)**::
-
-           weights = [1, 1, 1, 1, 2, 2, 2, 2, 2]
-
-       Give d-orbitals at indices 4-8 a weight of 2. This value
-       reflecting the resonant enhancement of d-orbital
-       cross-sections at higher photon energies, for example He-II or
-       synchrotron).
-
-    The function uses ``jnp.where`` for JAX transformations without Python
-    branching.
-
-    Parameters
-    ----------
-    photon_energy : ScalarFloat
-        Incident photon energy in eV.
-
-    Returns
-    -------
-    weights : Float[Array, " 9"]
-        Orbital weights for [s, py, pz, px, dxy, dyz, dz2,
-        dxz, dx2-y2].
+    :see: :class:`~.test_crosssections.TestYehLindauCrossSectionTable`
 
     Notes
     -----
-    The 50 eV regime choice is a hard selector. Its photon-energy gradient is
-    zero away from the threshold and undefined at the threshold. Therefore,
-    this heuristic contributes no continuous photon-energy Jacobian column.
-    Plan 06 replaces this approximation with a differentiable matrix element
-    treatment.
-    """
-    low_e: Float[Array, " 9"] = jnp.array(
-        [1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-        dtype=jnp.float64,
-    )
-    high_e: Float[Array, " 9"] = jnp.array(
-        [1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0],
-        dtype=jnp.float64,
-    )
-    _threshold_ev: float = 50.0
-    weights: Float[Array, " 9"] = jnp.where(
-        photon_energy < _threshold_ev, low_e, high_e
-    )
-    return weights
-
-
-def _interp_cross_section(
-    photon_energy: Float[Array, " "],
-    sigma_vals: Float[Array, " 3"],
-) -> Float[Array, " "]:
-    """Interpolate a cross-section with linear extrapolation.
-
-    Performs piecewise-linear interpolation of tabulated cross-section
-    values at the given photon energy, with constant extrapolation
-    outside the tabulated range.
-
-    Implementation Logic
-    --------------------
-    1. **Interpolate via jnp.interp**:
-       sigma = jnp.interp(photon_energy, CROSS_SECTION_ENERGIES, sigma_vals)
-       - ``CROSS_SECTION_ENERGIES`` = [20, 40, 60] eV are the
-         tabulation points.
-       - ``sigma_vals`` are the corresponding cross-section values.
-       - ``jnp.interp`` performs piecewise-linear interpolation
-         between adjacent tabulation points.
-       - At the boundaries, energies below 20 eV return sigma_vals[0].
-         Energies above 60 eV return sigma_vals[-1]. ``jnp.interp`` uses this
-         constant extrapolation by default.
+    Resolve the static ``(Z,n,l)`` key into the packed archive. Copy the raw
+    energy, cross-section, and slope rows so callers cannot mutate the cache.
 
     Parameters
     ----------
-    photon_energy : Float[Array, " "]
-        Photon energy in eV.
-    sigma_vals : Float[Array, " 3"]
-        Cross-section values at [20, 40, 60] eV.
+    atomic_number : int
+        Nuclear charge ``Z`` in the tabulation.
+    n : int
+        Principal quantum number.
+    l : int
+        Orbital angular momentum, with ``0=s``, ``1=p``, ``2=d``, and
+        ``3=f``.
 
     Returns
     -------
-    sigma : Float[Array, " "]
-        Interpolated cross-section value.
+    photon_energy_ev : numpy.ndarray
+        Published photon-energy nodes in eV.
+    sigma_megabarn : numpy.ndarray
+        Published cross sections in megabarn, preserving missing values.
+    log_slopes : numpy.ndarray
+        Precomputed PCHIP derivatives of ``log(sigma)`` with respect to
+        ``log(photon_energy)``. Unsupported nodes contain ``NaN``.
+
+    Raises
+    ------
+    ValueError
+        If the element/subshell key is not included in the manifest.
     """
-    sigma: Float[Array, " "] = jnp.interp(
-        photon_energy, CROSS_SECTION_ENERGIES, sigma_vals
+    table_slice: slice = _table_slice(atomic_number, n, l)
+    energy_nodes: np.ndarray
+    sigma_nodes: np.ndarray
+    slope_nodes: np.ndarray
+    _, energy_nodes, sigma_nodes, slope_nodes, _ = _load_data()
+    photon_energy_ev: np.ndarray = energy_nodes[table_slice].copy()
+    sigma_megabarn: np.ndarray = sigma_nodes[table_slice].copy()
+    log_slopes: np.ndarray = slope_nodes[table_slice].copy()
+    table: tuple[np.ndarray, np.ndarray, np.ndarray] = (
+        photon_energy_ev,
+        sigma_megabarn,
+        log_slopes,
     )
-    return sigma
+    return table
+
+
+def _interval_index(
+    photon_energy_ev: Float[Array, ""],
+    energy_nodes: Float[Array, " node"],
+    sigma_nodes: Float[Array, " node"],
+    slope_nodes: Float[Array, " node"],
+) -> tuple[Int[Array, ""], Float[Array, ""]]:
+    """Select a positive interval, including either exact endpoint."""
+    count: int = energy_nodes.shape[0]
+    right_index: Int[Array, ""] = jnp.clip(
+        jnp.searchsorted(energy_nodes, photon_energy_ev, side="right") - 1,
+        0,
+        count - 2,
+    )
+    left_index: Int[Array, ""] = jnp.clip(right_index - 1, 0, count - 2)
+
+    def interval_valid(index: Array) -> Bool[Array, ""]:
+        is_valid: Bool[Array, ""] = (
+            jnp.isfinite(sigma_nodes[index])
+            & jnp.isfinite(sigma_nodes[index + 1])
+            & (sigma_nodes[index] > 0.0)
+            & (sigma_nodes[index + 1] > 0.0)
+            & jnp.isfinite(slope_nodes[index])
+            & jnp.isfinite(slope_nodes[index + 1])
+            & (photon_energy_ev >= energy_nodes[index])
+            & (photon_energy_ev <= energy_nodes[index + 1])
+        )
+        return is_valid
+
+    right_valid: Bool[Array, ""] = interval_valid(right_index)
+    left_valid: Bool[Array, ""] = interval_valid(left_index)
+    selected_index: Int[Array, ""] = jnp.where(
+        right_valid,
+        right_index,
+        left_index,
+    )
+    valid: Bool[Array, ""] = right_valid | left_valid
+    checked_energy: Float[Array, ""] = eqx.error_if(
+        photon_energy_ev,
+        ~valid,
+        "photon energy lies outside the positive Yeh--Lindau intervals",
+    )
+    selected: tuple[Int[Array, ""], Float[Array, ""]] = (
+        selected_index,
+        checked_energy,
+    )
+    return selected
 
 
 @jaxtyped(typechecker=beartype)
-def yeh_lindau_weights(
-    photon_energy: ScalarFloat,
-) -> Float[Array, " 9"]:
-    """Compute Yeh-Lindau cross-section weights per orbital.
+def yeh_lindau_cross_section(  # noqa: DOC502
+    photon_energy_ev: ScalarFloat,
+    atomic_number: int,
+    n: int,
+    l: int,  # noqa: E741
+) -> Float[Array, ""]:
+    """Interpolate an atomic subshell photoionization cross section.
 
-    Interpolates tabulated photoionization cross-sections from
-    Yeh & Lindau (1985) [2]_ to produce orbital-resolved weights
-    at the specified photon energy.
+    The interpolation is a monotone PCHIP-type cubic in
+    ``log(sigma_megabarn)`` versus ``log(photon_energy_ev)``. Queries never
+    cross a missing or zero table entry and never extrapolate.
 
-    :see: :class:`~.test_crosssections.TestYehLindauWeights`
+    :see: :class:`~.test_crosssections.TestYehLindauCrossSection`
 
-    Implementation Logic
-    --------------------
-    1. **Cast photon energy to float64**::
-
-           pe = jnp.asarray(photon_energy, dtype=float64)
-
-       Ensures consistent precision for the interpolation.
-
-    2. **Interpolate s, p, d cross-sections independently**::
-
-           s_w = _interp_cross_section(pe, CROSS_SECTION_SIGMA_S)
-           p_w = _interp_cross_section(pe, CROSS_SECTION_SIGMA_P)
-           d_w = _interp_cross_section(pe, CROSS_SECTION_SIGMA_D)
-
-       Each call linearly interpolates the corresponding
-       tabulated values at 20, 40, and 60 eV. The tabulated
-       data (``CROSS_SECTION_SIGMA_S``, ``CROSS_SECTION_SIGMA_P``,
-       ``CROSS_SECTION_SIGMA_D``) encodes simplified
-       Yeh-Lindau cross-sections for s, p, and d subshells.
-
-    3. **Broadcast to 9-orbital weight vector**::
-
-           weights = [s_w, p_w, p_w, p_w, d_w, d_w, d_w, d_w, d_w]
-
-       Maps the three subshell cross-sections onto the full
-       9-orbital basis: 1 s-orbital, 3 p-orbitals (each
-       receiving p_w), and 5 d-orbitals (each receiving d_w).
+    Notes
+    -----
+    Select one contiguous positive interval with static table nodes. Evaluate
+    its log-log cubic Hermite polynomial and exponentiate exactly once.
 
     Parameters
     ----------
-    photon_energy : ScalarFloat
-        Incident photon energy in eV.
+    photon_energy_ev : ScalarFloat
+        Photon energy in eV.
+    atomic_number : int
+        Nuclear charge ``Z``.
+    n : int
+        Principal quantum number.
+    l : int
+        Orbital angular momentum.
 
     Returns
     -------
-    weights : Float[Array, " 9"]
-        Cross-section weights for [s, py, pz, px, dxy, dyz,
-        dz2, dxz, dx2-y2].
+    sigma_megabarn : Float[Array, ""]
+        Interpolated subshell cross section in megabarn.
 
-    References
-    ----------
-    .. [2] Yeh & Lindau, "Atomic subshell photoionization cross
-       sections and asymmetry parameters: 1 <= Z <= 103", Atomic
-       Data and Nuclear Data Tables 32, 1-155 (1985).
+    Raises
+    ------
+    ValueError
+        When the query selects an absent subshell or leaves every positive
+        interval.
     """
-    pe: Float[Array, " "] = jnp.asarray(photon_energy, dtype=jnp.float64)
-    s_w: Float[Array, " "] = _interp_cross_section(pe, CROSS_SECTION_SIGMA_S)
-    p_w: Float[Array, " "] = _interp_cross_section(pe, CROSS_SECTION_SIGMA_P)
-    d_w: Float[Array, " "] = _interp_cross_section(pe, CROSS_SECTION_SIGMA_D)
-    weights: Float[Array, " 9"] = jnp.array(
-        [s_w, p_w, p_w, p_w, d_w, d_w, d_w, d_w, d_w],
+    table_slice: slice = _table_slice(atomic_number, n, l)
+    energy_data: np.ndarray
+    sigma_data: np.ndarray
+    slope_data: np.ndarray
+    _, energy_data, sigma_data, slope_data, _ = _load_data()
+    energy_nodes: Float[Array, " node"] = jnp.asarray(
+        energy_data[table_slice],
         dtype=jnp.float64,
     )
+    sigma_nodes: Float[Array, " node"] = jnp.asarray(
+        sigma_data[table_slice],
+        dtype=jnp.float64,
+    )
+    slope_nodes: Float[Array, " node"] = jnp.asarray(
+        slope_data[table_slice],
+        dtype=jnp.float64,
+    )
+    energy: Float[Array, ""] = jnp.asarray(
+        photon_energy_ev,
+        dtype=jnp.float64,
+    )
+    interval_index: Int[Array, ""]
+    checked_energy: Float[Array, ""]
+    interval_index, checked_energy = _interval_index(
+        energy,
+        energy_nodes,
+        sigma_nodes,
+        slope_nodes,
+    )
+    x_value: Float[Array, ""] = jnp.log(checked_energy)
+    x_left: Float[Array, ""] = jnp.log(energy_nodes[interval_index])
+    x_right: Float[Array, ""] = jnp.log(energy_nodes[interval_index + 1])
+    width: Float[Array, ""] = x_right - x_left
+    fraction: Float[Array, ""] = (x_value - x_left) / width
+    fraction_squared: Float[Array, ""] = fraction * fraction
+    fraction_cubed: Float[Array, ""] = fraction_squared * fraction
+    value_left: Float[Array, ""] = jnp.log(sigma_nodes[interval_index])
+    value_right: Float[Array, ""] = jnp.log(sigma_nodes[interval_index + 1])
+    slope_left: Float[Array, ""] = slope_nodes[interval_index]
+    slope_right: Float[Array, ""] = slope_nodes[interval_index + 1]
+    log_sigma: Float[Array, ""] = (
+        (2.0 * fraction_cubed - 3.0 * fraction_squared + 1.0) * value_left
+        + (fraction_cubed - 2.0 * fraction_squared + fraction)
+        * width
+        * slope_left
+        + (-2.0 * fraction_cubed + 3.0 * fraction_squared) * value_right
+        + (fraction_cubed - fraction_squared) * width * slope_right
+    )
+    sigma_megabarn: Float[Array, ""] = jnp.exp(log_sigma)
+    return sigma_megabarn
+
+
+@jaxtyped(typechecker=beartype)
+def yeh_lindau_orbital_weights(
+    photon_energy_ev: ScalarFloat,
+    basis: OrbitalBasis,
+    atomic_numbers: tuple[int, ...],
+) -> Float[Array, " n_orb"]:
+    """Return Yeh--Lindau weights for every orbital in a basis.
+
+    The static basis supplies each element and subshell identity.
+
+    :see: :class:`~.test_crosssections.TestYehLindauOrbitalWeights`
+
+    Notes
+    -----
+    Gather each orbital's atomic number through ``basis.atom_indices``. Apply
+    :func:`yeh_lindau_cross_section` with the orbital's static ``(n,l)`` pair.
+
+    Parameters
+    ----------
+    photon_energy_ev : ScalarFloat
+        Photon energy in eV.
+    basis : OrbitalBasis
+        Static orbital-to-atom mapping and ``(n,l)`` quantum numbers.
+    atomic_numbers : tuple[int, ...]
+        Atomic number for every atom row referenced by
+        ``basis.atom_indices``.
+
+    Returns
+    -------
+    weights : Float[Array, " n_orb"]
+        Per-orbital cross sections in megabarn.
+
+    Raises
+    ------
+    ValueError
+        When an atom index exceeds the supplied elements or a table query
+        leaves its supported domain.
+    """
+    if any(
+        atom_index >= len(atomic_numbers) for atom_index in basis.atom_indices
+    ):
+        message: str = "atomic_numbers does not cover every basis atom index"
+        raise ValueError(message)
+    values: tuple[Float[Array, ""], ...] = tuple(
+        yeh_lindau_cross_section(
+            photon_energy_ev,
+            atomic_numbers[atom_index],
+            principal,
+            angular,
+        )
+        for atom_index, principal, angular in zip(
+            basis.atom_indices,
+            basis.n,
+            basis.l,
+            strict=True,
+        )
+    )
+    weights: Float[Array, " n_orb"] = jnp.stack(values)
     return weights
 
 
 __all__: list[str] = [
-    "heuristic_weights",
-    "yeh_lindau_weights",
+    "yeh_lindau_cross_section",
+    "yeh_lindau_cross_section_table",
+    "yeh_lindau_orbital_weights",
 ]

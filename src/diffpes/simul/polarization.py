@@ -6,8 +6,6 @@ The module computes complex polarization vectors from photon geometry and
 converts them to the spherical basis. A fixed laboratory photon field maps
 to sample coordinates through the inverse sample orientation only. Detector
 rotations instead map emission directions and detector-fixed spin axes.
-Legacy orbital weights remain until plan 06 replaces their only simulation
-consumers.
 
 Routine Listings
 ----------------
@@ -19,8 +17,6 @@ Routine Listings
     Build the detector-frame rotation.
 :func:`detector_axis_to_sample`
     Convert a detector-fixed axis to sample coordinates.
-:func:`dipole_matrix_elements`
-    Compute dipole matrix elements for all 9 orbitals.
 :func:`lab_polarization_to_sample`
     Convert fixed laboratory polarization to sample coordinates.
 :func:`photon_wavevector`
@@ -36,10 +32,6 @@ Routine Listings
 
 Notes
 -----
-Orbital direction vectors follow VASP orbital ordering:
-[s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2].
-The s-orbital has zero directionality.
-
 The horizontal detector frame uses ``Rx(ty) @ Ry(tx)``. DiffPES maps the
 Chinook ``tilt.k_mesh`` angles as ``T=-tx, P=ty``. The vertical frame uses
 ``Rx(tx) @ Ry(ty)`` and maps ``T=-ty, P=tx``. These detector rotations do
@@ -56,11 +48,7 @@ from beartype.typing import Tuple
 from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.maths import rodrigues_rotation
-from diffpes.types import (
-    ORBITAL_DIRS_NORMALIZED,
-    PolarizationConfig,
-    ScalarFloat,
-)
+from diffpes.types import PolarizationConfig, ScalarFloat
 
 
 @jaxtyped(typechecker=beartype)
@@ -847,75 +835,11 @@ def build_efield(
     return efield
 
 
-@jaxtyped(typechecker=beartype)
-def dipole_matrix_elements(
-    efield: Complex[Array, " 3"],
-) -> Float[Array, " 9"]:
-    """Compute dipole matrix elements for all 9 orbitals.
-
-    Evaluates the squared modulus of the dipole transition matrix
-    element for each orbital::
-
-        M_i = |e . d_i|^2
-
-    where e is the electric field polarization vector and d_i is
-    the normalized direction vector of orbital i.
-
-    :see: :class:`~.test_polarization.TestDipoleMatrixElements`
-
-    Implementation Logic
-    --------------------
-    1. **Dot product of E-field with each orbital direction**::
-
-           dots = ORBITAL_DIRS_NORMALIZED @ efield
-
-       - Computes the inner product of the complex electric field
-         vector with each of the 9 normalized orbital direction
-         vectors (shape [9, 3] @ [3] -> [9]). The result is a
-         complex-valued array of length 9.
-       - The s-orbital direction vector is [0, 0, 0] (zero vector),
-         so its dot product is always zero regardless of the
-         E-field, reflecting the isotropic (zero directionality)
-         character of the s-orbital.
-
-    2. **Square modulus** ``|e . d|^2``::
-
-           matrix_elements = |dots|^2
-
-       Takes the absolute value squared of each complex dot
-       product. For real-valued E-fields this reduces to the
-       squared real dot product. For circular polarization
-       (complex E-field) this correctly accounts for the phase.
-
-    Parameters
-    ----------
-    efield : Complex[Array, " 3"]
-        Electric field polarization vector.
-
-    Returns
-    -------
-    matrix_elements : Float[Array, " 9"]
-        ``|e dot d_orbital|^2`` for each orbital.
-
-    Notes
-    -----
-    The s-orbital has a zero direction vector and therefore always
-    produces a zero dipole matrix element with any polarization.
-    """
-    dots: Complex[Array, " 9"] = jnp.dot(
-        ORBITAL_DIRS_NORMALIZED,
-        efield,
-    )
-    matrix_elements: Float[Array, " 9"] = jnp.abs(dots) ** 2
-    return matrix_elements
-
-
 __all__: list[str] = [
     "build_efield",
     "build_polarization_vectors",
     "detector_axis_to_sample",
     "detector_rotation",
-    "dipole_matrix_elements",
     "lab_polarization_to_sample",
     "photon_wavevector",
     "polarization_from_angles",

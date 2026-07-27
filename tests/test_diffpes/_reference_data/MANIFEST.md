@@ -19,8 +19,6 @@
 ## Factory calls
 
 - `novice_toy`: `simulate_novice(toy_band_structure(key), toy_orbital_projection(key), toy_simulation_params(fidelity=512))`
-- `tb_radial_graphene`: `simulate_tb_radial(toy_graphene_diagonalized(n_k=12)[1], toy_slater_params(), toy_simulation_params(fidelity=512), toy_polarization_config())`, plus intensity sum and zeta gradient
-- `tb_radial_chain`: `simulate_tb_radial(toy_chain_diagonalized(n_k=16)[1], make_slater_params(zeta=[1.625], orbital_basis=bands.basis), toy_simulation_params(fidelity=512), toy_polarization_config())`, plus intensity sum and zeta gradient
 - `plan04_chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
   outputs for the independently C-gated graphene, square-lattice Rashba, and
   atomic t2g+SOC models. The generator and isolated environment freeze live
@@ -40,24 +38,6 @@
 - Arrays:
   - `leaf_000_intensity`: shape `(8, 512)`, dtype `float64`
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
-
-### `tb_radial_graphene.npz`
-
-- SHA-256: `b99b81c1861a5bf5605b64735561b792d707f246867a067fea9f549db96eca2d`
-- Arrays:
-  - `leaf_000_intensity`: shape `(12, 512)`, dtype `float64`
-  - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
-  - `leaf_002_intensity_sum`: shape `()`, dtype `float64`
-  - `leaf_003_zeta_gradient`: shape `(2,)`, dtype `float64`
-
-### `tb_radial_chain.npz`
-
-- SHA-256: `0ebc8129c5273771a367a35315f01a043f03199a6009ba01938719d5c6d17cdb`
-- Arrays:
-  - `leaf_000_intensity`: shape `(16, 512)`, dtype `float64`
-  - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
-  - `leaf_002_intensity_sum`: shape `()`, dtype `float64`
-  - `leaf_003_zeta_gradient`: shape `(1,)`, dtype `float64`
 
 ### `plan04_chinook_tightb_reference.json`
 

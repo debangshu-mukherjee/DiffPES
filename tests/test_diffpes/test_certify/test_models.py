@@ -1,173 +1,75 @@
-"""Validate built-in certified model registration.
+"""Validate built-in transformation and owner-handshake registration.
 
-The tests cover public behavior, differentiability, validation, and stable
-scientific identity in the supported certification regime.
+The test checks idempotent eager registration after radial-model retirement.
 """
 
-import jax.numpy as jnp
-import pytest
-from beartype.typing import Any
-
 from diffpes.certify import (
-    certify_forward,
-    list_models,
+    list_handshakes,
     list_transformations,
-    prepare_certification,
     register_builtin_models,
-    tb_radial_model_spec,
 )
-from diffpes.tightb import diagonalize_tb
-from diffpes.types import (
-    TB_RADIAL_MODEL_ID,
-    TB_RADIAL_MODEL_VERSION,
-    make_execution_manifest,
-    make_polarization_config,
-    make_simulation_params,
-    make_slater_params,
-)
-from tests._factories import make_1d_chain_model
-
-
-class TestTbRadialModelSpec:
-    """Verify :func:`~diffpes.certify.tb_radial_model_spec`.
-
-    The cases cover the public behavior in the supported certification regime.
-
-    :see: :func:`~diffpes.certify.tb_radial_model_spec`
-    """
-
-    def test_radial_model_spec_names_physics_and_gradients(self) -> None:
-        """Declare assumptions, conventions, domains, and traced paths.
-
-        The case uses explicit inputs in the supported certification regime.
-        It checks the public result or the documented failure state.
-
-        Notes
-        -----
-        The test compares the result with explicit numerical or structural assertions.
-        """
-        spec: Any
-        spec = tb_radial_model_spec()
-        assert spec.model_id == TB_RADIAL_MODEL_ID
-        assert "dipole_approximation" in spec.assumptions
-        assert "radial.zeta" in spec.differentiable_paths
-        assert spec.domain
+from diffpes.types import RegistrationHandshake, TransformationContract
 
 
 class TestRegisterBuiltinModels:
-    """Verify :func:`~diffpes.certify.register_builtin_models`.
-
-    The cases cover the public behavior in the supported certification regime.
-
-    :see: :func:`~diffpes.certify.register_builtin_models`
-    """
+    """Verify :func:`~diffpes.certify.register_builtin_models`."""
 
     def test_builtin_registration_is_idempotent(self) -> None:
-        """Register each built-in identity exactly once.
+        """Register each transformation and owner handshake exactly once.
 
-        The case uses explicit inputs in the supported certification regime.
-        It checks the public result or the documented failure state.
+        Repeated registration must preserve unique transformation and owner
+        identities.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        Call the public registrar twice. Compare collected keys with sets and
+        inspect the registered information-loss declarations.
         """
-        destroyed: Any
         register_builtin_models()
         register_builtin_models()
-        assert (
-            sum(
-                entry.model_id == TB_RADIAL_MODEL_ID for entry in list_models()
-            )
-            == 1
+        registered_transformations: tuple[TransformationContract, ...] = (
+            list_transformations()
         )
-        destroyed = {
-            loss for entry in list_transformations() for loss in entry.destroys
+        transformations: tuple[tuple[str, str], ...] = tuple(
+            (item.transformation_id, item.transformation_version)
+            for item in registered_transformations
+        )
+        handshakes: tuple[RegistrationHandshake, ...] = list_handshakes()
+        owner_ids: tuple[str, ...] = tuple(
+            item.owner_id for item in handshakes
+        )
+        assert len(transformations) == len(set(transformations))
+        assert len(owner_ids) == len(set(owner_ids))
+        assert "org.diffpes.plan.06" in owner_ids
+        plan06: RegistrationHandshake = next(
+            item
+            for item in handshakes
+            if item.owner_id == "org.diffpes.plan.06"
+        )
+        assert all(
+            f"org.diffpes.evidence.06.g{index}" in plan06.evidence_ids
+            for index in range(1, 19)
+        )
+        assert all(
+            f"org.diffpes.evidence.06.d{index}" in plan06.evidence_ids
+            for index in range(1, 14)
+        )
+        assert all(
+            f"org.diffpes.evidence.06.s{index}" in plan06.evidence_ids
+            for index in range(1, 4)
+        )
+        assert (
+            "org.diffpes.evidence.06.lifecycle.plan03_kg_e"
+            in plan06.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.06.handoff.plan07_transition_rows"
+            in plan06.evidence_ids
+        )
+        destroyed: set[str] = {
+            loss
+            for entry in registered_transformations
+            for loss in entry.destroys
         }
         assert "overall_matrix_element_phase" in destroyed
         assert "absolute_intensity_calibration" in destroyed
-
-
-class TestExecuteTbRadial:
-    """Verify :func:`~diffpes.certify.execute_tb_radial`.
-
-    The cases cover the public behavior in the supported certification regime.
-
-    :see: :func:`~diffpes.certify.execute_tb_radial`
-    """
-
-    @pytest.mark.rss_limit_mb(900)
-    def test_radial_model_certifies_end_to_end(self) -> None:
-        """Run the built-in radial ARPES model through compiled certification.
-
-        The case uses explicit inputs in the supported certification regime.
-        It checks the public result or the documented failure state.
-
-        Notes
-        -----
-        The test compares the result with explicit numerical or structural assertions.
-        """
-        model: Any
-        kpoints: Any
-        bands: Any
-        basis: Any
-        radial: Any
-        simulation: Any
-        polarization: Any
-        manifest: Any
-        context: Any
-        inputs: Any
-        result: Any
-        register_builtin_models()
-        model = make_1d_chain_model(t=-1.0)
-        kpoints = jnp.array([[-0.1, 0.0, 0.0], [0.1, 0.0, 0.0]])
-        bands = diagonalize_tb(model, kpoints)
-        basis = bands.basis
-        radial = make_slater_params(zeta=jnp.array([1.0]), orbital_basis=basis)
-        simulation = make_simulation_params(
-            energy_min=-3.0,
-            energy_max=3.0,
-            fidelity=20,
-            sigma=0.1,
-            gamma=0.1,
-            temperature=30.0,
-            photon_energy=21.2,
-        )
-        polarization = make_polarization_config(polarization_type="LHP")
-        manifest = make_execution_manifest(
-            "radial-test",
-            f"{TB_RADIAL_MODEL_ID}@{TB_RADIAL_MODEL_VERSION}",
-            "1",
-            "test",
-            "source",
-            "environment",
-            "cpu",
-            "f64",
-            True,
-            "2026-07-21T00:00:00Z",
-        )
-        context = prepare_certification(
-            TB_RADIAL_MODEL_ID,
-            TB_RADIAL_MODEL_VERSION,
-            manifest,
-            policy_id="org.diffpes.policy.exploratory.v1",
-        )
-        inputs = (
-            bands,
-            radial,
-            simulation,
-            polarization,
-            jnp.asarray(4.5),
-            None,
-            jnp.linspace(1e-5, 20.0, 128),
-            None,
-        )
-        result = certify_forward(context, inputs, spectrum_rank=1)
-        assert result.value.intensity.shape == (2, 20)
-        assert len(result.certificate.domains) == 2
-        assert all(
-            bool(domain.in_domain) for domain in result.certificate.domains
-        )
-        assert bool(result.certificate.derivatives.finite)
-        assert bool(result.certificate.derivatives.fd_correct)
-        assert result.certificate.information.singular_values.shape == (1,)

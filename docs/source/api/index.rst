@@ -6,10 +6,10 @@ JAX-based differentiable ARPES simulation package.
 diffpes provides a differentiable pipeline connecting electronic band
 structure to Angle-Resolved PhotoEmission Spectroscopy (ARPES) spectra.
 Built on JAX and Equinox, the same forward physics that maps band
-structures to spectra also supports gradient-based inverse recovery of
-band-structure parameters from measured spectra, at six levels of
-physical sophistication from basic Gaussian convolution to full
-polarization-dependent dipole matrix element calculations.
+structures to spectra also supports gradient-based inverse recovery. Two
+deliberately incoherent projection tiers provide inexpensive spectra.
+Separate coherent primitives preserve orbital amplitudes through radial,
+angular, polarization, and band-projection stages.
 
 Submodules
 ----------
@@ -44,8 +44,8 @@ Submodules
     radial wavefunctions, and fixed-grid radial integrals.
 
 :mod:`diffpes.simul`
-    ARPES simulation functions at six complexity levels, plus broadening,
-    cross sections, polarization, and orbital angular momentum.
+    Two incoherent ARPES spectrum tiers, coherent matrix-element assembly,
+    broadening, cross sections, polarization, and orbital angular momentum.
 
 :mod:`diffpes.tightb`
     Native tight-binding model construction, diagonalization, and

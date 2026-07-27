@@ -1,202 +1,232 @@
-"""Validate ARPES cross-section weight functions.
+"""Validate the authenticated Yeh--Lindau cross-section implementation.
 
 Extended Summary
 ----------------
-Exercises heuristic_weights and yeh_lindau_weights. Heuristic tests
-verify the two-regime model (p-enhanced below 50 eV, d-enhanced above),
-output shape (9,), and JIT compatibility. Yeh-Lindau tests verify
-interpolation at a fixed photon energy, output shape, and non-negative
-weights. Each class and method docstring documents its test logic.
-
+The tests check published entries, provenance, interpolation gradients,
+domain rejection, and orbital-basis gathering.
 """
 
+import hashlib
+import json
+from collections.abc import Callable
+from pathlib import Path
+
 import chex
+import equinox as eqx
+import jax
 import jax.numpy as jnp
-from beartype.typing import Any, Callable
-from jaxtyping import Array
+import numpy as np
+import pytest
 
 from diffpes.simul import (
-    heuristic_weights,
-    yeh_lindau_weights,
+    yeh_lindau_cross_section,
+    yeh_lindau_cross_section_table,
+    yeh_lindau_orbital_weights,
 )
+from diffpes.types import OrbitalBasis, make_orbital_basis
+from tests._gradients import assert_grad_matches_fd
 
 
-class TestHeuristicWeights(chex.TestCase):
-    """Validate :func:`diffpes.simul.crosssections.heuristic_weights`.
+class TestYehLindauCrossSectionTable:
+    """Validate :func:`diffpes.simul.yeh_lindau_cross_section_table`.
 
-    The tests verify p-orbital enhancement below 50 eV and d-orbital
-    enhancement above 50 eV. They check the output shape and JIT compatibility.
+    :see: :func:`~diffpes.simul.yeh_lindau_cross_section_table`
+    """
 
-    :see: :func:`~diffpes.simul.heuristic_weights`
+    def test_published_rows_and_units(self) -> None:
+        """Recover published C 2p values and the manifest unit.
+
+        The checksum also authenticates the exact packed archive.
+
+        Notes
+        -----
+        Read one table row, compare three nodes, and hash the adjacent data.
+        """
+        energies: np.ndarray
+        sigma: np.ndarray
+        slopes: np.ndarray
+        energies, sigma, slopes = yeh_lindau_cross_section_table(6, 2, 1)
+        indices: dict[float, int] = {
+            float(value): index for index, value in enumerate(energies)
+        }
+        assert sigma[indices[21.2]] == pytest.approx(6.128)
+        assert sigma[indices[40.8]] == pytest.approx(1.875)
+        assert sigma[indices[80.0]] == pytest.approx(0.3266)
+        assert np.all(np.isfinite(slopes[np.isfinite(sigma)]))
+
+        manifest_path: Path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "diffpes"
+            / "simul"
+            / "data"
+            / "yeh_lindau_1985.json"
+        )
+        manifest: dict[str, object] = json.loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
+        assert manifest["units"]["cross_section"] == "megabarn"
+        assert manifest["data_license"] == "CC BY 4.0"
+        assert manifest["digitisation_doi"].endswith("12389750.v3")
+        archive_path: Path = manifest_path.with_suffix(".npz")
+        archive_sha256: str = hashlib.sha256(
+            archive_path.read_bytes()
+        ).hexdigest()
+        assert archive_sha256 == manifest["archive_sha256"]
+
+    def test_missing_entries_and_unsupported_key(self) -> None:
+        """Preserve a real table gap and reject an absent subshell.
+
+        This check prevents a logarithmic floor from inventing data.
+
+        Notes
+        -----
+        Inspect the missing Li 1s node and request an absent hydrogen shell.
+        """
+        energies: np.ndarray
+        sigma: np.ndarray
+        slopes: np.ndarray
+        energies, sigma, slopes = yeh_lindau_cross_section_table(3, 1, 0)
+        index_200: int = int(np.flatnonzero(energies == 200.0)[0])
+        assert np.isnan(sigma[index_200])
+        assert np.isnan(slopes[index_200])
+        with pytest.raises(ValueError, match="unsupported"):
+            yeh_lindau_cross_section_table(1, 7, 3)
+
+
+class TestYehLindauCrossSection(chex.TestCase):
+    """Validate :func:`diffpes.simul.yeh_lindau_cross_section`.
+
+    :see: :func:`~diffpes.simul.yeh_lindau_cross_section`
     """
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test_low_energy_p_enhanced(self) -> None:
-        """Verify enhanced p-orbital weights in the low-energy regime.
+    def test_registered_parity_battery(self) -> None:
+        """Match exact C 2p, O 2p, and Cu 3d table nodes.
 
-        The test establishes the low energy p enhanced contract for heuristic weights
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Compute weights at 30 eV**:
-           Call ``heuristic_weights(30.0)`` below the 50 eV threshold.
-
-        2. **Check output shape**:
-           Confirms the result has shape ``(9,)`` matching the 9-orbital basis.
-
-        3. **Check p-orbital enhancement**:
-           Verify weights 2.0 for p orbitals and 1.0 for the first d orbital.
-
-        **Expected assertions**
-
-        Output shape is ``(9,)``, p-orbitals (indices 1-3) equal 2.0, and
-        d-orbital (index 4) equals 1.0.
-        """
-        var_fn: Callable[..., Any]
-        w: Array
-
-        var_fn = self.variant(heuristic_weights)
-        w = var_fn(30.0)
-        chex.assert_shape(w, (9,))
-        assert float(w[1]) == 2.0
-        assert float(w[2]) == 2.0
-        assert float(w[3]) == 2.0
-        assert float(w[4]) == 1.0
-
-    @chex.variants(with_jit=True, without_jit=True)
-    def test_high_energy_d_enhanced(self) -> None:
-        """Verify enhanced d-orbital weights in the high-energy regime.
-
-        The test establishes the high energy d enhanced contract for heuristic weights
-        with the concrete values and array shapes described below.
+        Both eager and compiled paths replay the registered parity battery.
 
         Notes
         -----
-        1. **Compute weights at 60 eV**:
-           Call ``heuristic_weights(60.0)`` above the 50 eV threshold.
-
-        2. **Check p- and d-orbital values**:
-           Verify weight 1.0 for a p orbital and 2.0 for two d orbitals.
-
-        **Expected assertions**
-
-        p-orbital (index 1) equals 1.0, and d-orbitals (indices 4, 8)
-        equal 2.0.
+        Evaluate three photon energies for each registered subshell.
         """
-        var_fn: Callable[..., Any]
-        w: Array
+        expected: tuple[
+            tuple[
+                tuple[int, int, int],
+                tuple[float, float, float],
+            ],
+            ...,
+        ] = (
+            ((6, 2, 1), (6.128, 1.875, 0.3266)),
+            ((8, 2, 1), (10.67, 6.816, 2.064)),
+            ((29, 3, 2), (7.553, 9.934, 8.712)),
+        )
+        key: tuple[int, int, int]
+        values: tuple[float, float, float]
+        for key, values in expected:
+            function: Callable[[float], jax.Array] = self.variant(
+                lambda energy: yeh_lindau_cross_section(energy, *key)
+            )
+            actual: jax.Array = jnp.stack(
+                tuple(function(energy) for energy in (21.2, 40.8, 80.0))
+            )
+            chex.assert_trees_all_close(
+                actual,
+                jnp.asarray(values),
+                rtol=2e-14,
+                atol=2e-14,
+            )
 
-        var_fn = self.variant(heuristic_weights)
-        w = var_fn(60.0)
-        assert float(w[1]) == 1.0
-        assert float(w[4]) == 2.0
-        assert float(w[8]) == 2.0
+    def test_gradient_matches_fd_and_old_step_false_control(self) -> None:
+        """Verify the smooth energy derivative is finite and nonzero.
+
+        A hard energy-step heuristic fails the nonzero-gradient assertion.
+
+        Notes
+        -----
+        Compare automatic differentiation with the shared finite-difference harness.
+        """
+
+        def function(energy: jax.Array) -> jax.Array:
+            result: jax.Array = yeh_lindau_cross_section(energy, 6, 2, 1)
+            return result
+
+        point: jax.Array = jnp.asarray(55.0, dtype=jnp.float64)
+        assert_grad_matches_fd(function, point, atol=1e-9)
+        gradient: jax.Array = jax.grad(function)(point)
+        assert jnp.isfinite(gradient)
+        assert abs(float(gradient)) > 1e-4
+
+    def test_no_extrapolation_or_gap_crossing(self) -> None:
+        """Reject values beyond a row and inside a missing-data gap.
+
+        Runtime checks preserve the scoped domain under compilation.
+
+        Notes
+        -----
+        Query beyond carbon and at the missing Li 1s 200 eV node.
+        """
+        checked: Callable[..., jax.Array] = eqx.filter_jit(
+            yeh_lindau_cross_section
+        )
+        with pytest.raises(Exception, match="positive Yeh--Lindau intervals"):
+            checked(jnp.asarray(20_000.0), 6, 2, 1)
+        with pytest.raises(Exception, match="positive Yeh--Lindau intervals"):
+            checked(jnp.asarray(200.0), 3, 1, 0)
 
 
-class TestYehLindauWeights(chex.TestCase):
-    """Validate :func:`diffpes.simul.crosssections.yeh_lindau_weights`.
+class TestYehLindauOrbitalWeights(chex.TestCase):
+    """Validate :func:`diffpes.simul.yeh_lindau_orbital_weights`.
 
-    Verifies the interpolated Yeh-Lindau cross-section weights including
-    exact values at tabulation points, correct interpolation at intermediate
-    energies, positivity of all weights, and JIT compatibility.
-
-    :see: :func:`~diffpes.simul.yeh_lindau_weights`
+    :see: :func:`~diffpes.simul.yeh_lindau_orbital_weights`
     """
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test_at_20_eV(self) -> None:
-        """Verify exact cross-section values at the 20 eV tabulation point.
+    def test_basis_gather(self) -> None:
+        """Verify atom-row and subshell mapping onto orbitals.
 
-        The test establishes the at 20 eV contract for yeh lindau weights with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Compute weights at 20 eV**:
-           Call ``yeh_lindau_weights(20.0)`` at the lowest table energy.
-
-        2. **Check output shape**:
-           Confirms the result has shape ``(9,)``.
-
-        3. **Check known tabulated values**:
-           Compare selected s, p, and d weights with their table values.
-
-        **Expected assertions**
-
-        Output shape is ``(9,)`` and weights at indices 0, 1, 4 match
-        the tabulated values within tolerance 1e-5.
-        """
-        var_fn: Callable[..., Any]
-        w: Array
-
-        var_fn = self.variant(yeh_lindau_weights)
-        w = var_fn(20.0)
-        chex.assert_shape(w, (9,))
-        chex.assert_trees_all_close(w[0], jnp.float64(0.1), atol=1e-5)
-        chex.assert_trees_all_close(w[1], jnp.float64(0.6), atol=1e-5)
-        chex.assert_trees_all_close(w[4], jnp.float64(2.0), atol=1e-5)
-
-    @chex.variants(with_jit=True, without_jit=True)
-    def test_interpolated(self) -> None:
-        """Verify that interpolation at 30 eV produces positive s and p weights.
-
-        The test establishes the interpolated contract for yeh lindau weights with the
-        concrete values and array shapes described below.
+        Repeated carbon orbitals share one subshell cross section.
 
         Notes
         -----
-        1. **Compute weights at 30 eV**:
-           Calls ``yeh_lindau_weights(30.0)``, an energy between the
-           20 eV and 40 eV tabulation points, requiring interpolation.
-
-        2. **Check output shape**:
-           Confirms the result has shape ``(9,)``.
-
-        3. **Check s- and p-orbital weights are positive**:
-           Verify positive interpolated s-orbital and p-orbital weights.
-
-        **Expected assertions**
-
-        Output shape is ``(9,)`` and weights at indices 0 and 1 are
-        strictly positive.
+        Build a three-orbital carbon/oxygen basis and gather at 40.8 eV.
         """
-        var_fn: Callable[..., Any]
-        w: Array
+        basis: OrbitalBasis = make_orbital_basis(
+            atom_indices=(0, 0, 1),
+            n=(2, 2, 2),
+            l=(1, 1, 1),
+            m=(-1, 0, 1),
+        )
+        function: Callable[[float], jax.Array] = self.variant(
+            lambda energy: yeh_lindau_orbital_weights(
+                energy,
+                basis,
+                (6, 8),
+            )
+        )
+        weights: jax.Array = function(40.8)
+        chex.assert_shape(weights, (3,))
+        chex.assert_trees_all_close(
+            weights,
+            jnp.asarray([1.875, 1.875, 6.816]),
+            rtol=2e-14,
+            atol=2e-14,
+        )
 
-        var_fn = self.variant(yeh_lindau_weights)
-        w = var_fn(30.0)
-        chex.assert_shape(w, (9,))
-        assert float(w[0]) > 0.0
-        assert float(w[1]) > 0.0
+    def test_atomic_number_coverage(self) -> None:
+        """Reject a basis whose atom mapping exceeds the supplied tuple.
 
-    @chex.variants(with_jit=True, without_jit=True)
-    def test_all_positive(self) -> None:
-        """Verify that all 9 orbital weights are strictly positive at 40 eV.
-
-        The test establishes the all positive contract for yeh lindau weights with the
-        concrete values and array shapes described below.
+        Static validation prevents an accidental element assignment.
 
         Notes
         -----
-        1. **Compute weights at 40 eV**:
-           Calls ``yeh_lindau_weights(40.0)`` at a tabulation point.
-
-        2. **Check positivity of every element**:
-           Iterates over all 9 orbital weight entries and asserts each
-           is strictly positive using ``chex.assert_scalar_positive``.
-
-        **Expected assertions**
-
-        Every element of the 9-element weight vector is strictly positive,
-        ensuring no orbital receives a zero or negative cross-section.
+        Reference atom row one while supplying only atom row zero.
         """
-        i: int
-
-        var_fn: Callable[..., Any]
-        w: Array
-
-        var_fn = self.variant(yeh_lindau_weights)
-        w = var_fn(40.0)
-        for i in range(9):
-            chex.assert_scalar_positive(float(w[i]))
+        basis: OrbitalBasis = make_orbital_basis(
+            atom_indices=(1,),
+            n=(2,),
+            l=(1,),
+            m=(0,),
+        )
+        with pytest.raises(ValueError, match="does not cover"):
+            yeh_lindau_orbital_weights(40.8, basis, (6,))

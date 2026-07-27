@@ -11,6 +11,7 @@ boundary condition ``R_{2p}(0) = 0``.
 """
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -18,6 +19,9 @@ from beartype.typing import Any, Callable
 from jaxtyping import Array
 
 from diffpes.radial import hydrogenic_radial, slater_radial
+from diffpes.radial.wavefunctions import evaluate_radial
+from diffpes.types import make_orbital_basis
+from diffpes.types.radial_params import RadialSpec, make_radial_spec
 
 
 class TestSlaterRadial(chex.TestCase):
@@ -306,3 +310,244 @@ class TestLaguerreRecurrence:
 
         result = _associated_laguerre(2, 0.0, x)
         chex.assert_trees_all_close(result, jnp.array([1.0]), atol=1e-10)
+
+
+class TestEvaluateRadial(chex.TestCase):
+    """Validate :func:`diffpes.radial.evaluate_radial`."""
+
+    @staticmethod
+    def _basis() -> Any:
+        """Return one complete p shell for shell-sharing checks."""
+        return make_orbital_basis(
+            atom_indices=(0, 0, 0),
+            n=(4, 4, 4),
+            l=(1, 1, 1),
+            m=(-1, 0, 1),
+            labels=("py", "pz", "px"),
+        )
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test_slater_uses_noninteger_n_star_and_shell_gather(self) -> None:
+        """Evaluate one normalized noninteger-n-star row for all p partners.
+
+        The shell uses Slater's effective principal value 3.7.
+
+        Notes
+        -----
+        Require equal gathered rows, finite origin behavior, and unit norm.
+        """
+        radial_grid: Array = jnp.linspace(0.0, 120.0, 6001)
+        spec: RadialSpec = make_radial_spec(
+            self._basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((0.8, 1.4),)),
+            coefficients_shell=jnp.asarray(((0.7, -0.2),)),
+            n_star_shell=(3.7,),
+        )
+        evaluator: Callable[..., Any] = self.variant(evaluate_radial)
+        values: Array = evaluator(spec, radial_grid)
+        norm: Array = jnp.trapezoid(
+            values[0] ** 2 * radial_grid**2,
+            x=radial_grid,
+        )
+
+        chex.assert_shape(values, (3, radial_grid.shape[0]))
+        chex.assert_trees_all_close(values[0], values[1])
+        chex.assert_trees_all_close(values[1], values[2])
+        chex.assert_trees_all_close(norm, jnp.asarray(1.0), atol=2.0e-7)
+        assert bool(jnp.isfinite(values[0, 0]))
+
+    def test_coefficient_scale_is_null_but_shape_tangent_is_not(self) -> None:
+        """Distinguish the exact coefficient gauge from a physical tangent.
+
+        A common scale leaves the normalized contraction unchanged, while a
+        linearly independent coefficient direction changes its shape.
+
+        Notes
+        -----
+        Compare two JVPs through the public mode-dispatch function.
+        """
+        radial_grid: Array = jnp.linspace(0.0, 20.0, 301)
+        coefficients: Array = jnp.asarray(((0.8, 0.4),))
+
+        def radial_from_coefficients(candidate: Array) -> Array:
+            spec: RadialSpec = make_radial_spec(
+                self._basis(),
+                (0, 0, 0),
+                zeta_shell=jnp.asarray(((0.7, 1.5),)),
+                coefficients_shell=candidate,
+                n_star_shell=(3.7,),
+            )
+            return evaluate_radial(spec, radial_grid)[0]
+
+        gauge_jvp: Array = jax.jvp(
+            radial_from_coefficients,
+            (coefficients,),
+            (coefficients,),
+        )[1]
+        shape_jvp: Array = jax.jvp(
+            radial_from_coefficients,
+            (coefficients,),
+            (jnp.asarray(((-0.4, 0.8),)),),
+        )[1]
+
+        chex.assert_trees_all_close(
+            gauge_jvp,
+            jnp.zeros_like(gauge_jvp),
+            atol=2.0e-12,
+            rtol=2.0e-12,
+        )
+        assert float(jnp.linalg.norm(shape_jvp)) > 1.0e-3
+
+    def test_zeta_and_hydrogenic_charge_jvps_match_finite_difference(
+        self,
+    ) -> None:
+        """Match autodiff and central differences for both decay parameters.
+
+        The scalar objectives use Slater and hydrogenic mode dispatch.
+
+        Notes
+        -----
+        Compare centered finite differences at a stable step.
+        """
+        radial_grid: Array = jnp.linspace(0.0, 10.0, 251)
+        epsilon: Array = jnp.asarray(1.0e-5)
+
+        def slater_objective(zeta: Array) -> Array:
+            spec: RadialSpec = make_radial_spec(
+                self._basis(),
+                (0, 0, 0),
+                zeta_shell=zeta.reshape((1, 1)),
+                n_star_shell=(3.7,),
+            )
+            return jnp.sum(evaluate_radial(spec, radial_grid)[0])
+
+        hydrogen_basis: Any = make_orbital_basis(
+            atom_indices=(0,),
+            n=(2,),
+            l=(1,),
+            m=(0,),
+        )
+
+        def hydrogenic_objective(charge: Array) -> Array:
+            spec: RadialSpec = make_radial_spec(
+                hydrogen_basis,
+                (0,),
+                mode="hydrogenic",
+                effective_charge_shell=charge.reshape((1,)),
+            )
+            return jnp.sum(evaluate_radial(spec, radial_grid)[0])
+
+        objective: Callable[[Array], Array]
+        point: Array
+        for objective, point in (
+            (slater_objective, jnp.asarray(0.9)),
+            (hydrogenic_objective, jnp.asarray(1.4)),
+        ):
+            automatic: Array = jax.grad(objective)(point)
+            finite_difference: Array = (
+                objective(point + epsilon) - objective(point - epsilon)
+            ) / (2.0 * epsilon)
+            chex.assert_trees_all_close(
+                automatic,
+                finite_difference,
+                atol=2.0e-6,
+                rtol=2.0e-6,
+            )
+
+    def test_rejects_traced_tail_and_coefficient_condition_updates(
+        self,
+    ) -> None:
+        """Reject two post-construction updates outside the certified envelope.
+
+        One update lowers the decay exponent and one creates a nearly
+        cancelling contraction with condition above 32.
+
+        Notes
+        -----
+        Exercise both checks through a compiled public evaluation.
+        """
+        radial_grid: Array = jnp.linspace(0.0, 12.0, 101)
+        spec: RadialSpec = make_radial_spec(
+            self._basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((0.8, 0.801),)),
+            coefficients_shell=jnp.asarray(((1.0, 0.2),)),
+            n_star_shell=(3.7,),
+        )
+
+        def update_zeta(candidate: Array) -> Array:
+            updated: RadialSpec = eqx.tree_at(
+                lambda item: item.zeta_shell,
+                spec,
+                candidate,
+            )
+            return evaluate_radial(updated, radial_grid)
+
+        def update_coefficients(candidate: Array) -> Array:
+            updated: RadialSpec = eqx.tree_at(
+                lambda item: item.coefficients_shell,
+                spec,
+                candidate,
+            )
+            return evaluate_radial(updated, radial_grid)
+
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="certified tail envelope",
+        ):
+            eqx.filter_jit(update_zeta)(
+                jnp.asarray(((0.49, 0.801),))
+            ).block_until_ready()
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="certified tail envelope",
+        ):
+            eqx.filter_jit(update_zeta)(
+                jnp.asarray(((4.01, 0.801),))
+            ).block_until_ready()
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="coefficient condition",
+        ):
+            eqx.filter_jit(update_coefficients)(
+                jnp.asarray(((1.0, -0.999999),))
+            ).block_until_ready()
+
+    def test_grid_is_exact_and_fixed_mode_has_no_radial_function(self) -> None:
+        """Enforce exact-grid semantics and the fixed-mode dispatch boundary.
+
+        The evaluator accepts the compact sampled row only at stored coordinates.
+
+        Notes
+        -----
+        Use shifted-grid and fixed-mode calls as planted false controls.
+        """
+        basis: Any = make_orbital_basis(
+            atom_indices=(0,),
+            n=(1,),
+            l=(0,),
+            m=(0,),
+        )
+        radial_grid: Array = jnp.linspace(0.0, 8.0, 81)
+        samples: Array = jnp.exp(-radial_grid).at[-1].set(0.0)[None, :]
+        grid_spec: RadialSpec = make_radial_spec(
+            basis,
+            (0,),
+            mode="grid",
+            r_grid=radial_grid,
+            grid_values_shell=samples,
+        )
+        fixed_spec: RadialSpec = make_radial_spec(
+            basis,
+            (0,),
+            mode="fixed",
+            fixed_integrals_shell=jnp.asarray(((3.0, 4.0),)),
+        )
+
+        values: Array = evaluate_radial(grid_spec, radial_grid)
+        chex.assert_shape(values, (1, radial_grid.shape[0]))
+        with pytest.raises(eqx.EquinoxRuntimeError, match="no interpolation"):
+            evaluate_radial(grid_spec, radial_grid + 1.0e-6)
+        with pytest.raises(ValueError, match="no radial function"):
+            evaluate_radial(fixed_spec, radial_grid)

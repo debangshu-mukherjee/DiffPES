@@ -38,19 +38,20 @@ These wrappers run the same JAX kernels as the typed interfaces.
 
 - `ARPES_simulation_Novice` -> `diffpes.simul.simulate_novice_expanded`
 - `ARPES_simulation_Basic` -> `diffpes.simul.simulate_basic_expanded`
-- `ARPES_simulation_Basicplus` -> `diffpes.simul.simulate_basicplus_expanded`
-- `ARPES_simulation_Advanced` -> `diffpes.simul.simulate_advanced_expanded`
-- `ARPES_simulation_Expert` -> `diffpes.simul.simulate_expert_expanded`
-- `ARPES_simulation_SOC` -> `diffpes.simul.simulate_soc_expanded`
 - Dynamic dispatch by level -> `diffpes.simul.simulate_expanded`
-  (use `level="soc"` with `surface_spin` for SOC)
+
+These two wrappers are deliberately incoherent: they consume VASP projection
+probabilities and cannot reconstruct orbital phases. Quantitative
+polarization-dependent calculations use the coherent primitives in
+`diffpes.simul.matrixel`.
 
 ### Notes
 
 - Default energy-axis padding behavior:
   `min(eigenbands)-1` to `max(eigenbands)+1`.
-- Expanded wrappers interpret incident angles in degrees.
 - Wrappers return the standard `ArpesSpectrum` PyTree.
+- The `basic` tier requires an atom-major `OrbitalBasis` and one atomic
+  number per atom so that it can select Yeh--Lindau subshell data.
 
 ### Python indexing conventions
 
@@ -75,18 +76,15 @@ eigenbands = jnp.linspace(-2.0, 0.5, 100).reshape(20, 5)
 surface_orb = jnp.ones((20, 5, 2, 9)) * 0.1
 
 spectrum = simulate_expanded(
-    level="advanced",
+    level="novice",
     eigenbands=eigenbands,
     surface_orb=surface_orb,
     ef=0.0,
     sigma=0.04,
+    gamma=0.1,
     fidelity=2500,
     temperature=15.0,
     photon_energy=11.0,
-    polarization="unpolarized",
-    incident_theta=45.0,
-    incident_phi=0.0,
-    polarization_angle=0.0,
 )
 ```
 
@@ -103,8 +101,8 @@ pytest tests/ --cov=src/diffpes --cov-report=term-missing
 Use these priorities to increase coverage toward 100%:
 
 1. **Simulation and types:** These modules already have good coverage.
-   Add a test for each new polarization or dispatch branch.
-2. **Expanded dispatch:** Test every `simulate_expanded(level=...)` branch.
+   Add a test for each new coherent matrix-element or dispatch branch.
+2. **Expanded dispatch:** Test both `simulate_expanded(level=...)` branches.
    Also test the `ValueError` for an unknown level.
 3. **HDF5:** Round-trip every PyTree type. Test each load and save error path.
 4. **VASP file readers:** Test `read_doscar`, `read_eigenval`, `read_kpoints`,

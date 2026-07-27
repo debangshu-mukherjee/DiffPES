@@ -90,8 +90,6 @@ Routine Listings
     Derive cumulative certification outcomes from numerical claims.
 :func:`evidence_is_independent`
     Derive lineage qualification relative to an implementation under test.
-:func:`execute_tb_radial`
-    Execute the radial ARPES model from one certification input PyTree.
 :func:`explain_claim`
     Explain one claim and the numerical evidence supporting it.
 :func:`freeze_registry`
@@ -135,7 +133,7 @@ Routine Listings
 :func:`register_handshake`
     Register declarative requirements from one owning plan.
 :func:`register_builtin_models`
-    Register built-in models, transformations, and owner handshakes.
+    Register built-in transformations and owner handshakes.
 :func:`register_check`
     Register a stable predicate identity and pure JAX callable.
 :func:`register_model`
@@ -162,8 +160,6 @@ Routine Listings
     Measure scaled JVP sensitivities for a batch of tangent directions.
 :func:`summarize_certificate`
     Return a deterministic human-readable certificate summary.
-:func:`tb_radial_model_spec`
-    Return the stable scientific specification for radial ARPES.
 :func:`validate_composition`
     Validate and conservatively compose transformation semantics.
 :func:`validate_contract`
@@ -229,9 +225,7 @@ from .execution import (
 )
 from .inspect import diff_certificates, explain_claim, summarize_certificate
 from .models import (
-    execute_tb_radial,
     register_builtin_models,
-    tb_radial_model_spec,
 )
 from .policy import achieved_levels, evaluate_policy, evidence_is_independent
 from .provenance import (
@@ -293,7 +287,6 @@ __all__: list[str] = [
     "evaluate_evidence",
     "evaluate_policy",
     "evidence_is_independent",
-    "execute_tb_radial",
     "explain_claim",
     "filesystem_artifact_resolver",
     "freeze_registry",
@@ -329,7 +322,6 @@ __all__: list[str] = [
     "semantic_checksum",
     "sensitivity_map",
     "summarize_certificate",
-    "tb_radial_model_spec",
     "validate_composition",
     "validate_contract",
     "validate_handshake",

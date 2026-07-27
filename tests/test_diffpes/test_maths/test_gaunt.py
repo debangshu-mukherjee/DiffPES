@@ -16,11 +16,37 @@ import math
 
 import chex
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from jaxtyping import Array
+from scipy.special import sph_harm_y
 
 from diffpes.maths import GAUNT_TABLE, build_gaunt_table, gaunt_lookup
 from diffpes.types import L_MAX
+
+
+def _scipy_real_spherical_harmonic(
+    l_value: int,
+    m_value: int,
+    theta: np.ndarray,
+    phi: np.ndarray,
+) -> np.ndarray:
+    """Evaluate the production real-harmonic convention through SciPy."""
+    complex_value: np.ndarray = sph_harm_y(
+        l_value,
+        abs(m_value),
+        theta,
+        phi,
+    )
+    if m_value > 0:
+        real_value: np.ndarray = (
+            np.sqrt(2.0) * (-1) ** m_value * complex_value.real
+        )
+    elif m_value < 0:
+        real_value = np.sqrt(2.0) * (-1) ** abs(m_value) * complex_value.imag
+    else:
+        real_value = complex_value.real
+    return real_value
 
 
 class TestBuildGauntTable:
@@ -185,6 +211,103 @@ class TestBuildGauntTable:
         val = gaunt_lookup(0, 0, 0, 1, 0)
         assert val > 0.0
 
+    def test_sine_channel_sign_matches_cartesian_axes(self) -> None:
+        """Match the positive ``p_y``--``y``--``s`` Cartesian integral.
+
+        The fixture detects a conjugated real-basis transform on the final leg.
+
+        Notes
+        -----
+        The test compares the channel with the exact value ``1/sqrt(4*pi)``.
+        """
+        actual: float = gaunt_lookup(1, -1, -1, 0, 0)
+        expected: float = 1.0 / math.sqrt(4.0 * math.pi)
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            rtol=1e-14,
+            atol=1e-14,
+        )
+
+    def test_complete_table_matches_independent_angular_quadrature(
+        self,
+    ) -> None:
+        """Match every physical entry with an independent SciPy quadrature.
+
+        The reference constructs real harmonics directly from complex SciPy values.
+
+        Notes
+        -----
+        The test combines Gauss--Legendre polar nodes with a uniform azimuth grid.
+        """
+        cosine_nodes: np.ndarray
+        cosine_weights: np.ndarray
+        cosine_nodes, cosine_weights = np.polynomial.legendre.leggauss(32)
+        phi_values: np.ndarray = np.arange(64, dtype=np.float64) * (
+            2.0 * np.pi / 64.0
+        )
+        theta_grid: np.ndarray = np.arccos(cosine_nodes)[:, None]
+        phi_grid: np.ndarray = phi_values[None, :]
+        phi_weight: float = 2.0 * np.pi / 64.0
+        l_initial: int
+        m_initial: int
+        q_index: int
+        q_value: int
+        l_final: int
+        m_final: int
+        initial_harmonic: np.ndarray
+        dipole_harmonic: np.ndarray
+        final_harmonic: np.ndarray
+        expected: float
+        actual: float
+        for l_initial in range(L_MAX + 1):
+            for m_initial in range(-l_initial, l_initial + 1):
+                initial_harmonic = _scipy_real_spherical_harmonic(
+                    l_initial,
+                    m_initial,
+                    theta_grid,
+                    phi_grid,
+                )
+                for q_index, q_value in enumerate((-1, 0, 1)):
+                    dipole_harmonic = _scipy_real_spherical_harmonic(
+                        1,
+                        q_value,
+                        theta_grid,
+                        phi_grid,
+                    )
+                    for l_final in (l_initial - 1, l_initial + 1):
+                        if l_final < 0:
+                            continue
+                        for m_final in range(-l_final, l_final + 1):
+                            final_harmonic = _scipy_real_spherical_harmonic(
+                                l_final,
+                                m_final,
+                                theta_grid,
+                                phi_grid,
+                            )
+                            expected = float(
+                                np.sum(
+                                    cosine_weights[:, None]
+                                    * final_harmonic
+                                    * dipole_harmonic
+                                    * initial_harmonic
+                                )
+                                * phi_weight
+                            )
+                            actual = gaunt_lookup(
+                                l_initial,
+                                m_initial,
+                                q_value,
+                                l_final,
+                                m_final,
+                            )
+                            np.testing.assert_allclose(
+                                actual,
+                                expected,
+                                rtol=1e-14,
+                                atol=1e-14,
+                            )
+
 
 class TestGauntLookup:
     """Validate :func:`~diffpes.maths.gaunt_lookup`.
@@ -213,8 +336,8 @@ class TestGauntLookup:
 
         allowed = gaunt_lookup(0, 0, 0, 1, 0)
         forbidden = gaunt_lookup(0, 0, 1, 1, 0)
-        expected_allowed = GAUNT_TABLE[0, L_MAX, 1, 1, L_MAX]
-        expected_forbidden = GAUNT_TABLE[0, L_MAX, 2, 1, L_MAX]
+        expected_allowed = GAUNT_TABLE[0, L_MAX, 1, 1, L_MAX + 1]
+        expected_forbidden = GAUNT_TABLE[0, L_MAX, 2, 1, L_MAX + 1]
         chex.assert_trees_all_close(
             allowed,
             expected_allowed,

@@ -15,7 +15,6 @@ import pytest
 from jax import test_util
 from jaxtyping import Array, Complex, Float
 
-from diffpes.simul import heuristic_weights
 from tests._gradients import (
     RTOL_LADDER,
     assert_grad_matches_fd,
@@ -380,25 +379,6 @@ class TestGradientHarness(chex.TestCase):
                 partially_sensitive,
                 theta,
                 elementwise=True,
-            )
-
-    def test_in_tree_zero_gradient(self) -> None:
-        """Verify the known heuristic photon-energy dead gradient is caught.
-
-        The nonzero-gradient gate must expose the constant interpolation
-        plateau in the heuristic cross-section path at 30 eV.
-
-        Notes
-        -----
-        The test differentiates the sum of heuristic orbital weights at 30 eV.
-        The piecewise lookup has exactly zero sensitivity at this energy.
-        The test requires the zero-gradient check to raise for gate 01.G4.
-        """
-        photon_energy: Float[Array, ""] = jnp.asarray(30.0)
-        with pytest.raises(AssertionError):
-            assert_nonzero_grad(
-                lambda energy: jnp.sum(heuristic_weights(energy)),
-                photon_energy,
             )
 
     def test_complex_step_matches_directional_truth(self) -> None:

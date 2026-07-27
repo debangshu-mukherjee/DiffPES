@@ -133,10 +133,11 @@ this one-call form:
 from diffpes.simul import run_vasp_workflow
 
 spectrum = run_vasp_workflow(
-    level="advanced",
+    level="novice",
     directory="path/to/vasp_run",   # EIGENVAL, PROCAR, DOSCAR, KPOINTS
     photon_energy=21.2,
     sigma=0.04,
+    gamma=0.08,
     fidelity=2500,
 )
 ```
@@ -156,7 +157,7 @@ context = load_vasp_context(
 
 prepared = prepare_projection(context.orb_proj, atom_indices=[0, 1],
                               attach_oam=True)
-spectrum = simulate_context(context, level="soc", photon_energy=21.2,
+spectrum = simulate_context(context, level="novice", photon_energy=21.2,
                             dk=0.02, normalize=True)
 ```
 
@@ -165,7 +166,11 @@ and KPOINTS files. The function resolves the Fermi energy as described above.
 With `check_dimensions=True`, it checks the k-point and band counts before
 simulation. `simulate_context` passes the eigenvalues and prepared projections
 to `simulate_expanded`. It can also apply momentum broadening and z-score
-normalization.
+normalization. The retained dispatch values are `"novice"` and `"basic"`.
+The basic route also requires an atom-major `OrbitalBasis` and one atomic
+number per selected atom. Both routes consume projection probabilities and
+are incoherent. Use `DiagonalizedBands` and the matrix-element primitives
+when complex band coefficients and interference must be preserved.
 
 ## HDF5 Round-Trip
 

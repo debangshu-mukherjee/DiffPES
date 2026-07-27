@@ -7,8 +7,41 @@ and the project uses calendar versioning.
 
 ## [Unreleased]
 
+### Removed
+
+- Plan 06 removes the obsolete coherent prototype
+  `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
+  matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.
+- The heuristic polarization symbols
+  `diffpes.simul.dipole_matrix_elements`,
+  `diffpes.types.ORBITAL_DIRS_NORMALIZED`, and the private
+  `types.constants._ORBITAL_DIRS` direction table are removed. Public
+  matrix-element APIs now accept canonical complex Cartesian polarization.
+- The legacy scalar dipole helpers
+  `diffpes.maths.dipole_matrix_element_single`,
+  `diffpes.maths.dipole_intensity_orbital`, and
+  `diffpes.maths.dipole_intensities_all_orbitals` are removed.
+- The projection levels `diffpes.simul.simulate_basicplus`,
+  `diffpes.simul.simulate_advanced`, `diffpes.simul.simulate_expert`, and
+  `diffpes.simul.simulate_soc` are removed together with
+  `simulate_basicplus_expanded`, `simulate_advanced_expanded`,
+  `simulate_expert_expanded`, and `simulate_soc_expanded`. The expanded
+  dispatcher now accepts only `novice` and `basic`.
+- `diffpes.simul.heuristic_weights`, `diffpes.simul.yeh_lindau_weights`, and
+  the toy `CROSS_SECTION_ENERGIES`, `CROSS_SECTION_SIGMA_S`,
+  `CROSS_SECTION_SIGMA_P`, and `CROSS_SECTION_SIGMA_D` tables are removed.
+  The retained basic tier requires explicit `OrbitalBasis` and atomic numbers
+  and consumes the authenticated element/subshell Yeh--Lindau tables.
+- `diffpes.types.SlaterParams` and `diffpes.types.make_slater_params` are
+  removed. Use the shell-shared `RadialSpec` carrier and
+  `make_radial_spec`.
+
 ### Changed
 
+- `simulate_novice` and `simulate_basic` are explicitly documented as
+  incoherent projection tiers. `simulate_basic` now accepts `basis` and
+  `atomic_numbers` and applies one probability-level orbital reduction with
+  element- and subshell-resolved Yeh--Lindau weights.
 - Tight-binding models and diagonalized bands now carry optional differentiable
   per-orbital surface depths in Angstrom. Native diagonalization and HDF5
   persistence preserve the carrier exactly; ``None`` retains bulk semantics.
@@ -63,6 +96,26 @@ and the project uses calendar versioning.
 
 ### Added
 
+- Plan 06 adds shell-shared `RadialSpec`, `MatrixElementParams`,
+  `RadialQuadratureSpec`, and `FinalStateSpec` carriers. New radial APIs cover
+  Slater screening, normalized Slater/hydrogenic/grid/fixed rows, hardened
+  spherical Bessel functions, certified direct quadrature, and regular
+  Coulomb final states. The optional Hermite accelerator rejects because its
+  frozen refinement gate does not certify any selectable default.
+- Plan 06 adds coherent transition-channel assembly with explicit Wannier
+  centres, vacuum final momentum, and outgoing-spin rows. Escape-depth
+  attenuation precedes late Cartesian polarization and one final incoherent
+  spin reduction. The plan also adds stacked-real parameter packing, named phase and
+  radial-scale gauge tangents, and complete isolated band-group
+  sensitivities with dark-point log masks.
+- Plan 06 adds authenticated Yeh--Lindau element/subshell cross sections from
+  the exact Figshare v3 workbook. The package preserves table gaps and zeros,
+  uses log--log PCHIP interpolation, rejects extrapolation, and ships source
+  provenance with the generated data.
+- Plan 06 adds independent Coulomb, length--momentum gauge, Chinook
+  dark-corridor/polarization, radial-profile, dense-resolvent, and scalability
+  evidence. The certification registry now exposes the complete Plan 06
+  G1--G18, D1--D13, and S1--S3 handshake.
 - Plan 05 adds exact primitive Miller-index surface cells and complete-shell
   Cartesian/orbital rotations. It also adds finite depth-tagged slabs, exact
   bulk-to-slab hopping propagation, and open-normal adjacency validation.

@@ -12,12 +12,18 @@ from absl.testing import parameterized
 
 from diffpes.types import (
     OrbitalBasis,
-    SlaterParams,
     make_orbital_basis,
-    make_slater_params,
 )
 from diffpes.types.radial_params import (
+    FinalStateSpec,
+    MatrixElementParams,
+    RadialQuadratureSpec,
+    RadialSpec,
     SlaterKosterParams,
+    make_final_state_spec,
+    make_matrix_element_params,
+    make_radial_quadrature_spec,
+    make_radial_spec,
     make_slater_koster_params,
 )
 from tests._assertions import assert_rejects
@@ -67,39 +73,6 @@ class TestOrbitalBasis(chex.TestCase):
         assert restored.m == basis.m
         assert restored.spin == basis.spin
         assert restored.labels == basis.labels
-
-
-class TestSlaterParams(chex.TestCase):
-    """Validate :class:`~diffpes.types.SlaterParams`."""
-
-    def test_zeta_gradient(self) -> None:
-        """Differentiate a quadratic loss through Slater exponents.
-
-        The case traces one positive exponent through a scalar square loss.
-
-        Notes
-        -----
-        Compare the resulting derivative with the analytic value four.
-        """
-        basis: OrbitalBasis = make_orbital_basis(
-            atom_indices=(0,),
-            n=(1,),
-            l=(0,),
-            m=(0,),
-        )
-        params: SlaterParams = make_slater_params(
-            zeta=jnp.array([2.0], dtype=jnp.float64),
-            orbital_basis=basis,
-        )
-
-        def loss(candidate: SlaterParams) -> jax.Array:
-            """Return the quadratic Slater-exponent loss."""
-            result: jax.Array = jnp.sum(candidate.zeta**2)
-            return result
-
-        gradient: SlaterParams = jax.grad(loss)(params)
-
-        chex.assert_trees_all_close(gradient.zeta, 4.0)
 
 
 class TestSlaterKosterParams(chex.TestCase):
@@ -302,57 +275,255 @@ class TestMakeOrbitalBasis(chex.TestCase):
             )
 
 
-class TestMakeSlaterParams(chex.TestCase):
-    """Validate :func:`~diffpes.types.make_slater_params`."""
+def _complete_p_basis() -> OrbitalBasis:
+    """Create one complete real p shell."""
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0, 0, 0),
+        n=(2, 2, 2),
+        l=(1, 1, 1),
+        m=(-1, 0, 1),
+        labels=("py", "pz", "px"),
+    )
+    return basis
 
-    def test_supplies_unit_coefficients(self) -> None:
-        """Create one unit coefficient per orbital when omitted.
 
-        The case constructs two single-zeta orbitals without coefficients.
+class TestRadialSpec(chex.TestCase):
+    """Validate :class:`diffpes.types.RadialSpec`."""
+
+    def test_separates_traced_rows_from_static_shell_metadata(self) -> None:
+        """Expose active numerical leaves and preserve one shell partition.
+
+        The carrier holds one two-term contraction for a complete p shell.
 
         Notes
         -----
-        Check the generated column shape, dtype, and unit values.
+        Inspect the PyTree leaves and exact static metadata.
         """
-        params: SlaterParams = make_slater_params(
-            zeta=jnp.array([1.0, 1.5], dtype=jnp.float64),
-            orbital_basis=_basis(),
+        spec: RadialSpec = make_radial_spec(
+            _complete_p_basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((0.8, 1.6),)),
+            coefficients_shell=jnp.asarray(((0.6, -0.8),)),
         )
+        leaves: list[jax.Array] = jax.tree.leaves(spec)
+        assert spec.radial_shell_index == (0, 0, 0)
+        assert spec.mode == "slater"
+        assert any(leaf.shape == (1, 2) for leaf in leaves)
 
-        chex.assert_shape(params.coefficients, (2, 1))
-        assert params.coefficients.dtype == jnp.float64
-        chex.assert_trees_all_close(params.coefficients, jnp.ones((2, 1)))
 
-    def test_casts_explicit_coefficients_to_float64(self) -> None:
-        """Promote explicit float32 coefficients to project precision.
+class TestMatrixElementParams(chex.TestCase):
+    """Validate :class:`diffpes.types.MatrixElementParams`."""
 
-        The case supplies a two-column contraction in lower precision.
+    def test_preserves_shell_shared_scale_and_phases(self) -> None:
+        """Store one scale and two phases for a complete p shell.
+
+        The parameters remain numerical leaves while the partition is static.
 
         Notes
         -----
-        Check the preserved shape and required float64 output dtype.
+        Compare arrays and shell metadata exactly.
         """
-        coefficients: jax.Array = jnp.array(
-            [[0.8, 0.2], [0.6, 0.4]],
-            dtype=jnp.float32,
+        params: MatrixElementParams = make_matrix_element_params(
+            _complete_p_basis(),
+            (0, 0, 0),
+            sigma_shell=jnp.asarray((1.2,)),
+            phase_shift_angles_shell=jnp.asarray(((0.1, -0.2),)),
         )
-        params: SlaterParams = make_slater_params(
-            zeta=jnp.array([1.0, 1.5], dtype=jnp.float64),
-            orbital_basis=_basis(),
-            coefficients=coefficients,
-        )
+        chex.assert_trees_all_close(params.sigma_shell, jnp.asarray((1.2,)))
+        assert params.radial_shell_index == (0, 0, 0)
 
-        chex.assert_shape(params.coefficients, (2, 2))
-        assert params.coefficients.dtype == jnp.float64
 
-    def test_rejects_invalid_radial_arrays_eager_and_jit(self) -> None:
-        """Reject nonpositive exponents and coefficient-axis mismatches.
+class TestRadialQuadratureSpec(chex.TestCase):
+    """Validate :class:`diffpes.types.RadialQuadratureSpec`."""
 
-        The cases exercise traced value checks and static leading-axis checks.
+    def test_raw_constructor_rejects_self_asserted_tolerance(self) -> None:
+        """Reject a profile whose claimed tolerance differs from its identity.
+
+        The false control changes only ``value_rtol`` on the initial profile.
 
         Notes
         -----
-        Use the shared rejection helper and match each diagnostic fragment.
+        Require exact registry-property matching in the raw constructor.
+        """
+        with pytest.raises(ValueError, match="certified profile"):
+            RadialQuadratureSpec(
+                profile_id="gl1024-r120-k4-l9-v1",
+                n_nodes=1024,
+                r_max_bohr=120.0,
+                k_max_bohr_inv=4.0,
+                l_prime_max=9,
+                value_rtol=1.0e-14,
+                gradient_rtol=1.0e-8,
+                tail_bound_method_id="analytic-exp-r120-or-compact-v1",
+                coefficient_condition_max=32.0,
+                min_decay_parameter=0.5,
+                max_decay_parameter=4.0,
+            )
+
+
+class TestFinalStateSpec(chex.TestCase):
+    """Validate :class:`diffpes.types.FinalStateSpec`."""
+
+    def test_keeps_charge_traced_and_mode_static(self) -> None:
+        """Preserve a Coulomb charge as the carrier's only numerical leaf.
+
+        The direct Coulomb selector stays static.
+
+        Notes
+        -----
+        Flatten the carrier and inspect its exact fields.
+        """
+        spec: FinalStateSpec = make_final_state_spec(
+            mode="coulomb",
+            effective_charge=1.5,
+        )
+        leaves: list[jax.Array] = jax.tree.leaves(spec)
+        assert len(leaves) == 1
+        chex.assert_trees_all_close(leaves[0], jnp.asarray(1.5))
+        assert spec.mode == "coulomb"
+
+
+class TestMakeRadialSpec(chex.TestCase):
+    """Validate :func:`diffpes.types.make_radial_spec`."""
+
+    def test_normalizes_fixed_rows_and_compact_grid_rows(self) -> None:
+        """Normalize phase-free fixed data and one compact sampled radial.
+
+        The two modes exercise their distinct active storage contracts.
+
+        Notes
+        -----
+        Compare Euclidean and radial-volume norms with unity.
+        """
+        basis: OrbitalBasis = make_orbital_basis(
+            atom_indices=(0,),
+            n=(1,),
+            l=(0,),
+            m=(0,),
+        )
+        fixed: RadialSpec = make_radial_spec(
+            basis,
+            (0,),
+            mode="fixed",
+            fixed_integrals_shell=jnp.asarray(((3.0, 4.0),)),
+        )
+        grid: jax.Array = jnp.linspace(0.0, 10.0, 101)
+        samples: jax.Array = jnp.exp(-grid).at[-1].set(0.0)[None, :]
+        sampled: RadialSpec = make_radial_spec(
+            basis,
+            (0,),
+            mode="grid",
+            r_grid=grid,
+            grid_values_shell=samples,
+        )
+        assert fixed.fixed_integrals_shell is not None
+        assert sampled.grid_values_shell is not None
+        chex.assert_trees_all_close(
+            jnp.linalg.norm(fixed.fixed_integrals_shell, axis=-1),
+            jnp.ones((1,)),
+        )
+        grid_norm: jax.Array = jnp.trapezoid(
+            sampled.grid_values_shell[0] ** 2 * grid**2,
+            x=grid,
+        )
+        chex.assert_trees_all_close(grid_norm, jnp.asarray(1.0))
+
+    def test_rejects_shell_split_and_uncertified_tail_updates(self) -> None:
+        """Reject per-m splitting and decay parameters outside their envelope.
+
+        A complete p shell cannot acquire independent radial scalar rows.
+
+        Notes
+        -----
+        Exercise static rejection directly and traced rejection through JIT.
+        """
+        with pytest.raises(ValueError, match="cannot be split"):
+            make_radial_spec(_complete_p_basis(), (0, 1, 1))
+        assert_rejects(
+            make_radial_spec,
+            _complete_p_basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((0.49,),)),
+            match="certified tail envelope",
+        )
+        assert_rejects(
+            make_radial_spec,
+            _complete_p_basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((4.01,),)),
+            match="certified tail envelope",
+        )
+        hydrogen_basis: OrbitalBasis = make_orbital_basis(
+            atom_indices=(0,),
+            n=(2,),
+            l=(1,),
+            m=(0,),
+        )
+        charge: float
+        for charge in (0.99, 8.01):
+            assert_rejects(
+                make_radial_spec,
+                hydrogen_basis,
+                (0,),
+                mode="hydrogenic",
+                effective_charge_shell=jnp.asarray((charge,)),
+                match="certified tail envelope",
+            )
+        assert_rejects(
+            make_radial_spec,
+            _complete_p_basis(),
+            (0, 0, 0),
+            zeta_shell=jnp.asarray(((0.8, 0.801),)),
+            coefficients_shell=jnp.asarray(((1.0, -0.999999),)),
+            n_star_shell=(3.7,),
+            match="coefficient condition",
+        )
+
+    def test_rejects_noncompact_or_nonuniform_grids(self) -> None:
+        """Reject two finite grid inputs that violate compact-grid identity.
+
+        One row has a nonzero endpoint and one grid has unequal spacing.
+
+        Notes
+        -----
+        Match the compact-support and uniform-grid diagnostics separately.
+        """
+        basis: OrbitalBasis = make_orbital_basis(
+            atom_indices=(0,),
+            n=(1,),
+            l=(0,),
+            m=(0,),
+        )
+        grid: jax.Array = jnp.asarray((0.0, 1.0, 2.0))
+        with pytest.raises(Exception, match="compact-supported"):
+            make_radial_spec(
+                basis,
+                (0,),
+                mode="grid",
+                r_grid=grid,
+                grid_values_shell=jnp.asarray(((1.0, 0.5, 0.1),)),
+            )
+        with pytest.raises(Exception, match="uniform grid"):
+            make_radial_spec(
+                basis,
+                (0,),
+                mode="grid",
+                r_grid=jnp.asarray((0.0, 1.0, 2.1)),
+                grid_values_shell=jnp.asarray(((1.0, 0.5, 0.0),)),
+            )
+
+
+class TestMakeMatrixElementParams(chex.TestCase):
+    """Validate :func:`diffpes.types.make_matrix_element_params`."""
+
+    def test_rejects_nonexistent_s_lower_channel_phase(self) -> None:
+        """Reject a nonzero phase on the nonexistent s-to-negative-l channel.
+
+        The upper s-to-p channel remains otherwise valid.
+
+        Notes
+        -----
+        Route the traced phase through the shared eager and JIT rejection gate.
         """
         basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0,),
@@ -361,15 +532,70 @@ class TestMakeSlaterParams(chex.TestCase):
             m=(0,),
         )
         assert_rejects(
-            make_slater_params,
-            zeta=jnp.array([0.0], dtype=jnp.float64),
-            orbital_basis=basis,
-            match="zeta positive",
+            make_matrix_element_params,
+            basis,
+            (0,),
+            phase_shift_angles_shell=jnp.asarray(((0.1, 0.2),)),
+            match="l-1 phase must be zero",
         )
+
+
+class TestMakeRadialQuadratureSpec(chex.TestCase):
+    """Validate :func:`diffpes.types.make_radial_quadrature_spec`."""
+
+    def test_selects_both_profiles_and_rejects_unknown_identity(self) -> None:
+        """Resolve the production and reference profiles without overrides.
+
+        An invented identifier provides the false control.
+
+        Notes
+        -----
+        Compare node counts and require explicit unknown-profile rejection.
+        """
+        production: RadialQuadratureSpec = make_radial_quadrature_spec()
+        reference: RadialQuadratureSpec = make_radial_quadrature_spec(
+            "gl2048-r120-k4-l9-reference-v1"
+        )
+        assert production.n_nodes == 1024
+        assert reference.n_nodes == 2048
+        assert production.coefficient_condition_max == 32.0
+        assert production.min_decay_parameter == 0.5
+        assert production.max_decay_parameter == 4.0
+        with pytest.raises(ValueError, match="unknown certified"):
+            make_radial_quadrature_spec("gl128-unverified")
+
+
+class TestMakeFinalStateSpec(chex.TestCase):
+    """Validate :func:`diffpes.types.make_final_state_spec`."""
+
+    def test_rejects_plane_wave_charge_and_uncertified_acceleration(
+        self,
+    ) -> None:
+        """Reject incompatible numerical and static final-state selections.
+
+        The cases prevent a charged plane wave and tabulated Coulomb radial.
+
+        Notes
+        -----
+        Exercise the traced charge check and the eager mode check.
+        """
         assert_rejects(
-            make_slater_params,
-            zeta=jnp.array([1.0], dtype=jnp.float64),
-            orbital_basis=basis,
-            coefficients=jnp.ones((2, 1), dtype=jnp.float64),
-            match="coefficients first dimension must match",
+            make_final_state_spec,
+            effective_charge=jnp.asarray(0.1),
+            match="require zero effective charge",
         )
+        with pytest.raises(ValueError, match="failed the frozen G13"):
+            make_final_state_spec(radial_accelerator="hermite")
+        with pytest.raises(ValueError, match="failed the frozen G13"):
+            FinalStateSpec(
+                effective_charge=jnp.asarray(0.0),
+                mode="plane_wave",
+                radial_accelerator="hermite",
+                table_n_points=1025,
+            )
+        with pytest.raises(ValueError, match="failed the frozen G13"):
+            make_final_state_spec(
+                mode="coulomb",
+                effective_charge=1.0,
+                radial_accelerator="hermite",
+            )

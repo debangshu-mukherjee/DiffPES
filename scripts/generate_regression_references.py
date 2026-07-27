@@ -17,7 +17,6 @@ import zipfile
 from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 import diffpes
@@ -26,21 +25,12 @@ _REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[1]
 _TESTS_DIRECTORY: Path = _REPOSITORY_ROOT / "tests"
 sys.path.insert(0, str(_REPOSITORY_ROOT))
 
-from diffpes.simul import simulate_novice, simulate_tb_radial  # noqa: E402
-from diffpes.types import (  # noqa: E402
-    ArpesSpectrum,
-    DiagonalizedBands,
-    SlaterParams,
-    make_slater_params,
-)
+from diffpes.simul import simulate_novice  # noqa: E402
+from diffpes.types import ArpesSpectrum  # noqa: E402
 from tests._factories import (  # noqa: E402
     toy_band_structure,
-    toy_chain_diagonalized,
-    toy_graphene_diagonalized,
     toy_orbital_projection,
-    toy_polarization_config,
     toy_simulation_params,
-    toy_slater_params,
 )
 
 _REFERENCE_DIRECTORY: Path = (
@@ -124,61 +114,16 @@ def _spectrum_arrays(spectrum: ArpesSpectrum) -> dict[str, np.ndarray]:
     return arrays
 
 
-def _tb_payload(
-    bands: DiagonalizedBands,
-    slater: SlaterParams,
-) -> dict[str, np.ndarray]:
-    """Evaluate one tight-binding radial spectrum and its zeta gradient."""
-    params = toy_simulation_params(fidelity=512)
-    polarization = toy_polarization_config()
-    spectrum: ArpesSpectrum = simulate_tb_radial(
-        bands,
-        slater,
-        params,
-        polarization,
-    )
-
-    def intensity_sum(zeta: jax.Array) -> jax.Array:
-        varied_slater: SlaterParams = make_slater_params(
-            zeta=zeta,
-            orbital_basis=slater.orbital_basis,
-            coefficients=slater.coefficients,
-        )
-        varied_spectrum: ArpesSpectrum = simulate_tb_radial(
-            bands,
-            varied_slater,
-            params,
-            polarization,
-        )
-        total: jax.Array = jnp.sum(varied_spectrum.intensity)
-        return total
-
-    zeta_gradient: jax.Array = jax.grad(intensity_sum)(slater.zeta)
-    arrays: dict[str, np.ndarray] = _spectrum_arrays(spectrum)
-    arrays["leaf_002_intensity_sum"] = np.asarray(jnp.sum(spectrum.intensity))
-    arrays["leaf_003_zeta_gradient"] = np.asarray(zeta_gradient)
-    return arrays
-
-
 def build_payloads() -> dict[str, dict[str, np.ndarray]]:
-    """Build all three fixed-seed WP6.1 reference payloads."""
+    """Build the retained fixed-seed incoherent reference payload."""
     key: jax.Array = jax.random.key(_SEED)
     novice_spectrum: ArpesSpectrum = simulate_novice(
         toy_band_structure(key),
         toy_orbital_projection(key),
         toy_simulation_params(fidelity=512),
     )
-    _, graphene_bands = toy_graphene_diagonalized(n_k=12)
-    _, chain_bands = toy_chain_diagonalized(n_k=16)
-    graphene_slater: SlaterParams = toy_slater_params()
-    chain_slater: SlaterParams = make_slater_params(
-        zeta=jnp.asarray([1.625], dtype=jnp.float64),
-        orbital_basis=chain_bands.basis,
-    )
     payloads: dict[str, dict[str, np.ndarray]] = {
         "novice_toy": _spectrum_arrays(novice_spectrum),
-        "tb_radial_graphene": _tb_payload(graphene_bands, graphene_slater),
-        "tb_radial_chain": _tb_payload(chain_bands, chain_slater),
     }
     return payloads
 
@@ -230,15 +175,6 @@ def _manifest(payloads: dict[str, dict[str, np.ndarray]]) -> str:
         "- `novice_toy`: `simulate_novice(toy_band_structure(key), "
         "toy_orbital_projection(key), "
         "toy_simulation_params(fidelity=512))`",
-        "- `tb_radial_graphene`: `simulate_tb_radial("
-        "toy_graphene_diagonalized(n_k=12)[1], toy_slater_params(), "
-        "toy_simulation_params(fidelity=512), "
-        "toy_polarization_config())`, plus intensity sum and zeta gradient",
-        "- `tb_radial_chain`: `simulate_tb_radial("
-        "toy_chain_diagonalized(n_k=16)[1], "
-        "make_slater_params(zeta=[1.625], orbital_basis=bands.basis), "
-        "toy_simulation_params(fidelity=512), "
-        "toy_polarization_config())`, plus intensity sum and zeta gradient",
         *_PLAN04_FACTORY_MANIFEST,
         "",
         "## Artifacts",

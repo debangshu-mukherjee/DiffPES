@@ -1,25 +1,15 @@
-"""Validate centralized parser, orbital, and tabulated-data constants.
+"""Validate centralized parser and orbital-ordering constants.
 
-The cases check immutable VASP conventions and alignment of the bundled
-photoionization cross-section rows against independent shape relationships.
+The tests cover immutable parser tokens and canonical VASP channel indices.
 """
 
 from types import MappingProxyType
 
-import chex
-import jax
-import jax.numpy as jnp
-
 from diffpes.types import (
     COORDINATE_MODE_TOKENS,
-    CROSS_SECTION_ENERGIES,
-    CROSS_SECTION_SIGMA_D,
-    CROSS_SECTION_SIGMA_P,
-    CROSS_SECTION_SIGMA_S,
     D_ORBITAL_SLICE,
     L_MAX,
     N_ORBITALS,
-    ORBITAL_DIRS_NORMALIZED,
     ORBITAL_INDEX,
     P_ORBITAL_SLICE,
 )
@@ -28,30 +18,26 @@ from diffpes.types import (
 class TestOrbitalConstants:
     """Validate the shared VASP orbital-ordering constants.
 
-    Indices, slices, and direction rows must describe one nine-orbital basis
-    with the scalar orbital first.
+    Indices and slices must describe one nine-orbital basis.
 
     :see: :data:`~diffpes.types.ORBITAL_INDEX`
-    :see: :data:`~diffpes.types.ORBITAL_DIRS_NORMALIZED`
     """
 
     def test_share_one_orbital_ordering(self) -> None:
-        """Keep orbital indices, slices, and direction rows aligned.
+        """Keep orbital indices and slices aligned.
 
-        The check verifies nine immutable indices, the standard p and d slices,
-        and a zero direction for the scalar orbital.
+        The check verifies nine immutable indices and the standard p and d
+        slices.
 
         Notes
         -----
-        The test compares the public mapping and slice constants exactly, then uses Chex
-        for the direction-table shape and scalar-orbital row.
+        Compare the public mapping and slice constants with independent
+        literal values.
         """
         assert isinstance(ORBITAL_INDEX, MappingProxyType)
         assert len(ORBITAL_INDEX) == N_ORBITALS
         assert P_ORBITAL_SLICE == slice(1, 4)
         assert D_ORBITAL_SLICE == slice(4, 9)
-        chex.assert_shape(ORBITAL_DIRS_NORMALIZED, (N_ORBITALS, 3))
-        chex.assert_trees_all_close(ORBITAL_DIRS_NORMALIZED[0], jnp.zeros(3))
 
 
 class TestParserConstants:
@@ -81,35 +67,3 @@ class TestParserConstants:
         assert isinstance(COORDINATE_MODE_TOKENS, frozenset)
         assert COORDINATE_MODE_TOKENS == expected_tokens
         assert L_MAX == 4
-
-
-class TestCrossSectionTables:
-    """Validate alignment of the bundled photoionization tables.
-
-    Every s-, p-, and d-channel cross section must provide one value at each
-    shared photon-energy node.
-
-    :see: :data:`~diffpes.types.CROSS_SECTION_ENERGIES`
-    """
-
-    def test_channel_rows_share_energy_shape(self) -> None:
-        """Align every cross-section channel with the energy coordinates.
-
-        The check verifies three energy nodes and an equal one-dimensional
-        shape for every angular-momentum channel.
-
-        Notes
-        -----
-        The test iterates over the three independent public channel arrays and uses Chex
-        to compare each shape with the energy table.
-        """
-        channels: tuple[jax.Array, ...] = (
-            CROSS_SECTION_SIGMA_S,
-            CROSS_SECTION_SIGMA_P,
-            CROSS_SECTION_SIGMA_D,
-        )
-
-        chex.assert_shape(CROSS_SECTION_ENERGIES, (3,))
-        values: jax.Array
-        for values in channels:
-            chex.assert_shape(values, CROSS_SECTION_ENERGIES.shape)

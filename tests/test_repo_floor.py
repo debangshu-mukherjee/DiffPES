@@ -40,7 +40,6 @@ from tests._factories import (
     toy_orbital_projection,
     toy_polarization_config,
     toy_simulation_params,
-    toy_slater_params,
 )
 from diffpes.types import (
     ArpesSpectrum,
@@ -49,53 +48,9 @@ from diffpes.types import (
     OrbitalProjection,
     PolarizationConfig,
     SimulationParams,
-    SlaterParams,
     TBModel,
-    make_slater_params,
 )
-from diffpes.simul import simulate_novice, simulate_tb_radial
-
-
-@jaxtyped(typechecker=beartype)
-def _tb_reference_payload(
-    bands: DiagonalizedBands,
-    slater: SlaterParams,
-) -> tuple[ArpesSpectrum, Float[Array, ""], Float[Array, " n_orbitals"]]:
-    """Recompute one tight-binding radial reference and zeta gradient."""
-    params: SimulationParams = toy_simulation_params(fidelity=512)
-    polarization: PolarizationConfig = toy_polarization_config()
-    spectrum: ArpesSpectrum = simulate_tb_radial(
-        bands,
-        slater,
-        params,
-        polarization,
-    )
-
-    def intensity_sum(zeta: Float[Array, " n_orbitals"]) -> Float[Array, ""]:
-        varied_slater: SlaterParams = make_slater_params(
-            zeta=zeta,
-            orbital_basis=slater.orbital_basis,
-            coefficients=slater.coefficients,
-        )
-        varied_spectrum: ArpesSpectrum = simulate_tb_radial(
-            bands,
-            varied_slater,
-            params,
-            polarization,
-        )
-        total: Float[Array, ""] = jnp.sum(varied_spectrum.intensity)
-        return total
-
-    total_intensity: Float[Array, ""] = jnp.sum(spectrum.intensity)
-    zeta_gradient: Float[Array, " n_orbitals"] = jax.grad(intensity_sum)(
-        slater.zeta
-    )
-    payload: tuple[
-        ArpesSpectrum,
-        Float[Array, ""],
-        Float[Array, " n_orbitals"],
-    ] = (spectrum, total_intensity, zeta_gradient)
-    return payload
+from diffpes.simul import simulate_novice
 
 
 class TestConftest:
@@ -247,7 +202,6 @@ class TestHelpers:
         chain_model: TBModel
         chain_bands: DiagonalizedBands
         chain_model, chain_bands = toy_chain_diagonalized(n_k=7)
-        slater: SlaterParams = toy_slater_params()
         all_carriers: tuple[object, ...] = (
             bands,
             projections,
@@ -257,7 +211,6 @@ class TestHelpers:
             graphene_bands,
             chain_model,
             chain_bands,
-            slater,
         )
 
         assert isinstance(bands, BandStructure)
@@ -268,12 +221,10 @@ class TestHelpers:
         assert isinstance(graphene_bands, DiagonalizedBands)
         assert isinstance(chain_model, TBModel)
         assert isinstance(chain_bands, DiagonalizedBands)
-        assert isinstance(slater, SlaterParams)
         chex.assert_shape(bands.eigenvalues, (5, 3))
         chex.assert_shape(projections.projections, (5, 3, 2, 9))
         chex.assert_shape(graphene_bands.kpoints, (6, 3))
         chex.assert_shape(chain_bands.kpoints, (7, 3))
-        chex.assert_shape(slater.zeta, (2,))
         assert_tree_finite(all_carriers)
         assert_trees_close(bands, repeated_bands, rtol=0.0, atol=0.0)
         assert_trees_close(
@@ -434,26 +385,24 @@ class TestCI(chex.TestCase):
 
 
 class TestRegressionReferences(chex.TestCase):
-    """Validate the pre-refactor forward baselines from WP6.1.
+    """Validate the retained novice forward baseline from WP6.1.
 
-    The class covers fixed-seed novice and tight-binding radial spectra, the standing
-    zeta-gradient regression, archive metadata, and manifest checksums.
+    The class covers the fixed-seed novice spectrum, archive metadata, and the
+    manifest checksum.
     """
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_forward_replay_and_manifest(self) -> None:
-        """Replay all reference artifacts within their pinned tolerances.
+        """Replay the novice reference artifact within its pinned tolerance.
 
         The test confirms spectrum arrays reproduce at relative tolerance
-        ``1e-12``. The zeta gradients satisfy their stricter ``1e-9`` contract.
-        Every committed archive matches its manifest SHA-256.
+        ``1e-12`` and that the committed archive matches its manifest SHA-256.
 
         Notes
         -----
-        The test rebuilds all three CPU/x64 factory pipelines with seed 20260713.
-        It compares their PyTree leaf order through the shared NPZ loader. The test
-        then checks the declared shapes, float64 dtypes, and artifact digests.
+        The test rebuilds the fixed-seed novice CPU/x64 pipeline and checks its
+        declared shape, float64 dtype, and artifact digest.
         """
         reference_directory: Path = (
             Path(__file__).parent / "test_diffpes" / "_reference_data"
@@ -465,62 +414,16 @@ class TestRegressionReferences(chex.TestCase):
             toy_orbital_projection(key),
             toy_simulation_params(fidelity=512),
         )
-        graphene_model: TBModel
-        graphene_bands: DiagonalizedBands
-        graphene_model, graphene_bands = toy_graphene_diagonalized(n_k=12)
-        chain_model: TBModel
-        chain_bands: DiagonalizedBands
-        chain_model, chain_bands = toy_chain_diagonalized(n_k=16)
-        del graphene_model, chain_model
-        graphene_slater: SlaterParams = toy_slater_params()
-        chain_slater: SlaterParams = make_slater_params(
-            zeta=jnp.asarray([1.625], dtype=jnp.float64),
-            orbital_basis=chain_bands.basis,
-        )
-        graphene_payload: tuple[
-            ArpesSpectrum,
-            Float[Array, ""],
-            Float[Array, " n_orbitals"],
-        ] = _tb_reference_payload(graphene_bands, graphene_slater)
-        chain_payload: tuple[
-            ArpesSpectrum,
-            Float[Array, ""],
-            Float[Array, " n_orbitals"],
-        ] = _tb_reference_payload(chain_bands, chain_slater)
-
         assert_matches_reference(novice, "novice_toy", rtol=1e-12)
-        assert_matches_reference(
-            graphene_payload,
-            "tb_radial_graphene",
-            rtol=1e-12,
-        )
-        assert_matches_reference(
-            chain_payload,
-            "tb_radial_chain",
-            rtol=1e-12,
-        )
         chex.assert_shape(novice.intensity, (8, 512))
-        chex.assert_shape(graphene_payload[0].intensity, (12, 512))
-        chex.assert_shape(chain_payload[0].intensity, (16, 512))
         actual_dtypes: tuple[jnp.dtype, ...] = tuple(
-            array.dtype
-            for array in (
-                novice.intensity,
-                graphene_payload[0].intensity,
-                chain_payload[0].intensity,
-                graphene_payload[2],
-                chain_payload[2],
-            )
+            array.dtype for array in (novice.intensity,)
         )
-        chex.assert_equal(actual_dtypes, (jnp.float64,) * 5)
+        chex.assert_equal(actual_dtypes, (jnp.float64,))
 
         artifact_name: str
         archive: Any
-        for artifact_name in (
-            "novice_toy",
-            "tb_radial_graphene",
-            "tb_radial_chain",
-        ):
+        for artifact_name in ("novice_toy",):
             artifact_path: Path = reference_directory / f"{artifact_name}.npz"
             digest: str = hashlib.sha256(
                 artifact_path.read_bytes()

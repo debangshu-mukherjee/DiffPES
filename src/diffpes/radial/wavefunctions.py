@@ -9,18 +9,21 @@ Routine Listings
 ----------------
 :func:`hydrogenic_radial`
     Evaluate normalized hydrogenic radial function.
+:func:`evaluate_radial`
+    Evaluate normalized shell-shared radial rows on their declared grid.
 :func:`slater_radial`
     Evaluate normalized Slater-type radial function.
 """
 
 import math
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Float, Integer, jaxtyped
 
-from diffpes.types import ScalarFloat
+from diffpes.types import RadialSpec, ScalarFloat
 
 
 def _associated_laguerre(
@@ -346,4 +349,220 @@ def hydrogenic_radial(
     return values
 
 
-__all__: list[str] = ["hydrogenic_radial", "slater_radial"]
+def _contracted_slater_row(
+    r: Float[Array, " n_r"],
+    effective_principal: float,
+    zeta_row: Float[Array, " n_contraction"],
+    coefficient_row: Float[Array, " n_contraction"],
+) -> Float[Array, " n_r"]:
+    """Evaluate and analytically normalize one contracted Slater row."""
+    gamma_value: Float[Array, ""] = jnp.asarray(
+        math.gamma(2.0 * effective_principal + 1.0),
+        dtype=jnp.float64,
+    )
+    primitive_norms: Float[Array, " n_contraction"] = (
+        (2.0 * zeta_row) ** (effective_principal + 0.5)
+    ) / jnp.sqrt(gamma_value)
+    radial_power: Float[Array, " n_r"] = jnp.where(
+        r == 0.0,
+        jnp.asarray(
+            1.0 if effective_principal == 1.0 else 0.0,
+            dtype=jnp.float64,
+        ),
+        r ** (effective_principal - 1.0),
+    )
+    primitive_rows: Float[Array, "n_contraction n_r"] = (
+        primitive_norms[:, None]
+        * radial_power[None, :]
+        * jnp.exp(-zeta_row[:, None] * r[None, :])
+    )
+    overlap: Float[Array, "n_contraction n_contraction"] = (
+        primitive_norms[:, None]
+        * primitive_norms[None, :]
+        * gamma_value
+        / (
+            (zeta_row[:, None] + zeta_row[None, :])
+            ** (2.0 * effective_principal + 1.0)
+        )
+    )
+    norm_squared: Float[Array, ""] = jnp.einsum(
+        "i,ij,j->",
+        coefficient_row,
+        overlap,
+        coefficient_row,
+    )
+    checked_coefficients: Float[Array, " n_contraction"] = eqx.error_if(
+        coefficient_row,
+        ~jnp.isfinite(norm_squared)
+        | (norm_squared <= 0.0)
+        | (
+            jnp.sum(jnp.abs(coefficient_row)) / jnp.sqrt(norm_squared) > 32.0  # noqa: PLR2004
+        ),
+        (
+            "slater contraction rows must have positive finite norm "
+            "and coefficient condition at most 32"
+        ),
+    )
+    values: Float[Array, " n_r"] = (
+        checked_coefficients @ primitive_rows
+    ) / jnp.sqrt(norm_squared)
+    return values
+
+
+@jaxtyped(typechecker=beartype)
+def evaluate_radial(  # noqa: DOC503
+    spec: RadialSpec,
+    r: Float[Array, " n_r"],
+) -> Float[Array, "n_orb n_r"]:
+    """Evaluate normalized shell-shared radial rows on their declared grid.
+
+    Slater contractions use their analytic overlap matrix. Hydrogenic rows
+    retain their analytic normalization. The grid path normalizes rows on the
+    exact stored compact-support grid and never interpolates.
+
+    :see: :class:`~.test_wavefunctions.TestEvaluateRadial`
+
+    Parameters
+    ----------
+    spec : RadialSpec
+        Validated radial carrier.
+    r : Float[Array, "n_r"]
+        Nonnegative radial evaluation points in Bohr. Grid mode requires the
+        exact stored grid.
+
+    Returns
+    -------
+    values : Float[Array, "n_orb n_r"]
+        Normalized radial row gathered onto every orbital.
+
+    Raises
+    ------
+    ValueError
+        If ``r`` has invalid shape or fixed mode requests a radial function.
+    EquinoxRuntimeError
+        If traced values violate the certified tail envelope, grid identity,
+        finiteness, or positive-norm contract.
+
+    Notes
+    -----
+    The active Slater and hydrogenic decay parameters must remain in
+    ``[0.5, 4]`` after any traced PyTree update.
+    """
+    radial_grid: Float[Array, " n_r"] = jnp.asarray(r, dtype=jnp.float64)
+    if radial_grid.ndim != 1:
+        message: str = "r must be a one-dimensional radial grid"
+        raise ValueError(message)
+    if spec.mode == "fixed":
+        message = "fixed mode supplies integrals and has no radial function"
+        raise ValueError(message)
+    radial_grid = eqx.error_if(
+        radial_grid,
+        ~jnp.all(jnp.isfinite(radial_grid)) | jnp.any(radial_grid < 0.0),
+        "r must contain finite nonnegative radii",
+    )
+    n_shells: int = max(spec.radial_shell_index, default=-1) + 1
+    representatives: tuple[int, ...] = tuple(
+        spec.radial_shell_index.index(shell_index)
+        for shell_index in range(n_shells)
+    )
+    shell_rows: Float[Array, "n_shell n_r"]
+    if spec.mode == "slater":
+        checked_zeta: Float[Array, "n_shell n_contraction"] = eqx.error_if(
+            spec.zeta_shell,
+            ~jnp.all(jnp.isfinite(spec.zeta_shell))
+            | jnp.any(spec.zeta_shell < 0.5)  # noqa: PLR2004
+            | jnp.any(spec.zeta_shell > 4.0),  # noqa: PLR2004
+            "slater zeta_shell leaves the certified tail envelope",
+        )
+        checked_coefficients: Float[Array, "n_shell n_contraction"] = (
+            eqx.error_if(
+                spec.coefficients_shell,
+                ~jnp.all(jnp.isfinite(spec.coefficients_shell)),
+                "coefficients_shell must be finite",
+            )
+        )
+        slater_rows: list[Float[Array, " n_r"]] = []
+        shell_index: int
+        for shell_index in range(n_shells):
+            slater_rows.append(
+                _contracted_slater_row(
+                    radial_grid,
+                    spec.n_star_shell[shell_index],
+                    checked_zeta[shell_index],
+                    checked_coefficients[shell_index],
+                )
+            )
+        shell_rows = jnp.stack(slater_rows, axis=0)
+    elif spec.mode == "hydrogenic":
+        principal_array: Float[Array, " n_shell"] = jnp.asarray(
+            tuple(
+                spec.basis.n[representatives[shell_index]]
+                for shell_index in range(n_shells)
+            ),
+            dtype=jnp.float64,
+        )
+        checked_charge: Float[Array, " n_shell"] = eqx.error_if(
+            spec.effective_charge_shell,
+            ~jnp.all(jnp.isfinite(spec.effective_charge_shell))
+            | jnp.any(
+                spec.effective_charge_shell / principal_array < 0.5  # noqa: PLR2004
+            )
+            | jnp.any(
+                spec.effective_charge_shell / principal_array > 4.0  # noqa: PLR2004
+            ),
+            "hydrogenic effective charge leaves the certified tail envelope",
+        )
+        hydrogenic_rows: list[Float[Array, " n_r"]] = []
+        for shell_index in range(n_shells):
+            orbital_index: int = representatives[shell_index]
+            hydrogenic_rows.append(
+                hydrogenic_radial(
+                    radial_grid,
+                    spec.basis.n[orbital_index],
+                    spec.basis.l[orbital_index],
+                    checked_charge[shell_index],
+                )
+            )
+        shell_rows = jnp.stack(hydrogenic_rows, axis=0)
+    else:
+        if spec.r_grid is None or spec.grid_values_shell is None:
+            message = "grid mode requires stored grid arrays"
+            raise ValueError(message)
+        if radial_grid.shape != spec.r_grid.shape:
+            message = "grid mode evaluates only on its stored grid"
+            raise ValueError(message)
+        checked_grid: Float[Array, " n_r"] = eqx.error_if(
+            spec.r_grid,
+            ~jnp.all(radial_grid == spec.r_grid),
+            "grid mode performs no interpolation",
+        )
+        checked_values: Float[Array, "n_shell n_r"] = eqx.error_if(
+            spec.grid_values_shell,
+            ~jnp.all(jnp.isfinite(spec.grid_values_shell))
+            | ~jnp.all(spec.grid_values_shell[:, -1] == 0.0),
+            "grid rows must remain finite and compact-supported",
+        )
+        grid_norms: Float[Array, " n_shell"] = jnp.trapezoid(
+            checked_values**2 * checked_grid[None, :] ** 2,
+            x=checked_grid,
+            axis=-1,
+        )
+        checked_values = eqx.error_if(
+            checked_values,
+            ~jnp.all(jnp.isfinite(grid_norms)) | jnp.any(grid_norms <= 0.0),
+            "grid radial rows must have positive finite norm",
+        )
+        shell_rows = checked_values / jnp.sqrt(grid_norms)[:, None]
+    gather_indices: Integer[Array, " n_orb"] = jnp.asarray(
+        spec.radial_shell_index,
+        dtype=jnp.int32,
+    )
+    values: Float[Array, "n_orb n_r"] = shell_rows[gather_indices]
+    return values
+
+
+__all__: list[str] = [
+    "evaluate_radial",
+    "hydrogenic_radial",
+    "slater_radial",
+]

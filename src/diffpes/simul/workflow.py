@@ -38,6 +38,7 @@ from diffpes.types import (
     BandStructure,
     DosType,
     KPathInfo,
+    OrbitalBasis,
     ProjectionType,
     ScalarFloat,
     SpinOrbitalProjection,
@@ -276,7 +277,7 @@ def _kpath_distances(
 @jaxtyped(typechecker=beartype)
 def simulate_context(  # noqa: PLR0913
     context: WorkflowContext,
-    level: str = "advanced",
+    level: str = "novice",
     atom_indices: Optional[list[int]] = None,
     attach_oam: bool = False,
     normalize: bool = False,
@@ -285,12 +286,9 @@ def simulate_context(  # noqa: PLR0913
     gamma: ScalarFloat = 0.1,
     fidelity: int = 25000,
     temperature: ScalarFloat = 15.0,
-    photon_energy: ScalarFloat = 11.0,
-    polarization: str = "unpolarized",
-    incident_theta: ScalarFloat = 45.0,
-    incident_phi: ScalarFloat = 0.0,
-    polarization_angle: ScalarFloat = 0.0,
-    ls_scale: ScalarFloat = 0.01,
+    photon_energy: ScalarFloat = 21.2,
+    basis: Optional[OrbitalBasis] = None,
+    atomic_numbers: Optional[tuple[int, ...]] = None,
 ) -> ArpesSpectrum:
     """Run a level-dispatched simulation from a loaded workflow context.
 
@@ -351,16 +349,10 @@ def simulate_context(  # noqa: PLR0913
         Electronic temperature in Kelvin.
     photon_energy : ScalarFloat, optional
         Incident photon energy in eV.
-    polarization : str, optional
-        Polarization type, for example ``"unpolarized"`` or ``"LHP"``.
-    incident_theta : ScalarFloat, optional
-        Incident polar angle in degrees.
-    incident_phi : ScalarFloat, optional
-        Incident azimuth angle in degrees.
-    polarization_angle : ScalarFloat, optional
-        Linear polarization angle in radians.
-    ls_scale : ScalarFloat, optional
-        SOC scale used only when ``level="soc"``.
+    basis : Optional[OrbitalBasis], optional
+        Atom-major subshell basis required by the basic tier.
+    atomic_numbers : Optional[tuple[int, ...]], optional
+        Atomic numbers required by the basic tier.
 
     Returns
     -------
@@ -373,7 +365,6 @@ def simulate_context(  # noqa: PLR0913
         attach_oam=attach_oam,
     )
 
-    surface_spin: Optional[Float[Array, "K B A 6"]] = prepared.spin
     spectrum: ArpesSpectrum = simulate_expanded(
         level=level,
         eigenbands=context.bands.eigenvalues,
@@ -384,12 +375,8 @@ def simulate_context(  # noqa: PLR0913
         fidelity=fidelity,
         temperature=temperature,
         photon_energy=photon_energy,
-        polarization=polarization,
-        incident_theta=incident_theta,
-        incident_phi=incident_phi,
-        polarization_angle=polarization_angle,
-        surface_spin=surface_spin,
-        ls_scale=ls_scale,
+        basis=basis,
+        atomic_numbers=atomic_numbers,
     )
 
     intensity: Float[Array, "K E"] = spectrum.intensity
@@ -409,7 +396,7 @@ def simulate_context(  # noqa: PLR0913
 
 @jaxtyped(typechecker=beartype)
 def run_vasp_workflow(  # noqa: PLR0913
-    level: str = "advanced",
+    level: str = "novice",
     directory: str = ".",
     eigenval_file: str = "EIGENVAL",
     procar_file: str = "PROCAR",
@@ -427,12 +414,9 @@ def run_vasp_workflow(  # noqa: PLR0913
     gamma: ScalarFloat = 0.1,
     fidelity: int = 25000,
     temperature: ScalarFloat = 15.0,
-    photon_energy: ScalarFloat = 11.0,
-    polarization: str = "unpolarized",
-    incident_theta: ScalarFloat = 45.0,
-    incident_phi: ScalarFloat = 0.0,
-    polarization_angle: ScalarFloat = 0.0,
-    ls_scale: ScalarFloat = 0.01,
+    photon_energy: ScalarFloat = 21.2,
+    basis: Optional[OrbitalBasis] = None,
+    atomic_numbers: Optional[tuple[int, ...]] = None,
 ) -> ArpesSpectrum:
     """Run an end-to-end VASP-to-ARPES workflow in one call.
 
@@ -494,16 +478,10 @@ def run_vasp_workflow(  # noqa: PLR0913
         Electronic temperature in Kelvin.
     photon_energy : ScalarFloat, optional
         Incident photon energy in eV.
-    polarization : str, optional
-        Polarization mode (**static**; changing it retraces).
-    incident_theta : ScalarFloat, optional
-        Incident polar angle in degrees.
-    incident_phi : ScalarFloat, optional
-        Incident azimuth angle in degrees.
-    polarization_angle : ScalarFloat, optional
-        Linear polarization angle in radians.
-    ls_scale : ScalarFloat, optional
-        Spin-orbit intensity scale.
+    basis : Optional[OrbitalBasis], optional
+        Atom-major subshell basis required by the basic tier.
+    atomic_numbers : Optional[tuple[int, ...]], optional
+        Atomic numbers required by the basic tier.
 
     Returns
     -------
@@ -533,11 +511,8 @@ def run_vasp_workflow(  # noqa: PLR0913
         fidelity=fidelity,
         temperature=temperature,
         photon_energy=photon_energy,
-        polarization=polarization,
-        incident_theta=incident_theta,
-        incident_phi=incident_phi,
-        polarization_angle=polarization_angle,
-        ls_scale=ls_scale,
+        basis=basis,
+        atomic_numbers=atomic_numbers,
     )
     return spectrum
 

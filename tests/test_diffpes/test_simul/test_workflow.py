@@ -270,7 +270,7 @@ class TestSimulateContext(chex.TestCase):
 
         base = simulate_context(
             context=context,
-            level="basic",
+            level="novice",
             fidelity=320,
             sigma=0.05,
             temperature=20.0,
@@ -279,7 +279,7 @@ class TestSimulateContext(chex.TestCase):
         )
         broadened = simulate_context(
             context=context,
-            level="basic",
+            level="novice",
             fidelity=320,
             sigma=0.05,
             temperature=20.0,
@@ -304,7 +304,7 @@ class TestSimulateContext(chex.TestCase):
         Notes
         -----
         The test loads two-k-point spin fixtures inside the traced loss.
-        It simulates the basic level at 300 K and checks the summed
+        It simulates the novice level at 300 K and checks the summed
         intensity with the shared gradient harness.
         """
 
@@ -323,7 +323,7 @@ class TestSimulateContext(chex.TestCase):
             )
             spectrum: ArpesSpectrum = simulate_context(
                 context=context,
-                level="basic",
+                level="novice",
                 fidelity=96,
                 sigma=0.05,
                 gamma=0.1,
@@ -364,7 +364,7 @@ class TestRunVaspWorkflow(chex.TestCase):
         mean_val: Array
 
         spectrum = run_vasp_workflow(
-            level="basic",
+            level="novice",
             directory=str(_FIXTURES_DIR),
             eigenval_file="EIGENVAL_spin",
             procar_file="PROCAR",

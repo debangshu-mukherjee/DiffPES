@@ -1,15 +1,18 @@
-"""Compute spherical Bessel functions in JAX.
+"""Evaluate spherical Bessel functions with stable JAX primitives.
 
 Extended Summary
 ----------------
-The module computes :math:`j_l(x)` with stable low-order seeds and an
-upward recurrence. A small-argument limit avoids division by zero at the
-origin.
+The implementation combines a three-term origin series with two recurrences.
+It uses upward recurrence below the order and downward Miller recurrence
+elsewhere. Miller normalization selects the
+better-conditioned of the analytic :math:`j_0` and :math:`j_1` anchors.
 
 Routine Listings
 ----------------
 :func:`spherical_bessel_jl`
-    Evaluate spherical Bessel function :math:`j_l(x)`.
+    Evaluate the spherical Bessel function :math:`j_l(x)`.
+:func:`spherical_bessel_jl_derivative`
+    Evaluate :math:`d j_l(x)/dx`.
 """
 
 import math
@@ -19,52 +22,167 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Float, Integer, jaxtyped
 
-from diffpes.types import SMALL_ARGUMENT
-
 
 def _odd_double_factorial(order: int) -> float:
-    r"""Compute odd double factorial ``(order)!!`` for odd ``order``.
-
-    Extended Summary
-    ----------------
-    The function computes the double factorial :math:`n!!` for positive odd
-    integers:
-
-    .. math::
-
-        n!! = 1 \cdot 3 \cdot 5 \cdots n = \prod_{k=0}^{(n-1)/2} (2k + 1)
-
-    The spherical Bessel function uses this value in its small-argument
-    limit:
-
-    .. math::
-
-        j_l(x) \approx \frac{x^l}{(2l+1)!!} \quad \text{for } |x| \ll 1
-
-    The function applies ``math.prod`` to ``range(1, order+1, 2)``. It then
-    converts the exact integer result to a float.
-
-    Parameters
-    ----------
-    order : int
-        A positive odd integer.
-
-    Returns
-    -------
-    value : float
-        The double factorial ``order!!``.
-
-    Raises
-    ------
-    ValueError
-        If ``order`` is not a positive odd integer.
-    """
+    """Return an odd positive double factorial as a float."""
     if order < 1 or order % 2 == 0:
-        msg: str = "order must be a positive odd integer"
-        raise ValueError(msg)
-    product: int = math.prod(range(1, order + 1, 2))
-    value: float = float(product)
-    return value
+        message: str = "order must be a positive odd integer"
+        raise ValueError(message)
+    result: float = float(math.prod(range(1, order + 1, 2)))
+    return result
+
+
+def _origin_series(
+    order: int,
+    x: Float[Array, " ..."],
+) -> Float[Array, " ..."]:
+    """Evaluate the first three nonzero terms of the origin series."""
+    denominator: float = _odd_double_factorial(2 * order + 1)
+    second_denominator: float = 2.0 * (2 * order + 3)
+    fourth_denominator: float = 8.0 * (2 * order + 3) * (2 * order + 5)
+    correction: Float[Array, " ..."] = (
+        1.0 - x * x / second_denominator + x**4 / fourth_denominator
+    )
+    values: Float[Array, " ..."] = (x**order / denominator) * correction
+    return values
+
+
+def _origin_series_derivative(
+    order: int,
+    x: Float[Array, " ..."],
+) -> Float[Array, " ..."]:
+    """Differentiate the three-term origin series analytically."""
+    denominator: float = _odd_double_factorial(2 * order + 1)
+    second_denominator: float = 2.0 * (2 * order + 3)
+    fourth_denominator: float = 8.0 * (2 * order + 3) * (2 * order + 5)
+    correction: Float[Array, " ..."] = (
+        1.0 - x * x / second_denominator + x**4 / fourth_denominator
+    )
+    correction_derivative: Float[Array, " ..."] = (
+        -2.0 * x / second_denominator + 4.0 * x**3 / fourth_denominator
+    )
+    derivatives: Float[Array, " ..."]
+    if order == 0:
+        derivatives = correction_derivative / denominator
+    else:
+        derivatives = (
+            order * x ** (order - 1) * correction
+            + x**order * correction_derivative
+        ) / denominator
+    return derivatives
+
+
+def _analytic_anchors(
+    x: Float[Array, " ..."],
+) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+    """Evaluate analytic nonzero-argument anchors j0 and j1."""
+    j0: Float[Array, " ..."] = jnp.sin(x) / x
+    j1: Float[Array, " ..."] = jnp.sin(x) / (x * x) - jnp.cos(x) / x
+    anchors: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (j0, j1)
+    return anchors
+
+
+def _upward_recurrence(
+    order: int,
+    x: Float[Array, " ..."],
+    j0: Float[Array, " ..."],
+    j1: Float[Array, " ..."],
+) -> Float[Array, " ..."]:
+    """Evaluate j_l by upward recurrence."""
+
+    def _step(
+        index: Integer[Array, ""],
+        state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
+    ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+        previous: Float[Array, " ..."] = state[0]
+        current: Float[Array, " ..."] = state[1]
+        index_float: Float[Array, ""] = jnp.asarray(index, dtype=jnp.float64)
+        following: Float[Array, " ..."] = (
+            2.0 * index_float + 1.0
+        ) * current / x - previous
+        next_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+            current,
+            following,
+        )
+        return next_state
+
+    final_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+        jax.lax.fori_loop(1, order, _step, (j0, j1))
+    )
+    values: Float[Array, " ..."] = final_state[1]
+    return values
+
+
+def _downward_miller(
+    order: int,
+    x: Float[Array, " ..."],
+    j0: Float[Array, " ..."],
+    j1: Float[Array, " ..."],
+) -> Float[Array, " ..."]:
+    """Evaluate j_l by fixed-depth downward Miller recurrence."""
+    start_order: int = order + math.ceil(math.sqrt(40.0 * max(order, 1))) + 12
+    target_seed: Float[Array, " ..."] = jnp.ones_like(x)
+
+    def _step(
+        iteration: Integer[Array, ""],
+        state: tuple[
+            Float[Array, " ..."],
+            Float[Array, " ..."],
+            Float[Array, " ..."],
+        ],
+    ) -> tuple[
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+    ]:
+        following: Float[Array, " ..."] = state[0]
+        current: Float[Array, " ..."] = state[1]
+        target: Float[Array, " ..."] = state[2]
+        ell: Integer[Array, ""] = start_order - iteration
+        ell_float: Float[Array, ""] = jnp.asarray(ell, dtype=jnp.float64)
+        previous: Float[Array, " ..."] = (
+            2.0 * ell_float + 1.0
+        ) * current / x - following
+        target = jnp.where(ell - 1 == order, previous, target)
+        next_state: tuple[
+            Float[Array, " ..."],
+            Float[Array, " ..."],
+            Float[Array, " ..."],
+        ] = (current, previous, target)
+        return next_state
+
+    initial_state: tuple[
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+    ] = (jnp.zeros_like(x), jnp.ones_like(x), target_seed)
+    miller_state: tuple[
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+        Float[Array, " ..."],
+    ] = jax.lax.fori_loop(
+        0,
+        start_order,
+        _step,
+        initial_state,
+    )
+    raw_j1: Float[Array, " ..."] = miller_state[0]
+    raw_j0: Float[Array, " ..."] = miller_state[1]
+    raw_target: Float[Array, " ..."] = miller_state[2]
+    use_j0: Float[Array, " ..."] = jnp.abs(j0) >= jnp.abs(j1)
+    safe_raw_j0: Float[Array, " ..."] = jnp.where(
+        use_j0, raw_j0, jnp.ones_like(raw_j0)
+    )
+    safe_raw_j1: Float[Array, " ..."] = jnp.where(
+        use_j0, jnp.ones_like(raw_j1), raw_j1
+    )
+    scale_from_j0: Float[Array, " ..."] = j0 / safe_raw_j0
+    scale_from_j1: Float[Array, " ..."] = j1 / safe_raw_j1
+    scale: Float[Array, " ..."] = jnp.where(
+        use_j0, scale_from_j0, scale_from_j1
+    )
+    values: Float[Array, " ..."] = raw_target * scale
+    return values
 
 
 @jaxtyped(typechecker=beartype)
@@ -72,68 +190,23 @@ def spherical_bessel_jl(
     order: int,
     x: Float[Array, " ..."],
 ) -> Float[Array, " ..."]:
-    r"""Evaluate spherical Bessel function :math:`j_l(x)`.
+    """Evaluate the spherical Bessel function :math:`j_l(x)`.
 
-    The function computes the spherical Bessel function of the first kind.
-    It uses closed-form seeds for l=0 and l=1. It uses an upward recurrence
-    for l >= 2.
-
-    **Seed values:**
-
-    .. math::
-
-        j_0(x) = \frac{\sin x}{x}
-
-        j_1(x) = \frac{\sin x}{x^2} - \frac{\cos x}{x}
-
-    **Upward recurrence** (for l >= 2, starting from l=1):
-
-    .. math::
-
-        j_{l+1}(x) = \frac{2l + 1}{x} \, j_l(x) - j_{l-1}(x)
-
-    The function implements the recurrence with ``jax.lax.fori_loop``. The
-    loop runs from index 1 to ``order - 1``. It carries the pair
-    :math:`(j_{l-1}, j_l)` and produces :math:`j_{l+1}` at each step.
-
-    **Small-argument limit:**
-
-    For :math:`|x| < 10^{-8}` (the module constant ``SMALL_ARGUMENT``),
-    the function uses the leading-order Taylor expansion:
-
-    .. math::
-
-        j_l(x) \approx \frac{x^l}{(2l+1)!!}
-
-    This expansion avoids division by zero in the seed formulas. The
-    ``small_mask`` value selects the recurrence or the small-argument limit.
-    The ``x_safe`` input replaces the masked entries with 1.0. This replacement
-    prevents invalid recurrence values from affecting the gradients.
-
-    **Numerical stability notes:**
-
-    - The upward recurrence remains stable when :math:`j_l(x)` dominates the
-      recurrence at moderate x.
-    - A downward Miller recurrence offers more stability when l is very large
-      relative to x.
-    - ARPES simulations do not use this regime. They use l <= 5 and usually
-      use kr values from O(1) to O(10).
-    - The ``jnp.where`` mask defines the gradients everywhere, including at
-      x = 0.
+    The kernel selects an origin series or a stable recurrence per argument.
 
     :see: :class:`~.test_bessel.TestSphericalBesselJl`
 
     Parameters
     ----------
     order : int
-        Non-negative angular momentum order.
+        Nonnegative static angular-momentum order.
     x : Float[Array, " ..."]
-        Real argument array.
+        Real arguments.
 
     Returns
     -------
     values : Float[Array, " ..."]
-        ``j_l(x)`` evaluated element-wise with the same shape as ``x``.
+        Spherical Bessel values with the input shape.
 
     Raises
     ------
@@ -142,64 +215,114 @@ def spherical_bessel_jl(
 
     Notes
     -----
-    The ``order`` parameter is a Python integer, not a JAX tracer. A change to
-    this parameter causes JAX to trace the function again. The loop bounds
-    and the double-factorial constant depend on ``order`` statically. The
-    series branch preserves the nonzero analytic limiting gradient near zero.
+    Values with ``abs(x) < 0.02`` use the three-term origin series.  Other
+    values use upward recurrence for ``order <= abs(x)`` and downward Miller
+    recurrence otherwise.  Sanitized branch inputs prevent inactive singular
+    formulas from contaminating derivatives.
     """
     if order < 0:
-        msg: str = "order must be non-negative"
-        raise ValueError(msg)
+        message: str = "order must be non-negative"
+        raise ValueError(message)
 
-    x_arr: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
-    small_mask: Float[Array, " ..."] = jnp.abs(x_arr) < SMALL_ARGUMENT
-    x_safe: Float[Array, " ..."] = jnp.where(small_mask, 1.0, x_arr)
+    x_array: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
+    series_threshold: float = 2.0e-2
+    use_series: Float[Array, " ..."] = jnp.abs(x_array) < series_threshold
+    safe_x: Float[Array, " ..."] = jnp.where(use_series, 1.0, x_array)
+    series_values: Float[Array, " ..."] = _origin_series(order, x_array)
+    anchors: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+        _analytic_anchors(safe_x)
+    )
+    j0: Float[Array, " ..."] = anchors[0]
+    j1: Float[Array, " ..."] = anchors[1]
 
-    j0_nonzero: Float[Array, " ..."] = jnp.sin(x_safe) / x_safe
-    values: Float[Array, " ..."]
+    recurrence_values: Float[Array, " ..."]
     if order == 0:
-        values = jnp.where(small_mask, 1.0, j0_nonzero)
-        return values
-
-    j1_nonzero: Float[Array, " ..."] = (
-        jnp.sin(x_safe) / (x_safe * x_safe) - jnp.cos(x_safe) / x_safe
-    )
-    if order == 1:
-        j1_limit: Float[Array, " ..."] = x_arr / 3.0
-        values = jnp.where(small_mask, j1_limit, j1_nonzero)
-        return values
-
-    def _recurrence_step(
-        index: Integer[Array, ""],
-        state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
-    ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
-        previous: Float[Array, " ..."]
-        current: Float[Array, " ..."]
-        previous, current = state
-        index_arr: Float[Array, " "] = jnp.asarray(index, dtype=jnp.float64)
-        next_value: Float[Array, " ..."] = (
-            (2.0 * index_arr + 1.0) / x_safe
-        ) * current - previous
-        recurrence_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
-            current,
-            next_value,
+        recurrence_values = j0
+    elif order == 1:
+        recurrence_values = j1
+    else:
+        upward_values: Float[Array, " ..."] = _upward_recurrence(
+            order, safe_x, j0, j1
         )
-        return recurrence_state
-
-    jl_nonzero: Float[Array, " ..."]
-    loop_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
-        jax.lax.fori_loop(
-            1,
-            order,
-            _recurrence_step,
-            (j0_nonzero, j1_nonzero),
+        downward_values: Float[Array, " ..."] = _downward_miller(
+            order, safe_x, j0, j1
         )
+        recurrence_values = jnp.where(
+            order <= jnp.abs(safe_x),
+            upward_values,
+            downward_values,
+        )
+    values: Float[Array, " ..."] = jnp.where(
+        use_series,
+        series_values,
+        recurrence_values,
     )
-    jl_nonzero = loop_state[1]
-    double_factorial: float = _odd_double_factorial(2 * order + 1)
-    small_limit: Float[Array, " ..."] = (x_arr**order) / double_factorial
-    values = jnp.where(small_mask, small_limit, jl_nonzero)
     return values
 
 
-__all__: list[str] = ["spherical_bessel_jl"]
+@jaxtyped(typechecker=beartype)
+def spherical_bessel_jl_derivative(
+    order: int,
+    x: Float[Array, " ..."],
+) -> Float[Array, " ..."]:
+    """Evaluate :math:`d j_l(x)/dx`.
+
+    The kernel differentiates the origin series and uses stable identities
+    elsewhere.
+
+    :see: :class:`~.test_bessel.TestSphericalBesselJlDerivative`
+
+    Parameters
+    ----------
+    order : int
+        Nonnegative static angular-momentum order.
+    x : Float[Array, " ..."]
+        Real arguments.
+
+    Returns
+    -------
+    derivatives : Float[Array, " ..."]
+        First argument derivatives with the input shape.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` is negative.
+
+    Notes
+    -----
+    The origin branch differentiates the same three-term series as the
+    primal.  Away from the origin, order zero uses ``-j_1`` and higher orders
+    use ``j_(l-1) - (l+1) j_l / x``.
+    """
+    if order < 0:
+        message: str = "order must be non-negative"
+        raise ValueError(message)
+
+    x_array: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
+    series_threshold: float = 2.0e-2
+    use_series: Float[Array, " ..."] = jnp.abs(x_array) < series_threshold
+    safe_x: Float[Array, " ..."] = jnp.where(use_series, 1.0, x_array)
+    series_derivatives: Float[Array, " ..."] = _origin_series_derivative(
+        order, x_array
+    )
+    if order == 0:
+        recurrence_derivatives: Float[Array, " ..."] = -spherical_bessel_jl(
+            1, safe_x
+        )
+    else:
+        recurrence_derivatives = spherical_bessel_jl(order - 1, safe_x) - (
+            (order + 1.0) * spherical_bessel_jl(order, safe_x) / safe_x
+        )
+    derivatives: Float[Array, " ..."] = jnp.where(
+        use_series,
+        series_derivatives,
+        recurrence_derivatives,
+    )
+    return derivatives
+
+
+__all__: list[str] = [
+    "spherical_bessel_jl",
+    "spherical_bessel_jl_derivative",
+]

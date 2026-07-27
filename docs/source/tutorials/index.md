@@ -12,6 +12,7 @@ certified-forward-model
 geometry-and-kinematics
 tight-binding-models
 slabs-and-surfaces
+matrix-element-sensitivity
 ```
 
 - [Quickstart](quickstart.md): Build a synthetic band structure. Simulate two
@@ -27,11 +28,14 @@ slabs-and-surfaces
   inspect fat bands, spin texture, and density of states.
 - [Slabs and surfaces](slabs-and-surfaces.md): Build a Miller-index slab,
   verify an analytic finite-chain spectrum, and inspect depth-weighted bands.
+- [Matrix-element sensitivity](matrix-element-sensitivity.md): Differentiate
+  complete isolated band-group weights through a synthetic dark corridor and
+  apply the logarithmic validity mask.
 
 The project is developing more complete examples:
 
 - Loading VASP output and simulating a basic ARPES spectrum
-- Stepping through the six simulation fidelity levels
+- Comparing the two incoherent projection tiers
 - Polarization-dependent matrix element effects
 - Gradient-based recovery of band-structure parameters from spectra
 

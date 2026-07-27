@@ -12,10 +12,14 @@ with and without JIT compilation.
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 from beartype.typing import Any, Callable
+from jax.test_util import check_grads
 from jaxtyping import Array
+from scipy.special import spherical_jn
 
 from diffpes.radial import spherical_bessel_jl
+from diffpes.radial.bessel import spherical_bessel_jl_derivative
 
 
 class TestSphericalBesselJl(chex.TestCase):
@@ -202,3 +206,156 @@ class TestBesselErrors:
 
         with pytest.raises(ValueError, match="positive odd integer"):
             _odd_double_factorial(4)
+
+
+class TestSphericalBesselJlDerivative(chex.TestCase):
+    """Validate the stable value and derivative branches against SciPy.
+
+    :see: :func:`~diffpes.radial.spherical_bessel_jl_derivative`
+    """
+
+    def test_values_match_scipy_over_certified_domain(self) -> None:
+        """Compare all branches with SciPy on values including l greater than x.
+
+        The assertions pin the documented numerical contract.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        positive: np.ndarray = np.concatenate(
+            (
+                np.array(
+                    [
+                        0.0,
+                        1.0e-8,
+                        1.0e-4,
+                        1.9e-2,
+                        2.1e-2,
+                        np.pi - 1.0e-10,
+                        np.pi + 1.0e-10,
+                        4.493409457909064 - 1.0e-10,
+                        4.493409457909064 + 1.0e-10,
+                    ]
+                ),
+                np.geomspace(3.0e-2, 100.0, 81),
+            )
+        )
+        arguments: np.ndarray = np.concatenate((-positive[:0:-1], positive))
+        x: Array = jnp.asarray(arguments, dtype=jnp.float64)
+        order: int
+        for order in range(9):
+            expected_positive: np.ndarray = spherical_jn(
+                order,
+                np.abs(arguments),
+            )
+            expected: np.ndarray = np.where(
+                arguments < 0.0,
+                (-1) ** order * expected_positive,
+                expected_positive,
+            )
+            actual: Array = spherical_bessel_jl(order, x)
+            np.testing.assert_allclose(
+                np.asarray(actual),
+                expected,
+                rtol=1.0e-12,
+                atol=2.0e-14,
+            )
+
+    def test_derivative_matches_scipy_and_autodiff(self) -> None:
+        """Compare the derivative API and autodiff with SciPy.
+
+        The assertions pin the documented numerical contract.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        arguments: np.ndarray = np.array(
+            [
+                -20.0,
+                -4.493409457909064,
+                -0.1,
+                -0.019,
+                0.0,
+                0.019,
+                0.1,
+                np.pi,
+                4.493409457909064,
+                20.0,
+            ]
+        )
+        x: Array = jnp.asarray(arguments, dtype=jnp.float64)
+        order: int
+        for order in range(9):
+            positive_derivative: np.ndarray = spherical_jn(
+                order, np.abs(arguments), derivative=True
+            )
+            expected: np.ndarray = np.where(
+                arguments < 0.0,
+                (-1) ** (order + 1) * positive_derivative,
+                positive_derivative,
+            )
+            actual: Array = spherical_bessel_jl_derivative(order, x)
+            autodiff: Array = jax.vmap(
+                jax.grad(lambda value: spherical_bessel_jl(order, value))
+            )(x)
+            np.testing.assert_allclose(
+                np.asarray(actual),
+                expected,
+                rtol=1.0e-10,
+                atol=5.0e-12,
+            )
+            np.testing.assert_allclose(
+                np.asarray(autodiff),
+                np.asarray(actual),
+                rtol=2.0e-10,
+                atol=5.0e-12,
+            )
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test_origin_derivatives_are_analytic(self) -> None:
+        """Check the exact origin derivatives under eager and JIT execution.
+
+        The assertions pin the documented numerical contract.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        function: Callable[..., Any] = self.variant(
+            lambda value: jnp.stack(
+                tuple(
+                    spherical_bessel_jl_derivative(order, value)
+                    for order in range(3)
+                )
+            )
+        )
+        actual: Array = function(jnp.asarray(0.0, dtype=jnp.float64))
+        expected: Array = jnp.asarray([0.0, 1.0 / 3.0, 0.0])
+        chex.assert_trees_all_close(actual, expected, atol=1.0e-15)
+
+    def test_fwd_and_rev_gradients_agree(self) -> None:
+        """Exercise both autodiff modes on upward and Miller branches.
+
+        The assertions pin the documented numerical contract.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        order: int
+        argument: float
+        for order, argument in ((1, 0.0), (4, 0.7), (4, 8.0)):
+            check_grads(
+                lambda value: spherical_bessel_jl(order, jnp.asarray(value)),
+                (jnp.asarray(argument, dtype=jnp.float64),),
+                order=1,
+                modes=("fwd", "rev"),
+                rtol=2.0e-6,
+                atol=2.0e-8,
+            )

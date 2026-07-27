@@ -162,7 +162,7 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
 def _complex_gaunt(
     l1: int, m1: int, l2: int, m2: int, l3: int, m3: int
 ) -> float:
-    r"""Compute a complex Gaunt integral for three spherical harmonics.
+    r"""Compute an unstarred complex Gaunt integral.
 
     Extended Summary
     ----------------
@@ -177,10 +177,10 @@ def _complex_gaunt(
 
     .. math::
 
-        G = (-1)^{m_3}
+        G =
             \sqrt{\frac{(2l_1+1)(2l_2+1)(2l_3+1)}{4\pi}}
             \begin{pmatrix} l_1 & l_2 & l_3 \\ 0 & 0 & 0 \end{pmatrix}
-            \begin{pmatrix} l_1 & l_2 & l_3 \\ m_1 & m_2 & -m_3 \end{pmatrix}
+            \begin{pmatrix} l_1 & l_2 & l_3 \\ m_1 & m_2 & m_3 \end{pmatrix}
 
     The first 3-j symbol enforces the even parity selection rule. The function
     computes this symbol first to permit an early return. ``functools.cache``
@@ -211,12 +211,12 @@ def _complex_gaunt(
     if w3j_000 == 0.0:
         value: float = 0.0
         return value  # noqa: RET504 -- assign-before-return is required.
-    w3j_mmm: float = _wigner3j(l1, l2, l3, m1, m2, -m3)
+    w3j_mmm: float = _wigner3j(l1, l2, l3, m1, m2, m3)
     if w3j_mmm == 0.0:
         value = 0.0
         return value  # noqa: RET504 -- assign-before-return is required.
 
-    prefactor: float = (-1) ** m3 * math.sqrt(
+    prefactor: float = math.sqrt(
         (2 * l1 + 1) * (2 * l2 + 1) * (2 * l3 + 1) / (4.0 * math.pi)
     )
     value: float = prefactor * w3j_000 * w3j_mmm
@@ -267,16 +267,15 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     .. math::
 
         G_{\text{real}} = \sum_{\mu, \nu, \rho}
-            \overline{U_{\text{final}}(m', \rho)} \cdot
+            U_{\text{final}}(m', \rho) \cdot
             U_{\text{dip}}(q, \nu) \cdot
             U_{\text{init}}(m, \mu) \cdot
-            (-1)^{\rho} \cdot
-            G_{\text{complex}}(l', -\rho; 1, \nu; l, \mu)
+            G_{\text{complex}}(l', \rho; 1, \nu; l, \mu)
 
     where :math:`U` matrices are the real-to-complex transformation
-    coefficients. The conjugation on the final-state coefficients arises
-    because the complex Gaunt integral involves :math:`Y_{l'}^{\rho *}`,
-    and :math:`Y_l^{m *} = (-1)^m Y_l^{-m}`.
+    coefficients.  The complex helper evaluates the unstarred triple
+    integral.  A final real harmonic equals its complex conjugate, so every
+    transformation coefficient enters in the same ket expansion.
 
     The mathematical result is real. The function raises ``ValueError`` when
     the imaginary part exceeds :math:`10^{-12}`.
@@ -360,13 +359,11 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     for c_init, mu in init_coeffs:
         for c_dip, nu in dip_coeffs:
             for c_final, rho in final_coeffs:
-                cg: float = _complex_gaunt(lp, -rho, 1, nu, l, mu)
+                cg: float = _complex_gaunt(lp, rho, 1, nu, l, mu)
                 coeff: complex = (
-                    complex(c_final).conjugate()
-                    * complex(c_dip)
-                    * complex(c_init)
+                    complex(c_final) * complex(c_dip) * complex(c_init)
                 )
-                total += coeff * (-1) ** rho * cg
+                total += coeff * cg
 
     result: float = total.real
     if abs(total.imag) > GAUNT_IMAG_TOL:  # pragma: no cover
@@ -394,7 +391,7 @@ def build_gaunt_table(
       q in {-1, 0, +1}.
     - **axis 3** (``lp``): final angular momentum, size ``l_max + 2``
       (because the dipole operator can promote l to l + 1).
-    - **axis 4** (``mp + l_max``): offset final magnetic quantum number,
+    - **axis 4** (``mp + l_max + 1``): offset final magnetic quantum number,
       size ``2 * (l_max + 1) + 1``.
 
     The construction visits each valid combination of quantum numbers. It
@@ -402,7 +399,7 @@ def build_gaunt_table(
     initialized zero values represent forbidden transitions.
 
     Use the following expression to index the table:
-    ``GAUNT_TABLE[l, m + l_max, q + 1, lp, mp + l_max]``
+    ``GAUNT_TABLE[l, m + l_max, q + 1, lp, mp + l_max + 1]``
     where q in {-1, 0, +1} indexes the three dipole components.
 
     :see: :class:`~.test_gaunt.TestBuildGauntTable`
@@ -468,7 +465,13 @@ def build_gaunt_table(
                         continue
                     for mp in range(-lp, lp + 1):
                         val: float = _real_gaunt_dipole(l, m, lp, mp, q)
-                        table[l, m + l_max, q + 1, lp, mp + l_max] = val
+                        table[
+                            l,
+                            m + l_max,
+                            q + 1,
+                            lp,
+                            mp + l_max + 1,
+                        ] = val
 
     gaunt_table: Float[Array, "L_src M_src 3 L_dst M_dst"] = jnp.asarray(
         table, dtype=jnp.float64
@@ -493,7 +496,7 @@ def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
       non-negative index on axis 1.
     - ``q + 1`` maps q in {-1, 0, +1} to indices {0, 1, 2} on axis 2.
     - ``lp`` indexes axis 3 directly.
-    - ``mp + L_MAX`` offsets m' on axis 4.
+    - ``mp + L_MAX + 1`` offsets m' on axis 4.
 
     The function converts the returned value to a Python float for non-JAX
     contexts. In JAX-traced code, index ``GAUNT_TABLE`` directly to avoid
@@ -506,7 +509,7 @@ def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
     1. **Index and convert the coefficient**::
 
            coefficient: float = float(
-               GAUNT_TABLE[l, m + L_MAX, q + 1, lp, mp + L_MAX]
+               GAUNT_TABLE[l, m + L_MAX, q + 1, lp, mp + L_MAX + 1]
            )
 
        The offsets map signed quantum numbers to dense array indices.
@@ -530,7 +533,7 @@ def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
         The Gaunt coefficient.
     """
     coefficient: float = float(
-        GAUNT_TABLE[l, m + L_MAX, q + 1, lp, mp + L_MAX]
+        GAUNT_TABLE[l, m + L_MAX, q + 1, lp, mp + L_MAX + 1]
     )
     return coefficient
 

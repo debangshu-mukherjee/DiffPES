@@ -30,8 +30,6 @@ The package contains these submodules:
     Define k-space path and grid data structures.
 - :mod:`params`
     Define simulation-parameter data structures.
-- :mod:`tables`
-    Store small immutable numerical tables for simulation routines.
 - :mod:`radial_params`
     Define radial-wavefunction parameter structures.
 - :mod:`self_energy`
@@ -309,6 +307,8 @@ Routine Listings
     Tokens on a spin-polarized EIGENVAL band line.
 :obj:`BAND_NDIM`
     Expected dimensionality of band-energy arrays.
+:obj:`BAND_GROUP_COMPLEMENT_GAP_MIN_EV`
+    Minimum isolation required for a complete static band group.
 :class:`BandStructure`
     Store electronic band-structure data in a JAX PyTree.
 :obj:`BOHR_TO_ANGSTROM`
@@ -319,14 +319,6 @@ Routine Listings
     Slater--Koster channels supported for each angular-momentum pair.
 :obj:`COORDINATE_MODE_TOKENS`
     Recognized KPOINTS coordinate-mode tokens.
-:obj:`CROSS_SECTION_ENERGIES`
-    Photon-energy tabulation grid for the cross-section tables in eV.
-:obj:`CROSS_SECTION_SIGMA_D`
-    Yeh-Lindau d-subshell cross sections on the tabulation grid.
-:obj:`CROSS_SECTION_SIGMA_P`
-    Yeh-Lindau p-subshell cross sections on the tabulation grid.
-:obj:`CROSS_SECTION_SIGMA_S`
-    Yeh-Lindau s-subshell cross sections on the tabulation grid.
 :class:`CrystalGeometry`
     Store VASP POSCAR crystal geometry in a JAX PyTree.
 :obj:`D_ORBITAL_SLICE`
@@ -355,6 +347,8 @@ Routine Listings
     Store spin-resolved total and projected DOS data in a JAX PyTree.
 :obj:`GAUNT_IMAG_TOL`
     Tolerance for discarding imaginary Gaunt residues.
+:obj:`G_PARALLEL_ATOL_INV_ANG`
+    Surface parallel-momentum conservation tolerance in inverse Angstrom.
 :obj:`GROUP_COMPLEMENT_GAP_MIN_EV`
     Minimum spectral isolation required for a registered band group.
 :obj:`HBAR_C_EV_A`
@@ -415,20 +409,26 @@ Routine Listings
     Create a validated path through fractional k-space.
 :func:`make_kpath_info`
     Create a validated KPathInfo instance.
+:func:`make_final_state_spec`
+    Create a validated radial final-state selection.
+:func:`make_matrix_element_params`
+    Create validated shell-shared matrix-element parameters.
 :func:`make_orbital_basis`
     Create a validated ``OrbitalBasis`` instance.
 :func:`make_orbital_projection`
     Create a validated ``OrbitalProjection`` instance.
 :func:`make_polarization_config`
     Create a validated PolarizationConfig instance.
+:func:`make_radial_quadrature_spec`
+    Select one immutable certified quadrature profile.
+:func:`make_radial_spec`
+    Create a validated shell-shared radial specification.
 :func:`make_self_energy_config`
     Create a validated ``SelfEnergyConfig`` instance.
 :func:`make_simulation_params`
     Create a validated SimulationParams instance.
 :func:`make_slab_spec`
     Create a validated slab-construction sidecar.
-:func:`make_slater_params`
-    Create a validated ``SlaterParams`` instance.
 :func:`make_slater_koster_params`
     Create validated Slater--Koster two-center parameters.
 :func:`make_soc_volumetric_data`
@@ -477,10 +477,12 @@ Routine Listings
     Expected dimensionality of tight-binding operator matrices.
 :obj:`MAX_SK_ANGULAR_MOMENTUM`
     Maximum angular momentum supported by Slater--Koster construction.
-:obj:`ORBITAL_DIRS_NORMALIZED`
-    Unit-normalized orbital directions in VASP orbital order.
 :obj:`ORBITAL_INDEX`
     Mapping from orbital name to VASP orbital index.
+:class:`FinalStateSpec`
+    Store a certified radial final-state selection.
+:class:`MatrixElementParams`
+    Store shell-shared matrix-element scales and channel phases.
 :class:`OrbitalBasis`
     Store orbital quantum-number metadata in a JAX PyTree.
 :class:`OrbitalProjection`
@@ -493,6 +495,10 @@ Routine Listings
     Number of colon-delimited parts in a qualified Slater--Koster key.
 :class:`PolarizationConfig`
     Store photon-polarization geometry in a JAX PyTree.
+:class:`RadialQuadratureSpec`
+    Store one immutable certified radial-quadrature profile.
+:class:`RadialSpec`
+    Store shell-shared radial-wavefunction parameters.
 :obj:`PRESET_NAMES`
     Recognized band-scatter plotting preset names.
 :obj:`ProjectionType`
@@ -519,8 +525,6 @@ Routine Listings
     Store static slab construction choices and provenance.
 :class:`SlabTopology`
     Store host-selected discrete slab topology for pure-JAX rebuilding.
-:class:`SlaterParams`
-    Store Slater radial-wavefunction parameters in a JAX PyTree.
 :class:`SlaterKosterParams`
     Store differentiable Slater--Koster two-center integrals.
 :obj:`SMALL_ARGUMENT`
@@ -688,6 +692,7 @@ from .constants import (
     ATTR_AUX,
     ATTR_NONE,
     ATTR_TYPE,
+    BAND_GROUP_COMPLEMENT_GAP_MIN_EV,
     BAND_LINE_MIN_VALUES,
     BAND_LINE_SPIN_VALUES,
     BAND_NDIM,
@@ -703,6 +708,7 @@ from .constants import (
     EPS,
     EPS_DEG,
     FLOAT_TOKEN_RE,
+    G_PARALLEL_ATOL_INV_ANG,
     GAUNT_IMAG_TOL,
     GROUP_COMPLEMENT_GAP_MIN_EV,
     HBAR_C_EV_A,
@@ -734,7 +740,6 @@ from .constants import (
     NON_S_ORBITAL_SLICE,
     NONSPIN_COLS,
     NORM_EPS,
-    ORBITAL_DIRS_NORMALIZED,
     ORBITAL_INDEX,
     P_ORBITAL_SLICE,
     PARAMETER_KEY_PARTS,
@@ -802,22 +807,22 @@ from .provenance import (
     make_provenance_report,
 )
 from .radial_params import (
+    FinalStateSpec,
+    MatrixElementParams,
     OrbitalBasis,
+    RadialQuadratureSpec,
+    RadialSpec,
     SlaterKosterParams,
-    SlaterParams,
+    make_final_state_spec,
+    make_matrix_element_params,
     make_orbital_basis,
+    make_radial_quadrature_spec,
+    make_radial_spec,
     make_slater_koster_params,
-    make_slater_params,
 )
 from .self_energy import (
     SelfEnergyConfig,
     make_self_energy_config,
-)
-from .tables import (
-    CROSS_SECTION_ENERGIES,
-    CROSS_SECTION_SIGMA_D,
-    CROSS_SECTION_SIGMA_P,
-    CROSS_SECTION_SIGMA_S,
 )
 from .tb_model import (
     DiagonalizedBands,
@@ -863,6 +868,7 @@ __all__: list[str] = [
     "BAND_LINE_MIN_VALUES",
     "BAND_LINE_SPIN_VALUES",
     "BAND_NDIM",
+    "BAND_GROUP_COMPLEMENT_GAP_MIN_EV",
     "BandStructure",
     "BOHR_TO_ANGSTROM",
     "CARTESIAN_COMPONENTS",
@@ -897,10 +903,6 @@ __all__: list[str] = [
     "CHANNELS_BY_PAIR",
     "COORDINATE_MODE_TOKENS",
     "CompositionReport",
-    "CROSS_SECTION_ENERGIES",
-    "CROSS_SECTION_SIGMA_D",
-    "CROSS_SECTION_SIGMA_P",
-    "CROSS_SECTION_SIGMA_S",
     "CrystalGeometry",
     "CertificationClaim",
     "CertificationContext",
@@ -927,11 +929,13 @@ __all__: list[str] = [
     "EvidenceReport",
     "ExecutionManifest",
     "ExperimentGeometry",
+    "FinalStateSpec",
     "FLOAT_TOKEN_RE",
     "FullDensityOfStates",
     "ForwardCertificate",
     "ForwardModelSpec",
     "GAUNT_IMAG_TOL",
+    "G_PARALLEL_ATOL_INV_ANG",
     "GROUP_COMPLEMENT_GAP_MIN_EV",
     "HBAR_C_EV_A",
     "HBAR_EV_S",
@@ -975,6 +979,7 @@ __all__: list[str] = [
     "make_derivative_evidence",
     "make_diagonalized_bands",
     "make_expanded_simulation_params",
+    "make_final_state_spec",
     "make_domain_predicate",
     "make_domain_result",
     "make_evidence_lineage",
@@ -992,9 +997,12 @@ __all__: list[str] = [
     "make_kgrid",
     "make_kpath",
     "make_kpath_info",
+    "make_matrix_element_params",
     "make_orbital_basis",
     "make_orbital_projection",
     "make_polarization_config",
+    "make_radial_quadrature_spec",
+    "make_radial_spec",
     "make_policy_report",
     "make_provenance_graph",
     "make_provenance_report",
@@ -1009,7 +1017,6 @@ __all__: list[str] = [
     "make_slab_spec",
     "make_sensitivity_map",
     "make_slater_koster_params",
-    "make_slater_params",
     "make_soc_volumetric_data",
     "make_spin_band_structure",
     "make_spin_orbital_projection",
@@ -1024,6 +1031,7 @@ __all__: list[str] = [
     "make_wannier_operator_data",
     "make_workflow_context",
     "ME_EV",
+    "MatrixElementParams",
     "MIN_BOND_DISTANCE",
     "MINIMUM_AXIS_POINTS",
     "MIN_SUM",
@@ -1035,7 +1043,6 @@ __all__: list[str] = [
     "NonJaxNumber",
     "NONSPIN_COLS",
     "NORM_EPS",
-    "ORBITAL_DIRS_NORMALIZED",
     "ORBITAL_INDEX",
     "OrbitalBasis",
     "OrbitalProjection",
@@ -1043,6 +1050,8 @@ __all__: list[str] = [
     "PARAMETER_KEY_PARTS",
     "PHASE_LOSS_MESSAGE",
     "PolarizationConfig",
+    "RadialQuadratureSpec",
+    "RadialSpec",
     "PolicyReport",
     "PRESET_NAMES",
     "ProjectionType",
@@ -1067,7 +1076,6 @@ __all__: list[str] = [
     "SlabSpec",
     "SlabTopology",
     "SlaterKosterParams",
-    "SlaterParams",
     "SMALL_ARGUMENT",
     "SHELL_ATOLERANCE",
     "SHELL_RTOLERANCE",

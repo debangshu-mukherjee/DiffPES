@@ -6,8 +6,8 @@ The package provides Angle-Resolved PhotoEmission Spectroscopy (ARPES)
 simulations with JAX automatic differentiation and GPU acceleration.
 The same differentiable physics maps an electronic structure to ARPES
 spectra and supports inverse recovery of band-structure parameters.
-The package provides six physics levels. These levels range from Gaussian
-convolution to polarization-dependent dipole matrix element computations.
+The package provides lightweight incoherent tiers and coherent
+matrix-element primitives.
 
 Routine Listings
 ----------------
@@ -34,7 +34,7 @@ Examples
 >>> bands = diffpes.inout.read_eigenval("EIGENVAL", fermi_energy=-1.5)
 >>> orb = diffpes.inout.read_procar("PROCAR")
 >>> params = diffpes.types.make_simulation_params(sigma=0.04)
->>> spectrum = diffpes.simul.simulate_basic(bands, orb, params)
+>>> spectrum = diffpes.simul.simulate_novice(bands, orb, params)
 
 Notes
 -----

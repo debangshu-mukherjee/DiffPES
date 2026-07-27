@@ -28,6 +28,8 @@ Routine Listings
     Tokens on a spin-polarized EIGENVAL band line.
 :obj:`BAND_NDIM`
     Expected dimensionality of band-energy arrays.
+:obj:`BAND_GROUP_COMPLEMENT_GAP_MIN_EV`
+    Minimum isolation required for a complete static band group.
 :obj:`BOHR_TO_ANGSTROM`
     Bohr radius in Angstrom.
 :obj:`CARTESIAN_COMPONENTS`
@@ -54,6 +56,8 @@ Routine Listings
     Compiled regex matching floating-point tokens.
 :obj:`GAUNT_IMAG_TOL`
     Tolerance for discarding imaginary Gaunt residues.
+:obj:`G_PARALLEL_ATOL_INV_ANG`
+    Surface parallel-momentum conservation tolerance in inverse Angstrom.
 :obj:`GROUP_COMPLEMENT_GAP_MIN_EV`
     Minimum spectral isolation required for a registered band group.
 :obj:`HBAR_C_EV_A`
@@ -114,8 +118,6 @@ Routine Listings
     Expected dimensionality of tight-binding operator matrices.
 :obj:`MAX_SK_ANGULAR_MOMENTUM`
     Maximum angular momentum supported by Slater--Koster construction.
-:obj:`ORBITAL_DIRS_NORMALIZED`
-    Unit-normalized orbital directions in VASP orbital order.
 :obj:`ORBITAL_INDEX`
     Mapping from orbital name to VASP orbital index.
 :obj:`P_ORBITAL_SLICE`
@@ -174,7 +176,8 @@ ATTR_TYPE: Final[str] = "_pytree_type"
 BAND_LINE_MIN_VALUES: Final[int] = 2
 BAND_LINE_SPIN_VALUES: Final[int] = 3
 BAND_NDIM: Final[int] = 2
-BOHR_TO_ANGSTROM: Final[float] = 0.529177
+BAND_GROUP_COMPLEMENT_GAP_MIN_EV: Final[float] = 1e-6
+BOHR_TO_ANGSTROM: Final[float] = 0.529177210903
 CARTESIAN_COMPONENTS: Final[int] = 3
 CHANNELS_BY_PAIR: Final[MappingProxyType] = MappingProxyType(
     {
@@ -200,6 +203,7 @@ FLOAT_TOKEN_RE: Final[re.Pattern[str]] = re.compile(
     r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 )
 GAUNT_IMAG_TOL: Final[float] = 1e-12
+G_PARALLEL_ATOL_INV_ANG: Final[float] = 1e-12
 GROUP_COMPLEMENT_GAP_MIN_EV: Final[float] = 1e-6
 HBAR_C_EV_A: Final[float] = 1973.269804
 HBAR_EV_S: Final[float] = 6.582119569e-16
@@ -298,29 +302,6 @@ WEIGHT_COMPONENT_COUNT: Final[int] = 4
 WEIGHT_COMPONENT_INDEX: Final[int] = 3
 XYZ_COMPONENTS: Final[int] = 3
 
-_ORBITAL_DIRS: Float[Array, "9 3"] = jnp.array(
-    [
-        [0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 1.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 1.0],
-        [1.0, -1.0, 0.0],
-    ],
-    dtype=jnp.float64,
-)
-_ORBITAL_NORMS: Float[Array, " 9"] = jnp.where(
-    jnp.linalg.norm(_ORBITAL_DIRS, axis=1) > 0.0,
-    jnp.linalg.norm(_ORBITAL_DIRS, axis=1),
-    1.0,
-)
-ORBITAL_DIRS_NORMALIZED: Float[Array, "9 3"] = (
-    _ORBITAL_DIRS / _ORBITAL_NORMS[:, jnp.newaxis]
-)
-
 __all__: list[str] = [
     "ATTR_AUX",
     "ATTR_NONE",
@@ -328,6 +309,7 @@ __all__: list[str] = [
     "BAND_LINE_MIN_VALUES",
     "BAND_LINE_SPIN_VALUES",
     "BAND_NDIM",
+    "BAND_GROUP_COMPLEMENT_GAP_MIN_EV",
     "BOHR_TO_ANGSTROM",
     "CARTESIAN_COMPONENTS",
     "CHANNELS_BY_PAIR",
@@ -341,6 +323,7 @@ __all__: list[str] = [
     "EPS_DEG",
     "FLOAT_TOKEN_RE",
     "GAUNT_IMAG_TOL",
+    "G_PARALLEL_ATOL_INV_ANG",
     "GROUP_COMPLEMENT_GAP_MIN_EV",
     "HBAR_C_EV_A",
     "HBAR_EV_S",
@@ -371,7 +354,6 @@ __all__: list[str] = [
     "NON_S_ORBITAL_SLICE",
     "NONSPIN_COLS",
     "NORM_EPS",
-    "ORBITAL_DIRS_NORMALIZED",
     "ORBITAL_INDEX",
     "P_ORBITAL_SLICE",
     "PARAMETER_KEY_PARTS",

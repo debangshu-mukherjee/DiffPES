@@ -25,7 +25,6 @@ from diffpes.types import (
     OrbitalProjection,
     PolarizationConfig,
     SimulationParams,
-    SlaterParams,
     TBModel,
     make_band_structure,
     make_crystal_geometry,
@@ -33,7 +32,6 @@ from diffpes.types import (
     make_orbital_projection,
     make_polarization_config,
     make_simulation_params,
-    make_slater_params,
     make_tb_model,
 )
 from diffpes.types.aliases import ScalarFloat
@@ -443,26 +441,3 @@ def toy_chain_diagonalized(
     _assert_finite((model, bands))
     result: tuple[TBModel, DiagonalizedBands] = (model, bands)
     return result
-
-
-@jaxtyped(typechecker=beartype)
-def toy_slater_params() -> SlaterParams:
-    """Build fixed single-zeta parameters for two carbon pz orbitals.
-
-    Both orbitals use principal quantum number 2, angular momentum 1,
-    magnetic quantum number 0, and a finite positive exponent of 1.625 inverse
-    Bohr. The analytic fixture policy uses no random seed.
-    """
-    basis: OrbitalBasis = make_orbital_basis(
-        atom_indices=(0, 1),
-        n=(2, 2),
-        l=(1, 1),
-        m=(0, 0),
-        labels=("A_pz", "B_pz"),
-    )
-    params: SlaterParams = make_slater_params(
-        zeta=jnp.array([1.625, 1.625], dtype=jnp.float64),
-        orbital_basis=basis,
-    )
-    _assert_finite(params)
-    return params

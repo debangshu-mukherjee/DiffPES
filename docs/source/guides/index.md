@@ -21,7 +21,7 @@ understand:
 | Guide | Description |
 |-------|-------------|
 | [ARPES Geometry and Kinematics](arpes-geometry-and-kinematics.md) | Photoemission geometry, energy and momentum conservation, and detector coordinates |
-| [Simulation Levels](simulation-levels.md) | The six fidelity levels from Voigt convolution to polarization-dependent matrix elements |
+| [Simulation Levels](simulation-levels.md) | Two inexpensive incoherent tiers and the coherent primitive pipeline |
 | [Matrix Elements and Polarization](matrix-elements-and-polarization.md) | Radial integrals, Gaunt coefficients, spherical harmonics, and light-polarization effects |
 | [Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md) | Voigt profiles, resolution convolution, and self-energy models |
 
