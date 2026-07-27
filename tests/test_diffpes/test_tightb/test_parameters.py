@@ -635,7 +635,7 @@ class TestSKModelParameterView:
             return jnp.sum(eigenvalues**2)
 
         def translated(shift: Float[Array, " 3"]) -> jax.Array:
-            """Translate every fractional basis position equally."""
+            """Return equally translated fractional basis positions."""
             positions: Float[Array, "2 3"] = jnp.reshape(
                 parameters[position_slice],
                 (2, 3),
@@ -646,7 +646,7 @@ class TestSKModelParameterView:
             return band_loss(vector)
 
         def dilated(scale: Float[Array, ""]) -> jax.Array:
-            """Dilate every real-space lattice row by one scale."""
+            """Return lattice rows dilated by one scale."""
             vector: Float[Array, " 18"] = parameters.at[lattice_slice].set(
                 scale * parameters[lattice_slice]
             )
@@ -707,7 +707,7 @@ class TestSKModelParameterView:
     def test_jit_gradient_uses_captured_geometry_topology(self) -> None:
         """Compile geometry-sensitive rebuilding on frozen neighbor cells.
 
-        Position and lattice coordinates are fully traced inside ``jit``.
+        ``jit`` traces every position and lattice coordinate.
         Setup must capture certified pairs, cells, and shell numbers first.
 
         Notes

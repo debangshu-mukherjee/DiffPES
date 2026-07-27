@@ -9,6 +9,9 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Tight-binding models and diagonalized bands now carry optional differentiable
+  per-orbital surface depths in Angstrom. Native diagonalization and HDF5
+  persistence preserve the carrier exactly; ``None`` retains bulk semantics.
 - Plan 04 completes the native tight-binding core. Bloch assembly now uses
   exact integer hopping cells and the basis-position gauge, with complex
   hoppings, traced onsite/SOC parameters, atom-resolved geometry, and a
@@ -60,6 +63,14 @@ and the project uses calendar versioning.
 
 ### Added
 
+- Plan 05 adds exact primitive Miller-index surface cells and complete-shell
+  Cartesian/orbital rotations. It also adds finite depth-tagged slabs, exact
+  bulk-to-slab hopping propagation, and open-normal adjacency validation.
+  ``SurfaceCell`` and ``SlabSpec`` record the static construction provenance.
+- Surface probability operators now provide raw off-degeneracy band weights
+  and complement-isolated fixed-group traces. A separate slab seam propagates
+  explicit Wannier centres and position-operator matrices without silently
+  discarding Plan 04 metadata.
 - Plan 03 adds `ExperimentGeometry`, generated `KPath`, and fixed-shape
   `KGrid` carriers. Their factories keep numerical geometry inside JAX.
 - Plan 04 adds independently derived s/p/d Slater--Koster construction and
@@ -83,8 +94,8 @@ and the project uses calendar versioning.
 - The simulation layer now provides free-electron final-state kinematics and
   complex inner-potential momentum. It also provides invertible detector-angle
   maps for both slit conventions.
-- The polarization layer now constructs explicit complex states, converts
-  them to spherical components, and maps a fixed laboratory photon field into
+- The polarization layer now constructs explicit complex states and converts
+  them to spherical components. It maps a fixed laboratory photon field into
   the sample frame independently of detector pixels. A separate detector-axis
   composition and shared Rodrigues primitive rotate detector-fixed real frame
   vectors.

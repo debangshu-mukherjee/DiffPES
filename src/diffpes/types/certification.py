@@ -34,7 +34,7 @@ Routine Listings
 :class:`DomainResult`
     Store the traced evaluation of one declared domain predicate.
 :class:`EvidenceLineage`
-    Store named implementation, generator, artifact, and derivation ancestry.
+    Store named implementation, generator, artifact, and derivation lineage.
 :class:`EvidenceRef`
     Store numerical evidence with static method and source identity.
 :class:`EvidenceReport`
@@ -572,7 +572,7 @@ class TransformationRecord(eqx.Module):
 
 
 class EvidenceLineage(eqx.Module):
-    """Store named implementation, generator, artifact & derivation ancestry.
+    """Store named implementation, generator, artifact, and derivation lineage.
 
     The record contains identifiers only. Policy derives independence relative
     to an implementation under test; no field stores a trusted Boolean.

@@ -20,6 +20,7 @@ from diffpes.tightb import (
     diagonalize_tb,
     eigh_safe,
     eigvalsh_bands,
+    eigvalsh_bands_chunked,
     vasp_to_diagonalized,
 )
 from diffpes.types import (
@@ -282,6 +283,30 @@ class TestEigvalshBands:
         actual: Array = eigvalsh_bands(model, kpoints)
         expected: Array = diagonalize_tb(model, kpoints).eigenvalues
         assert jnp.allclose(actual, expected, atol=1e-13)
+
+
+class TestEigvalshBandsChunked:
+    """Validate :func:`~diffpes.tightb.eigvalsh_bands_chunked`."""
+
+    def test_matches_ordinary_eigenvalue_path(self) -> None:
+        """Match the ordinary solver without a full k-point Hamiltonian batch.
+
+        The case evaluates eight graphene momenta in two chunks.
+
+        Notes
+        -----
+        Compare every sorted eigenvalue with the non-chunked public path.
+        """
+        model: diffpes.types.TBModel = make_graphene_model()
+        k_x: Array = jnp.linspace(-0.4, 0.4, 8)
+        kpoints: Array = jnp.stack(
+            (k_x, 0.2 * k_x, jnp.zeros_like(k_x)),
+            axis=-1,
+        )
+        actual: Array = eigvalsh_bands_chunked(model, kpoints, 4)
+        expected: Array = eigvalsh_bands(model, kpoints)
+
+        assert jnp.allclose(actual, expected, rtol=1e-13, atol=1e-13)
 
 
 class TestDiagonalizeTB:

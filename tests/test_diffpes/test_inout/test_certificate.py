@@ -158,7 +158,12 @@ def sample_certificate(
             generator_refs=("reference.generator",),
             artifact_refs=("bands",),
             derivation_refs=("reference.derivation",),
-            relationship_ids=("independent-derivation:reference.derivation",),
+            relationship_ids=(
+                "independent-derivation:reference.derivation",
+                "resolves-node:reference.impl",
+                "resolves-node:reference.generator",
+                "resolves-node:reference.derivation",
+            ),
         ),
         human_attestation_refs=(attestation.attestation_id,),
     )
@@ -348,7 +353,7 @@ class TestSaveCertificateJson:
         document = _read_json(first)
         assert document["format"] == CERTIFICATE_FORMAT
         assert document["consistency_checksum"] == (
-            "crc32:certificate-json-v1:315ecf71"
+            "crc32:certificate-json-v1:1c1a6c25"
         )
         jvp_node = document["certificate"]["fields"]["derivatives"]["fields"][
             "jvp_probes"
@@ -496,7 +501,14 @@ class TestLoadCertificateJson:
     def test_legacy_crc32_scientific_identity_is_rejected(
         self, tmp_path: Path
     ) -> None:
-        """Reject legacy CRC32 even when the outer transport CRC is valid."""
+        """Reject legacy CRC32 even when the outer transport CRC is valid.
+
+        Replace the scientific identity while preserving transport validity.
+
+        Notes
+        -----
+        Load the modified document and require an identity-mismatch error.
+        """
         path: Path = tmp_path / "legacy-identity.json"
         save_certificate_json(sample_certificate(), path)
         document: dict[str, Any] = _read_json(path)

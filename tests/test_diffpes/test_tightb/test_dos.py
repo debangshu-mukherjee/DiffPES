@@ -153,7 +153,14 @@ class TestDosGaussian:
         weights: list[float],
         diagnostic: str,
     ) -> None:
-        """Reject zero, negative, unnormalized, and non-finite weights."""
+        """Reject zero, negative, unnormalized, and non-finite weights.
+
+        Exercise each invalid measure through the public DOS function.
+
+        Notes
+        -----
+        Match each input with its declared validation diagnostic.
+        """
         eigenvalues: Array = jnp.asarray(
             [[-1.0, 1.0], [-0.5, 0.5]],
             dtype=jnp.float64,
@@ -346,7 +353,14 @@ class TestFermiLevelFromFilling:
 
     @pytest.mark.parametrize("filling", (-0.1, 0.0, 2.0, 2.1, np.inf))
     def test_rejects_out_of_range_counts(self, filling: float) -> None:
-        """Reject non-finite counts and both closed capacity endpoints."""
+        """Reject non-finite counts and both closed capacity endpoints.
+
+        Exercise invalid fillings against one normalized k-point measure.
+
+        Notes
+        -----
+        Require the band-capacity diagnostic for every invalid count.
+        """
         eigenvalues: Array = jnp.asarray(
             [[-1.0, 1.0], [-0.5, 0.5]],
             dtype=jnp.float64,
@@ -362,10 +376,14 @@ class TestFermiLevelFromFilling:
             )
 
     def test_analytic_bracket_handles_near_endpoint_filling(self) -> None:
-        """Solve a small positive filling without heuristic expansion.
+        """Verify a small positive filling without heuristic expansion.
 
         The analytic logits bracket the monotone count while holding the
         normalized weights, positive temperature, and spectrum fixed.
+
+        Notes
+        -----
+        Reconstruct the count and compare it with the requested filling.
         """
         eigenvalues: Array = jnp.asarray(
             [[-2.0, 0.5], [-0.2, 1.7]],
@@ -389,10 +407,14 @@ class TestFermiLevelFromFilling:
         assert float(count) == pytest.approx(filling, rel=2e-6, abs=1e-20)
 
     def test_open_endpoint_grid_converges_at_both_capacity_edges(self) -> None:
-        """Converge across lower and upper open-endpoint fillings.
+        """Verify convergence at both open capacity edges.
 
         A logarithmic deficit grid includes the former high-filling Newton
         failure. Normalized weights, spectrum, and temperature are held fixed.
+
+        Notes
+        -----
+        Compare reconstructed counts across both open capacity edges.
         """
         eigenvalues: Array = jnp.asarray(
             [[-2.0, 0.5], [-0.2, 1.7]],
@@ -431,9 +453,13 @@ class TestFermiLevelFromFilling:
         """Normalize an accepted near-one measure before solving near capacity.
 
         The raw weight sum is five times ``1e-13`` below one, within the
-        declared validation tolerance. The requested filling would exceed the
-        raw measure capacity, so successful solution proves that the accepted
-        measure is normalized before defining the two-band capacity.
+        declared validation tolerance. The requested filling exceeds the raw
+        measure capacity. Successful solution confirms normalization before
+        the function defines the two-band capacity.
+
+        Notes
+        -----
+        Compare the solved count with the near-capacity requested filling.
         """
         eigenvalues: Array = jnp.asarray(
             [[-1.0, 0.4], [-0.3, 1.2]],

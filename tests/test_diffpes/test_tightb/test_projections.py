@@ -352,18 +352,17 @@ class TestExpectationPath:
         )
 
     def test_chain_overlap_forms_one_consistent_component(self) -> None:
-        """Close overlapping tolerance edges into one component.
+        """Verify overlapping tolerance edges form one component.
 
         Three energies form a chain: the adjacent gaps are below tolerance,
         while the endpoint gap is above it. A dense-neighborhood
-        implementation would assign three inconsistent averages.
+        implementation assigns three inconsistent averages.
 
         Notes
         -----
-        Rotate all three diagnostic states by a fixed unitary and require the
-        same trace-per-band component average before and after the basis
-        change. The unequal-energy rotation is a diagnostic stress test, not
-        a physical eigenstate gauge freedom.
+        Apply one fixed unitary to all three diagnostic states. Require the
+        same component average before and after the basis change. The
+        unequal-energy rotation provides a diagnostic stress test.
         """
         values: Array = jnp.asarray([[0.0, 0.75, 1.5]], dtype=jnp.float64)
         vectors: Array = jnp.eye(3, dtype=jnp.complex128)[None, :, :]

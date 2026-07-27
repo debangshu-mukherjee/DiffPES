@@ -41,10 +41,16 @@ Routine Listings
     Ordered cumulative scientific-certification level identifiers.
 :obj:`CERTIFICATION_LEVEL_PREFIXES`
     Evidence prefixes required by each certification level.
+:obj:`CERTIFICATION_LINEAGE_RELATIONSHIPS`
+    Typed lineage relationships accepted by certification policy.
+:obj:`CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES`
+    Claim prefixes requiring independent evidence.
 :obj:`CERTIFICATION_POLICY_IDS`
     Stable identifiers of built-in cumulative policies.
 :obj:`CERTIFICATION_POLICY_LEVEL_COUNT`
     Number of required levels for each built-in policy.
+:obj:`CERTIFICATION_SHARED_RELATIONSHIPS`
+    Lineage relationships that share implementation ancestry.
 :obj:`CERTIFICATION_SEMVER_PATTERN`
     Pattern matching certification semantic versions.
 :obj:`CHECKSUM_ALGORITHM`
@@ -114,6 +120,28 @@ CERTIFICATION_LEVEL_IDS: Final[tuple[str, ...]] = (
     "benchmarked",
     "reproducible",
 )
+CERTIFICATION_SHARED_RELATIONSHIPS: Final[frozenset[str]] = frozenset(
+    {
+        "copied-from",
+        "derived-from",
+        "imports-fixtures-from",
+        "shares-generator",
+        "shares-implementation",
+        "wraps",
+    }
+)
+CERTIFICATION_LINEAGE_RELATIONSHIPS: Final[frozenset[str]] = (
+    CERTIFICATION_SHARED_RELATIONSHIPS
+    | {
+        "independent-derivation",
+        "resolves-conflict",
+        "resolves-node",
+    }
+)
+CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES: Final[tuple[str, ...]] = (
+    "benchmark",
+    "parity",
+)
 CERTIFICATION_POLICY_IDS: Final[tuple[str, ...]] = (
     "org.diffpes.policy.exploratory.v1",
     "org.diffpes.policy.research.v1",
@@ -179,9 +207,12 @@ __all__: list[str] = [
     "CERTIFICATE_SCHEMA_PATTERN",
     "CERTIFICATION_IDENTIFIER_PATTERN",
     "CERTIFICATION_LEVEL_IDS",
+    "CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES",
+    "CERTIFICATION_LINEAGE_RELATIONSHIPS",
     "CERTIFICATION_LEVEL_PREFIXES",
     "CERTIFICATION_POLICY_IDS",
     "CERTIFICATION_POLICY_LEVEL_COUNT",
+    "CERTIFICATION_SHARED_RELATIONSHIPS",
     "CERTIFICATION_SEMVER_PATTERN",
     "CHECKSUM_ALGORITHM",
     "CHECKSUM_FILE_CHUNK_BYTES",

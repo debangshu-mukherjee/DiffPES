@@ -30,8 +30,8 @@ Neighbor selection is discrete. The selected atom/cell tuples define static
 topology. Derivatives remain meaningful while perturbations neither cross the
 cutoff nor merge a nonzero bond into zero length. The host setup derives a
 complete finite translation bound from the lattice singular values, the basis
-diameter, and the cutoff. A transformation without a concrete geometry is
-rejected because its neighbor topology cannot be certified.
+diameter, and the cutoff. The builder rejects transformations without concrete
+geometry because no neighbor-topology certificate exists.
 """
 
 from collections.abc import Sequence
@@ -528,7 +528,7 @@ def neighbor_shells(  # noqa: DOC502
     supercell_radius : int | None, optional
         Requested number of translated cells in each positive and negative
         lattice direction. ``None`` uses the certified complete radius.
-        An explicit radius smaller than the certificate is rejected.
+        The function rejects explicit radii smaller than the certificate.
 
     Returns
     -------
@@ -544,9 +544,9 @@ def neighbor_shells(  # noqa: DOC502
     Raises
     ------
     ValueError
-        If the cutoff or radius fails validation, an explicit radius is
-        incomplete, tracing reaches this host setup routine, or distinct atom
-        records produce a zero-length bond.
+        If the cutoff or radius fails validation, an explicit radius lacks
+        completeness, tracing reaches this host routine, or distinct atoms
+        produce a zero-length bond.
 
     Notes
     -----
@@ -1020,9 +1020,9 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     Concrete setup prunes the hopping metadata to the cutoff using a complete
     singular-value search certificate. Eager automatic differentiation can
     recover the concrete primal geometry and retains local derivatives on the
-    selected topology. A fully traced geometry without a concrete primal is
-    rejected. Use :func:`~diffpes.tightb.sk_model_parameter_view` to capture a
-    certified topology before compiling geometry optimization.
+    selected topology. The builder rejects fully traced geometry without a
+    concrete primal. Use :func:`~diffpes.tightb.sk_model_parameter_view` to
+    capture certified topology before compiling geometry optimization.
     """
     if any(
         angular < 0 or angular > MAX_SK_ANGULAR_MOMENTUM for angular in basis.l

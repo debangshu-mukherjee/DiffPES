@@ -17,6 +17,7 @@ from diffpes.types import (
     CrystalGeometry,
     DiagonalizedBands,
     OrbitalBasis,
+    SlabTopology,
     TBModel,
     make_crystal_geometry,
     make_diagonalized_bands,
@@ -157,6 +158,55 @@ class TestTBModel(chex.TestCase):
         chex.assert_tree_all_finite(jax.tree.leaves(gradient))
         chex.assert_shape(gradient.hopping_amplitudes, (2,))
         chex.assert_shape(gradient.onsite_energies, (1,))
+
+
+class TestSurfaceCell:
+    """Mirror coverage for :class:`diffpes.types.SurfaceCell`."""
+
+
+class TestSlabSpec:
+    """Mirror coverage for :class:`diffpes.types.SlabSpec`."""
+
+
+class TestMakeSurfaceCell:
+    """Mirror coverage for :func:`diffpes.types.make_surface_cell`."""
+
+
+class TestMakeSlabSpec:
+    """Mirror coverage for :func:`diffpes.types.make_slab_spec`."""
+
+
+class TestSlabTopology:
+    """Validate :class:`~diffpes.types.SlabTopology`."""
+
+    def test_fields_are_static_pytree_metadata(self) -> None:
+        """Keep every frozen topology choice outside differentiable leaves.
+
+        The carrier stores one primitive single-atom slab selection.
+
+        Notes
+        -----
+        Flatten the carrier and compare representative integer metadata.
+        """
+        topology: SlabTopology = SlabTopology(
+            miller=(0, 0, 1),
+            in_plane_coeffs=((1, 0, 0), (0, 1, 0)),
+            stacking_coeffs=(0, 0, 1),
+            atom_shifts=((0, 0, 0),),
+            bulk_atom_of_slab_atom=(0,),
+            layer_of_slab_atom=(0,),
+            termination=("X", "X"),
+            thickness_ang=0.0,
+            vacuum_ang=3.0,
+            fine=(0.0, 0.0),
+            n_layers=1,
+            bulk_atom_count=1,
+            basis_atom_indices=(0,),
+        )
+
+        assert jax.tree_util.tree_leaves(topology) == []
+        assert topology.miller == (0, 0, 1)
+        assert topology.n_layers == 1
 
 
 class TestMakeDiagonalizedBands(chex.TestCase):

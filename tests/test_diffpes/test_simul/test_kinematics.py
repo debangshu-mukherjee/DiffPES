@@ -221,7 +221,7 @@ class TestKzFromInnerPotential(chex.TestCase):
     def test_exact_threshold_and_aperture_boundary_are_invalid(self) -> None:
         """Reject equality at both open physical boundaries.
 
-        Exactly zero kinetic energy is forbidden. At positive kinetic energy,
+        The function forbids exactly zero kinetic energy. At positive kinetic energy,
         a parallel momentum equal to the vacuum final-state magnitude is also
         outside the open emission aperture.
 

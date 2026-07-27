@@ -63,6 +63,10 @@ class TestParseChecksum:
         """Reject a well-formed legacy CRC32 identity without an alias.
 
         Scientific lookup accepts only the current SHA-256 identity syntax.
+
+        Notes
+        -----
+        Parse a legacy identity and require the scientific-identity error.
         """
         with pytest.raises(ValueError, match="scientific-identity"):
             parse_checksum("crc32:canonical-1:result:4ddb0c25")
@@ -149,6 +153,10 @@ def test_crc32_collision_cannot_alias_scientific_identity() -> None:
 
     ``plumless`` and ``buckeroo`` are equal-length payloads with the same
     CRC32. Their domain-separated SHA-256 identities must remain distinct.
+
+    Notes
+    -----
+    Compare the legacy collision before checking both current identities.
     """
     left: bytes = b"plumless"
     right: bytes = b"buckeroo"

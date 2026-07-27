@@ -261,7 +261,7 @@ def checksum_file(path: str | Path, *, record_kind: str) -> str:
 def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
     """Parse and validate one checksum string.
 
-    Legacy CRC32 strings are rejected. Domain-separated SHA-256 supplies
+    The parser rejects legacy CRC32 strings. Domain-separated SHA-256 supplies
     collision-resistant content addressing, not authentication or scientific
     evidence.
 

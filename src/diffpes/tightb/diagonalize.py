@@ -14,6 +14,8 @@ Routine Listings
     Diagonalize a Hermitian matrix with a regularized eigenvector JVP.
 :func:`eigvalsh_bands`
     Compute only native tight-binding eigenvalues over k-points.
+:func:`eigvalsh_bands_chunked`
+    Compute eigenvalues with bounded live Hamiltonian storage.
 :func:`diagonalize_tb`
     Diagonalize a native tight-binding model over k-points.
 :func:`vasp_to_diagonalized`
@@ -32,7 +34,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal
+from beartype.typing import Callable, Literal
 from jaxtyping import Array, Complex, Float, Int, jaxtyped
 
 from diffpes.maths import safe_divide, safe_norm, safe_sqrt
@@ -235,6 +237,111 @@ def eigvalsh_bands(  # noqa: DOC502 -- validation is delegated to a traced helpe
 
 
 @jaxtyped(typechecker=beartype)
+def eigvalsh_bands_chunked(  # noqa: DOC502, DOC503
+    model: TBModel,
+    kpoints: Float[Array, "n_k 3"],
+    chunk_size: int = 32,
+) -> Float[Array, "n_k n_bands"]:
+    """Compute eigenvalues with bounded live Hamiltonian storage.
+
+    A fixed-size scan partitions the k-point axis. Each scan body assembles
+    and diagonalizes only ``chunk_size`` Hamiltonians. A
+    :func:`jax.checkpoint` wrapper makes reverse mode recompute the body
+    instead of retaining every chunk's dense intermediates.
+
+    :see: :class:`~.test_diagonalize.TestEigvalshBandsChunked`
+
+    Parameters
+    ----------
+    model : TBModel
+        Validated native tight-binding model.
+    kpoints : Float[Array, "n_k 3"]
+        Fractional reciprocal-space k-points. Callers sweeping path lengths
+        should pad to one fixed ``n_k`` and mask the returned band loss.
+    chunk_size : int, optional
+        Positive static number of k-points per chunk. ``n_k`` must be exactly
+        divisible by this value. Default is 32.
+
+    Returns
+    -------
+    eigenvalues : Float[Array, "n_k n_bands"]
+        Ascending band energies in eV.
+
+    Raises
+    ------
+    ValueError
+        If ``chunk_size`` is not a positive integer or does not divide the
+        padded k-point count.
+    EquinoxRuntimeError
+        If an assembled Hamiltonian is non-finite or non-Hermitian.
+
+    Notes
+    -----
+    Padding keeps the array shape fixed and therefore permits one compilation
+    across a k-path-length sweep. Thickness, termination, orbital count, and
+    connectivity remain static design choices and legitimately retrace. The
+    implementation never materializes a global ``(n_k, n_orb, n_orb)``
+    Hamiltonian array.
+    """
+    if type(chunk_size) is not int or chunk_size <= 0:
+        message: str = "chunk_size must be a positive integer"
+        raise ValueError(message)
+    n_kpoints: int = kpoints.shape[0]
+    if n_kpoints % chunk_size:
+        message = "padded k-point count must be divisible by chunk_size"
+        raise ValueError(message)
+    chunks: Float[Array, "n_chunk chunk_size 3"] = jnp.reshape(
+        kpoints,
+        (-1, chunk_size, 3),
+    )
+
+    def diagonalize_chunk(
+        points: Float[Array, "chunk_size 3"],
+    ) -> Float[Array, "chunk_size n_bands"]:
+        def diagonalize_point(
+            point: Float[Array, " 3"],
+        ) -> Float[Array, " n_bands"]:
+            hamiltonian: Complex[Array, "n_orb n_orb"] = bloch_hamiltonian(
+                model,
+                point,
+            )
+            checked: Complex[Array, "n_orb n_orb"] = _checked_hermitian(
+                hamiltonian,
+                context="eigvalsh_bands_chunked",
+            )
+            spectrum: Float[Array, " n_bands"] = jnp.linalg.eigvalsh(checked)
+            return spectrum
+
+        values: Float[Array, "chunk_size n_bands"] = jax.vmap(
+            diagonalize_point
+        )(points)
+        return values
+
+    checkpointed_chunk: Callable[[Array], Array] = jax.checkpoint(
+        diagonalize_chunk
+    )
+
+    def scan_body(
+        carry: None,
+        points: Float[Array, "chunk_size 3"],
+    ) -> tuple[None, Float[Array, "chunk_size n_bands"]]:
+        output: tuple[None, Float[Array, "chunk_size n_bands"]] = (
+            carry,
+            checkpointed_chunk(points),
+        )
+        return output
+
+    _: None
+    chunk_eigenvalues: Float[Array, "n_chunk chunk_size n_bands"]
+    _, chunk_eigenvalues = jax.lax.scan(scan_body, None, chunks)
+    eigenvalues: Float[Array, "n_k n_bands"] = jnp.reshape(
+        chunk_eigenvalues,
+        (n_kpoints, len(model.basis.n)),
+    )
+    return eigenvalues
+
+
+@jaxtyped(typechecker=beartype)
 def diagonalize_tb(
     model: TBModel,
     kpoints: Float[Array, "n_k 3"],
@@ -262,7 +369,8 @@ def diagonalize_tb(
     -----
     :func:`jax.vmap` applies :func:`eigh_safe` to each fractional k-point.
     The result retains the model geometry, static orbital basis, and any
-    explicit orbital positions that define its basis-position gauge.
+    explicit orbital positions that define its basis-position gauge. Optional
+    The result propagates orbital depths as an identity carrier.
     """
 
     def diagonalize_point(
@@ -293,6 +401,7 @@ def diagonalize_tb(
         basis=model.basis,
         fermi_energy=0.0,
         orbital_positions=model.orbital_positions,
+        depths=model.depths,
     )
     return bands
 
@@ -473,5 +582,6 @@ __all__: list[str] = [
     "diagonalize_tb",
     "eigh_safe",
     "eigvalsh_bands",
+    "eigvalsh_bands_chunked",
     "vasp_to_diagonalized",
 ]

@@ -48,10 +48,14 @@ Routine Listings
     Epsilon floor guarding divisions and norms.
 :obj:`EPS_DEG`
     Lorentzian width regularizing degenerate eigenvector derivatives.
+:obj:`DEGENERACY_GROUP_TOL_EV`
+    Maximum group-to-complement gap treated as a cut degeneracy.
 :obj:`FLOAT_TOKEN_RE`
     Compiled regex matching floating-point tokens.
 :obj:`GAUNT_IMAG_TOL`
     Tolerance for discarding imaginary Gaunt residues.
+:obj:`GROUP_COMPLEMENT_GAP_MIN_EV`
+    Minimum spectral isolation required for a registered band group.
 :obj:`HBAR_C_EV_A`
     Reduced Planck constant times c in eV Angstrom.
 :obj:`HBAR_EV_S`
@@ -191,10 +195,12 @@ EIG_UP_INDEX: Final[int] = 1
 ENERGY_AXIS_NDIM: Final[int] = 1
 EPS: Final[float] = 1e-12
 EPS_DEG: Final[float] = 1e-9
+DEGENERACY_GROUP_TOL_EV: Final[float] = 1e-8
 FLOAT_TOKEN_RE: Final[re.Pattern[str]] = re.compile(
     r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 )
 GAUNT_IMAG_TOL: Final[float] = 1e-12
+GROUP_COMPLEMENT_GAP_MIN_EV: Final[float] = 1e-6
 HBAR_C_EV_A: Final[float] = 1973.269804
 HBAR_EV_S: Final[float] = 6.582119569e-16
 HBAR_SQ_OVER_2ME_EV_ANG2: Final[float] = 3.8099821
@@ -327,6 +333,7 @@ __all__: list[str] = [
     "CHANNELS_BY_PAIR",
     "COORDINATE_MODE_TOKENS",
     "D_ORBITAL_SLICE",
+    "DEGENERACY_GROUP_TOL_EV",
     "EIG_DOWN_INDEX",
     "EIG_UP_INDEX",
     "ENERGY_AXIS_NDIM",
@@ -334,6 +341,7 @@ __all__: list[str] = [
     "EPS_DEG",
     "FLOAT_TOKEN_RE",
     "GAUNT_IMAG_TOL",
+    "GROUP_COMPLEMENT_GAP_MIN_EV",
     "HBAR_C_EV_A",
     "HBAR_EV_S",
     "HBAR_SQ_OVER_2ME_EV_ANG2",

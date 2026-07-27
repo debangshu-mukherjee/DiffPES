@@ -651,13 +651,13 @@ class TestBuildSkModel:
     def test_jit_rejects_uncertified_traced_geometry(self) -> None:
         """Reject neighbor discovery when compilation hides its geometry.
 
-        The compiled lattice is a tracer without a concrete primal, so no
-        singular-value topology certificate can be frozen on the host.
+        The compiled lattice lacks a concrete primal, so the host cannot
+        freeze a singular-value topology certificate.
 
         Notes
         -----
-        Static-geometry compiled rebuilds remain supported because their
-        topology is selected before tracing.
+        Static-geometry compiled rebuilds remain supported because host setup
+        selects their topology before tracing.
         """
         geometry: CrystalGeometry = make_crystal_geometry(
             jnp.eye(3, dtype=jnp.float64),

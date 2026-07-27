@@ -23,10 +23,13 @@ from beartype.typing import Any, Iterable
 from jaxtyping import Array, jaxtyped
 
 from diffpes.types import (
+    CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES,
     CERTIFICATION_LEVEL_IDS,
     CERTIFICATION_LEVEL_PREFIXES,
+    CERTIFICATION_LINEAGE_RELATIONSHIPS,
     CERTIFICATION_POLICY_IDS,
     CERTIFICATION_POLICY_LEVEL_COUNT,
+    CERTIFICATION_SHARED_RELATIONSHIPS,
     CertificationClaim,
     EvidenceLineage,
     EvidenceRef,
@@ -36,23 +39,6 @@ from diffpes.types import (
     make_policy_report,
 )
 
-_SHARED_RELATIONSHIPS: frozenset[str] = frozenset(
-    {
-        "copied-from",
-        "derived-from",
-        "imports-fixtures-from",
-        "shares-generator",
-        "shares-implementation",
-        "wraps",
-    }
-)
-_LINEAGE_RELATIONSHIPS: frozenset[str] = _SHARED_RELATIONSHIPS | {
-    "independent-derivation",
-    "resolves-conflict",
-    "resolves-node",
-}
-_INDEPENDENT_CLAIM_PREFIXES: tuple[str, ...] = ("benchmark", "parity")
-
 
 def _relationship(record: str) -> tuple[str, str] | None:
     """Parse one supported typed lineage relationship."""
@@ -60,14 +46,15 @@ def _relationship(record: str) -> tuple[str, str] | None:
     separator: str
     target: str
     kind, separator, target = record.partition(":")
-    if (
+    invalid: bool = (
         not separator
         or not kind
         or not target
-        or kind not in _LINEAGE_RELATIONSHIPS
-    ):
-        return None
-    result: tuple[str, str] = (kind, target)
+        or kind not in CERTIFICATION_LINEAGE_RELATIONSHIPS
+    )
+    result: tuple[str, str] | None = None
+    if not invalid:
+        result = (kind, target)
     return result
 
 
@@ -87,7 +74,7 @@ def evidence_is_independent(
     Parameters
     ----------
     evidence : EvidenceRef
-        Evidence whose complete ancestry is evaluated.
+        Evidence with complete evaluated ancestry.
     implementation_ref : str
         Exact implementation identity under test.
     artifact_ids : tuple[str, ...]
@@ -100,10 +87,10 @@ def evidence_is_independent(
 
     Notes
     -----
-    Every implementation, generator, and derivation node must have a typed
-    ``resolves-node:<id>`` relationship, and every artifact must be present in
-    the certificate. Shared ancestry fails. Conflict references fail unless
-    each is named by ``resolves-conflict:<conflict-id>``.
+    Every implementation, generator, and derivation node needs a typed
+    ``resolves-node:<id>`` relationship. The certificate must contain every
+    artifact. Shared ancestry fails. Conflict references fail unless the
+    lineage names each one with ``resolves-conflict:<conflict-id>``.
     """
     lineage: EvidenceLineage = evidence.lineage
     complete: bool = all(
@@ -123,32 +110,41 @@ def evidence_is_independent(
     parsed: tuple[tuple[str, str] | None, ...] = tuple(
         _relationship(item) for item in lineage.relationship_ids
     )
-    if not complete or any(item is None for item in parsed):
-        return False
-    relationships: tuple[tuple[str, str], ...] = tuple(
-        item for item in parsed if item is not None
-    )
-    resolved_nodes: frozenset[str] = frozenset(
-        target for kind, target in relationships if kind == "resolves-node"
-    )
-    nodes_resolved: bool = all(node in resolved_nodes for node in direct_refs)
-    artifacts_resolved: bool = set(lineage.artifact_refs).issubset(
-        artifact_ids
-    )
-    shared: bool = implementation_ref in direct_refs or any(
-        kind in _SHARED_RELATIONSHIPS and target == implementation_ref
-        for kind, target in relationships
-    )
-    resolved_conflicts: frozenset[str] = frozenset(
-        target for kind, target in relationships if kind == "resolves-conflict"
-    )
-    unresolved: bool = any(
-        conflict not in resolved_conflicts
-        for conflict in lineage.conflict_refs
-    )
-    independent: bool = (
-        nodes_resolved and artifacts_resolved and not shared and not unresolved
-    )
+    invalid: bool = not complete or any(item is None for item in parsed)
+    independent: bool = False
+    if not invalid:
+        relationships: tuple[tuple[str, str], ...] = tuple(
+            item for item in parsed if item is not None
+        )
+        resolved_nodes: frozenset[str] = frozenset(
+            target for kind, target in relationships if kind == "resolves-node"
+        )
+        nodes_resolved: bool = all(
+            node in resolved_nodes for node in direct_refs
+        )
+        artifacts_resolved: bool = set(lineage.artifact_refs).issubset(
+            artifact_ids
+        )
+        shared: bool = implementation_ref in direct_refs or any(
+            kind in CERTIFICATION_SHARED_RELATIONSHIPS
+            and target == implementation_ref
+            for kind, target in relationships
+        )
+        resolved_conflicts: frozenset[str] = frozenset(
+            target
+            for kind, target in relationships
+            if kind == "resolves-conflict"
+        )
+        unresolved: bool = any(
+            conflict not in resolved_conflicts
+            for conflict in lineage.conflict_refs
+        )
+        independent = (
+            nodes_resolved
+            and artifacts_resolved
+            and not shared
+            and not unresolved
+        )
     return independent
 
 
@@ -296,7 +292,9 @@ def evaluate_policy(
         independent_claims: tuple[CertificationClaim, ...] = tuple(
             claim
             for claim in claim_tuple
-            if claim.predicate_id.startswith(_INDEPENDENT_CLAIM_PREFIXES)
+            if claim.predicate_id.startswith(
+                CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES
+            )
         )
         lineage_qualified: bool = (
             bool(independent_claims)

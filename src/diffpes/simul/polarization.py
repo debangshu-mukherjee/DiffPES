@@ -440,7 +440,7 @@ def sample_azimuth_rotation(
     surface normal. Its transpose maps laboratory components into sample
     components.
 
-    :see: :class:`~.test_polarization.TestFrameSemantics`
+    :see: :class:`~.test_polarization.TestSampleAzimuthRotation`
 
     Parameters
     ----------
@@ -486,7 +486,7 @@ def lab_polarization_to_sample(
     The function applies only the inverse sample orientation. It leaves the
     physical beam independent of detector coordinates.
 
-    :see: :class:`~.test_polarization.TestFrameSemantics`
+    :see: :class:`~.test_polarization.TestLabPolarizationToSample`
 
     Parameters
     ----------
@@ -523,7 +523,7 @@ def detector_axis_to_sample(
     The function composes detector-to-laboratory orientation with the inverse
     sample orientation.
 
-    :see: :class:`~.test_polarization.TestFrameSemantics`
+    :see: :class:`~.test_polarization.TestDetectorAxisToSample`
 
     Parameters
     ----------

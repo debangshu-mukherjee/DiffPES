@@ -315,7 +315,8 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
             model.hopping_cells,
             model.shell_index,
             model.spinor,
-            model.orbital_positions,
+            orbital_positions=model.orbital_positions,
+            depths=model.depths,
         )
         return rebuilt
 
@@ -406,7 +407,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     bond-direction changes only. A uniform fractional translation and a
     uniform real-space dilation are structural null directions. Shear and
     relative-position changes can remain sensitive through their change of
-    bond directions. No radial strain law is implied by this optimizer view.
+    bond directions. This optimizer view does not imply a radial strain law.
 
     The onsite block retains the band-energy-zero gauge. A uniform onsite
     shift matches the fitted Fermi-energy or energy-offset shift. Downstream

@@ -1181,6 +1181,87 @@ class TestRotateFrameVectors(chex.TestCase):
         )
 
 
+class TestSampleAzimuthRotation:
+    """Validate :func:`~diffpes.simul.sample_azimuth_rotation`."""
+
+    def test_zero_azimuth_is_the_identity(self) -> None:
+        """Return the proper identity orientation at zero sample azimuth.
+
+        The case evaluates the typesafe public frame constructor.
+
+        Notes
+        -----
+        Compare the full matrix with the exact Cartesian identity.
+        """
+        orientation: Array = sample_azimuth_rotation(0.0)
+
+        chex.assert_trees_all_close(
+            orientation,
+            jnp.eye(3, dtype=jnp.float64),
+            rtol=0.0,
+            atol=0.0,
+        )
+
+
+class TestLabPolarizationToSample:
+    """Validate :func:`~diffpes.simul.lab_polarization_to_sample`."""
+
+    def test_applies_inverse_sample_orientation(self) -> None:
+        """Verify one laboratory field uses the inverse orientation.
+
+        The case uses a generic field and nonzero sample azimuth.
+
+        Notes
+        -----
+        Compare the public result with direct transpose multiplication.
+        """
+        polarization: Array = jnp.asarray(
+            (0.2 + 0.3j, -0.4 + 0.1j, 0.7 - 0.2j),
+            dtype=jnp.complex128,
+        )
+        orientation: Array = sample_azimuth_rotation(0.37)
+        actual: Array = lab_polarization_to_sample(
+            polarization,
+            orientation,
+        )
+
+        chex.assert_trees_all_close(
+            actual,
+            orientation.T @ polarization,
+            rtol=0.0,
+            atol=0.0,
+        )
+
+
+class TestDetectorAxisToSample:
+    """Validate :func:`~diffpes.simul.detector_axis_to_sample`."""
+
+    def test_composes_detector_and_sample_orientations(self) -> None:
+        """Verify one detector-fixed axis uses both active orientations.
+
+        The case uses generic detector angles and sample azimuth.
+
+        Notes
+        -----
+        Compare the public result with the declared matrix composition.
+        """
+        axis: Array = jnp.asarray((0.2, -0.7, 0.5), dtype=jnp.float64)
+        detector_orientation: Array = detector_rotation(0.19, -0.31, "V")
+        sample_orientation: Array = sample_azimuth_rotation(-0.23)
+        actual: Array = detector_axis_to_sample(
+            axis,
+            detector_orientation,
+            sample_orientation,
+        )
+
+        chex.assert_trees_all_close(
+            actual,
+            sample_orientation.T @ detector_orientation @ axis,
+            rtol=0.0,
+            atol=0.0,
+        )
+
+
 class TestFrameSemantics(chex.TestCase):
     """Validate fixed-beam and detector-axis frame semantics.
 

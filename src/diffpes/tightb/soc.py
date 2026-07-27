@@ -402,6 +402,12 @@ def spin_double_model(model: TBModel) -> TBModel:
             (model.orbital_positions, model.orbital_positions),
             axis=0,
         )
+    doubled_depths: Optional[Float[Array, " n_so"]] = None
+    if model.depths is not None:
+        doubled_depths = jnp.concatenate(
+            (model.depths, model.depths),
+            axis=0,
+        )
     doubled: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate(
             (model.hopping_amplitudes, model.hopping_amplitudes)
@@ -417,6 +423,7 @@ def spin_double_model(model: TBModel) -> TBModel:
         shell_index=model.shell_index + model.shell_index,
         spinor=True,
         orbital_positions=doubled_orbital_positions,
+        depths=doubled_depths,
     )
     return doubled
 

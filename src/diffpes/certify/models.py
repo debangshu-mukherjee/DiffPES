@@ -425,6 +425,71 @@ def _register_transformations() -> None:
                 "claim.fermi_level.full_band_structure_recoverable",
             ),
         ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.depth_carrier",
+            "1.0.0",
+            requires=(
+                "validated_optional_orbital_depths_angstrom",
+                "tight_binding_model",
+            ),
+            produces=("diagonalized_bands_with_optional_orbital_depths",),
+            preserves=(
+                "depth_values_exactly",
+                "depth_ordering",
+                "depth_units_angstrom",
+                "bulk_none_sentinel",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.slab_surface",
+            "1.0.0",
+            requires=(
+                "validated_bulk_tight_binding_model",
+                "primitive_miller_index",
+                "frozen_slab_topology",
+                "exact_integer_real_space_cells",
+            ),
+            produces=(
+                "finite_open_slab_model",
+                "orbital_depths_angstrom",
+                "slab_construction_provenance",
+            ),
+            preserves=(
+                "bulk_parameter_identity",
+                "in_plane_translation_symmetry",
+                "basis_position_gauge",
+                "wannier_operator_sidecar",
+            ),
+            introduces=(
+                "surface_cartesian_frame",
+                "open_normal_boundary",
+                "top_surface_depth_origin",
+            ),
+            destroys=("normal_translation_symmetry",),
+            invalidates_claims=(
+                "claim.slab.normal_bloch_momentum_observable",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.tightb.surface_projection",
+            "1.0.0",
+            requires=(
+                "orbital_depths_angstrom",
+                "positive_intensity_escape_length_angstrom",
+                "diagonalized_slab_eigenvectors",
+                "registered_isolated_band_groups",
+            ),
+            produces=(
+                "surface_resolved_band_weights",
+                "fixed_group_surface_traces",
+            ),
+            preserves=(
+                "complete_group_unitary_gauge",
+                "eigenvector_phase_gauge",
+                "intensity_escape_length_convention",
+            ),
+            introduces=("exponential_intensity_depth_weight",),
+        ),
     )
     existing: set[tuple[str, str]] = {
         (item.transformation_id, item.transformation_version)
@@ -501,6 +566,56 @@ def _register_plan04_handshake() -> None:
         ),
     )
     register_handshake(handshake)
+
+
+def _register_plan05_handshakes() -> None:
+    """Register the split Plan 05 carrier and slab handshakes."""
+    existing: set[str] = {item.owner_id for item in list_handshakes()}
+    if "org.diffpes.plan.05a" not in existing:
+        register_handshake(
+            make_registration_handshake(
+                owner_id="org.diffpes.plan.05a",
+                transformation_refs=(
+                    "org.diffpes.transform.tightb.depth_carrier@1.0.0",
+                ),
+                evidence_ids=(
+                    "org.diffpes.evidence.05a.g1.depth_carrier_persistence",
+                    "org.diffpes.evidence.05a.d1.depth_identity_jacobian",
+                ),
+            )
+        )
+    if "org.diffpes.plan.05b" not in existing:
+        register_handshake(
+            make_registration_handshake(
+                owner_id="org.diffpes.plan.05b",
+                transformation_refs=(
+                    "org.diffpes.transform.tightb.slab_surface@1.0.0",
+                    "org.diffpes.transform.tightb.surface_projection@1.0.0",
+                ),
+                evidence_ids=(
+                    "org.diffpes.evidence.05.g1.finite_chain",
+                    "org.diffpes.evidence.05.g2.rotation_covariance",
+                    "org.diffpes.evidence.05.g3.graphene_edges",
+                    "org.diffpes.evidence.05.g4.chinook_slab",
+                    "org.diffpes.evidence.05.g5.primitive_depths",
+                    "org.diffpes.evidence.05.g6.inversion_covariance",
+                    "org.diffpes.evidence.05.g7.open_surface",
+                    "org.diffpes.evidence.05.g8.depth_handoff",
+                    "org.diffpes.evidence.05.g9.surface_projection",
+                    "org.diffpes.evidence.05.g10.exact_operator_gather",
+                    "org.diffpes.evidence.05.g11.incomplete_shell_rejection",
+                    "org.diffpes.evidence.05.g12.fixed_group_gauge",
+                    "org.diffpes.evidence.05.g13.unfolded_graph",
+                    "org.diffpes.evidence.05.g14.acyclic_lifecycle",
+                    "org.diffpes.evidence.05.d1.bulk_parameter_gradients",
+                    "org.diffpes.evidence.05.d2.lattice_depth_gradients",
+                    "org.diffpes.evidence.05.d4.probe_depth_gradients",
+                    "org.diffpes.evidence.05.d5.random_group_gauges",
+                    "org.diffpes.evidence.05.s1.chunked_memory",
+                    "org.diffpes.evidence.05.s2.compile_count",
+                ),
+            )
+        )
 
 
 def _check_positive_photon_energy(inputs: tuple[Any, ...]) -> DomainResult:
@@ -588,6 +703,7 @@ def register_builtin_models() -> None:
     _register_checks()
     _register_plan03_handshake()
     _register_plan04_handshake()
+    _register_plan05_handshakes()
 
 
 __all__: list[str] = [

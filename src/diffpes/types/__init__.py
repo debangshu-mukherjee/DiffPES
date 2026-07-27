@@ -74,11 +74,11 @@ Routine Listings
 :obj:`CANONICAL_ARRAY_CHUNK_BYTES`
     Array chunk size used by canonical PyTree encoding in bytes.
 :obj:`CANONICAL_JSON_PREFIX`
-    Domain prefix for canonical JSON consistency checksums.
+    Domain prefix for canonical JSON identities.
 :obj:`CANONICAL_JSON_VERSION`
     Version of the canonical JSON representation.
 :obj:`CANONICAL_PYTREE_PREFIX`
-    Domain prefix for canonical PyTree consistency checksums.
+    Domain prefix for canonical PyTree identities.
 :obj:`CANONICAL_PYTREE_VERSION`
     Version of the canonical PyTree representation.
 :obj:`CANONICAL_SUPPORTED_ARRAY_KINDS`
@@ -103,24 +103,30 @@ Routine Listings
     Pattern matching permanent certification identifiers.
 :obj:`CERTIFICATION_LEVEL_IDS`
     Ordered cumulative scientific-certification level identifiers.
+:obj:`CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES`
+    Claim prefixes requiring independent evidence.
+:obj:`CERTIFICATION_LINEAGE_RELATIONSHIPS`
+    Typed lineage relationships accepted by certification policy.
 :obj:`CERTIFICATION_LEVEL_PREFIXES`
     Evidence prefixes required by each certification level.
 :obj:`CERTIFICATION_POLICY_IDS`
     Stable identifiers of built-in cumulative policies.
 :obj:`CERTIFICATION_POLICY_LEVEL_COUNT`
     Number of required levels for each built-in policy.
+:obj:`CERTIFICATION_SHARED_RELATIONSHIPS`
+    Lineage relationships that share implementation ancestry.
 :obj:`CERTIFICATION_SEMVER_PATTERN`
     Pattern matching certification semantic versions.
 :obj:`CHECKSUM_ALGORITHM`
-    Name of the non-security consistency-checksum algorithm.
+    Name of the scientific-identity digest algorithm.
 :obj:`CHECKSUM_FILE_CHUNK_BYTES`
-    File chunk size used by streaming consistency checksums in bytes.
+    File chunk size used by streaming scientific identities in bytes.
 :obj:`CHECKSUM_FORMAT_VERSION`
-    Version of the consistency-checksum text format.
+    Version of the scientific-identity text format.
 :obj:`CHECKSUM_PATTERN`
-    Pattern matching formatted consistency-checksum records.
+    Pattern matching formatted scientific-identity records.
 :obj:`CHECKSUM_RECORD_KIND_PATTERN`
-    Pattern matching consistency-checksum record-kind identifiers.
+    Pattern matching scientific-identity record-kind identifiers.
 :obj:`TB_RADIAL_INPUT_COUNT`
     Number of positional inputs accepted by the radial ARPES model adapter.
 :obj:`TB_RADIAL_MODEL_ID`
@@ -166,7 +172,7 @@ Routine Listings
 :class:`DomainResult`
     Store the traced evaluation of one declared domain predicate.
 :class:`EvidenceLineage`
-    Store named implementation, generator, artifact, and derivation ancestry.
+    Store named implementation, generator, artifact, and derivation lineage.
 :class:`EvidenceRef`
     Store numerical evidence with static method and source identity.
 :class:`EvidenceReport`
@@ -325,6 +331,8 @@ Routine Listings
     Store VASP POSCAR crystal geometry in a JAX PyTree.
 :obj:`D_ORBITAL_SLICE`
     Slice selecting the five d orbitals.
+:obj:`DEGENERACY_GROUP_TOL_EV`
+    Maximum group-to-complement gap treated as a cut degeneracy.
 :class:`DensityOfStates`
     Store density-of-states data in a JAX PyTree.
 :class:`DiagonalizedBands`
@@ -347,6 +355,8 @@ Routine Listings
     Store spin-resolved total and projected DOS data in a JAX PyTree.
 :obj:`GAUNT_IMAG_TOL`
     Tolerance for discarding imaginary Gaunt residues.
+:obj:`GROUP_COMPLEMENT_GAP_MIN_EV`
+    Minimum spectral isolation required for a registered band group.
 :obj:`HBAR_C_EV_A`
     Reduced Planck constant times c in eV Angstrom.
 :obj:`HBAR_EV_S`
@@ -415,6 +425,8 @@ Routine Listings
     Create a validated ``SelfEnergyConfig`` instance.
 :func:`make_simulation_params`
     Create a validated SimulationParams instance.
+:func:`make_slab_spec`
+    Create a validated slab-construction sidecar.
 :func:`make_slater_params`
     Create a validated ``SlaterParams`` instance.
 :func:`make_slater_koster_params`
@@ -425,6 +437,8 @@ Routine Listings
     Create a validated ``SpinBandStructure`` instance.
 :func:`make_spin_orbital_projection`
     Create a validated ``SpinOrbitalProjection`` instance.
+:func:`make_surface_cell`
+    Create a validated Cartesian surface-cell carrier.
 :func:`make_tb_model`
     Create a validated ``TBModel`` instance.
 :func:`make_wannier_operator_data`
@@ -501,6 +515,10 @@ Routine Listings
     Store energy-dependent self-energy data in a JAX PyTree.
 :class:`SimulationParams`
     Store ARPES simulation parameters in a JAX PyTree.
+:class:`SlabSpec`
+    Store static slab construction choices and provenance.
+:class:`SlabTopology`
+    Store host-selected discrete slab topology for pure-JAX rebuilding.
 :class:`SlaterParams`
     Store Slater radial-wavefunction parameters in a JAX PyTree.
 :class:`SlaterKosterParams`
@@ -525,6 +543,8 @@ Routine Listings
     Store spin-resolved electronic band-structure data in a JAX PyTree.
 :class:`SpinOrbitalProjection`
     Store orbital projections with spin data in a JAX PyTree.
+:class:`SurfaceCell`
+    Store a validated Cartesian surface-cell frame.
 :class:`TBModel`
     Store tight-binding parameters in a JAX PyTree.
 :class:`WannierOperatorData`
@@ -647,11 +667,14 @@ from .certification_constants import (
     CERTIFICATE_SCHEMA_MINOR,
     CERTIFICATE_SCHEMA_PATTERN,
     CERTIFICATION_IDENTIFIER_PATTERN,
+    CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES,
     CERTIFICATION_LEVEL_IDS,
     CERTIFICATION_LEVEL_PREFIXES,
+    CERTIFICATION_LINEAGE_RELATIONSHIPS,
     CERTIFICATION_POLICY_IDS,
     CERTIFICATION_POLICY_LEVEL_COUNT,
     CERTIFICATION_SEMVER_PATTERN,
+    CERTIFICATION_SHARED_RELATIONSHIPS,
     CHECKSUM_ALGORITHM,
     CHECKSUM_FILE_CHUNK_BYTES,
     CHECKSUM_FORMAT_VERSION,
@@ -673,6 +696,7 @@ from .constants import (
     CHANNELS_BY_PAIR,
     COORDINATE_MODE_TOKENS,
     D_ORBITAL_SLICE,
+    DEGENERACY_GROUP_TOL_EV,
     EIG_DOWN_INDEX,
     EIG_UP_INDEX,
     ENERGY_AXIS_NDIM,
@@ -680,6 +704,7 @@ from .constants import (
     EPS_DEG,
     FLOAT_TOKEN_RE,
     GAUNT_IMAG_TOL,
+    GROUP_COMPLEMENT_GAP_MIN_EV,
     HBAR_C_EV_A,
     HBAR_EV_S,
     HBAR_SQ_OVER_2ME_EV_ANG2,
@@ -796,8 +821,13 @@ from .tables import (
 )
 from .tb_model import (
     DiagonalizedBands,
+    SlabSpec,
+    SlabTopology,
+    SurfaceCell,
     TBModel,
     make_diagonalized_bands,
+    make_slab_spec,
+    make_surface_cell,
     make_tb_model,
 )
 from .volumetric import (
@@ -851,10 +881,13 @@ __all__: list[str] = [
     "CERTIFICATE_SCHEMA_MINOR",
     "CERTIFICATE_SCHEMA_PATTERN",
     "CERTIFICATION_IDENTIFIER_PATTERN",
+    "CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES",
     "CERTIFICATION_LEVEL_IDS",
+    "CERTIFICATION_LINEAGE_RELATIONSHIPS",
     "CERTIFICATION_LEVEL_PREFIXES",
     "CERTIFICATION_POLICY_IDS",
     "CERTIFICATION_POLICY_LEVEL_COUNT",
+    "CERTIFICATION_SHARED_RELATIONSHIPS",
     "CERTIFICATION_SEMVER_PATTERN",
     "CHECKSUM_ALGORITHM",
     "CHECKSUM_FILE_CHUNK_BYTES",
@@ -876,6 +909,7 @@ __all__: list[str] = [
     "CheckFunction",
     "ConventionRef",
     "D_ORBITAL_SLICE",
+    "DEGENERACY_GROUP_TOL_EV",
     "DensityOfStates",
     "DependencyMap",
     "DiagonalizedBands",
@@ -898,6 +932,7 @@ __all__: list[str] = [
     "ForwardCertificate",
     "ForwardModelSpec",
     "GAUNT_IMAG_TOL",
+    "GROUP_COMPLEMENT_GAP_MIN_EV",
     "HBAR_C_EV_A",
     "HBAR_EV_S",
     "HBAR_SQ_OVER_2ME_EV_ANG2",
@@ -971,12 +1006,14 @@ __all__: list[str] = [
     "make_reproduction_report",
     "make_self_energy_config",
     "make_simulation_params",
+    "make_slab_spec",
     "make_sensitivity_map",
     "make_slater_koster_params",
     "make_slater_params",
     "make_soc_volumetric_data",
     "make_spin_band_structure",
     "make_spin_orbital_projection",
+    "make_surface_cell",
     "make_tb_model",
     "make_transformation_record",
     "make_transformation_contract",
@@ -1027,6 +1064,8 @@ __all__: list[str] = [
     "SelfEnergyConfig",
     "SensitivityMap",
     "SimulationParams",
+    "SlabSpec",
+    "SlabTopology",
     "SlaterKosterParams",
     "SlaterParams",
     "SMALL_ARGUMENT",
@@ -1039,6 +1078,7 @@ __all__: list[str] = [
     "SPIN_COLS",
     "SpinBandStructure",
     "SpinOrbitalProjection",
+    "SurfaceCell",
     "TBModel",
     "TB_RADIAL_INPUT_COUNT",
     "TB_RADIAL_MODEL_ID",

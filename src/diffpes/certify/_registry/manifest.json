@@ -55,6 +55,49 @@
         "org.diffpes.transform.tightb.dos_gaussian@1.0.0",
         "org.diffpes.transform.tightb.filling_fermi_level@1.0.0"
       ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
+        "org.diffpes.evidence.05a.g1.depth_carrier_persistence",
+        "org.diffpes.evidence.05a.d1.depth_identity_jacobian"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.plan.05a",
+      "transformation_refs": [
+        "org.diffpes.transform.tightb.depth_carrier@1.0.0"
+      ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
+        "org.diffpes.evidence.05.g1.finite_chain",
+        "org.diffpes.evidence.05.g2.rotation_covariance",
+        "org.diffpes.evidence.05.g3.graphene_edges",
+        "org.diffpes.evidence.05.g4.chinook_slab",
+        "org.diffpes.evidence.05.g5.primitive_depths",
+        "org.diffpes.evidence.05.g6.inversion_covariance",
+        "org.diffpes.evidence.05.g7.open_surface",
+        "org.diffpes.evidence.05.g8.depth_handoff",
+        "org.diffpes.evidence.05.g9.surface_projection",
+        "org.diffpes.evidence.05.g10.exact_operator_gather",
+        "org.diffpes.evidence.05.g11.incomplete_shell_rejection",
+        "org.diffpes.evidence.05.g12.fixed_group_gauge",
+        "org.diffpes.evidence.05.g13.unfolded_graph",
+        "org.diffpes.evidence.05.g14.acyclic_lifecycle",
+        "org.diffpes.evidence.05.d1.bulk_parameter_gradients",
+        "org.diffpes.evidence.05.d2.lattice_depth_gradients",
+        "org.diffpes.evidence.05.d4.probe_depth_gradients",
+        "org.diffpes.evidence.05.d5.random_group_gauges",
+        "org.diffpes.evidence.05.s1.chunked_memory",
+        "org.diffpes.evidence.05.s2.compile_count"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.plan.05b",
+      "transformation_refs": [
+        "org.diffpes.transform.tightb.slab_surface@1.0.0",
+        "org.diffpes.transform.tightb.surface_projection@1.0.0"
+      ]
     }
   ],
   "schema_version": "1.0.0",
@@ -100,6 +143,10 @@
       "transformation_version": "1.0.0"
     },
     {
+      "transformation_id": "org.diffpes.transform.tightb.depth_carrier",
+      "transformation_version": "1.0.0"
+    },
+    {
       "transformation_id": "org.diffpes.transform.tightb.dos_gaussian",
       "transformation_version": "1.0.0"
     },
@@ -109,6 +156,14 @@
     },
     {
       "transformation_id": "org.diffpes.transform.tightb.filling_fermi_level",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.slab_surface",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.tightb.surface_projection",
       "transformation_version": "1.0.0"
     }
   ]

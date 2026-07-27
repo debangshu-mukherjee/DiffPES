@@ -648,6 +648,154 @@ class TestValidateHandshake:
             "org.diffpes.plan.04",
         }
 
+    def test_plan05_split_handshakes_are_complete_and_acyclic(self) -> None:
+        """Validate the separate carrier and full-slab lifecycle records.
+
+        Plan 05a must certify only the depth-carrier release. Plan 05b
+        enumerates every retained G, D, and S exit gate. It must not acquire
+        Plan 06 amplitude, intensity, or matrix-element dependencies.
+
+        Notes
+        -----
+        Compare the live declarations with the packaged manifest exactly,
+        then validate each handshake using only its own declared evidence.
+        """
+        register_builtin_models()
+        manifest: dict[str, Any] = registry_manifest()
+        declarations: dict[str, dict[str, Any]] = {
+            item["owner_id"]: item for item in manifest["handshakes"]
+        }
+        handshakes: dict[str, Any] = {
+            item.owner_id: item for item in list_handshakes()
+        }
+        carrier_owner: str = "org.diffpes.plan.05a"
+        slab_owner: str = "org.diffpes.plan.05b"
+        assert {carrier_owner, slab_owner} <= declarations.keys()
+        assert {carrier_owner, slab_owner} <= handshakes.keys()
+
+        carrier_evidence: tuple[str, ...] = (
+            "org.diffpes.evidence.05a.g1.depth_carrier_persistence",
+            "org.diffpes.evidence.05a.d1.depth_identity_jacobian",
+        )
+        carrier_refs: tuple[str, ...] = (
+            "org.diffpes.transform.tightb.depth_carrier@1.0.0",
+        )
+        slab_evidence: tuple[str, ...] = (
+            "org.diffpes.evidence.05.g1.finite_chain",
+            "org.diffpes.evidence.05.g2.rotation_covariance",
+            "org.diffpes.evidence.05.g3.graphene_edges",
+            "org.diffpes.evidence.05.g4.chinook_slab",
+            "org.diffpes.evidence.05.g5.primitive_depths",
+            "org.diffpes.evidence.05.g6.inversion_covariance",
+            "org.diffpes.evidence.05.g7.open_surface",
+            "org.diffpes.evidence.05.g8.depth_handoff",
+            "org.diffpes.evidence.05.g9.surface_projection",
+            "org.diffpes.evidence.05.g10.exact_operator_gather",
+            "org.diffpes.evidence.05.g11.incomplete_shell_rejection",
+            "org.diffpes.evidence.05.g12.fixed_group_gauge",
+            "org.diffpes.evidence.05.g13.unfolded_graph",
+            "org.diffpes.evidence.05.g14.acyclic_lifecycle",
+            "org.diffpes.evidence.05.d1.bulk_parameter_gradients",
+            "org.diffpes.evidence.05.d2.lattice_depth_gradients",
+            "org.diffpes.evidence.05.d4.probe_depth_gradients",
+            "org.diffpes.evidence.05.d5.random_group_gauges",
+            "org.diffpes.evidence.05.s1.chunked_memory",
+            "org.diffpes.evidence.05.s2.compile_count",
+        )
+        slab_refs: tuple[str, ...] = (
+            "org.diffpes.transform.tightb.slab_surface@1.0.0",
+            "org.diffpes.transform.tightb.surface_projection@1.0.0",
+        )
+        manifest_transformation_refs: set[str] = {
+            f"{item['transformation_id']}@{item['transformation_version']}"
+            for item in manifest["transformations"]
+        }
+        assert set((*carrier_refs, *slab_refs)) <= manifest_transformation_refs
+        assert tuple(declarations) == tuple(sorted(declarations))
+
+        expected: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+            (carrier_owner, carrier_refs, carrier_evidence),
+            (slab_owner, slab_refs, slab_evidence),
+        )
+        owner: str
+        transformation_refs: tuple[str, ...]
+        evidence_ids: tuple[str, ...]
+        for owner, transformation_refs, evidence_ids in expected:
+            declaration: dict[str, Any] = declarations[owner]
+            handshake: Any = handshakes[owner]
+            assert handshake.model_refs == ()
+            assert handshake.convention_refs == ()
+            assert handshake.transformation_refs == transformation_refs
+            assert handshake.evidence_ids == evidence_ids
+            assert declaration["model_refs"] == []
+            assert declaration["convention_refs"] == []
+            assert (
+                tuple(declaration["transformation_refs"])
+                == transformation_refs
+            )
+            assert tuple(declaration["evidence_ids"]) == evidence_ids
+            report: Any = validate_handshake(
+                handshake,
+                evidence_ids=evidence_ids,
+            )
+            assert bool(report.complete), report.missing_ids
+            assert report.missing_ids == ()
+
+        assert (
+            tuple(
+                item
+                for item in slab_evidence
+                if any(f".g{gate}." in item for gate in range(1, 15))
+            )
+            == slab_evidence[:14]
+        )
+        assert {
+            item.split(".evidence.05.", maxsplit=1)[1].split(".", maxsplit=1)[
+                0
+            ]
+            for item in slab_evidence[14:]
+        } == {"d1", "d2", "d4", "d5", "s1", "s2"}
+        plan05_identifiers: tuple[str, ...] = tuple(
+            identifier
+            for owner in (carrier_owner, slab_owner)
+            for identifier in (
+                *handshakes[owner].model_refs,
+                *handshakes[owner].transformation_refs,
+                *handshakes[owner].convention_refs,
+                *handshakes[owner].evidence_ids,
+            )
+        )
+        assert not any(
+            ".06" in identifier for identifier in plan05_identifiers
+        )
+        assert not any(
+            forbidden in identifier
+            for identifier in plan05_identifiers
+            for forbidden in ("amplitude", "matrix_element")
+        )
+        assert "org.diffpes.evidence.05.g14.acyclic_lifecycle" in slab_evidence
+
+        depth_carrier: Any = get_transformation(
+            "org.diffpes.transform.tightb.depth_carrier",
+            "1.0.0",
+        ).contract
+        slab_surface: Any = get_transformation(
+            "org.diffpes.transform.tightb.slab_surface",
+            "1.0.0",
+        ).contract
+        surface_projection: Any = get_transformation(
+            "org.diffpes.transform.tightb.surface_projection",
+            "1.0.0",
+        ).contract
+        assert "depth_values_exactly" in depth_carrier.preserves
+        assert "open_normal_boundary" in slab_surface.introduces
+        assert "normal_translation_symmetry" in slab_surface.destroys
+        assert "complete_group_unitary_gauge" in surface_projection.preserves
+        assert (
+            "exponential_intensity_depth_weight"
+            in surface_projection.introduces
+        )
+
 
 class TestRegistryManifest:
     """Verify :func:`~diffpes.certify.registry_manifest`.

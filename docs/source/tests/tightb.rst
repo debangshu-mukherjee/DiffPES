@@ -33,6 +33,46 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_operators
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_carrier_handoff
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_chinook_compatibility
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_differentiability_scaling
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_g10_operator_seam
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_slab
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_physics_gates
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_plan05_sk_differentiability
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_tightb.test_parameters
    :members:
    :undoc-members:
@@ -54,6 +94,11 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_tightb.test_soc
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_surface_cell
    :members:
    :undoc-members:
    :show-inheritance:

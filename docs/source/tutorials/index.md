@@ -11,6 +11,7 @@ quickstart
 certified-forward-model
 geometry-and-kinematics
 tight-binding-models
+slabs-and-surfaces
 ```
 
 - [Quickstart](quickstart.md): Build a synthetic band structure. Simulate two
@@ -24,6 +25,8 @@ tight-binding-models
 - [Native tight-binding models](tight-binding-models.md): Build graphene by
   hand and with Slater--Koster parameters. Add spin--orbit coupling, then
   inspect fat bands, spin texture, and density of states.
+- [Slabs and surfaces](slabs-and-surfaces.md): Build a Miller-index slab,
+  verify an analytic finite-chain spectrum, and inspect depth-weighted bands.
 
 The project is developing more complete examples:
 

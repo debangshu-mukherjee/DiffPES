@@ -322,4 +322,19 @@ class TestRashbaSpinTexture:
         assert jnp.allclose(magnitude, 0.5, rtol=0.0, atol=1e-10)
 
 
+class TestSurfaceProjector:
+    """Mirror coverage for :func:`diffpes.tightb.surface_projector`."""
+
+
+class TestLayerResolvedWeights:
+    """Mirror coverage for :func:`diffpes.tightb.layer_resolved_weights`."""
+
+
+class TestLayerResolvedGroupTraces:
+    """Mirror coverage for fixed-group surface traces.
+
+    :see: :func:`diffpes.tightb.layer_resolved_group_traces`
+    """
+
+
 __all__: list[str] = []

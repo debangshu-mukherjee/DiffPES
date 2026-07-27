@@ -15,13 +15,15 @@ Routine Listings
 
 Notes
 -----
-The codec supports all twenty-three numerical types-owned carriers.
+The codec supports all twenty-five numerical types-owned carriers.
 Dataclass fields define the serialization metadata.
 The codec stores dynamic fields as datasets or recursive module groups.
 It encodes ``eqx.field(static=True)`` values as tuple-preserving JSON.
 Consequently, tight-binding carriers preserve nested crystal geometry as
 recursive numerical children and their orbital basis as static metadata
 without carrier-specific serialization rules.
+Files predating Plan 05a load absent tight-binding ``depths`` datasets as the
+bulk sentinel ``None``.
 """
 
 import json
@@ -57,10 +59,12 @@ from diffpes.types import (
     PolarizationConfig,
     SelfEnergyConfig,
     SimulationParams,
+    SlabSpec,
     SlaterParams,
     SOCVolumetricData,
     SpinBandStructure,
     SpinOrbitalProjection,
+    SurfaceCell,
     TBModel,
     VolumetricData,
     WannierOperatorData,
@@ -86,10 +90,12 @@ def _pytree_classes() -> tuple[type[eqx.Module], ...]:
         PolarizationConfig,
         SelfEnergyConfig,
         SimulationParams,
+        SlabSpec,
         SlaterParams,
         SOCVolumetricData,
         SpinBandStructure,
         SpinOrbitalProjection,
+        SurfaceCell,
         TBModel,
         VolumetricData,
         WannierOperatorData,
@@ -205,6 +211,17 @@ def _module_meta(module_class: type[eqx.Module]) -> Mapping[str, Any]:
 _PYTREE_REGISTRY: Mapping[str, Mapping[str, Any]] = MappingProxyType(
     {cls.__name__: _module_meta(cls) for cls in _pytree_classes()}
 )
+
+
+def _optional_migration_fields() -> Mapping[str, frozenset[str]]:
+    """Return fields absent from historical serialized carriers."""
+    fields_by_type: Mapping[str, frozenset[str]] = MappingProxyType(
+        {
+            "DiagonalizedBands": frozenset({"depths"}),
+            "TBModel": frozenset({"depths"}),
+        }
+    )
+    return fields_by_type
 
 
 @beartype
@@ -489,7 +506,11 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
 
         children: list[Any] = []
         for field_name in meta["children_fields"]:
-            if field_name in none_fields:
+            if field_name in none_fields or (
+                field_name not in grp
+                and field_name
+                in _optional_migration_fields().get(type_name, frozenset())
+            ):
                 children.append(None)
             elif isinstance(grp[field_name], h5py.Group):
                 children.append(_load_group(grp[field_name]))

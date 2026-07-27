@@ -28,6 +28,8 @@ The following list describes the submodules:
     Expose independent real optimizer coordinates for tight-binding models.
 - :mod:`slaterkoster`
     Build tight-binding hoppings from Slater--Koster integrals.
+- :mod:`slab`
+    Construct exact Miller-index surface cells and rotate TB models.
 - :mod:`soc`
     Construct atomic spin--orbit coupling in the real-cubic basis.
 - :mod:`dos`
@@ -55,6 +57,8 @@ Routine Listings
     Diagonalize a Hermitian matrix with a regularized eigenvector JVP.
 :func:`eigvalsh_bands`
     Compute only native tight-binding eigenvalues over k-points.
+:func:`eigvalsh_bands_chunked`
+    Compute eigenvalues with bounded live Hamiltonian storage.
 :func:`band_projectors`
     Materialize each U(1)-gauge-invariant rank-one band projector.
 :func:`dos_gaussian`
@@ -67,6 +71,14 @@ Routine Listings
     Compute the finite-temperature Fermi level from the filling equation.
 :func:`first_bz_mask`
     Mark Cartesian points inside the first Brillouin zone.
+:func:`find_surface_cell`
+    Build an exact primitive surface cell for one Miller plane.
+:func:`freeze_slab_topology`
+    Freeze every discrete choice required to rebuild one slab.
+:func:`gen_slab`
+    Construct a finite Miller-index slab with exact open-normal topology.
+:func:`gen_slab_with_operators`
+    Construct a slab while preserving its Wannier operator sidecar.
 :func:`kpath_arc_length`
     Compute cumulative Cartesian distance along a k-path.
 :func:`kpoints_cart_to_frac`
@@ -79,6 +91,10 @@ Routine Listings
     Trace a Hermitian operator over one fixed band group.
 :func:`ls_operator`
     Construct unit-strength atomic :math:`L\cdot S` by shell.
+:func:`layer_resolved_group_traces`
+    Compute surface traces over complete, isolated fixed band groups.
+:func:`layer_resolved_weights`
+    Compute per-band surface weights as an off-degeneracy diagnostic.
 :func:`l_matrices`
     Construct orbital angular-momentum matrices in the complex basis.
 :func:`neighbor_shells`
@@ -87,6 +103,8 @@ Routine Listings
     Construct a diagonal projector onto selected basis orbitals.
 :func:`orbital_weights`
     Compute the squared orbital amplitudes of normalized eigenvectors.
+:func:`rebuild_slab`
+    Construct a slab from frozen topology using only JAX geometry.
 :func:`sk_block`
     Construct a real-harmonic Slater--Koster hopping block.
 :func:`sk_model_parameter_view`
@@ -101,16 +119,23 @@ Routine Listings
     Create a spin-doubled model with spin-diagonal down--up blocks.
 :func:`spin_operator`
     Construct :math:`S_{\widehat n}=\widehat n\cdot\sigma/2`.
+:func:`surface_projector`
+    Construct surface-sensitive orbital probability weights.
+:func:`rotate_tb_model`
+    Construct a rotated complete-shell tight-binding model.
 :func:`tb_parameter_view`
     Pack a materialized tight-binding model into independent coordinates.
 :func:`vasp_to_diagonalized`
     Convert atom-resolved VASP projections to approximate band vectors.
+:func:`validate_open_surface_adjacency`
+    Reject direct or component-propagated periodic normal images.
 """
 
 from .diagonalize import (
     diagonalize_tb,
     eigh_safe,
     eigvalsh_bands,
+    eigvalsh_bands_chunked,
     vasp_to_diagonalized,
 )
 from .dos import dos_gaussian, fermi_level_from_filling
@@ -128,7 +153,14 @@ from .kspace import (
     kpoints_cart_to_frac,
     kpoints_frac_to_cart,
 )
-from .operators import ls_operator, orbital_projector, spin_operator
+from .operators import (
+    layer_resolved_group_traces,
+    layer_resolved_weights,
+    ls_operator,
+    orbital_projector,
+    spin_operator,
+    surface_projector,
+)
 from .parameters import sk_model_parameter_view, tb_parameter_view
 from .projections import (
     band_projectors,
@@ -137,6 +169,15 @@ from .projections import (
     group_projector,
     group_trace,
     orbital_weights,
+)
+from .slab import (
+    find_surface_cell,
+    freeze_slab_topology,
+    gen_slab,
+    gen_slab_with_operators,
+    rebuild_slab,
+    rotate_tb_model,
+    validate_open_surface_adjacency,
 )
 from .slaterkoster import build_sk_model, neighbor_shells, sk_block
 from .soc import (
@@ -160,20 +201,29 @@ __all__: list[str] = [
     "dos_gaussian",
     "eigh_safe",
     "eigvalsh_bands",
+    "eigvalsh_bands_chunked",
     "expectation_path",
     "fat_bands",
     "fermi_level_from_filling",
+    "find_surface_cell",
     "first_bz_mask",
+    "freeze_slab_topology",
+    "gen_slab",
+    "gen_slab_with_operators",
     "kpath_arc_length",
     "kpoints_cart_to_frac",
     "kpoints_frac_to_cart",
     "l_matrices",
+    "layer_resolved_group_traces",
+    "layer_resolved_weights",
     "group_projector",
     "group_trace",
     "ls_operator",
     "neighbor_shells",
     "orbital_projector",
     "orbital_weights",
+    "rebuild_slab",
+    "rotate_tb_model",
     "sk_block",
     "sk_model_parameter_view",
     "soc_matrix",
@@ -181,6 +231,8 @@ __all__: list[str] = [
     "spin_double_basis",
     "spin_double_model",
     "spin_operator",
+    "surface_projector",
     "tb_parameter_view",
+    "validate_open_surface_adjacency",
     "vasp_to_diagonalized",
 ]

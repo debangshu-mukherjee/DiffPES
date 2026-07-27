@@ -11,10 +11,20 @@ Routine Listings
 ----------------
 :class:`DiagonalizedBands`
     Store diagonalized electronic-structure data in a JAX PyTree.
+:class:`SlabSpec`
+    Store static slab construction choices and provenance.
+:class:`SlabTopology`
+    Store host-selected discrete slab topology for pure-JAX rebuilding.
+:class:`SurfaceCell`
+    Store a validated Cartesian surface-cell frame.
 :class:`TBModel`
     Store tight-binding parameters in a JAX PyTree.
 :func:`make_diagonalized_bands`
     Create a validated ``DiagonalizedBands`` instance.
+:func:`make_slab_spec`
+    Create a validated slab-construction sidecar.
+:func:`make_surface_cell`
+    Create a validated Cartesian surface-cell carrier.
 :func:`make_tb_model`
     Create a validated ``TBModel`` instance.
 
@@ -24,6 +34,8 @@ The tight-binding phase convention is the basis-position gauge. Each physical
 fractional bond displacement follows ``R + tau_j - tau_i`` from exact
 integer-cell metadata and either explicit orbital centres or atomic positions.
 """
+
+import math
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -37,10 +49,210 @@ from .radial_params import OrbitalBasis
 
 _HERMITICITY_TOLERANCE: float = 1e-12
 _PAIR_LENGTH: int = 2
+_SURFACE_VECTOR_COUNT: int = 2
 _CELL_COMPONENTS: int = 3
 _EIGENVALUE_NDIM: int = 2
 _EIGENVECTOR_NDIM: int = 3
 _ORBITAL_POSITION_NDIM: int = 2
+_DEPTH_TOLERANCE_ANG: float = 1e-12
+_ROTATION_ORTHOGONALITY_TOLERANCE: float = 1e-10
+
+
+def _validate_depths_shape(
+    depths: Optional[Float[Array, " n_depth"]],
+    n_orbitals: int,
+) -> None:
+    """Validate the optional orbital-depth axis."""
+    if depths is not None and (
+        depths.ndim != 1 or depths.shape[0] != n_orbitals
+    ):
+        message: str = "depths must have shape (n_orbitals,)"
+        raise ValueError(message)
+
+
+def _validate_integer_triple(
+    values: tuple[int, int, int],
+    name: str,
+) -> None:
+    """Validate one exact integer coefficient triple."""
+    if (
+        type(values) is not tuple
+        or len(values) != _CELL_COMPONENTS
+        or any(type(value) is not int for value in values)
+    ):
+        message: str = f"{name} must be a tuple of three integers"
+        raise ValueError(message)
+
+
+def _integer_dot(
+    left: tuple[int, int, int],
+    right: tuple[int, int, int],
+) -> int:
+    """Return an exact dot product between integer triples."""
+    result: int = sum(
+        left[index] * right[index] for index in range(_CELL_COMPONENTS)
+    )
+    return result
+
+
+def _integer_determinant(
+    rows: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ],
+) -> int:
+    """Return the exact determinant of three integer row vectors."""
+    first: tuple[int, int, int]
+    second: tuple[int, int, int]
+    third: tuple[int, int, int]
+    first, second, third = rows
+    determinant: int = (
+        first[0] * (second[1] * third[2] - second[2] * third[1])
+        - first[1] * (second[0] * third[2] - second[2] * third[0])
+        + first[2] * (second[0] * third[1] - second[1] * third[0])
+    )
+    return determinant
+
+
+def _validate_surface_cell_structure(
+    in_plane_vectors: Float[Array, "2 3"],
+    stacking_vector: Float[Array, " 3"],
+    rotation: Float[Array, "3 3"],
+    interlayer_spacing_ang: Float[Array, ""],
+    miller: tuple[int, int, int],
+    in_plane_coeffs: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ],
+    stacking_coeffs: tuple[int, int, int],
+) -> None:
+    """Validate surface-cell shapes and exact integer invariants."""
+    if (
+        in_plane_vectors.ndim != _SURFACE_VECTOR_COUNT
+        or in_plane_vectors.shape != (_SURFACE_VECTOR_COUNT, _CELL_COMPONENTS)
+    ):
+        message: str = "in_plane_vectors must have shape (2, 3)"
+        raise ValueError(message)
+    if stacking_vector.ndim != 1 or stacking_vector.shape != (3,):
+        message = "stacking_vector must have shape (3,)"
+        raise ValueError(message)
+    if rotation.ndim != _SURFACE_VECTOR_COUNT or rotation.shape != (
+        _CELL_COMPONENTS,
+        _CELL_COMPONENTS,
+    ):
+        message = "rotation must have shape (3, 3)"
+        raise ValueError(message)
+    if interlayer_spacing_ang.ndim != 0:
+        message = "interlayer_spacing_ang must be scalar"
+        raise ValueError(message)
+
+    _validate_integer_triple(miller, "miller")
+    if (
+        type(in_plane_coeffs) is not tuple
+        or len(in_plane_coeffs) != _SURFACE_VECTOR_COUNT
+    ):
+        message = "in_plane_coeffs must contain two integer triples"
+        raise ValueError(message)
+    _validate_integer_triple(in_plane_coeffs[0], "in_plane_coeffs[0]")
+    _validate_integer_triple(in_plane_coeffs[1], "in_plane_coeffs[1]")
+    _validate_integer_triple(stacking_coeffs, "stacking_coeffs")
+
+    if (
+        _integer_dot(miller, in_plane_coeffs[0]) != 0
+        or _integer_dot(
+            miller,
+            in_plane_coeffs[1],
+        )
+        != 0
+    ):
+        message = "in_plane_coeffs must lie in the Miller plane"
+        raise ValueError(message)
+    if _integer_dot(miller, stacking_coeffs) != 1:
+        message = (
+            "the gcd-reduced miller tuple dotted with stacking_coeffs "
+            "must equal one"
+        )
+        raise ValueError(message)
+    coefficient_rows: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ] = (
+        in_plane_coeffs[0],
+        in_plane_coeffs[1],
+        stacking_coeffs,
+    )
+    if _integer_determinant(coefficient_rows) == 0:
+        message = (
+            "surface-cell coefficient tuples must be linearly independent"
+        )
+        raise ValueError(message)
+
+
+def _validate_slab_spec_structure(
+    surface_cell: "SurfaceCell",
+    thickness_ang: float,
+    vacuum_ang: float,
+    fine: tuple[float, float],
+    termination: tuple[str, str],
+    n_layers: int,
+    bulk_atom_of_slab_atom: tuple[int, ...],
+    layer_of_slab_atom: tuple[int, ...],
+) -> None:
+    """Validate static slab provenance and selection metadata."""
+    if not isinstance(surface_cell, SurfaceCell):
+        message: str = "surface_cell must be a SurfaceCell"
+        raise ValueError(message)
+    if (
+        type(thickness_ang) is not float
+        or type(vacuum_ang) is not float
+        or not math.isfinite(thickness_ang)
+        or not math.isfinite(vacuum_ang)
+    ):
+        message = "thickness_ang and vacuum_ang must be finite floats"
+        raise ValueError(message)
+    if thickness_ang < 0.0 or vacuum_ang < 0.0:
+        message = "thickness_ang and vacuum_ang must both be nonnegative"
+        raise ValueError(message)
+    if (
+        type(fine) is not tuple
+        or len(fine) != _SURFACE_VECTOR_COUNT
+        or any(type(value) is not float for value in fine)
+        or not all(math.isfinite(value) for value in fine)
+    ):
+        message = "fine must contain two finite floats"
+        raise ValueError(message)
+    if (
+        type(termination) is not tuple
+        or len(termination) != _SURFACE_VECTOR_COUNT
+        or any(type(species) is not str for species in termination)
+    ):
+        message = "termination must contain two species labels"
+        raise ValueError(message)
+    if type(n_layers) is not int or n_layers <= 0:
+        message = "n_layers must be a positive integer"
+        raise ValueError(message)
+    if any(
+        type(values) is not tuple
+        for values in (bulk_atom_of_slab_atom, layer_of_slab_atom)
+    ):
+        message = "slab provenance maps must be tuples"
+        raise ValueError(message)
+    if len(bulk_atom_of_slab_atom) != len(layer_of_slab_atom):
+        message = "slab provenance maps must have the same length"
+        raise ValueError(message)
+    if any(
+        type(index) is not int or index < 0 for index in bulk_atom_of_slab_atom
+    ):
+        message = "bulk_atom_of_slab_atom must contain nonnegative integers"
+        raise ValueError(message)
+    if any(
+        type(layer) is not int or layer < 0 or layer >= n_layers
+        for layer in layer_of_slab_atom
+    ):
+        message = "layer_of_slab_atom entries must lie in [0, n_layers)"
+        raise ValueError(message)
 
 
 def _validate_basis_geometry(
@@ -170,7 +382,7 @@ def _validate_shell_metadata(
         group_shells[group] = shell
 
 
-def _validate_tb_structure(
+def _validate_tb_structure(  # noqa: PLR0913
     hopping_amplitudes: Complex[Array, " n_hop"],
     onsite_energies: Float[Array, " n_orb"],
     soc_lambdas: Float[Array, " n_shells"],
@@ -181,6 +393,7 @@ def _validate_tb_structure(
     shell_index: tuple[int, ...],
     spinor: bool,
     orbital_positions: Optional[Float[Array, "n_orb 3"]],
+    depths: Optional[Float[Array, " n_depth"]],
 ) -> tuple[int, ...]:
     """Validate static tight-binding structure and return reverse indices."""
     if not isinstance(geometry, CrystalGeometry):
@@ -228,6 +441,7 @@ def _validate_tb_structure(
     ):
         message = "orbital_positions must have shape (n_orbitals, 3)"
         raise ValueError(message)
+    _validate_depths_shape(depths, n_orbitals)
 
     _validate_shell_metadata(soc_lambdas, basis, shell_index)
     if type(spinor) is not bool:
@@ -305,6 +519,10 @@ class DiagonalizedBands(eqx.Module):
     orbital_positions : Optional[Float[Array, "n_orb 3"]]
         Explicit fractional orbital centres associated with the
         basis-position-gauge coefficients. ``None`` ties centres to atoms.
+    depths : Optional[Float[Array, "n_orb"]]
+        Orbital depths in Angstrom below the top surface. ``None`` denotes a
+        bulk model. Native tight-binding diagonalization propagates this
+        differentiable leaf without transformation.
 
     Notes
     -----
@@ -325,6 +543,7 @@ class DiagonalizedBands(eqx.Module):
     geometry: CrystalGeometry
     basis: OrbitalBasis = eqx.field(static=True)
     orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
+    depths: Optional[Float[Array, " n_orb"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static eigensystem invariants again."""
@@ -336,6 +555,7 @@ class DiagonalizedBands(eqx.Module):
             self.geometry,
             self.basis,
             self.orbital_positions,
+            self.depths,
         )
 
 
@@ -384,6 +604,10 @@ class TBModel(eqx.Module):
         Explicit fractional orbital or Wannier centres. ``None`` ties every
         orbital centre to its assigned atomic position. Explicit centres are
         differentiable independently of the atomic geometry.
+    depths : Optional[Float[Array, "n_orb"]]
+        Orbital depths in Angstrom below the top surface. Values are finite
+        and nonnegative up to the numerical boundary tolerance. ``None``
+        denotes a bulk model.
 
     Notes
     -----
@@ -408,6 +632,7 @@ class TBModel(eqx.Module):
     shell_index: tuple[int, ...] = eqx.field(static=True)
     spinor: bool = eqx.field(static=True)
     orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
+    depths: Optional[Float[Array, " n_orb"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static tight-binding invariants again."""
@@ -422,6 +647,141 @@ class TBModel(eqx.Module):
             self.shell_index,
             self.spinor,
             self.orbital_positions,
+            self.depths,
+        )
+
+
+class SlabTopology(eqx.Module):
+    """Store host-selected discrete slab topology for pure-JAX rebuilding.
+
+    The carrier contains only static integer choices, endpoint metadata, and
+    design values selected before a JAX transformation.
+
+    :see: :class:`~.test_tb_model.TestSlabTopology`
+    """
+
+    miller: tuple[int, int, int] = eqx.field(static=True)
+    in_plane_coeffs: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ] = eqx.field(static=True)
+    stacking_coeffs: tuple[int, int, int] = eqx.field(static=True)
+    atom_shifts: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
+    bulk_atom_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
+    layer_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
+    termination: tuple[str, str] = eqx.field(static=True)
+    thickness_ang: float = eqx.field(static=True)
+    vacuum_ang: float = eqx.field(static=True)
+    fine: tuple[float, float] = eqx.field(static=True)
+    n_layers: int = eqx.field(static=True)
+    bulk_atom_count: int = eqx.field(static=True)
+    basis_atom_indices: tuple[int, ...] = eqx.field(static=True)
+
+
+class SurfaceCell(eqx.Module):
+    """Store a validated Cartesian surface-cell frame.
+
+    Keep traced Cartesian geometry together with exact Miller-frame
+    coefficients selected by the host topology stage.
+
+    :see: :class:`~.test_tb_model.TestSurfaceCell`
+
+    Attributes
+    ----------
+    in_plane_vectors : Float[Array, "2 3"]
+        Cartesian in-plane vectors in Angstrom, as rows.
+    stacking_vector : Float[Array, "3"]
+        Cartesian stacking vector in Angstrom.
+    rotation : Float[Array, "3 3"]
+        Active Cartesian rotation from bulk to surface frame.
+    interlayer_spacing_ang : Float[Array, ""]
+        Positive interlayer spacing in Angstrom.
+    miller : tuple[int, int, int]
+        GCD-reduced Miller tuple (**static** -- changing it triggers
+        retracing).
+    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+        Exact bulk-lattice coefficients of the in-plane vectors (**static**).
+    stacking_coeffs : tuple[int, int, int]
+        Exact bulk-lattice coefficients of the stacking vector (**static**).
+
+    Notes
+    -----
+    The integer coefficient rows are linearly independent, the in-plane rows
+    are orthogonal to ``miller``, and ``miller · stacking_coeffs == 1``.
+    """
+
+    in_plane_vectors: Float[Array, "2 3"]
+    stacking_vector: Float[Array, " 3"]
+    rotation: Float[Array, "3 3"]
+    interlayer_spacing_ang: Float[Array, ""]
+    miller: tuple[int, int, int] = eqx.field(static=True)
+    in_plane_coeffs: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ] = eqx.field(static=True)
+    stacking_coeffs: tuple[int, int, int] = eqx.field(static=True)
+
+    def __check_init__(self) -> None:
+        """Validate exact surface-cell structure on direct construction."""
+        _validate_surface_cell_structure(
+            self.in_plane_vectors,
+            self.stacking_vector,
+            self.rotation,
+            self.interlayer_spacing_ang,
+            self.miller,
+            self.in_plane_coeffs,
+            self.stacking_coeffs,
+        )
+
+
+class SlabSpec(eqx.Module):
+    """Store static slab construction choices and provenance.
+
+    Carry the traced surface frame alongside immutable cut, layer, and
+    bulk-to-slab provenance metadata.
+
+    :see: :class:`~.test_tb_model.TestSlabSpec`
+
+    Attributes
+    ----------
+    surface_cell : SurfaceCell
+        Differentiable surface-frame carrier.
+    thickness_ang : float
+        Requested slab thickness in Angstrom (**static**).
+    vacuum_ang : float
+        Vacuum padding in Angstrom (**static**).
+    fine : tuple[float, float]
+        Top and bottom cut shifts in Angstrom (**static**).
+    termination : tuple[str, str]
+        Top and bottom species labels (**static**).
+    n_layers : int
+        Number of slab layers (**static**).
+    bulk_atom_of_slab_atom : tuple[int, ...]
+        Bulk-atom provenance for each slab atom (**static**).
+    layer_of_slab_atom : tuple[int, ...]
+        Layer index for each slab atom (**static**).
+    """
+
+    surface_cell: SurfaceCell
+    thickness_ang: float = eqx.field(static=True)
+    vacuum_ang: float = eqx.field(static=True)
+    fine: tuple[float, float] = eqx.field(static=True)
+    termination: tuple[str, str] = eqx.field(static=True)
+    n_layers: int = eqx.field(static=True)
+    bulk_atom_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
+    layer_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
+
+    def __check_init__(self) -> None:
+        """Validate slab metadata invariants on direct construction."""
+        _validate_slab_spec_structure(
+            self.surface_cell,
+            self.thickness_ang,
+            self.vacuum_ang,
+            self.fine,
+            self.termination,
+            self.n_layers,
+            self.bulk_atom_of_slab_atom,
+            self.layer_of_slab_atom,
         )
 
 
@@ -433,6 +793,7 @@ def _validate_diagonalized_structure(
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     orbital_positions: Optional[Float[Array, "n_orb 3"]],
+    depths: Optional[Float[Array, " n_depth"]],
 ) -> None:
     """Validate static eigensystem shapes and context."""
     if not isinstance(geometry, CrystalGeometry):
@@ -471,6 +832,7 @@ def _validate_diagonalized_structure(
     ):
         message = "orbital_positions must have shape (n_orbitals, 3)"
         raise ValueError(message)
+    _validate_depths_shape(depths, len(basis.n))
     _validate_basis_geometry(basis, geometry)
 
 
@@ -483,6 +845,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
     basis: OrbitalBasis,
     fermi_energy: ScalarNumeric = 0.0,
     orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
+    depths: Optional[Float[Array, " n_depth"]] = None,
 ) -> DiagonalizedBands:
     """Create a validated ``DiagonalizedBands`` instance.
 
@@ -510,6 +873,9 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         Explicit fractional orbital centres associated with the
         basis-position-gauge coefficients. ``None`` derives centres from
         atom assignments. Default is ``None``.
+    depths : Optional[Float[Array, "n_depth"]], optional
+        Orbital depths in Angstrom below the top surface. ``None`` denotes a
+        bulk model. Default is ``None``.
 
     Returns
     -------
@@ -556,6 +922,9 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
             orbital_positions,
             dtype=jnp.float64,
         )
+    depth_array: Optional[Float[Array, " n_depth"]] = None
+    if depths is not None:
+        depth_array = jnp.asarray(depths, dtype=jnp.float64)
     _validate_diagonalized_structure(
         eigenvalue_array,
         eigenvector_array,
@@ -564,6 +933,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         geometry,
         basis,
         orbital_position_array,
+        depth_array,
     )
 
     eigenvalue_array = eqx.error_if(
@@ -592,6 +962,17 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
             ~jnp.all(jnp.isfinite(orbital_position_array)),
             "make_diagonalized_bands: orbital positions finite",
         )
+    if depth_array is not None:
+        depth_array = eqx.error_if(
+            depth_array,
+            ~jnp.all(jnp.isfinite(depth_array)),
+            "make_diagonalized_bands: depths must be finite",
+        )
+        depth_array = eqx.error_if(
+            depth_array,
+            jnp.any(depth_array < -_DEPTH_TOLERANCE_ANG),
+            "make_diagonalized_bands: depths must be nonnegative",
+        )
     checked_geometry: CrystalGeometry = _checked_geometry(
         geometry,
         "make_diagonalized_bands",
@@ -604,15 +985,16 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         geometry=checked_geometry,
         basis=basis,
         orbital_positions=orbital_position_array,
+        depths=depth_array,
     )
     return bands
 
 
 @jaxtyped(typechecker=beartype)
-def make_tb_model(  # noqa: DOC502, DOC503
-    hopping_amplitudes: Complex[Array, " n_hop"],
-    onsite_energies: Float[Array, " n_orb"],
-    soc_lambdas: Float[Array, " n_shells"],
+def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
+    hopping_amplitudes: Complex[Array, "n_hop"],
+    onsite_energies: Float[Array, "n_orb"],
+    soc_lambdas: Float[Array, "n_shells"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     hopping_pairs: tuple[tuple[int, int], ...],
@@ -620,6 +1002,7 @@ def make_tb_model(  # noqa: DOC502, DOC503
     shell_index: tuple[int, ...],
     spinor: bool = False,
     orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
+    depths: Optional[Float[Array, " n_depth"]] = None,
 ) -> TBModel:
     r"""Create a validated ``TBModel`` instance.
 
@@ -656,6 +1039,9 @@ def make_tb_model(  # noqa: DOC502, DOC503
     orbital_positions : Optional[Float[Array, "n_orb 3"]], optional
         Explicit fractional orbital centres for the basis-position gauge.
         ``None`` derives centres from atom assignments. Default is ``None``.
+    depths : Optional[Float[Array, "n_depth"]], optional
+        Orbital depths in Angstrom below the top surface. ``None`` denotes a
+        bulk model. Default is ``None``.
 
     Returns
     -------
@@ -709,6 +1095,9 @@ def make_tb_model(  # noqa: DOC502, DOC503
             orbital_positions,
             dtype=jnp.float64,
         )
+    depth_array: Optional[Float[Array, " n_depth"]] = None
+    if depths is not None:
+        depth_array = jnp.asarray(depths, dtype=jnp.float64)
     closure: tuple[int, ...] = _validate_tb_structure(
         hopping_array,
         onsite_array,
@@ -720,6 +1109,7 @@ def make_tb_model(  # noqa: DOC502, DOC503
         shell_index,
         spinor,
         orbital_position_array,
+        depth_array,
     )
 
     hopping_array = eqx.error_if(
@@ -742,6 +1132,17 @@ def make_tb_model(  # noqa: DOC502, DOC503
             orbital_position_array,
             ~jnp.all(jnp.isfinite(orbital_position_array)),
             "make_tb_model: orbital positions finite",
+        )
+    if depth_array is not None:
+        depth_array = eqx.error_if(
+            depth_array,
+            ~jnp.all(jnp.isfinite(depth_array)),
+            "make_tb_model: depths must be finite",
+        )
+        depth_array = eqx.error_if(
+            depth_array,
+            jnp.any(depth_array < -_DEPTH_TOLERANCE_ANG),
+            "make_tb_model: depths must be nonnegative",
         )
     closure_indices: Int[Array, " n_hop"] = jnp.asarray(
         closure,
@@ -773,13 +1174,237 @@ def make_tb_model(  # noqa: DOC502, DOC503
         shell_index=shell_index,
         spinor=spinor,
         orbital_positions=orbital_position_array,
+        depths=depth_array,
     )
     return model
 
 
+@jaxtyped(typechecker=beartype)
+def make_surface_cell(  # noqa: DOC502, DOC503
+    in_plane_vectors: Float[Array, "2 3"],
+    stacking_vector: Float[Array, " 3"],
+    rotation: Float[Array, "3 3"],
+    interlayer_spacing_ang: ScalarNumeric,
+    miller: tuple[int, int, int],
+    in_plane_coeffs: tuple[
+        tuple[int, int, int],
+        tuple[int, int, int],
+    ],
+    stacking_coeffs: tuple[int, int, int],
+) -> SurfaceCell:
+    """Create a validated Cartesian surface-cell carrier.
+
+    Convert continuous inputs to JAX arrays, validate the exact integer frame,
+    and enforce the finite, orthogonal surface-frame contract.
+
+    :see: :class:`~.test_tb_model.TestMakeSurfaceCell`
+
+    Parameters
+    ----------
+    in_plane_vectors : Float[Array, "2 3"]
+        Cartesian in-plane vectors in Angstrom, as rows.
+    stacking_vector : Float[Array, "3"]
+        Cartesian stacking vector in Angstrom.
+    rotation : Float[Array, "3 3"]
+        Active Cartesian rotation from bulk to surface frame.
+    interlayer_spacing_ang : ScalarNumeric
+        Positive interlayer spacing in Angstrom.
+    miller : tuple[int, int, int]
+        GCD-reduced Miller tuple.
+    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+        Exact integer coefficients for the in-plane vectors.
+    stacking_coeffs : tuple[int, int, int]
+        Exact integer coefficients for the stacking vector.
+
+    Returns
+    -------
+    surface_cell : SurfaceCell
+        Validated surface-cell carrier.
+
+    Raises
+    ------
+    ValueError
+        If array shapes or exact integer invariants are invalid.
+    EquinoxRuntimeError
+        If numerical leaves are non-finite, the spacing is not positive, or
+        the rotation is not orthogonal within ``1e-10``.
+
+    Notes
+    -----
+    Exact Miller coefficients remain static metadata while Cartesian vectors,
+    rotation, and spacing remain differentiable leaves.
+    """
+    in_plane_array: Float[Array, "2 3"] = jnp.asarray(
+        in_plane_vectors,
+        dtype=jnp.float64,
+    )
+    stacking_array: Float[Array, " 3"] = jnp.asarray(
+        stacking_vector,
+        dtype=jnp.float64,
+    )
+    rotation_array: Float[Array, "3 3"] = jnp.asarray(
+        rotation,
+        dtype=jnp.float64,
+    )
+    spacing_array: Float[Array, ""] = jnp.asarray(
+        interlayer_spacing_ang,
+        dtype=jnp.float64,
+    )
+    _validate_surface_cell_structure(
+        in_plane_array,
+        stacking_array,
+        rotation_array,
+        spacing_array,
+        miller,
+        in_plane_coeffs,
+        stacking_coeffs,
+    )
+
+    in_plane_array = eqx.error_if(
+        in_plane_array,
+        ~jnp.all(jnp.isfinite(in_plane_array)),
+        "make_surface_cell: in-plane vectors must be finite",
+    )
+    stacking_array = eqx.error_if(
+        stacking_array,
+        ~jnp.all(jnp.isfinite(stacking_array)),
+        "make_surface_cell: stacking vector must be finite",
+    )
+    rotation_array = eqx.error_if(
+        rotation_array,
+        ~jnp.all(jnp.isfinite(rotation_array)),
+        "make_surface_cell: rotation must be finite",
+    )
+    orthogonality_error: Float[Array, ""] = jnp.linalg.norm(
+        rotation_array.T @ rotation_array
+        - jnp.eye(_CELL_COMPONENTS, dtype=jnp.float64)
+    )
+    rotation_array = eqx.error_if(
+        rotation_array,
+        orthogonality_error >= _ROTATION_ORTHOGONALITY_TOLERANCE,
+        "make_surface_cell: rotation must be orthogonal",
+    )
+    spacing_array = eqx.error_if(
+        spacing_array,
+        ~jnp.isfinite(spacing_array) | (spacing_array <= 0.0),
+        "make_surface_cell: interlayer spacing must be finite and positive",
+    )
+    surface_cell: SurfaceCell = SurfaceCell(
+        in_plane_vectors=in_plane_array,
+        stacking_vector=stacking_array,
+        rotation=rotation_array,
+        interlayer_spacing_ang=spacing_array,
+        miller=miller,
+        in_plane_coeffs=in_plane_coeffs,
+        stacking_coeffs=stacking_coeffs,
+    )
+    return surface_cell
+
+
+@jaxtyped(typechecker=beartype)
+def make_slab_spec(
+    surface_cell: SurfaceCell,
+    geometry: CrystalGeometry,
+    thickness_ang: float,
+    vacuum_ang: float,
+    fine: tuple[float, float],
+    termination: tuple[str, str],
+    n_layers: int,
+    bulk_atom_of_slab_atom: tuple[int, ...],
+    layer_of_slab_atom: tuple[int, ...],
+) -> SlabSpec:
+    """Create a validated slab-construction sidecar.
+
+    ``geometry`` supplies the bulk species and atom count used to validate
+    termination labels and provenance. It is validation context and is not
+    stored in the returned sidecar. A geometry with no species metadata may
+    use only the internal natural-cut sentinel ``("X", "X")``; explicit
+    species termination still requires declared species.
+
+    :see: :class:`~.test_tb_model.TestMakeSlabSpec`
+
+    Parameters
+    ----------
+    surface_cell : SurfaceCell
+        Validated surface-cell frame.
+    geometry : CrystalGeometry
+        Bulk geometry used to validate species and atom provenance.
+    thickness_ang : float
+        Nonnegative requested minimum slab span in Angstrom.
+    vacuum_ang : float
+        Nonnegative vacuum padding in Angstrom.
+    fine : tuple[float, float]
+        Finite top and bottom cut shifts in Angstrom.
+    termination : tuple[str, str]
+        Top and bottom species labels.
+    n_layers : int
+        Positive number of slab layers.
+    bulk_atom_of_slab_atom : tuple[int, ...]
+        Bulk-atom index for each slab atom.
+    layer_of_slab_atom : tuple[int, ...]
+        Layer index for each slab atom.
+
+    Returns
+    -------
+    slab_spec : SlabSpec
+        Validated static slab provenance with a traced surface-cell child.
+
+    Raises
+    ------
+    ValueError
+        If slab choices, species, or provenance mappings are inconsistent.
+
+    Notes
+    -----
+    The factory validates host-selected provenance and preserves the
+    ``SurfaceCell`` as the only traced child of the static slab sidecar.
+    """
+    if not isinstance(geometry, CrystalGeometry):
+        message: str = "geometry must be a CrystalGeometry"
+        raise ValueError(message)
+    _validate_slab_spec_structure(
+        surface_cell,
+        thickness_ang,
+        vacuum_ang,
+        fine,
+        termination,
+        n_layers,
+        bulk_atom_of_slab_atom,
+        layer_of_slab_atom,
+    )
+    unknown_species_termination: bool = (
+        not geometry.species and termination == ("X", "X")
+    )
+    if not unknown_species_termination and any(
+        species not in geometry.species for species in termination
+    ):
+        message = "termination species must occur in geometry.species"
+        raise ValueError(message)
+    n_bulk_atoms: int = geometry.positions.shape[0]
+    if any(index >= n_bulk_atoms for index in bulk_atom_of_slab_atom):
+        message = "bulk_atom_of_slab_atom entries must refer to geometry atoms"
+        raise ValueError(message)
+    slab_spec: SlabSpec = SlabSpec(
+        surface_cell=surface_cell,
+        thickness_ang=thickness_ang,
+        vacuum_ang=vacuum_ang,
+        fine=fine,
+        termination=termination,
+        n_layers=n_layers,
+        bulk_atom_of_slab_atom=bulk_atom_of_slab_atom,
+        layer_of_slab_atom=layer_of_slab_atom,
+    )
+    return slab_spec
+
+
 __all__: list[str] = [
     "DiagonalizedBands",
+    "SlabSpec",
+    "SlabTopology",
+    "SurfaceCell",
     "TBModel",
     "make_diagonalized_bands",
+    "make_slab_spec",
+    "make_surface_cell",
     "make_tb_model",
 ]

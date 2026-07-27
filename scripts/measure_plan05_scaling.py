@@ -1,0 +1,406 @@
+#!/usr/bin/env python
+"""Measure Plan-05 chunked slab diagonalization memory and retracing.
+
+Run this script explicitly on a CPU worker; routine pytest uses bounded
+fixtures and structural JAXPR checks. The defaults execute the registered
+80-layer, four-orbital-per-layer slab (320 orbitals), 256-k-point, chunk-32
+S1 forward case. The same real slab pipeline can execute the 640-orbital
+spinor stretch. A smaller 64-orbital case checks the rematerialized band-loss
+gradient against the non-chunked path without intentionally constructing the
+production ``(K, O, O)`` batch.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import resource
+import time
+from collections.abc import Callable
+from typing import Any
+
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+
+from diffpes.tightb import (
+    eigvalsh_bands,
+    eigvalsh_bands_chunked,
+    gen_slab,
+    spin_double_model,
+)
+from diffpes.types import (
+    CrystalGeometry,
+    OrbitalBasis,
+    SlabSpec,
+    TBModel,
+    make_crystal_geometry,
+    make_orbital_basis,
+    make_tb_model,
+)
+
+_COMPLEX128_BYTES: int = 16
+_GIB: int = 2**30
+_GRADIENT_RTOL: float = 1e-12
+_NONZERO_GRADIENT_MIN: float = 1e-9
+_THICKNESS_TRACE_COUNT: int = 2
+_TERMINATION_TRACE_COUNT: int = 3
+
+
+def _bulk_model() -> TBModel:
+    """Build a dense four-orbital bulk model for real slab extrusion."""
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=jnp.diag(jnp.asarray((2.2, 2.5, 1.3))),
+        positions=jnp.zeros((1, 3), dtype=jnp.float64),
+        species=("X",),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0,) * 4,
+        n=(1, 2, 3, 4),
+        l=(0,) * 4,
+        m=(0,) * 4,
+        labels=("s1", "s2", "s3", "s4"),
+    )
+    pairs: tuple[tuple[int, int], ...] = tuple(
+        (row, column) for row in range(4) for column in range(4)
+    )
+    seed: jax.Array = jnp.arange(16, dtype=jnp.float64).reshape(4, 4)
+    blocks: tuple[jax.Array, ...] = tuple(
+        scale
+        * (jnp.sin(seed + phase) + 1j * jnp.cos(0.7 * seed + 0.3 * phase))
+        for scale, phase in ((0.11, 0.2), (0.08, 0.7), (0.19, 1.1))
+    )
+    directed_blocks: tuple[jax.Array, ...] = (
+        blocks[0],
+        blocks[0].conj().T,
+        blocks[1],
+        blocks[1].conj().T,
+        blocks[2],
+        blocks[2].conj().T,
+    )
+    cells: tuple[tuple[int, int, int], ...] = (
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+        (0, 0, 1),
+        (0, 0, -1),
+    )
+    return make_tb_model(
+        hopping_amplitudes=jnp.concatenate(
+            tuple(block.reshape(-1) for block in directed_blocks)
+        ),
+        onsite_energies=jnp.asarray((-1.3, -0.31, 0.48, 1.7)),
+        soc_lambdas=jnp.zeros((0,)),
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=pairs * len(cells),
+        hopping_cells=tuple(cell for cell in cells for _ in range(len(pairs))),
+        shell_index=(-1,) * 4,
+    )
+
+
+def _slab_model(
+    n_layers: int,
+    *,
+    spinor: bool = False,
+) -> tuple[TBModel, SlabSpec]:
+    """Extrude one actual four-orbital-per-layer slab design."""
+    bulk: TBModel = _bulk_model()
+    if spinor:
+        bulk = spin_double_model(bulk)
+    model: TBModel
+    specification: SlabSpec
+    model, specification = gen_slab(
+        bulk,
+        miller=(0, 0, 1),
+        thickness_ang=(n_layers - 1) * 1.3,
+        vacuum_ang=8.0,
+    )
+    expected_orbitals: int = n_layers * (8 if spinor else 4)
+    if model.onsite_energies.shape != (expected_orbitals,):
+        raise RuntimeError(
+            "real slab extrusion produced the wrong orbital count"
+        )
+    return model, specification
+
+
+def _termination_bulk_model() -> TBModel:
+    """Build the same four-orbital Hamiltonian on an alternating X/Y basis."""
+    reference: TBModel = _bulk_model()
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=reference.geometry.lattice,
+        positions=jnp.asarray(
+            ((0.0, 0.0, 0.0), (0.0, 0.0, 0.5)),
+            dtype=jnp.float64,
+        ),
+        species=("X", "Y"),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0, 0, 1, 1),
+        n=(1, 2, 1, 2),
+        l=(0,) * 4,
+        m=(0,) * 4,
+        labels=("X-s1", "X-s2", "Y-s1", "Y-s2"),
+    )
+    return make_tb_model(
+        hopping_amplitudes=reference.hopping_amplitudes,
+        onsite_energies=reference.onsite_energies,
+        soc_lambdas=reference.soc_lambdas,
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=reference.hopping_pairs,
+        hopping_cells=reference.hopping_cells,
+        shell_index=reference.shell_index,
+    )
+
+
+def _termination_slab(
+    thickness_ang: float,
+    termination: tuple[str, str],
+) -> tuple[TBModel, SlabSpec]:
+    """Extrude one actual alternating-species termination design."""
+    return gen_slab(
+        _termination_bulk_model(),
+        miller=(0, 0, 1),
+        thickness_ang=thickness_ang,
+        vacuum_ang=8.0,
+        termination=termination,
+    )
+
+
+def _kpoints(n_kpoints: int) -> jax.Array:
+    """Build one generic padded path."""
+    k_x = jnp.linspace(-0.47, 0.43, n_kpoints)
+    return jnp.stack(
+        (k_x, 0.17 * k_x + 0.03, jnp.zeros_like(k_x)),
+        axis=-1,
+    )
+
+
+def _statistics_dict(statistics: Any) -> dict[str, int]:
+    """Normalize the backend's compiler-memory record."""
+    fields: tuple[str, ...] = (
+        "argument_size_in_bytes",
+        "output_size_in_bytes",
+        "alias_size_in_bytes",
+        "temp_size_in_bytes",
+        "host_argument_size_in_bytes",
+        "host_output_size_in_bytes",
+        "host_alias_size_in_bytes",
+        "host_temp_size_in_bytes",
+    )
+    return {field: int(getattr(statistics, field, 0) or 0) for field in fields}
+
+
+def _maximum_rss_bytes() -> int:
+    """Return Linux maximum resident-set size in bytes."""
+    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+
+
+def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> dict:
+    """Compare rematerialized and ordinary band-loss derivatives."""
+    model, _ = _slab_model(n_layers)
+    n_orbitals: int = model.onsite_energies.shape[0]
+    kpoints: jax.Array = _kpoints(n_kpoints)
+
+    def loss(scale: jax.Array, chunked: bool) -> jax.Array:
+        changed: TBModel = eqx.tree_at(
+            lambda item: item.hopping_amplitudes,
+            model,
+            scale * model.hopping_amplitudes,
+        )
+        bands: jax.Array = (
+            eigvalsh_bands_chunked(changed, kpoints, chunk_size)
+            if chunked
+            else eigvalsh_bands(changed, kpoints)
+        )
+        return jnp.sum(jnp.sin(0.7 * bands) + 0.13 * bands**2)
+
+    chunked_gradient: jax.Array = jax.grad(loss, argnums=0)(1.1, True)
+    ordinary_gradient: jax.Array = jax.grad(loss, argnums=0)(1.1, False)
+    relative_error: jax.Array = jnp.abs(
+        (chunked_gradient - ordinary_gradient) / ordinary_gradient
+    )
+    nonzero_gradient: bool = bool(
+        jnp.abs(ordinary_gradient) > _NONZERO_GRADIENT_MIN
+    )
+    return {
+        "orbitals": n_orbitals,
+        "kpoints": n_kpoints,
+        "chunked_gradient": float(chunked_gradient),
+        "ordinary_gradient": float(ordinary_gradient),
+        "relative_error": float(relative_error),
+        "nonzero_gradient": nonzero_gradient,
+        "passes_rtol_1e-12": bool(
+            nonzero_gradient
+            and jnp.isfinite(relative_error)
+            and relative_error <= _GRADIENT_RTOL
+        ),
+    }
+
+
+def _compile_count(
+    kpoints: jax.Array,
+    chunk_size: int,
+) -> dict:
+    """Count traces across padded lengths and actual slab-design changes."""
+    trace_count: list[int] = [0]
+
+    def counted(
+        candidate: TBModel,
+        points: jax.Array,
+        active_mask: jax.Array,
+    ) -> jax.Array:
+        trace_count[0] += 1
+        values = eigvalsh_bands_chunked(candidate, points, chunk_size)
+        return jnp.sum(values * active_mask[:, None])
+
+    compiled: Callable[..., jax.Array] = eqx.filter_jit(counted)
+    fixed_model, fixed_specification = _termination_slab(
+        79 * 1.3,
+        ("X", "Y"),
+    )
+    thickness_model, thickness_specification = _termination_slab(
+        80 * 1.3,
+        ("X", "Y"),
+    )
+    termination_model, termination_specification = _termination_slab(
+        80 * 1.3,
+        ("Y", "X"),
+    )
+    lengths: tuple[int, ...] = (
+        kpoints.shape[0] // 4,
+        kpoints.shape[0] // 2,
+        kpoints.shape[0],
+    )
+    for active_length in lengths:
+        mask = jnp.arange(kpoints.shape[0]) < active_length
+        compiled(fixed_model, kpoints, mask).block_until_ready()
+    fixed_design_traces: int = trace_count[0]
+    compiled(
+        thickness_model,
+        kpoints,
+        jnp.ones((kpoints.shape[0],), dtype=bool),
+    ).block_until_ready()
+    thickness_traces: int = trace_count[0]
+    compiled(
+        termination_model,
+        kpoints,
+        jnp.ones((kpoints.shape[0],), dtype=bool),
+    ).block_until_ready()
+    termination_traces: int = trace_count[0]
+    return {
+        "fixed_design": {
+            "layers": fixed_specification.n_layers,
+            "termination": fixed_specification.termination,
+        },
+        "thickness_design": {
+            "layers": thickness_specification.n_layers,
+            "termination": thickness_specification.termination,
+        },
+        "termination_design": {
+            "layers": termination_specification.n_layers,
+            "termination": termination_specification.termination,
+        },
+        "padded_lengths": lengths,
+        "fixed_design_trace_count": fixed_design_traces,
+        "after_thickness_change": thickness_traces,
+        "after_termination_change": termination_traces,
+        "passes": (
+            fixed_design_traces == 1
+            and thickness_traces == _THICKNESS_TRACE_COUNT
+            and termination_traces == _TERMINATION_TRACE_COUNT
+        ),
+    }
+
+
+def main() -> None:
+    """Execute the production forward measurement and bounded gradient gate."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--layers", type=int, default=80)
+    parser.add_argument("--spinor", action="store_true")
+    parser.add_argument("--kpoints", type=int, default=256)
+    parser.add_argument("--chunk-size", type=int, default=32)
+    parser.add_argument("--gradient-layers", type=int, default=16)
+    parser.add_argument("--gradient-kpoints", type=int, default=64)
+    arguments = parser.parse_args()
+    if arguments.kpoints % arguments.chunk_size:
+        parser.error("--kpoints must be divisible by --chunk-size")
+    if arguments.gradient_kpoints % arguments.chunk_size:
+        parser.error("--gradient-kpoints must be divisible by --chunk-size")
+
+    model: TBModel
+    specification: SlabSpec
+    model, specification = _slab_model(
+        arguments.layers,
+        spinor=arguments.spinor,
+    )
+    n_orbitals: int = model.onsite_energies.shape[0]
+    kpoints: jax.Array = _kpoints(arguments.kpoints)
+    forward = jax.jit(
+        lambda points: eigvalsh_bands_chunked(
+            model,
+            points,
+            arguments.chunk_size,
+        )
+    )
+    rss_before: int = _maximum_rss_bytes()
+    compile_start: float = time.perf_counter()
+    executable = forward.lower(kpoints).compile()
+    compile_seconds: float = time.perf_counter() - compile_start
+    statistics = executable.memory_analysis()
+    if statistics is None:
+        raise RuntimeError(
+            "active JAX backend did not report memory statistics"
+        )
+    memory: dict[str, int] = _statistics_dict(statistics)
+    run_start: float = time.perf_counter()
+    values: jax.Array = executable(kpoints)
+    values.block_until_ready()
+    run_seconds: float = time.perf_counter() - run_start
+    rss_after: int = _maximum_rss_bytes()
+    compiler_live_bytes: int = (
+        memory["argument_size_in_bytes"]
+        + memory["output_size_in_bytes"]
+        + memory["temp_size_in_bytes"]
+        - memory["alias_size_in_bytes"]
+    )
+    chunk_hamiltonian_bytes: int = (
+        arguments.chunk_size * n_orbitals * n_orbitals * _COMPLEX128_BYTES
+    )
+    result: dict[str, Any] = {
+        "gate": "05.S1-S2",
+        "backend": jax.default_backend(),
+        "jax_version": jax.__version__,
+        "layers": specification.n_layers,
+        "orbitals_per_layer": 8 if arguments.spinor else 4,
+        "orbitals": n_orbitals,
+        "spinor": model.spinor,
+        "termination": specification.termination,
+        "kpoints": arguments.kpoints,
+        "chunk_size": arguments.chunk_size,
+        "compile_seconds": compile_seconds,
+        "run_seconds": run_seconds,
+        "compiler_memory": memory,
+        "compiler_live_bytes": compiler_live_bytes,
+        "chunk_hamiltonian_bytes": chunk_hamiltonian_bytes,
+        "max_rss_before_bytes": rss_before,
+        "max_rss_after_bytes": rss_after,
+        "under_one_gib_compiler_budget": compiler_live_bytes < _GIB,
+        "under_one_gib_process_high_water": rss_after < _GIB,
+        "gradient": _gradient_check(
+            arguments.gradient_layers,
+            arguments.gradient_kpoints,
+            arguments.chunk_size,
+        ),
+        "compile_count": _compile_count(
+            kpoints,
+            arguments.chunk_size,
+        ),
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

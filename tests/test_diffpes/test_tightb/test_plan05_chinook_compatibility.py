@@ -1,0 +1,277 @@
+"""Compare Plan 05 slabs with frozen offline Chinook artifacts.
+
+The tests exercise Plan-05 numerical and structural contracts.
+"""
+
+import hashlib
+import json
+from pathlib import Path
+
+import jax.numpy as jnp
+import numpy as np
+from beartype.typing import Any
+from jaxtyping import Array
+
+from diffpes.tightb import (
+    diagonalize_tb,
+    gen_slab,
+    layer_resolved_weights,
+    surface_projector,
+)
+from diffpes.types import (
+    CrystalGeometry,
+    OrbitalBasis,
+    SlabSpec,
+    TBModel,
+    make_crystal_geometry,
+    make_orbital_basis,
+    make_tb_model,
+)
+
+_ARTIFACT_PATH: Path = (
+    Path(__file__).parents[1]
+    / "_reference_data"
+    / "plan05_chinook_slab_reference.json"
+)
+_ARTIFACT_SHA256: str = (
+    "40df3ab04842bb3033b79827360179b5c9af717b4527d00ee0127dcf8158532d"
+)
+_COMPATIBILITY_RTOL: float = 1e-8
+_COMPATIBILITY_ATOL_EV: float = 1e-8
+
+
+def _reference() -> dict[str, Any]:
+    """Load and authenticate the inert numeric compatibility artifact."""
+    encoded: bytes = _ARTIFACT_PATH.read_bytes()
+    digest: str = hashlib.sha256(encoded).hexdigest()
+    if digest != _ARTIFACT_SHA256:
+        message: str = (
+            "Plan 05 Chinook artifact checksum differs from its pinned digest"
+        )
+        raise ValueError(message)
+    payload: dict[str, Any] = json.loads(encoded)
+    metadata: dict[str, Any] = payload["metadata"]
+    if (
+        metadata["gates"] != ["05.G4", "05.G9"]
+        or metadata["classification"] != "K-type behavioral compatibility"
+    ):
+        message = "Plan 05 Chinook artifact metadata is invalid"
+        raise ValueError(message)
+    return payload
+
+
+def _bulk_model(specification: dict[str, Any]) -> TBModel:
+    """Build the native side of the implementation-neutral frozen model."""
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=jnp.asarray(
+            specification["lattice_angstrom"],
+            dtype=jnp.float64,
+        ),
+        positions=jnp.asarray(
+            specification["positions_fractional"],
+            dtype=jnp.float64,
+        ),
+        species=tuple(specification["species"]),
+    )
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0,),
+        n=(1,),
+        l=(0,),
+        m=(0,),
+        labels=tuple(specification["basis"]),
+    )
+    hopping: dict[str, float] = specification["nearest_neighbor_hopping_ev"]
+    amplitudes: Array = jnp.asarray(
+        (
+            hopping["x"],
+            hopping["x"],
+            hopping["y"],
+            hopping["y"],
+            hopping["z"],
+            hopping["z"],
+        ),
+        dtype=jnp.complex128,
+    )
+    cells: tuple[tuple[int, int, int], ...] = (
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+        (0, 0, 1),
+        (0, 0, -1),
+    )
+    return make_tb_model(
+        hopping_amplitudes=amplitudes,
+        onsite_energies=jnp.asarray(
+            [specification["onsite_ev"]],
+            dtype=jnp.float64,
+        ),
+        soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
+        geometry=geometry,
+        basis=basis,
+        hopping_pairs=((0, 0),) * len(cells),
+        hopping_cells=cells,
+        shell_index=(-1,),
+    )
+
+
+def _native_slab(
+    payload: dict[str, Any],
+) -> tuple[TBModel, SlabSpec]:
+    """Construct the native slab from the frozen neutral specification."""
+    specification: dict[str, Any] = payload["model_specification"]
+    return gen_slab(
+        bulk_model=_bulk_model(specification),
+        miller=tuple(specification["miller"]),
+        thickness_ang=specification["thickness_angstrom"],
+        vacuum_ang=specification["vacuum_angstrom"],
+        termination=tuple(specification["termination_species_top_bottom"]),
+        fine=tuple(specification["fine_top_bottom_angstrom"]),
+    )
+
+
+def _gauss_reduced_metric(vectors: np.ndarray) -> np.ndarray:
+    """Return a deterministic reduced two-dimensional lattice metric."""
+    reduced: np.ndarray = np.asarray(vectors, dtype=np.float64).copy()
+    for _ in range(32):
+        first_norm: float = float(reduced[0] @ reduced[0])
+        second_norm: float = float(reduced[1] @ reduced[1])
+        if second_norm < first_norm:
+            reduced[[0, 1]] = reduced[[1, 0]]
+            reduced[1] *= -1.0
+            continue
+        nearest: int = int(
+            np.rint(float(reduced[0] @ reduced[1]) / first_norm)
+        )
+        if nearest == 0:
+            break
+        reduced[1] -= nearest * reduced[0]
+    else:
+        raise RuntimeError("reference surface metric did not reduce")
+    return reduced @ reduced.T
+
+
+class TestPlan05ChinookCompatibility:
+    """Resolve Plan 05 G4/G9 behavioral compatibility."""
+
+    def test_surface_cell_is_unimodularly_equivalent(self) -> None:
+        """Match Chinook surface area and the reduced in-plane metric.
+
+        Exercise this Plan-05 condition with fixed fixtures.
+
+        Notes
+        -----
+        Compare outputs with declared numerical or structural references.
+        """
+        slab: Any
+        payload: dict[str, Any] = _reference()
+        reference: dict[str, Any] = payload["chinook_reference"]
+        slab, _ = _native_slab(payload)
+        native_vectors: np.ndarray = np.asarray(
+            slab.geometry.lattice[:2],
+            dtype=np.float64,
+        )
+        chinook_vectors: np.ndarray = np.asarray(
+            reference["realization"]["slab_lattice_angstrom"],
+            dtype=np.float64,
+        )[:2]
+        native_area: float = float(
+            np.linalg.norm(np.cross(native_vectors[0], native_vectors[1]))
+        )
+        chinook_area: float = float(
+            np.linalg.norm(np.cross(chinook_vectors[0], chinook_vectors[1]))
+        )
+
+        np.testing.assert_allclose(
+            native_area,
+            chinook_area,
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            _gauss_reduced_metric(native_vectors),
+            _gauss_reduced_metric(chinook_vectors),
+            rtol=1e-10,
+            atol=1e-12,
+        )
+
+    def test_slab_spectrum_agrees_after_the_c_gates(self) -> None:
+        """Match the frozen nondegenerate Chinook slab spectrum.
+
+        Exercise this Plan-05 condition with fixed fixtures.
+
+        Notes
+        -----
+        Compare outputs with declared numerical or structural references.
+        """
+        bands: Any
+        payload: dict[str, Any] = _reference()
+        specification: dict[str, Any] = payload["model_specification"]
+        reference: dict[str, Any] = payload["chinook_reference"]
+        slab: TBModel
+        slab_spec: SlabSpec
+        slab, slab_spec = _native_slab(payload)
+
+        assert len(slab.basis.n) == reference["realization"]["n_orbitals"]
+        assert slab_spec.n_layers == reference["realization"]["n_orbitals"]
+        np.testing.assert_allclose(
+            slab.depths,
+            np.asarray(reference["realization"]["depths_angstrom"]),
+            rtol=0.0,
+            atol=1e-12,
+        )
+        bands = diagonalize_tb(
+            slab,
+            jnp.asarray(
+                specification["kpoints_fractional_bulk"],
+                dtype=jnp.float64,
+            ),
+        )
+        np.testing.assert_allclose(
+            bands.eigenvalues,
+            np.asarray(reference["eigenvalues_ev"]),
+            rtol=_COMPATIBILITY_RTOL,
+            atol=_COMPATIBILITY_ATOL_EV,
+        )
+
+    def test_surface_projection_agrees_off_degeneracy(self) -> None:
+        """Match Chinook's depth law and per-band surface expectations.
+
+        Exercise this Plan-05 condition with fixed fixtures.
+
+        Notes
+        -----
+        Compare outputs with declared numerical or structural references.
+        """
+        bands: Any
+        slab: Any
+        payload: dict[str, Any] = _reference()
+        specification: dict[str, Any] = payload["model_specification"]
+        reference: dict[str, Any] = payload["chinook_reference"]
+        slab, _ = _native_slab(payload)
+        escape_length: float = specification[
+            "intensity_escape_length_angstrom"
+        ]
+        bands = diagonalize_tb(
+            slab,
+            jnp.asarray(
+                specification["kpoints_fractional_bulk"],
+                dtype=jnp.float64,
+            ),
+        )
+
+        np.testing.assert_allclose(
+            surface_projector(slab.depths, escape_length),
+            np.asarray(reference["surface_projector_diagonal"]),
+            rtol=_COMPATIBILITY_RTOL,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            layer_resolved_weights(bands, escape_length),
+            np.asarray(reference["surface_weight_expectations"]),
+            rtol=_COMPATIBILITY_RTOL,
+            atol=1e-12,
+        )
+
+
+__all__: list[str] = []

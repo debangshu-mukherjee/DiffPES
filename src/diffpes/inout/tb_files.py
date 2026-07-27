@@ -1004,7 +1004,8 @@ def _fractional_wannier_centres(
         message: str = f"{path}: lattice must be nonsingular"
         raise ValueError(message) from error
     fractional: NDArray = centres_cart @ inverse_lattice
-    return np.asarray(fractional, dtype=np.float64)
+    fractional_array: NDArray = np.asarray(fractional, dtype=np.float64)
+    return fractional_array
 
 
 def _resolve_tb_geometry(
@@ -1015,22 +1016,30 @@ def _resolve_tb_geometry(
     geometry: Optional[CrystalGeometry],
 ) -> CrystalGeometry:
     """Resolve atomic geometry without conflating atoms and Wannier centres."""
+    resolved_geometry: CrystalGeometry
     if geometry is None:
-        return _geometry_from_centres(lattice, centres_cart, basis, path)
-    if geometry.positions.shape[0] <= max(basis.atom_indices, default=-1):
-        message: str = (
-            f"{path}: geometry positions do not cover basis atom_indices"
+        resolved_geometry = _geometry_from_centres(
+            lattice,
+            centres_cart,
+            basis,
+            path,
         )
-        raise ValueError(message)
-    if not np.allclose(
-        np.asarray(geometry.lattice),
-        lattice,
-        rtol=0.0,
-        atol=WANNIER_CENTRE_CONSISTENCY_TOLERANCE,
-    ):
-        message = f"{path}: supplied geometry lattice differs from tb.dat"
-        raise ValueError(message)
-    return geometry
+    else:
+        if geometry.positions.shape[0] <= max(basis.atom_indices, default=-1):
+            message: str = (
+                f"{path}: geometry positions do not cover basis atom_indices"
+            )
+            raise ValueError(message)
+        if not np.allclose(
+            np.asarray(geometry.lattice),
+            lattice,
+            rtol=0.0,
+            atol=WANNIER_CENTRE_CONSISTENCY_TOLERANCE,
+        ):
+            message = f"{path}: supplied geometry lattice differs from tb.dat"
+            raise ValueError(message)
+        resolved_geometry = geometry
+    return resolved_geometry
 
 
 @jaxtyped(typechecker=beartype)
@@ -1365,9 +1374,9 @@ def read_wannier90_tb(  # noqa: DOC502
         Serialized ordering, ``"block_down_up"`` or
         ``"interleaved_up_down"``.
     geometry : Optional[CrystalGeometry], optional
-        Atomic geometry. It is required when orbitals assigned to one atom
-        have noncoincident Wannier centres. When omitted, atomic positions
-        are inferred only if every atom's assigned centres coincide.
+        Atomic geometry. Noncoincident Wannier centres on one atom require
+        this value. Without it, coincident assigned centres determine each
+        atomic position.
 
     Returns
     -------

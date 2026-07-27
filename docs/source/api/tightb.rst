@@ -34,6 +34,14 @@ Degeneracy-safe diagonalization
    :undoc-members:
    :show-inheritance:
 
+Slabs and surface geometry
+--------------------------
+
+.. automodule:: diffpes.tightb.slab
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Slater--Koster models
 ---------------------
 

@@ -344,6 +344,9 @@ def explain_claim(
     evidence_by_id: dict[str, Any] = {
         item.evidence_id: item for item in certificate.evidence
     }
+    artifact_ids: tuple[str, ...] = tuple(
+        item.artifact_id for item in certificate.artifacts
+    )
     lines: list[str] = [
         f"Claim: {claim.claim_id}",
         f"Subject: {claim.subject_id}",
@@ -370,7 +373,9 @@ def explain_claim(
                 + (
                     "qualified"
                     if evidence_is_independent(
-                        evidence, certificate.model.implementation_ref
+                        evidence,
+                        certificate.model.implementation_ref,
+                        artifact_ids=artifact_ids,
                     )
                     else "not qualified"
                 ),

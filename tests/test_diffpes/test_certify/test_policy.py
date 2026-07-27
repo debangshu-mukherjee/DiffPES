@@ -232,7 +232,14 @@ class TestEvidenceIsIndependent:
         assert bool(report.achieved[-1]) is expected
 
     def test_malformed_or_unresolved_lineage_cannot_qualify(self) -> None:
-        """Reject malformed edges and missing artifact resolution."""
+        """Reject malformed edges and missing artifact resolution.
+
+        Exercise both malformed relationship syntax and unresolved artifacts.
+
+        Notes
+        -----
+        Require independence qualification to remain false in both cases.
+        """
         evidence: Any = evaluate_evidence(
             "evidence.malformed",
             "method.reference",
@@ -278,7 +285,14 @@ class TestEvidenceIsIndependent:
         )
 
     def test_unrelated_evidence_cannot_unlock_publication(self) -> None:
-        """Bind lineage qualification to the benchmark claim's evidence IDs."""
+        """Bind lineage qualification to the benchmark claim's evidence IDs.
+
+        Supply valid evidence whose identity does not match the target claim.
+
+        Notes
+        -----
+        Require the publication policy to reject the unrelated evidence.
+        """
         evidence: Any = evaluate_evidence(
             "evidence.unrelated",
             "method.reference",
@@ -329,7 +343,14 @@ class TestEvidenceIsIndependent:
         resolved: bool,
         compatible: bool,
     ) -> None:
-        """Require a passing resolver report before publication can qualify."""
+        """Require a passing resolver report before publication can qualify.
+
+        Exercise unresolved and checksum-incompatible artifact reports.
+
+        Notes
+        -----
+        Require each nonpassing resolver state to block publication.
+        """
         evidence: Any = evaluate_evidence(
             "evidence.resolver",
             "method.reference",

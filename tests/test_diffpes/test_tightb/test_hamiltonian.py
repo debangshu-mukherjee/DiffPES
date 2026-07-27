@@ -203,6 +203,8 @@ class TestBlochHamiltonian:
             jnp.linalg.eigvalsh(cell_origin),
             atol=1e-13,
         )
+        cell_vectors: Array
+        basis_vectors: Array
         _, cell_vectors = jnp.linalg.eigh(cell_origin)
         _, basis_vectors = jnp.linalg.eigh(actual)
         cell_operator: Array = jnp.asarray(
