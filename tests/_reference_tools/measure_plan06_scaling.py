@@ -816,7 +816,7 @@ def main() -> None:
     peak_rss_bytes: int = (
         peak_rss_raw if sys.platform == "darwin" else peak_rss_raw * 1024
     )
-    repository_root: Path = Path(__file__).resolve().parents[1]
+    repository_root: Path = Path(__file__).resolve().parents[2]
     bound_source_paths: tuple[Path, ...] = (
         Path(__file__).resolve(),
         repository_root / "src/diffpes/simul/matrixel.py",

@@ -5,7 +5,7 @@ Regenerate the literal CPU evidence from the repository root:
 ```bash
 MPLCONFIGDIR=/tmp/diffpes-mpl \
 XLA_PYTHON_CLIENT_PREALLOCATE=false \
-.venv/bin/python scripts/measure_plan06_scaling.py
+.venv/bin/python tests/_reference_tools/measure_plan06_scaling.py
 ```
 
 The harness passes the 4096-k-point arrays, 18-orbital eigenvectors, radial

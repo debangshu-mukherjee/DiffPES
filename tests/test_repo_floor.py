@@ -467,6 +467,20 @@ class TestRepositoryArchitecture(chex.TestCase):
     type checking, explicit returns, package listings, and zero-legacy exports.
     """
 
+    def test_reference_tools_do_not_use_root_scripts_directory(self) -> None:
+        """Keep reproducibility tooling under the test evidence boundary."""
+        repository_root: Path = Path(__file__).resolve().parents[1]
+        reference_tools: Path = repository_root / "tests/_reference_tools"
+
+        self.assertFalse((repository_root / "scripts").exists())
+        self.assertTrue(reference_tools.is_dir())
+        self.assertTrue(
+            (reference_tools / "generate_regression_references.py").is_file()
+        )
+        self.assertTrue(
+            (reference_tools / "verify_coulomb_reference.py").is_file()
+        )
+
     @staticmethod
     def _production_modules() -> tuple[tuple[Path, ast.Module], ...]:
         """Parse every production Python module in deterministic order."""

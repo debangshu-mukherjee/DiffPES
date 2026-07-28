@@ -42,7 +42,7 @@ def main() -> None:  # noqa: PLR0915
     """Check sparse values, both AD modes, and registered FD ladders."""
     order: int = int(sys.argv[1])
     path: Path = (
-        Path(__file__).parents[1]
+        Path(__file__).parents[2]
         / "tests"
         / "test_diffpes"
         / "test_radial"

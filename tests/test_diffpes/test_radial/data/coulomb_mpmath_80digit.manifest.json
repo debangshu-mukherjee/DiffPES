@@ -35,8 +35,8 @@
     "06.G11",
     "06.D11"
   ],
-  "generator": "scripts/generate_coulomb_reference.py",
-  "generator_sha256": "3c3746c6cf1e7997d446d1144a9ab642bfc6343edb2d63c478311647e394b58f",
+  "generator": "tests/_reference_tools/generate_coulomb_reference.py",
+  "generator_sha256": "9e390ccdc4b031fbab63aa6473bbd1e81d55823419c5f445b3869c8b2940558e",
   "normalization": "mpmath Coulomb F_l/G_l convention; F'G-FG'=1",
   "reference_engine": {
     "decimal_digits": 80,

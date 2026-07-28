@@ -43,8 +43,8 @@
       "sigma_megabarn": 8.712
     }
   ],
-  "generator": "scripts/generate_yeh_lindau_data.py",
-  "generator_sha256": "4e5f457563c684fa5332d892812a904b314ada0960e94c464097f103a2bde39c",
+  "generator": "tests/_reference_tools/generate_yeh_lindau_data.py",
+  "generator_sha256": "7169edfd1ddee9347819220996a7812c1014e1ad55d3173575cfb2c1f9996713",
   "interpolation": "PCHIP in log(sigma_megabarn) versus log(photon_energy_ev)",
   "paper_doi": "10.1016/0092-640X(85)90016-6",
   "reference_authority": {

@@ -21,7 +21,7 @@ import numpy as np
 
 import diffpes
 
-_REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[1]
+_REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[2]
 _TESTS_DIRECTORY: Path = _REPOSITORY_ROOT / "tests"
 sys.path.insert(0, str(_REPOSITORY_ROOT))
 

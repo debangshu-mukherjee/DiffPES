@@ -117,7 +117,8 @@ class TestYehLindauCrossSectionTable:
         archive_path: Path = data_directory / "yeh_lindau_1985.npz"
         generator_path: Path = (
             Path(__file__).resolve().parents[3]
-            / "scripts"
+            / "tests"
+            / "_reference_tools"
             / "generate_yeh_lindau_data.py"
         )
         manifest: dict[str, Any] = json.loads(

@@ -174,7 +174,7 @@
   },
   "schema": "diffpes.plan06.scalability.v2",
   "source_sha256": {
-    "scripts/measure_plan06_scaling.py": "9af247483ad4585fc42fb14e0d5d4f52fb2ad442fc66918aa5ba1c9a9de1627a",
+    "tests/_reference_tools/measure_plan06_scaling.py": "496f666919217143d2ac3983856076eb4ebd6422497d2f32514e2317034cef87",
     "src/diffpes/simul/matrixel.py": "d8cbd48db8959422edd4545885e4b31a6d6ed44d596b35e06c73ca9a1e99a509",
     "src/diffpes/types/radial_params.py": "055d6aa2286e2299b253cb9056dc8b14e0ee65fbde93df0e604f70fb54b3632b"
   }

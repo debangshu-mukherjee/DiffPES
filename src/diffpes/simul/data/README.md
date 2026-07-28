@@ -13,7 +13,8 @@ convention, replay spot checks, and every supported positive energy interval.
 Regenerate the archive with:
 
 ```console
-python scripts/generate_yeh_lindau_data.py Excel_Yeh_Lindau_1985_PICS.xlsx
+python tests/_reference_tools/generate_yeh_lindau_data.py \
+  Excel_Yeh_Lindau_1985_PICS.xlsx
 ```
 
 Cross sections are stored in megabarn. Missing cells remain `NaN`, published

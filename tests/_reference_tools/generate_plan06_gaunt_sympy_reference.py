@@ -22,7 +22,7 @@ def generate(output: Path, l_max: int = 4) -> None:
         message: str = (
             "SymPy is an offline generator dependency; run with "
             "`uv run --with 'sympy>=1.14' "
-            "scripts/generate_plan06_gaunt_sympy_reference.py`"
+            "tests/_reference_tools/generate_plan06_gaunt_sympy_reference.py`"
         )
         raise RuntimeError(message) from error
     real_gaunt: Any = wigner.real_gaunt

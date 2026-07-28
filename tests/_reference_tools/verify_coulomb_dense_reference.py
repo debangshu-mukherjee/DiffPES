@@ -22,7 +22,7 @@ def main() -> None:  # noqa: PLR0915
     """Check dense values, ODE residuals, Wronskians, and asymptotics."""
     order: int = int(sys.argv[1])
     path: Path = (
-        Path(__file__).parents[1]
+        Path(__file__).parents[2]
         / "tests"
         / "test_diffpes"
         / "test_radial"

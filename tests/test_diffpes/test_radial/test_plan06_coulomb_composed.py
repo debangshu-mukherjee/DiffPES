@@ -26,7 +26,12 @@ class TestPlan06CoulombComposedAssembly:
         It runs the committed verifier and reports captured process output.
         """
         root: Path = Path(__file__).parents[3]
-        script: Path = root / "scripts" / "verify_coulomb_composed_assembly.py"
+        script: Path = (
+            root
+            / "tests"
+            / "_reference_tools"
+            / "verify_coulomb_composed_assembly.py"
+        )
         completed: subprocess.CompletedProcess[str] = subprocess.run(
             [sys.executable, str(script)],
             cwd=root,

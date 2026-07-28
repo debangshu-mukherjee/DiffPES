@@ -243,7 +243,7 @@ def main() -> None:
             dense_regular[order] = regular_row
             dense_irregular[order] = irregular_row
 
-    root: Path = Path(__file__).parents[1]
+    root: Path = Path(__file__).parents[2]
     target_directory: Path = (
         root / "tests" / "test_diffpes" / "test_radial" / "data"
     )

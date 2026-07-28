@@ -298,7 +298,7 @@ def generate(source: Path, output_directory: Path) -> None:
             )
         ],
         "digitisation_doi": _SOURCE_DOI,
-        "generator": "scripts/generate_yeh_lindau_data.py",
+        "generator": "tests/_reference_tools/generate_yeh_lindau_data.py",
         "generator_sha256": generator_sha256,
         "interpolation": (
             "PCHIP in log(sigma_megabarn) versus log(photon_energy_ev)"

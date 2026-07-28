@@ -142,7 +142,12 @@ class TestCoulombFg:
         Separate processes release each order's adaptive-solver executables.
         """
         root: Path = Path(__file__).parents[3]
-        script: Path = root / "scripts" / "verify_coulomb_dense_reference.py"
+        script: Path = (
+            root
+            / "tests"
+            / "_reference_tools"
+            / "verify_coulomb_dense_reference.py"
+        )
         completed: subprocess.CompletedProcess[str] = subprocess.run(
             [sys.executable, str(script), str(order)],
             cwd=root,
@@ -168,7 +173,9 @@ class TestCoulombFg:
         Separate processes release compiled executables between static orders.
         """
         root: Path = Path(__file__).parents[3]
-        script: Path = root / "scripts" / "verify_coulomb_reference.py"
+        script: Path = (
+            root / "tests" / "_reference_tools" / "verify_coulomb_reference.py"
+        )
         completed: subprocess.CompletedProcess[str] = subprocess.run(
             [sys.executable, str(script), str(order)],
             cwd=root,
