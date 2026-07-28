@@ -9,6 +9,16 @@ and the project uses calendar versioning.
 
 ### Removed
 
+- Plan 03 KG-E removes `diffpes.types.PolarizationConfig`,
+  `diffpes.types.make_polarization_config`, and
+  `diffpes.simul.build_efield`. Construct explicit complex Cartesian fields
+  with `diffpes.simul.polarization_from_angles` and store experiment geometry
+  with `diffpes.types.ExperimentGeometry`.
+- `SimulationParams` no longer stores `temperature` or `photon_energy`.
+  `ExperimentGeometry.temperature_k` and
+  `ExperimentGeometry.photon_energy_ev` own those experiment properties.
+  The retained incoherent spectrum functions accept the scalars explicitly
+  at their physics boundaries.
 - Plan 06 removes the obsolete coherent prototype
   `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
   matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.

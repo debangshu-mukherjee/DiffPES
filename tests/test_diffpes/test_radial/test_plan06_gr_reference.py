@@ -1,0 +1,103 @@
+"""Certify Plan 06 G2 against frozen G&R 6.621.3 references."""
+
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+
+import jax.numpy as jnp
+import numpy as np
+from jaxtyping import Array
+
+from diffpes.radial.integrate import gauss_legendre_nodes, radial_integral
+from diffpes.radial.wavefunctions import hydrogenic_radial, slater_radial
+
+REFERENCE_PATH: Path = (
+    Path(__file__).parents[1]
+    / "_reference_data"
+    / "plan06_radial_gr66213_reference.csv"
+)
+
+
+class TestPlan06GradshteynRyzhikReference:
+    """Compare production STO and hydrogenic dipole transforms with G&R."""
+
+    def test_normalized_radial_battery_matches_frozen_50_digit_values(
+        self,
+    ) -> None:
+        """Match all frozen values through the public r-cubed integral API.
+
+        The offline generator evaluates G&R 6.621.3 at 80 working digits,
+        cross-checks it by direct arbitrary-precision quadrature, and freezes
+        50 digits. This test deliberately has no mpmath runtime dependency.
+        """
+        with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
+            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+
+        assert {row["mode"] for row in rows} == {"slater", "hydrogenic"}
+        assert len(rows) == 9
+        nodes: Array
+        weights: Array
+        nodes, weights = gauss_legendre_nodes(1024, 120.0)
+        row: dict[str, str]
+        for row in rows:
+            n_value: int = int(row["n"])
+            angular_momentum: int = int(row["angular_momentum"])
+            parameter: Array = jnp.asarray(
+                float(row["radial_parameter"]),
+                dtype=jnp.float64,
+            )
+            radial_values: Array
+            if row["mode"] == "slater":
+                radial_values = slater_radial(
+                    nodes,
+                    n=n_value,
+                    zeta=parameter,
+                )
+            else:
+                radial_values = hydrogenic_radial(
+                    nodes,
+                    n=n_value,
+                    angular_momentum=angular_momentum,
+                    z_eff=parameter,
+                )
+            l_prime: int = int(row["l_prime"])
+            actual: complex = complex(
+                radial_integral(
+                    jnp.asarray(
+                        float(row["k_bohr_inv"]),
+                        dtype=jnp.float64,
+                    ),
+                    nodes,
+                    weights,
+                    radial_values,
+                    l_prime,
+                )
+            )
+            expected: complex = (1j) ** l_prime * float(
+                row["expected_unphased"]
+            )
+            np.testing.assert_allclose(
+                actual,
+                expected,
+                rtol=1.0e-9,
+                atol=1.0e-12,
+                err_msg=row["reference_id"],
+            )
+
+    def test_frozen_reference_records_authority_and_precision(self) -> None:
+        """Require every row to retain the registered independent provenance."""
+        with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
+            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+
+        row: dict[str, str]
+        for row in rows:
+            assert row["authority"] == "Gradshteyn-Ryzhik 6.621.3"
+            assert int(row["working_digits"]) >= 50
+            assert int(row["frozen_digits"]) == 50
+            difference: float = float(row["gr_direct_abs_difference"])
+            expected_scale: float = max(
+                1.0,
+                abs(float(row["expected_unphased"])),
+            )
+            assert difference <= 1.0e-20 * expected_scale

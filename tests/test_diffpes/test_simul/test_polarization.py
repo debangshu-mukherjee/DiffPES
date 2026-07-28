@@ -2,9 +2,9 @@
 
 Extended Summary
 ----------------
-Exercise build_polarization_vectors and build_efield. Verify the polarization
-basis and each field mode. Compare the detector frame
-with an offline table from the pinned Chinook source.
+Exercise explicit polarization-vector construction and frame transforms.
+Compare the detector frame with an offline table from the pinned Chinook
+source.
 
 """
 
@@ -20,10 +20,8 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Complex, Float
 
-import diffpes
 from diffpes.maths import rodrigues_rotation
 from diffpes.simul import (
-    build_efield,
     build_polarization_vectors,
     detector_angles_to_kpar,
     detector_axis_to_sample,
@@ -36,7 +34,6 @@ from diffpes.simul import (
     rotate_frame_vectors,
     sample_azimuth_rotation,
 )
-from diffpes.types import make_polarization_config
 from tests._gradients import complex_step_derivative, gradient_gate
 
 
@@ -250,222 +247,6 @@ class TestPhotonWavevector(chex.TestCase):
             jnp.float64(1.0),
             rtol=0.0,
             atol=1e-12,
-        )
-
-
-class TestBuildEfield(chex.TestCase):
-    """Validate :func:`diffpes.simul.polarization.build_efield`.
-
-    Verify the electric field for each polarization type. Check the LVP,
-    LHP, RCP, and LCP relations.
-
-    :see: :func:`~diffpes.simul.build_efield`
-    """
-
-    def test_lvp_equals_s(self) -> None:
-        """Verify that LVP (linear vertical polarization) yields the s-polarization vector.
-
-        The test establishes the lvp equals s contract for build efield with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Build E-field with LVP config**:
-           Create an LVP configuration at theta=pi/4 and phi=0. Compute
-           its electric field vector.
-
-        2. **Build reference s-polarization vector**:
-           Independently computes e_s using ``build_polarization_vectors``
-           with the same angles.
-
-        3. **Compare real parts**:
-           Checks that the real part of the E-field matches e_s.
-
-        **Expected assertions**
-
-        The real part of the LVP E-field equals the s-polarization vector
-        within tolerance 1e-10.
-        """
-        config: diffpes.types.PolarizationConfig
-        efield: Array
-        e_s: Array
-
-        config = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="LVP",
-        )
-        efield = build_efield(config)
-        e_s, _ = build_polarization_vectors(config.theta, config.phi)
-        chex.assert_trees_all_close(
-            jnp.real(efield),
-            e_s.astype(jnp.float64),
-            atol=1e-10,
-        )
-
-    def test_lhp_equals_p(self) -> None:
-        """Verify that LHP (linear horizontal polarization) yields the p-polarization vector.
-
-        The test establishes the lhp equals p contract for build efield with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Build E-field with LHP config**:
-           Create an LHP configuration at theta=pi/4 and phi=0. Compute
-           its electric field vector.
-
-        2. **Build reference p-polarization vector**:
-           Independently computes e_p using ``build_polarization_vectors``
-           with the same angles.
-
-        3. **Compare real parts**:
-           Checks that the real part of the E-field matches e_p.
-
-        **Expected assertions**
-
-        The real part of the LHP E-field equals the p-polarization vector
-        within tolerance 1e-10.
-        """
-        config: diffpes.types.PolarizationConfig
-        efield: Array
-        e_p: Array
-
-        config = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="LHP",
-        )
-        efield = build_efield(config)
-        _, e_p = build_polarization_vectors(config.theta, config.phi)
-        chex.assert_trees_all_close(
-            jnp.real(efield),
-            e_p.astype(jnp.float64),
-            atol=1e-10,
-        )
-
-    def test_rcp_lcp_conjugate(self) -> None:
-        """Verify that RCP and LCP E-fields share the same real part.
-
-        The test establishes the rcp lcp conjugate contract for build efield with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Build RCP and LCP E-fields**:
-           Create RCP and LCP configurations at theta=pi/4 and phi=0.
-           Compute both E-field vectors.
-
-        2. **Compare real parts**:
-           Use the circular-polarization definitions. Compare their common
-           real part, e_s/sqrt(2).
-
-        **Expected assertions**
-
-        The real parts of the RCP and LCP E-fields are equal within
-        tolerance 1e-10, confirming the conjugate symmetry relationship.
-        """
-        config_r: diffpes.types.PolarizationConfig
-        config_l: diffpes.types.PolarizationConfig
-        e_rcp: Array
-        e_lcp: Array
-
-        config_r = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="RCP",
-        )
-        config_l = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="LCP",
-        )
-        e_rcp = build_efield(config_r)
-        e_lcp = build_efield(config_l)
-        chex.assert_trees_all_close(
-            jnp.real(e_rcp),
-            jnp.real(e_lcp),
-            atol=1e-10,
-        )
-
-    def test_lap_linear_combination(self) -> None:
-        """Verify that LAP (linear arbitrary) yields cos(angle)*e_s + sin(angle)*e_p.
-
-        The test establishes the lap linear combination contract for build efield with
-        the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Build E-field with LAP config**:
-           Create an LAP configuration with polarization_angle=0.3.
-           Compute its electric field.
-
-        2. **Build e_s and e_p** with the same angles. Form the expected
-           combination cos(0.3)*e_s + sin(0.3)*e_p.
-
-        3. **Compare**: E-field matches the expected combination.
-
-        **Expected assertions**
-
-        LAP E-field equals the linear combination of s- and p-vectors
-        at the given polarization angle.
-        """
-        angle: float
-        config: diffpes.types.PolarizationConfig
-        efield: Array
-        e_s: Array
-        e_p: Array
-        e_s_c: Array
-        e_p_c: Array
-        expected: Array
-
-        angle = 0.3
-        config = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="LAP",
-            polarization_angle=angle,
-        )
-        efield = build_efield(config)
-        e_s, e_p = build_polarization_vectors(config.theta, config.phi)
-        e_s_c = e_s.astype(jnp.complex128)
-        e_p_c = e_p.astype(jnp.complex128)
-        expected = jnp.cos(angle) * e_s_c + jnp.sin(angle) * e_p_c
-        chex.assert_trees_all_close(efield, expected, atol=1e-10)
-
-    def test_unknown_pol_type_fallback_to_s(self) -> None:
-        """Verify that unknown polarization type falls back to e_s.
-
-        The test establishes the unknown pol type fallback to s contract for build
-        efield with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Build E-field with an unsupported type** (e.g. "unpolarized"):
-           build_efield treats it as the default branch and returns e_s.
-
-        2. **Compare** real part of E-field to e_s from
-           build_polarization_vectors.
-
-        **Expected assertions**
-
-        The default/else branch returns the s-polarization vector.
-        """
-        config: diffpes.types.PolarizationConfig
-        efield: Array
-        e_s: Array
-
-        config = make_polarization_config(
-            theta=jnp.pi / 4.0,
-            phi=0.0,
-            polarization_type="unpolarized",
-        )
-        efield = build_efield(config)
-        e_s, _ = build_polarization_vectors(config.theta, config.phi)
-        chex.assert_trees_all_close(
-            jnp.real(efield),
-            e_s.astype(jnp.float64),
-            atol=1e-10,
         )
 
 

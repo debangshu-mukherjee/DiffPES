@@ -1,0 +1,29 @@
+{
+  "artifact": "diffpes-plans/verification/matrixel_radial_acceleration/manifest.json",
+  "source_manifest_sha256": "8f7e05abaaefb42666a3f1d559031c100ba44a52005c603bfbcd29ecfc555ad2",
+  "schema": "diffpes.plan06.radial-hermite-rejection.v1",
+  "registered_witness": {
+    "mode": "slater",
+    "n": 1,
+    "l": 0,
+    "l_prime": 1,
+    "zeta_bohr_inv": 0.5,
+    "quadrature_nodes": 1024,
+    "r_max_bohr": 120.0
+  },
+  "candidate_node_counts": [
+    257,
+    513,
+    1025,
+    2049
+  ],
+  "next_rung": "1025->2049",
+  "next_rung_value_budget_ratio": 0.6922157867386827,
+  "next_rung_fraction_limit": 0.5,
+  "decision": {
+    "accepted": false,
+    "selected_node_count": null,
+    "runtime": "reject-hermite-use-direct",
+    "d13_status": "not activated because no G13 resolution may ship"
+  }
+}

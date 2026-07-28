@@ -1,0 +1,721 @@
+"""Certify the Plan 06 D1--D8 composed differentiability gates.
+
+Extended Summary
+----------------
+The tests apply the shared Plan-01 forward/reverse and central-finite-
+difference harness to generic-complex matrix-element compositions. Analytic
+JVPs separately pin holomorphic centre phases and complete-group covariance.
+"""
+
+import chex
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+import mpmath
+import pytest
+from jaxtyping import Array, Bool, Complex, Float
+
+from diffpes.simul import (
+    assemble_orbital_transition_channels,
+    contract_experiment_polarization,
+    final_state_k_inv_ang,
+    kinetic_energy_ev,
+    matrix_element_intensity,
+    orbital_transition_channels,
+    project_band_channels,
+    resolve_orbital_positions_cart,
+)
+from diffpes.types import (
+    CrystalGeometry,
+    DiagonalizedBands,
+    ExperimentGeometry,
+    FinalStateSpec,
+    MatrixElementParams,
+    OrbitalBasis,
+    RadialQuadratureSpec,
+    RadialSpec,
+    make_crystal_geometry,
+    make_diagonalized_bands,
+    make_experiment_geometry,
+    make_final_state_spec,
+    make_matrix_element_params,
+    make_orbital_basis,
+    make_radial_quadrature_spec,
+    make_radial_spec,
+)
+from tests._gradients import assert_grad_matches_fd, assert_nonzero_grad
+
+
+def _basis() -> OrbitalBasis:
+    """Build one complete mixed s-and-p real-orbital basis."""
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0, 0, 0, 0),
+        n=(1, 2, 2, 2),
+        l=(0, 1, 1, 1),
+        m=(0, -1, 0, 1),
+    )
+    return basis
+
+
+def _experiment(
+    photon_energy: Float[Array, ""] = jnp.asarray(24.0),
+    polarization: Complex[Array, " 3"] = jnp.asarray(
+        [0.6 + 0.2j, -0.3 + 0.7j, 0.0 + 0.0j]
+    ),
+    azimuth: Float[Array, ""] = jnp.asarray(0.31),
+    mean_free_path: Float[Array, ""] = jnp.asarray(8.4),
+    inner_potential: Float[Array, ""] = jnp.asarray(11.0),
+) -> ExperimentGeometry:
+    """Build a generic transverse experiment carrier."""
+    experiment: ExperimentGeometry = make_experiment_geometry(
+        photon_energy,
+        polarization,
+        sample_azimuth=azimuth,
+        work_function_ev=4.5,
+        mean_free_path_ang=mean_free_path,
+        inner_potential_ev=inner_potential,
+    )
+    return experiment
+
+
+def _bands(
+    basis: OrbitalBasis,
+    lattice: Float[Array, "3 3"] = jnp.eye(3),
+    atom_positions: Float[Array, "1 3"] = jnp.asarray([[0.07, 0.11, 0.13]]),
+    orbital_positions: Float[Array, "4 3"] | None = jnp.asarray(
+        [
+            [0.07, 0.11, 0.13],
+            [0.21, 0.08, 0.17],
+            [0.12, 0.26, 0.09],
+            [0.31, 0.18, 0.23],
+        ]
+    ),
+    depths: Float[Array, " 4"] | None = jnp.asarray([0.4, 1.2, 2.1, 3.4]),
+) -> DiagonalizedBands:
+    """Build one generic-complex nondegenerate band carrier."""
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice,
+        atom_positions,
+        ("X",),
+    )
+    eigenvectors: Complex[Array, "1 1 4"] = jnp.asarray(
+        [[[0.43 + 0.17j, -0.28 + 0.51j, 0.36 - 0.22j, 0.19 + 0.47j]]]
+    )
+    bands: DiagonalizedBands = make_diagonalized_bands(
+        jnp.asarray([[-0.37]]),
+        eigenvectors,
+        jnp.zeros((1, 3)),
+        geometry,
+        basis,
+        orbital_positions=orbital_positions,
+        depths=depths,
+    )
+    return bands
+
+
+def _matrix_params(
+    basis: OrbitalBasis,
+    phases: Float[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67]),
+) -> MatrixElementParams:
+    """Build compact physical phase and scale coordinates."""
+    params: MatrixElementParams = make_matrix_element_params(
+        basis,
+        (0, 1, 1, 1),
+        sigma_shell=jnp.asarray([1.1, 0.83]),
+        phase_shift_angles_shell=phases,
+    )
+    return params
+
+
+def _generic_channels(
+    *,
+    positions: Float[Array, "4 3"] | None = None,
+    mean_free_path: Float[Array, ""] = jnp.asarray(8.4),
+    phases: Float[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67]),
+) -> Complex[Array, "1 1 4 3"]:
+    """Assemble lower-level generic-complex orbital channels."""
+    basis: OrbitalBasis = _basis()
+    resolved_positions: Float[Array, "4 3"] = (
+        jnp.asarray(
+            [
+                [0.13, 0.07, 0.19],
+                [0.31, 0.11, 0.23],
+                [0.17, 0.29, 0.09],
+                [0.27, 0.21, 0.37],
+            ]
+        )
+        if positions is None
+        else positions
+    )
+    radial_values: Complex[Array, "1 4 2"] = jnp.asarray(
+        [
+            [
+                [0.0 + 0.0j, 0.71 + 0.23j],
+                [0.43 - 0.19j, -0.27 + 0.61j],
+                [-0.38 + 0.47j, 0.52 + 0.16j],
+                [0.29 + 0.34j, -0.41 - 0.22j],
+            ]
+        ]
+    )
+    channels: Complex[Array, "1 1 4 3"] = orbital_transition_channels(
+        jnp.asarray([[0.17, -0.09, 0.05]]),
+        jnp.asarray([[0.17, -0.09, 1.31]]),
+        resolved_positions,
+        jnp.asarray([0.4, 1.2, 2.1, 3.4]),
+        radial_values,
+        _matrix_params(basis, phases),
+        mean_free_path,
+        basis,
+    )
+    return channels
+
+
+def _intensity(
+    channels: Complex[Array, "1 1 4 3"],
+    experiment: ExperimentGeometry,
+    eigenvectors: Complex[Array, "1 1 4"] | None = None,
+) -> Float[Array, ""]:
+    """Reduce generic orbital channels through one physical modulus square."""
+    coefficients: Complex[Array, "1 1 4"] = (
+        jnp.asarray(
+            [[[0.43 + 0.17j, -0.28 + 0.51j, 0.36 - 0.22j, 0.19 + 0.47j]]]
+        )
+        if eigenvectors is None
+        else eigenvectors
+    )
+    band_channels: Complex[Array, "1 1 1 3"] = project_band_channels(
+        channels,
+        coefficients,
+    )
+    amplitudes: Complex[Array, "1 1 1"] = contract_experiment_polarization(
+        band_channels,
+        experiment,
+    )
+    intensity: Float[Array, ""] = jnp.sum(matrix_element_intensity(amplitudes))
+    return intensity
+
+
+class TestPlan06D1D2:
+    """Certify composed radial and photon-energy derivative gates."""
+
+    @pytest.mark.rss_limit_mb(1024)
+    def test_d1_slater_exponents_and_coefficients(self) -> None:
+        """Match D1 autodiff for normalized multi-zeta intensity.
+
+        The composition includes radial quadrature, orbital assembly, generic
+        complex projection, late polarization, and the final intensity.
+
+        Notes
+        -----
+        Apply both Plan-01 modes and its central-FD census to every coordinate.
+        """
+        basis: OrbitalBasis = _basis()
+        bands: DiagonalizedBands = _bands(basis)
+        params: MatrixElementParams = _matrix_params(basis)
+        quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
+        final_state: FinalStateSpec = make_final_state_spec()
+        experiment: ExperimentGeometry = _experiment()
+        final_momentum: Float[Array, "1 3"] = jnp.asarray([[0.0, 0.0, 1.31]])
+        validity: Bool[Array, " 1"] = jnp.asarray([True])
+        initial: Float[Array, " 8"] = jnp.asarray(
+            [1.1, 1.9, 0.9, 1.6, 0.8, -0.27, 0.61, 0.39]
+        )
+
+        def loss(candidate: Float[Array, " 8"]) -> Float[Array, ""]:
+            """Return composed intensity for radial physical coordinates."""
+            radial: RadialSpec = make_radial_spec(
+                basis,
+                (0, 1, 1, 1),
+                zeta_shell=candidate[:4].reshape(2, 2),
+                coefficients_shell=candidate[4:].reshape(2, 2),
+            )
+            channels: Complex[Array, "1 1 4 3"] = (
+                assemble_orbital_transition_channels(
+                    bands,
+                    radial,
+                    params,
+                    quadrature,
+                    final_state,
+                    experiment,
+                    final_momentum,
+                    validity,
+                )
+            )
+            value: Float[Array, ""] = _intensity(channels, experiment)
+            return value
+
+        assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
+        assert_nonzero_grad(loss, initial)
+
+    def test_d2_photon_energy_to_explicit_vacuum_momentum(self) -> None:
+        """Match D2 through energy conservation and vacuum momentum.
+
+        The inner potential remains absent from the fixed-vacuum assembly
+        path while photon energy changes its explicit final momentum.
+
+        Notes
+        -----
+        Apply the shared harness away from threshold and assert the exact V0 zero.
+        """
+        basis: OrbitalBasis = _basis()
+        bands: DiagonalizedBands = _bands(basis)
+        radial: RadialSpec = make_radial_spec(
+            basis,
+            (0, 1, 1, 1),
+            mode="fixed",
+            fixed_integrals_shell=jnp.asarray([[0.0, 1.0], [0.6, 0.8]]),
+        )
+        params: MatrixElementParams = _matrix_params(basis)
+        quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
+        final_state: FinalStateSpec = make_final_state_spec()
+
+        def loss(photon_energy: Float[Array, ""]) -> Float[Array, ""]:
+            """Return intensity after the explicit vacuum-momentum map."""
+            kinetic: Float[Array, " 1"]
+            energy_valid: Bool[Array, " 1"]
+            kinetic, energy_valid = kinetic_energy_ev(
+                photon_energy,
+                jnp.asarray(4.5),
+                jnp.asarray([-0.37]),
+            )
+            momentum: Float[Array, " 1"]
+            momentum_valid: Bool[Array, " 1"]
+            momentum, momentum_valid = final_state_k_inv_ang(kinetic)
+            final_momentum: Float[Array, "1 3"] = jnp.stack(
+                (jnp.zeros_like(momentum), jnp.zeros_like(momentum), momentum),
+                axis=-1,
+            )
+            experiment: ExperimentGeometry = _experiment(photon_energy)
+            channels: Complex[Array, "1 1 4 3"] = (
+                assemble_orbital_transition_channels(
+                    bands,
+                    radial,
+                    params,
+                    quadrature,
+                    final_state,
+                    experiment,
+                    final_momentum,
+                    energy_valid & momentum_valid,
+                )
+            )
+            value: Float[Array, ""] = _intensity(channels, experiment)
+            return value
+
+        photon_energy: Float[Array, ""] = jnp.asarray(24.0)
+        assert_grad_matches_fd(loss, photon_energy, modes=("fwd", "rev"))
+        assert_nonzero_grad(loss, photon_energy)
+
+        fixed_momentum: Float[Array, "1 3"] = jnp.asarray([[0.0, 0.0, 2.1]])
+
+        def fixed_vacuum(
+            inner_potential: Float[Array, ""],
+        ) -> Float[Array, ""]:
+            """Return assembly intensity at fixed vacuum momentum."""
+            experiment: ExperimentGeometry = _experiment(
+                inner_potential=inner_potential
+            )
+            channels: Complex[Array, "1 1 4 3"] = (
+                assemble_orbital_transition_channels(
+                    bands,
+                    radial,
+                    params,
+                    quadrature,
+                    final_state,
+                    experiment,
+                    fixed_momentum,
+                    jnp.asarray([True]),
+                )
+            )
+            value: Float[Array, ""] = _intensity(channels, experiment)
+            return value
+
+        zero: Float[Array, ""] = jax.grad(fixed_vacuum)(jnp.asarray(11.0))
+        chex.assert_trees_all_equal(zero, jnp.asarray(0.0))
+
+
+class TestPlan06D3D6:
+    """Certify optical, centre, attenuation, and phase derivatives."""
+
+    def test_d3_complex_polarization_real_view_and_azimuth(self) -> None:
+        """Match D3 on generic complex optical coordinates.
+
+        Four stacked real quadratures construct the transverse laboratory
+        vector, and a fifth coordinate rotates the sample before contraction.
+
+        Notes
+        -----
+        Apply the shared forward/reverse and central-FD harness to the real view.
+        """
+        channels: Complex[Array, "1 1 4 3"] = _generic_channels()
+        initial: Float[Array, " 5"] = jnp.asarray(
+            [0.61, -0.27, 0.23, 0.69, 0.31]
+        )
+
+        def loss(candidate: Float[Array, " 5"]) -> Float[Array, ""]:
+            """Return intensity for a stacked-real optical chart."""
+            polarization: Complex[Array, " 3"] = jnp.asarray(
+                [
+                    candidate[0] + 1j * candidate[2],
+                    candidate[1] + 1j * candidate[3],
+                    0.0 + 0.0j,
+                ]
+            )
+            experiment: ExperimentGeometry = _experiment(
+                polarization=polarization,
+                azimuth=candidate[4],
+            )
+            value: Float[Array, ""] = _intensity(channels, experiment)
+            return value
+
+        assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
+        assert_nonzero_grad(loss, initial)
+
+    def test_d4_fractional_centres_and_lattice(self) -> None:
+        """Match D4 through explicit and atom-fallback centre maps.
+
+        Both carrier routes apply one fractional-to-Cartesian lattice product
+        before the coherent centre phase.
+
+        Notes
+        -----
+        Check both routes with the shared harness and pin translation JVP analytically.
+        """
+        basis: OrbitalBasis = _basis()
+        centre: Float[Array, "4 3"] = jnp.asarray(
+            [
+                [0.07, 0.11, 0.13],
+                [0.21, 0.08, 0.17],
+                [0.12, 0.26, 0.09],
+                [0.31, 0.18, 0.23],
+            ]
+        )
+        lattice: Float[Array, "3 3"] = jnp.asarray(
+            [[1.7, 0.1, 0.0], [0.0, 1.4, 0.2], [0.1, 0.0, 1.9]]
+        )
+
+        def explicit_loss(
+            candidate: tuple[Float[Array, "4 3"], Float[Array, "3 3"]],
+        ) -> Float[Array, ""]:
+            """Return intensity through explicit Wannier centres."""
+            centres: Float[Array, "4 3"]
+            trial_lattice: Float[Array, "3 3"]
+            centres, trial_lattice = candidate
+            bands: DiagonalizedBands = _bands(
+                basis,
+                lattice=trial_lattice,
+                orbital_positions=centres,
+            )
+            cartesian: Float[Array, "4 3"] = resolve_orbital_positions_cart(
+                bands
+            )
+            value: Float[Array, ""] = _intensity(
+                _generic_channels(positions=cartesian),
+                _experiment(),
+            )
+            return value
+
+        assert_grad_matches_fd(
+            explicit_loss,
+            (centre, lattice),
+            modes=("fwd", "rev"),
+        )
+
+        def fallback_loss(
+            candidate: tuple[Float[Array, "1 3"], Float[Array, "3 3"]],
+        ) -> Float[Array, ""]:
+            """Return intensity through atom-derived centres."""
+            atoms: Float[Array, "1 3"]
+            trial_lattice: Float[Array, "3 3"]
+            atoms, trial_lattice = candidate
+            bands: DiagonalizedBands = _bands(
+                basis,
+                lattice=trial_lattice,
+                atom_positions=atoms,
+                orbital_positions=None,
+            )
+            cartesian: Float[Array, "4 3"] = resolve_orbital_positions_cart(
+                bands
+            )
+            value: Float[Array, ""] = _intensity(
+                _generic_channels(positions=cartesian),
+                _experiment(),
+            )
+            return value
+
+        assert_grad_matches_fd(
+            fallback_loss,
+            (jnp.asarray([[0.07, 0.11, 0.13]]), lattice),
+            modes=("fwd", "rev"),
+        )
+
+        direction: Float[Array, " 3"] = jnp.asarray([0.13, -0.17, 0.09])
+        base_channels: Complex[Array, "1 1 4 3"] = _generic_channels()
+
+        def translated(
+            amount: Float[Array, ""],
+        ) -> Complex[Array, "1 1 4 3"]:
+            """Return channels after a common Cartesian translation."""
+            positions: Float[Array, "4 3"] = jnp.asarray(
+                [
+                    [0.13, 0.07, 0.19],
+                    [0.31, 0.11, 0.23],
+                    [0.17, 0.29, 0.09],
+                    [0.27, 0.21, 0.37],
+                ]
+            )
+            channels: Complex[Array, "1 1 4 3"] = _generic_channels(
+                positions=positions + amount * direction
+            )
+            return channels
+
+        derivative: Complex[Array, "1 1 4 3"] = jax.jvp(
+            translated,
+            (jnp.asarray(0.0),),
+            (jnp.asarray(1.0),),
+        )[1]
+        momentum_difference: Float[Array, " 3"] = jnp.asarray(
+            [0.0, 0.0, -1.26]
+        )
+        expected: Complex[Array, "1 1 4 3"] = (
+            1j * jnp.dot(momentum_difference, direction) * base_channels
+        )
+        chex.assert_trees_all_close(
+            derivative,
+            expected,
+            rtol=1.0e-12,
+            atol=1.0e-12,
+        )
+
+    def test_d5_nonzero_depth_attenuation(self) -> None:
+        """Match D5 mean-free-path sensitivity at positive depths.
+
+        The fixture has several distinct nonzero depths, so attenuation must
+        contribute a useful physical derivative.
+
+        Notes
+        -----
+        Apply the shared harness and its nonzero-gradient tripwire.
+        """
+
+        def loss(mean_free_path: Float[Array, ""]) -> Float[Array, ""]:
+            """Return attenuated composed intensity."""
+            channels: Complex[Array, "1 1 4 3"] = _generic_channels(
+                mean_free_path=mean_free_path
+            )
+            value: Float[Array, ""] = _intensity(channels, _experiment())
+            return value
+
+        initial: Float[Array, ""] = jnp.asarray(8.4)
+        assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
+        assert_nonzero_grad(loss, initial)
+
+    def test_d6_compact_physical_phase_coordinates(self) -> None:
+        """Match D6 for every compact physical channel phase.
+
+        Generic radial values, centres, eigenvectors, and polarization expose
+        phase sensitivities without padded or invalid channel coordinates.
+
+        Notes
+        -----
+        Apply the shared harness to the three valid s-and-p phase coordinates.
+        """
+
+        def loss(phases: Float[Array, " 3"]) -> Float[Array, ""]:
+            """Return composed intensity for compact physical phases."""
+            channels: Complex[Array, "1 1 4 3"] = _generic_channels(
+                phases=phases
+            )
+            value: Float[Array, ""] = _intensity(channels, _experiment())
+            return value
+
+        initial: Float[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67])
+        assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
+        assert_nonzero_grad(loss, initial)
+
+
+class TestPlan06D7D8:
+    """Certify holomorphic centre phases and complex band derivatives."""
+
+    def test_d7_holomorphic_centre_phase(self) -> None:
+        """Match D7 with analytic, JVP, FD, and high-precision truths.
+
+        A non-real baseline forbids a subtract-free imaginary-step shortcut
+        and exercises the actual production centre-phase sub-block.
+
+        Notes
+        -----
+        Apply the shared scalar harness and compare complex directional derivatives.
+        """
+        direction: Float[Array, " 3"] = jnp.asarray([0.13, -0.17, 0.09])
+        positions: Float[Array, "4 3"] = jnp.asarray(
+            [
+                [0.13, 0.07, 0.19],
+                [0.31, 0.11, 0.23],
+                [0.17, 0.29, 0.09],
+                [0.27, 0.21, 0.37],
+            ]
+        )
+        weight: Complex[Array, "1 1 4 3"] = jnp.asarray(
+            jnp.arange(1, 13).reshape(1, 1, 4, 3)
+        ) * (0.07 + 0.03j)
+
+        def channels(amount: Float[Array, ""]) -> Complex[Array, "1 1 4 3"]:
+            """Return production channels along one centre direction."""
+            result: Complex[Array, "1 1 4 3"] = _generic_channels(
+                positions=positions + amount * direction
+            )
+            return result
+
+        def scalar_loss(amount: Float[Array, ""]) -> Float[Array, ""]:
+            """Return one generic real view of the complex phase block."""
+            value: Float[Array, ""] = jnp.real(
+                jnp.sum(weight * channels(amount))
+            )
+            return value
+
+        assert_grad_matches_fd(
+            scalar_loss,
+            jnp.asarray(0.0),
+            modes=("fwd", "rev"),
+        )
+        derivative: Complex[Array, "1 1 4 3"] = jax.jvp(
+            channels,
+            (jnp.asarray(0.0),),
+            (jnp.asarray(1.0),),
+        )[1]
+        baseline: Complex[Array, "1 1 4 3"] = channels(jnp.asarray(0.0))
+        phase_rate: Float[Array, ""] = jnp.dot(
+            jnp.asarray([0.0, 0.0, -1.26]),
+            direction,
+        )
+        expected: Complex[Array, "1 1 4 3"] = 1j * phase_rate * baseline
+        chex.assert_trees_all_close(
+            derivative,
+            expected,
+            rtol=1.0e-12,
+            atol=1.0e-12,
+        )
+
+        mpmath.mp.dps = 80
+        rate_mp: mpmath.mpf = mpmath.mpf(str(float(phase_rate)))
+        baseline_mp: mpmath.mpc = mpmath.mpc(
+            str(float(jnp.real(baseline[0, 0, 0, 0]))),
+            str(float(jnp.imag(baseline[0, 0, 0, 0]))),
+        )
+        step_mp: mpmath.mpf = mpmath.mpf("1e-30")
+        quotient_mp: mpmath.mpc = (
+            baseline_mp * mpmath.exp(1j * rate_mp * step_mp)
+            - baseline_mp * mpmath.exp(-1j * rate_mp * step_mp)
+        ) / (2 * step_mp)
+        quotient: Complex[Array, ""] = jnp.asarray(
+            complex(quotient_mp),
+            dtype=jnp.complex128,
+        )
+        chex.assert_trees_all_close(
+            derivative[0, 0, 0, 0],
+            quotient,
+            rtol=1.0e-12,
+            atol=1.0e-12,
+        )
+
+    def test_d8_generic_eigenvectors_and_group_directions(self) -> None:
+        """Match D8 raw-band derivatives and complete-group JVPs.
+
+        The nondegenerate input populates both complex quadratures. Separate
+        U(2) and U(3) tangent directions rotate complete degenerate groups.
+
+        Notes
+        -----
+        Apply both harness modes, then require exact first-order group covariance.
+        """
+        channels: Complex[Array, "1 1 4 3"] = _generic_channels()
+        experiment: ExperimentGeometry = _experiment()
+        eigenvectors: Complex[Array, "1 1 4"] = jnp.asarray(
+            [[[0.43 + 0.17j, -0.28 + 0.51j, 0.36 - 0.22j, 0.19 + 0.47j]]]
+        )
+
+        def raw_loss(
+            candidate: Complex[Array, "1 1 4"],
+        ) -> Float[Array, ""]:
+            """Return one registered nondegenerate raw-band weight."""
+            value: Float[Array, ""] = _intensity(
+                channels,
+                experiment,
+                candidate,
+            )
+            return value
+
+        assert_grad_matches_fd(
+            raw_loss,
+            eigenvectors,
+            modes=("fwd", "rev"),
+        )
+        assert_nonzero_grad(raw_loss, eigenvectors)
+
+        group_size: int
+        for group_size in (2, 3):
+            transition: Complex[Array, "1 1 4 3"] = channels
+            rows: Complex[Array, "1 n_group 4"] = jnp.asarray(
+                [
+                    [
+                        [
+                            complex(
+                                0.17 * (band + 1) * (orbital + 1),
+                                0.11 * (band + orbital + 1),
+                            )
+                            for orbital in range(4)
+                        ]
+                        for band in range(group_size)
+                    ]
+                ],
+                dtype=jnp.complex128,
+            )
+            generator: Complex[Array, "n_group n_group"] = jnp.asarray(
+                [
+                    [
+                        complex(0.0, 0.13 * (row + 1))
+                        if row == column
+                        else complex(
+                            0.07 * (row - column),
+                            0.05 * (row + column + 1),
+                        )
+                        for column in range(group_size)
+                    ]
+                    for row in range(group_size)
+                ],
+                dtype=jnp.complex128,
+            )
+            generator = 0.5 * (generator - jnp.conj(generator.T))
+            tangent: Complex[Array, "1 n_group 4"] = (generator @ rows[0])[
+                None, ...
+            ]
+
+            def group_weight(
+                candidate: Complex[Array, "1 n_group 4"],
+            ) -> Float[Array, ""]:
+                """Return one complete unresolved-spin group weight."""
+                band_channels: Complex[Array, "1 n_group 1 3"] = (
+                    project_band_channels(transition, candidate)
+                )
+                amplitudes: Complex[Array, "1 n_group 1"] = (
+                    contract_experiment_polarization(
+                        band_channels,
+                        experiment,
+                    )
+                )
+                value: Float[Array, ""] = jnp.sum(
+                    matrix_element_intensity(amplitudes)
+                )
+                return value
+
+            derivative: Float[Array, ""] = jax.jvp(
+                group_weight,
+                (rows,),
+                (tangent,),
+            )[1]
+            chex.assert_trees_all_close(
+                derivative,
+                jnp.asarray(0.0),
+                rtol=0.0,
+                atol=1.0e-12,
+            )

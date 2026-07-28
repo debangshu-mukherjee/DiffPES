@@ -59,7 +59,6 @@ class TestSimulateNoviceExpanded(chex.TestCase):
             0.1,
             48,
             15.0,
-            200.0,
         )
         chex.assert_shape(spectrum.intensity, (2, 48))
         chex.assert_tree_all_finite(spectrum.intensity)

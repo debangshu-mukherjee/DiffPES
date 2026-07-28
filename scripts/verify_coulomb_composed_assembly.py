@@ -1,0 +1,247 @@
+"""Verify the composed Plan 06 D11 Coulomb assembly derivatives."""
+
+from __future__ import annotations
+
+import math
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+from jaxtyping import Array, Bool, Complex, Float
+
+from diffpes.simul import (
+    assemble_orbital_transition_channels,
+    contract_experiment_polarization,
+    matrix_element_intensity,
+    project_band_channels,
+)
+from diffpes.simul.kinematics import (
+    final_state_k_inv_ang,
+    kinetic_energy_ev,
+)
+from diffpes.types import (
+    CrystalGeometry,
+    DiagonalizedBands,
+    ExperimentGeometry,
+    MatrixElementParams,
+    OrbitalBasis,
+    RadialQuadratureSpec,
+    RadialSpec,
+    make_crystal_geometry,
+    make_diagonalized_bands,
+    make_experiment_geometry,
+    make_final_state_spec,
+    make_matrix_element_params,
+    make_orbital_basis,
+    make_radial_quadrature_spec,
+    make_radial_spec,
+)
+
+type Fixture = tuple[
+    DiagonalizedBands,
+    RadialSpec,
+    MatrixElementParams,
+    RadialQuadratureSpec,
+    ExperimentGeometry,
+]
+
+_EFFECTIVE_CHARGE_DERIVATIVE_FLOOR = 1.0e-5
+_PHOTON_ENERGY_DERIVATIVE_FLOOR = 1.0e-6
+
+
+def _fixture() -> Fixture:
+    """Build a compact supported-radial full-assembly fixture."""
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=(0,),
+        n=(1,),
+        l=(0,),
+        m=(0,),
+        labels=("s",),
+    )
+    geometry: CrystalGeometry = make_crystal_geometry(
+        2.0 * math.pi * jnp.eye(3, dtype=jnp.float64),
+        jnp.zeros((1, 3), dtype=jnp.float64),
+        ("X",),
+    )
+    bands: DiagonalizedBands = make_diagonalized_bands(
+        eigenvalues=jnp.zeros((1, 1), dtype=jnp.float64),
+        eigenvectors=jnp.ones((1, 1, 1), dtype=jnp.complex128),
+        kpoints=jnp.asarray([[0.35, 0.0, 0.0]], dtype=jnp.float64),
+        geometry=geometry,
+        basis=basis,
+    )
+    radius: Float[Array, " 65"] = jnp.linspace(
+        0.0,
+        8.0,
+        65,
+        dtype=jnp.float64,
+    )
+    radial_row: Float[Array, " 65"] = (
+        jnp.exp(-radius) * (1.0 - radius / 8.0) ** 2
+    )
+    radial_row = radial_row.at[-1].set(0.0)
+    radial: RadialSpec = make_radial_spec(
+        basis,
+        (0,),
+        mode="grid",
+        r_grid=radius,
+        grid_values_shell=radial_row[None, :],
+    )
+    matrix_params: MatrixElementParams = make_matrix_element_params(
+        basis,
+        (0,),
+    )
+    quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
+    experiment: ExperimentGeometry = make_experiment_geometry(
+        30.0,
+        jnp.asarray(
+            [1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j],
+            dtype=jnp.complex128,
+        ),
+    )
+    fixture: Fixture = (
+        bands,
+        radial,
+        matrix_params,
+        quadrature,
+        experiment,
+    )
+    return fixture
+
+
+def _intensity(
+    parameters: Float[Array, " 2"],
+    fixture: Fixture,
+) -> Float[Array, ""]:
+    """Compose charge and photon energy through the complete assembly."""
+    effective_charge: Float[Array, ""] = parameters[0]
+    photon_energy: Float[Array, ""] = parameters[1]
+    bands: DiagonalizedBands
+    radial: RadialSpec
+    matrix_params: MatrixElementParams
+    quadrature: RadialQuadratureSpec
+    experiment: ExperimentGeometry
+    bands, radial, matrix_params, quadrature, experiment = fixture
+    kinetic_energy: Float[Array, " 1"]
+    energy_valid: Bool[Array, " 1"]
+    kinetic_energy, energy_valid = kinetic_energy_ev(
+        photon_energy,
+        experiment.work_function_ev,
+        jnp.zeros((1,), dtype=jnp.float64),
+    )
+    momentum_magnitude: Float[Array, " 1"]
+    momentum_valid: Bool[Array, " 1"]
+    momentum_magnitude, momentum_valid = final_state_k_inv_ang(kinetic_energy)
+    parallel_momentum: Float[Array, " 1"] = jnp.full_like(
+        momentum_magnitude,
+        0.35,
+    )
+    final_momentum: Float[Array, "1 3"] = jnp.stack(
+        (
+            parallel_momentum,
+            jnp.zeros_like(parallel_momentum),
+            jnp.sqrt(momentum_magnitude**2 - parallel_momentum**2),
+        ),
+        axis=-1,
+    )
+    final_state = make_final_state_spec(
+        mode="coulomb",
+        effective_charge=effective_charge,
+    )
+    orbital_channels: Complex[Array, "1 1 1 3"] = (
+        assemble_orbital_transition_channels(
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            final_state,
+            experiment,
+            final_momentum,
+            energy_valid & momentum_valid,
+        )
+    )
+    band_channels: Complex[Array, "1 1 1 3"] = project_band_channels(
+        orbital_channels,
+        bands.eigenvectors,
+    )
+    amplitudes: Complex[Array, "1 1 1"] = contract_experiment_polarization(
+        band_channels,
+        experiment,
+    )
+    intensity: Float[Array, ""] = matrix_element_intensity(amplitudes)[0, 0]
+    return intensity
+
+
+def _five_point_derivative(
+    parameters: Float[Array, " 2"],
+    coordinate: int,
+    step: float,
+    fixture: Fixture,
+) -> Float[Array, ""]:
+    """Evaluate one five-point central derivative."""
+    direction: Float[Array, " 2"] = (
+        jnp.zeros_like(parameters).at[coordinate].set(step)
+    )
+    derivative: Float[Array, ""] = (
+        -_intensity(parameters + 2.0 * direction, fixture)
+        + 8.0 * _intensity(parameters + direction, fixture)
+        - 8.0 * _intensity(parameters - direction, fixture)
+        + _intensity(parameters - 2.0 * direction, fixture)
+    ) / (12.0 * step)
+    return derivative
+
+
+def main() -> None:
+    """Compare forward/reverse autodiff with a registered FD plateau."""
+    fixture: Fixture = _fixture()
+    parameters: Float[Array, " 2"] = jnp.asarray(
+        [0.4, 30.0],
+        dtype=jnp.float64,
+    )
+
+    def objective(values: Float[Array, " 2"]) -> Float[Array, ""]:
+        return _intensity(values, fixture)
+
+    forward: Float[Array, " 2"] = jax.jacfwd(objective)(parameters)
+    reverse: Float[Array, " 2"] = jax.jacrev(objective)(parameters)
+    steps: tuple[float, float] = (1.0e-3, 1.0e-2)
+    finite_difference: Float[Array, " 2"] = jnp.stack(
+        tuple(
+            _five_point_derivative(
+                parameters,
+                coordinate,
+                steps[coordinate],
+                fixture,
+            )
+            for coordinate in range(2)
+        )
+    )
+    np.testing.assert_allclose(
+        forward,
+        reverse,
+        rtol=1.0e-7,
+        atol=1.0e-10,
+    )
+    np.testing.assert_allclose(
+        forward,
+        finite_difference,
+        rtol=1.0e-6,
+        atol=1.0e-10,
+    )
+    if float(jnp.abs(forward[0])) <= _EFFECTIVE_CHARGE_DERIVATIVE_FLOOR:
+        message = "effective-charge derivative tripwire failed"
+        raise AssertionError(message)
+    if float(jnp.abs(forward[1])) <= _PHOTON_ENERGY_DERIVATIVE_FLOOR:
+        message = "photon-energy derivative tripwire failed"
+        raise AssertionError(message)
+    value: Float[Array, ""] = objective(parameters)
+    np.testing.assert_allclose(
+        value,
+        2.0058154144143075e-4,
+        rtol=1.0e-10,
+        atol=1.0e-14,
+    )
+
+
+if __name__ == "__main__":
+    main()

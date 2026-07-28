@@ -84,7 +84,6 @@ spectrum = simulate_expanded(
     gamma=0.1,
     fidelity=2500,
     temperature=15.0,
-    photon_energy=11.0,
 )
 ```
 

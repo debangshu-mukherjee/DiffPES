@@ -66,13 +66,13 @@ class TestSimulateNovice(chex.TestCase):
             fidelity=64
         )
         spectrum: diffpes.types.ArpesSpectrum = simulate_novice(
-            bands, projection, params
+            bands, projection, params, 15.0
         )
         doubled: diffpes.types.OrbitalProjection = make_orbital_projection(
             projections=2.0 * projection.projections
         )
         doubled_spectrum: diffpes.types.ArpesSpectrum = simulate_novice(
-            bands, doubled, params
+            bands, doubled, params, 15.0
         )
         chex.assert_shape(spectrum.intensity, (2, 64))
         chex.assert_tree_all_finite(spectrum.intensity)
@@ -101,7 +101,6 @@ class TestSimulateBasic(chex.TestCase):
         bands, projection, basis = _inputs()
         params: diffpes.types.SimulationParams = make_simulation_params(
             fidelity=64,
-            photon_energy=200.0,
         )
         spectrum: diffpes.types.ArpesSpectrum = simulate_basic(
             bands,
@@ -109,6 +108,8 @@ class TestSimulateBasic(chex.TestCase):
             params,
             basis,
             (29,),
+            15.0,
+            200.0,
         )
         chex.assert_shape(spectrum.intensity, (2, 64))
         chex.assert_tree_all_finite(spectrum.intensity)
@@ -132,9 +133,7 @@ class TestSimulateBasic(chex.TestCase):
             l=(0,),
             m=(0,),
         )
-        params: diffpes.types.SimulationParams = make_simulation_params(
-            photon_energy=200.0
-        )
+        params: diffpes.types.SimulationParams = make_simulation_params()
         with pytest.raises(ValueError, match="one row"):
             simulate_basic(
                 bands,
@@ -142,6 +141,8 @@ class TestSimulateBasic(chex.TestCase):
                 params,
                 short_basis,
                 (29,),
+                15.0,
+                200.0,
             )
 
 

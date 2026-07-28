@@ -203,22 +203,28 @@ def _solid_harmonic_component(
     return value
 
 
-def _valid_phase_coordinates(
+def _orbital_phase_indices(
     me_params: MatrixElementParams,
 ) -> tuple[tuple[int, int], ...]:
-    """Return every physical shell-channel phase coordinate."""
-    n_shells: int = max(me_params.radial_shell_index, default=-1) + 1
-    representatives: tuple[int, ...] = tuple(
-        me_params.radial_shell_index.index(shell) for shell in range(n_shells)
+    """Map every orbital branch to a compact phase index or zero sentinel."""
+    compact_index: dict[tuple[int, int], int] = {
+        key: index for index, key in enumerate(me_params.phase_channel_keys)
+    }
+    zero_sentinel: int = len(me_params.phase_channel_keys)
+    result: tuple[tuple[int, int], ...] = tuple(
+        (
+            compact_index.get(
+                (shell, angular - 1),
+                zero_sentinel,
+            ),
+            compact_index[(shell, angular + 1)],
+        )
+        for shell, angular in zip(
+            me_params.radial_shell_index,
+            me_params.basis.l,
+            strict=True,
+        )
     )
-    coordinates: list[tuple[int, int]] = []
-    shell: int
-    orbital: int
-    for shell, orbital in enumerate(representatives):
-        if me_params.basis.l[orbital] > 0:
-            coordinates.append((shell, 0))
-        coordinates.append((shell, 1))
-    result: tuple[tuple[int, int], ...] = tuple(coordinates)
     return result
 
 
@@ -234,19 +240,7 @@ def _active_parameter_tree(
         active["coefficients_shell"] = radial.coefficients_shell
     elif radial.mode == "hydrogenic":
         active["effective_charge_shell"] = radial.effective_charge_shell
-    phase_coordinates: tuple[tuple[int, int], ...] = _valid_phase_coordinates(
-        me_params
-    )
-    phase_shell: tuple[int, ...] = tuple(
-        coordinate[0] for coordinate in phase_coordinates
-    )
-    phase_branch: tuple[int, ...] = tuple(
-        coordinate[1] for coordinate in phase_coordinates
-    )
-    active["phase_shift_angles_valid"] = me_params.phase_shift_angles_shell[
-        jnp.asarray(phase_shell, dtype=jnp.int32),
-        jnp.asarray(phase_branch, dtype=jnp.int32),
-    ]
+    active["phase_shift_angles_shell"] = me_params.phase_shift_angles_shell
     active["sigma_shell"] = me_params.sigma_shell
     active["mean_free_path_ang"] = jnp.asarray(
         mean_free_path_ang,
@@ -420,7 +414,8 @@ def unpack_matrixel_params(
 
     The tree definition restores named active leaves.  Shape metadata removes
     each flat slice, and the complex flags join stacked coordinates.  The
-    reconstruction writes only mode-active fields and valid phase entries.
+    reconstruction writes only mode-active fields and the compact physical
+    phase vector.
 
     :see: :class:`~.test_matrixel.TestUnpackMatrixelParams`
 
@@ -508,25 +503,13 @@ def unpack_matrixel_params(
             active["effective_charge_shell"],
         )
 
-    phase_coordinates: tuple[tuple[int, int], ...] = _valid_phase_coordinates(
-        me_params_template
-    )
-    phase_shell: tuple[int, ...] = tuple(
-        coordinate[0] for coordinate in phase_coordinates
-    )
-    phase_branch: tuple[int, ...] = tuple(
-        coordinate[1] for coordinate in phase_coordinates
-    )
-    phase_angles: Float[Array, "n_shell 2"] = (
-        me_params_template.phase_shift_angles_shell.at[
-            jnp.asarray(phase_shell, dtype=jnp.int32),
-            jnp.asarray(phase_branch, dtype=jnp.int32),
-        ].set(active["phase_shift_angles_valid"])
-    )
     me_params: MatrixElementParams = eqx.tree_at(
         lambda item: (item.sigma_shell, item.phase_shift_angles_shell),
         me_params_template,
-        (active["sigma_shell"], phase_angles),
+        (
+            active["sigma_shell"],
+            active["phase_shift_angles_shell"],
+        ),
     )
     mean_free_path_ang: Float[Array, ""] = active["mean_free_path_ang"]
     result: tuple[RadialSpec, MatrixElementParams, Float[Array, ""]] = (
@@ -577,16 +560,8 @@ def matrix_element_phase_gauge_direction(
         me_params,
         mean_free_path_ang,
     )[0]
-    coordinates: tuple[tuple[int, int], ...] = _valid_phase_coordinates(
-        me_params
-    )
-    phase_shell: tuple[int, ...] = tuple(item[0] for item in coordinates)
-    phase_branch: tuple[int, ...] = tuple(item[1] for item in coordinates)
-    shifted_angles: Float[Array, "n_shell 2"] = (
-        me_params.phase_shift_angles_shell.at[
-            jnp.asarray(phase_shell, dtype=jnp.int32),
-            jnp.asarray(phase_branch, dtype=jnp.int32),
-        ].add(1.0)
+    shifted_angles: Float[Array, " n_valid_phase"] = (
+        me_params.phase_shift_angles_shell + 1.0
     )
     shifted_params: MatrixElementParams = eqx.tree_at(
         lambda item: item.phase_shift_angles_shell,
@@ -1015,7 +990,8 @@ def orbital_transition_channels(  # noqa: DOC503
 
     Notes
     -----
-    Gather shell rows and contract both radial branches with one tensor sum.
+    Derive a dense orbital branch view from the compact physical phase
+    coordinates, then contract both radial branches with one tensor sum.
     """
     n_spin: int
     n_spatial: int
@@ -1095,14 +1071,24 @@ def orbital_transition_channels(  # noqa: DOC503
         ~jnp.all(jnp.isfinite(me_params.sigma_shell)),
         "matrix-element shell scales must be finite",
     )
-    phase_angles: Float[Array, "n_shell 2"] = eqx.error_if(
+    compact_phase_angles: Float[Array, " n_valid_phase"] = eqx.error_if(
         me_params.phase_shift_angles_shell,
         ~jnp.all(jnp.isfinite(me_params.phase_shift_angles_shell)),
         "matrix-element phase angles must be finite",
     )
+    phase_indices: Array = jnp.asarray(
+        _orbital_phase_indices(me_params),
+        dtype=jnp.int32,
+    )
+    phase_angles: Float[Array, "n_valid_phase_plus_zero"] = jnp.concatenate(
+        (
+            compact_phase_angles,
+            jnp.zeros((1,), dtype=jnp.float64),
+        )
+    )
     orbital_scales: Float[Array, " n_orb"] = sigma_shell[shell_indices]
     channel_phases: Complex[Array, "n_orb 2"] = jnp.exp(
-        1j * phase_angles[shell_indices]
+        1j * phase_angles[phase_indices]
     )
     attenuation: Float[Array, " n_orb"] = jnp.exp(
         -depth_nonnegative / (2.0 * mean_free_path)

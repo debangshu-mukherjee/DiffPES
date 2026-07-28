@@ -117,7 +117,7 @@ def _table_slice(
 
 
 @jaxtyped(typechecker=beartype)
-def yeh_lindau_cross_section_table(
+def yeh_lindau_cross_section_table(  # noqa: DOC502
     atomic_number: int,
     n: int,
     l: int,  # noqa: E741

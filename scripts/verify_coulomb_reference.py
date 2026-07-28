@@ -6,6 +6,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
+from scipy.special import loggamma
 
 from diffpes.radial import coulomb_fg
 
@@ -100,6 +101,70 @@ def main() -> None:
         jnp.ones_like(wronskian),
         rtol=0.0,
         atol=1.0e-10,
+    )
+
+    ode_factor: jnp.ndarray = (
+        1.0
+        - 2.0 * jnp.asarray(eta_grid) / jnp.asarray(rho_grid)
+        - order * (order + 1) / jnp.asarray(rho_grid) ** 2
+    )
+    regular_residual: jnp.ndarray = rho_tangent[2] + ode_factor * regular
+    irregular_residual: jnp.ndarray = rho_tangent[3] + ode_factor * irregular
+    regular_scale: jnp.ndarray = (
+        jnp.abs(rho_tangent[2]) + jnp.abs(ode_factor * regular) + 1.0
+    )
+    irregular_scale: jnp.ndarray = (
+        jnp.abs(rho_tangent[3]) + jnp.abs(ode_factor * irregular) + 1.0
+    )
+    dense_interior: tuple[slice, slice] = (slice(None), slice(3, -1))
+    regular_residual_error: float = float(
+        jnp.max(
+            jnp.abs(regular_residual[dense_interior])
+            / regular_scale[dense_interior]
+        )
+    )
+    irregular_residual_error: float = float(
+        jnp.max(
+            jnp.abs(irregular_residual[dense_interior])
+            / irregular_scale[dense_interior]
+        )
+    )
+    residual_tolerance: float = 1.0e-9
+    if regular_residual_error > residual_tolerance:
+        message = f"regular ODE residual {regular_residual_error}"
+        raise AssertionError(message)
+    if irregular_residual_error > residual_tolerance:
+        message = f"irregular ODE residual {irregular_residual_error}"
+        raise AssertionError(message)
+
+    eta_values: np.ndarray = archive["etas"]
+    normalization: np.ndarray = np.exp(
+        order * np.log(2.0)
+        - np.pi * eta_values / 2.0
+        + np.real(loggamma(order + 1 + 1j * eta_values))
+        - loggamma(2 * order + 2)
+    )
+    origin_rho: float = float(archive["rhos"][0])
+    regular_origin_ratio: np.ndarray = np.asarray(regular[:, 0]) / (
+        normalization * origin_rho ** (order + 1)
+    )
+    irregular_origin_ratio: np.ndarray = (
+        np.asarray(irregular[:, 0])
+        * (2 * order + 1)
+        * normalization
+        * origin_rho**order
+    )
+    np.testing.assert_allclose(
+        regular_origin_ratio,
+        np.ones_like(regular_origin_ratio),
+        rtol=0.0,
+        atol=5.0e-4,
+    )
+    np.testing.assert_allclose(
+        irregular_origin_ratio,
+        np.ones_like(irregular_origin_ratio),
+        rtol=0.0,
+        atol=5.0e-3,
     )
 
 

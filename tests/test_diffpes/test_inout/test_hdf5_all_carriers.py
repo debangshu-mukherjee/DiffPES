@@ -2,7 +2,7 @@
 
 Extended Summary
 ----------------
-Exercises the introspected recursive codec over all twenty-three carrier classes,
+Exercises the introspected recursive codec over every registered carrier class,
 including nested modules, static tuple metadata, complex arrays, and absent
 optional leaves.
 """
@@ -31,7 +31,6 @@ from diffpes.types import (
     make_kpath_info,
     make_matrix_element_params,
     make_orbital_projection,
-    make_polarization_config,
     make_radial_quadrature_spec,
     make_radial_spec,
     make_self_energy_config,
@@ -119,10 +118,13 @@ def _all_carriers() -> dict[str, eqx.Module]:
         "kgrid": make_kgrid(kpoints, mesh_shape=(1, 2)),
         "kpath": make_kpath_info(2, [0, 1], segments=1, labels=("G", "X")),
         "simulation": make_simulation_params(fidelity=16),
-        "polarization": make_polarization_config(),
         "basis": basis,
         "radial": make_radial_spec(basis, (0,)),
-        "matrix_element": make_matrix_element_params(basis, (0,)),
+        "matrix_element": make_matrix_element_params(
+            basis,
+            (0,),
+            phase_shift_angles_shell=jnp.asarray((0.37,)),
+        ),
         "radial_quadrature": make_radial_quadrature_spec(),
         "final_state": make_final_state_spec(),
         "self_energy": make_self_energy_config(),
@@ -170,7 +172,7 @@ def test_all_carriers_round_trip_bitwise() -> None:
 
     Extended Summary
     ----------------
-    Saves all twenty-three deterministic carriers into one HDF5 file and reloads
+    Saves all deterministic carriers into one HDF5 file and reloads
     them together. Each reconstructed module must retain its exact class,
     numerical leaves, nested modules, optional ``None`` leaves, and static
     metadata.
@@ -194,6 +196,11 @@ def test_all_carriers_round_trip_bitwise() -> None:
     for name, carrier in carriers.items():
         chex.assert_equal(type(loaded[name]) is type(carrier), True)
         chex.assert_equal(eqx.tree_equal(loaded[name], carrier), True)
+    matrix_element: diffpes.types.MatrixElementParams = loaded[
+        "matrix_element"
+    ]
+    assert matrix_element.phase_channel_keys == ((0, 1),)
+    chex.assert_shape(matrix_element.phase_shift_angles_shell, (1,))
 
 
 def test_wannier_hr_round_trip_preserves_absent_position_matrices() -> None:

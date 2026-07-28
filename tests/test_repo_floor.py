@@ -38,7 +38,6 @@ from tests._factories import (
     toy_chain_diagonalized,
     toy_graphene_diagonalized,
     toy_orbital_projection,
-    toy_polarization_config,
     toy_simulation_params,
 )
 from diffpes.types import (
@@ -46,7 +45,6 @@ from diffpes.types import (
     BandStructure,
     DiagonalizedBands,
     OrbitalProjection,
-    PolarizationConfig,
     SimulationParams,
     TBModel,
 )
@@ -195,7 +193,6 @@ class TestHelpers:
             n_atoms=2,
         )
         simulation: SimulationParams = toy_simulation_params(fidelity=64)
-        polarization: PolarizationConfig = toy_polarization_config()
         graphene_model: TBModel
         graphene_bands: DiagonalizedBands
         graphene_model, graphene_bands = toy_graphene_diagonalized(n_k=6)
@@ -206,7 +203,6 @@ class TestHelpers:
             bands,
             projections,
             simulation,
-            polarization,
             graphene_model,
             graphene_bands,
             chain_model,
@@ -216,7 +212,6 @@ class TestHelpers:
         assert isinstance(bands, BandStructure)
         assert isinstance(projections, OrbitalProjection)
         assert isinstance(simulation, SimulationParams)
-        assert isinstance(polarization, PolarizationConfig)
         assert isinstance(graphene_model, TBModel)
         assert isinstance(graphene_bands, DiagonalizedBands)
         assert isinstance(chain_model, TBModel)
@@ -346,6 +341,33 @@ class TestCI(chex.TestCase):
             ["push", "pull_request", "workflow_dispatch"],
         )
         chex.assert_equal(python_versions, ["3.12", "3.13", "3.14"])
+        docs_job: dict[str, Any] = workflow["jobs"]["docs"]
+        docs_commands: tuple[str, ...] = tuple(
+            step["run"] for step in docs_job["steps"] if "run" in step
+        )
+        self.assertIn("uv sync --extra docs --extra test", docs_commands)
+        self.assertTrue(
+            any(
+                "sphinx-build -W --keep-going -b html" in command
+                and "docs/source docs/build/html" in command
+                for command in docs_commands
+            )
+        )
+
+        rtd_path: Path = repository_root / ".readthedocs.yaml"
+        rtd: dict[str, Any] = yaml.safe_load(rtd_path.read_text())
+        self.assertIs(rtd["sphinx"]["fail_on_warning"], True)
+
+        tutorial: Path = (
+            repository_root
+            / "docs/source/tutorials/matrix-element-sensitivity.md"
+        )
+        tutorial_text: str = tutorial.read_text()
+        self.assertIn("kernelspec:", tutorial_text)
+        self.assertGreaterEqual(
+            tutorial_text.count("```{code-cell} ipython3"),
+            4,
+        )
 
     def test_pypi_release_workflow(self) -> None:
         """Publish matching version tags through trusted PyPI identity.
@@ -413,6 +435,7 @@ class TestRegressionReferences(chex.TestCase):
             toy_band_structure(key),
             toy_orbital_projection(key),
             toy_simulation_params(fidelity=512),
+            15.0,
         )
         assert_matches_reference(novice, "novice_toy", rtol=1e-12)
         chex.assert_shape(novice.intensity, (8, 512))

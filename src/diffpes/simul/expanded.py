@@ -76,7 +76,6 @@ def simulate_novice_expanded(
     gamma: ScalarFloat,
     fidelity: int,
     temperature: ScalarFloat,
-    photon_energy: ScalarFloat,
 ) -> ArpesSpectrum:
     """Run the uniformly weighted incoherent tier from plain arrays.
 
@@ -101,9 +100,6 @@ def simulate_novice_expanded(
         Number of energy samples.
     temperature : ScalarFloat
         Electronic temperature in Kelvin.
-    photon_energy : ScalarFloat
-        Stored for the shared simulation carrier; this tier does not weight by
-        photon energy.
 
     Returns
     -------
@@ -123,10 +119,13 @@ def simulate_novice_expanded(
         sigma=sigma,
         gamma=gamma,
         fidelity=fidelity,
-        temperature=temperature,
-        photon_energy=photon_energy,
     )
-    spectrum: ArpesSpectrum = simulate_novice(bands, projection, params)
+    spectrum: ArpesSpectrum = simulate_novice(
+        bands,
+        projection,
+        params,
+        temperature,
+    )
     return spectrum
 
 
@@ -187,8 +186,6 @@ def simulate_basic_expanded(
         eigenbands=eigenbands,
         sigma=sigma,
         fidelity=fidelity,
-        temperature=temperature,
-        photon_energy=photon_energy,
     )
     spectrum: ArpesSpectrum = simulate_basic(
         bands,
@@ -196,6 +193,8 @@ def simulate_basic_expanded(
         params,
         basis,
         atomic_numbers,
+        temperature,
+        photon_energy,
     )
     return spectrum
 
@@ -271,7 +270,6 @@ def simulate_expanded(  # noqa: PLR0913
             gamma=gamma,
             fidelity=fidelity,
             temperature=temperature,
-            photon_energy=photon_energy,
         )
     elif level_key == "basic":
         if basis is None or atomic_numbers is None:

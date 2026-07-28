@@ -1,10 +1,5 @@
 {
-  "models": [
-    {
-      "model_id": "org.diffpes.model.arpes.tb_radial",
-      "model_version": "0.1.0"
-    }
-  ],
+  "models": [],
   "handshakes": [
     {
       "convention_refs": [],
@@ -97,6 +92,59 @@
       "transformation_refs": [
         "org.diffpes.transform.tightb.slab_surface@1.0.0",
         "org.diffpes.transform.tightb.surface_projection@1.0.0"
+      ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
+        "org.diffpes.evidence.06.g1",
+        "org.diffpes.evidence.06.g2",
+        "org.diffpes.evidence.06.g3",
+        "org.diffpes.evidence.06.g4",
+        "org.diffpes.evidence.06.g5",
+        "org.diffpes.evidence.06.g6",
+        "org.diffpes.evidence.06.g7",
+        "org.diffpes.evidence.06.g8",
+        "org.diffpes.evidence.06.g9",
+        "org.diffpes.evidence.06.g10",
+        "org.diffpes.evidence.06.g11",
+        "org.diffpes.evidence.06.g12",
+        "org.diffpes.evidence.06.g13",
+        "org.diffpes.evidence.06.g14",
+        "org.diffpes.evidence.06.g15",
+        "org.diffpes.evidence.06.g16",
+        "org.diffpes.evidence.06.g17",
+        "org.diffpes.evidence.06.g18",
+        "org.diffpes.evidence.06.d1",
+        "org.diffpes.evidence.06.d2",
+        "org.diffpes.evidence.06.d3",
+        "org.diffpes.evidence.06.d4",
+        "org.diffpes.evidence.06.d5",
+        "org.diffpes.evidence.06.d6",
+        "org.diffpes.evidence.06.d7",
+        "org.diffpes.evidence.06.d8",
+        "org.diffpes.evidence.06.d9",
+        "org.diffpes.evidence.06.d10",
+        "org.diffpes.evidence.06.d11",
+        "org.diffpes.evidence.06.d12",
+        "org.diffpes.evidence.06.d13",
+        "org.diffpes.evidence.06.s1",
+        "org.diffpes.evidence.06.s2",
+        "org.diffpes.evidence.06.s3",
+        "org.diffpes.evidence.06.spin_axis.incoherent_reduction",
+        "org.diffpes.evidence.06.band_group.complete_sensitivity",
+        "org.diffpes.evidence.06.radial.certified_profile",
+        "org.diffpes.evidence.06.coulomb.phase_assembly",
+        "org.diffpes.evidence.06.gauge.length_momentum",
+        "org.diffpes.evidence.06.lifecycle.plan03_kg_e",
+        "org.diffpes.evidence.06.handoff.plan07_transition_rows"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.plan.06",
+      "transformation_refs": [
+        "org.diffpes.transform.amplitude.intensity@1.0.0",
+        "org.diffpes.transform.polarization.lab_polarization_to_sample@1.0.0",
+        "org.diffpes.transform.tightb.depth_carrier@1.0.0"
       ]
     }
   ],

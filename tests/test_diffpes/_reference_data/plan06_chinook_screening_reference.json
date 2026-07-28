@@ -1,0 +1,58 @@
+{
+  "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "chinook_configuration_sha256": "2e4d1977365dfd17df5b4738f9782298050be007e97d131d3b26d150da200b04",
+  "chinook_module_sha256": "93341ec1b7cee8cd4982a968391294d91d4669d44a0a3e8fc51b0a9adc34fbf3",
+  "gate": "06.G4",
+  "policy": "Generated offline in the isolated pinned Chinook environment; DiffPES pytest consumes inert JSON only.",
+  "round_digits": 12,
+  "samples": [
+    {
+      "atomic_number": 6,
+      "chinook_orbital": "2p",
+      "chinook_raw_repr": "3.25",
+      "l": 1,
+      "n": 2,
+      "rounded_zeff": 3.25
+    },
+    {
+      "atomic_number": 7,
+      "chinook_orbital": "2p",
+      "chinook_raw_repr": "3.9000000000000004",
+      "l": 1,
+      "n": 2,
+      "rounded_zeff": 3.9
+    },
+    {
+      "atomic_number": 8,
+      "chinook_orbital": "2p",
+      "chinook_raw_repr": "4.550000000000001",
+      "l": 1,
+      "n": 2,
+      "rounded_zeff": 4.55
+    },
+    {
+      "atomic_number": 24,
+      "chinook_orbital": "3d",
+      "chinook_raw_repr": "4.600000000000001",
+      "l": 2,
+      "n": 3,
+      "rounded_zeff": 4.6
+    },
+    {
+      "atomic_number": 26,
+      "chinook_orbital": "3d",
+      "chinook_raw_repr": "6.25",
+      "l": 2,
+      "n": 3,
+      "rounded_zeff": 6.25
+    },
+    {
+      "atomic_number": 26,
+      "chinook_orbital": "4s",
+      "chinook_raw_repr": "3.75",
+      "l": 0,
+      "n": 4,
+      "rounded_zeff": 3.75
+    }
+  ]
+}

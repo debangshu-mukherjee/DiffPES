@@ -15,7 +15,8 @@ Routine Listings
 
 Notes
 -----
-The codec supports all twenty-five numerical types-owned carriers.
+The codec supports the complete registered set of numerical types-owned
+carriers.
 Dataclass fields define the serialization metadata.
 The codec stores dynamic fields as datasets or recursive module groups.
 It encodes ``eqx.field(static=True)`` values as tuple-preserving JSON.
@@ -58,7 +59,6 @@ from diffpes.types import (
     MatrixElementParams,
     OrbitalBasis,
     OrbitalProjection,
-    PolarizationConfig,
     RadialQuadratureSpec,
     RadialSpec,
     SelfEnergyConfig,
@@ -90,7 +90,6 @@ def _pytree_classes() -> tuple[type[eqx.Module], ...]:
         KPathInfo,
         OrbitalBasis,
         OrbitalProjection,
-        PolarizationConfig,
         RadialQuadratureSpec,
         RadialSpec,
         MatrixElementParams,

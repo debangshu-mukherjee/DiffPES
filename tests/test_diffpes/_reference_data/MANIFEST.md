@@ -18,7 +18,7 @@
 
 ## Factory calls
 
-- `novice_toy`: `simulate_novice(toy_band_structure(key), toy_orbital_projection(key), toy_simulation_params(fidelity=512))`
+- `novice_toy`: `simulate_novice(toy_band_structure(key), toy_orbital_projection(key), toy_simulation_params(fidelity=512), 15.0)`
 - `plan04_chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
   outputs for the independently C-gated graphene, square-lattice Rashba, and
   atomic t2g+SOC models. The generator and isolated environment freeze live

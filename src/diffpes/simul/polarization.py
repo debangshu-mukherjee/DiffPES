@@ -9,8 +9,6 @@ rotations instead map emission directions and detector-fixed spin axes.
 
 Routine Listings
 ----------------
-:func:`build_efield`
-    Compute electric field vector from polarization config.
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
 :func:`detector_rotation`
@@ -48,7 +46,7 @@ from beartype.typing import Tuple
 from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.maths import rodrigues_rotation
-from diffpes.types import PolarizationConfig, ScalarFloat
+from diffpes.types import ScalarFloat
 
 
 @jaxtyped(typechecker=beartype)
@@ -647,196 +645,7 @@ def rotate_frame_vectors(
     return rotated
 
 
-@jaxtyped(typechecker=beartype)
-def build_efield(
-    config: PolarizationConfig,
-) -> Complex[Array, " 3"]:
-    """Compute electric field vector from polarization config.
-
-    Constructs the complex electric field polarization vector for the
-    specified photon geometry and polarization type.
-
-    :see: :class:`~.test_polarization.TestBuildEfield`
-
-    Implementation Logic
-    --------------------
-    1. **Build s- and p-polarization basis**::
-
-           e_s, e_p = build_polarization_vectors(
-               config.theta, config.phi
-           )
-
-       This computes the real orthonormal basis from the incidence angles.
-
-    2. **Select the static polarization branch**::
-
-           index: int = pol_index_map.get(pol_type, 5)
-
-       The string configuration selects one branch before JAX execution.
-
-    3. **Evaluate the selected branch with JAX**::
-
-           efield: Complex[Array, " 3"] = jax.lax.switch(
-               index, branches, operand
-           )
-
-       The JAX switch preserves differentiation through the selected field.
-
-    Parameters
-    ----------
-    config : PolarizationConfig
-        Polarization geometry specification.
-
-    Returns
-    -------
-    efield : Complex[Array, " 3"]
-        Complex electric field polarization vector.
-    """
-    e_s: Float[Array, " 3"]
-    e_p: Float[Array, " 3"]
-    e_s, e_p = build_polarization_vectors(config.theta, config.phi)
-    e_s_c: Complex[Array, " 3"] = e_s.astype(jnp.complex128)
-    e_p_c: Complex[Array, " 3"] = e_p.astype(jnp.complex128)
-    pol_type: str = config.polarization_type.lower()
-    angle: Float[Array, " "] = jnp.asarray(
-        config.polarization_angle, dtype=jnp.float64
-    )
-    operand: Tuple[
-        Complex[Array, " 3"],
-        Complex[Array, " 3"],
-        Float[Array, " "],
-    ] = (e_s_c, e_p_c, angle)
-
-    def branch_lvp(op: Tuple) -> Complex[Array, " 3"]:
-        """Return the s-polarization basis for linear vertical polarization.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). The branch uses only the first
-            element.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            The s-polarization complex electric field vector.
-        """
-        branch_efield: Complex[Array, " 3"] = op[0]
-        return branch_efield
-
-    def branch_lhp(op: Tuple) -> Complex[Array, " 3"]:
-        """Return the p-polarization basis for linear horizontal polarization.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). The branch uses only the second
-            element.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            The p-polarization complex electric field vector.
-        """
-        branch_efield: Complex[Array, " 3"] = op[1]
-        return branch_efield
-
-    def branch_lap(op: Tuple) -> Complex[Array, " 3"]:
-        """Return the basis for arbitrary linear polarization.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). op[2] is the polarization
-            angle in radians.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            The linear combination of s- and p-polarization vectors.
-        """
-        branch_efield: Complex[Array, " 3"] = (
-            jnp.cos(op[2]) * op[0] + jnp.sin(op[2]) * op[1]
-        )
-        return branch_efield
-
-    def branch_rcp(op: Tuple) -> Complex[Array, " 3"]:
-        """Return the right circular polarization vector.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). The branch uses the first two
-            elements.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            Right-handed circular polarization electric field.
-        """
-        branch_efield: Complex[Array, " 3"] = (op[0] + 1j * op[1]) / jnp.sqrt(
-            2.0
-        )
-        return branch_efield
-
-    def branch_lcp(op: Tuple) -> Complex[Array, " 3"]:
-        """Return the left circular polarization vector.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). The branch uses the first two
-            elements.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            Left-handed circular polarization electric field.
-        """
-        branch_efield: Complex[Array, " 3"] = (op[0] - 1j * op[1]) / jnp.sqrt(
-            2.0
-        )
-        return branch_efield
-
-    def branch_default(op: Tuple) -> Complex[Array, " 3"]:
-        """Return s-polarization for an unknown or unpolarized type.
-
-        Parameters
-        ----------
-        op : Tuple
-            Operand (e_s_c, e_p_c, angle). The branch uses only the first
-            element.
-
-        Returns
-        -------
-        Complex[Array, " 3"]
-            The s-polarization vector as the default.
-        """
-        branch_efield: Complex[Array, " 3"] = op[0]
-        return branch_efield
-
-    pol_index_map: dict[str, int] = {
-        "lvp": 0,
-        "lhp": 1,
-        "lap": 2,
-        "rcp": 3,
-        "lcp": 4,
-    }
-    index: int = pol_index_map.get(pol_type, 5)
-    branches: Tuple = (
-        branch_lvp,
-        branch_lhp,
-        branch_lap,
-        branch_rcp,
-        branch_lcp,
-        branch_default,
-    )
-    efield: Complex[Array, " 3"] = jax.lax.switch(index, branches, operand)
-    return efield
-
-
 __all__: list[str] = [
-    "build_efield",
     "build_polarization_vectors",
     "detector_axis_to_sample",
     "detector_rotation",

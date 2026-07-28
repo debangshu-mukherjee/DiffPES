@@ -1,7 +1,7 @@
-"""Validate simulation and polarization parameter carriers and factories.
+"""Validate simulation-parameter carriers and factories.
 
-The cases cover PyTree reconstruction, documented defaults, custom optical
-geometry, data-derived energy windows, and rejection of invalid parameters.
+The cases cover PyTree reconstruction, documented defaults, data-derived
+energy windows, and rejection of invalid parameters.
 """
 
 import chex
@@ -9,10 +9,8 @@ import jax
 import jax.numpy as jnp
 
 from diffpes.types import (
-    PolarizationConfig,
     SimulationParams,
     make_expanded_simulation_params,
-    make_polarization_config,
     make_simulation_params,
 )
 from tests._assertions import assert_rejects
@@ -48,37 +46,6 @@ class TestSimulationParams:
         chex.assert_equal(restored.fidelity, params.fidelity)
 
 
-class TestPolarizationConfig:
-    """Validate :class:`~diffpes.types.PolarizationConfig` field storage.
-
-    The carrier must retain differentiable angles and its static polarization
-    selector together.
-
-    :see: :class:`~diffpes.types.PolarizationConfig`
-    """
-
-    def test_stores_linear_vertical_geometry(self) -> None:
-        """Preserve an LVP selector and scalar incidence angles.
-
-        The check verifies the static LVP convention and the scalar shapes of
-        the two angular fields used to define the optical geometry.
-
-        Notes
-        -----
-        The test constructs a 45-degree LVP configuration through the public factory
-        and checks the selector and array dimensions with Chex.
-        """
-        config: PolarizationConfig = make_polarization_config(
-            theta=0.7854,
-            phi=0.0,
-            polarization_type="LVP",
-        )
-
-        chex.assert_equal(config.polarization_type, "LVP")
-        chex.assert_shape(config.theta, ())
-        chex.assert_shape(config.phi, ())
-
-
 class TestMakeSimulationParams:
     """Validate :func:`~diffpes.types.make_simulation_params`.
 
@@ -107,21 +74,6 @@ class TestMakeSimulationParams:
         chex.assert_trees_all_close(params.sigma, jnp.float64(0.04))
         chex.assert_trees_all_close(params.gamma, jnp.float64(0.1))
 
-    def test_preserves_custom_temperature(self) -> None:
-        """Preserve an explicit 300 K simulation temperature.
-
-        The check verifies user values override defaults after conversion to a
-        scalar float64 JAX array.
-
-        Notes
-        -----
-        The test constructs a custom parameter set and compares the stored temperature
-        with an independent 300 K scalar using Chex.
-        """
-        params: SimulationParams = make_simulation_params(temperature=300.0)
-
-        chex.assert_trees_all_close(params.temperature, jnp.float64(300.0))
-
     def test_rejects_nonphysical_parameters(self) -> None:
         """Reject negative broadening and a reversed energy window.
 
@@ -141,50 +93,6 @@ class TestMakeSimulationParams:
             energy_min=5.0,
             energy_max=-5.0,
             match="energy_min must be less than energy_max",
-        )
-
-
-class TestMakePolarizationConfig:
-    """Validate :func:`~diffpes.types.make_polarization_config`.
-
-    The factory must supply an unpolarized default and reject selectors outside
-    the supported static convention set.
-
-    :see: :func:`~diffpes.types.make_polarization_config`
-    """
-
-    def test_constructs_unpolarized_default(self) -> None:
-        """Construct an unpolarized configuration with scalar angles.
-
-        The check verifies the default selector and scalar angle shapes without
-        assuming a downstream polarization-vector implementation.
-
-        Notes
-        -----
-        The test calls the factory without arguments and checks the static selector and
-        traced array shapes with Chex.
-        """
-        config: PolarizationConfig = make_polarization_config()
-
-        chex.assert_equal(config.polarization_type, "unpolarized")
-        chex.assert_shape(config.theta, ())
-        chex.assert_shape(config.phi, ())
-
-    def test_rejects_unknown_type(self) -> None:
-        """Reject a polarization selector outside the supported set.
-
-        The check isolates the static selector contract from all numerical
-        angle validation.
-
-        Notes
-        -----
-        Supplies ``polarization_type="unknown"`` and matches the factory's
-        allowed-selector diagnostic.
-        """
-        assert_rejects(
-            make_polarization_config,
-            polarization_type="unknown",
-            match="polarization_type must be one of",
         )
 
 

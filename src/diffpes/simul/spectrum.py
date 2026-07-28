@@ -27,6 +27,7 @@ from diffpes.types import (
     BandStructure,
     OrbitalBasis,
     OrbitalProjection,
+    ScalarFloat,
     SimulationParams,
     make_arpes_spectrum,
 )
@@ -83,6 +84,7 @@ def simulate_novice(
     bands: BandStructure,
     orb_proj: OrbitalProjection,
     params: SimulationParams,
+    temperature: ScalarFloat,
 ) -> ArpesSpectrum:
     """Simulate an incoherent spectrum with uniform orbital weights.
 
@@ -100,7 +102,9 @@ def simulate_novice(
     orb_proj : OrbitalProjection
         VASP-order projection probabilities with shape ``(K, B, A, 9)``.
     params : SimulationParams
-        Energy window, Voigt widths, temperature, and fidelity.
+        Energy window, Voigt widths, and fidelity.
+    temperature : ScalarFloat
+        Positive sample temperature in kelvin.
 
     Returns
     -------
@@ -129,7 +133,7 @@ def simulate_novice(
         occupation: Float[Array, ""] = fermi_dirac(
             energy,
             bands.fermi_energy,
-            params.temperature,
+            temperature,
         )
         profile: Float[Array, " E"] = voigt(
             energy_axis,
@@ -169,6 +173,8 @@ def simulate_basic(
     params: SimulationParams,
     basis: OrbitalBasis,
     atomic_numbers: tuple[int, ...],
+    temperature: ScalarFloat,
+    photon_energy: ScalarFloat,
 ) -> ArpesSpectrum:
     """Simulate an incoherent spectrum with Yeh--Lindau weights.
 
@@ -187,13 +193,16 @@ def simulate_basic(
     orb_proj : OrbitalProjection
         VASP-order projection probabilities with shape ``(K, B, A, 9)``.
     params : SimulationParams
-        Energy window, Gaussian width, photon energy, temperature, and
-        fidelity.
+        Energy window, Gaussian width, and fidelity.
     basis : OrbitalBasis
         One atom-major row per projection channel, carrying the subshell
         ``(n, l)`` identity needed by the Yeh--Lindau table.
     atomic_numbers : tuple[int, ...]
         Atomic number for every atom axis in ``orb_proj``.
+    temperature : ScalarFloat
+        Positive sample temperature in kelvin.
+    photon_energy : ScalarFloat
+        Photon energy in eV for Yeh--Lindau interpolation.
 
     Returns
     -------
@@ -219,7 +228,7 @@ def simulate_basic(
         )
         raise ValueError(message)
     orbital_weights: Float[Array, " n_orb"] = yeh_lindau_orbital_weights(
-        params.photon_energy,
+        photon_energy,
         basis,
         atomic_numbers,
     )
@@ -245,7 +254,7 @@ def simulate_basic(
         occupation: Float[Array, ""] = fermi_dirac(
             energy,
             bands.fermi_energy,
-            params.temperature,
+            temperature,
         )
         profile: Float[Array, " E"] = gaussian(
             energy_axis,

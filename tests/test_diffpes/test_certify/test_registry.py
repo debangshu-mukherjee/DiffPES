@@ -18,14 +18,12 @@ from diffpes.certify import (
     list_models,
     list_registered_models,
     list_transformations,
-    packaged_model_card,
     register_builtin_models,
     register_handshake,
     register_model,
     register_transformation,
     registry_manifest,
     registry_snapshot,
-    render_model_card,
     validate_handshake,
     validate_registry,
     validate_registry_manifest,
@@ -805,73 +803,32 @@ class TestRegistryManifest:
     :see: :func:`~diffpes.certify.registry_manifest`
     """
 
-    def test_manifest_has_versioned_builtins(self) -> None:
-        """Read the schema and the radial model from package resources.
+    def test_manifest_has_plan06_handshake_and_no_retired_model(self) -> None:
+        """Read the schema and current owner handshakes from package resources.
 
-        The manifest must contain explicit versions for stable identities.
+        The stale radial model is absent and Plan 06 is declared explicitly.
 
         Notes
         -----
-        The test checks explicit stable identities, not registry insertion order.
+        Compare manifest identities before validating the complete live drift.
         """
         manifest: dict[str, Any] = registry_manifest()
         assert manifest["schema_version"] == "1.0.0"
-        assert manifest["models"][0]["model_id"].endswith("tb_radial")
-
-
-class TestRenderModelCard:
-    """Verify :func:`~diffpes.certify.render_model_card`.
-
-    The case renders Markdown only from the registered model specification.
-
-    :see: :func:`~diffpes.certify.render_model_card`
-    """
-
-    def test_card_contains_exact_model_identity(self) -> None:
-        """Render the exact model ID and version in the card header.
-
-        The generated text must identify the registered radial model.
-
-        Notes
-        -----
-        The test uses the packaged radial model specification.
-        """
-        register_builtin_models()
-        model: Any = get_model(
-            "org.diffpes.model.arpes.tb_radial",
-            "0.1.0",
-        ).spec
-        card: str = render_model_card(model)
-        assert card.startswith("# org.diffpes.model.arpes.tb_radial")
-        assert "Version: `0.1.0`." in card
-
-
-class TestPackagedModelCard:
-    """Verify :func:`~diffpes.certify.packaged_model_card`.
-
-    The case reads the generated radial model card from package resources.
-
-    :see: :func:`~diffpes.certify.packaged_model_card`
-    """
-
-    def test_packaged_card_matches_registry_render(self) -> None:
-        """Compare the packaged card with a fresh registry-based rendering.
-
-        The complete Markdown outputs must match without manual fields.
-
-        Notes
-        -----
-        The test registers the built-ins and compares the full Markdown text.
-        """
-        register_builtin_models()
-        model: Any = get_model(
-            "org.diffpes.model.arpes.tb_radial",
-            "0.1.0",
-        ).spec
-        packaged: str = packaged_model_card(
-            model.model_id, model.model_version
+        assert manifest["models"] == []
+        owners: tuple[str, ...] = tuple(
+            item["owner_id"] for item in manifest["handshakes"]
         )
-        assert packaged == render_model_card(model)
+        assert owners == tuple(sorted(owners))
+        assert "org.diffpes.plan.06" in owners
+        plan06: dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.plan.06"
+        )
+        assert len(plan06["evidence_ids"]) == 41
+        assert "org.diffpes.evidence.06.g18" in plan06["evidence_ids"]
+        assert "org.diffpes.evidence.06.d13" in plan06["evidence_ids"]
+        assert "org.diffpes.evidence.06.s3" in plan06["evidence_ids"]
 
 
 class TestValidateRegistryManifest:

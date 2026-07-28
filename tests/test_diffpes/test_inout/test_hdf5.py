@@ -33,7 +33,6 @@ from diffpes.types import (
     make_density_of_states,
     make_kpath_info,
     make_orbital_projection,
-    make_polarization_config,
     make_simulation_params,
 )
 
@@ -344,7 +343,7 @@ class TestOrbitalProjection(chex.TestCase):
 class TestSimulationParams(chex.TestCase):
     """Round-trip tests for SimulationParams HDF5 serialization.
 
-    Verifies that all six float children and the integer
+    Verifies that all four float children and the integer
     ``fidelity`` aux_data survive the cycle.
 
     :see: :func:`~diffpes.inout.save_to_h5`
@@ -378,8 +377,6 @@ class TestSimulationParams(chex.TestCase):
             fidelity=500,
             sigma=0.08,
             gamma=0.15,
-            temperature=30.0,
-            photon_energy=21.2,
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "params.h5"
@@ -391,58 +388,7 @@ class TestSimulationParams(chex.TestCase):
             atol=1e-12,
         )
         chex.assert_trees_all_close(loaded.sigma, params.sigma, atol=1e-12)
-        chex.assert_trees_all_close(
-            loaded.photon_energy,
-            params.photon_energy,
-            atol=1e-12,
-        )
         assert loaded.fidelity == 500
-
-
-class TestPolarizationConfig(chex.TestCase):
-    """Round-trip tests for PolarizationConfig serialization.
-
-    Verifies that float angles and the string
-    ``polarization_type`` aux_data survive the cycle.
-
-    :see: :func:`~diffpes.inout.save_to_h5`
-    :see: :func:`~diffpes.inout.load_from_h5`
-    """
-
-    def test_round_trip(self) -> None:
-        """Verify PolarizationConfig survives HDF5 round-trip.
-
-        The test establishes the round trip contract for polarization config with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create** an LHP config with custom angles.
-        2. **Save** and **load** via HDF5.
-
-        **Expected assertions**
-
-        The float angles and the ``polarization_type`` string match.
-        """
-        td: str
-
-        pol: diffpes.types.PolarizationConfig
-        path: Path
-        loaded: Any
-
-        pol = make_polarization_config(
-            theta=0.5,
-            phi=1.2,
-            polarization_angle=0.3,
-            polarization_type="LHP",
-        )
-        with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "pol.h5"
-            save_to_h5(path, pol=pol)
-            loaded = load_from_h5(path, name="pol")
-        chex.assert_trees_all_close(loaded.theta, pol.theta, atol=1e-12)
-        chex.assert_trees_all_close(loaded.phi, pol.phi, atol=1e-12)
-        assert loaded.polarization_type == "LHP"
 
 
 class TestKPathInfo(chex.TestCase):

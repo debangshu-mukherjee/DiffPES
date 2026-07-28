@@ -44,14 +44,13 @@ spectrum = simulate_expanded(
     gamma=0.08,
     fidelity=2000,
     temperature=15.0,
-    photon_energy=21.2,
 )
 ```
 
 The energy axis extends one eV beyond the minimum and maximum band energies.
 `sigma` and `gamma` are the Gaussian and Lorentzian Voigt components.
-`photon_energy` is retained by the shared carrier but does not change the
-uniform novice weights.
+The novice tier consumes temperature directly; photon energy is not part of
+this probability-only model.
 
 ## Basic Dispatch
 

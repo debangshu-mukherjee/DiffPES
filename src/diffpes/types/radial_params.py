@@ -123,6 +123,24 @@ def _shell_representatives(
     return representatives
 
 
+def _matrixel_phase_channel_keys(
+    basis: "OrbitalBasis",
+    radial_shell_index: tuple[int, ...],
+) -> tuple[tuple[int, int], ...]:
+    """Return the canonical compact shell and final-angular-momentum keys."""
+    keys: list[tuple[int, int]] = []
+    shell_index: int
+    orbital_index: int
+    for shell_index, orbital_index in enumerate(
+        _shell_representatives(radial_shell_index)
+    ):
+        angular: int = basis.l[orbital_index]
+        if angular > 0:
+            keys.append((shell_index, angular - 1))
+        keys.append((shell_index, angular + 1))
+    return tuple(keys)
+
+
 def _default_n_star(principal: int) -> float:
     """Return Slater's effective principal number."""
     values: tuple[float, ...] = (1.0, 2.0, 3.0, 3.7, 4.0, 4.2)
@@ -475,8 +493,10 @@ class MatrixElementParams(eqx.Module):
     ----------
     sigma_shell : Float[Array, "n_shell"]
         Real shell amplitude scales.
-    phase_shift_angles_shell : Float[Array, "n_shell 2"]
-        Final-state phase angles for the ``l-1`` and ``l+1`` channels.
+    phase_shift_angles_shell : Float[Array, " n_valid_phase"]
+        Final-state phase angles for exactly the physical channels.
+    phase_channel_keys : tuple[tuple[int, int], ...]
+        Compact ``(radial_shell, l_prime)`` coordinate keys (**static**).
     radial_shell_index : tuple[int, ...]
         Orbital-to-shell map (**static**).
     basis : OrbitalBasis
@@ -484,7 +504,8 @@ class MatrixElementParams(eqx.Module):
     """
 
     sigma_shell: Float[Array, " n_shell"]
-    phase_shift_angles_shell: Float[Array, "n_shell 2"]
+    phase_shift_angles_shell: Float[Array, " n_valid_phase"]
+    phase_channel_keys: tuple[tuple[int, int], ...] = eqx.field(static=True)
     radial_shell_index: tuple[int, ...] = eqx.field(static=True)
     basis: OrbitalBasis = eqx.field(static=True)
 
@@ -497,8 +518,23 @@ class MatrixElementParams(eqx.Module):
         if self.sigma_shell.shape != (n_shells,):
             message: str = "sigma_shell must have one entry per shell"
             raise ValueError(message)
-        if self.phase_shift_angles_shell.shape != (n_shells, 2):
-            message = "phase_shift_angles_shell must have shape (n_shell, 2)"
+        expected_keys: tuple[tuple[int, int], ...] = (
+            _matrixel_phase_channel_keys(
+                self.basis,
+                self.radial_shell_index,
+            )
+        )
+        if self.phase_channel_keys != expected_keys:
+            message = (
+                "phase_channel_keys must contain exactly the canonical "
+                "physical shell channels"
+            )
+            raise ValueError(message)
+        if self.phase_shift_angles_shell.shape != (len(expected_keys),):
+            message = (
+                "phase_shift_angles_shell must have one entry per valid "
+                "phase channel"
+            )
             raise ValueError(message)
 
 
@@ -1128,19 +1164,20 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
 def make_matrix_element_params(  # noqa: DOC502, DOC503
     basis: OrbitalBasis,
     radial_shell_index: tuple[int, ...],
-    sigma_shell: Optional[Float[Array, " n_shell"]] = None,
-    phase_shift_angles_shell: Optional[Float[Array, "n_shell 2"]] = None,
+    sigma_shell: Optional[Float[Array, "n_shell"]] = None,
+    phase_shift_angles_shell: Optional[Float[Array, "n_phase"]] = None,
 ) -> MatrixElementParams:
     """Create validated shell-shared matrix-element parameters.
 
-    The factory validates the rotational-shell partition and makes the
-    nonexistent ``s -> l-1`` phase identically zero.
+    The factory validates the rotational-shell partition and derives a
+    compact static key for every physical final-state channel. Nonexistent
+    channels never enter the carrier PyTree.
 
     :see: :class:`~.test_radial_params.TestMakeMatrixElementParams`
 
     Notes
     -----
-    Validate shell sharing, then sanitize the nonexistent lower s channel.
+    Validate shell sharing, then derive the compact physical-channel axis.
 
     Parameters
     ----------
@@ -1150,8 +1187,9 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         Static orbital-to-shell partition.
     sigma_shell : Optional[Float[Array, "n_shell"]], optional
         Real shell scales, defaulting to one.
-    phase_shift_angles_shell : Optional[Float[Array, "n_shell 2"]], optional
-        Real channel phase angles, defaulting to zero.
+    phase_shift_angles_shell : Optional[Float[Array, "n_phase"]], optional
+        Real compact channel phase angles, defaulting to zero. Their static
+        coordinates are ordered by shell and then increasing ``l_prime``.
 
     Returns
     -------
@@ -1163,7 +1201,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
     ValueError
         If shell metadata or array shapes are invalid.
     EquinoxRuntimeError
-        If traced values are non-finite or an invalid channel has a phase.
+        If traced values are non-finite.
     """
     n_shells: int = _validate_radial_shell_structure(
         basis,
@@ -1174,16 +1212,25 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         if sigma_shell is None
         else jnp.asarray(sigma_shell, dtype=jnp.float64)
     )
-    phase_array: Float[Array, "n_shell 2"] = (
-        jnp.zeros((n_shells, 2), dtype=jnp.float64)
+    phase_channel_keys: tuple[tuple[int, int], ...] = (
+        _matrixel_phase_channel_keys(
+            basis,
+            radial_shell_index,
+        )
+    )
+    phase_array: Float[Array, " n_valid_phase"] = (
+        jnp.zeros((len(phase_channel_keys),), dtype=jnp.float64)
         if phase_shift_angles_shell is None
         else jnp.asarray(phase_shift_angles_shell, dtype=jnp.float64)
     )
     if sigma_array.shape != (n_shells,):
         message: str = "sigma_shell must have one entry per shell"
         raise ValueError(message)
-    if phase_array.shape != (n_shells, 2):
-        message = "phase_shift_angles_shell must have shape (n_shell, 2)"
+    if phase_array.shape != (len(phase_channel_keys),):
+        message = (
+            "phase_shift_angles_shell must have one entry per valid "
+            "phase channel"
+        )
         raise ValueError(message)
     sigma_array = eqx.error_if(
         sigma_array,
@@ -1195,26 +1242,10 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         ~jnp.all(jnp.isfinite(phase_array)),
         "phase_shift_angles_shell must be finite",
     )
-    representatives: tuple[int, ...] = _shell_representatives(
-        radial_shell_index,
-    )
-    invalid_lower_phases: list[Float[Array, ""]] = [
-        phase_array[shell_index, 0]
-        for shell_index, orbital_index in enumerate(representatives)
-        if basis.l[orbital_index] == 0
-    ]
-    if invalid_lower_phases:
-        invalid_array: Float[Array, " n_s_shell"] = jnp.stack(
-            invalid_lower_phases
-        )
-        phase_array = eqx.error_if(
-            phase_array,
-            jnp.any(invalid_array != 0.0),
-            "the nonexistent s-shell l-1 phase must be zero",
-        )
     params: MatrixElementParams = MatrixElementParams(
         sigma_shell=sigma_array,
         phase_shift_angles_shell=phase_array,
+        phase_channel_keys=phase_channel_keys,
         radial_shell_index=radial_shell_index,
         basis=basis,
     )

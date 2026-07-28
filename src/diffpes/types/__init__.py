@@ -4,12 +4,10 @@ Extended Summary
 ----------------
 This package provides PyTree-compatible data structures and their factory
 functions for ARPES simulation data. The data includes crystal geometry,
-band structures, orbital projections, simulation parameters, and
-polarization configurations. JAX stores fields that participate in autodiff
-as array children. It stores shape values, such as
-``SimulationParams.fidelity``, as auxiliary data. It also stores code-path
-selectors, such as ``PolarizationConfig.polarization_type``, as auxiliary
-data. These values remain concrete during tracing. Changes to these values
+band structures, orbital projections, simulation parameters, and experiment
+geometry. JAX stores fields that participate in autodiff as array children.
+It stores shape values, such as ``SimulationParams.fidelity``, as auxiliary
+data. These values remain concrete during tracing, and changes to them
 trigger recompilation.
 
 The package contains these submodules:
@@ -417,8 +415,6 @@ Routine Listings
     Create a validated ``OrbitalBasis`` instance.
 :func:`make_orbital_projection`
     Create a validated ``OrbitalProjection`` instance.
-:func:`make_polarization_config`
-    Create a validated PolarizationConfig instance.
 :func:`make_radial_quadrature_spec`
     Select one immutable certified quadrature profile.
 :func:`make_radial_spec`
@@ -493,8 +489,6 @@ Routine Listings
     Warning text for PROCAR magnitude-only eigenvectors.
 :obj:`PARAMETER_KEY_PARTS`
     Number of colon-delimited parts in a qualified Slater--Koster key.
-:class:`PolarizationConfig`
-    Store photon-polarization geometry in a JAX PyTree.
 :class:`RadialQuadratureSpec`
     Store one immutable certified radial-quadrature profile.
 :class:`RadialSpec`
@@ -792,10 +786,8 @@ from .kpath import (
     make_kpath_info,
 )
 from .params import (
-    PolarizationConfig,
     SimulationParams,
     make_expanded_simulation_params,
-    make_polarization_config,
     make_simulation_params,
 )
 from .provenance import (
@@ -1000,7 +992,6 @@ __all__: list[str] = [
     "make_matrix_element_params",
     "make_orbital_basis",
     "make_orbital_projection",
-    "make_polarization_config",
     "make_radial_quadrature_spec",
     "make_radial_spec",
     "make_policy_report",
@@ -1049,7 +1040,6 @@ __all__: list[str] = [
     "P_ORBITAL_SLICE",
     "PARAMETER_KEY_PARTS",
     "PHASE_LOSS_MESSAGE",
-    "PolarizationConfig",
     "RadialQuadratureSpec",
     "RadialSpec",
     "PolicyReport",

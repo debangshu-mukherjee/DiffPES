@@ -48,8 +48,6 @@ def _novice_fixture(
         fidelity=fidelity,
         sigma=0.08,
         gamma=0.12,
-        temperature=15.0,
-        photon_energy=21.2,
     )
     result: tuple[BandStructure, OrbitalProjection, SimulationParams] = (
         bands,
@@ -87,19 +85,21 @@ class TestNoviceCarrierGradients:
 
         def bands_loss(candidate: BandStructure) -> Float[Array, ""]:
             spectrum: ArpesSpectrum = simulate_novice(
-                candidate, projections, params
+                candidate, projections, params, 15.0
             )
             loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
         def projection_loss(candidate: OrbitalProjection) -> Float[Array, ""]:
-            spectrum: ArpesSpectrum = simulate_novice(bands, candidate, params)
+            spectrum: ArpesSpectrum = simulate_novice(
+                bands, candidate, params, 15.0
+            )
             loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
         def params_loss(candidate: SimulationParams) -> Float[Array, ""]:
             spectrum: ArpesSpectrum = simulate_novice(
-                bands, projections, candidate
+                bands, projections, candidate, 15.0
             )
             loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
@@ -155,7 +155,7 @@ class TestNoviceScalability:
         ) -> Array:
             trace_count[0] += 1
             spectrum: ArpesSpectrum = simulate_novice(
-                dynamic_bands, dynamic_projections, dynamic_params
+                dynamic_bands, dynamic_projections, dynamic_params, 15.0
             )
             result: Array = spectrum.intensity
             return result
@@ -176,8 +176,6 @@ class TestNoviceScalability:
             fidelity=20,
             sigma=0.08,
             gamma=0.12,
-            temperature=15.0,
-            photon_energy=21.2,
         )
         compiled(bands, projections, changed_fidelity).block_until_ready()
         chex.assert_equal(trace_count[0], 2)
@@ -207,7 +205,7 @@ class TestNoviceScalability:
                 lambda carrier: carrier.sigma, params, sigma
             )
             spectrum: ArpesSpectrum = simulate_novice(
-                bands, projections, mapped_params
+                bands, projections, mapped_params, 15.0
             )
             result: Float[Array, "1 16"] = spectrum.intensity
             return result

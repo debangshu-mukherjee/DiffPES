@@ -36,8 +36,6 @@ Routine Listings
 ----------------
 :func:`apply_momentum_broadening`
     Convolve I(k, E) with a Gaussian in k-space.
-:func:`build_efield`
-    Compute electric field vector from polarization config.
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
 :func:`detector_angles_to_kpar`
@@ -180,7 +178,6 @@ from .matrixel import (
 )
 from .oam import compute_oam
 from .polarization import (
-    build_efield,
     build_polarization_vectors,
     detector_axis_to_sample,
     detector_rotation,
@@ -208,7 +205,6 @@ __all__: list[str] = [
     "apply_momentum_broadening",
     "assemble_orbital_transition_channels",
     "band_group_weight_sensitivity",
-    "build_efield",
     "build_polarization_vectors",
     "compute_oam",
     "contract_experiment_polarization",

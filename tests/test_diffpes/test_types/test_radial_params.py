@@ -327,10 +327,17 @@ class TestMatrixElementParams(chex.TestCase):
             _complete_p_basis(),
             (0, 0, 0),
             sigma_shell=jnp.asarray((1.2,)),
-            phase_shift_angles_shell=jnp.asarray(((0.1, -0.2),)),
+            phase_shift_angles_shell=jnp.asarray((0.1, -0.2)),
         )
         chex.assert_trees_all_close(params.sigma_shell, jnp.asarray((1.2,)))
+        chex.assert_trees_all_close(
+            params.phase_shift_angles_shell,
+            jnp.asarray((0.1, -0.2)),
+        )
+        assert params.phase_channel_keys == ((0, 0), (0, 2))
         assert params.radial_shell_index == (0, 0, 0)
+        leaves: list[jax.Array] = jax.tree.leaves(params)
+        assert all(leaf.shape != (1, 2) for leaf in leaves)
 
 
 class TestRadialQuadratureSpec(chex.TestCase):
@@ -516,14 +523,12 @@ class TestMakeRadialSpec(chex.TestCase):
 class TestMakeMatrixElementParams(chex.TestCase):
     """Validate :func:`diffpes.types.make_matrix_element_params`."""
 
-    def test_rejects_nonexistent_s_lower_channel_phase(self) -> None:
-        """Reject a nonzero phase on the nonexistent s-to-negative-l channel.
-
-        The upper s-to-p channel remains otherwise valid.
+    def test_s_shell_exposes_only_its_physical_upper_channel(self) -> None:
+        """Store only the s-to-p phase without a padded lower coordinate.
 
         Notes
         -----
-        Route the traced phase through the shared eager and JIT rejection gate.
+        Inspect static keys and require the compact traced axis under JIT.
         """
         basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0,),
@@ -531,13 +536,42 @@ class TestMakeMatrixElementParams(chex.TestCase):
             l=(0,),
             m=(0,),
         )
-        assert_rejects(
+        params: MatrixElementParams = jax.jit(
             make_matrix_element_params,
+            static_argnums=(0, 1),
+        )(
             basis,
             (0,),
-            phase_shift_angles_shell=jnp.asarray(((0.1, 0.2),)),
-            match="l-1 phase must be zero",
+            phase_shift_angles_shell=jnp.asarray((0.2,)),
         )
+        assert params.phase_channel_keys == ((0, 1),)
+        chex.assert_trees_all_close(
+            params.phase_shift_angles_shell,
+            jnp.asarray((0.2,)),
+        )
+        with pytest.raises(ValueError, match="one entry per valid"):
+            make_matrix_element_params(
+                basis,
+                (0,),
+                phase_shift_angles_shell=jnp.asarray((0.1, 0.2)),
+            )
+
+    def test_raw_constructor_rejects_noncanonical_phase_keys(self) -> None:
+        """Reject fabricated or reordered compact phase coordinates.
+
+        Notes
+        -----
+        Change only the static key while retaining valid numerical axes.
+        """
+        basis: OrbitalBasis = _complete_p_basis()
+        with pytest.raises(ValueError, match="canonical physical"):
+            MatrixElementParams(
+                sigma_shell=jnp.asarray((1.0,)),
+                phase_shift_angles_shell=jnp.asarray((0.1, 0.2)),
+                phase_channel_keys=((0, -1), (0, 2)),
+                radial_shell_index=(0, 0, 0),
+                basis=basis,
+            )
 
 
 class TestMakeRadialQuadratureSpec(chex.TestCase):

@@ -23,14 +23,12 @@ from diffpes.types import (
     DiagonalizedBands,
     OrbitalBasis,
     OrbitalProjection,
-    PolarizationConfig,
     SimulationParams,
     TBModel,
     make_band_structure,
     make_crystal_geometry,
     make_orbital_basis,
     make_orbital_projection,
-    make_polarization_config,
     make_simulation_params,
     make_tb_model,
 )
@@ -364,11 +362,11 @@ def toy_orbital_projection(
 
 @jaxtyped(typechecker=beartype)
 def toy_simulation_params(fidelity: int = 512) -> SimulationParams:
-    """Build fixed low-temperature simulation parameters.
+    """Build fixed simulation parameters.
 
     Uses an energy window of [-3, 0.5] eV, 40 meV Gaussian resolution,
-    100 meV Lorentzian width, 15 K temperature, and 21.2 eV photons. These
-    analytical fixture values require no random seed.
+    and 100 meV Lorentzian width. These analytical fixture values require no
+    random seed.
     """
     params: SimulationParams = make_simulation_params(
         energy_min=-3.0,
@@ -376,28 +374,9 @@ def toy_simulation_params(fidelity: int = 512) -> SimulationParams:
         fidelity=fidelity,
         sigma=0.04,
         gamma=0.1,
-        temperature=15.0,
-        photon_energy=21.2,
     )
     _assert_finite(params)
     return params
-
-
-@jaxtyped(typechecker=beartype)
-def toy_polarization_config() -> PolarizationConfig:
-    """Build a fixed p-polarized 45-degree incidence geometry.
-
-    The analytic fixture has theta = pi/4 rad, zero azimuth, and LHP
-    polarization, so it requires no random seed.
-    """
-    config: PolarizationConfig = make_polarization_config(
-        theta=jnp.pi / 4.0,
-        phi=0.0,
-        polarization_angle=0.0,
-        polarization_type="LHP",
-    )
-    _assert_finite(config)
-    return config
 
 
 @jaxtyped(typechecker=beartype)

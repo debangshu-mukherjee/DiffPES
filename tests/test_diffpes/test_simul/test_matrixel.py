@@ -118,7 +118,7 @@ def _packing_fixture() -> tuple[
         basis,
         shell_index,
         sigma_shell=jnp.array([1.3, 0.7]),
-        phase_shift_angles_shell=jnp.array([[0.0, 0.2], [-0.4, 0.6]]),
+        phase_shift_angles_shell=jnp.array([0.2, -0.4, 0.6]),
     )
     mean_free_path: Float[Array, ""] = jnp.array(8.5)
     fixture: tuple[
@@ -197,7 +197,7 @@ class TestPackMatrixelParams:
     """
 
     def test_packs_only_active_physical_coordinates(self) -> None:
-        """Verify mode-aware packing and the invalid s-phase exclusion.
+        """Verify mode-aware packing and compact physical phase coordinates.
 
         The exact coordinate count exposes accidental calibration or padding entries.
 
@@ -220,6 +220,8 @@ class TestPackMatrixelParams:
         chex.assert_shape(flat, (14,))
         assert tree_definition.num_leaves == len(metadata)
         assert flat.dtype == jnp.float64
+        assert params.phase_channel_keys == ((0, 1), (1, 0), (1, 2))
+        chex.assert_shape(params.phase_shift_angles_shell, (3,))
 
     def test_fixed_channel_ratios_do_not_enter_the_flat_view(self) -> None:
         """Verify exclusion of calibrated fixed-radial channel ratios.

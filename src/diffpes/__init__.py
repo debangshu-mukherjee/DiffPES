@@ -34,7 +34,7 @@ Examples
 >>> bands = diffpes.inout.read_eigenval("EIGENVAL", fermi_energy=-1.5)
 >>> orb = diffpes.inout.read_procar("PROCAR")
 >>> params = diffpes.types.make_simulation_params(sigma=0.04)
->>> spectrum = diffpes.simul.simulate_novice(bands, orb, params)
+>>> spectrum = diffpes.simul.simulate_novice(bands, orb, params, 15.0)
 
 Notes
 -----

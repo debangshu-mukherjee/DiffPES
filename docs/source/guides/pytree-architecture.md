@@ -13,7 +13,7 @@ both before a carrier reaches a compiled kernel.
 | `types/experiment.py` | `ExperimentGeometry` | `make_experiment_geometry` |
 | `types/tb_model.py` | `TBModel`, `DiagonalizedBands` | `make_tb_model`, `make_diagonalized_bands` |
 | `types/radial_params.py` | `OrbitalBasis`, `RadialSpec`, `MatrixElementParams`, `RadialQuadratureSpec`, `FinalStateSpec` | corresponding `make_*` factories |
-| `types/params.py` | `SimulationParams`, `PolarizationConfig` | `make_simulation_params`, `make_polarization_config` |
+| `types/params.py` | `SimulationParams` | `make_simulation_params` |
 
 `OrbitalBasis` stores atom indices and quantum numbers as static tuples.
 Changing a basis can retrace a compiled function. Radial exponents,
