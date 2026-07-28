@@ -526,6 +526,8 @@ class TestMakeMatrixElementParams(chex.TestCase):
     def test_s_shell_exposes_only_its_physical_upper_channel(self) -> None:
         """Store only the s-to-p phase without a padded lower coordinate.
 
+        The compact carrier excludes every nonexistent lower channel.
+
         Notes
         -----
         Inspect static keys and require the compact traced axis under JIT.
@@ -558,6 +560,8 @@ class TestMakeMatrixElementParams(chex.TestCase):
 
     def test_raw_constructor_rejects_noncanonical_phase_keys(self) -> None:
         """Reject fabricated or reordered compact phase coordinates.
+
+        The raw constructor enforces the factory's canonical static keys.
 
         Notes
         -----

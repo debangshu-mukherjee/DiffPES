@@ -1,9 +1,14 @@
-"""Certify Plan 06 G2 against frozen G&R 6.621.3 references."""
+"""Certify Plan 06 G2 against frozen G&R 6.621.3 references.
+
+The tests compare normalized radial transforms and retain arbitrary-precision
+authority metadata for every frozen case.
+"""
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import TextIO
 
 import jax.numpy as jnp
 import numpy as np
@@ -30,7 +35,12 @@ class TestPlan06GradshteynRyzhikReference:
         The offline generator evaluates G&R 6.621.3 at 80 working digits,
         cross-checks it by direct arbitrary-precision quadrature, and freezes
         50 digits. This test deliberately has no mpmath runtime dependency.
+
+        Notes
+        -----
+        It reads frozen rows and evaluates the public radial-integral API.
         """
+        stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
             rows: list[dict[str, str]] = list(csv.DictReader(stream))
 
@@ -86,7 +96,15 @@ class TestPlan06GradshteynRyzhikReference:
             )
 
     def test_frozen_reference_records_authority_and_precision(self) -> None:
-        """Require every row to retain the registered independent provenance."""
+        """Require each row to retain its independent reference provenance.
+
+        The test checks authority labels, precision, and cross-check errors.
+
+        Notes
+        -----
+        It reads the metadata columns and enforces their registered bounds.
+        """
+        stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
             rows: list[dict[str, str]] = list(csv.DictReader(stream))
 

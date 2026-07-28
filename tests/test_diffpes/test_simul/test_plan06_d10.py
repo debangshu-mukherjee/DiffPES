@@ -11,6 +11,7 @@ and a complete isolated band-group weight.
 from collections.abc import Callable
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -60,6 +61,10 @@ type Capstone = tuple[
     Callable[
         [Float[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
         Complex[Array, "1 n_bands 1"],
+    ],
+    Callable[
+        [Float[Array, " 1"], Float[Array, ""]],
+        Float[Array, ""],
     ],
     DiagonalizedBands,
     ExperimentGeometry,
@@ -173,7 +178,7 @@ def _capstone() -> Capstone:
     active: Float[Array, " 1"] = parameters[:1]
 
     def bands_for(candidate: Float[Array, " 1"]) -> DiagonalizedBands:
-        """Rebuild and diagonalize the depth-bearing slab."""
+        """Build and diagonalize the depth-bearing slab."""
         vector: Float[Array, " n_parameter"] = parameters.at[:1].set(candidate)
         bulk: TBModel = rebuild_sk(vector)
         slab: TBModel
@@ -181,16 +186,24 @@ def _capstone() -> Capstone:
         bands: DiagonalizedBands = diagonalize_tb(slab, kpoints)
         return bands
 
-    def amplitudes_for(
+    def amplitudes_with_depth_scale(
         candidate: Float[Array, " 1"],
-        _registered_bands: DiagonalizedBands,
         registered_experiment: ExperimentGeometry,
+        depth_scale: Float[Array, ""],
     ) -> Complex[Array, "1 n_bands 1"]:
-        """Return late-contracted amplitudes for every slab band."""
+        """Return amplitudes after scaling only the slab depth carrier."""
         bands: DiagonalizedBands = bands_for(candidate)
+        if bands.depths is None:
+            message: str = "D10 requires the Plan-05a depth carrier"
+            raise AssertionError(message)
+        scaled_bands: DiagonalizedBands = eqx.tree_at(
+            lambda carrier: carrier.depths,
+            bands,
+            depth_scale * bands.depths,
+        )
         channels: Complex[Array, "1 1 n_orb 3"] = (
             assemble_orbital_transition_channels(
-                bands,
+                scaled_bands,
                 radial,
                 matrix_params,
                 quadrature,
@@ -202,7 +215,7 @@ def _capstone() -> Capstone:
         )
         band_channels: Complex[Array, "1 n_bands 1 3"] = project_band_channels(
             channels,
-            bands.eigenvectors,
+            scaled_bands.eigenvectors,
         )
         amplitudes: Complex[Array, "1 n_bands 1"] = (
             contract_experiment_polarization(
@@ -212,14 +225,34 @@ def _capstone() -> Capstone:
         )
         return amplitudes
 
+    def amplitudes_for(
+        candidate: Float[Array, " 1"],
+        _registered_bands: DiagonalizedBands,
+        registered_experiment: ExperimentGeometry,
+    ) -> Complex[Array, "1 n_bands 1"]:
+        """Return late-contracted amplitudes for every slab band."""
+        amplitudes: Complex[Array, "1 n_bands 1"] = (
+            amplitudes_with_depth_scale(
+                candidate,
+                registered_experiment,
+                jnp.asarray(1.0),
+            )
+        )
+        return amplitudes
+
     baseline_bands: DiagonalizedBands = bands_for(active)
 
-    def loss(candidate: Float[Array, " 1"]) -> Float[Array, ""]:
-        """Return the complete isolated lower-doublet group weight."""
-        amplitudes: Complex[Array, "1 n_bands 1"] = amplitudes_for(
-            candidate,
-            baseline_bands,
-            experiment,
+    def depth_loss(
+        candidate: Float[Array, " 1"],
+        depth_scale: Float[Array, ""],
+    ) -> Float[Array, ""]:
+        """Return the group weight at one explicit depth-carrier scale."""
+        amplitudes: Complex[Array, "1 n_bands 1"] = (
+            amplitudes_with_depth_scale(
+                candidate,
+                experiment,
+                depth_scale,
+            )
         )
         band_weights: Float[Array, "1 n_bands"] = matrix_element_intensity(
             amplitudes
@@ -227,10 +260,19 @@ def _capstone() -> Capstone:
         group_weight: Float[Array, ""] = jnp.sum(band_weights[:, :2])
         return group_weight
 
+    def loss(candidate: Float[Array, " 1"]) -> Float[Array, ""]:
+        """Return the attenuated isolated lower-doublet group weight."""
+        group_weight: Float[Array, ""] = depth_loss(
+            candidate,
+            jnp.asarray(1.0),
+        )
+        return group_weight
+
     capstone: Capstone = (
         active,
         loss,
         amplitudes_for,
+        depth_loss,
         baseline_bands,
         experiment,
     )
@@ -258,12 +300,17 @@ class TestPlan06D10:
             [Float[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
             Complex[Array, "1 n_bands 1"],
         ]
+        depth_loss: Callable[
+            [Float[Array, " 1"], Float[Array, ""]],
+            Float[Array, ""],
+        ]
         baseline_bands: DiagonalizedBands
         experiment: ExperimentGeometry
         (
             active,
             loss,
             amplitudes_for,
+            depth_loss,
             baseline_bands,
             experiment,
         ) = _capstone()
@@ -298,3 +345,14 @@ class TestPlan06D10:
             atol=1.0e-12,
         )
         assert float(jnp.abs(expected_gradient[0])) > 1.0e-8
+        zero_depth_gradient: Float[Array, " 1"] = jax.grad(
+            lambda candidate: depth_loss(candidate, jnp.asarray(0.0))
+        )(active)
+        depth_contribution: Float[Array, " 1"] = (
+            expected_gradient - zero_depth_gradient
+        )
+        assert float(jnp.abs(depth_contribution[0])) > 1.0e-8
+        depth_scale_derivative: Float[Array, ""] = jax.grad(
+            lambda scale: depth_loss(active, scale)
+        )(jnp.asarray(1.0))
+        assert float(jnp.abs(depth_scale_derivative)) > 1.0e-8

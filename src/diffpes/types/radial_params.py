@@ -138,7 +138,8 @@ def _matrixel_phase_channel_keys(
         if angular > 0:
             keys.append((shell_index, angular - 1))
         keys.append((shell_index, angular + 1))
-    return tuple(keys)
+    channel_keys: tuple[tuple[int, int], ...] = tuple(keys)
+    return channel_keys
 
 
 def _default_n_star(principal: int) -> float:
@@ -1189,7 +1190,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         Real shell scales, defaulting to one.
     phase_shift_angles_shell : Optional[Float[Array, "n_phase"]], optional
         Real compact channel phase angles, defaulting to zero. Their static
-        coordinates are ordered by shell and then increasing ``l_prime``.
+        coordinates follow shell order and then increasing ``l_prime``.
 
     Returns
     -------

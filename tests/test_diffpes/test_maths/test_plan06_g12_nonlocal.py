@@ -1,5 +1,10 @@
-"""Execute the frozen Plan 06 local/nonlocal gauge negative control."""
+"""Execute the frozen Plan 06 local/nonlocal gauge negative control.
 
+The test checks the local commutator identity and the registered nonlocal
+projector disagreement through both public Cartesian gauge APIs.
+"""
+
+import hashlib
 import math
 from pathlib import Path
 
@@ -14,11 +19,12 @@ from diffpes.maths import (
 )
 
 _REFERENCE_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "diffpes-plans"
-    / "verification"
-    / "matrixel_gauge"
-    / "g12_reference.npz"
+    Path(__file__).resolve().parents[1]
+    / "_reference_data"
+    / "plan06_g12_reference.npz"
+)
+_REFERENCE_SHA256 = (
+    "e136dfd8214cd4e1e83d11b1d20d87a8597c66e61f54636b949d3c159fc579f0"
 )
 
 
@@ -107,7 +113,17 @@ def _public_reduced_gauges(
 
 
 def test_g12_d12_local_passes_and_nonlocal_projector_must_disagree() -> None:
-    """Assert the public local identity and both nonlocal negative controls."""
+    """Assert the public local identity and both nonlocal controls.
+
+    The test compares local and nonlocal fixtures through both public gauges.
+
+    Notes
+    -----
+    It loads frozen radial states and evaluates the independent reduction.
+    """
+    digest: str = hashlib.sha256(_REFERENCE_PATH.read_bytes()).hexdigest()
+    assert digest == _REFERENCE_SHA256
+    reference: np.lib.npyio.NpzFile
     with np.load(_REFERENCE_PATH) as reference:
         radial_grid: np.ndarray = reference["local_r_coarse"]
         radial_weights: np.ndarray = reference["local_w_coarse"]

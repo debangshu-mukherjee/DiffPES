@@ -1,4 +1,4 @@
-# WP6.1 regression-reference manifest
+# Reference artifact manifest
 
 > These files pin deterministic behavior, not independent physics
 > truth.
@@ -83,3 +83,38 @@
 - Arrays encoded as JSON numbers:
   - Γ eigenvalues: shape `(22,)`, eV
   - X = `(0.5, 0.0, 0.0)` eigenvalues: shape `(22,)`, eV
+
+### `plan06_chinook/`
+
+- Classification: Plan 06 gates 06.G6 and 06.G7, K-type behavioral
+  compatibility; the analytic C gates remain authoritative
+- Chinook commit:
+  `24913de8cc5b8c162f7c1b4acc64bd1b54dd548b`
+- Isolated-environment SHA-256:
+  `6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531`
+- Archive SHA-256:
+  `9e857413fce56a3d4af45e88b040a0b85d9af0b445f240f53cb7b1de19365cb1`
+- Model-specification SHA-256:
+  `8c2b00c99242b539e694620bc744fb89eb7898a2402ad3f684263e4e2a50827e`
+- Pytest reconstructs current public-API amplitudes on all frozen points; it
+  does not trust the saved DiffPES replay or import Chinook.
+
+### `plan06_g12_reference.npz`
+
+- Classification: Plan 06 gate 06.G12 independent generic-complex and
+  local/nonlocal length-versus-momentum gauge evidence
+- Artifact SHA-256:
+  `e136dfd8214cd4e1e83d11b1d20d87a8597c66e61f54636b949d3c159fc579f0`
+- The tracked code-tree copy is byte-equal to
+  `diffpes-plans/verification/matrixel_gauge/g12_reference.npz`.
+
+### `plan06_yeh_lindau_authority/`
+
+- Classification: Plan 06 gate 06.G5 authority metadata for the dated
+  Figshare-as-numerical-authority amendment
+- Figshare v3 metadata SHA-256:
+  `c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026a7bda44`
+- Regoutz project-page SHA-256:
+  `2e4c3cc0dbb73cecced5d8608fa44286ac444636e8d9142f4bbe4b042d236703`
+- The test authenticates the version, license, file identity, manual-mining
+  statement, review statement, and Lindau-permission statement.

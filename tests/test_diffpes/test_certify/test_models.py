@@ -52,8 +52,13 @@ class TestRegisterBuiltinModels:
         )
         assert all(
             f"org.diffpes.evidence.06.d{index}" in plan06.evidence_ids
-            for index in range(1, 14)
+            for index in range(1, 13)
         )
+        assert (
+            "org.diffpes.evidence.06.d13.not_applicable.g13_rejected"
+            in plan06.evidence_ids
+        )
+        assert "org.diffpes.evidence.06.d13" not in plan06.evidence_ids
         assert all(
             f"org.diffpes.evidence.06.s{index}" in plan06.evidence_ids
             for index in range(1, 4)

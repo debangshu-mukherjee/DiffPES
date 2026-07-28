@@ -212,7 +212,7 @@ def _complex_metric(
     first: Complex[jnp.ndarray, " 3"],
     second: Complex[jnp.ndarray, " 3"],
 ) -> Complex[jnp.ndarray, ""]:
-    """Contract two spherical vectors with the rank-one metric."""
+    """Return the rank-one metric contraction of two spherical vectors."""
     result: Complex[jnp.ndarray, ""] = (
         -first[0] * second[2] + first[1] * second[1] - first[2] * second[0]
     )
@@ -221,6 +221,9 @@ def _complex_metric(
 
 def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
     """Match every supported ``(l,m)`` with the complex-Ylm oracle.
+
+    The comparison covers every production real harmonic through the
+    independent complex-spherical quadrature path.
 
     Notes
     -----
@@ -271,6 +274,9 @@ def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
 
 def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
     """Pin the complete s+p amplitude and reject three phase false controls.
+
+    Generic and helicity polarizations expose the relative partial-wave phase
+    between the even and odd initial orbitals.
 
     Notes
     -----
@@ -372,6 +378,7 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
 
     generic: np.ndarray = polarizations[0]
     correct: complex = production_amplitude(correct_radial, generic)
+    wrong_mode: str
     for wrong_mode in ("omitted", "flipped", "doubled"):
         wrong: complex = production_amplitude(
             phased_radial(wrong_mode),
@@ -382,6 +389,9 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
 
 def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
     """Match a production transition amplitude in Cartesian, real, and complex bases.
+
+    Cartesian basis vectors, generic elliptic polarization, and both
+    helicities cover the three equivalent contraction routes.
 
     Notes
     -----
@@ -454,10 +464,13 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
 def test_g8_g14_complete_p_shell_single_pz_projection() -> None:
     """Keep only the pz coefficient and reject an unweighted p-shell sum.
 
+    A complete p shell supplies the projection source while one nonzero
+    eigenvector coefficient isolates its middle pz orbital.
+
     Notes
     -----
-    The complete real p shell is ordered ``(p_y,p_z,p_x)``. Projection must
-    select its middle row before the same all-basis amplitude comparison.
+    Use the complete real p-shell order ``(p_y,p_z,p_x)``. Select its middle
+    row before the same all-basis amplitude comparison.
     """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0),

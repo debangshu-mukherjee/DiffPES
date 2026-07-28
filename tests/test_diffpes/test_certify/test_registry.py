@@ -18,12 +18,14 @@ from diffpes.certify import (
     list_models,
     list_registered_models,
     list_transformations,
+    packaged_model_card,
     register_builtin_models,
     register_handshake,
     register_model,
     register_transformation,
     registry_manifest,
     registry_snapshot,
+    render_model_card,
     validate_handshake,
     validate_registry,
     validate_registry_manifest,
@@ -806,7 +808,7 @@ class TestRegistryManifest:
     def test_manifest_has_plan06_handshake_and_no_retired_model(self) -> None:
         """Read the schema and current owner handshakes from package resources.
 
-        The stale radial model is absent and Plan 06 is declared explicitly.
+        The manifest omits the stale radial model and declares Plan 06 explicitly.
 
         Notes
         -----
@@ -827,8 +829,61 @@ class TestRegistryManifest:
         )
         assert len(plan06["evidence_ids"]) == 41
         assert "org.diffpes.evidence.06.g18" in plan06["evidence_ids"]
-        assert "org.diffpes.evidence.06.d13" in plan06["evidence_ids"]
+        assert (
+            "org.diffpes.evidence.06.d13.not_applicable.g13_rejected"
+            in plan06["evidence_ids"]
+        )
+        assert "org.diffpes.evidence.06.d13" not in plan06["evidence_ids"]
         assert "org.diffpes.evidence.06.s3" in plan06["evidence_ids"]
+
+
+class TestRenderModelCard:
+    """Verify :func:`~diffpes.certify.render_model_card`.
+
+    The cases render Markdown directly from a model specification.
+
+    :see: :func:`~diffpes.certify.render_model_card`
+    """
+
+    def test_card_contains_exact_model_identity(self) -> None:
+        """Render an exact model identity and its scientific fields.
+
+        The case uses an isolated model specification.
+
+        Notes
+        -----
+        Compare the generated header and required registry fields.
+        """
+        spec: Any = _model_spec("render_card")
+        card: str = render_model_card(spec)
+        assert card.startswith("# org.diffpes.model.registry_test.render_card")
+        assert "Version: `1.0.0`." in card
+        assert "Observable: `org.diffpes.observable.arpes.intensity`." in card
+        assert "Implementation: `tests.registry:render_card`." in card
+
+
+class TestPackagedModelCard:
+    """Verify :func:`~diffpes.certify.packaged_model_card`.
+
+    The cases read generated model cards from package resources.
+
+    :see: :func:`~diffpes.certify.packaged_model_card`
+    """
+
+    def test_missing_card_raises_file_not_found(self) -> None:
+        """Reject a model identity without a packaged card.
+
+        The case uses an identity outside the packaged manifest.
+
+        Notes
+        -----
+        Confirm the resource layer reports a missing generated card.
+        """
+        with pytest.raises(FileNotFoundError):
+            packaged_model_card(
+                "org.diffpes.model.registry_test.missing",
+                "1.0.0",
+            )
 
 
 class TestValidateRegistryManifest:

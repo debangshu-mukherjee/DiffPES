@@ -28,7 +28,17 @@ _L_BY_LETTER = {"s": 0, "p": 1, "d": 2, "f": 3}
 _SOURCE_URL = "https://ndownloader.figshare.com/files/22867790"
 _SOURCE_DOI = "10.6084/m9.figshare.12389750.v3"
 _PAPER_DOI = "10.1016/0092-640X(85)90016-6"
+_SOURCE_FILE_ID = "22867790"
+_SOURCE_FILENAME = "Excel_Yeh_Lindau_1985_PICS.xlsx"
 _MIN_INTERPOLATION_NODES = 2
+_DIGITISATION_REPLAY_SPOT_CHECKS: tuple[
+    tuple[int, int, int, float, float], ...
+] = (
+    (6, 2, 1, 21.2, 6.128),
+    (6, 2, 1, 40.8, 1.875),
+    (8, 2, 1, 40.8, 6.816),
+    (29, 3, 2, 80.0, 8.712),
+)
 
 
 def _cell_column(reference: str) -> int:
@@ -254,15 +264,92 @@ def generate(source: Path, output_directory: Path) -> None:
     )
     source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
     archive_sha256 = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    generator_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     manifest = {
         "archive_sha256": archive_sha256,
         "data_license": "CC BY 4.0",
+        "digitisation_method": {
+            "input_format": "XLSX workbook",
+            "row_scope": (
+                "the first 16 photon-energy rows from each element sheet"
+            ),
+            "subshell_mapping": (
+                "sheet atomic number plus workbook ns/np/nd/nf headers"
+            ),
+            "missing_value_policy": (
+                "blank cells become NaN; zeros remain zero"
+            ),
+            "interpolation_preparation": (
+                "split contiguous positive runs and compute PCHIP slopes in "
+                "log(sigma_megabarn) versus log(photon_energy_ev)"
+            ),
+        },
+        "digitisation_replay_spot_checks": [
+            {
+                "atomic_number": atomic_number,
+                "n": principal,
+                "l": angular,
+                "photon_energy_ev": energy,
+                "sigma_megabarn": sigma,
+                "provenance": "Regoutz-group source workbook replay",
+            }
+            for atomic_number, principal, angular, energy, sigma in (
+                _DIGITISATION_REPLAY_SPOT_CHECKS
+            )
+        ],
         "digitisation_doi": _SOURCE_DOI,
         "generator": "scripts/generate_yeh_lindau_data.py",
+        "generator_sha256": generator_sha256,
         "interpolation": (
             "PCHIP in log(sigma_megabarn) versus log(photon_energy_ev)"
         ),
         "paper_doi": _PAPER_DOI,
+        "reference_authority": {
+            "numerical_authority": (
+                "versioned Regoutz-group Figshare workbook manually mined "
+                "from the Yeh-Lindau tabulated data"
+            ),
+            "authentication": (
+                "Figshare DOI, immutable file ID and SHA-256; the publisher "
+                "DOI binds the cited primary paper"
+            ),
+            "review": (
+                "Regoutz-group internal peer review; the project page records "
+                "Prof. Lindau's agreement to make the dataset available"
+            ),
+            "project_url": (
+                "https://regoutzgroup.org/research/cross-sections/"
+            ),
+            "figshare_metadata_sha256": (
+                "c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026"
+                "a7bda44"
+            ),
+            "project_page_sha256": (
+                "2e4c3cc0dbb73cecced5d8608fa44286ac444636e8d9142f4bbe4b042"
+                "d236703"
+            ),
+            "scope": (
+                "tabulated cross-section values only; no claim of an "
+                "independent cell-by-cell transcription from a paper PDF"
+            ),
+        },
+        "primary_source_locator": {
+            "journal": "Atomic Data and Nuclear Data Tables",
+            "volume": 32,
+            "page_range": "1-155",
+            "table_identifiers": None,
+            "table_identifier_status": (
+                "not published in the authenticated workbook metadata; "
+                "cell-level authority is the versioned Figshare dataset"
+            ),
+            "independent_primary_spot_checks": [],
+            "independent_primary_spot_check_status": (
+                "not claimed; executable spot checks replay the authenticated "
+                "versioned workbook"
+            ),
+        },
+        "source_file_id": _SOURCE_FILE_ID,
+        "source_filename": _SOURCE_FILENAME,
         "source_sha256": source_sha256,
         "source_url": _SOURCE_URL,
         "supported_domains_ev": domains,

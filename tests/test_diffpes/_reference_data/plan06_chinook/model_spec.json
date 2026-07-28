@@ -1,0 +1,53 @@
+{
+  "schema": "diffpes.plan06.parity-model.v1",
+  "gates": ["06.G6", "06.G7"],
+  "graphene": {
+    "model_id": "RM-1-plan06-matrixel",
+    "lattice_constant_angstrom": 2.46,
+    "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
+    "positions_fractional": [[0.0, 0.0, 0.0], [0.3333333333333333, 0.3333333333333333, 0.0]],
+    "species": ["C", "C"],
+    "orbitals": ["2p_z", "2p_z"],
+    "onsite_ev": 0.0,
+    "nearest_neighbor_hopping_ev": -2.7,
+    "valleys_cartesian_inverse_angstrom": {
+      "plus_K": "(2*pi/a)*(1/sqrt(3),1/3,0)",
+      "minus_K": "-plus_K"
+    },
+    "map_half_width_inverse_angstrom": 0.18,
+    "map_points_per_axis": 31
+  },
+  "p_orbital_polarization": {
+    "model_id": "plan06-single-2pz-fixed-radial",
+    "position_cartesian_angstrom": [0.0, 0.0, 0.0],
+    "initial_momentum_cartesian_inverse_angstrom": [0.35, 0.22, 0.0],
+    "radial_integral_phase_free": {"lprime_0": 1.0, "lprime_2": 1.0},
+    "radial_bvals_after_i_power": {"lprime_0": 1.0, "lprime_2": -1.0},
+    "polarizations": [
+      "s=(-ky,kx,0)/sqrt(kx^2+ky^2)",
+      "p=cross(s,k_f_hat)",
+      "helicity_plus=(s+i*p)/sqrt(2)",
+      "helicity_minus=(s-i*p)/sqrt(2)"
+    ]
+  },
+  "experiment": {
+    "photon_energy_ev": 21.2,
+    "work_function_ev": 4.5,
+    "mean_free_path_angstrom": 10.0,
+    "radial_mode": "fixed",
+    "radial_phase_convention": "physical p->s/p->d values are (1,-1) after i^lprime; even lprime makes Chinook (-i)^lprime and DiffPES (+i)^lprime identical",
+    "spin": "spinless",
+    "surface_reciprocal_shift": [0.0, 0.0]
+  },
+  "conventions": {
+    "lattice_vectors": "rows, angstrom",
+    "kpoints": "Cartesian inverse angstrom in the sample frame",
+    "basis": "basis-position gauge",
+    "eigenvectors": "ket coefficients; Chinook columns are transposed to DiffPES band-major rows",
+    "public_polarization": "Cartesian complex order (x,y,z)",
+    "chinook_real_harmonic_reconciliation": "evaluate Chinook at (epsilon_x,-epsilon_y,epsilon_z); this reconciles its sine-harmonic y sign with the canonical DiffPES Cartesian convention",
+    "final_momentum": "vacuum momentum with in-plane component equal to initial momentum and positive outgoing z",
+    "site_phase": "DiffPES uses exp(i*(k_i-k_f).R_o); the raw Chinook comparator has no orbital-centre final-state phase",
+    "normalization": "raw amplitudes and intensities; no fitted scale or post-hoc normalization"
+  }
+}

@@ -1,4 +1,10 @@
-"""Certify Plan 06 complete-shell covariance and named radial gauges."""
+"""Certify Plan 06 complete-shell covariance and named radial gauges.
+
+Extended Summary
+----------------
+The tests rotate complete p and d shells through every tensor leg. They also
+verify the two named radial coefficient-scale gauge directions.
+"""
 
 import chex
 import jax
@@ -65,7 +71,7 @@ def _real_wigner(
     degree: int,
     angles: tuple[float, float, float],
 ) -> Float[Array, "m1 m2"]:
-    """Transform one complex Wigner matrix into the real-harmonic basis."""
+    """Return one complex Wigner matrix in the real-harmonic basis."""
     unitary: Complex[Array, "m1 m2"] = real_harmonic_unitary(degree)
     complex_rotation: Complex[Array, "m1 m2"] = wigner_d(degree, *angles)
     real_rotation: Float[Array, "m1 m2"] = jnp.real(
@@ -75,7 +81,15 @@ def _real_wigner(
 
 
 def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
-    """Rotate every tensor leg and preserve contracted p/d amplitudes."""
+    """Rotate every tensor leg and preserve contracted p/d amplitudes.
+
+    Random proper rotations cover complete p and d shells with generic
+    complex coefficients, polarization, and final harmonics.
+
+    Notes
+    -----
+    Compare the original contraction against a simultaneous three-leg rotation.
+    """
     basis: OrbitalBasis
     params: MatrixElementParams
     basis, _, _, params = _complete_pd_fixture()
@@ -87,6 +101,8 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
     )
     coupling: Float[Array, "n_orb 2 3 36"] = channel_tables(basis)[0]
     generator: np.random.Generator = np.random.default_rng(20260728)
+    degree: int
+    start: int
     for degree, start in ((1, 0), (2, 3)):
         shell_size: int = 2 * degree + 1
         for _ in range(4):
@@ -109,6 +125,8 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
             polarization: Complex[Array, " 3"] = jnp.asarray(
                 generator.normal(size=3) + 1j * generator.normal(size=3)
             )
+            branch: int
+            final_degree: int
             for branch, final_degree in enumerate((degree - 1, degree + 1)):
                 final_size: int = 2 * final_degree + 1
                 block: Float[Array, "m 3 mf"] = coupling[
@@ -148,7 +166,15 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
 
 
 def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
-    """Null the composed matrix-element intensity for both radial shells."""
+    """Verify null intensity slopes for both radial coefficient gauges.
+
+    The complete coherent matrix element includes radial evaluation,
+    attenuation, polarization contraction, and complex orbital coefficients.
+
+    Notes
+    -----
+    Apply each named gauge tangent and contrast it with a physical sigma tangent.
+    """
     basis: OrbitalBasis
     radial: RadialSpec
     params: MatrixElementParams

@@ -449,8 +449,8 @@ def _register_plan06_handshake() -> None:
         f"org.diffpes.evidence.06.g{index}" for index in range(1, 19)
     )
     derivative_evidence: tuple[str, ...] = tuple(
-        f"org.diffpes.evidence.06.d{index}" for index in range(1, 14)
-    )
+        f"org.diffpes.evidence.06.d{index}" for index in range(1, 13)
+    ) + ("org.diffpes.evidence.06.d13.not_applicable.g13_rejected",)
     scaling_evidence: tuple[str, ...] = tuple(
         f"org.diffpes.evidence.06.s{index}" for index in range(1, 4)
     )

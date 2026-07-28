@@ -8,14 +8,31 @@
     "06.S2",
     "06.S3"
   ],
-  "host_setup_seconds": 1.6333200640510768,
+  "host_setup_seconds": 1.6716803880408406,
   "jax_version": "0.9.0.1",
   "numpy_version": "2.4.2",
   "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 884670464,
+  "process_peak_rss_bytes_non_authoritative": 887209984,
   "s1": {
     "compile_cache_sizes": [
       0,
+      1,
+      1
+    ],
+    "composed_sweep_compile_cache_sizes": [
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "composed_sweep_trace_counts": [
+      0,
+      1,
+      1,
+      1,
       1,
       1,
       1
@@ -35,15 +52,16 @@
   },
   "s2": {
     "compilation_seconds": {
-      "reduced_scan": 0.566567410947755,
-      "scalar_value_and_gradient": 0.6685599819757044
+      "reduced_scan": 0.5600490479264408,
+      "scalar_value_and_gradient": 0.697305517969653
     },
     "forbidden_k_e_b_shape_present": false,
+    "forbidden_k_e_b_shapes": [],
     "gradient_shape": [
       18
     ],
     "hlo_gzip": "plan06_s2_hlo.txt.gz",
-    "hlo_gzip_sha256": "1eb600b687e471f74f270d5dfd4e02a49822ea297864b76006312b61382ae5d6",
+    "hlo_gzip_sha256": "5d88a8905baf6415d23d25a2a5d20807cbf0f2ead9141ad1e4feeca2da976a3e",
     "jaxpr_gzip": "plan06_s2_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
@@ -81,6 +99,7 @@
       4096,
       6
     ],
+    "parsed_array_shape_count": 52,
     "recursive_jaxpr_equation_counts": {
       "reduced_scan": 888,
       "scalar_value_and_gradient": 1782
@@ -93,64 +112,70 @@
   },
   "s3": {
     "compilation_seconds": {
-      "batch_contraction": 0.0812088439706713,
-      "channel": 0.5540559539804235,
-      "late_reuse_pipeline": 0.5710990600055084,
-      "single_contraction": 0.07885567506309599,
-      "single_rebuild_pipeline": 0.5503125679679215
+      "batch_contraction": 0.07926047197543085,
+      "channel": 0.5958606860367581,
+      "late_reuse_pipeline": 0.5691248050425202,
+      "single_contraction": 0.06385928194504231,
+      "single_rebuild_pipeline": 0.5727318340213969
     },
-    "contraction_ratio": 0.21773362278403594,
+    "contraction_ratio": 0.20654833708294243,
     "median_seconds": {
-      "batched_contraction": 0.0010052700527012348,
-      "late_reuse_pipeline": 0.0141904839547351,
-      "six_rebuild_pipelines": 0.05636727891396731,
-      "six_sequential_contractions": 0.004616972059011459
+      "batched_contraction": 0.0009376970119774342,
+      "late_reuse_pipeline": 0.014031853061169386,
+      "six_rebuild_pipelines": 0.05568519001826644,
+      "six_sequential_contractions": 0.004539842950180173
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.251750381216625,
+    "pipeline_ratio": 0.2519853673223798,
     "raw_seconds": {
       "batched_contraction": [
-        0.0010144220432266593,
-        0.0008909919997677207,
-        0.0010136510245501995,
-        0.0010013149585574865,
-        0.0008183669997379184,
-        0.0010068269912153482,
-        0.0010052700527012348
+        0.0009376970119774342,
+        0.0009135720320045948,
+        0.0008712050039321184,
+        0.0009241160005331039,
+        0.0009728430304676294,
+        0.000953905051574111,
+        0.0009657519403845072
       ],
       "late_reuse_pipeline": [
-        0.0141904839547351,
-        0.014486004947684705,
-        0.014073866070248187,
-        0.014640792040154338,
-        0.013932937989011407,
-        0.013988889986649156,
-        0.014676249003969133
+        0.014888994977809489,
+        0.013815233018249273,
+        0.014165846048854291,
+        0.014031853061169386,
+        0.013519203057512641,
+        0.013818513951264322,
+        0.01507633295841515
       ],
       "six_rebuild_pipelines": [
-        0.05714354198426008,
-        0.05544540099799633,
-        0.056540118996053934,
-        0.05477692896965891,
-        0.055552835925482213,
-        0.05636727891396731,
-        0.0578893719939515
+        0.055065935011953115,
+        0.05568519001826644,
+        0.056002493016421795,
+        0.05419334501493722,
+        0.05611122795380652,
+        0.055696697905659676,
+        0.05263373500201851
       ],
       "six_sequential_contractions": [
-        0.004616972059011459,
-        0.0047459249617531896,
-        0.004631674033589661,
-        0.0039250049740076065,
-        0.004749175044707954,
-        0.004591264994814992,
-        0.004604466026648879
+        0.004462969023734331,
+        0.004539842950180173,
+        0.004603457055054605,
+        0.004039656021632254,
+        0.004780629999004304,
+        0.004285078030079603,
+        0.013697871938347816
       ]
     },
     "repetitions": 7,
     "result": "pass",
     "synchronized": true,
     "warmups": 2
+  },
+  "schema": "diffpes.plan06.scalability.v2",
+  "source_sha256": {
+    "scripts/measure_plan06_scaling.py": "9af247483ad4585fc42fb14e0d5d4f52fb2ad442fc66918aa5ba1c9a9de1627a",
+    "src/diffpes/simul/matrixel.py": "d8cbd48db8959422edd4545885e4b31a6d6ed44d596b35e06c73ca9a1e99a509",
+    "src/diffpes/types/radial_params.py": "055d6aa2286e2299b253cb9056dc8b14e0ee65fbde93df0e604f70fb54b3632b"
   }
 }

@@ -1,9 +1,14 @@
-"""Certify Plan 06 G3 against a frozen exact SymPy real-Gaunt table."""
+"""Certify Plan 06 G3 against a frozen exact SymPy real-Gaunt table.
+
+The tests compare every dense physical coordinate and preserve the offline
+generator version and authority metadata.
+"""
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import TextIO
 
 import numpy as np
 
@@ -20,7 +25,15 @@ class TestPlan06SympyGauntReference:
     """Compare the complete production domain with independent exact values."""
 
     def test_dense_table_matches_exact_sympy_authority(self) -> None:
-        """Match every physical dense-table coordinate and exact zero."""
+        """Match every physical dense-table coordinate and exact zero.
+
+        The test checks allowed coefficients and forbidden selection entries.
+
+        Notes
+        -----
+        It reads the frozen CSV and compares each row with public lookup.
+        """
+        stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
             rows: list[dict[str, str]] = list(csv.DictReader(stream))
 
@@ -56,7 +69,15 @@ class TestPlan06SympyGauntReference:
         assert zero_count > nonzero_count > 0
 
     def test_frozen_reference_pins_sympy_provenance(self) -> None:
-        """Require one versioned exact authority across the frozen table."""
+        """Require one versioned exact authority across the frozen table.
+
+        The test checks uniform generator and symbolic-authority metadata.
+
+        Notes
+        -----
+        It collects both metadata columns from every frozen CSV row.
+        """
+        stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
             rows: list[dict[str, str]] = list(csv.DictReader(stream))
 

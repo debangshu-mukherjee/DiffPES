@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Any
 
 from diffpes.simul import (
     yeh_lindau_cross_section,
@@ -62,7 +63,7 @@ class TestYehLindauCrossSectionTable:
             / "data"
             / "yeh_lindau_1985.json"
         )
-        manifest: dict[str, object] = json.loads(
+        manifest: dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         assert manifest["units"]["cross_section"] == "megabarn"
@@ -92,6 +93,161 @@ class TestYehLindauCrossSectionTable:
         assert np.isnan(slopes[index_200])
         with pytest.raises(ValueError, match="unsupported"):
             yeh_lindau_cross_section_table(1, 7, 3)
+
+    def test_manifest_authenticates_archive_domains_and_provenance(
+        self,
+    ) -> None:
+        """Validate every packed domain and its numerical authority.
+
+        The manifest binds the generator and all positive interpolation runs.
+        It scopes workbook replay separately from an unclaimed PDF transcription.
+
+        Notes
+        -----
+        Recompute domains from the archive and replay each recorded spot check.
+        """
+        data_directory: Path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "diffpes"
+            / "simul"
+            / "data"
+        )
+        manifest_path: Path = data_directory / "yeh_lindau_1985.json"
+        archive_path: Path = data_directory / "yeh_lindau_1985.npz"
+        generator_path: Path = (
+            Path(__file__).resolve().parents[3]
+            / "scripts"
+            / "generate_yeh_lindau_data.py"
+        )
+        manifest: dict[str, Any] = json.loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
+        assert (
+            manifest["generator_sha256"]
+            == hashlib.sha256(generator_path.read_bytes()).hexdigest()
+        )
+        assert manifest["source_file_id"] == "22867790"
+        assert manifest["source_filename"] == (
+            "Excel_Yeh_Lindau_1985_PICS.xlsx"
+        )
+        assert str(manifest["source_url"]).endswith(
+            str(manifest["source_file_id"])
+        )
+
+        archive: Any
+        with np.load(archive_path) as archive:
+            keys: np.ndarray = archive["keys"]
+            offsets: np.ndarray = archive["offsets"]
+            energies: np.ndarray = archive["photon_energy_ev"]
+            sigma: np.ndarray = archive["sigma_megabarn"]
+        derived_domains: dict[str, list[list[float]]] = {}
+        row_index: int
+        key: np.ndarray
+        for row_index, key in enumerate(keys):
+            start: int = int(offsets[row_index])
+            stop: int = int(offsets[row_index + 1])
+            row_energies: np.ndarray = energies[start:stop]
+            positive: np.ndarray = np.isfinite(sigma[start:stop]) & (
+                sigma[start:stop] > 0.0
+            )
+            intervals: list[list[float]] = []
+            interval_start: int = 0
+            while interval_start < positive.shape[0]:
+                if not positive[interval_start]:
+                    interval_start += 1
+                    continue
+                interval_stop: int = interval_start + 1
+                while (
+                    interval_stop < positive.shape[0]
+                    and positive[interval_stop]
+                ):
+                    interval_stop += 1
+                if interval_stop - interval_start >= 2:
+                    intervals.append(
+                        [
+                            float(row_energies[interval_start]),
+                            float(row_energies[interval_stop - 1]),
+                        ]
+                    )
+                interval_start = interval_stop
+            key_string: str = "-".join(str(int(value)) for value in key)
+            derived_domains[key_string] = intervals
+        assert manifest["supported_domains_ev"] == derived_domains
+
+        spot_checks: list[dict[str, Any]] = manifest[
+            "digitisation_replay_spot_checks"
+        ]
+        assert len(spot_checks) >= 4
+        check: dict[str, Any]
+        for check in spot_checks:
+            table_energies: np.ndarray
+            table_sigma: np.ndarray
+            table_energies, table_sigma, _ = yeh_lindau_cross_section_table(
+                int(check["atomic_number"]),
+                int(check["n"]),
+                int(check["l"]),
+            )
+            energy_index: int = int(
+                np.flatnonzero(
+                    table_energies == float(check["photon_energy_ev"])
+                )[0]
+            )
+            assert table_sigma[energy_index] == pytest.approx(
+                float(check["sigma_megabarn"]),
+                rel=0.0,
+                abs=0.0,
+            )
+            assert check["provenance"] == (
+                "Regoutz-group source workbook replay"
+            )
+
+        primary_locator: dict[str, Any] = manifest["primary_source_locator"]
+        assert primary_locator["page_range"] == "1-155"
+        assert primary_locator["table_identifiers"] is None
+        assert "versioned Figshare dataset" in str(
+            primary_locator["table_identifier_status"]
+        )
+        assert primary_locator["independent_primary_spot_checks"] == []
+        assert "not claimed" in str(
+            primary_locator["independent_primary_spot_check_status"]
+        )
+        authority: dict[str, Any] = manifest["reference_authority"]
+        assert "Figshare workbook" in str(authority["numerical_authority"])
+        assert "file ID and SHA-256" in str(authority["authentication"])
+        assert "internal peer review" in str(authority["review"])
+        assert str(authority["project_url"]).startswith("https://")
+        assert "no claim" in str(authority["scope"])
+
+        authority_directory: Path = (
+            Path(__file__).resolve().parents[1]
+            / "_reference_data"
+            / "plan06_yeh_lindau_authority"
+        )
+        figshare_path: Path = (
+            authority_directory / "plan06_figshare_12389750_v3.json"
+        )
+        project_path: Path = (
+            authority_directory / "plan06_regoutz_cross_sections.html"
+        )
+        assert (
+            hashlib.sha256(figshare_path.read_bytes()).hexdigest()
+            == authority["figshare_metadata_sha256"]
+        )
+        assert (
+            hashlib.sha256(project_path.read_bytes()).hexdigest()
+            == authority["project_page_sha256"]
+        )
+        figshare: dict[str, Any] = json.loads(
+            figshare_path.read_text(encoding="utf-8")
+        )
+        assert figshare["doi"] == manifest["digitisation_doi"]
+        assert figshare["license"]["name"] == manifest["data_license"]
+        assert str(figshare["files"][0]["id"]) == manifest["source_file_id"]
+        assert "manually mined" in str(figshare["description"])
+        project_html: str = project_path.read_text(encoding="utf-8")
+        assert "internal peer review process" in project_html
+        assert "very grateful to Prof. Lindau" in project_html
 
 
 class TestYehLindauCrossSection(chex.TestCase):

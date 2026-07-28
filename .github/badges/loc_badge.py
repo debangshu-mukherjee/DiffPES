@@ -16,14 +16,56 @@ Routine Listings
 """
 
 import json
-import re
-import subprocess
-import sys
 from pathlib import Path
+
+import pygount.analysis
+from pygments.lexers.python import PythonLexer
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _BADGE_PATH: Path = _REPO_ROOT / ".github" / "badges" / "loc.json"
 _COUNT_TARGET: Path = _REPO_ROOT / "src" / "diffpes"
+
+
+def _count_python_loc(count_target: Path) -> int:
+    """Count Python source lines without Pygments language guessing.
+
+    Parameters
+    ----------
+    count_target : Path
+        Directory containing the Python source tree.
+
+    Returns
+    -------
+    loc : int
+        Pygount source-line total with every ``.py`` file parsed as Python.
+
+    Notes
+    -----
+    Pygount delegates filename classification to Pygments. When IPython is
+    installed, Pygments can classify ordinary ``.py`` files as either Python
+    or IPython depending on entry-point discovery. Pygount treats Python
+    docstrings as comments but IPython docstrings as code, so the badge count
+    would otherwise depend on the invocation environment.
+    """
+    duplicate_pool = pygount.analysis.DuplicatePool()
+    original_guess_lexer = pygount.analysis.guess_lexer
+
+    def python_lexer(_source_path: str, _source_code: str) -> PythonLexer:
+        return PythonLexer()
+
+    pygount.analysis.guess_lexer = python_lexer
+    try:
+        analyses = (
+            pygount.analysis.SourceAnalysis.from_file(
+                str(source_path),
+                group="diffpes",
+                duplicate_pool=duplicate_pool,
+            )
+            for source_path in sorted(count_target.rglob("*.py"))
+        )
+        return sum(analysis.source_count for analysis in analyses)
+    finally:
+        pygount.analysis.guess_lexer = original_guess_lexer
 
 
 def main() -> int:
@@ -32,30 +74,9 @@ def main() -> int:
     Returns
     -------
     exit_code : int
-        Zero on success (pre-commit detects the modified badge file
-        itself); one if pygount is unavailable or its output cannot
-        be parsed.
+        Zero on success. Pre-commit detects a modified badge file itself.
     """
-    pygount = Path(sys.executable).parent / "pygount"
-    result = subprocess.run(  # noqa: S603
-        [
-            str(pygount),
-            "--format=cloc-xml",
-            "--suffix=py",
-            str(_COUNT_TARGET),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        print(f"pygount failed: {result.stderr.strip()}", file=sys.stderr)
-        return 1
-    match = re.search(r'<total[^>]*\bcode="(\d+)"', result.stdout)
-    if match is None:
-        print("could not parse pygount cloc-xml total", file=sys.stderr)
-        return 1
-    loc: str = match.group(1)
+    loc: str = str(_count_python_loc(_COUNT_TARGET))
     badge: str = (
         json.dumps(
             {

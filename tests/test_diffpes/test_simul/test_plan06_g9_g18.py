@@ -1,4 +1,10 @@
-"""Certify Plan 06 attenuation and displaced-centre interference gates."""
+"""Certify Plan 06 attenuation and displaced-centre interference gates.
+
+Extended Summary
+----------------
+The tests distinguish amplitude and intensity attenuation exponents. They
+also verify coherent depth and displaced-centre phase interference.
+"""
 
 import chex
 import equinox as eqx
@@ -73,7 +79,15 @@ def _two_s_channels(
 
 
 def test_g9_isolated_amplitude_and_intensity_ratios() -> None:
-    """Match both attenuation exponents on isolated depth contributions."""
+    """Match both attenuation exponents on isolated depth contributions.
+
+    Two otherwise identical s orbitals isolate the relative depth factor in
+    both the amplitude norm and its squared intensity.
+
+    Notes
+    -----
+    Compare the measured ratios with the two analytic attenuation exponents.
+    """
     depth_difference: float = 4.7
     mean_free_path: Float[Array, ""] = jnp.asarray(8.3)
     channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
@@ -100,7 +114,15 @@ def test_g9_isolated_amplitude_and_intensity_ratios() -> None:
 
 
 def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
-    """Match the two-depth coherent amplitude and reject early squaring."""
+    """Match the two-depth coherent amplitude and reject early squaring.
+
+    Identical orbital amplitudes at different depths provide a direct
+    interference term after late coherent summation.
+
+    Notes
+    -----
+    Compare coherent summation with its analytic result and an incoherent false control.
+    """
     depth: float = 5.1
     mean_free_path: Float[Array, ""] = jnp.asarray(7.4)
     channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
@@ -140,7 +162,15 @@ def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
 
 
 def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
-    """Clamp tolerance noise, reject material negativity, and fail ``abs``."""
+    """Verify noise clamping, negative-depth rejection, and the ``abs`` control.
+
+    Sub-tolerance negative noise maps to the surface while a material negative
+    depth triggers the physical-domain guard.
+
+    Notes
+    -----
+    Contrast both production outcomes with planted absolute-value attenuation.
+    """
     mean_free_path: Float[Array, ""] = jnp.asarray(8.0)
     tolerance_noise: float = -0.5e-12
     clamped: Complex[Array, "1 1 2 3"] = _two_s_channels(
@@ -211,7 +241,15 @@ def _displaced_bands() -> tuple[
 
 
 def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
-    """Match the explicit-centre phase, interference, and displacement slope."""
+    """Match the explicit-centre phase, interference, and displacement slope.
+
+    One displaced Wannier centre changes the relative plane-wave phase and the
+    coherent two-orbital intensity.
+
+    Notes
+    -----
+    Compare the phase, intensity, and autodiff slope with their analytic forms.
+    """
     bands: DiagonalizedBands
     displacement_fractional: Float[Array, " 3"]
     bands, displacement_fractional = _displaced_bands()

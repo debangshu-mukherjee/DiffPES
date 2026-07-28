@@ -206,7 +206,7 @@ def _solid_harmonic_component(
 def _orbital_phase_indices(
     me_params: MatrixElementParams,
 ) -> tuple[tuple[int, int], ...]:
-    """Map every orbital branch to a compact phase index or zero sentinel."""
+    """Return each orbital branch's compact phase index or zero sentinel."""
     compact_index: dict[tuple[int, int], int] = {
         key: index for index, key in enumerate(me_params.phase_channel_keys)
     }
@@ -990,8 +990,8 @@ def orbital_transition_channels(  # noqa: DOC503
 
     Notes
     -----
-    Derive a dense orbital branch view from the compact physical phase
-    coordinates, then contract both radial branches with one tensor sum.
+    Derive a dense orbital branch view from compact physical phase coordinates.
+    Contract both radial branches with one tensor sum.
     """
     n_spin: int
     n_spatial: int

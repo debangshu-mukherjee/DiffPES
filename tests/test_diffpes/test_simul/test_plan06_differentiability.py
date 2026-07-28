@@ -211,11 +211,18 @@ class TestPlan06D1D2:
         """
         basis: OrbitalBasis = _basis()
         bands: DiagonalizedBands = _bands(basis)
+        bands = eqx.tree_at(
+            lambda carrier: carrier.kpoints,
+            bands,
+            jnp.asarray([[0.27, -0.19, 0.0]]) / (2.0 * jnp.pi),
+        )
         params: MatrixElementParams = _matrix_params(basis)
         quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
         final_state: FinalStateSpec = make_final_state_spec()
         experiment: ExperimentGeometry = _experiment()
-        final_momentum: Float[Array, "1 3"] = jnp.asarray([[0.0, 0.0, 1.31]])
+        final_momentum: Float[Array, "1 3"] = jnp.asarray(
+            [[0.27, -0.19, 1.31]]
+        )
         validity: Bool[Array, " 1"] = jnp.asarray([True])
         initial: Float[Array, " 8"] = jnp.asarray(
             [1.1, 1.9, 0.9, 1.6, 0.8, -0.27, 0.61, 0.39]
@@ -245,8 +252,9 @@ class TestPlan06D1D2:
             return value
 
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
-        assert_nonzero_grad(loss, initial)
+        assert_nonzero_grad(loss, initial, elementwise=True)
 
+    @pytest.mark.rss_limit_mb(768)
     def test_d2_photon_energy_to_explicit_vacuum_momentum(self) -> None:
         """Match D2 through energy conservation and vacuum momentum.
 
@@ -368,7 +376,7 @@ class TestPlan06D3D6:
             return value
 
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
-        assert_nonzero_grad(loss, initial)
+        assert_nonzero_grad(loss, initial, elementwise=True)
 
     def test_d4_fractional_centres_and_lattice(self) -> None:
         """Match D4 through explicit and atom-fallback centre maps.
@@ -507,7 +515,7 @@ class TestPlan06D3D6:
 
         initial: Float[Array, ""] = jnp.asarray(8.4)
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
-        assert_nonzero_grad(loss, initial)
+        assert_nonzero_grad(loss, initial, elementwise=True)
 
     def test_d6_compact_physical_phase_coordinates(self) -> None:
         """Match D6 for every compact physical channel phase.
@@ -530,7 +538,7 @@ class TestPlan06D3D6:
 
         initial: Float[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67])
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
-        assert_nonzero_grad(loss, initial)
+        assert_nonzero_grad(loss, initial, elementwise=True)
 
 
 class TestPlan06D7D8:
@@ -650,7 +658,7 @@ class TestPlan06D7D8:
             eigenvectors,
             modes=("fwd", "rev"),
         )
-        assert_nonzero_grad(raw_loss, eigenvectors)
+        assert_nonzero_grad(raw_loss, eigenvectors, elementwise=True)
 
         group_size: int
         for group_size in (2, 3):

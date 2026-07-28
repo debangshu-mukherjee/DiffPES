@@ -5,7 +5,7 @@ Extended Summary
 This module defines the PyTree used by the retained incoherent spectrum tiers.
 Experiment properties such as photon energy, sample temperature, incidence
 geometry, and polarization belong to
-:class:`~diffpes.types.ExperimentGeometry`.
+``ExperimentGeometry``.
 
 Routine Listings
 ----------------

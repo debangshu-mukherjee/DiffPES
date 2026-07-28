@@ -56,6 +56,7 @@ from diffpes.types import (
     make_radial_quadrature_spec,
     make_radial_spec,
 )
+from tests._gradients import assert_grad_matches_fd, gradient_gate
 
 type MatrixFixture = tuple[
     DiagonalizedBands,
@@ -609,17 +610,39 @@ class TestBandGroupWeightSensitivity:
         )
 
     def test_jacobian_matches_fd_and_rejects_partial_groups(self) -> None:
-        """Verify finite differences and exact incomplete-group rejection.
+        """Verify the shared gradient gate and incomplete-group rejection.
 
         A degenerate partner in the complement makes the singleton group partial.
 
         Notes
         -----
-        Compare both parameter columns and plant partial and nonisolated groups.
+        Run both AD modes and the registered scale-aware FD ladder.  Compare
+        both parameter columns and plant partial and nonisolated groups.
         """
         bands: DiagonalizedBands = _isolated_group_bands(2)
         experiment: ExperimentGeometry = _sensitivity_experiment()
         flat: Float[Array, " 2"] = jnp.array([0.13, -0.21])
+
+        def group_weight(candidate: Float[Array, " 2"]) -> Float[Array, ""]:
+            """Return the complete isolated-group weight."""
+            candidate_weights: Float[Array, "1 1"] = (
+                band_group_weight_sensitivity(
+                    candidate,
+                    self._rebuild,
+                    bands,
+                    experiment,
+                    ((0, 1),),
+                )[0]
+            )
+            return candidate_weights[0, 0]
+
+        gradient_gate(
+            group_weight,
+            flat,
+            regime="smooth",
+            modes=("fwd", "rev"),
+            elementwise=True,
+        )
         weights: Float[Array, "1 1"]
         jacobian: Float[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
@@ -629,34 +652,18 @@ class TestBandGroupWeightSensitivity:
             experiment,
             ((0, 1),),
         )
-        del weights
-        step: float = 1.0e-6
-        parameter: int
-        for parameter in range(2):
-            direction: Float[Array, " 2"] = jnp.zeros(2).at[parameter].set(1.0)
-            plus: Float[Array, "1 1"] = band_group_weight_sensitivity(
-                flat + step * direction,
-                self._rebuild,
-                bands,
-                experiment,
-                ((0, 1),),
-            )[0]
-            minus: Float[Array, "1 1"] = band_group_weight_sensitivity(
-                flat - step * direction,
-                self._rebuild,
-                bands,
-                experiment,
-                ((0, 1),),
-            )[0]
-            finite_difference: Float[Array, "1 1"] = (plus - minus) / (
-                2.0 * step
-            )
-            chex.assert_trees_all_close(
-                jacobian[parameter],
-                finite_difference,
-                rtol=1e-6,
-                atol=1e-8,
-            )
+        chex.assert_trees_all_close(
+            weights[0, 0],
+            group_weight(flat),
+            rtol=1.0e-12,
+            atol=1.0e-12,
+        )
+        chex.assert_trees_all_close(
+            jacobian[:, 0, 0],
+            jax.grad(group_weight)(flat),
+            rtol=1.0e-10,
+            atol=1.0e-12,
+        )
         with pytest.raises(ValueError, match="cuts a degeneracy"):
             band_group_weight_sensitivity(
                 flat,
@@ -683,13 +690,14 @@ class TestBandGroupWeightSensitivity:
             )
 
     def test_dark_weight_has_finite_zero_derivative(self) -> None:
-        """Verify a smooth exact dark point without dividing by its weight.
+        """Verify exact dark behavior and its positive-domain neighbor.
 
         A linear amplitude crossing produces a quadratic weight and zero slope.
 
         Notes
         -----
-        Evaluate the group helper at the registered zero-amplitude coordinate.
+        Use the shared two-mode FD harness at the dark point and its neighbor.
+        The neighbor also pins the positive-domain logarithmic derivative.
         """
         bands: DiagonalizedBands = _isolated_group_bands(1)
         experiment: ExperimentGeometry = _sensitivity_experiment()
@@ -706,10 +714,30 @@ class TestBandGroupWeightSensitivity:
             )
             return amplitudes
 
+        def dark_weight(candidate: Float[Array, " 2"]) -> Float[Array, ""]:
+            """Return the manufactured complete-group corridor weight."""
+            candidate_weights: Float[Array, "1 1"] = (
+                band_group_weight_sensitivity(
+                    candidate,
+                    dark_rebuild,
+                    bands,
+                    experiment,
+                    ((0,),),
+                )[0]
+            )
+            return candidate_weights[0, 0]
+
+        dark: Float[Array, " 2"] = jnp.zeros(2)
+        assert_grad_matches_fd(
+            dark_weight,
+            dark,
+            regime="smooth",
+            modes=("fwd", "rev"),
+        )
         weights: Float[Array, "1 1"]
         jacobian: Float[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
-            jnp.zeros(2),
+            dark,
             dark_rebuild,
             bands,
             experiment,
@@ -718,6 +746,54 @@ class TestBandGroupWeightSensitivity:
         chex.assert_trees_all_close(weights, jnp.zeros((1, 1)))
         chex.assert_trees_all_close(jacobian, jnp.zeros((2, 1, 1)))
         chex.assert_tree_all_finite(jacobian)
+        dark_log_jacobian: Float[Array, "2 1 1"]
+        dark_valid: Bool[Array, "1 1"]
+        dark_log_jacobian, dark_valid = log_band_group_weight_sensitivity(
+            weights,
+            jacobian,
+            1.0e-8,
+        )
+        chex.assert_trees_all_equal(dark_valid, jnp.array([[False]]))
+        chex.assert_trees_all_equal(
+            dark_log_jacobian,
+            jnp.zeros((2, 1, 1)),
+        )
+
+        positive: Float[Array, " 2"] = jnp.array([0.2, -0.15])
+        gradient_gate(
+            dark_weight,
+            positive,
+            regime="smooth",
+            modes=("fwd", "rev"),
+            elementwise=True,
+        )
+        positive_weights: Float[Array, "1 1"]
+        positive_jacobian: Float[Array, "2 1 1"]
+        positive_weights, positive_jacobian = band_group_weight_sensitivity(
+            positive,
+            dark_rebuild,
+            bands,
+            experiment,
+            ((0,),),
+        )
+        positive_log_jacobian: Float[Array, "2 1 1"]
+        positive_valid: Bool[Array, "1 1"]
+        positive_log_jacobian, positive_valid = (
+            log_band_group_weight_sensitivity(
+                positive_weights,
+                positive_jacobian,
+                1.0e-8,
+            )
+        )
+        chex.assert_trees_all_equal(positive_valid, jnp.array([[True]]))
+        chex.assert_trees_all_close(
+            positive_log_jacobian[:, 0, 0],
+            jax.grad(lambda candidate: jnp.log(dark_weight(candidate)))(
+                positive
+            ),
+            rtol=1.0e-10,
+            atol=1.0e-12,
+        )
 
 
 class TestLogBandGroupWeightSensitivity:
@@ -1007,6 +1083,127 @@ class TestOrbitalTransitionChannels:
             atol=1e-14,
         )
 
+    def test_g6_analytic_graphene_structure_factor(self) -> None:
+        """Match analytic zeros, maxima, and opposite-valley orientations.
+
+        Equal two-sublattice atomic rows isolate the complete centre-phase
+        structure factor without a behavioral comparator.
+
+        Notes
+        -----
+        Check Gamma, an exact destructive phase, and conjugate plus/minus-K
+        dark-state orientations against closed-form complex phases.
+        """
+        basis: OrbitalBasis = _s_basis((0, 1))
+        params: MatrixElementParams = _matrix_params(basis, (0, 1))
+        separation: float = 1.7
+        valley_phase: float = 2.0 * math.pi / 3.0
+        valley_momentum: float = valley_phase / separation
+        positions: Float[Array, "2 3"] = jnp.asarray(
+            ((0.0, 0.0, 0.0), (separation, 0.0, 0.0))
+        )
+        initial_momenta: Float[Array, "4 3"] = jnp.asarray(
+            (
+                (0.0, 0.0, 0.0),
+                (math.pi / separation, 0.0, 0.0),
+                (valley_momentum, 0.0, 0.0),
+                (-valley_momentum, 0.0, 0.0),
+            )
+        )
+        final_momenta: Float[Array, "4 3"] = jnp.broadcast_to(
+            jnp.asarray((0.0, 0.0, 1.2)),
+            (4, 3),
+        )
+        radial_values: Complex[Array, "4 2 2"] = jnp.broadcast_to(
+            jnp.asarray(((0.0j, 1.0j), (0.0j, 1.0j))),
+            (4, 2, 2),
+        )
+        channels: Complex[Array, "4 1 2 3"] = orbital_transition_channels(
+            initial_momenta,
+            final_momenta,
+            positions,
+            jnp.zeros((2,)),
+            radial_values,
+            params,
+            jnp.asarray(9.0),
+            basis,
+        )
+        polarization: Complex[Array, " 3"] = jnp.asarray(
+            (0.0j, 0.0j, 1.0 + 0.0j)
+        )
+        orbital_amplitudes: Complex[Array, "4 2"] = contract_polarization(
+            channels,
+            polarization,
+        )[:, 0, :]
+        atomic_intensity: Float[Array, ""] = (
+            jnp.abs(orbital_amplitudes[0, 0]) ** 2
+        )
+        gamma_amplitude: Complex[Array, ""] = jnp.sum(orbital_amplitudes[0])
+        destructive_amplitude: Complex[Array, ""] = jnp.sum(
+            orbital_amplitudes[1]
+        )
+        chex.assert_trees_all_close(
+            jnp.abs(gamma_amplitude) ** 2,
+            4.0 * atomic_intensity,
+            rtol=1.0e-14,
+            atol=1.0e-14,
+        )
+        chex.assert_trees_all_close(
+            destructive_amplitude,
+            jnp.asarray(0.0j),
+            rtol=0.0,
+            atol=1.0e-14,
+        )
+
+        plus_phase: Complex[Array, ""] = jnp.exp(
+            1j * jnp.asarray(valley_phase)
+        )
+        minus_phase: Complex[Array, ""] = jnp.conj(plus_phase)
+        chex.assert_trees_all_close(
+            orbital_amplitudes[2, 1] / orbital_amplitudes[2, 0],
+            plus_phase,
+            rtol=1.0e-14,
+            atol=1.0e-14,
+        )
+        chex.assert_trees_all_close(
+            orbital_amplitudes[3, 1] / orbital_amplitudes[3, 0],
+            minus_phase,
+            rtol=1.0e-14,
+            atol=1.0e-14,
+        )
+        valley_eigenvectors: Complex[Array, "2 2 2"] = jnp.asarray(
+            (
+                (
+                    (1.0, -jnp.conj(plus_phase)),
+                    (1.0, jnp.conj(plus_phase)),
+                ),
+                (
+                    (1.0, -jnp.conj(minus_phase)),
+                    (1.0, jnp.conj(minus_phase)),
+                ),
+            )
+        ) / math.sqrt(2.0)
+        valley_channels: Complex[Array, "2 2 1 3"] = project_band_channels(
+            channels[2:],
+            valley_eigenvectors,
+        )
+        valley_amplitudes: Complex[Array, "2 2"] = contract_polarization(
+            valley_channels,
+            polarization,
+        )[:, :, 0]
+        chex.assert_trees_all_close(
+            valley_amplitudes[:, 0],
+            jnp.zeros((2,), dtype=jnp.complex128),
+            rtol=0.0,
+            atol=1.0e-14,
+        )
+        chex.assert_trees_all_close(
+            jnp.abs(valley_amplitudes[:, 1]) ** 2,
+            2.0 * jnp.broadcast_to(atomic_intensity, (2,)),
+            rtol=1.0e-14,
+            atol=1.0e-14,
+        )
+
     def test_depth_ratio_clamp_and_mfp_gradient(self) -> None:
         """Use the half exponent, clamp tolerance noise, and differentiate mfp.
 
@@ -1262,6 +1459,92 @@ class TestTransitionSource:
             )
             result: Complex[Array, ""] = jnp.sum(values)
             return result
+
+        derivative: Complex[Array, ""] = jax.jacfwd(response)(jnp.asarray(0.0))
+        step: float = 1.0e-5
+        finite_difference: Complex[Array, ""] = (
+            response(jnp.asarray(step)) - response(jnp.asarray(-step))
+        ) / (2.0 * step)
+        chex.assert_trees_all_close(
+            derivative,
+            finite_difference,
+            rtol=1.0e-10,
+            atol=1.0e-12,
+        )
+
+    def test_g10_spinless_generic_complex_dense_resolvent(self) -> None:
+        """Match a spinless generic-complex dense resolvent and its slope.
+
+        A three-orbital Hermitian fixture independently exercises the one-spin
+        source convention without relying on the SOC block embedding.
+
+        Notes
+        -----
+        Compare a direct NumPy inverse with its spectral expansion. Reject a
+        planted bra row and check the JAX directional derivative by FD.
+        """
+        hamiltonian: np.ndarray = np.asarray(
+            (
+                (0.17, 0.21 + 0.09j, -0.04j),
+                (0.21 - 0.09j, -0.38, 0.13 + 0.06j),
+                (0.04j, 0.13 - 0.06j, 0.52),
+            ),
+            dtype=np.complex128,
+        )
+        energy: complex = 0.29 + 0.23j
+        row_numpy: np.ndarray = np.asarray(
+            (0.61 + 0.17j, -0.32 + 0.49j, 0.28 - 0.37j),
+            dtype=np.complex128,
+        )
+        source_numpy: np.ndarray = np.asarray(
+            transition_source(jnp.asarray(row_numpy[None, :]))
+        )[0]
+        resolvent_numpy: np.ndarray = np.linalg.inv(
+            energy * np.eye(3, dtype=np.complex128) - hamiltonian
+        )
+        direct: complex = source_numpy.conj() @ resolvent_numpy @ source_numpy
+        eigenvalues: np.ndarray
+        eigenvectors: np.ndarray
+        eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
+        band_amplitudes: np.ndarray = row_numpy @ eigenvectors
+        spectral: complex = complex(
+            np.sum(np.abs(band_amplitudes) ** 2 / (energy - eigenvalues))
+        )
+        np.testing.assert_allclose(
+            direct,
+            spectral,
+            rtol=1.0e-12,
+            atol=1.0e-12,
+        )
+        planted_bra: np.ndarray = np.conj(row_numpy) @ eigenvectors
+        planted_response: complex = complex(
+            np.sum(np.abs(planted_bra) ** 2 / (energy - eigenvalues))
+        )
+        assert not np.isclose(
+            planted_response,
+            direct,
+            rtol=1.0e-6,
+            atol=1.0e-8,
+        )
+
+        hamiltonian_jax: Complex[Array, "3 3"] = jnp.asarray(hamiltonian)
+        resolvent_jax: Complex[Array, "3 3"] = jnp.linalg.inv(
+            energy * jnp.eye(3, dtype=jnp.complex128) - hamiltonian_jax
+        )
+        direction: Complex[Array, " 3"] = jnp.asarray(
+            (0.19 - 0.11j, -0.07 + 0.16j, 0.13 + 0.05j)
+        )
+
+        def response(parameter: Float[Array, ""]) -> Complex[Array, ""]:
+            """Return the spinless response along one real row direction."""
+            row: Complex[Array, " 3"] = (
+                jnp.asarray(row_numpy) + parameter * direction
+            )
+            source: Complex[Array, " 3"] = transition_source(row[None, :])[0]
+            value: Complex[Array, ""] = (
+                jnp.conj(source) @ resolvent_jax @ source
+            )
+            return value
 
         derivative: Complex[Array, ""] = jax.jacfwd(response)(jnp.asarray(0.0))
         step: float = 1.0e-5

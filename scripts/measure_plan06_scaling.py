@@ -425,6 +425,19 @@ def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
     return record
 
 
+def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
+    """Extract numeric array dimensions from retained JAXPR or HLO text."""
+    shapes: set[tuple[int, ...]] = set()
+    match: re.Match[str]
+    for match in re.finditer(r"\[([0-9,\s]+)\]", ir_text):
+        dimensions: tuple[int, ...] = tuple(
+            int(value) for value in match.group(1).split(",") if value.strip()
+        )
+        if dimensions:
+            shapes.add(dimensions)
+    return shapes
+
+
 def _s1() -> dict[str, object]:
     """Measure equation-count scaling and fixed-shape compile reuse."""
     orbital_counts: tuple[int, ...] = (9, 18, 36)
@@ -451,21 +464,36 @@ def _s1() -> dict[str, object]:
     second: Array = channel_jit(changed_dynamic)
     jax.block_until_ready(second)
     cache_after_second: int = channel_jit._cache_size()
+
+    trace_count: int = 0
+
+    def composed_sweep(
+        dynamic: DynamicInputs,
+        polarization: Array,
+    ) -> Array:
+        """Build channels and contract one fixed-shape polarization."""
+        nonlocal trace_count
+        trace_count += 1
+        channels: Array = _channel_function(fixture.basis)(dynamic)
+        contracted: Array = contract_polarization(channels, polarization)
+        return contracted
+
+    composed_jit: Any = cast(Any, jax.jit(composed_sweep))
+    composed_cache_sizes: list[int] = [composed_jit._cache_size()]
+    composed_trace_counts: list[int] = [trace_count]
     polarization: Array
     for polarization in fixture.polarizations:
-        jax.block_until_ready(contract_polarization(second, polarization))
-    cache_after_sweep: int = channel_jit._cache_size()
+        contracted: Array = composed_jit(changed_dynamic, polarization)
+        jax.block_until_ready(contracted)
+        composed_cache_sizes.append(composed_jit._cache_size())
+        composed_trace_counts.append(trace_count)
     count_growth: int = max(equation_counts) - min(equation_counts)
     result: str = (
         "pass"
         if count_growth < orbital_counts[-1] - orbital_counts[0]
-        and (
-            cache_before,
-            cache_after_first,
-            cache_after_second,
-            cache_after_sweep,
-        )
-        == (0, 1, 1, 1)
+        and (cache_before, cache_after_first, cache_after_second) == (0, 1, 1)
+        and composed_cache_sizes == [0, 1, 1, 1, 1, 1, 1]
+        and composed_trace_counts == [0, 1, 1, 1, 1, 1, 1]
         else "fail"
     )
     return {
@@ -476,8 +504,9 @@ def _s1() -> dict[str, object]:
             cache_before,
             cache_after_first,
             cache_after_second,
-            cache_after_sweep,
         ],
+        "composed_sweep_compile_cache_sizes": composed_cache_sizes,
+        "composed_sweep_trace_counts": composed_trace_counts,
         "result": result,
     }
 
@@ -538,17 +567,23 @@ def _s2(
     scalar_groups: Array = scalar_output[0]
     sigma_gradient: Array = scalar_output[1]
     groups: Array = scan_output
-    forbidden_tokens: tuple[str, ...] = (
-        "8x4096x18",
-        "4096x8x18",
-        "8,4096,18",
-        "4096,8,18",
+    parsed_shapes: set[tuple[int, ...]] = _array_shapes(
+        f"{jaxpr_text}\n{hlo_text}"
     )
-    forbidden_present: bool = any(
-        token in scan_hlo.replace(" ", "")
-        or token in str(scan_jaxpr).replace(" ", "")
-        for token in forbidden_tokens
+    forbidden_dimensions: tuple[int, int, int] = (
+        N_ENERGY,
+        N_K,
+        N_ORBITALS,
     )
+    forbidden_shapes: list[list[int]] = sorted(
+        [
+            list(shape)
+            for shape in parsed_shapes
+            if len(shape) == len(forbidden_dimensions)
+            and sorted(shape) == sorted(forbidden_dimensions)
+        ]
+    )
+    forbidden_present: bool = bool(forbidden_shapes)
     scalar_memory: dict[str, int | bool | str] = _memory_record(
         scalar_compiled
     )
@@ -584,6 +619,8 @@ def _s2(
             "reduced_scan": _recursive_equation_count(scan_jaxpr),
         },
         "forbidden_k_e_b_shape_present": forbidden_present,
+        "forbidden_k_e_b_shapes": forbidden_shapes,
+        "parsed_array_shape_count": len(parsed_shapes),
         "jaxpr_gzip": jaxpr_path.name,
         "jaxpr_gzip_sha256": hashlib.sha256(
             jaxpr_path.read_bytes()
@@ -779,7 +816,20 @@ def main() -> None:
     peak_rss_bytes: int = (
         peak_rss_raw if sys.platform == "darwin" else peak_rss_raw * 1024
     )
+    repository_root: Path = Path(__file__).resolve().parents[1]
+    bound_source_paths: tuple[Path, ...] = (
+        Path(__file__).resolve(),
+        repository_root / "src/diffpes/simul/matrixel.py",
+        repository_root / "src/diffpes/types/radial_params.py",
+    )
+    source_sha256: dict[str, str] = {
+        str(path.relative_to(repository_root)): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in bound_source_paths
+    }
     artifact: dict[str, object] = {
+        "schema": "diffpes.plan06.scalability.v2",
         "gates": ["06.S1", "06.S2", "06.S3"],
         "device": str(jax.devices()[0]),
         "cpu": platform.processor(),
@@ -790,6 +840,7 @@ def main() -> None:
         "host_setup_seconds": host_setup_seconds,
         "process_peak_rss_bytes_non_authoritative": peak_rss_bytes,
         "dynamic_input_sha256": _checksum_fixture(fixture),
+        "source_sha256": source_sha256,
         "s1": s1,
         "s2": s2,
         "s3": s3,

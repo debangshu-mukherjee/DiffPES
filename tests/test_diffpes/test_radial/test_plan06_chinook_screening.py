@@ -1,4 +1,8 @@
-"""Certify the Chinook sample portion of Plan 06 G4 from inert data."""
+"""Certify the Chinook sample portion of Plan 06 G4 from inert data.
+
+The tests check rounded screening values and authenticate the frozen external
+source metadata without importing Chinook.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +23,14 @@ class TestPlan06ChinookScreeningReference:
     """Compare Slater screening with the authenticated frozen sample."""
 
     def test_sample_is_bit_equal_after_pinned_rounding(self) -> None:
-        """Match each inert Chinook value after its declared rounding."""
+        """Match each inert Chinook value after its declared rounding.
+
+        The test checks all six subshell samples at the recorded precision.
+
+        Notes
+        -----
+        It loads inert JSON and compares public Slater screening results.
+        """
         artifact: dict[str, Any] = json.loads(
             REFERENCE_PATH.read_text(encoding="utf-8")
         )
@@ -37,7 +48,14 @@ class TestPlan06ChinookScreeningReference:
             assert round(actual, digits) == sample["rounded_zeff"]
 
     def test_artifact_pins_chinook_source_and_inert_policy(self) -> None:
-        """Require commit and source-table authentication metadata."""
+        """Require commit and source-table authentication metadata.
+
+        The test checks the commit, both hashes, and the inert-data policy.
+
+        Notes
+        -----
+        It reads each provenance field directly from the frozen JSON.
+        """
         artifact: dict[str, Any] = json.loads(
             REFERENCE_PATH.read_text(encoding="utf-8")
         )

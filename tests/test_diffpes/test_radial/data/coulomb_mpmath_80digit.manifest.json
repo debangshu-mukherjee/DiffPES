@@ -1,0 +1,78 @@
+{
+  "archive": "coulomb_mpmath_80digit.npz",
+  "archive_sha256": "93e99804418e14667c97885c03de5a0b6f4a58253fa006da2bd860389fd014a7",
+  "dense_value_residual_product": {
+    "eta_count": 25,
+    "eta_interval": [
+      -3.0,
+      3.0
+    ],
+    "orders": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "rho_count": 257,
+    "rho_interval": [
+      0.0001,
+      40.0
+    ],
+    "rho_spacing": "geometric"
+  },
+  "derivative_construction": {
+    "eta": "80-digit symmetric quotient with step 1e-20",
+    "rho": "exact Coulomb order recurrence at 80 decimal digits",
+    "rho_second": "independent Coulomb ODE identity"
+  },
+  "environment": {
+    "numpy": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "python": "3.13.6"
+  },
+  "gates": [
+    "06.G11",
+    "06.D11"
+  ],
+  "generator": "scripts/generate_coulomb_reference.py",
+  "generator_sha256": "3c3746c6cf1e7997d446d1144a9ab642bfc6343edb2d63c478311647e394b58f",
+  "normalization": "mpmath Coulomb F_l/G_l convention; F'G-FG'=1",
+  "reference_engine": {
+    "decimal_digits": 80,
+    "name": "mpmath",
+    "version": "1.4.1"
+  },
+  "schema": "diffpes.plan06.coulomb-reference.v2",
+  "source_revision": "baa0eff2db9deee42eceb46bc8905a804034dc50",
+  "sparse_value_derivative_product": {
+    "etas": [
+      -3.0,
+      -1.0,
+      -0.25,
+      0.0,
+      0.25,
+      1.0,
+      3.0
+    ],
+    "orders": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "rhos": [
+      0.0001,
+      0.0003,
+      0.001,
+      0.01,
+      0.1,
+      1.0,
+      4.0,
+      10.0,
+      20.0,
+      40.0
+    ]
+  }
+}

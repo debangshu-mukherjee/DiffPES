@@ -1,10 +1,15 @@
-"""Validate the reproducible Plan 06 S1--S3 benchmark artifact."""
+"""Validate the reproducible Plan 06 S1--S3 benchmark artifact.
+
+The tests check graph scaling, compiler memory, retained IR, and raw timing
+statistics against the committed literal-shape measurement.
+"""
 
 from __future__ import annotations
 
 import gzip
 import hashlib
 import json
+import re
 import statistics
 from pathlib import Path
 from typing import Any
@@ -15,6 +20,7 @@ ARTIFACT_DIRECTORY: Path = (
     Path(__file__).parents[1] / "_reference_data" / "plan06_scalability"
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "plan06_s1_s3_cpu.json"
+REPOSITORY_ROOT: Path = Path(__file__).parents[3]
 
 
 def _artifact() -> dict[str, Any]:
@@ -30,12 +36,38 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
+    """Extract numeric dimensions from the retained compiler text."""
+    shapes: set[tuple[int, ...]] = set()
+    match: re.Match[str]
+    for match in re.finditer(r"\[([0-9,\s]+)\]", ir_text):
+        dimensions: tuple[int, ...] = tuple(
+            int(value) for value in match.group(1).split(",") if value.strip()
+        )
+        if dimensions:
+            shapes.add(dimensions)
+    return shapes
+
+
 class TestPlan06ScalabilityEvidence:
     """Check structural, allocation, and raw-timing evidence."""
 
     def test_s1_sublinear_equations_and_compile_reuse(self) -> None:
-        """Require constant graph size and one fixed-shape channel compile."""
+        """Require constant graph size and one fixed-shape channel compile.
+
+        The test checks all three orbital counts and each recorded cache size.
+
+        Notes
+        -----
+        It loads the JSON artifact and compares exact structural counters.
+        """
         artifact: dict[str, Any] = _artifact()
+        assert artifact["schema"] == "diffpes.plan06.scalability.v2"
+        relative_path: str
+        digest: str
+        for relative_path, digest in artifact["source_sha256"].items():
+            source_path: Path = REPOSITORY_ROOT / relative_path
+            assert _sha256(source_path) == digest
         assert artifact["process_peak_rss_bytes_non_authoritative"] > 0
         s1: dict[str, Any] = artifact["s1"]
         orbital_counts: list[int] = s1["orbital_counts"]
@@ -45,13 +77,30 @@ class TestPlan06ScalabilityEvidence:
         assert s1["equation_count_growth"] < (
             orbital_counts[-1] - orbital_counts[0]
         )
-        assert s1["compile_cache_sizes"] == [0, 1, 1, 1]
+        assert s1["compile_cache_sizes"] == [0, 1, 1]
+        assert s1["composed_sweep_compile_cache_sizes"] == [
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+        ]
+        assert s1["composed_sweep_trace_counts"] == [0, 1, 1, 1, 1, 1, 1]
         assert s1["result"] == "pass"
 
     def test_s2_dynamic_arguments_live_allocation_and_retained_ir(
         self,
     ) -> None:
-        """Require literal dimensions, XLA authority, and no K-E-B cube."""
+        """Require literal dimensions, XLA authority, and no K-E-B cube.
+
+        The test checks dynamic allocation, retained IR, and reduced outputs.
+
+        Notes
+        -----
+        It recomputes live bytes and verifies both compressed artifact hashes.
+        """
         s2: dict[str, Any] = _artifact()["s2"]
         assert (s2["n_k"], s2["n_orb"], s2["n_energy"]) == (4096, 18, 8)
         assert s2["output_shape"] == [8, 4096, 6]
@@ -86,20 +135,34 @@ class TestPlan06ScalabilityEvidence:
         assert _sha256(hlo_path) == s2["hlo_gzip_sha256"]
         jaxpr_text: str = gzip.decompress(jaxpr_path.read_bytes()).decode()
         hlo_text: str = gzip.decompress(hlo_path.read_bytes()).decode()
+        text: str
         for text in (jaxpr_text, hlo_text):
             assert "SCALAR-ENERGY VALUE+GRADIENT" in text
             assert "EIGHT-ENERGY REDUCED SCAN" in text
-            compact: str = text.replace(" ", "")
-            assert "8x4096x18" not in compact
-            assert "4096x8x18" not in compact
-            assert "8,4096,18" not in compact
-            assert "4096,8,18" not in compact
+        parsed_shapes: set[tuple[int, ...]] = _array_shapes(
+            f"{jaxpr_text}\n{hlo_text}"
+        )
+        forbidden_shapes: set[tuple[int, ...]] = {
+            shape
+            for shape in parsed_shapes
+            if len(shape) == 3 and sorted(shape) == [8, 18, 4096]
+        }
+        assert forbidden_shapes == set()
+        assert s2["forbidden_k_e_b_shapes"] == []
+        assert s2["parsed_array_shape_count"] == len(parsed_shapes)
         assert s2["result"] == "pass"
 
     def test_s3_raw_repetitions_recompute_medians_and_both_ratios(
         self,
     ) -> None:
-        """Recompute every reported S3 statistic from seven raw runs."""
+        """Recompute every reported S3 statistic from seven raw runs.
+
+        The test checks synchronized samples, medians, and both reuse ratios.
+
+        Notes
+        -----
+        It derives each statistic directly from the four raw timing series.
+        """
         s3: dict[str, Any] = _artifact()["s3"]
         assert s3["warmups"] == 2
         assert s3["repetitions"] == 7

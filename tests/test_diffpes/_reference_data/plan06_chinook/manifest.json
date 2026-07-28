@@ -1,0 +1,38 @@
+{
+  "schema": "diffpes.plan06.chinook-reference.v1",
+  "gates": [
+    "06.G6",
+    "06.G7"
+  ],
+  "classification": "K-type behavioral compatibility",
+  "chinook_repository": "https://github.com/qmlab-ubc-ca/chinook",
+  "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "chinook_distribution": "chinook @ git+https://github.com/qmlab-ubc-ca/chinook@24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "diffpes_baseline_commit": "303c1d891c9576ccaacaa0f1e08e581a11b1ea30",
+  "generator": "run_chinook.py",
+  "model_specification": "model_spec.json",
+  "model_specification_sha256": "8c2b00c99242b539e694620bc744fb89eb7898a2402ad3f684263e4e2a50827e",
+  "archive": "chinook_reference.npz",
+  "archive_sha256": "9e857413fce56a3d4af45e88b040a0b85d9af0b445f240f53cb7b1de19365cb1",
+  "environment_sha256": "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531",
+  "python_version": "3.11.13",
+  "numpy_version": "1.26.4",
+  "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+  "machine": "x86_64",
+  "numpy_build_configuration": "{\n  \"Compilers\": {\n    \"c\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"10.2.1\",\n      \"commands\": \"cc\",\n      \"args\": \"-fno-strict-aliasing\",\n      \"linker args\": \"-Wl,--strip-debug, -fno-strict-aliasing\"\n    },\n    \"cython\": {\n      \"name\": \"cython\",\n      \"linker\": \"cython\",\n      \"version\": \"3.0.8\",\n      \"commands\": \"cython\"\n    },\n    \"c++\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"10.2.1\",\n      \"commands\": \"c++\",\n      \"linker args\": \"-Wl,--strip-debug\"\n    }\n  },\n  \"Machine Information\": {\n    \"host\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    },\n    \"build\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    }\n  },\n  \"Build Dependencies\": {\n    \"blas\": {\n      \"name\": \"openblas64\",\n      \"found\": true,\n      \"version\": \"0.3.23.dev\",\n      \"detection method\": \"pkgconfig\",\n      \"include directory\": \"/usr/local/include\",\n      \"lib directory\": \"/usr/local/lib\",\n      \"openblas configuration\": \"USE_64BITINT=1 DYNAMIC_ARCH=1 DYNAMIC_OLDER= NO_CBLAS= NO_LAPACK= NO_LAPACKE= NO_AFFINITY=1 USE_OPENMP= HASWELL MAX_THREADS=2\",\n      \"pc file directory\": \"/usr/local/lib/pkgconfig\"\n    },\n    \"lapack\": {\n      \"name\": \"dep140213194937296\",\n      \"found\": true,\n      \"version\": \"1.26.4\",\n      \"detection method\": \"internal\",\n      \"include directory\": \"unknown\",\n      \"lib directory\": \"unknown\",\n      \"openblas configuration\": \"unknown\",\n      \"pc file directory\": \"unknown\"\n    }\n  },\n  \"Python Information\": {\n    \"path\": \"/opt/python/cp311-cp311/bin/python\",\n    \"version\": \"3.11\"\n  },\n  \"SIMD Extensions\": {\n    \"baseline\": [\n      \"SSE\",\n      \"SSE2\",\n      \"SSE3\"\n    ],\n    \"found\": [\n      \"SSSE3\",\n      \"SSE41\",\n      \"POPCNT\",\n      \"SSE42\",\n      \"AVX\",\n      \"F16C\",\n      \"FMA3\",\n      \"AVX2\",\n      \"AVX512F\",\n      \"AVX512CD\",\n      \"AVX512_SKX\"\n    ],\n    \"not found\": [\n      \"AVX512_KNL\",\n      \"AVX512_KNM\",\n      \"AVX512_CLX\",\n      \"AVX512_CNL\",\n      \"AVX512_ICL\"\n    ]\n  }\n}\n",
+  "point_counts": {
+    "graphene_states": 3844,
+    "graphene_kpoints": 1922,
+    "polarizations": 4
+  },
+  "black_box_position_control": {
+    "basis_B_shift_cartesian_angstrom": [
+      0.17,
+      0.11,
+      0.07
+    ],
+    "max_abs_amplitude_change": 0.0,
+    "interpretation": "With the hopping list held fixed, Chinook's matrix-element output is insensitive to the orbital-centre shift. This behavioral control identifies the missing explicit final-state centre phase; it is documented, not emulated."
+  },
+  "policy": "Generated manually in the isolated pinned environment. Only inert NPZ/JSON data cross into the DiffPES-side replay; DiffPES tests never import Chinook or this generator."
+}

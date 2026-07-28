@@ -702,21 +702,18 @@ def _accurate_coulomb_scalar(
         mxstep=200000,
     )
     asymptotic_at_rho: Complex[Array, ""]
-    asymptotic_at_rho, _ = _outgoing_asymptotic_state(
-        order,
-        eta,
-        rho,
+    asymptotic_derivative_at_rho: Complex[Array, ""]
+    asymptotic_at_rho, asymptotic_derivative_at_rho = (
+        _outgoing_asymptotic_state(
+            order,
+            eta,
+            rho,
+        )
     )
     irregular: Float[Array, ""] = jnp.where(
         rho >= boundary_rho,
         jnp.real(asymptotic_at_rho),
         irregular_solution[-1, 0],
-    )
-    asymptotic_derivative_at_rho: Complex[Array, ""]
-    _, asymptotic_derivative_at_rho = _outgoing_asymptotic_state(
-        order,
-        eta,
-        rho,
     )
     irregular_derivative: Float[Array, ""] = jnp.where(
         rho >= boundary_rho,
@@ -832,21 +829,21 @@ def _plane_coulomb_rows(
     Float[Array, " ..."],
 ]:
     """Return the exact eta-zero F, G, and derivative rows."""
-    regular: Float[Array, " ..."] = rho * spherical_bessel_jl(order, rho)
-    regular_derivative: Float[Array, " ..."] = spherical_bessel_jl(
-        order,
-        rho,
-    ) + rho * spherical_bessel_jl_derivative(order, rho)
     irregular_zero: Float[Array, " ..."] = jnp.cos(rho)
-    irregular_next: Float[Array, " ..."]
     if order == 0:
+        regular: Float[Array, " ..."] = jnp.sin(rho)
+        regular_derivative: Float[Array, " ..."] = jnp.cos(rho)
         irregular: Float[Array, " ..."] = irregular_zero
-        irregular_next: Float[Array, " ..."] = jnp.cos(rho) / rho + jnp.sin(
-            rho
-        )
+        irregular_derivative: Float[Array, " ..."] = -jnp.sin(rho)
     else:
+        regular = rho * spherical_bessel_jl(order, rho)
+        regular_derivative = spherical_bessel_jl(
+            order,
+            rho,
+        ) + rho * spherical_bessel_jl_derivative(order, rho)
         irregular_previous: Float[Array, " ..."] = irregular_zero
         irregular = jnp.cos(rho) / rho + jnp.sin(rho)
+        irregular_next: Float[Array, " ..."]
         recurrence_order: int
         for recurrence_order in range(1, order):
             irregular_next = (
@@ -855,9 +852,7 @@ def _plane_coulomb_rows(
             irregular_previous = irregular
             irregular = irregular_next
         irregular_next = (2 * order + 1) * irregular / rho - irregular_previous
-    irregular_derivative: Float[Array, " ..."] = (
-        order + 1
-    ) * irregular / rho - irregular_next
+        irregular_derivative = (order + 1) * irregular / rho - irregular_next
     result: tuple[
         Float[Array, " ..."],
         Float[Array, " ..."],
@@ -951,6 +946,111 @@ def _accurate_coulomb_values_with_plane_limit_jvp(
     result: tuple[Float[Array, "4 ..."], Float[Array, "4 ..."]] = (
         result_values,
         result_tangent,
+    )
+    return result
+
+
+def _normalized_coulomb_rows_impl(
+    order: int,
+    eta: Float[Array, " ..."],
+    rho: Float[Array, " ..."],
+) -> Float[Array, "4 ..."]:
+    """Return Wronskian-normalized Coulomb rows before the public JVP."""
+    values: Float[Array, "4 ..."] = _accurate_coulomb_values_with_plane_limit(
+        order,
+        eta,
+        rho,
+    )
+    regular: Float[Array, " ..."] = values[0]
+    irregular: Float[Array, " ..."] = values[1]
+    regular_derivative: Float[Array, " ..."] = values[2]
+    irregular_derivative: Float[Array, " ..."] = values[3]
+    wronskian: Float[Array, " ..."] = (
+        regular_derivative * irregular - regular * irregular_derivative
+    )
+    derivative_norm: Float[Array, " ..."] = regular**2 + irregular**2
+    correction: Float[Array, " ..."] = (1.0 - wronskian) / derivative_norm
+    normalized: Float[Array, "4 ..."] = jnp.stack(
+        (
+            regular,
+            irregular,
+            regular_derivative + correction * irregular,
+            irregular_derivative - correction * regular,
+        )
+    )
+    return normalized
+
+
+@partial(jax.custom_jvp, nondiff_argnums=(0,))
+def _normalized_coulomb_rows(
+    order: int,
+    eta: Float[Array, " ..."],
+    rho: Float[Array, " ..."],
+) -> Float[Array, "4 ..."]:
+    """Preserve both the normalized Wronskian and Coulomb ODE tangent."""
+    values: Float[Array, "4 ..."] = _normalized_coulomb_rows_impl(
+        order,
+        eta,
+        rho,
+    )
+    return values
+
+
+@partial(_normalized_coulomb_rows.defjvp, symbolic_zeros=True)
+def _normalized_coulomb_rows_jvp(
+    order: int,
+    primals: tuple[Float[Array, " ..."], Float[Array, " ..."]],
+    tangents: tuple[
+        Float[Array, " ..."] | jax.custom_derivatives.SymbolicZero,
+        Float[Array, " ..."] | jax.custom_derivatives.SymbolicZero,
+    ],
+) -> tuple[Float[Array, "4 ..."], Float[Array, "4 ..."]]:
+    """Differentiate eta numerically and rho through the exact ODE system."""
+    eta: Float[Array, " ..."]
+    rho: Float[Array, " ..."]
+    eta_tangent: Float[Array, " ..."] | jax.custom_derivatives.SymbolicZero
+    rho_tangent: Float[Array, " ..."] | jax.custom_derivatives.SymbolicZero
+    eta, rho = primals
+    eta_tangent, rho_tangent = tangents
+    values: Float[Array, "4 ..."] = _normalized_coulomb_rows_impl(
+        order,
+        eta,
+        rho,
+    )
+    eta_contribution: Float[Array, "4 ..."]
+    if isinstance(eta_tangent, jax.custom_derivatives.SymbolicZero):
+        eta_contribution = jnp.zeros_like(values)
+    else:
+        eta_derivative: Float[Array, "4 ..."] = jax.jvp(
+            lambda argument: _normalized_coulomb_rows_impl(
+                order,
+                argument,
+                rho,
+            ),
+            (eta,),
+            (jnp.ones_like(eta),),
+        )[1]
+        eta_contribution = eta_derivative * eta_tangent
+    ode_factor: Float[Array, " ..."] = (
+        1.0 - 2.0 * eta / rho - float(order * (order + 1)) / rho**2
+    )
+    rho_derivative: Float[Array, "4 ..."] = jnp.stack(
+        (
+            values[2],
+            values[3],
+            -ode_factor * values[0],
+            -ode_factor * values[1],
+        )
+    )
+    rho_contribution: Float[Array, "4 ..."] = (
+        jnp.zeros_like(values)
+        if isinstance(rho_tangent, jax.custom_derivatives.SymbolicZero)
+        else rho_derivative * rho_tangent
+    )
+    tangent_values: Float[Array, "4 ..."] = eta_contribution + rho_contribution
+    result: tuple[Float[Array, "4 ..."], Float[Array, "4 ..."]] = (
+        values,
+        tangent_values,
     )
     return result
 
@@ -1070,7 +1170,7 @@ def coulomb_fg(  # noqa: DOC503
         | jnp.any(rho_array > 40.0),
         "rho must be finite and lie in [1e-4, 40]",
     )
-    values: Float[Array, "4 ..."] = _accurate_coulomb_values_with_plane_limit(
+    values: Float[Array, "4 ..."] = _normalized_coulomb_rows(
         order,
         eta_array,
         rho_array,
@@ -1079,13 +1179,6 @@ def coulomb_fg(  # noqa: DOC503
     irregular: Float[Array, " ..."] = values[1]
     regular_derivative: Float[Array, " ..."] = values[2]
     irregular_derivative: Float[Array, " ..."] = values[3]
-    wronskian: Float[Array, " ..."] = (
-        regular_derivative * irregular - regular * irregular_derivative
-    )
-    derivative_norm: Float[Array, " ..."] = regular**2 + irregular**2
-    correction: Float[Array, " ..."] = (1.0 - wronskian) / derivative_norm
-    regular_derivative = regular_derivative + correction * irregular
-    irregular_derivative = irregular_derivative - correction * regular
     result: tuple[
         Float[Array, " ..."],
         Float[Array, " ..."],

@@ -11,6 +11,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Any
 from jaxtyping import Array
 from scipy.integrate import lebedev_rule
@@ -1282,6 +1283,7 @@ class TestGaugeEquivalenceBattery:
         )
         assert float(jnp.max(mixed_refinement)) <= 1e-10
 
+    @pytest.mark.rss_limit_mb(768)
     def test_local_quadratic_coefficient_derivatives(self) -> None:
         """Match JAX gauge derivatives for the local box coefficient.
 

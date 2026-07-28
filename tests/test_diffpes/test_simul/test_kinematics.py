@@ -1489,6 +1489,7 @@ class TestKparToDetectorAngles(chex.TestCase):
         )
         k_parallel: Float[Array, "2"]
         energy: Float[Array, ""]
+        case_index: int
         compiled: bool
         slit: str
         for compiled in (False, True):
@@ -1498,13 +1499,14 @@ class TestKparToDetectorAngles(chex.TestCase):
             if compiled:
                 operation = jax.jit(operation, static_argnames=("slit",))
             for slit in ("H", "V"):
-                for k_parallel, energy in invalid_cases:
+                for case_index, (k_parallel, energy) in enumerate(
+                    invalid_cases
+                ):
                     with (
                         self.subTest(
                             compiled=compiled,
                             slit=slit,
-                            k_parallel=k_parallel,
-                            energy=energy,
+                            case_index=case_index,
                         ),
                         pytest.raises(RuntimeError, match="requires Ekin > 0"),
                     ):

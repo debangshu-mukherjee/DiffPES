@@ -37,6 +37,7 @@ from diffpes.types import (
 _SPATIAL_PLANE_WAVE_FACTOR: float = math.sqrt(3.0 / (4.0 * math.pi)) / (
     4.0 * math.pi
 )
+_SPATIAL_AMPLITUDE_REFERENCE: complex = 3.9264107296525 - 2.7583112509178j
 
 
 def _normalized_sto(
@@ -63,9 +64,9 @@ def _spatial_volume_amplitude(
     """Integrate the normalized mixed s-plus-pz orbital in Cartesian space."""
     radial_abscissa: np.ndarray
     radial_weights_raw: np.ndarray
-    radial_abscissa, radial_weights_raw = np.polynomial.legendre.leggauss(320)
-    radius: np.ndarray = 20.0 * (radial_abscissa + 1.0)
-    radial_weights: np.ndarray = 20.0 * radial_weights_raw
+    radial_abscissa, radial_weights_raw = np.polynomial.legendre.leggauss(400)
+    radius: np.ndarray = 25.0 * (radial_abscissa + 1.0)
+    radial_weights: np.ndarray = 25.0 * radial_weights_raw
     cosine: np.ndarray
     cosine_weights: np.ndarray
     cosine, cosine_weights = np.polynomial.legendre.leggauss(72)
@@ -99,35 +100,41 @@ def _spatial_volume_amplitude(
     y10: np.ndarray = math.sqrt(3.0 / (4.0 * math.pi)) * z_direction
     radial_s: np.ndarray = _normalized_sto(1, 1.1, radius)
     radial_p: np.ndarray = _normalized_sto(2, 0.9, radius)
-    wavefunction: np.ndarray = (
-        coefficients[0] * radial_s[:, None, None] * y00[None, :, :]
-        + coefficients[1] * radial_p[:, None, None] * y10[None, :, :]
-    )
-    plane_wave: np.ndarray = np.exp(
-        1j
-        * momentum_bohr_inv
-        * radius[:, None, None]
-        * momentum_projection[None, :, :]
-    )
-    weights: np.ndarray = (
-        radial_weights[:, None, None]
-        * cosine_weights[None, :, None]
-        * azimuth_weight
-    )
-    amplitude: complex = complex(
-        np.sum(
-            weights
-            * radius[:, None, None] ** 3
-            * plane_wave
-            * polarization_projection[None, :, :]
-            * wavefunction
+    angular_weights: np.ndarray = cosine_weights[:, None] * azimuth_weight
+    amplitude: complex = 0.0j
+    norm: float = 0.0
+    radial_point: np.float64
+    radial_weight: np.float64
+    s_value: np.float64
+    p_value: np.float64
+    for radial_point, radial_weight, s_value, p_value in zip(
+        radius,
+        radial_weights,
+        radial_s,
+        radial_p,
+        strict=True,
+    ):
+        wavefunction: np.ndarray = (
+            coefficients[0] * s_value * y00 + coefficients[1] * p_value * y10
         )
-    )
-    norm: float = float(
-        np.sum(
-            weights * radius[:, None, None] ** 2 * np.abs(wavefunction) ** 2
+        plane_wave: np.ndarray = np.exp(
+            1j * momentum_bohr_inv * radial_point * momentum_projection
         )
-    )
+        amplitude += complex(
+            radial_weight
+            * radial_point**3
+            * np.sum(
+                angular_weights
+                * plane_wave
+                * polarization_projection
+                * wavefunction
+            )
+        )
+        norm += float(
+            radial_weight
+            * radial_point**2
+            * np.sum(angular_weights * np.abs(wavefunction) ** 2)
+        )
     return amplitude, norm
 
 
@@ -205,6 +212,12 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
         polarization,
         coefficients,
     )
+    np.testing.assert_allclose(
+        spatial_amplitude,
+        _SPATIAL_AMPLITUDE_REFERENCE,
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
     expected: complex = _SPATIAL_PLANE_WAVE_FACTOR * spatial_amplitude
     correct_radial: np.ndarray = np.asarray(
         radial_bvals(
@@ -222,8 +235,8 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
         basis,
         params,
     )
-    np.testing.assert_allclose(spatial_norm, 1.0, rtol=0.0, atol=2.0e-12)
-    np.testing.assert_allclose(actual, expected, rtol=2.0e-9, atol=2.0e-10)
+    np.testing.assert_allclose(spatial_norm, 1.0, rtol=0.0, atol=1.0e-12)
+    np.testing.assert_allclose(actual, expected, rtol=1.0e-12, atol=1.0e-13)
 
     final_degrees: tuple[tuple[int, int], ...] = ((-1, 1), (0, 2))
     phase_free: np.ndarray = np.zeros_like(correct_radial)

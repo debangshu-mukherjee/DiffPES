@@ -27,5 +27,4 @@ caches, and all S1--S3 executables and is diagnostic only.
 S3 timing is host-specific. The JSON retains two warmups, all seven
 synchronized repetitions for each of four routes, compilation times, medians,
 and both ratios. The executable test recomputes every statistic from the raw
-measurements; it does not claim that another host must reproduce identical
-wall-clock durations.
+measurements. Another host need not reproduce identical wall-clock durations.

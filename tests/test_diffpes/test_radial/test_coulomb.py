@@ -3,9 +3,12 @@
 The tests exercise frozen references, differential identities, and transforms.
 """
 
+import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import chex
 import jax
@@ -81,10 +84,84 @@ class TestCoulombPhaseShift:
 class TestCoulombFg:
     """Validate :func:`diffpes.radial.coulomb_fg`."""
 
-    def test_frozen_product_in_isolated_processes(self) -> None:
-        """Match every frozen Coulomb product row in isolated processes.
+    def test_frozen_artifact_provenance_and_checksums(self) -> None:
+        """Bind the independent dense artifact to its generator and manifest.
 
-        The test covers values and both parameter-derivative directions.
+        The evidence package records the exact sparse and dense domains,
+        arbitrary-precision engine, source revision, and immutable digests.
+
+        Notes
+        -----
+        Recompute every listed SHA-256 from repository-root-relative paths.
+        """
+        root: Path = Path(__file__).parents[3]
+        data_directory: Path = Path(__file__).with_name("data")
+        manifest_path: Path = (
+            data_directory / "coulomb_mpmath_80digit.manifest.json"
+        )
+        manifest: dict[str, Any] = json.loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
+        assert manifest["schema"] == "diffpes.plan06.coulomb-reference.v2"
+        assert manifest["reference_engine"]["decimal_digits"] == 80
+        assert manifest["dense_value_residual_product"] == {
+            "eta_count": 25,
+            "eta_interval": [-3.0, 3.0],
+            "orders": [0, 1, 2, 3, 4],
+            "rho_count": 257,
+            "rho_interval": [1.0e-4, 40.0],
+            "rho_spacing": "geometric",
+        }
+        archive_path: Path = data_directory / manifest["archive"]
+        assert (
+            hashlib.sha256(archive_path.read_bytes()).hexdigest()
+            == manifest["archive_sha256"]
+        )
+        checksum_path: Path = data_directory / "coulomb_SHA256SUMS"
+        line: str
+        for line in checksum_path.read_text(encoding="utf-8").splitlines():
+            expected: str
+            relative: str
+            expected, relative = line.split("  ", maxsplit=1)
+            target: Path = root / relative
+            assert hashlib.sha256(target.read_bytes()).hexdigest() == expected
+
+    @pytest.mark.parametrize("order", range(5))
+    @pytest.mark.rss_limit_mb(1500)
+    def test_dense_reference_domain_in_isolated_processes(
+        self,
+        order: int,
+    ) -> None:
+        """Match all 32,125 independent dense Coulomb value nodes.
+
+        Every static order covers the boundary-inclusive 25-by-257 domain,
+        ODE residual, Wronskian, plane row, and origin asymptotics.
+
+        Notes
+        -----
+        Separate processes release each order's adaptive-solver executables.
+        """
+        root: Path = Path(__file__).parents[3]
+        script: Path = root / "scripts" / "verify_coulomb_dense_reference.py"
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            [sys.executable, str(script), str(order)],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    @pytest.mark.parametrize("order", range(5))
+    @pytest.mark.rss_limit_mb(1600)
+    def test_frozen_product_in_isolated_processes(
+        self,
+        order: int,
+    ) -> None:
+        """Match sparse derivatives in both AD modes and every FD rung.
+
+        All four rows cover both parameter directions on the registered
+        7-by-10 value/derivative product, including one-sided boundaries.
 
         Notes
         -----
@@ -92,18 +169,14 @@ class TestCoulombFg:
         """
         root: Path = Path(__file__).parents[3]
         script: Path = root / "scripts" / "verify_coulomb_reference.py"
-        order: int
-        for order in range(5):
-            completed: subprocess.CompletedProcess[str] = subprocess.run(
-                [sys.executable, str(script), str(order)],
-                cwd=root,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            assert completed.returncode == 0, (
-                completed.stdout + completed.stderr
-            )
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            [sys.executable, str(script), str(order)],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
 
     @pytest.mark.rss_limit_mb(1200)
     def test_plane_wave_identity_ode_and_parameter_gradients(self) -> None:
@@ -219,6 +292,7 @@ class TestCoulombFg:
 class TestFinalStateRadial:
     """Validate :func:`diffpes.radial.final_state_radial`."""
 
+    @pytest.mark.rss_limit_mb(700)
     def test_plane_wave_limit_origin_and_charge_gradient(self) -> None:
         """Match the plane limit and retain a nonzero charge gradient.
 

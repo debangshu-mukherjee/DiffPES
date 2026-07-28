@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -47,6 +49,10 @@ type Fixture = tuple[
 
 _EFFECTIVE_CHARGE_DERIVATIVE_FLOOR = 1.0e-5
 _PHOTON_ENERGY_DERIVATIVE_FLOOR = 1.0e-6
+_FD_STEP_LADDERS: tuple[tuple[float, ...], ...] = (
+    (4.0e-3, 2.0e-3, 1.0e-3),
+    (4.0e-2, 2.0e-2, 1.0e-2),
+)
 
 
 def _fixture() -> Fixture:
@@ -204,16 +210,20 @@ def main() -> None:
 
     forward: Float[Array, " 2"] = jax.jacfwd(objective)(parameters)
     reverse: Float[Array, " 2"] = jax.jacrev(objective)(parameters)
-    steps: tuple[float, float] = (1.0e-3, 1.0e-2)
-    finite_difference: Float[Array, " 2"] = jnp.stack(
+    finite_difference: Float[Array, "3 2"] = jnp.stack(
         tuple(
-            _five_point_derivative(
-                parameters,
-                coordinate,
-                steps[coordinate],
-                fixture,
+            jnp.stack(
+                tuple(
+                    _five_point_derivative(
+                        parameters,
+                        coordinate,
+                        step,
+                        fixture,
+                    )
+                    for coordinate, step in enumerate(rung)
+                )
             )
-            for coordinate in range(2)
+            for rung in zip(*_FD_STEP_LADDERS, strict=True)
         )
     )
     np.testing.assert_allclose(
@@ -223,7 +233,7 @@ def main() -> None:
         atol=1.0e-10,
     )
     np.testing.assert_allclose(
-        forward,
+        jnp.broadcast_to(forward, finite_difference.shape),
         finite_difference,
         rtol=1.0e-6,
         atol=1.0e-10,
@@ -241,6 +251,31 @@ def main() -> None:
         rtol=1.0e-10,
         atol=1.0e-14,
     )
+    fd_budget_ratios: Float[Array, "3 2"] = jnp.abs(
+        finite_difference - forward[None, :]
+    ) / (1.0e-10 + 1.0e-6 * jnp.abs(forward[None, :]))
+    plateau_spread: Float[Array, " 2"] = jnp.abs(
+        finite_difference[-1] - finite_difference[-2]
+    ) / (1.0e-10 + 1.0e-6 * jnp.abs(forward))
+    if bool(jnp.any(plateau_spread > 1.0)):
+        message = f"composed D11 FD plateau failed: {plateau_spread}"
+        raise AssertionError(message)
+    metrics: dict[str, Any] = {
+        "forward_derivative": [float(value) for value in forward],
+        "reverse_derivative": [float(value) for value in reverse],
+        "fd_step_ladders": [list(values) for values in _FD_STEP_LADDERS],
+        "fd_values": [
+            [float(value) for value in row] for row in finite_difference
+        ],
+        "fd_budget_ratios": [
+            [float(value) for value in row] for row in fd_budget_ratios
+        ],
+        "plateau_spread_budget_ratios": [
+            float(value) for value in plateau_spread
+        ],
+        "value": float(value),
+    }
+    print(json.dumps(metrics, sort_keys=True))
 
 
 if __name__ == "__main__":

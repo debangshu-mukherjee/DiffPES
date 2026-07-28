@@ -161,7 +161,6 @@ class TestZeroLegacySpectrum:
             "simulate_expert_expanded",
             "simulate_soc_expanded",
             "simulate_tb_radial",
-            "dipole_matrix_elements",
             "heuristic_weights",
             "yeh_lindau_weights",
         ),
@@ -197,7 +196,6 @@ class TestZeroLegacySpectrum:
         (
             "SlaterParams",
             "make_slater_params",
-            "ORBITAL_DIRS_NORMALIZED",
             "CROSS_SECTION_ENERGIES",
             "CROSS_SECTION_SIGMA_S",
             "CROSS_SECTION_SIGMA_P",
