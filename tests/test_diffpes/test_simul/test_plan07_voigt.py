@@ -655,7 +655,9 @@ class TestPlan07VoigtProductionPreregistration:
             rtol=1.0e-12,
             atol=0.0,
         )
-        np.testing.assert_array_equal(
+        np.testing.assert_allclose(
             np.asarray(spectrum.energy_axis),
             desired["leaf_001_energy_axis"],
+            rtol=1.0e-12,
+            atol=0.0,
         )

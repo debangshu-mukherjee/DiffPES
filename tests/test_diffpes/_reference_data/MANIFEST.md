@@ -48,12 +48,12 @@
 - Generator:
   `tests/_reference_tools/generate_plan07_voigt_reference.py`
 - Generator SHA-256:
-  `2ce6acb9ee037ff3b173c6386a57aa5c7c38711aa5e94e14b682022e1dc83365`
+  `cf5b8927dac24c42a0cec6ed5a95171b78c981110bae06d8c940c8ee399f27b1`
 - Generator boundary: NumPy/SciPy only; it imports no DiffPES or JAX module
   and calls neither `voigt` nor `simulate_novice`
 - Provenance manifest: `plan07_voigt_manifest.json`
 - Provenance-manifest SHA-256:
-  `11b13eace43da9243d42b90083b4be7aae3a1c6bb1a399ba3e4d6dfea721c587`
+  `25d73f8b6283b7d81447ae059c0598c8f01ac5a3f6441ee3819153285496125b`
 
 #### `plan07_voigt_scipy_reference.npz`
 

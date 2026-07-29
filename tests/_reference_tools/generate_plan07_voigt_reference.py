@@ -190,6 +190,9 @@ NOVICE_SIGMA: float = 0.04
 NOVICE_GAMMA: float = 0.1
 NOVICE_TEMPERATURE: float = 15.0
 KB_EV_PER_K: float = 8.617333e-5
+HISTORICAL_PLAN02_SHA256: str = (
+    "7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f"
+)
 
 
 def _array_bytes(array: np.ndarray) -> bytes:
@@ -636,7 +639,6 @@ def main() -> None:
     data_directory.mkdir(parents=True, exist_ok=True)
     reference_path: Path = data_directory / "plan07_voigt_scipy_reference.npz"
     novice_path: Path = data_directory / "novice_toy_plan07_true_voigt.npz"
-    active_plan02_path: Path = data_directory / "novice_toy.npz"
     historical_path: Path = (
         data_directory / "novice_toy_plan02_pseudo_voigt.npz"
     )
@@ -646,7 +648,8 @@ def main() -> None:
     novice_payload: dict[str, np.ndarray] = _novice_payload()
     _write_deterministic_npz(reference_path, reference_payload)
     _write_deterministic_npz(novice_path, novice_payload)
-    historical_path.write_bytes(active_plan02_path.read_bytes())
+    if _sha256(historical_path) != HISTORICAL_PLAN02_SHA256:
+        raise RuntimeError("historical Plan-02 archive digest changed")
 
     generator_path: Path = Path(__file__).resolve()
     manifest: dict[str, Any] = {
