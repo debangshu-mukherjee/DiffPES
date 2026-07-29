@@ -35,9 +35,59 @@
 ### `novice_toy.npz`
 
 - SHA-256: `7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f`
+- Classification: active Plan-02 Thompson-Cox-Hastings pseudo-Voigt
+  behavioral reference until the Plan-07 production closeout
 - Arrays:
   - `leaf_000_intensity`: shape `(8, 512)`, dtype `float64`
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
+
+### Plan-07 Voigt preregistration
+
+- Classification: Plan-07 gates 07.G2 and 07.D1, independent SciPy/analytic
+  physics truth frozen before the WP7.2 production edit
+- Generator:
+  `tests/_reference_tools/generate_plan07_voigt_reference.py`
+- Generator SHA-256:
+  `2ce6acb9ee037ff3b173c6386a57aa5c7c38711aa5e94e14b682022e1dc83365`
+- Generator boundary: NumPy/SciPy only; it imports no DiffPES or JAX module
+  and calls neither `voigt` nor `simulate_novice`
+- Provenance manifest: `plan07_voigt_manifest.json`
+- Provenance-manifest SHA-256:
+  `11b13eace43da9243d42b90083b4be7aae3a1c6bb1a399ba3e4d6dfea721c587`
+
+#### `plan07_voigt_scipy_reference.npz`
+
+- SHA-256:
+  `43b1b38836fb2cabf683423a8315b7bf2ca2c11a03cab5ec31a4ede7471c29d0`
+- Truth engines: `scipy.special.voigt_profile`, `scipy.special.wofz`,
+  analytic Gaussian/Cauchy endpoints, and the Faddeeva ODE derivative
+- Evidence: complete positive-width table, exact representable-input
+  endpoints, one-sided convergence rates, scaled 256-to-512 full-line
+  normalization, shared-envelope coordinates, analytic point derivatives,
+  contracted D1 truth, and three five-point finite-difference rungs
+- Archive contract: 40 named arrays, all `float64`, deterministic ZIP
+  metadata, and pickle disabled
+
+#### `novice_toy_plan07_true_voigt.npz`
+
+- SHA-256:
+  `ca410005c45faa46ca9e9a7bc949e7954fafdaf494b391bec8cd30bddac50440`
+- Classification: preregistered Plan-07 true-Voigt novice behavioral
+  reference; strict-red against the retained TCH production path
+- Truth: manual seed-20260713 fixture assembly with SciPy
+  `voigt_profile` and an overflow-safe analytic Fermi function
+- Arrays:
+  - `leaf_000_intensity`: shape `(8, 512)`, dtype `float64`
+  - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
+
+#### `novice_toy_plan02_pseudo_voigt.npz`
+
+- SHA-256:
+  `7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f`
+- Classification: superseded Plan-02 pseudo-Voigt historical evidence,
+  retained for provenance only; it is not a compatibility shim
+- Byte-for-byte archive of the pre-WP7.2 `novice_toy.npz`; repository-floor
+  replay remains on the active filename until production closeout
 
 ### `plan04_chinook_tightb_reference.json`
 
