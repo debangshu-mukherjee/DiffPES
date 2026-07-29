@@ -10,11 +10,12 @@ Coulomb equation
 
     u'' + [1 - 2\eta/\rho - l(l+1)/\rho^2]u = 0.
 
-An adaptive pure-JAX ODE solve propagates the diagnostic Coulomb functions.
-The production final-state row uses a bounded static Numerov
-propagation initialized by convergent origin and inverse-radius series.  A
-custom differentiation rule supplies stable parameter derivatives while the
-returned radial derivatives remain components of the solved ODE state.
+A fixed-step pure-JAX Dormand--Prince solve propagates the diagnostic Coulomb
+functions without parameter-dependent adaptive-step noise.  The production
+final-state row uses a bounded static Numerov propagation initialized by
+convergent origin and inverse-radius series.  A custom differentiation rule
+supplies stable parameter derivatives while the returned radial derivatives
+remain components of the solved ODE state.
 
 Routine Listings
 ----------------
@@ -34,7 +35,6 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from jax import lax
-from jax.experimental.ode import odeint
 from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.types import FinalStateSpec
@@ -601,6 +601,91 @@ def _coulomb_log_radius_rhs(
     return result
 
 
+def _fixed_dopri5_endpoint(
+    state: Float[Array, " 2"],
+    coordinate_start: Float[Array, ""],
+    coordinate_end: Float[Array, ""],
+    eta: Float[Array, ""],
+    order: int,
+    direction: float,
+) -> Float[Array, " 2"]:
+    """Propagate the Coulomb system with fixed Dormand--Prince fifth order."""
+    steps: int = 32768
+    step: Float[Array, ""] = (coordinate_end - coordinate_start) / steps
+
+    def rhs(
+        value: Float[Array, " 2"],
+        coordinate: Float[Array, ""],
+    ) -> Float[Array, " 2"]:
+        result: Float[Array, " 2"] = _coulomb_log_radius_rhs(
+            value,
+            coordinate,
+            eta,
+            order,
+            direction,
+        )
+        return result
+
+    def body(index: Array, current: Float[Array, " 2"]) -> Float[Array, " 2"]:
+        coordinate: Float[Array, ""] = coordinate_start + index * step
+        first: Float[Array, " 2"] = rhs(current, coordinate)
+        second: Float[Array, " 2"] = rhs(
+            current + step * first / 5.0,
+            coordinate + step / 5.0,
+        )
+        third: Float[Array, " 2"] = rhs(
+            current + step * (3.0 * first + 9.0 * second) / 40.0,
+            coordinate + 3.0 * step / 10.0,
+        )
+        fourth: Float[Array, " 2"] = rhs(
+            current
+            + step
+            * (
+                44.0 * first / 45.0 - 56.0 * second / 15.0 + 32.0 * third / 9.0
+            ),
+            coordinate + 4.0 * step / 5.0,
+        )
+        fifth: Float[Array, " 2"] = rhs(
+            current
+            + step
+            * (
+                19372.0 * first / 6561.0
+                - 25360.0 * second / 2187.0
+                + 64448.0 * third / 6561.0
+                - 212.0 * fourth / 729.0
+            ),
+            coordinate + 8.0 * step / 9.0,
+        )
+        sixth: Float[Array, " 2"] = rhs(
+            current
+            + step
+            * (
+                9017.0 * first / 3168.0
+                - 355.0 * second / 33.0
+                + 46732.0 * third / 5247.0
+                + 49.0 * fourth / 176.0
+                - 5103.0 * fifth / 18656.0
+            ),
+            coordinate + step,
+        )
+        result: Float[Array, " 2"] = current + step * (
+            35.0 * first / 384.0
+            + 500.0 * third / 1113.0
+            + 125.0 * fourth / 192.0
+            - 2187.0 * fifth / 6784.0
+            + 11.0 * sixth / 84.0
+        )
+        return result
+
+    result: Float[Array, " 2"] = lax.fori_loop(
+        0,
+        steps,
+        jax.checkpoint(body),
+        state,
+    )
+    return result
+
+
 def _accurate_coulomb_scalar(
     order: int,
     eta: Float[Array, ""],
@@ -626,27 +711,15 @@ def _accurate_coulomb_scalar(
             origin_rho * regular_start_derivative / regular_scale,
         )
     )
-    regular_times: Float[Array, " 2"] = jnp.stack(
-        (jnp.log(origin_rho), jnp.log(regular_target))
-    )
-    regular_solution: Float[Array, "2 2"] = odeint(
-        lambda state, coordinate, parameter: _coulomb_log_radius_rhs(
-            state,
-            coordinate,
-            parameter,
-            order,
-            1.0,
-        ),
+    regular_endpoint: Float[Array, " 2"] = _fixed_dopri5_endpoint(
         regular_state,
-        regular_times,
+        jnp.log(origin_rho),
+        jnp.log(regular_target),
         eta,
-        rtol=1.0e-13,
-        atol=1.0e-15,
-        mxstep=200000,
+        order,
+        1.0,
     )
-    propagated_regular: Float[Array, ""] = (
-        regular_scale * regular_solution[-1, 0]
-    )
+    propagated_regular: Float[Array, ""] = regular_scale * regular_endpoint[0]
     origin_regular: Float[Array, ""]
     origin_regular, _ = _regular_origin_state(order, eta, rho)
     regular: Float[Array, ""] = jnp.where(
@@ -661,7 +734,7 @@ def _accurate_coulomb_scalar(
         rho,
     )
     propagated_regular_derivative: Float[Array, ""] = (
-        regular_scale * regular_solution[-1, 1] / regular_target
+        regular_scale * regular_endpoint[1] / regular_target
     )
     regular_derivative: Float[Array, ""] = jnp.where(
         rho == origin_rho,
@@ -683,23 +756,13 @@ def _accurate_coulomb_scalar(
             boundary_rho * jnp.real(outgoing_derivative),
         )
     )
-    irregular_times: Float[Array, " 2"] = jnp.stack(
-        (-jnp.log(boundary_rho), -jnp.log(jnp.minimum(rho, boundary_rho)))
-    )
-    irregular_solution: Float[Array, "2 2"] = odeint(
-        lambda state, coordinate, parameter: _coulomb_log_radius_rhs(
-            state,
-            coordinate,
-            parameter,
-            order,
-            -1.0,
-        ),
+    irregular_endpoint: Float[Array, " 2"] = _fixed_dopri5_endpoint(
         irregular_state,
-        irregular_times,
+        -jnp.log(boundary_rho),
+        -jnp.log(jnp.minimum(rho, boundary_rho)),
         eta,
-        rtol=1.0e-13,
-        atol=1.0e-15,
-        mxstep=200000,
+        order,
+        -1.0,
     )
     asymptotic_at_rho: Complex[Array, ""]
     asymptotic_derivative_at_rho: Complex[Array, ""]
@@ -713,12 +776,12 @@ def _accurate_coulomb_scalar(
     irregular: Float[Array, ""] = jnp.where(
         rho >= boundary_rho,
         jnp.real(asymptotic_at_rho),
-        irregular_solution[-1, 0],
+        irregular_endpoint[0],
     )
     irregular_derivative: Float[Array, ""] = jnp.where(
         rho >= boundary_rho,
         jnp.real(asymptotic_derivative_at_rho),
-        irregular_solution[-1, 1] / rho,
+        irregular_endpoint[1] / rho,
     )
     result: Float[Array, " 4"] = jnp.stack(
         (

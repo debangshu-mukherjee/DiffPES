@@ -468,7 +468,14 @@ class TestRepositoryArchitecture(chex.TestCase):
     """
 
     def test_reference_tools_do_not_use_root_scripts_directory(self) -> None:
-        """Keep reproducibility tooling under the test evidence boundary."""
+        """Keep reproducibility tooling under the test evidence boundary.
+
+        The test requires key generators under ``tests/_reference_tools``.
+
+        Notes
+        -----
+        It also rejects the retired repository-root ``scripts`` directory.
+        """
         repository_root: Path = Path(__file__).resolve().parents[1]
         reference_tools: Path = repository_root / "tests/_reference_tools"
 
@@ -493,7 +500,18 @@ class TestRepositoryArchitecture(chex.TestCase):
 
     @staticmethod
     def _test_modules() -> tuple[tuple[Path, ast.Module], ...]:
-        """Parse every test Python module in deterministic order."""
+        """Parse every collected-test Python module in deterministic order."""
+        test_root: Path = Path(__file__).resolve().parents[1] / "tests"
+        modules: tuple[tuple[Path, ast.Module], ...] = tuple(
+            (path, ast.parse(path.read_text(encoding="utf-8")))
+            for path in sorted(test_root.rglob("*.py"))
+            if "_reference_tools" not in path.parts
+        )
+        return modules
+
+    @staticmethod
+    def _test_tree_modules() -> tuple[tuple[Path, ast.Module], ...]:
+        """Parse every Python module in the complete test tree."""
         test_root: Path = Path(__file__).resolve().parents[1] / "tests"
         modules: tuple[tuple[Path, ast.Module], ...] = tuple(
             (path, ast.parse(path.read_text(encoding="utf-8")))
@@ -525,7 +543,9 @@ class TestRepositoryArchitecture(chex.TestCase):
         path: Path
         module: ast.Module
         node: ast.AST
-        for path, module in self._production_modules() + self._test_modules():
+        for path, module in (
+            self._production_modules() + self._test_tree_modules()
+        ):
             for node in ast.walk(module):
                 if isinstance(node, ast.Import):
                     imported: ast.alias

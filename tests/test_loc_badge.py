@@ -1,29 +1,43 @@
-"""Verify deterministic source-line counting for the repository badge."""
+"""Verify deterministic source-line counting for the repository badge.
+
+The module checks that badge generation forces Python parsing for Python files.
+"""
 
 import importlib.util
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
 
 import pygount.analysis
+import pytest
 
 
 def _load_loc_badge_module() -> ModuleType:
     """Load the badge script without executing its command-line entry point."""
     root: Path = Path(__file__).resolve().parents[1]
     script: Path = root / ".github" / "badges" / "loc_badge.py"
-    spec = importlib.util.spec_from_file_location("diffpes_loc_badge", script)
+    spec: ModuleSpec | None = importlib.util.spec_from_file_location(
+        "diffpes_loc_badge", script
+    )
     assert spec is not None
     assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
+    module: ModuleType = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 def test_loc_badge_forces_python_lexer(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count docstrings consistently even if language guessing is unusable."""
+    """Verify consistent docstring counts without language guessing.
+
+    The test replaces lexer guessing with a planted failure and counts two files.
+
+    Notes
+    -----
+    It proves that the badge path supplies the Python lexer without guessing.
+    """
     package: Path = tmp_path / "package"
     package.mkdir()
     (package / "module.py").write_text(
@@ -35,7 +49,7 @@ def test_loc_badge_forces_python_lexer(
         encoding="utf-8",
     )
 
-    def fail_if_guessed(_source_path: str, _source_code: str):
+    def fail_if_guessed(_source_path: str, _source_code: str) -> None:
         raise AssertionError("language guessing must be replaced")
 
     monkeypatch.setattr(pygount.analysis, "guess_lexer", fail_if_guessed)
