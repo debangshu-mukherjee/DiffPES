@@ -116,12 +116,12 @@ def assert_matches_reference(
     *,
     rtol: float = 1e-12,
 ) -> None:
-    """Compare numerical leaves with a named WP6.1 NPZ reference.
+    """Compare numerical leaves with a named deterministic NPZ reference.
 
     Loads ``tests/test_diffpes/_reference_data/<name>.npz`` and compares the
     archive arrays in stored order with the numerical leaves of ``tree``.
-    ``name`` must be a bare filename stem, preventing paths outside the pinned
-    reference directory. WP6.1 supplies the archives and their manifest.
+    ``name`` must be a bare filename stem, preventing paths outside the
+    pinned reference directory.
 
     Parameters
     ----------
@@ -131,7 +131,6 @@ def assert_matches_reference(
         Bare filename stem of the NPZ artifact.
     rtol : float, optional
         Relative comparison tolerance. Default is ``1e-12``.
-
     Raises
     ------
     ValueError

@@ -29,7 +29,6 @@ from beartype.typing import Any
 from jaxtyping import Array, Float, PRNGKeyArray, jaxtyped
 
 from tests._assertions import (
-    assert_matches_reference,
     assert_tree_finite,
     assert_trees_close,
 )
@@ -407,10 +406,10 @@ class TestCI(chex.TestCase):
 
 
 class TestRegressionReferences(chex.TestCase):
-    """Validate the retained novice forward baseline from WP6.1.
+    """Validate the retained novice forward baseline after WP7.2.
 
-    The class covers the fixed-seed novice spectrum, archive metadata, and the
-    manifest checksum.
+    The class covers the independently preregistered true-Voigt spectrum,
+    archive metadata, and the manifest checksum.
     """
 
     @pytest.mark.big_mem
@@ -437,7 +436,25 @@ class TestRegressionReferences(chex.TestCase):
             toy_simulation_params(fidelity=512),
             15.0,
         )
-        assert_matches_reference(novice, "novice_toy", rtol=1e-12)
+        reference_path: Path = (
+            reference_directory / "novice_toy_plan07_true_voigt.npz"
+        )
+        archive: Any
+        with np.load(reference_path, allow_pickle=False) as archive:
+            desired_intensity: np.ndarray = archive["leaf_000_intensity"]
+            desired_energy_axis: np.ndarray = archive["leaf_001_energy_axis"]
+        np.testing.assert_allclose(
+            np.asarray(novice.intensity),
+            desired_intensity,
+            rtol=1e-12,
+            atol=0.0,
+        )
+        np.testing.assert_allclose(
+            np.asarray(novice.energy_axis),
+            desired_energy_axis,
+            rtol=1e-12,
+            atol=2.0 * np.finfo(np.float64).eps,
+        )
         chex.assert_shape(novice.intensity, (8, 512))
         actual_dtypes: tuple[jnp.dtype, ...] = tuple(
             array.dtype for array in (novice.intensity,)
@@ -445,13 +462,12 @@ class TestRegressionReferences(chex.TestCase):
         chex.assert_equal(actual_dtypes, (jnp.float64,))
 
         artifact_name: str
-        archive: Any
-        for artifact_name in ("novice_toy",):
+        for artifact_name in ("novice_toy_plan07_true_voigt",):
             artifact_path: Path = reference_directory / f"{artifact_name}.npz"
             digest: str = hashlib.sha256(
                 artifact_path.read_bytes()
             ).hexdigest()
-            self.assertIn(f"SHA-256: `{digest}`", manifest)
+            self.assertIn(f"`{digest}`", manifest)
             with np.load(artifact_path, allow_pickle=False) as archive:
                 self.assertTrue(
                     all(

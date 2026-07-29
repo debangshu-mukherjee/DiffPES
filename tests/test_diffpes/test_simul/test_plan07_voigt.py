@@ -1,8 +1,7 @@
-"""Preregister the independent Plan-07 true-Voigt evidence lane.
+"""Certify the Plan-07 true-Voigt implementation against frozen evidence.
 
-Artifact and analytic checks are green before production changes.  Assertions
-that specifically distinguish the true Voigt profile from the retained
-Thompson-Cox-Hastings approximation are strict expected failures.
+The module freezes artifact and analytic checks before production changes.
+Production assertions exercise the same immutable SciPy and analytic truths.
 """
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ _NOVICE_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy_plan07_true_voigt.npz"
 _HISTORICAL_PATH: Path = (
     _REFERENCE_DIRECTORY / "novice_toy_plan02_pseudo_voigt.npz"
 )
-_ACTIVE_PLAN02_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy.npz"
+_RETIRED_PLAN02_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy.npz"
 _GENERATOR_PATH: Path = (
     Path(__file__).resolve().parents[2]
     / "_reference_tools"
@@ -54,22 +53,6 @@ _ENDPOINT_RTL: float = 1.0e-12
 _ENDPOINT_FLOOR: float = 5.0e-15
 _D1_RTL: float = 1.0e-6
 _D1_ATL: float = 2.0e-10
-_TCH_VALUE_XFAIL: pytest.MarkDecorator = pytest.mark.xfail(
-    strict=True,
-    reason="WP7.2 preregistration: TCH is not the true Voigt convolution",
-)
-_TCH_ENVELOPE_XFAIL: pytest.MarkDecorator = pytest.mark.xfail(
-    strict=True,
-    reason="WP7.2 preregistration: TCH does not enforce the G1 envelope",
-)
-_TCH_D1_XFAIL: pytest.MarkDecorator = pytest.mark.xfail(
-    strict=True,
-    reason="WP7.2 preregistration: TCH derivatives are not true-Voigt D1",
-)
-_TCH_NOVICE_XFAIL: pytest.MarkDecorator = pytest.mark.xfail(
-    strict=True,
-    reason="WP7.2 preregistration: novice replay still uses TCH",
-)
 
 
 def _load_npz(path: Path) -> dict[str, np.ndarray]:
@@ -126,7 +109,18 @@ class TestPlan07VoigtEvidence:
     """Validate the frozen independent artifacts before production editing."""
 
     def test_generator_boundary_and_manifest_are_frozen(self) -> None:
-        """Require a production-independent generator and authenticated files."""
+        """Require a production-independent generator and authenticated files.
+
+        Extended Summary
+        ----------------
+        The test verifies the generator import boundary and every registered
+        archive digest.
+
+        Notes
+        -----
+        Parse the generator AST, load the JSON manifest, and inspect each
+        deterministic archive without pickle.
+        """
         source: str = _GENERATOR_PATH.read_text(encoding="utf-8")
         tree: ast.Module = ast.parse(source)
         imported_roots: set[str] = set()
@@ -163,15 +157,24 @@ class TestPlan07VoigtEvidence:
             arrays: dict[str, np.ndarray] = _load_npz(archive_path)
             assert arrays
             assert all(array.dtype == np.float64 for array in arrays.values())
-        assert (
-            _HISTORICAL_PATH.read_bytes() == _ACTIVE_PLAN02_PATH.read_bytes()
-        )
+        assert not _RETIRED_PLAN02_PATH.exists()
         assert manifest["archives"]["historical_plan02"]["classification"] == (
             "superseded pseudo-Voigt evidence; not a compatibility shim"
         )
 
     def test_positive_reference_table_replays_scipy(self) -> None:
-        """Recompute all 360 positive-width values and their G1 coordinates."""
+        """Recompute all 360 positive-width values and their G1 coordinates.
+
+        Extended Summary
+        ----------------
+        The test confirms the frozen positive table matches SciPy throughout
+        the closed Faddeeva envelope.
+
+        Notes
+        -----
+        Evaluate each width row with SciPy, reconstruct its complex
+        coordinates, and check value finiteness and nonnegativity.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         widths: np.ndarray = reference["positive_widths"]
         energies: np.ndarray = reference["positive_energies"]
@@ -195,9 +198,23 @@ class TestPlan07VoigtEvidence:
         assert np.all(desired >= 0.0)
 
     def test_endpoint_reference_rows_are_exact_analytic_values(self) -> None:
-        """Recompute every value-only Gaussian and Cauchy endpoint row."""
+        """Recompute every value-only Gaussian and Cauchy endpoint row.
+
+        Extended Summary
+        ----------------
+        The test confirms both endpoint families use the representable
+        displacement coordinates stored in the artifact.
+
+        Notes
+        -----
+        Reconstruct each normalized coordinate, evaluate its analytic density,
+        and compare the resulting arrays exactly.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         rows: list[np.ndarray] = []
+        energy: np.ndarray
+        sigma: float
+        gamma: float
         for energy, (sigma, gamma) in zip(
             reference["endpoint_energies"],
             reference["endpoint_widths"],
@@ -216,7 +233,18 @@ class TestPlan07VoigtEvidence:
         np.testing.assert_array_equal(actual, reference["endpoint_values"])
 
     def test_one_sided_reference_rates_are_registered(self) -> None:
-        """Require quadratic sigma and linear gamma endpoint convergence."""
+        """Require quadratic sigma and linear gamma endpoint convergence.
+
+        Extended Summary
+        ----------------
+        The test verifies each positive rung against SciPy and certifies both
+        preregistered convergence intervals.
+
+        Notes
+        -----
+        Recompute every rung, require strict error decay, and bound successive
+        ratios for both endpoint directions.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         actual: np.ndarray = np.stack(
             [
@@ -236,12 +264,29 @@ class TestPlan07VoigtEvidence:
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
     def test_scaled_full_line_reference_mass_is_unity(self) -> None:
-        """Recompute the frozen 256-to-512 tangent-map mass battery."""
+        """Recompute the frozen 256-to-512 tangent-map mass battery.
+
+        Extended Summary
+        ----------------
+        The test verifies normalization for every frozen interior and endpoint
+        row at both quadrature orders.
+
+        Notes
+        -----
+        Apply the scaled tangent map, include its Jacobian, and compare both
+        mass estimates with the committed reference.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         widths: np.ndarray = reference["normalization_widths"]
         scales: np.ndarray = reference["normalization_scales"]
         expected_masses: np.ndarray = reference["normalization_masses"]
         actual_masses: np.ndarray = np.empty_like(expected_masses)
+        row: int
+        sigma: float
+        gamma: float
+        scale: float
+        column: int
+        order_float: float
         for row, ((sigma, gamma), scale) in enumerate(
             zip(widths, scales, strict=True)
         ):
@@ -269,7 +314,18 @@ class TestPlan07VoigtEvidence:
         assert np.max(reference["normalization_maximum_z"][:6]) <= 1.0e8
 
     def test_envelope_reference_reconstructs_registered_radii(self) -> None:
-        """Verify the frozen pass, boundary, and rejection coordinates."""
+        """Verify the frozen pass, boundary, and rejection coordinates.
+
+        Extended Summary
+        ----------------
+        The test confirms every stored energy row reconstructs its intended
+        Faddeeva radius within the float64 budget.
+
+        Notes
+        -----
+        Map energies back to complex arguments, select each row maximum, and
+        compare against the registered radii.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         sigma: float
         gamma: float
@@ -290,7 +346,18 @@ class TestPlan07VoigtEvidence:
         )
 
     def test_d1_artifact_matches_analytic_rows_and_fd(self) -> None:
-        """Recompute analytic wofz derivatives and validate the FD plateau."""
+        """Recompute analytic wofz derivatives and validate the FD plateau.
+
+        Extended Summary
+        ----------------
+        The test confirms point derivatives, contracted sensitivities, and
+        multistep finite differences agree with independent analytic truth.
+
+        Notes
+        -----
+        Apply the Faddeeva ODE derivative, contract each probe, and inspect the
+        median and spread of all stencil rungs.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         probes: np.ndarray = reference["d1_probes"]
         energies: np.ndarray = reference["d1_energies"]
@@ -298,6 +365,9 @@ class TestPlan07VoigtEvidence:
         desired_derivatives: np.ndarray = reference["d1_point_derivatives"]
         actual_values: np.ndarray = np.empty_like(desired_values)
         actual_derivatives: np.ndarray = np.empty_like(desired_derivatives)
+        row: int
+        probe: np.ndarray
+        energy: np.ndarray
         for row, (probe, energy) in enumerate(
             zip(probes, energies, strict=True)
         ):
@@ -343,7 +413,18 @@ class TestPlan07VoigtEvidence:
         assert np.all(np.abs(contracted) > 1.0e-4)
 
     def test_novice_artifact_is_manual_scipy_truth(self) -> None:
-        """Reassemble the fixed-input novice spectrum without production."""
+        """Build the fixed-input novice spectrum without production.
+
+        Extended Summary
+        ----------------
+        The test confirms manual SciPy broadening and analytic occupation
+        reproduce the committed novice artifact.
+
+        Notes
+        -----
+        Load frozen eigenvalues and weights, broaden every band, and reduce the
+        contributions over the band axis.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         novice: dict[str, np.ndarray] = _load_npz(_NOVICE_PATH)
         eigenvalues: np.ndarray = reference["novice_eigenvalues"]
@@ -369,13 +450,27 @@ class TestPlan07VoigtEvidence:
         )
 
 
-class TestPlan07VoigtProductionPreregistration:
-    """Expose only the predicted TCH failures as strict red tests."""
+class TestPlan07VoigtProduction:
+    """Certify production against the preregistered G2/D1 witnesses."""
 
-    @_TCH_VALUE_XFAIL
     def test_positive_width_table_matches_true_voigt(self) -> None:
-        """Match all positive production rows under the G1-derived bound."""
+        """Match all positive production rows under the G1-derived bound.
+
+        Extended Summary
+        ----------------
+        The test verifies production values remain finite, nonnegative, and
+        within the propagated Faddeeva error budget.
+
+        Notes
+        -----
+        Evaluate each frozen energy row and compare every element with its
+        independent SciPy value.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
+        energy: np.ndarray
+        desired: np.ndarray
+        sigma: float
+        gamma: float
         for energy, desired, (sigma, gamma) in zip(
             reference["positive_energies"],
             reference["positive_values"],
@@ -392,8 +487,23 @@ class TestPlan07VoigtProductionPreregistration:
             )
 
     def test_exact_endpoint_rows_match_analytic_values(self) -> None:
-        """Match endpoint values without differentiating either selector."""
+        """Match endpoint values without differentiating either selector.
+
+        Extended Summary
+        ----------------
+        The test verifies production follows the exact Gaussian and Cauchy
+        value conventions at zero component width.
+
+        Notes
+        -----
+        Evaluate each endpoint row and apply the dedicated mixed endpoint
+        tolerance without invoking any derivative transform.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
+        energy: np.ndarray
+        desired: np.ndarray
+        sigma: float
+        gamma: float
         for energy, desired, (sigma, gamma) in zip(
             reference["endpoint_energies"],
             reference["endpoint_values"],
@@ -410,11 +520,25 @@ class TestPlan07VoigtProductionPreregistration:
             )
             assert np.all(np.abs(actual - desired) <= bound)
 
-    @_TCH_VALUE_XFAIL
     def test_one_sided_rows_match_scipy_and_converge(self) -> None:
-        """Require each positive rung and its registered endpoint rate."""
+        """Require each positive rung and its registered endpoint rate.
+
+        Extended Summary
+        ----------------
+        The test verifies production values and both one-sided convergence
+        orders against the frozen tables.
+
+        Notes
+        -----
+        Collect every positive profile, measure endpoint errors, and bound
+        their successive ratios after strict decay checks.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         actual_values: list[np.ndarray] = []
+        energy: np.ndarray
+        desired: np.ndarray
+        sigma: float
+        gamma: float
         for energy, desired, (sigma, gamma) in zip(
             reference["onesided_energies"],
             reference["onesided_values"],
@@ -434,6 +558,9 @@ class TestPlan07VoigtProductionPreregistration:
             2, 3, 3, 10
         )
         anchors: np.ndarray = reference["anchors"]
+        direction: int
+        anchor_index: int
+        anchor: float
         for direction in range(2):
             for anchor_index, anchor in enumerate(anchors):
                 differences[direction, anchor_index] = anchor * np.max(
@@ -449,11 +576,28 @@ class TestPlan07VoigtProductionPreregistration:
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
     def test_scaled_full_line_production_mass_is_unity(self) -> None:
-        """Require both quadrature orders and their delta to meet G2."""
+        """Require both quadrature orders and their delta to meet G2.
+
+        Extended Summary
+        ----------------
+        The test verifies production integrates to unit mass for every
+        interior and analytic endpoint row.
+
+        Notes
+        -----
+        Evaluate production on both scaled tangent grids, apply quadrature
+        weights, and check each mass and order delta.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         widths: np.ndarray = reference["normalization_widths"]
         scales: np.ndarray = reference["normalization_scales"]
         masses: np.ndarray = np.empty((widths.shape[0], 2))
+        row: int
+        sigma: float
+        gamma: float
+        scale: float
+        column: int
+        order_float: float
         for row, ((sigma, gamma), scale) in enumerate(
             zip(widths, scales, strict=True)
         ):
@@ -475,14 +619,25 @@ class TestPlan07VoigtProductionPreregistration:
         assert np.max(np.abs(masses - 1.0)) <= 2.0e-10
         assert np.max(np.abs(masses[:, 1] - masses[:, 0])) <= 2.0e-10
 
-    @_TCH_ENVELOPE_XFAIL
     def test_shared_envelope_passes_and_rejects_complete_arrays(self) -> None:
-        """Enforce the closed G1 envelope eagerly and under JIT."""
+        """Enforce the closed G1 envelope eagerly and under JIT.
+
+        Extended Summary
+        ----------------
+        The test confirms accepted radii evaluate while boundary violations
+        reject every element in the submitted array.
+
+        Notes
+        -----
+        Exercise interior and closed-boundary rows in both modes, then plant
+        isolated offenders and require the registered diagnostic.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         sigma: float
         gamma: float
         sigma, gamma = reference["envelope_widths"]
         energies: np.ndarray = reference["envelope_energies"]
+        accepted: np.ndarray
         for accepted in energies[:2]:
             eager: Array = voigt(
                 jnp.asarray(accepted),
@@ -519,7 +674,18 @@ class TestPlan07VoigtProductionPreregistration:
         )
 
     def test_width_domain_empty_output_and_endpoint_bypass(self) -> None:
-        """Retain width rejection, empty shape, and analytic endpoint bypass."""
+        """Retain width rejection, empty shape, and analytic endpoint bypass.
+
+        Extended Summary
+        ----------------
+        The test verifies invalid widths reject while valid empty arrays and
+        far-tail endpoint calls remain supported.
+
+        Notes
+        -----
+        Submit each invalid width pair, inspect the empty result contract, and
+        evaluate both analytic endpoints outside the shared envelope.
+        """
         energy: Float[Array, "3"] = jnp.asarray(
             [_CENTER - 1.0, _CENTER, _CENTER + 1.0],
             dtype=jnp.float64,
@@ -531,6 +697,9 @@ class TestPlan07VoigtProductionPreregistration:
             (1.0e-6, np.inf, "gamma must be finite and nonnegative"),
             (0.0, 0.0, "sigma and gamma must not both be zero"),
         )
+        sigma: float
+        gamma: float
+        message: str
         for sigma, gamma, message in invalid:
             assert_rejects(
                 voigt,
@@ -557,13 +726,24 @@ class TestPlan07VoigtProductionPreregistration:
             )
             assert np.all(np.isfinite(np.asarray(endpoint)))
 
-    @_TCH_ENVELOPE_XFAIL
     def test_nonfinite_energy_and_center_reject(self) -> None:
-        """Reject nonfinite profile coordinates eagerly and under JIT."""
+        """Reject nonfinite profile coordinates eagerly and under JIT.
+
+        Extended Summary
+        ----------------
+        The test verifies every nonfinite energy and center variant fails with
+        its coordinate-specific diagnostic.
+
+        Notes
+        -----
+        Plant each nonfinite scalar into an otherwise valid call and repeat the
+        rejection check through compiled execution.
+        """
         finite: Float[Array, "3"] = jnp.asarray(
             [_CENTER - 1.0, _CENTER, _CENTER + 1.0],
             dtype=jnp.float64,
         )
+        invalid_energy: float
         for invalid_energy in (np.nan, np.inf, -np.inf):
             planted: Array = finite.at[1].set(invalid_energy)
             assert_rejects(
@@ -574,6 +754,7 @@ class TestPlan07VoigtProductionPreregistration:
                 2.0e-6,
                 match="energy.*finite",
             )
+        invalid_center: float
         for invalid_center in (np.nan, np.inf, -np.inf):
             assert_rejects(
                 voigt,
@@ -584,12 +765,26 @@ class TestPlan07VoigtProductionPreregistration:
                 match="center.*finite",
             )
 
-    @_TCH_D1_XFAIL
     def test_d1_jacfwd_jacrev_and_check_grads_match_truth(self) -> None:
-        """Match all positive D1 probes in dimensionless coordinates."""
+        """Match all positive D1 probes in dimensionless coordinates.
+
+        Extended Summary
+        ----------------
+        The test verifies forward mode, reverse mode, and directional checks
+        against the contracted analytic derivative truth.
+
+        Notes
+        -----
+        Build a fixed-energy loss for each probe, differentiate its
+        dimensionless parameters, and apply the preregistered comparison
+        budget.
+        """
         reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
         weights: Array = jnp.asarray(reference["d1_weights"])
         zero: Float[Array, "3"] = jnp.zeros(3, dtype=jnp.float64)
+        probe: np.ndarray
+        energy: np.ndarray
+        desired: np.ndarray
         for probe, energy, desired in zip(
             reference["d1_probes"],
             reference["d1_energies"],
@@ -636,11 +831,21 @@ class TestPlan07VoigtProductionPreregistration:
                 atol=_D1_ATL,
             )
 
-    @_TCH_NOVICE_XFAIL
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_novice_replay_matches_true_voigt_artifact(self) -> None:
-        """Replay the retained novice inputs against independent true truth."""
+        """Replay the retained novice inputs against independent true truth.
+
+        Extended Summary
+        ----------------
+        The test verifies the complete production novice path reproduces the
+        manually assembled Plan-07 artifact.
+
+        Notes
+        -----
+        Build the fixed-seed carriers, simulate the spectrum, and compare both
+        carrier arrays with their independent references.
+        """
         key: Array = jax.random.key(20260713)
         spectrum: Any = simulate_novice(
             toy_band_structure(key),
@@ -659,5 +864,5 @@ class TestPlan07VoigtProductionPreregistration:
             np.asarray(spectrum.energy_axis),
             desired["leaf_001_energy_axis"],
             rtol=1.0e-12,
-            atol=0.0,
+            atol=2.0 * np.finfo(np.float64).eps,
         )

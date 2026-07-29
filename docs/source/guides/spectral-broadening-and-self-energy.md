@@ -10,10 +10,10 @@ momentum.
 `gaussian(x, center, sigma)` returns a normalized Gaussian. The retained
 `basic` incoherent tier uses it.
 
-`voigt(x, center, sigma, gamma)` returns the normalized
-Thompson--Cox--Hastings pseudo-Voigt approximation. The retained `novice`
-tier uses it. `sigma` is the Gaussian width and `gamma` is the Lorentzian
-width, both in eV.
+`voigt(x, center, sigma, gamma)` returns the normalized true Voigt
+convolution through the certified Faddeeva evaluator. The retained `novice`
+tier uses it. `sigma` is the Gaussian standard deviation and `gamma` is the
+Lorentzian half-width at half-maximum, both in eV.
 
 ```python
 from diffpes.simul import gaussian, voigt
@@ -73,7 +73,12 @@ detector counts begin in Plan 08.
 
 ## Numerical Guidance
 
-- Keep widths strictly positive.
+- Keep widths strictly positive for fitted interior parameters. Exact
+  Gaussian (`gamma=0`) and Cauchy (`sigma=0`) calls are value-only endpoints;
+  the double-zero delta limit is rejected.
+- For positive widths, keep the complete sampled array inside the certified
+  Faddeeva envelope `abs(z) <= 1e8`, where
+  `z=(x-center+1j*gamma)/(sigma*sqrt(2))`.
 - Sample the energy axis finely enough to resolve its narrowest profile.
 - Include sufficient padding so normalized tails are not clipped.
 - Treat the momentum grid as ordered when applying one-dimensional

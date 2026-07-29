@@ -11,6 +11,8 @@ and the project uses calendar versioning.
 
 - Plan 07 removes the public `diffpes.types.N_TAYLOR` implementation detail.
   `diffpes.utils.faddeeva` now uses a certified fixed-order rational method.
+- Plan 07 removes the Thompson--Cox--Hastings pseudo-Voigt approximation and
+  its empirical mixing constants without retaining a compatibility shim.
 - Plan 03 KG-E removes `diffpes.types.PolarizationConfig`,
   `diffpes.types.make_polarization_config`, and
   `diffpes.simul.build_efield`. Construct explicit complex Cartesian fields
@@ -54,6 +56,11 @@ and the project uses calendar versioning.
   `abs(z) <= 1e8` envelope with an order-40 Weideman rational approximation.
   Invalid or lower-half-plane inputs raise instead of returning divergent
   Taylor-polynomial values.
+- `diffpes.simul.voigt` now evaluates the normalized true Voigt convolution.
+  Positive widths share the certified Faddeeva `abs(z) <= 1e8` envelope;
+  exact Gaussian and Cauchy endpoints are value-only. The migration changes
+  core values modestly but can produce much larger relative changes in tails,
+  so no uniform percentage-shift claim is made.
 - `simulate_novice` and `simulate_basic` are explicitly documented as
   incoherent projection tiers. `simulate_basic` now accepts `basis` and
   `atomic_numbers` and applies one probability-level orbital reduction with

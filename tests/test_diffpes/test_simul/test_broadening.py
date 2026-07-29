@@ -46,19 +46,6 @@ def _fermi_value_and_gradients(
     return result
 
 
-def _voigt_width_loss(
-    widths: Float[Array, "2"],
-) -> Float[Array, ""]:
-    """Reduce a pseudo-Voigt profile without symmetry cancellation."""
-    energy_axis: Float[Array, "17"] = jnp.linspace(-1.3, 1.7, 17)
-    weights: Float[Array, "17"] = jnp.linspace(0.7, 1.4, 17)
-    profile: Float[Array, "17"] = voigt(
-        energy_axis, 0.17, widths[0], widths[1]
-    )
-    loss: Float[Array, ""] = jnp.sum(weights * profile)
-    return loss
-
-
 def _gaussian_parameter_loss(
     parameters: Float[Array, "2"],
 ) -> Float[Array, ""]:
@@ -72,34 +59,6 @@ def _gaussian_parameter_loss(
     )
     loss: Float[Array, ""] = jnp.sum(weights * profile)
     return loss
-
-
-def _coordinate_five_point_fd(
-    fn: Callable[[Float[Array, "2"]], Float[Array, ""]],
-    point: Float[Array, "2"],
-    index: int,
-    *,
-    step: float,
-    forward: bool,
-) -> Float[Array, ""]:
-    """Estimate one coordinate derivative within the physical domain."""
-    delta: Float[Array, "2"] = jnp.zeros_like(point).at[index].set(step)
-    if forward:
-        derivative: Float[Array, ""] = (
-            -25.0 * fn(point)
-            + 48.0 * fn(point + delta)
-            - 36.0 * fn(point + 2.0 * delta)
-            + 16.0 * fn(point + 3.0 * delta)
-            - 3.0 * fn(point + 4.0 * delta)
-        ) / (12.0 * step)
-    else:
-        derivative = (
-            fn(point - 2.0 * delta)
-            - 8.0 * fn(point - delta)
-            + 8.0 * fn(point + delta)
-            - fn(point + 2.0 * delta)
-        ) / (12.0 * step)
-    return derivative
 
 
 class TestGaussian(chex.TestCase):
@@ -278,7 +237,7 @@ class TestGaussian(chex.TestCase):
 class TestVoigt(chex.TestCase):
     """Validate :func:`diffpes.simul.broadening.voigt`.
 
-    Verifies the pseudo-Voigt broadening profile, including its
+    Verifies the true Voigt broadening profile, including its
     limiting behavior (reduction to Gaussian when gamma approaches zero),
     peak position accuracy, and output finiteness.
 
@@ -308,7 +267,7 @@ class TestVoigt(chex.TestCase):
         **Expected assertions**
 
         All values agree to within 1e-3, confirming the correct
-        Gaussian limiting behavior of the pseudo-Voigt approximation.
+        Gaussian limiting behavior of the true Voigt profile.
         """
         e_range: Array
         sigma: float
@@ -383,7 +342,7 @@ class TestVoigt(chex.TestCase):
         **Expected assertions**
 
         All profile values are finite (no NaN or Inf), confirming
-        numerical stability of the pseudo-Voigt implementation.
+        numerical stability of the true Voigt implementation.
         """
         e_range: Array
         var_fn: Callable[..., Any]
@@ -434,59 +393,6 @@ class TestVoigt(chex.TestCase):
         chex.assert_trees_all_close(
             lorentzian_profile, expected_lorentzian, rtol=1e-12, atol=0.0
         )
-
-    @chex.variants(with_jit=True, without_jit=True)
-    def test_boundary_gradients_match_physical_fd(self) -> None:
-        """Match both boundary-ray gradients to domain-respecting FD.
-
-        Extended Summary
-        ----------------
-        The test verifies sensitivities on the pure-Gaussian and pure-Lorentzian rays
-        remain finite, nonzero, and finite-difference correct. The zero-width
-        coordinate uses a five-point forward stencil so the numerical probe
-        never crosses into an unphysical negative width.
-
-        Notes
-        -----
-        The nonzero coordinate uses a five-point central stencil. Check eager
-        and JIT-transformed losses at a ``1e-3`` eV step.
-        """
-        widths: Array
-
-        loss: Callable[[Float[Array, "2"]], Float[Array, ""]]
-
-        loss = self.variant(_voigt_width_loss)
-        boundary_widths: tuple[Float[Array, "2"], ...] = (
-            jnp.array([0.23, 0.0], dtype=jnp.float64),
-            jnp.array([0.0, 0.19], dtype=jnp.float64),
-        )
-        for widths in boundary_widths:
-            derivatives: Float[Array, "2"] = jax.grad(loss)(widths)
-            chex.assert_tree_all_finite(derivatives)
-            chex.assert_trees_all_equal(derivatives != 0.0, jnp.ones(2, bool))
-            sigma_derivative: Float[Array, ""] = _coordinate_five_point_fd(
-                loss,
-                widths,
-                0,
-                step=1e-3,
-                forward=bool(widths[0] == 0.0),
-            )
-            gamma_derivative: Float[Array, ""] = _coordinate_five_point_fd(
-                loss,
-                widths,
-                1,
-                step=1e-3,
-                forward=bool(widths[1] == 0.0),
-            )
-            finite_difference: Float[Array, "2"] = jnp.stack(
-                [sigma_derivative, gamma_derivative]
-            )
-            chex.assert_trees_all_close(
-                derivatives,
-                finite_difference,
-                rtol=1e-5,
-                atol=2e-12,
-            )
 
     def test_rejects_negative_or_nonfinite_widths(self) -> None:
         """Reject negative and nonfinite Voigt component widths.

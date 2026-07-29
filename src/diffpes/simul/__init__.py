@@ -125,7 +125,7 @@ Routine Listings
 :func:`unpack_matrixel_params`
     Construct active matrix-element parameters from one real vector.
 :func:`voigt`
-    Compute a normalized Thompson-Cox-Hastings pseudo-Voigt profile.
+    Compute a normalized Voigt profile through the Faddeeva function.
 :func:`yeh_lindau_cross_section`
     Interpolate an atomic subshell photoionization cross section.
 :func:`yeh_lindau_cross_section_table`

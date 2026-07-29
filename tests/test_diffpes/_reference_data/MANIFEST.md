@@ -1,13 +1,13 @@
 # Reference artifact manifest
 
-> These files pin deterministic behavior, not independent physics
-> truth.
+> These files pin deterministic behavior unless an entry explicitly
+> classifies an independent physics truth.
 > The tight-binding cases were repinned for Plan 04's basis-position
 > gauge and carrier-native orbital bases.
 > Regenerate only with a stated physics or migration
 > justification.
 
-- Generation date: 2026-07-22
+- Generation date: 2026-07-29
 - Seed: `20260713`
 - Device policy: CPU, JAX x64 enabled
 - Platform: `Linux-5.15.0-185-generic-x86_64-with-glibc2.35`
@@ -18,7 +18,9 @@
 
 ## Factory calls
 
-- `novice_toy`: `simulate_novice(toy_band_structure(key), toy_orbital_projection(key), toy_simulation_params(fidelity=512), 15.0)`
+- `novice_toy_plan07_true_voigt`: fixed seed-`20260713` carriers assembled
+  manually with SciPy `voigt_profile` and the analytic Fermi function; neither
+  `voigt` nor `simulate_novice` is called by the generator.
 - `plan04_chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
   outputs for the independently C-gated graphene, square-lattice Rashba, and
   atomic t2g+SOC models. The generator and isolated environment freeze live
@@ -32,19 +34,10 @@
 
 ## Artifacts
 
-### `novice_toy.npz`
-
-- SHA-256: `7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f`
-- Classification: active Plan-02 Thompson-Cox-Hastings pseudo-Voigt
-  behavioral reference until the Plan-07 production closeout
-- Arrays:
-  - `leaf_000_intensity`: shape `(8, 512)`, dtype `float64`
-  - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
-
-### Plan-07 Voigt preregistration
+### Plan-07 Voigt evidence
 
 - Classification: Plan-07 gates 07.G2 and 07.D1, independent SciPy/analytic
-  physics truth frozen before the WP7.2 production edit
+  physics truth frozen before and retained after the WP7.2 production edit
 - Generator:
   `tests/_reference_tools/generate_plan07_voigt_reference.py`
 - Generator SHA-256:
@@ -61,10 +54,10 @@
   `43b1b38836fb2cabf683423a8315b7bf2ca2c11a03cab5ec31a4ede7471c29d0`
 - Truth engines: `scipy.special.voigt_profile`, `scipy.special.wofz`,
   analytic Gaussian/Cauchy endpoints, and the Faddeeva ODE derivative
-- Evidence: complete positive-width table, exact representable-input
-  endpoints, one-sided convergence rates, scaled 256-to-512 full-line
-  normalization, shared-envelope coordinates, analytic point derivatives,
-  contracted D1 truth, and three five-point finite-difference rungs
+- Evidence includes the complete positive-width table, exact endpoints,
+  one-sided rates, and scaled 256-to-512 full-line normalization.
+- It also includes shared-envelope coordinates, analytic point derivatives,
+  contracted D1 truth, and three five-point finite-difference rungs.
 - Archive contract: 40 named arrays, all `float64`, deterministic ZIP
   metadata, and pickle disabled
 
@@ -72,8 +65,8 @@
 
 - SHA-256:
   `ca410005c45faa46ca9e9a7bc949e7954fafdaf494b391bec8cd30bddac50440`
-- Classification: preregistered Plan-07 true-Voigt novice behavioral
-  reference; strict-red against the retained TCH production path
+- Classification: active Plan-07 true-Voigt novice behavioral reference,
+  preregistered strict-red against the superseded TCH production path
 - Truth: manual seed-20260713 fixture assembly with SciPy
   `voigt_profile` and an overflow-safe analytic Fermi function
 - Arrays:
@@ -87,7 +80,7 @@
 - Classification: superseded Plan-02 pseudo-Voigt historical evidence,
   retained for provenance only; it is not a compatibility shim
 - Byte-for-byte archive of the pre-WP7.2 `novice_toy.npz`; repository-floor
-  replay remains on the active filename until production closeout
+  replay now consumes `novice_toy_plan07_true_voigt.npz`
 
 ### `plan04_chinook_tightb_reference.json`
 

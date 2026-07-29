@@ -3,7 +3,7 @@
 Extended Summary
 ----------------
 The module provides JAX-compatible broadening profiles, including Gaussian
-(instrumental resolution), pseudo-Voigt (combined Gaussian-Lorentzian),
+(instrumental resolution), true Voigt (combined Gaussian-Lorentzian),
 and Fermi-Dirac thermal occupation functions.
 
 Routine Listings
@@ -13,7 +13,7 @@ Routine Listings
 :func:`gaussian`
     Compute normalized Gaussian broadening profile.
 :func:`voigt`
-    Compute a normalized Thompson-Cox-Hastings pseudo-Voigt profile.
+    Compute a normalized Voigt profile through the Faddeeva function.
 
 Notes
 -----
@@ -25,10 +25,10 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, jaxtyped
 
-from diffpes.maths import safe_divide, safe_power
 from diffpes.types import KB_EV_PER_K, ScalarFloat
+from diffpes.utils import faddeeva
 
 
 @jaxtyped(typechecker=beartype)
@@ -118,65 +118,25 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     sigma: ScalarFloat,
     gamma: ScalarFloat,
 ) -> Float[Array, " E"]:
-    """Compute a normalized Thompson-Cox-Hastings pseudo-Voigt profile.
+    r"""Compute a normalized Voigt profile through the Faddeeva function.
 
-    The function uses the pseudo-Voigt method from Thompson, Cox, and Hastings
-    (1987) [1]_. This method expresses the Voigt profile as a linear
-    combination of Gaussian and Lorentzian components:
-
-        V(E) = eta * L(E) + (1 - eta) * G(E)
+    The function combines a Gaussian instrument width with a Lorentzian
+    lifetime width. It follows the standard Faddeeva definition [1]_ and the
+    certified Weideman primal from WP7.1 [2]_.
 
     :see: :class:`~.test_broadening.TestVoigt`
 
-    where eta is an empirically determined mixing ratio. This
-    approximation is accurate to better than 1% relative error.
+    For positive Gaussian and Lorentzian widths, the function evaluates
 
-    Implementation Logic
-    --------------------
-    The pseudo-Voigt approximation proceeds in four stages:
+    .. math::
 
-    1. **Compute component FWHMs**::
+        V(E) = \frac{\operatorname{Re} w(z)}
+                    {\sigma\sqrt{2\pi}},
+        \qquad
+        z = \frac{E-E_0+i\gamma}{\sigma\sqrt{2}},
 
-           f_G = 2 * sigma * sqrt(2 * ln2)   (Gaussian FWHM)
-           f_L = 2 * gamma                    (Lorentzian FWHM)
-
-       Converts the Gaussian standard deviation and Lorentzian
-       half-width to their respective full-width at half-maximum
-       values.
-
-    2. **Compute Voigt FWHM via empirical formula**::
-
-           f_V = (f_G^5 + 2.69269 * f_G^4 * f_L
-                  + 2.42843 * f_G^3 * f_L^2
-                  + 4.47163 * f_G^2 * f_L^3
-                  + 0.07842 * f_G * f_L^4
-                  + f_L^5)^(1/5)
-
-       The Thompson-Cox-Hastings empirical relation approximates
-       the FWHM of the true Voigt convolution from the component
-       FWHMs. The function sanitizes the width polynomial before the fractional
-       power. Thus, an inactive branch cannot produce invalid gradients.
-
-    3. **Compute mixing ratio eta**::
-
-           ratio = f_L / f_V
-           eta = 1.36603 * ratio - 0.47719 * ratio^2
-                 + 0.11116 * ratio^3
-
-       The mixing ratio interpolates between pure Gaussian (eta = 0)
-       and pure Lorentzian (eta = 1). For non-negative physical widths,
-       the Thompson-Cox-Hastings polynomial keeps it in [0, 1].
-
-    4. **Combine Gaussian and Lorentzian components**::
-
-           sigma_V = f_V / (2 * sqrt(2 * ln2))
-           gamma_V = f_V / 2
-           G = gaussian(energy_range, center, sigma_V)
-           L = gamma_V / (pi * (diff^2 + gamma_V^2))
-           profile = eta * L + (1 - eta) * G
-
-       Both components use the Voigt FWHM (not the original widths)
-       so that the combined profile has the correct total width.
+    where :math:`w` is the Faddeeva function. The exact zero-width rays use
+    their analytic Gaussian and Cauchy limits.
 
     Parameters
     ----------
@@ -192,33 +152,46 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     Returns
     -------
     profile : Float[Array, " E"]
-        Normalized pseudo-Voigt profile values.
+        Normalized Voigt profile values.
 
     Raises
     ------
     EquinoxRuntimeError
-        If either width is non-finite or negative.
-        Also raised when ``sigma`` and ``gamma`` both equal zero because no
-        normalized profile or directional derivative exists there.
+        If an energy coordinate or ``center`` is non-finite.
+        Also raised for invalid widths or an out-of-envelope positive call.
 
     Notes
     -----
-    The function validates widths before
-    :func:`diffpes.maths.safe_power` supplies its boundary convention; that
-    helper does not validate domains. Quotients use
-    :func:`diffpes.maths.safe_divide`, so inactive zero-width branches cannot
-    inject NaNs into reverse-mode gradients. The pure-Gaussian ray
-    ``gamma = 0`` and pure-Lorentzian ray ``sigma = 0`` retain finite
-    one-sided boundary sensitivities.
+    The positive-width interior differentiates the validated Faddeeva primal
+    directly. The exact ``sigma = 0`` and ``gamma = 0`` branches are
+    value-only contracts; endpoint JVPs and VJPs are not certified. Analytic
+    endpoints bypass the Faddeeva envelope. Finite inactive branches prevent
+    zero-width divisions from poisoning JAX transformations.
 
     References
     ----------
-    .. [1] Thompson, Cox & Hastings, "Rietveld refinement of
-       Debye-Scherrer synchrotron X-ray data from Al2O3",
-       J. Appl. Cryst. 20, 79-83 (1987).
+    .. [1] Abramowitz, M. and Stegun, I. A., eds., *Handbook of Mathematical
+       Functions*, section 7.1, Dover, 1972.
+    .. [2] Weideman, J. A. C., "Computation of the Complex Error Function",
+       SIAM J. Numer. Anal. 31, 1497-1518 (1994).
     """
+    energy_array: Float[Array, " E"] = jnp.asarray(
+        energy_range,
+        dtype=jnp.float64,
+    )
+    center_array: Float[Array, ""] = jnp.asarray(center, dtype=jnp.float64)
     sigma_array: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
     gamma_array: Float[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
+    checked_energy: Float[Array, " E"] = eqx.error_if(
+        energy_array,
+        ~jnp.all(jnp.isfinite(energy_array)),
+        "energy_range must be finite",
+    )
+    checked_center: Float[Array, ""] = eqx.error_if(
+        center_array,
+        ~jnp.isfinite(center_array),
+        "center must be finite",
+    )
     checked_sigma: Float[Array, ""] = eqx.error_if(
         sigma_array,
         ~jnp.isfinite(sigma_array) | (sigma_array < 0.0),
@@ -234,30 +207,63 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
         (checked_sigma == 0.0) & (checked_gamma == 0.0),
         "sigma and gamma must not both be zero",
     )
-    ln_two: Float[Array, ""] = jnp.log(jnp.float64(2.0))
-    f_g: Float[Array, ""] = 2.0 * checked_sigma * jnp.sqrt(2.0 * ln_two)
-    f_l: Float[Array, ""] = 2.0 * checked_gamma
-    poly: Float[Array, ""] = (
-        f_g**5
-        + 2.69269 * f_g**4 * f_l
-        + 2.42843 * f_g**3 * f_l**2
-        + 4.47163 * f_g**2 * f_l**3
-        + 0.07842 * f_g * f_l**4
-        + f_l**5
+    maximum_absolute_value: float = 1.0e8
+    interior: Array = (checked_sigma > 0.0) & (checked_gamma > 0.0)
+    safe_sigma: Float[Array, ""] = jnp.where(
+        checked_sigma > 0.0,
+        checked_sigma,
+        jnp.float64(1.0),
     )
-    f_v: Float[Array, ""] = safe_power(poly, 0.2)
-    ratio: Float[Array, ""] = safe_divide(f_l, f_v)
-    eta: Float[Array, ""] = (
-        1.36603 * ratio - 0.47719 * ratio**2 + 0.11116 * ratio**3
+    safe_gamma: Float[Array, ""] = jnp.where(
+        checked_gamma > 0.0,
+        checked_gamma,
+        jnp.float64(1.0),
     )
-    sigma_v: Float[Array, ""] = safe_divide(f_v, 2.0 * jnp.sqrt(2.0 * ln_two))
-    g_part: Float[Array, " E"] = gaussian(energy_range, center, sigma_v)
-    diff: Float[Array, " E"] = energy_range - center
-    gamma_v: Float[Array, ""] = safe_divide(f_v, jnp.float64(2.0))
-    l_part: Float[Array, " E"] = safe_divide(
-        gamma_v, jnp.pi * (diff**2 + gamma_v**2)
+    displacement: Float[Array, " E"] = checked_energy - checked_center
+    candidate_z: Complex[Array, " E"] = (displacement + 1j * checked_gamma) / (
+        safe_sigma * jnp.sqrt(jnp.float64(2.0))
     )
-    profile: Float[Array, " E"] = eta * l_part + (1.0 - eta) * g_part
+    inactive_z: Complex[Array, " E"] = jnp.zeros_like(candidate_z)
+    safe_z: Complex[Array, " E"] = jnp.where(
+        interior,
+        candidate_z,
+        inactive_z,
+    )
+    invalid_z: Array = interior & jnp.any(
+        ~jnp.isfinite(candidate_z)
+        | (jnp.abs(candidate_z) > maximum_absolute_value)
+    )
+    bounded_z: Complex[Array, " E"] = jnp.where(
+        invalid_z,
+        inactive_z,
+        safe_z,
+    )
+    checked_z: Complex[Array, " E"] = eqx.error_if(
+        bounded_z,
+        invalid_z,
+        "positive-width arguments must remain inside the Faddeeva envelope "
+        "with finite abs(z) <= 1e8",
+    )
+    interior_profile: Float[Array, " E"] = jnp.real(faddeeva(checked_z)) / (
+        safe_sigma * jnp.sqrt(2.0 * jnp.pi)
+    )
+    gaussian_profile: Float[Array, " E"] = gaussian(
+        checked_energy,
+        checked_center,
+        safe_sigma,
+    )
+    cauchy_profile: Float[Array, " E"] = safe_gamma / (
+        jnp.pi * (displacement**2 + safe_gamma**2)
+    )
+    profile: Float[Array, " E"] = jnp.where(
+        checked_sigma == 0.0,
+        cauchy_profile,
+        jnp.where(
+            checked_gamma == 0.0,
+            gaussian_profile,
+            interior_profile,
+        ),
+    )
     return profile
 
 
