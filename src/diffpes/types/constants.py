@@ -104,8 +104,6 @@ Routine Listings
     Magnetization block count in SOC CHGCAR files.
 :obj:`N_SPIN_COMPONENTS`
     Spin-projection component count in PROCAR.
-:obj:`N_TAYLOR`
-    Taylor-series order for the Faddeeva evaluation.
 :obj:`NON_S_ORBITAL_SLICE`
     Slice selecting all non-s orbitals.
 :obj:`NONSPIN_COLS`
@@ -237,7 +235,6 @@ MINIMUM_AXIS_POINTS: Final[int] = 2
 N_ORBITALS: Final[int] = 9
 N_SOC_MAG_BLOCKS: Final[int] = 3
 N_SPIN_COMPONENTS: Final[int] = 6
-N_TAYLOR: Final[int] = 64
 NON_S_ORBITAL_SLICE: Final[slice] = slice(1, 9)
 NONSPIN_COLS: Final[int] = 3
 NORM_EPS: Final[float] = 1e-12
@@ -350,7 +347,6 @@ __all__: list[str] = [
     "N_ORBITALS",
     "N_SOC_MAG_BLOCKS",
     "N_SPIN_COMPONENTS",
-    "N_TAYLOR",
     "NON_S_ORBITAL_SLICE",
     "NONSPIN_COLS",
     "NORM_EPS",

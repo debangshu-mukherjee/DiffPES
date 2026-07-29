@@ -1,0 +1,56 @@
+{
+  "archive": "plan07_faddeeva_100digit_reference.npz",
+  "archive_sha256": "05cf92701a103af7f7cadd6865398ba49154e6ad9c0294376e59e0e8da29fd89",
+  "componentwise_value_bound": {
+    "absolute": 2e-15,
+    "relative_to_same_component": 2e-12
+  },
+  "derivative_bound": "2e-14*(1+abs(z))^-2 + 2e-11*abs(reference_derivative)",
+  "directions": [
+    "1",
+    "1j",
+    "(3+4j)/5"
+  ],
+  "domain": {
+    "abs_max": 100000000.0,
+    "imag_min": 0.0
+  },
+  "environment": {
+    "mpmath": "1.4.1",
+    "numpy": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35"
+  },
+  "explicit_points": [
+    "2.5",
+    "3+1j",
+    "6",
+    "1e8",
+    "1e8j"
+  ],
+  "gates": [
+    "07.G1",
+    "07.D1"
+  ],
+  "generator": "tests/_reference_tools/generate_plan07_faddeeva_reference.py",
+  "generator_sha256": "d47eda4acd44dcc80b08be4a546fcdb8cb7ac14c8645a27976006f50defeaaec",
+  "grid": {
+    "angles": "linspace(0,pi,33)",
+    "radii": "{0} union 10**linspace(-12,8,161)"
+  },
+  "reference_engine": {
+    "decimal_digits": 100,
+    "formula": "exp(-z*z)*erfc(-1j*z)",
+    "name": "mpmath"
+  },
+  "schema": "diffpes.plan07.faddeeva-reference.v1",
+  "seams": [],
+  "selected_algorithm": {
+    "name": "Weideman rational approximation",
+    "order": 40,
+    "regions": 1,
+    "seam_count": 0,
+    "selection_max_derivative_budget_ratio": 0.00045632,
+    "selection_max_value_budget_ratio": 0.022956
+  },
+  "stage": "algorithm-selected-before-production-edit"
+}

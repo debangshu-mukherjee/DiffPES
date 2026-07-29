@@ -20,117 +20,75 @@ Routine Listings
 
 Notes
 -----
-The Faddeeva implementation uses a 64-term Taylor series. The ODE
-w'(z) = -2z w(z) + 2i/sqrt(pi) defines the coefficients. The series provides
-double-precision accuracy for |z| < 6.
+The Faddeeva implementation uses a fixed-order Weideman rational
+approximation. It covers the declared upper-half-plane envelope without a
+region seam.
 """
 
 import math
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Complex, Float, jaxtyped
 
 from diffpes.maths import safe_divide
-from diffpes.types import N_TAYLOR
 
 
-def _faddeeva_taylor_coeffs() -> Complex[Array, " N"]:
-    r"""Compute Taylor coefficients of w(z) through a JAX scan.
+def _faddeeva_weideman_coefficients() -> Float[Array, " N"]:
+    r"""Generate fixed-order Weideman rational coefficients.
 
-    Extended Summary
-    ----------------
-    The function computes the first ``N_TAYLOR`` coefficients in the Taylor
-    expansion of the Faddeeva function about the origin.
-
-    **Mathematical derivation:**
-
-    The Faddeeva function satisfies the ODE:
-
-    .. math::
-
-        w'(z) = -2z \, w(z) + \frac{2i}{\sqrt{\pi}}
-
-    Substituting the power series ansatz :math:`w(z) = \sum_{n=0}^\infty
-    a_n z^n` and matching coefficients of :math:`z^n` on both sides
-    yields the two-term recurrence:
-
-    .. math::
-
-        a_0 = 1, \quad a_1 = \frac{2i}{\sqrt{\pi}}, \quad
-        a_{n+1} = \frac{-2 \, a_{n-1}}{n+1} \quad (n \ge 1)
-
-    The recurrence connects the even-indexed coefficients. It separately
-    connects the odd-indexed coefficients. Even coefficients are real, and
-    odd coefficients are purely imaginary. This structure reflects the
-    symmetry :math:`w(-z) = 2 e^{-z^2} - w(z)`.
-
-    **Implementation:**
-
-    The function implements the recurrence with ``jax.lax.scan``. The scan
-    carries the pair :math:`(a_{n-1}, a_n)`. At each zero-based step n, the
-    scan computes :math:`a_{n+2} = -2 a_n / (n + 2)`. It produces coefficients
-    :math:`a_2` through :math:`a_{N-1}`. The function joins these coefficients
-    with the seed values :math:`a_0, a_1`.
-
-    The module reverses the resulting array into descending power order. It
-    stores the array in ``_W_POLY`` for Horner's method in ``jnp.polyval``.
+    The construction samples the mapped Gaussian on a fixed tangent grid.
+    A discrete Fourier transform produces the rational-basis coefficients.
 
     Returns
     -------
-    coeffs : Complex[Array, " N"]
-        Taylor coefficients :math:`[a_0, a_1, \ldots, a_{N-1}]` in
-        ascending power order, where ``N = N_TAYLOR``.
+    coeffs : Float[Array, " N"]
+        Real coefficients in descending polynomial order.
+
+    Notes
+    -----
+    The Plan-07 algorithm-selection sweep freezes order 40 before production.
+    The transform follows Weideman's published rational construction.
     """
-    c0: Complex[Array, " "] = jnp.array(1.0 + 0j, dtype=jnp.complex128)
-    c1: Complex[Array, " "] = jnp.array(
-        2.0j / math.sqrt(math.pi), dtype=jnp.complex128
+    order: int = 40
+    scale: float = math.sqrt(order / math.sqrt(2.0))
+    doubled_order: int = 2 * order
+    indices: Float[Array, " grid"] = jnp.arange(
+        -doubled_order + 1,
+        doubled_order,
+        dtype=jnp.float64,
     )
-
-    def body(
-        carry: tuple[Complex[Array, " "], Complex[Array, " "]],
-        n: Int[Array, ""],
-    ) -> tuple[
-        tuple[Complex[Array, " "], Complex[Array, " "]],
-        Complex[Array, " "],
-    ]:
-        c_prev: Complex[Array, " "]
-        c_curr: Complex[Array, " "]
-        c_prev, c_curr = carry
-        next_c: Complex[Array, " "] = (-2.0 * c_prev) / (
-            jnp.asarray(n, dtype=jnp.float64) + 2.0
-        )
-        scan_output: tuple[
-            tuple[Complex[Array, " "], Complex[Array, " "]],
-            Complex[Array, " "],
-        ] = ((c_curr, next_c), next_c)
-        return scan_output
-
-    scan_result: tuple[
-        tuple[Complex[Array, " "], Complex[Array, " "]],
-        Complex[Array, " N2"],
-    ] = jax.lax.scan(
-        body,
-        (c0, c1),
-        jnp.arange(N_TAYLOR - 2, dtype=jnp.int32),
+    angles: Float[Array, " grid"] = indices * math.pi / doubled_order
+    mapped: Float[Array, " grid"] = scale * jnp.tan(angles / 2.0)
+    samples: Float[Array, " grid"] = jnp.exp(-(mapped**2)) * (
+        scale**2 + mapped**2
     )
-    rest: Complex[Array, " N2"] = scan_result[1]
-    full: Complex[Array, " N"] = jnp.concatenate([c0[None], c1[None], rest])
-    return full
+    padded: Float[Array, " fft_grid"] = jnp.concatenate(
+        (jnp.zeros(1, dtype=jnp.float64), samples)
+    )
+    transformed: Complex[Array, " fft_grid"] = jnp.fft.fft(
+        jnp.fft.fftshift(padded)
+    )
+    ascending: Float[Array, " fft_grid"] = jnp.real(transformed) / (
+        2 * doubled_order
+    )
+    result: Float[Array, " N"] = ascending[1 : order + 1][::-1]
+    return result
 
 
-_W_POLY: Complex[Array, " N"] = _faddeeva_taylor_coeffs()[::-1]
+_W_POLY: Float[Array, " N"] = _faddeeva_weideman_coefficients()
 
 
 @jaxtyped(typechecker=beartype)
-def faddeeva(
+def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     z: Complex[Array, " ..."],
 ) -> Complex[Array, " ..."]:
     r"""Evaluate the Faddeeva function w(z) = exp(-z^2) erfc(-iz).
 
-    The function computes the Faddeeva function for arbitrary complex arrays.
-    It applies Horner's method to a precomputed Taylor polynomial.
+    The function evaluates a fixed-order rational approximation on complex
+    arrays in the closed upper half-plane.
 
     The following equation defines the Faddeeva function:
 
@@ -144,45 +102,54 @@ def faddeeva(
     imaginary axis. ARPES simulations use it to convolve Lorentzian lifetime
     broadening with Gaussian instrument resolution.
 
-    **Implementation:**
-
-    1. **Cast to complex128**: Convert the input to ``jnp.complex128`` with
-       ``jnp.asarray``. This type provides sufficient precision for the
-       64-term polynomial.
-
-    2. **Apply Horner's method**: Call ``jnp.polyval`` with ``_W_POLY`` and the
-       converted input. ``_W_POLY`` stores the coefficients in descending
-       power order. The ``unroll=8`` hint lets XLA pipeline the inner loop.
-
-    The ODE :math:`w'(z) = -2z w(z) + 2i/\sqrt{\pi}` defines the Taylor
-    coefficients. The `_faddeeva_taylor_coeffs` function computes them during
-    module import. Its docstring gives the full recurrence derivation.
-
     :see: :class:`~.test_math.TestFaddeeva`
 
     Parameters
     ----------
     z : Complex[Array, " ..."]
-        Complex argument(s), arbitrary shape.
+        Complex arguments with ``Im(z) >= 0`` and ``abs(z) <= 1e8``.
 
     Returns
     -------
     w : Complex[Array, " ..."]
         Faddeeva function values, same shape as ``z``.
 
+    Raises
+    ------
+    EquinoxRuntimeError
+        If an argument is nonfinite, below the real axis, or outside the
+        certified magnitude envelope.
+
     Notes
     -----
-    The result has approximately 15 significant digits for ``|z| < 6``. The
-    Taylor series converges slowly for ``|z| >= 6``. Use an asymptotic
-    expansion or a continued fraction outside the convergence domain. The
-    function does not select these alternatives automatically.
-
-    The function is fully differentiable via JAX autodiff, which
-    is important for gradient-based optimization of broadening
-    parameters in inverse-fitting workflows.
+    The order-40 Weideman approximation uses one rational region, so no
+    selector seam enters the primal or its JAX derivative. The denominator
+    has positive real part throughout the declared upper-half-plane domain.
+    Inputs promote to complex128 before validation and evaluation.
     """
     z_c: Complex[Array, " ..."] = jnp.asarray(z, dtype=jnp.complex128)
-    w: Complex[Array, " ..."] = jnp.polyval(_W_POLY, z_c, unroll=8)
+    maximum_absolute_value: float = 1.0e8
+    invalid: Array = (
+        ~jnp.all(jnp.isfinite(z_c))
+        | jnp.any(jnp.imag(z_c) < 0.0)
+        | jnp.any(jnp.abs(z_c) > maximum_absolute_value)
+    )
+    checked: Complex[Array, " ..."] = eqx.error_if(
+        z_c,
+        invalid,
+        "z must be finite with Im(z) >= 0 and abs(z) <= 1e8",
+    )
+    scale: float = math.sqrt(40 / math.sqrt(2.0))
+    denominator: Complex[Array, " ..."] = scale - 1j * checked
+    transformed: Complex[Array, " ..."] = (scale + 1j * checked) / denominator
+    polynomial: Complex[Array, " ..."] = jnp.polyval(
+        _W_POLY,
+        transformed,
+        unroll=8,
+    )
+    w: Complex[Array, " ..."] = 2.0 * polynomial / denominator**2 + 1.0 / (
+        jnp.sqrt(jnp.pi) * denominator
+    )
     return w
 
 

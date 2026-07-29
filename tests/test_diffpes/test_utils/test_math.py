@@ -7,12 +7,20 @@ complex packing boundary. They cover JIT, vectorization, precision, round
 trips, and gradients.
 """
 
+import hashlib
+import json
+from pathlib import Path
+
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable
+from jax.test_util import check_grads
 from jaxtyping import Array, Complex, Float, jaxtyped
+from scipy.special import wofz
 
 from diffpes.utils import (
     faddeeva,
@@ -20,6 +28,21 @@ from diffpes.utils import (
     unpack_complex,
     zscore_normalize,
 )
+
+
+def _faddeeva_reference() -> dict[str, np.ndarray]:
+    """Load the frozen Plan-07 G1/D1 arbitrary-precision reference."""
+    path: Path = (
+        Path(__file__).parents[1]
+        / "_reference_data"
+        / "plan07_faddeeva_100digit_reference.npz"
+    )
+    archive: np.lib.npyio.NpzFile
+    with np.load(path, allow_pickle=False) as archive:
+        result: dict[str, np.ndarray] = {
+            name: archive[name] for name in archive.files
+        }
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -78,6 +101,230 @@ class TestFaddeeva(chex.TestCase):
 
     :see: :func:`~diffpes.utils.faddeeva`
     """
+
+    def test_g1_artifact_provenance_and_scipy_crosscheck(self) -> None:
+        """Bind the frozen G1 artifact to its generator and SciPy comparator.
+
+        The test verifies immutable digests, the preregistered grid, and an
+        independent double-precision cross-check.
+
+        Notes
+        -----
+        It recomputes both SHA-256 values and compares every rounded value with
+        ``scipy.special.wofz`` at a mixed double-precision tolerance.
+        """
+        root: Path = Path(__file__).parents[3]
+        data_directory: Path = (
+            root / "tests" / "test_diffpes" / "_reference_data"
+        )
+        manifest_path: Path = data_directory / "plan07_faddeeva_manifest.json"
+        manifest: dict[str, Any] = json.loads(
+            manifest_path.read_text(encoding="utf-8")
+        )
+        archive_path: Path = data_directory / manifest["archive"]
+        generator_path: Path = root / manifest["generator"]
+        assert manifest["schema"] == "diffpes.plan07.faddeeva-reference.v1"
+        assert manifest["reference_engine"]["decimal_digits"] == 100
+        assert (
+            hashlib.sha256(archive_path.read_bytes()).hexdigest()
+            == manifest["archive_sha256"]
+        )
+        assert (
+            hashlib.sha256(generator_path.read_bytes()).hexdigest()
+            == manifest["generator_sha256"]
+        )
+        reference: dict[str, np.ndarray] = _faddeeva_reference()
+        scipy_values: np.ndarray = wofz(reference["points"])
+        np.testing.assert_allclose(
+            scipy_values,
+            reference["values"],
+            rtol=2.0e-14,
+            atol=2.0e-15,
+        )
+
+    def test_g1_primal_full_envelope(self) -> None:
+        """Match both Faddeeva components over the complete public envelope.
+
+        The test includes logarithmic radii through ``1e8``, both axes, all
+        upper-half-plane angles, and the planted legacy-failure witnesses.
+
+        Notes
+        -----
+        It applies the frozen componentwise mixed bound independently to the
+        real and imaginary output rows.
+        """
+        reference: dict[str, np.ndarray] = _faddeeva_reference()
+        points: Complex[Array, " n"] = jnp.asarray(reference["points"])
+        expected: np.ndarray = reference["values"]
+        actual: np.ndarray = np.asarray(jax.jit(faddeeva)(points))
+        real_bound: np.ndarray = 2.0e-15 + 2.0e-12 * np.abs(expected.real)
+        imag_bound: np.ndarray = 2.0e-15 + 2.0e-12 * np.abs(expected.imag)
+        np.testing.assert_array_less(
+            np.abs(actual.real - expected.real),
+            real_bound,
+        )
+        np.testing.assert_array_less(
+            np.abs(actual.imag - expected.imag),
+            imag_bound,
+        )
+
+    def test_g1_arbiter_derivative_full_envelope(self) -> None:
+        """Match native JVPs with arbitrary-precision ODE derivatives.
+
+        The test differentiates every frozen point in the three registered
+        complex directions over the complete upper-half-plane envelope.
+
+        Notes
+        -----
+        It forms the cancellation-sensitive ODE truth in mpmath before the
+        artifact rounds it to complex128.
+        """
+        reference: dict[str, np.ndarray] = _faddeeva_reference()
+        points: Complex[Array, " n"] = jnp.asarray(reference["points"])
+        derivatives: np.ndarray = reference["derivatives"]
+        direction: complex
+        for direction in reference["directions"]:
+            tangents: Complex[Array, " n"] = jnp.full_like(points, direction)
+            actual: np.ndarray = np.asarray(
+                jax.jit(
+                    lambda arguments, vectors: jax.jvp(
+                        faddeeva,
+                        (arguments,),
+                        (vectors,),
+                    )[1]
+                )(points, tangents)
+            )
+            expected: np.ndarray = derivatives * direction
+            bound: np.ndarray = 2.0e-14 / (
+                1.0 + np.abs(reference["points"])
+            ) ** 2 + 2.0e-11 * np.abs(expected)
+            np.testing.assert_array_less(np.abs(actual - expected), bound)
+
+    def test_d1_directional_jvps_and_fd(self) -> None:
+        """Compare native JVPs with a multistep central-FD plateau.
+
+        The test probes small, intermediate, and asymptotic interior points in
+        generic real and complex directions.
+
+        Notes
+        -----
+        It uses three relative steps and requires the finest two rungs to agree
+        with the analytic rational derivative inside the D1 mixed budget.
+        """
+        points: tuple[complex, ...] = (
+            0.3 + 0.2j,
+            3.0 + 1.0j,
+            25.0 + 0.5j,
+            1.0e4 + 100.0j,
+        )
+        directions: tuple[complex, ...] = (1.0 + 0.0j, 0.6 + 0.8j)
+        point: complex
+        direction: complex
+        exponent: int
+        for point in points:
+            argument: Complex[Array, ""] = jnp.asarray(point)
+            scale: float = max(1.0, abs(point))
+            for direction in directions:
+                tangent: Complex[Array, ""] = jnp.asarray(direction)
+                exact: complex = complex(
+                    jax.jvp(faddeeva, (argument,), (tangent,))[1]
+                )
+                estimates: list[complex] = []
+                for exponent in (12, 14, 16):
+                    step: float = scale * 2.0**-exponent
+                    estimate: complex = complex(
+                        (
+                            faddeeva(argument + step * tangent)
+                            - faddeeva(argument - step * tangent)
+                        )
+                        / (2.0 * step)
+                    )
+                    estimates.append(estimate)
+                tolerance: float = 1.0e-9 + 1.0e-6 * abs(exact)
+                assert abs(estimates[-1] - exact) < tolerance
+                assert abs(estimates[-2] - exact) < tolerance
+
+    def test_d1_forward_and_reverse_modes(self) -> None:
+        """Check forward and reverse derivatives at generic complex points.
+
+        The test projects each complex result to an asymmetric real loss so
+        both output components participate.
+
+        Notes
+        -----
+        It invokes JAX's independent randomized directional checker in both AD
+        modes away from any physical-domain boundary.
+        """
+        points: tuple[complex, ...] = (
+            0.2 + 0.4j,
+            2.3 + 0.7j,
+            17.0 + 3.0j,
+        )
+        point: complex
+        for point in points:
+
+            def loss(argument: Complex[Array, ""]) -> Float[Array, ""]:
+                normalized: Complex[Array, ""] = jnp.asarray(argument)
+                value: Complex[Array, ""] = faddeeva(normalized)
+                result: Float[Array, ""] = jnp.real(value) + 0.37 * jnp.imag(
+                    value
+                )
+                return result
+
+            check_grads(
+                loss,
+                (jnp.asarray(point),),
+                order=1,
+                modes=("fwd", "rev"),
+                atol=1.0e-9,
+                rtol=1.0e-6,
+            )
+
+    def test_domain_rejections(self) -> None:
+        """Reject nonfinite and out-of-envelope complex arguments.
+
+        The test covers eager and compiled validation for every public domain
+        boundary.
+
+        Notes
+        -----
+        It requires the same physical-domain message from direct and JIT calls.
+        """
+        arguments: tuple[complex, ...] = (
+            np.nan + 0.0j,
+            np.inf + 0.0j,
+            1.0 - 1.0e-12j,
+            1.00000001e8 + 0.0j,
+        )
+        argument: complex
+        for argument in arguments:
+            with pytest.raises(Exception, match="finite"):
+                faddeeva(jnp.asarray(argument))
+            with pytest.raises(Exception, match="finite"):
+                jax.jit(faddeeva)(jnp.asarray(argument))
+
+    def test_real_axis_identity_and_vmap(self) -> None:
+        """Verify the Gaussian real-axis identity under vectorization.
+
+        The test covers signed real arguments and compares mapped evaluation
+        with direct array evaluation.
+
+        Notes
+        -----
+        It checks ``Re(w(x))=exp(-x**2)`` and exact agreement between the two
+        public JAX transformation patterns.
+        """
+        coordinates: Float[Array, " n"] = jnp.linspace(-10.0, 10.0, 201)
+        points: Complex[Array, " n"] = coordinates.astype(jnp.complex128)
+        direct: Complex[Array, " n"] = faddeeva(points)
+        mapped: Complex[Array, " n"] = jax.vmap(faddeeva)(points)
+        chex.assert_trees_all_equal(mapped, direct)
+        np.testing.assert_allclose(
+            np.asarray(jnp.real(direct)),
+            np.asarray(jnp.exp(-(coordinates**2))),
+            rtol=2.0e-12,
+            atol=2.0e-15,
+        )
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_real_axis(self) -> None:
