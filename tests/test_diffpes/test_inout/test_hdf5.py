@@ -27,14 +27,51 @@ import diffpes
 from diffpes.inout import load_from_h5, save_to_h5
 from diffpes.inout.hdf5 import _decode_static, _encode_static
 from diffpes.types import (
+    SelfEnergyModel,
     make_arpes_spectrum,
     make_band_structure,
     make_crystal_geometry,
     make_density_of_states,
     make_kpath_info,
     make_orbital_projection,
+    make_self_energy_model,
     make_simulation_params,
 )
+
+
+class TestSelfEnergyModel(chex.TestCase):
+    """Round-trip the renamed Plan-07 self-energy carrier.
+
+    :see: :class:`~diffpes.types.SelfEnergyModel`
+    """
+
+    def test_round_trip(self) -> None:
+        """Preserve every traced and static model field through HDF5.
+
+        The test covers a numerical grid model with its complete causal state.
+
+        Notes
+        -----
+        The test saves the model, loads it by name, and compares the full tree.
+        """
+        model: SelfEnergyModel = make_self_energy_model(
+            mode="grid",
+            coefficients=jnp.array([-2.0, -1.0, 0.0]),
+            energy_nodes_rel_fermi_ev=jnp.array([-4.0, 0.0, 4.0]),
+            kk_domain_rel_fermi_ev=jnp.array([-4.0, 4.0]),
+            tail_coefficients=jnp.array([-1.0, 1.0]),
+            subtraction_point_rel_fermi_ev=0.0,
+            tail_mode="power2",
+        )
+        path: Path
+        loaded: Any
+        td: str
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "self_energy.h5"
+            save_to_h5(path, self_energy=model)
+            loaded = load_from_h5(path, name="self_energy")
+        assert isinstance(loaded, SelfEnergyModel)
+        chex.assert_trees_all_equal(loaded, model)
 
 
 class TestDensityOfStates(chex.TestCase):

@@ -52,6 +52,27 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Plan 07 renames `SelfEnergyConfig` to `SelfEnergyModel` and renames
+  `make_self_energy_config` to `make_self_energy_model`. The mode value
+  `"polynomial"` becomes `"poly"`, and `"tabulated"` becomes `"grid"`.
+  The carrier gains `kk_domain_rel_fermi_ev`, `tail_coefficients`,
+  `subtraction_point_rel_fermi_ev`, `kk_consistent`, and `tail_mode`, and
+  renames `energy_nodes` to `energy_nodes_rel_fermi_ev`. Energy-dependent
+  modes require a KK domain and an explicit tail contract.
+- **Silent numerical break in `coefficients`.** `coefficients` are now
+  unconstrained real coordinates mapped through `softplus`, not linewidths in
+  eV. `make_self_energy_model(coefficients=[0.1], mode="constant")` gives
+  `Gamma = softplus(0.1) = 0.744 eV`, where
+  `make_self_energy_config(coefficients=[0.1])` gave `Gamma = 0.1 eV`. This is
+  a factor of 7.4 and it raises no error. The same applies to any
+  `SelfEnergyConfig` written to HDF5 before this release: the file still loads
+  and its coefficients now mean something different. To migrate, either pass
+  the linewidth through the `gamma` shortcut, which stores
+  `softplus_inverse(gamma)` and reproduces the previous value exactly, or
+  convert stored coefficients with `log(expm1(gamma))`. The reparameterization
+  keeps the imaginary self-energy strictly negative through a smooth,
+  gradient-alive map. Clipping would instead zero the gradient and the Fisher
+  row at the bound.
 - `diffpes.utils.faddeeva` now covers its declared upper-half-plane
   `abs(z) <= 1e8` envelope with an order-40 Weideman rational approximation.
   Invalid or lower-half-plane inputs raise instead of returning divergent

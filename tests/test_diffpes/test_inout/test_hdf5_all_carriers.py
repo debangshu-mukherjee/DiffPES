@@ -33,7 +33,7 @@ from diffpes.types import (
     make_orbital_projection,
     make_radial_quadrature_spec,
     make_radial_spec,
-    make_self_energy_config,
+    make_self_energy_model,
     make_simulation_params,
     make_soc_volumetric_data,
     make_spin_band_structure,
@@ -127,7 +127,7 @@ def _all_carriers() -> dict[str, eqx.Module]:
         ),
         "radial_quadrature": make_radial_quadrature_spec(),
         "final_state": make_final_state_spec(),
-        "self_energy": make_self_energy_config(),
+        "self_energy": make_self_energy_model(),
         "diagonalized": diagonalized,
         "tb_model": tb_model,
         "volumetric": make_volumetric_data(

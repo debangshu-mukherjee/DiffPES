@@ -8,7 +8,7 @@ determines the Lorentzian component of the spectral linewidth
 and is critical for modelling correlated materials where
 quasiparticle lifetimes vary strongly with energy.
 
-The function supports three parametric models:
+The function temporarily supports the five Plan-07 carrier models:
 
 - **constant**: Uniform broadening at all energies.
 - **polynomial**: Polynomial expansion in energy, for example Fermi-liquid
@@ -31,17 +31,18 @@ The mode string controls Python dispatch outside JAX tracing. Therefore, JAX
 compiles one code path for each invocation.
 """
 
+import jax
 import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Float, jaxtyped
 
-from diffpes.types import SelfEnergyConfig
+from diffpes.types import SelfEnergyModel
 
 
 @jaxtyped(typechecker=beartype)
 def evaluate_self_energy(
     energy: Float[Array, " ..."],
-    config: SelfEnergyConfig,
+    config: SelfEnergyModel,
 ) -> Float[Array, " ..."]:
     r"""Evaluate the imaginary self-energy :math:`\Gamma(E)`.
 
@@ -94,7 +95,7 @@ def evaluate_self_energy(
     energy : Float[Array, " ..."]
         Energy values in eV at which to evaluate the self-energy.
         Any shape. The output has the same shape.
-    config : SelfEnergyConfig
+    config : SelfEnergyModel
         Self-energy model specification containing:
 
         - ``mode`` : str -- ``"constant"``, ``"polynomial"``, or
@@ -129,20 +130,35 @@ def evaluate_self_energy(
 
     if mode == "constant":
         result: Float[Array, " ..."] = jnp.broadcast_to(
-            config.coefficients[0], energy.shape
+            jax.nn.softplus(config.coefficients[0]), energy.shape
         )
-        return result
-    if mode == "polynomial":
-        result: Float[Array, " ..."] = jnp.polyval(config.coefficients, energy)
-        return result
-    if mode == "tabulated":
-        assert config.energy_nodes is not None
-        result: Float[Array, " ..."] = jnp.interp(
-            energy, config.energy_nodes, config.coefficients
+    elif mode == "poly":
+        result = jax.nn.softplus(jnp.polyval(config.coefficients, energy))
+    elif mode == "grid":
+        assert config.energy_nodes_rel_fermi_ev is not None
+        result = jnp.interp(
+            energy,
+            config.energy_nodes_rel_fermi_ev,
+            jax.nn.softplus(config.coefficients),
         )
-        return result
-    msg: str = f"Unknown self-energy mode: {mode}"
-    raise ValueError(msg)
+    elif mode == "fermi_liquid":
+        gamma0: Float[Array, ""] = jax.nn.softplus(config.coefficients[0])
+        beta: Float[Array, ""] = jax.nn.softplus(config.coefficients[1])
+        omega_c: Float[Array, ""] = jax.nn.softplus(config.coefficients[2])
+        result = gamma0 + beta * energy**2 / (1.0 + (energy / omega_c) ** 4)
+    elif mode == "bosonic_kink":
+        gamma0 = jax.nn.softplus(config.coefficients[0])
+        coupling: Float[Array, ""] = jax.nn.softplus(config.coefficients[1])
+        omega0: Float[Array, ""] = jax.nn.softplus(config.coefficients[2])
+        width: Float[Array, ""] = jax.nn.softplus(config.coefficients[3])
+        result = gamma0 + coupling**2 * width * (
+            1.0 / ((energy - omega0) ** 2 + width**2)
+            + 1.0 / ((energy + omega0) ** 2 + width**2)
+        )
+    else:
+        msg: str = f"Unknown self-energy mode: {mode}"
+        raise ValueError(msg)
+    return result
 
 
 __all__: list[str] = ["evaluate_self_energy"]

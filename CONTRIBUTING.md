@@ -584,13 +584,13 @@ do not apply:
 ##### Class docstrings (`eqx.Module` PyTrees)
 
 ```python
-class SelfEnergyConfig(eqx.Module):
+class LifetimeModel(eqx.Module):
     """Configure energy-dependent lifetime broadening.
 
     Carries the parameters of the imaginary self-energy
     :math:`\\Gamma(E)` used to build Lorentzian linewidths.
 
-    :see: :class:`~.test_self_energy.TestSelfEnergyConfig`
+    :see: :class:`~.test_lifetime.TestLifetimeModel`
 
     Attributes
     ----------
@@ -602,7 +602,7 @@ class SelfEnergyConfig(eqx.Module):
 
     See Also
     --------
-    make_self_energy_config : Validated factory for this type.
+    make_lifetime_model : Validated factory for this type.
     """
 ```
 

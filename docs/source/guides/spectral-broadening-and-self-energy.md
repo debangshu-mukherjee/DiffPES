@@ -28,9 +28,15 @@ Both spectrum tiers multiply the band profile by the finite-temperature
 ## Self-Energy
 
 `evaluate_self_energy` evaluates the imaginary self-energy from a
-`SelfEnergyConfig`. Supported static models and their parameters are
+`SelfEnergyModel`. Supported static models and their parameters are
 documented in the API reference. The output can define an
 energy-dependent linewidth for a caller-built spectral function.
+
+Use `"constant"` for uniform broadening and `"poly"` for a polynomial model.
+Use `"grid"` for interpolation on relative-energy nodes. The
+`"fermi_liquid"` and `"bosonic_kink"` modes provide the other supported
+energy-dependent models. Construct each carrier with
+`make_self_energy_model`.
 
 Self-energy and broadening do not create orbital coherence. If an input
 consists only of projection probabilities, applying a more elaborate

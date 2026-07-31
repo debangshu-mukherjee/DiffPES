@@ -31,7 +31,7 @@ The package contains these submodules:
 - :mod:`radial_params`
     Define radial-wavefunction parameter structures.
 - :mod:`self_energy`
-    Define self-energy configuration data structures.
+    Define the causal self-energy model carrier.
 - :mod:`tb_model`
     Define tight-binding model and diagonalized-band data structures.
 - :mod:`wannier`
@@ -419,8 +419,8 @@ Routine Listings
     Select one immutable certified quadrature profile.
 :func:`make_radial_spec`
     Create a validated shell-shared radial specification.
-:func:`make_self_energy_config`
-    Create a validated ``SelfEnergyConfig`` instance.
+:func:`make_self_energy_model`
+    Create a validated self-energy model.
 :func:`make_simulation_params`
     Create a validated SimulationParams instance.
 :func:`make_slab_spec`
@@ -509,8 +509,8 @@ Routine Listings
     Union of ``int`` and ``Int[Array, " "]``.
 :obj:`ScalarNumeric`
     Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
-:class:`SelfEnergyConfig`
-    Store energy-dependent self-energy data in a JAX PyTree.
+:class:`SelfEnergyModel`
+    Store a causal self-energy parameterization as a JAX PyTree.
 :class:`SimulationParams`
     Store ARPES simulation parameters in a JAX PyTree.
 :class:`SlabSpec`
@@ -810,8 +810,8 @@ from .radial_params import (
     make_slater_koster_params,
 )
 from .self_energy import (
-    SelfEnergyConfig,
-    make_self_energy_config,
+    SelfEnergyModel,
+    make_self_energy_model,
 )
 from .tb_model import (
     DiagonalizedBands,
@@ -1000,7 +1000,7 @@ __all__: list[str] = [
     "make_registry_snapshot",
     "make_registration_handshake",
     "make_reproduction_report",
-    "make_self_energy_config",
+    "make_self_energy_model",
     "make_simulation_params",
     "make_slab_spec",
     "make_sensitivity_map",
@@ -1056,7 +1056,7 @@ __all__: list[str] = [
     "ScalarFloat",
     "ScalarInteger",
     "ScalarNumeric",
-    "SelfEnergyConfig",
+    "SelfEnergyModel",
     "SensitivityMap",
     "SimulationParams",
     "SlabSpec",

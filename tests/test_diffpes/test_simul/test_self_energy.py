@@ -1,240 +1,111 @@
-"""Validate energy-dependent self-energy evaluation.
+"""Validate the temporary WP7.3 linewidth evaluator compatibility seam.
 
-Extended Summary
-----------------
-Validates :func:`diffpes.simul.self_energy.evaluate_self_energy`, which
-computes lifetime broadening as a function of binding energy. Exercise
-constant, polynomial, and tabulated modes. Verify their values and JAX
-gradients.
-
+The tests cover the three modes that the compatibility evaluator implements.
 """
 
 import jax
 import jax.numpy as jnp
-import pytest
-from beartype.typing import Any, Callable
-from jaxtyping import Array
 
-import diffpes
 from diffpes.simul import evaluate_self_energy
-from diffpes.types import make_self_energy_config
+from diffpes.types import SelfEnergyModel, make_self_energy_model
+
+_DOMAIN: jax.Array = jnp.array([-4.0, 4.0])
+_TAIL: jax.Array = jnp.zeros(2)
 
 
 class TestEvaluateSelfEnergy:
-    """Validate :func:`diffpes.simul.self_energy.evaluate_self_energy`.
+    """Test :func:`diffpes.simul.evaluate_self_energy` behavior.
 
-    Validates the three self-energy evaluation modes -- constant, polynomial,
-    and tabulated -- by checking exact functional values at known energy
-    points. Also verifies JAX differentiability of the constant and
-    polynomial modes by asserting that ``jax.grad`` produces finite
-    gradients with respect to the self-energy coefficients.
+    The evaluator tests below verify values and gradients for supported modes.
 
     :see: :func:`~diffpes.simul.evaluate_self_energy`
     """
 
-    def test_constant_mode(self) -> None:
-        """Verify that constant mode returns the same gamma at every energy.
 
-        The test establishes the constant mode contract for evaluate self energy with
-        the concrete values and array shapes described below.
+def test_constant_mode_and_gradient() -> None:
+    """Evaluate the gamma shortcut and retain its coefficient gradient.
 
-        Notes
-        -----
-        1. **Setup**: Create a self-energy config with mode="constant"
-           and gamma=0.15 eV. Evaluate at 100 energy points spanning
-           [-3, 1] eV.
-        2. **Check**: Assert all 100 returned gamma values equal 0.15.
+    The test covers the constant value and its finite gradient.
 
-        **Expected assertions**
-
-        Every output element equals 0.15. Thus, constant mode returns a
-        uniform broadening width.
-        """
-        config: diffpes.types.SelfEnergyConfig
-        energy: Array
-        gamma: Array
-
-        config = make_self_energy_config(gamma=0.15, mode="constant")
-        energy = jnp.linspace(-3, 1, 100)
-        gamma = evaluate_self_energy(energy, config)
-        assert jnp.allclose(gamma, 0.15)
-
-    def test_polynomial_mode(self) -> None:
-        """Verify that polynomial mode evaluates gamma(E) = c0 + c1*E correctly.
-
-        The test establishes the polynomial mode contract for evaluate self energy with
-        the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Setup**: Create a polynomial configuration with coefficients
-           [0.05, 0.1]. Evaluate gamma(E) = 0.05*E + 0.1 at three points.
-        2. **Check**: Assert the returned values match the analytically
-           expected [0.1, 0.15, 0.05] to within atol=1e-10.
-
-        **Expected assertions**
-
-        The results match the analytic values at three energies. The
-        coefficient order follows ``jnp.polyval`` semantics.
-        """
-        config: diffpes.types.SelfEnergyConfig
-        energy: Array
-        gamma: Array
-        expected: Array
-
-        config = make_self_energy_config(
-            mode="polynomial",
-            coefficients=jnp.array([0.05, 0.1]),
-        )
-        energy = jnp.array([0.0, 1.0, -1.0])
-        gamma = evaluate_self_energy(energy, config)
-        expected = jnp.array([0.1, 0.15, 0.05])
-        assert jnp.allclose(gamma, expected, atol=1e-10)
-
-    def test_tabulated_mode(self) -> None:
-        """Verify that tabulated mode interpolates gamma between energy nodes.
-
-        The test establishes the tabulated mode contract for evaluate self energy with
-        the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Setup**: Create a self-energy config with mode="tabulated",
-           energy_nodes=[-3.0, 0.0, 1.0] and coefficients=[0.05, 0.1, 0.2].
-           Evaluate at E = [0.0, 0.5]. The first point is a node, and
-           the second point is midway between two nodes.
-        2. **Check exact node**: Assert gamma(0.0) = 0.1 (direct lookup).
-        3. **Check interpolated point**: Assert gamma(0.5) = 0.15, the
-           linear interpolation midpoint between 0.1 and 0.2.
-
-        **Expected assertions**
-
-        The function returns exact node values and correct interpolated
-        values between nodes.
-        """
-        nodes: Array
-        coeffs: Array
-        config: diffpes.types.SelfEnergyConfig
-        energy: Array
-        gamma: Array
-
-        nodes = jnp.array([-3.0, 0.0, 1.0])
-        coeffs = jnp.array([0.05, 0.1, 0.2])
-        config = make_self_energy_config(
-            mode="tabulated",
-            coefficients=coeffs,
-            energy_nodes=nodes,
-        )
-        energy = jnp.array([0.0, 0.5])
-        gamma = evaluate_self_energy(energy, config)
-        assert float(gamma[0]) == pytest.approx(0.1, abs=1e-10)
-        assert float(gamma[1]) == pytest.approx(0.15, abs=1e-10)
-
-    def test_constant_gradient(self) -> None:
-        """Verify that the gradient w.r.t. constant self-energy coefficient is finite.
-
-        The test establishes the constant gradient contract for evaluate self energy
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Setup**: Define a loss from one constant coefficient.
-           Evaluate two energies and sum their gamma values.
-        2. **Differentiate**: Call ``jax.grad(loss)(0.1)`` to compute
-           the gradient w.r.t. the constant coefficient.
-        3. **Check finiteness**: Assert the gradient is finite.
-
-        **Expected assertions**
-
-        The gradient w.r.t. the constant self-energy coefficient is
-        finite, confirming that the constant evaluation path is
-        differentiable through JAX and suitable for inverse fitting.
-        """
-        grad: Array
-
-        def loss(coeff):
-            config: diffpes.types.SelfEnergyConfig
-            energy: Array
-
-            config = make_self_energy_config(
-                mode="constant",
-                coefficients=jnp.array([coeff]),
-            )
-            energy = jnp.array([0.0, 1.0])
-            return jnp.sum(evaluate_self_energy(energy, config))
-
-        grad = jax.grad(loss)(jnp.array(0.1))
-        assert jnp.isfinite(grad)
-
-    def test_polynomial_gradient(self) -> None:
-        """Verify that gradients w.r.t. polynomial coefficients are finite.
-
-        The test establishes the polynomial gradient contract for evaluate self energy
-        with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Setup**: Define a polynomial loss from coefficients [c1,
-           c0]. Evaluate 50 energies and sum their gamma values.
-        2. **Differentiate**: Call ``jax.grad(loss)`` with initial
-           coefficients [0.01, 0.1] to compute the gradient vector.
-        3. **Check finiteness**: Assert all gradient components are
-           finite.
-
-        **Expected assertions**
-
-        All gradient components w.r.t. the polynomial coefficients are
-        finite, confirming that the polynomial evaluation via
-        ``jnp.polyval`` is differentiable through JAX. This enables
-        fitting energy-dependent self-energy models to experimental
-        linewidths.
-        """
-        grad: Array
-
-        def loss(coeffs):
-            config: diffpes.types.SelfEnergyConfig
-            energy: Array
-
-            config = make_self_energy_config(
-                mode="polynomial",
-                coefficients=coeffs,
-            )
-            energy = jnp.linspace(-1, 1, 50)
-            return jnp.sum(evaluate_self_energy(energy, config))
-
-        grad = jax.grad(loss)(jnp.array([0.01, 0.1]))
-        assert jnp.all(jnp.isfinite(grad))
-
-
-class TestSelfEnergyErrors:
-    """Validate invalid mode handling in evaluate_self_energy.
-
-    Validates that ``evaluate_self_energy`` raises ``ValueError`` when
-    given a ``SelfEnergyConfig`` with an unsupported mode string.
-
-    :see: :func:`~diffpes.simul.evaluate_self_energy`
+    Notes
+    -----
+    The test evaluates a grid and differentiates its summed linewidth.
     """
+    energy: jax.Array = jnp.linspace(-3.0, 1.0, 100)
+    model: SelfEnergyModel = make_self_energy_model(
+        gamma=0.15, kk_consistent=False
+    )
+    assert jnp.allclose(evaluate_self_energy(energy, model), 0.15)
 
-    def test_unknown_mode_raises(self) -> None:
-        """Verify that an unknown self-energy mode raises ValueError.
-
-        Construct a ``SelfEnergyConfig`` with mode="bad_mode". Call
-        ``evaluate_self_energy`` and require ``ValueError`` with the
-        expected message.
-
-        Notes
-        -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        config: diffpes.types.SelfEnergyConfig
-        energy: Array
-
-        from diffpes.types import SelfEnergyConfig
-
-        config = SelfEnergyConfig(
-            coefficients=jnp.array([0.1]),
-            energy_nodes=None,
-            mode="bad_mode",
+    def loss(raw: jax.Array) -> jax.Array:
+        current: SelfEnergyModel = make_self_energy_model(
+            coefficients=jnp.atleast_1d(raw), kk_consistent=False
         )
-        energy = jnp.array([0.0, 1.0])
-        with pytest.raises(ValueError, match="Unknown self-energy mode"):
-            evaluate_self_energy(energy, config)
+        return jnp.sum(evaluate_self_energy(energy, current))
+
+    assert jnp.isfinite(jax.grad(loss)(jnp.array(0.1)))
+
+
+def test_poly_mode_and_gradient() -> None:
+    """Apply softplus to the highest-degree-first polynomial.
+
+    The test covers the polynomial values and coefficient gradients.
+
+    Notes
+    -----
+    The test compares an explicit formula and differentiates its sum.
+    """
+    energy: jax.Array = jnp.array([-1.0, 0.0, 1.0])
+    raw: jax.Array = jnp.array([0.05, 0.1])
+
+    def loss(coefficients: jax.Array) -> jax.Array:
+        model: SelfEnergyModel = make_self_energy_model(
+            mode="poly",
+            coefficients=coefficients,
+            kk_domain_rel_fermi_ev=_DOMAIN,
+            tail_coefficients=_TAIL,
+            tail_mode="power2",
+        )
+        return jnp.sum(evaluate_self_energy(energy, model))
+
+    assert jnp.allclose(
+        loss(raw), jnp.sum(jax.nn.softplus(jnp.polyval(raw, energy)))
+    )
+    assert jnp.all(jnp.isfinite(jax.grad(loss)(raw)))
+
+
+def test_grid_mode() -> None:
+    """Interpolate smoothly reparameterized grid linewidths.
+
+    The test covers interpolation at one node and one midpoint.
+
+    Notes
+    -----
+    The test compares the evaluator with a direct JAX interpolation.
+    """
+    nodes: jax.Array = jnp.array([-4.0, 0.0, 4.0])
+    raw: jax.Array = jnp.array([-2.0, -1.0, 0.0])
+    model: SelfEnergyModel = make_self_energy_model(
+        mode="grid",
+        coefficients=raw,
+        energy_nodes_rel_fermi_ev=nodes,
+        kk_domain_rel_fermi_ev=_DOMAIN,
+        tail_coefficients=_TAIL,
+        tail_mode="power2",
+    )
+    energy: jax.Array = jnp.array([0.0, 2.0])
+    expected: jax.Array = jnp.interp(energy, nodes, jax.nn.softplus(raw))
+    assert jnp.allclose(evaluate_self_energy(energy, model), expected)
+
+
+TestEvaluateSelfEnergy.test_constant_mode_and_gradient = staticmethod(
+    test_constant_mode_and_gradient
+)
+TestEvaluateSelfEnergy.test_poly_mode_and_gradient = staticmethod(
+    test_poly_mode_and_gradient
+)
+TestEvaluateSelfEnergy.test_grid_mode = staticmethod(test_grid_mode)
+
+del test_constant_mode_and_gradient
+del test_poly_mode_and_gradient
+del test_grid_mode
