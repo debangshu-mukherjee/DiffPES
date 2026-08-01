@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from beartype.typing import Any, Callable
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 import diffpes
 from diffpes.simul import (
@@ -309,8 +309,8 @@ class TestSimulateContext(chex.TestCase):
         """
 
         def workflow_loss(
-            fermi_energy: Float[Array, ""],
-        ) -> Float[Array, ""]:
+            fermi_energy: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
             context: WorkflowContext = load_vasp_context(
                 directory=str(_FIXTURES_DIR),
                 eigenval_file="EIGENVAL_spin",
@@ -330,11 +330,11 @@ class TestSimulateContext(chex.TestCase):
                 temperature=300.0,
                 photon_energy=35.0,
             )
-            loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
+            loss: Float64[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
-        fermi_energy: Float[Array, ""] = jnp.asarray(-0.4)
-        derivative: Float[Array, ""] = jax.grad(workflow_loss)(fermi_energy)
+        fermi_energy: Float64[Array, ""] = jnp.asarray(-0.4)
+        derivative: Float64[Array, ""] = jax.grad(workflow_loss)(fermi_energy)
         chex.assert_tree_all_finite(derivative)
         assert float(jnp.abs(derivative)) > 1e-12
         gradient_gate(

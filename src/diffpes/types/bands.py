@@ -40,7 +40,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Union
-from jaxtyping import Array, Float, Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 from .constants import N_ORBITALS, N_SPIN_COMPONENTS
@@ -137,9 +137,9 @@ class SpinOrbitalProjection(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_spin_orbital_projection(  # noqa: DOC503
-    projections: Float[Array, "Kp Bp Ap Op"],
-    spin: Float[Array, "Ks Bs As Ss"],
-    oam: Optional[Float[Array, "Ko Bo Ao 3"]] = None,
+    projections: Float64[Array, "Kp Bp Ap Op"],
+    spin: Float64[Array, "Ks Bs As Ss"],
+    oam: Optional[Float64[Array, "Ko Bo Ao 3"]] = None,
 ) -> SpinOrbitalProjection:
     """Create a validated ``SpinOrbitalProjection`` instance.
 
@@ -188,13 +188,13 @@ def make_spin_orbital_projection(  # noqa: DOC503
 
     Parameters
     ----------
-    projections : Float[Array, "Kp Bp Ap Op"]
+    projections : Float64[Array, "Kp Bp Ap Op"]
         Orbital projection weights ``|<psi|Y_{lm}>|^2`` following VASP
         ordering. Must share the K, B, A dimensions with ``spin``.
-    spin : Float[Array, "Ks Bs As Ss"]
+    spin : Float64[Array, "Ks Bs As Ss"]
         Spin projections ``[Sx_up, Sx_dn, Sy_up, Sy_dn, Sz_up,
         Sz_dn]``. Required (non-optional).
-    oam : Optional[Float[Array, "Ko Bo Ao 3"]], optional
+    oam : Optional[Float64[Array, "Ko Bo Ao 3"]], optional
         Orbital angular momentum ``[L_p, L_d, L_total]``.
         Default is None.
 
@@ -230,7 +230,7 @@ def make_spin_orbital_projection(  # noqa: DOC503
         projections, dtype=jnp.float64
     )
     spin_arr: Float64[Array, "K B A 6"] = jnp.asarray(spin, dtype=jnp.float64)
-    oam_arr: Optional[Float[Array, "K B A 3"]] = None
+    oam_arr: Optional[Float64[Array, "K B A 3"]] = None
     if oam is not None:
         oam_arr = jnp.asarray(oam, dtype=jnp.float64)
 
@@ -336,10 +336,10 @@ class SpinBandStructure(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_spin_band_structure(  # noqa: DOC503
-    eigenvalues_up: Float[Array, "Ku Bu"],
-    eigenvalues_down: Float[Array, "Kd Bd"],
-    kpoints: Float[Array, "Kk 3"],
-    kpoint_weights: Union[Float[Array, " Kw"], None] = None,
+    eigenvalues_up: Float64[Array, "Ku Bu"],
+    eigenvalues_down: Float64[Array, "Kd Bd"],
+    kpoints: Float64[Array, "Kk 3"],
+    kpoint_weights: Union[Float64[Array, " Kw"], None] = None,
     fermi_energy: ScalarNumeric = 0.0,
 ) -> SpinBandStructure:
     """Create a validated ``SpinBandStructure`` instance.
@@ -389,14 +389,14 @@ def make_spin_band_structure(  # noqa: DOC503
 
     Parameters
     ----------
-    eigenvalues_up : Float[Array, "Ku Bu"]
+    eigenvalues_up : Float64[Array, "Ku Bu"]
         Spin-up band energies in eV for K k-points and B bands.
-    eigenvalues_down : Float[Array, "Kd Bd"]
+    eigenvalues_down : Float64[Array, "Kd Bd"]
         Spin-down band energies in eV. Must share the same (K, B)
         shape as ``eigenvalues_up``.
-    kpoints : Float[Array, "Kk 3"]
+    kpoints : Float64[Array, "Kk 3"]
         k-point coordinates in reciprocal (fractional) space.
-    kpoint_weights : Union[Float[Array, " Kw"], None], optional
+    kpoint_weights : Union[Float64[Array, " Kw"], None], optional
         Integration weights per k-point. Defaults to uniform weights
         ``jnp.ones(K)``.
     fermi_energy : ScalarNumeric, optional
@@ -538,9 +538,9 @@ class ArpesSpectrum(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_band_structure(  # noqa: DOC503
-    eigenvalues: Float[Array, "Ke B"],
-    kpoints: Float[Array, "Kk 3"],
-    kpoint_weights: Union[Float[Array, " Kw"], None] = None,
+    eigenvalues: Float64[Array, "Ke B"],
+    kpoints: Float64[Array, "Kk 3"],
+    kpoint_weights: Union[Float64[Array, " Kw"], None] = None,
     fermi_energy: ScalarNumeric = 0.0,
 ) -> BandStructure:
     """Create a validated ``BandStructure`` instance.
@@ -590,11 +590,11 @@ def make_band_structure(  # noqa: DOC503
 
     Parameters
     ----------
-    eigenvalues : Float[Array, "Ke B"]
+    eigenvalues : Float64[Array, "Ke B"]
         Band energies in eV for K k-points and B bands.
-    kpoints : Float[Array, "Kk 3"]
+    kpoints : Float64[Array, "Kk 3"]
         k-point coordinates in reciprocal space.
-    kpoint_weights : Union[Float[Array, " Kw"], None], optional
+    kpoint_weights : Union[Float64[Array, " Kw"], None], optional
         Integration weights. Defaults to uniform weights.
     fermi_energy : ScalarNumeric, optional
         Fermi level in eV. Default is 0.0.
@@ -681,9 +681,9 @@ def make_band_structure(  # noqa: DOC503
 
 @jaxtyped(typechecker=beartype)
 def make_orbital_projection(  # noqa: DOC503
-    projections: Float[Array, "Kp Bp Ap Op"],
-    spin: Optional[Float[Array, "Ks Bs As 6"]] = None,
-    oam: Optional[Float[Array, "Ko Bo Ao 3"]] = None,
+    projections: Float64[Array, "Kp Bp Ap Op"],
+    spin: Optional[Float64[Array, "Ks Bs As 6"]] = None,
+    oam: Optional[Float64[Array, "Ko Bo Ao 3"]] = None,
 ) -> OrbitalProjection:
     """Create a validated ``OrbitalProjection`` instance.
 
@@ -730,11 +730,11 @@ def make_orbital_projection(  # noqa: DOC503
 
     Parameters
     ----------
-    projections : Float[Array, "Kp Bp Ap Op"]
+    projections : Float64[Array, "Kp Bp Ap Op"]
         Orbital projection weights.
-    spin : Optional[Float[Array, "Ks Bs As 6"]], optional
+    spin : Optional[Float64[Array, "Ks Bs As 6"]], optional
         Spin projections. Default is None.
-    oam : Optional[Float[Array, "Ko Bo Ao 3"]], optional
+    oam : Optional[Float64[Array, "Ko Bo Ao 3"]], optional
         Orbital angular momentum. Default is None.
 
     Returns
@@ -762,10 +762,10 @@ def make_orbital_projection(  # noqa: DOC503
     proj_arr: Float64[Array, "K B A 9"] = jnp.asarray(
         projections, dtype=jnp.float64
     )
-    spin_arr: Optional[Float[Array, "K B A 6"]] = None
+    spin_arr: Optional[Float64[Array, "K B A 6"]] = None
     if spin is not None:
         spin_arr = jnp.asarray(spin, dtype=jnp.float64)
-    oam_arr: Optional[Float[Array, "K B A 3"]] = None
+    oam_arr: Optional[Float64[Array, "K B A 3"]] = None
     if oam is not None:
         oam_arr = jnp.asarray(oam, dtype=jnp.float64)
 
@@ -814,8 +814,8 @@ def make_orbital_projection(  # noqa: DOC503
 
 @jaxtyped(typechecker=beartype)
 def make_arpes_spectrum(  # noqa: DOC503
-    intensity: Float[Array, "K Ei"],
-    energy_axis: Float[Array, " Ea"],
+    intensity: Float64[Array, "K Ei"],
+    energy_axis: Float64[Array, " Ea"],
 ) -> ArpesSpectrum:
     """Create a validated ``ArpesSpectrum`` instance.
 
@@ -860,9 +860,9 @@ def make_arpes_spectrum(  # noqa: DOC503
 
     Parameters
     ----------
-    intensity : Float[Array, "K Ei"]
+    intensity : Float64[Array, "K Ei"]
         Photoemission intensity map.
-    energy_axis : Float[Array, " Ea"]
+    energy_axis : Float64[Array, " Ea"]
         Energy axis values in eV.
 
     Returns

@@ -15,7 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Complex, Float, Shaped
+from jaxtyping import Array, Complex128, Float64, Shaped
 from numpy.typing import NDArray
 
 from diffpes.radial import (
@@ -52,11 +52,11 @@ class TestCoulombPhaseShift:
         It compares production outputs with stored arbitrary-precision values.
         """
         reference: dict[str, Shaped[NDArray, "..."]] = _reference()
-        etas: Float[Array, " n_eta"] = jnp.asarray(reference["etas"])
+        etas: Float64[Array, " n_eta"] = jnp.asarray(reference["etas"])
         order: int
         for order in range(5):
-            values: Float[Array, " n_eta"] = coulomb_phase_shift(order, etas)
-            derivatives: Float[Array, " n_eta"] = jax.jvp(
+            values: Float64[Array, " n_eta"] = coulomb_phase_shift(order, etas)
+            derivatives: Float64[Array, " n_eta"] = jax.jvp(
                 lambda arguments: coulomb_phase_shift(order, arguments),
                 (etas,),
                 (jnp.ones_like(etas),),
@@ -73,8 +73,8 @@ class TestCoulombPhaseShift:
                 rtol=1.0e-10,
                 atol=1.0e-12,
             )
-        dense_eta: Float[Array, " n_dense"] = jnp.linspace(-3.0, 3.0, 601)
-        dense_phase: Float[Array, " n_dense"] = coulomb_phase_shift(
+        dense_eta: Float64[Array, " n_dense"] = jnp.linspace(-3.0, 3.0, 601)
+        dense_phase: Float64[Array, " n_dense"] = coulomb_phase_shift(
             4,
             dense_eta,
         )
@@ -196,21 +196,21 @@ class TestCoulombFg:
         -----
         JAX directional derivatives supply the ODE and sensitivity witnesses.
         """
-        rho: Float[Array, " n_rho"] = jnp.asarray(
+        rho: Float64[Array, " n_rho"] = jnp.asarray(
             [3.0e-4, 0.01, 0.3, 2.0, 10.0, 40.0]
         )
-        eta_zero: Float[Array, " n_rho"] = jnp.zeros_like(rho)
-        regular: Float[Array, " n_rho"]
-        irregular: Float[Array, " n_rho"]
-        regular_derivative: Float[Array, " n_rho"]
-        irregular_derivative: Float[Array, " n_rho"]
+        eta_zero: Float64[Array, " n_rho"] = jnp.zeros_like(rho)
+        regular: Float64[Array, " n_rho"]
+        irregular: Float64[Array, " n_rho"]
+        regular_derivative: Float64[Array, " n_rho"]
+        irregular_derivative: Float64[Array, " n_rho"]
         (
             regular,
             irregular,
             regular_derivative,
             irregular_derivative,
         ) = coulomb_fg(2, eta_zero, rho)
-        expected: Float[Array, " n_rho"] = rho * spherical_bessel_jl(2, rho)
+        expected: Float64[Array, " n_rho"] = rho * spherical_bessel_jl(2, rho)
         np.testing.assert_allclose(
             regular,
             expected,
@@ -218,43 +218,43 @@ class TestCoulombFg:
             atol=1.0e-12,
         )
 
-        eta: Float[Array, " n_probe"] = jnp.asarray([-1.0, 0.25, 2.0])
-        rho_probe: Float[Array, " n_probe"] = jnp.asarray([0.2, 1.3, 7.0])
+        eta: Float64[Array, " n_probe"] = jnp.asarray([-1.0, 0.25, 2.0])
+        rho_probe: Float64[Array, " n_probe"] = jnp.asarray([0.2, 1.3, 7.0])
 
         def returned_values(
-            eta_argument: Float[Array, " n_probe"],
-            rho_argument: Float[Array, " n_probe"],
-        ) -> Float[Array, "4 n_probe"]:
-            rows: tuple[Float[Array, " n_probe"], ...] = coulomb_fg(
+            eta_argument: Float64[Array, " n_probe"],
+            rho_argument: Float64[Array, " n_probe"],
+        ) -> Float64[Array, "4 n_probe"]:
+            rows: tuple[Float64[Array, " n_probe"], ...] = coulomb_fg(
                 2,
                 eta_argument,
                 rho_argument,
             )
-            result: Float[Array, "4 n_probe"] = jnp.stack(rows)
+            result: Float64[Array, "4 n_probe"] = jnp.stack(rows)
             return result
 
-        values: Float[Array, "4 n_probe"]
-        eta_tangent: Float[Array, "4 n_probe"]
+        values: Float64[Array, "4 n_probe"]
+        eta_tangent: Float64[Array, "4 n_probe"]
         values, eta_tangent = jax.jvp(
             lambda argument: returned_values(argument, rho_probe),
             (eta,),
             (jnp.ones_like(eta),),
         )
-        rho_tangent: Float[Array, "4 n_probe"] = jax.jvp(
+        rho_tangent: Float64[Array, "4 n_probe"] = jax.jvp(
             lambda argument: returned_values(eta, argument),
             (rho_probe,),
             (jnp.ones_like(rho_probe),),
         )[1]
         chex.assert_tree_all_finite((values, eta_tangent, rho_tangent))
         assert float(jnp.linalg.norm(eta_tangent)) > 1.0e-4
-        second_regular: Float[Array, " n_probe"] = rho_tangent[2]
-        ode_factor: Float[Array, " n_probe"] = (
+        second_regular: Float64[Array, " n_probe"] = rho_tangent[2]
+        ode_factor: Float64[Array, " n_probe"] = (
             1.0 - 2.0 * eta / rho_probe - 2.0 * 3.0 / rho_probe**2
         )
-        residual: Float[Array, " n_probe"] = (
+        residual: Float64[Array, " n_probe"] = (
             second_regular + ode_factor * values[0]
         )
-        scale: Float[Array, " n_probe"] = (
+        scale: Float64[Array, " n_probe"] = (
             jnp.abs(second_regular) + jnp.abs(ode_factor * values[0]) + 1.0
         )
         assert float(jnp.max(jnp.abs(residual) / scale)) < 1.0e-9
@@ -268,10 +268,10 @@ class TestCoulombFg:
         -----
         Explicit invalid inputs exercise radius, charge, and order guards.
         """
-        eta: Float[Array, " n"] = jnp.asarray([-0.5, 0.0, 0.5])
-        rho: Float[Array, " n"] = jnp.asarray([0.2, 1.0, 3.0])
-        eager: tuple[Float[Array, " n"], ...] = coulomb_fg(1, eta, rho)
-        compiled: tuple[Float[Array, " n"], ...] = jax.jit(
+        eta: Float64[Array, " n"] = jnp.asarray([-0.5, 0.0, 0.5])
+        rho: Float64[Array, " n"] = jnp.asarray([0.2, 1.0, 3.0])
+        eager: tuple[Float64[Array, " n"], ...] = coulomb_fg(1, eta, rho)
+        compiled: tuple[Float64[Array, " n"], ...] = jax.jit(
             lambda first, second: coulomb_fg(1, first, second)
         )(eta, rho)
         chex.assert_trees_all_close(
@@ -280,7 +280,7 @@ class TestCoulombFg:
             rtol=1.0e-10,
             atol=1.0e-12,
         )
-        mapped: Float[Array, " n"] = jax.vmap(
+        mapped: Float64[Array, " n"] = jax.vmap(
             lambda first, second: coulomb_fg(1, first, second)[0]
         )(eta, rho)
         chex.assert_trees_all_close(
@@ -315,17 +315,17 @@ class TestFinalStateRadial:
             mode="coulomb",
             effective_charge=0.0,
         )
-        momentum: Float[Array, ""] = jnp.asarray(1.2)
-        radius: Float[Array, " n_r"] = jnp.asarray([0.0, 1.0e-5, 0.1, 2.0])
+        momentum: Float64[Array, ""] = jnp.asarray(1.2)
+        radius: Float64[Array, " n_r"] = jnp.asarray([0.0, 1.0e-5, 0.1, 2.0])
         order: int
         for order in range(6):
-            plane: Complex[Array, " n_r"] = final_state_radial(
+            plane: Complex128[Array, " n_r"] = final_state_radial(
                 order,
                 momentum,
                 radius,
                 plane_spec,
             )
-            coulomb_zero: Complex[Array, " n_r"] = final_state_radial(
+            coulomb_zero: Complex128[Array, " n_r"] = final_state_radial(
                 order,
                 momentum,
                 radius,
@@ -339,21 +339,21 @@ class TestFinalStateRadial:
             )
             assert bool(jnp.all(jnp.isfinite(coulomb_zero)))
 
-        def charged_value(charge: Float[Array, ""]) -> Float[Array, ""]:
+        def charged_value(charge: Float64[Array, ""]) -> Float64[Array, ""]:
             spec: FinalStateSpec = make_final_state_spec(
                 mode="coulomb",
                 effective_charge=charge,
             )
-            radial: Complex[Array, " n_r"] = final_state_radial(
+            radial: Complex128[Array, " n_r"] = final_state_radial(
                 1,
                 momentum,
                 radius,
                 spec,
             )
-            result: Float[Array, ""] = jnp.real(radial[-1])
+            result: Float64[Array, ""] = jnp.real(radial[-1])
             return result
 
-        charge_gradient: Float[Array, ""] = jax.grad(charged_value)(
+        charge_gradient: Float64[Array, ""] = jax.grad(charged_value)(
             jnp.asarray(0.3)
         )
         assert bool(jnp.isfinite(charge_gradient))

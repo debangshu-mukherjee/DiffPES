@@ -20,7 +20,7 @@ to px+ipy, pz, px-ipy. For d-orbitals, m = {-2, -1, 0, +1, +2}.
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import (
     D_ORBITAL_SLICE,
@@ -32,8 +32,8 @@ from diffpes.types import (
 
 @jaxtyped(typechecker=beartype)
 def compute_oam(
-    projections: Float[Array, "K B A 9"],
-) -> Float[Array, "K B A 3"]:
+    projections: Float64[Array, "K B A 9"],
+) -> Float64[Array, "K B A 3"]:
     """Compute orbital angular momentum z-component.
 
     Evaluates the expectation value of the z-component of orbital
@@ -51,7 +51,7 @@ def compute_oam(
     --------------------
     1. **Extract the p-orbital projections**::
 
-           p_proj: Float[Array, "K B A 3"] = projections[
+           p_proj: Float64[Array, "K B A 3"] = projections[
                ..., P_ORBITAL_SLICE
            ]
 
@@ -60,7 +60,7 @@ def compute_oam(
 
     2. **Compute the p-orbital OAM**::
 
-           p_oam: Float[Array, "K B A"] = jnp.sum(
+           p_oam: Float64[Array, "K B A"] = jnp.sum(
                M_P * p_proj**2, axis=-1
            )
 
@@ -70,7 +70,7 @@ def compute_oam(
 
     3. **Extract the d-orbital projections**::
 
-           d_proj: Float[Array, "K B A 5"] = projections[
+           d_proj: Float64[Array, "K B A 5"] = projections[
                ..., D_ORBITAL_SLICE
            ]
 
@@ -79,7 +79,7 @@ def compute_oam(
 
     4. **Compute the d-orbital OAM**::
 
-           d_oam: Float[Array, "K B A"] = jnp.sum(
+           d_oam: Float64[Array, "K B A"] = jnp.sum(
                M_D * d_proj**2, axis=-1
            )
 
@@ -89,8 +89,8 @@ def compute_oam(
 
     5. **Stack the p, d, and total results**::
 
-           total_oam: Float[Array, "K B A"] = p_oam + d_oam
-           oam: Float[Array, "K B A 3"] = jnp.stack(
+           total_oam: Float64[Array, "K B A"] = p_oam + d_oam
+           oam: Float64[Array, "K B A 3"] = jnp.stack(
                [p_oam, d_oam, total_oam], axis=-1
            )
 
@@ -99,12 +99,12 @@ def compute_oam(
 
     Parameters
     ----------
-    projections : Float[Array, "K B A 9"]
+    projections : Float64[Array, "K B A 9"]
         Orbital projections with 9 orbitals per atom.
 
     Returns
     -------
-    oam : Float[Array, "K B A 3"]
+    oam : Float64[Array, "K B A 3"]
         OAM_z for [p-contribution, d-contribution, total].
 
     Notes
@@ -114,12 +114,12 @@ def compute_oam(
     The s-orbital (index 0) has m = 0 and does not contribute to
     the OAM.
     """
-    p_proj: Float[Array, "K B A 3"] = projections[..., P_ORBITAL_SLICE]
-    p_oam: Float[Array, "K B A"] = jnp.sum(M_P * p_proj**2, axis=-1)
-    d_proj: Float[Array, "K B A 5"] = projections[..., D_ORBITAL_SLICE]
-    d_oam: Float[Array, "K B A"] = jnp.sum(M_D * d_proj**2, axis=-1)
-    total_oam: Float[Array, "K B A"] = p_oam + d_oam
-    oam: Float[Array, "K B A 3"] = jnp.stack(
+    p_proj: Float64[Array, "K B A 3"] = projections[..., P_ORBITAL_SLICE]
+    p_oam: Float64[Array, "K B A"] = jnp.sum(M_P * p_proj**2, axis=-1)
+    d_proj: Float64[Array, "K B A 5"] = projections[..., D_ORBITAL_SLICE]
+    d_oam: Float64[Array, "K B A"] = jnp.sum(M_D * d_proj**2, axis=-1)
+    total_oam: Float64[Array, "K B A"] = p_oam + d_oam
+    oam: Float64[Array, "K B A 3"] = jnp.stack(
         [p_oam, d_oam, total_oam], axis=-1
     )
     return oam

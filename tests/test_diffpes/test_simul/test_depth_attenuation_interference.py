@@ -11,7 +11,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.simul import (
     contract_polarization,
@@ -42,30 +42,30 @@ def _two_s_basis() -> OrbitalBasis:
 
 
 def _two_s_channels(
-    positions_cart: Float[Array, "2 3"],
-    depths: Float[Array, " 2"],
-    mean_free_path: Float[Array, ""],
-    initial_momentum: Float[Array, "1 3"] | None = None,
-    final_momentum: Float[Array, "1 3"] | None = None,
-) -> Complex[Array, "1 1 2 3"]:
+    positions_cart: Float64[Array, "2 3"],
+    depths: Float64[Array, " 2"],
+    mean_free_path: Float64[Array, ""],
+    initial_momentum: Float64[Array, "1 3"] | None = None,
+    final_momentum: Float64[Array, "1 3"] | None = None,
+) -> Complex128[Array, "1 1 2 3"]:
     """Evaluate identical s-orbital transition rows."""
     basis: OrbitalBasis = _two_s_basis()
     params: MatrixElementParams = make_matrix_element_params(basis, (0, 1))
-    initial: Float[Array, "1 3"] = (
+    initial: Float64[Array, "1 3"] = (
         jnp.zeros((1, 3), dtype=jnp.float64)
         if initial_momentum is None
         else initial_momentum
     )
-    final: Float[Array, "1 3"] = (
+    final: Float64[Array, "1 3"] = (
         jnp.asarray(((0.0, 0.0, 1.1),), dtype=jnp.float64)
         if final_momentum is None
         else final_momentum
     )
-    radial: Complex[Array, "1 2 2"] = jnp.asarray(
+    radial: Complex128[Array, "1 2 2"] = jnp.asarray(
         (((0.0, 0.37 + 0.91j), (0.0, 0.37 + 0.91j)),),
         dtype=jnp.complex128,
     )
-    channels: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
+    channels: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
         initial,
         final,
         positions_cart,
@@ -89,16 +89,16 @@ def test_g9_isolated_amplitude_and_intensity_ratios() -> None:
     Compare the measured ratios with the two analytic attenuation exponents.
     """
     depth_difference: float = 4.7
-    mean_free_path: Float[Array, ""] = jnp.asarray(8.3)
-    channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    mean_free_path: Float64[Array, ""] = jnp.asarray(8.3)
+    channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         jnp.zeros((2, 3)),
         jnp.asarray((0.0, depth_difference)),
         mean_free_path,
     )
-    shallow_norm: Float[Array, ""] = jnp.linalg.norm(channels[0, 0, 0])
-    deep_norm: Float[Array, ""] = jnp.linalg.norm(channels[0, 0, 1])
-    amplitude_ratio: Float[Array, ""] = deep_norm / shallow_norm
-    intensity_ratio: Float[Array, ""] = amplitude_ratio**2
+    shallow_norm: Float64[Array, ""] = jnp.linalg.norm(channels[0, 0, 0])
+    deep_norm: Float64[Array, ""] = jnp.linalg.norm(channels[0, 0, 1])
+    amplitude_ratio: Float64[Array, ""] = deep_norm / shallow_norm
+    intensity_ratio: Float64[Array, ""] = amplitude_ratio**2
     chex.assert_trees_all_close(
         amplitude_ratio,
         jnp.exp(-depth_difference / (2.0 * mean_free_path)),
@@ -124,25 +124,25 @@ def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
     Compare coherent summation with its analytic result and an incoherent false control.
     """
     depth: float = 5.1
-    mean_free_path: Float[Array, ""] = jnp.asarray(7.4)
-    channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    mean_free_path: Float64[Array, ""] = jnp.asarray(7.4)
+    channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         jnp.zeros((2, 3)),
         jnp.asarray((0.0, depth)),
         mean_free_path,
     )
-    polarization: Complex[Array, " 3"] = jnp.asarray(
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
         (0.0, 0.0, 1.0),
         dtype=jnp.complex128,
     )
-    orbital_amplitudes: Complex[Array, " 2"] = contract_polarization(
+    orbital_amplitudes: Complex128[Array, " 2"] = contract_polarization(
         channels[0, 0],
         polarization,
     )
-    attenuation: Float[Array, ""] = jnp.exp(-depth / (2.0 * mean_free_path))
-    atomic_intensity: Float[Array, ""] = jnp.abs(orbital_amplitudes[0]) ** 2
-    coherent: Float[Array, ""] = jnp.abs(jnp.sum(orbital_amplitudes)) ** 2
-    expected: Float[Array, ""] = atomic_intensity * (1.0 + attenuation) ** 2
-    planted_incoherent: Float[Array, ""] = atomic_intensity * (
+    attenuation: Float64[Array, ""] = jnp.exp(-depth / (2.0 * mean_free_path))
+    atomic_intensity: Float64[Array, ""] = jnp.abs(orbital_amplitudes[0]) ** 2
+    coherent: Float64[Array, ""] = jnp.abs(jnp.sum(orbital_amplitudes)) ** 2
+    expected: Float64[Array, ""] = atomic_intensity * (1.0 + attenuation) ** 2
+    planted_incoherent: Float64[Array, ""] = atomic_intensity * (
         1.0 + attenuation**2
     )
     chex.assert_trees_all_close(
@@ -171,20 +171,20 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
     -----
     Contrast both production outcomes with planted absolute-value attenuation.
     """
-    mean_free_path: Float[Array, ""] = jnp.asarray(8.0)
+    mean_free_path: Float64[Array, ""] = jnp.asarray(8.0)
     tolerance_noise: float = -0.5e-12
-    clamped: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    clamped: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         jnp.zeros((2, 3)),
         jnp.asarray((tolerance_noise, 0.0)),
         mean_free_path,
     )
-    zero: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    zero: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         jnp.zeros((2, 3)),
         jnp.zeros((2,)),
         mean_free_path,
     )
     chex.assert_trees_all_equal(clamped, zero)
-    planted_abs_factor: Float[Array, ""] = jnp.exp(
+    planted_abs_factor: Float64[Array, ""] = jnp.exp(
         -abs(tolerance_noise) / (2.0 * mean_free_path)
     )
     assert float(planted_abs_factor) != 1.0
@@ -199,7 +199,7 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
             jnp.asarray((material_negative, 0.0)),
             mean_free_path,
         )
-    material_abs_factor: Float[Array, ""] = jnp.exp(
+    material_abs_factor: Float64[Array, ""] = jnp.exp(
         -abs(material_negative) / (2.0 * mean_free_path)
     )
     assert bool(jnp.isfinite(material_abs_factor))
@@ -208,7 +208,7 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
 
 def _displaced_bands() -> tuple[
     DiagonalizedBands,
-    Float[Array, "2 3"],
+    Float64[Array, "2 3"],
 ]:
     """Return two atoms with one explicitly displaced Wannier centre."""
     basis: OrbitalBasis = _two_s_basis()
@@ -223,10 +223,10 @@ def _displaced_bands() -> tuple[
         jnp.asarray(((0.08, 0.16, 0.12), (0.57, 0.38, 0.24))),
         ("A", "B"),
     )
-    displacement_fractional: Float[Array, " 3"] = jnp.asarray(
+    displacement_fractional: Float64[Array, " 3"] = jnp.asarray(
         (0.17, 0.11, 0.07)
     )
-    explicit_fractional: Float[Array, "2 3"] = geometry.positions.at[1].add(
+    explicit_fractional: Float64[Array, "2 3"] = geometry.positions.at[1].add(
         displacement_fractional
     )
     bands: DiagonalizedBands = make_diagonalized_bands(
@@ -251,10 +251,12 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
     Compare the phase, intensity, and autodiff slope with their analytic forms.
     """
     bands: DiagonalizedBands
-    displacement_fractional: Float[Array, " 3"]
+    displacement_fractional: Float64[Array, " 3"]
     bands, displacement_fractional = _displaced_bands()
-    explicit_cart: Float[Array, "2 3"] = resolve_orbital_positions_cart(bands)
-    host_cart: Float[Array, "2 3"] = (
+    explicit_cart: Float64[Array, "2 3"] = resolve_orbital_positions_cart(
+        bands
+    )
+    host_cart: Float64[Array, "2 3"] = (
         bands.geometry.positions[jnp.asarray(bands.basis.atom_indices)]
         @ bands.geometry.lattice
     )
@@ -265,45 +267,47 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
         atol=1.0e-15,
     )
 
-    initial: Float[Array, "1 3"] = jnp.asarray(((0.52, -0.21, 0.16),))
-    final: Float[Array, "1 3"] = jnp.asarray(((-0.14, 0.31, 1.27),))
-    momentum_difference: Float[Array, " 3"] = initial[0] - final[0]
-    polarization: Complex[Array, " 3"] = jnp.asarray(
+    initial: Float64[Array, "1 3"] = jnp.asarray(((0.52, -0.21, 0.16),))
+    final: Float64[Array, "1 3"] = jnp.asarray(((-0.14, 0.31, 1.27),))
+    momentum_difference: Float64[Array, " 3"] = initial[0] - final[0]
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
         (0.23 + 0.17j, -0.39 + 0.11j, 0.58 - 0.09j),
         dtype=jnp.complex128,
     )
 
-    def coherent_intensity(scale: Float[Array, ""]) -> Float[Array, ""]:
+    def coherent_intensity(scale: Float64[Array, ""]) -> Float64[Array, ""]:
         """Return intensity after scaling only the explicit displacement."""
-        positions: Float[Array, "2 3"] = host_cart.at[1].add(
+        positions: Float64[Array, "2 3"] = host_cart.at[1].add(
             scale * (explicit_cart[1] - host_cart[1])
         )
-        channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
+        channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
             positions,
             jnp.zeros((2,)),
             jnp.asarray(9.0),
             initial,
             final,
         )
-        amplitudes: Complex[Array, " 2"] = contract_polarization(
+        amplitudes: Complex128[Array, " 2"] = contract_polarization(
             channels[0, 0],
             polarization,
         )
         return jnp.abs(jnp.sum(amplitudes)) ** 2
 
-    explicit_channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    explicit_channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         explicit_cart,
         jnp.zeros((2,)),
         jnp.asarray(9.0),
         initial,
         final,
     )
-    explicit_amplitudes: Complex[Array, " 2"] = contract_polarization(
+    explicit_amplitudes: Complex128[Array, " 2"] = contract_polarization(
         explicit_channels[0, 0],
         polarization,
     )
-    relative_position: Float[Array, " 3"] = explicit_cart[1] - explicit_cart[0]
-    relative_phase: Complex[Array, ""] = jnp.exp(
+    relative_position: Float64[Array, " 3"] = (
+        explicit_cart[1] - explicit_cart[0]
+    )
+    relative_phase: Complex128[Array, ""] = jnp.exp(
         1j * jnp.dot(momentum_difference, relative_position)
     )
     chex.assert_trees_all_close(
@@ -312,7 +316,7 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
         rtol=1.0e-13,
         atol=1.0e-14,
     )
-    expected_intensity: Float[Array, ""] = (
+    expected_intensity: Float64[Array, ""] = (
         jnp.abs(explicit_amplitudes[0]) ** 2
         * jnp.abs(1.0 + relative_phase) ** 2
     )
@@ -323,22 +327,22 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
         atol=1.0e-14,
     )
 
-    phase_argument: Float[Array, ""] = jnp.dot(
+    phase_argument: Float64[Array, ""] = jnp.dot(
         momentum_difference,
         relative_position,
     )
-    displacement_cart: Float[Array, " 3"] = explicit_cart[1] - host_cart[1]
-    phase_slope: Float[Array, ""] = jnp.dot(
+    displacement_cart: Float64[Array, " 3"] = explicit_cart[1] - host_cart[1]
+    phase_slope: Float64[Array, ""] = jnp.dot(
         momentum_difference,
         displacement_cart,
     )
-    expected_slope: Float[Array, ""] = (
+    expected_slope: Float64[Array, ""] = (
         -2.0
         * jnp.abs(explicit_amplitudes[0]) ** 2
         * jnp.sin(phase_argument)
         * phase_slope
     )
-    actual_slope: Float[Array, ""] = jax.grad(coherent_intensity)(
+    actual_slope: Float64[Array, ""] = jax.grad(coherent_intensity)(
         jnp.asarray(1.0)
     )
     chex.assert_trees_all_close(
@@ -349,14 +353,14 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
     )
     assert float(jnp.abs(actual_slope)) > 1.0e-5
 
-    host_channels: Complex[Array, "1 1 2 3"] = _two_s_channels(
+    host_channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         host_cart,
         jnp.zeros((2,)),
         jnp.asarray(9.0),
         initial,
         final,
     )
-    host_amplitude: Complex[Array, ""] = jnp.sum(
+    host_amplitude: Complex128[Array, ""] = jnp.sum(
         contract_polarization(host_channels[0, 0], polarization)
     )
     assert not bool(
@@ -367,7 +371,7 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
             atol=1.0e-12,
         )
     )
-    planted_fallback_slope: Float[Array, ""] = jax.grad(
+    planted_fallback_slope: Float64[Array, ""] = jax.grad(
         lambda scale: jnp.abs(host_amplitude + 0.0 * scale) ** 2
     )(jnp.asarray(1.0))
     assert planted_fallback_slope == 0.0

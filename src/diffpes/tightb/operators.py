@@ -25,7 +25,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import (
     DEGENERACY_GROUP_TOL_EV,
@@ -123,14 +123,14 @@ def _validate_fixed_groups(
 
 
 def _surface_weighted_expectations(
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
-    projector_diagonal: Float[Array, " n_orb"],
-) -> Float[Array, "n_k n_bands"]:
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
+    projector_diagonal: Float64[Array, " n_orb"],
+) -> Float64[Array, "n_k n_bands"]:
     """Compute band probabilities for a diagonal surface operator."""
-    orbital_probabilities: Float[Array, "n_k n_bands n_orb"] = (
+    orbital_probabilities: Float64[Array, "n_k n_bands n_orb"] = (
         jnp.abs(eigenvectors) ** 2
     )
-    expectations: Float[Array, "n_k n_bands"] = jnp.einsum(
+    expectations: Float64[Array, "n_k n_bands"] = jnp.einsum(
         "kbo,o->kb",
         orbital_probabilities,
         projector_diagonal,
@@ -141,8 +141,8 @@ def _surface_weighted_expectations(
 @jaxtyped(typechecker=beartype)
 def spin_operator(  # noqa: DOC502 -- validation is delegated.
     basis: OrbitalBasis,
-    axis: Float[Array, " 3"],
-) -> Complex[Array, "n_so n_so"]:
+    axis: Float64[Array, " 3"],
+) -> Complex128[Array, "n_so n_so"]:
     r"""Construct :math:`S_{\widehat n}=\widehat n\cdot\sigma/2`.
 
     The operator follows the declared ``(down, up)`` convention, including
@@ -157,12 +157,12 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
     basis : OrbitalBasis
         Spinor basis containing one ``-1`` and one ``+1`` state for every
         spatial orbital.
-    axis : Float[Array, "3"]
+    axis : Float64[Array, "3"]
         Finite Cartesian unit vector in the sample frame.
 
     Returns
     -------
-    operator : Complex[Array, "n_so n_so"]
+    operator : Complex128[Array, "n_so n_so"]
         Hermitian spin-one-half operator in the supplied basis order.
 
     Raises
@@ -178,12 +178,12 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
     then place the three Pauli components in the supplied basis order.
     """
     _validate_spin_pairs(basis)
-    checked_axis: Float[Array, " 3"] = eqx.error_if(
+    checked_axis: Float64[Array, " 3"] = eqx.error_if(
         axis,
         ~jnp.all(jnp.isfinite(axis)),
         "spin_operator: axis must be finite",
     )
-    norm_squared: Float[Array, ""] = jnp.sum(checked_axis * checked_axis)
+    norm_squared: Float64[Array, ""] = jnp.sum(checked_axis * checked_axis)
     checked_axis = eqx.error_if(
         checked_axis,
         ~jnp.isclose(norm_squared, 1.0, rtol=EPS, atol=EPS),
@@ -239,7 +239,7 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
 def ls_operator(  # noqa: DOC502 -- validation is delegated.
     basis: OrbitalBasis,
     shell_index: tuple[int, ...],
-) -> Complex[Array, "n_so n_so"]:
+) -> Complex128[Array, "n_so n_so"]:
     r"""Construct unit-strength atomic :math:`L\cdot S` by shell.
 
     Use the SOC shell map while replacing every physical coupling with one.
@@ -257,7 +257,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
 
     Returns
     -------
-    operator : Complex[Array, "n_so n_so"]
+    operator : Complex128[Array, "n_so n_so"]
         Hermitian sum of unit-strength :math:`L\cdot S` shell blocks.
 
     Raises
@@ -276,7 +276,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
         (n_shells,),
         dtype=jnp.float64,
     )
-    operator: Complex[Array, "n_so n_so"] = soc_matrix(
+    operator: Complex128[Array, "n_so n_so"] = soc_matrix(
         basis,
         shell_index,
         strengths,
@@ -288,7 +288,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
 def orbital_projector(  # noqa: DOC502 -- validation is delegated.
     basis: OrbitalBasis,
     orbital_select: tuple[int, ...],
-) -> Complex[Array, "n n"]:
+) -> Complex128[Array, "n n"]:
     """Construct a diagonal projector onto selected basis orbitals.
 
     Mark each requested static index with one and leave all other diagonal
@@ -305,7 +305,7 @@ def orbital_projector(  # noqa: DOC502 -- validation is delegated.
 
     Returns
     -------
-    projector : Complex[Array, "n n"]
+    projector : Complex128[Array, "n n"]
         Hermitian idempotent diagonal selection matrix.
 
     Raises
@@ -332,9 +332,9 @@ def orbital_projector(  # noqa: DOC502 -- validation is delegated.
 
 @jaxtyped(typechecker=beartype)
 def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
-    depths: Float[Array, " n_orb"],
+    depths: Float64[Array, " n_orb"],
     intensity_escape_length_ang: ScalarFloat,
-) -> Float[Array, " n_orb"]:
+) -> Float64[Array, " n_orb"]:
     r"""Construct surface-sensitive orbital probability weights.
 
     Each orbital at depth :math:`d_o` in Angstrom receives the probability
@@ -346,14 +346,14 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
 
     Parameters
     ----------
-    depths : Float[Array, "n_orb"]
+    depths : Float64[Array, "n_orb"]
         Nonnegative orbital depths below the top surface in Angstrom.
     intensity_escape_length_ang : ScalarFloat
         Finite, positive intensity escape length in Angstrom.
 
     Returns
     -------
-    weights : Float[Array, "n_orb"]
+    weights : Float64[Array, "n_orb"]
         Diagonal entries of the surface probability operator.
 
     Raises
@@ -374,7 +374,7 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
     if depths.ndim != 1:
         message: str = "surface_projector: depths must be one-dimensional"
         raise ValueError(message)
-    checked_depths: Float[Array, " n_orb"] = eqx.error_if(
+    checked_depths: Float64[Array, " n_orb"] = eqx.error_if(
         depths,
         ~jnp.all(jnp.isfinite(depths)) | jnp.any(depths < -1e-12),  # noqa: PLR2004
         "surface_projector: depths must be finite and nonnegative",
@@ -391,20 +391,20 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
         "positive",
     )
     ordinary_length: Array = escape_length > EPS
-    sanitized_length: Float[Array, ""] = jnp.where(
+    sanitized_length: Float64[Array, ""] = jnp.where(
         ordinary_length,
         escape_length,
         1.0,
     )
-    ordinary_weights: Float[Array, " n_orb"] = jnp.exp(
+    ordinary_weights: Float64[Array, " n_orb"] = jnp.exp(
         -checked_depths / sanitized_length
     )
-    limiting_weights: Float[Array, " n_orb"] = jnp.where(
+    limiting_weights: Float64[Array, " n_orb"] = jnp.where(
         checked_depths == 0.0,
         1.0,
         0.0,
     )
-    weights: Float[Array, " n_orb"] = jnp.where(
+    weights: Float64[Array, " n_orb"] = jnp.where(
         ordinary_length,
         ordinary_weights,
         limiting_weights,
@@ -416,7 +416,7 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
 def layer_resolved_weights(
     bands: DiagonalizedBands,
     intensity_escape_length_ang: ScalarFloat,
-) -> Float[Array, "n_k n_bands"]:
+) -> Float64[Array, "n_k n_bands"]:
     """Compute per-band surface weights as an off-degeneracy diagnostic.
 
     Contract each band's orbital probabilities with the diagonal surface
@@ -434,7 +434,7 @@ def layer_resolved_weights(
 
     Returns
     -------
-    weights : Float[Array, "n_k n_bands"]
+    weights : Float64[Array, "n_k n_bands"]
         Raw surface-operator expectation for every eigenvector.
 
     Raises
@@ -450,11 +450,11 @@ def layer_resolved_weights(
     if bands.depths is None:
         message: str = "layer_resolved_weights requires bands.depths"
         raise ValueError(message)
-    projector_diagonal: Float[Array, " n_orb"] = surface_projector(
+    projector_diagonal: Float64[Array, " n_orb"] = surface_projector(
         bands.depths,
         intensity_escape_length_ang,
     )
-    weights: Float[Array, "n_k n_bands"] = _surface_weighted_expectations(
+    weights: Float64[Array, "n_k n_bands"] = _surface_weighted_expectations(
         bands.eigenvectors,
         projector_diagonal,
     )
@@ -466,7 +466,7 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
     bands: DiagonalizedBands,
     fixed_groups: tuple[tuple[int, ...], ...],
     intensity_escape_length_ang: ScalarFloat,
-) -> Float[Array, "n_k n_group"]:
+) -> Float64[Array, "n_k n_group"]:
     r"""Compute surface traces over complete, isolated fixed band groups.
 
     The result is :math:`\operatorname{Tr}(P_g P_{\rm surface})` for every
@@ -487,7 +487,7 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
 
     Returns
     -------
-    traces : Float[Array, "n_k n_group"]
+    traces : Float64[Array, "n_k n_group"]
         Gauge-invariant surface trace for every k-point and group.
 
     Raises
@@ -510,11 +510,11 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
         raise ValueError(message)
     n_bands: int = bands.eigenvalues.shape[1]
     _validate_fixed_groups(fixed_groups, n_bands)
-    projector_diagonal: Float[Array, " n_orb"] = surface_projector(
+    projector_diagonal: Float64[Array, " n_orb"] = surface_projector(
         bands.depths,
         intensity_escape_length_ang,
     )
-    checked_eigenvectors: Complex[Array, "n_k n_bands n_orb"] = (
+    checked_eigenvectors: Complex128[Array, "n_k n_bands n_orb"] = (
         bands.eigenvectors
     )
     all_bands: set[int] = set(range(n_bands))
@@ -526,7 +526,7 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
         )
         if not complement:
             continue
-        cross_gaps: Float[Array, "n_k n_group n_complement"] = jnp.abs(
+        cross_gaps: Float64[Array, "n_k n_group n_complement"] = jnp.abs(
             bands.eigenvalues[:, group, None]
             - bands.eigenvalues[:, None, complement]
         )
@@ -544,11 +544,11 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
             "layer_resolved_group_traces: fixed group "
             f"{group_index} is not complement-isolated",
         )
-    per_band: Float[Array, "n_k n_bands"] = _surface_weighted_expectations(
+    per_band: Float64[Array, "n_k n_bands"] = _surface_weighted_expectations(
         checked_eigenvectors,
         projector_diagonal,
     )
-    traces: Float[Array, "n_k n_group"] = jnp.stack(
+    traces: Float64[Array, "n_k n_group"] = jnp.stack(
         [jnp.sum(per_band[:, group], axis=-1) for group in fixed_groups],
         axis=-1,
     )

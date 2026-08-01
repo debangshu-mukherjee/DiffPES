@@ -20,7 +20,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Float64, Integer, jaxtyped
+from jaxtyping import Array, Float64, Integer, jaxtyped
 
 
 def _odd_double_factorial(order: int) -> float:
@@ -34,7 +34,7 @@ def _odd_double_factorial(order: int) -> float:
 
 def _origin_series(
     order: int,
-    x: Float[Array, " ..."],
+    x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
     """Evaluate the first three nonzero terms of the origin series."""
     denominator: float = _odd_double_factorial(2 * order + 1)
@@ -200,7 +200,7 @@ def spherical_bessel_jl(
     ----------
     order : int
         Nonnegative static angular-momentum order.
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real arguments.
 
     Returns
@@ -263,7 +263,7 @@ def spherical_bessel_jl(
 @jaxtyped(typechecker=beartype)
 def spherical_bessel_jl_derivative(
     order: int,
-    x: Float[Array, " ..."],
+    x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
     """Evaluate :math:`d j_l(x)/dx`.
 
@@ -276,7 +276,7 @@ def spherical_bessel_jl_derivative(
     ----------
     order : int
         Nonnegative static angular-momentum order.
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real arguments.
 
     Returns

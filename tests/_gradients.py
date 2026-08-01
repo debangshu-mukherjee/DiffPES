@@ -25,7 +25,14 @@ import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Any, Callable, Optional
 from jax import test_util
-from jaxtyping import Array, Complex, Float, PRNGKeyArray, PyTree, jaxtyped
+from jaxtyping import (
+    Array,
+    Complex128,
+    Float64,
+    PRNGKeyArray,
+    PyTree,
+    jaxtyped,
+)
 
 from diffpes.types import ScalarFloat
 from tests._assertions import assert_tree_finite
@@ -42,14 +49,14 @@ FD_ROUNDOFF_FACTOR: float = 1.0
 
 @jaxtyped(typechecker=beartype)
 def fd_step(
-    theta: Float[Array, "..."], *, scale_floor: ScalarFloat = 1e-3
-) -> Float[Array, "..."]:
+    theta: Float64[Array, "..."], *, scale_floor: ScalarFloat = 1e-3
+) -> Float64[Array, "..."]:
     """Calculate a scale-aware central-finite-difference step.
 
     Uses ``EPS_F64**(1/3) * maximum(abs(theta), scale_floor)`` elementwise,
     which balances truncation and round-off error for central differences.
     """
-    step: Float[Array, "..."] = EPS_F64 ** (1.0 / 3.0) * jnp.maximum(
+    step: Float64[Array, "..."] = EPS_F64 ** (1.0 / 3.0) * jnp.maximum(
         jnp.abs(theta), scale_floor
     )
     return step
@@ -81,7 +88,7 @@ def _central_leaf_grad(
     flat_steps: Array = jnp.ravel(steps)
     basis: Array = jnp.eye(flat_leaf.size, dtype=flat_leaf.dtype)
 
-    def evaluate(delta: Array) -> Float[Array, ""]:
+    def evaluate(delta: Array) -> Float64[Array, ""]:
         perturbed_leaves: list[Array] = list(leaves)
         perturbed_leaves[leaf_index] = jnp.reshape(
             flat_leaf + delta, leaf.shape
@@ -89,7 +96,7 @@ def _central_leaf_grad(
         perturbed_tree: PyTree = jax.tree_util.tree_unflatten(
             treedef, perturbed_leaves
         )
-        value: Float[Array, ""] = jitted_fn(perturbed_tree)
+        value: Float64[Array, ""] = jitted_fn(perturbed_tree)
         return value
 
     real_deltas: Array = basis * flat_steps[:, None]
@@ -163,11 +170,11 @@ def assert_grad_matches_fd(
         fd_step(jnp.real(jnp.asarray(leaf)), scale_floor=scale_floor)
         for leaf in jax.tree.leaves(theta)
     ]
-    median_step: Float[Array, ""] = jnp.median(
+    median_step: Float64[Array, ""] = jnp.median(
         jnp.concatenate([jnp.ravel(step) for step in step_leaves])
     )
     relative_tolerance: float = RTOL_LADDER[regime]
-    value: Float[Array, ""] = fn(theta)
+    value: Float64[Array, ""] = fn(theta)
     directional_absolute_tolerance: ScalarFloat = (
         FD_ROUNDOFF_FACTOR
         * EPS_F64
@@ -177,9 +184,9 @@ def assert_grad_matches_fd(
         else directional_atol
     )
 
-    def checked_fn(candidate: PyTree) -> Float[Array, ""]:
+    def checked_fn(candidate: PyTree) -> Float64[Array, ""]:
         normalized: PyTree = _as_jax_arrays(candidate)
-        checked_value: Float[Array, ""] = fn(normalized)
+        checked_value: Float64[Array, ""] = fn(normalized)
         return checked_value
 
     test_util.check_grads(
@@ -278,7 +285,7 @@ def assert_nonzero_grad(
         path_name: str = _path_name(path)
         if path_name in selected_paths:
             if elementwise:
-                magnitudes: Float[Array, " ..."] = jnp.abs(jnp.ravel(leaf))
+                magnitudes: Float64[Array, " ..."] = jnp.abs(jnp.ravel(leaf))
                 if magnitudes.size == 0:
                     message = (
                         f"gradient at {path_name} is empty; "
@@ -296,7 +303,7 @@ def assert_nonzero_grad(
                     )
                     raise AssertionError(message)
                 continue
-            norm: Float[Array, ""] = jnp.linalg.norm(jnp.ravel(leaf))
+            norm: Float64[Array, ""] = jnp.linalg.norm(jnp.ravel(leaf))
             if not bool(norm > min_norm):
                 message = (
                     f"gradient at {path_name} has norm {float(norm):.6e}; "
@@ -338,7 +345,7 @@ def random_generic_complex(
     shape: tuple[int, ...],
     *,
     scale: ScalarFloat = 1.0,
-) -> Complex[Array, "..."]:
+) -> Complex128[Array, "..."]:
     """Generate generic complex data with asymmetric independent components.
 
     Real and imaginary components use independent normal draws at scales
@@ -348,22 +355,24 @@ def random_generic_complex(
     real_key: PRNGKeyArray
     imaginary_key: PRNGKeyArray
     real_key, imaginary_key = jax.random.split(key)
-    real_part: Float[Array, "..."] = scale * jax.random.normal(real_key, shape)
-    imaginary_part: Float[Array, "..."] = (
+    real_part: Float64[Array, "..."] = scale * jax.random.normal(
+        real_key, shape
+    )
+    imaginary_part: Float64[Array, "..."] = (
         0.7 * scale * jax.random.normal(imaginary_key, shape)
     )
-    values: Complex[Array, "..."] = real_part + 1j * imaginary_part
+    values: Complex128[Array, "..."] = real_part + 1j * imaginary_part
     return values
 
 
 @jaxtyped(typechecker=beartype)
 def complex_step_derivative(
     fn: Callable[[Array], Array],
-    x: Float[Array, "..."],
+    x: Float64[Array, "..."],
     *,
-    direction: Optional[Float[Array, "..."]] = None,
+    direction: Optional[Float64[Array, "..."]] = None,
     h: ScalarFloat = 1e-20,
-) -> Float[Array, "..."]:
+) -> Float64[Array, "..."]:
     """Estimate a directional derivative by complex step.
 
     Evaluate ``imag(fn(x + 1j*h*direction)) / h`` for a holomorphic sub-block
@@ -374,12 +383,12 @@ def complex_step_derivative(
     analytic derivative or JVP. General complex-to-real maps use stacked-real
     central finite differences instead.
     """
-    resolved_direction: Float[Array, "..."] = (
+    resolved_direction: Float64[Array, "..."] = (
         jnp.ones_like(x) if direction is None else direction
     )
     complex_value: Array = fn(
         x.astype(jnp.complex128) + 1j * h * resolved_direction
     )
     imaginary_part: Array = jnp.imag(complex_value)
-    derivative: Float[Array, "..."] = imaginary_part / h
+    derivative: Float64[Array, "..."] = imaginary_part / h
     return derivative

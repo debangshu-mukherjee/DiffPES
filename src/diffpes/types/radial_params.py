@@ -150,28 +150,28 @@ def _default_n_star(principal: int) -> float:
 
 
 def _slater_norm_squared(
-    zeta_row: Float[Array, " n_contraction"],
-    coefficient_row: Float[Array, " n_contraction"],
+    zeta_row: Float64[Array, " n_contraction"],
+    coefficient_row: Float64[Array, " n_contraction"],
     effective_principal: float,
-) -> Float[Array, ""]:
+) -> Float64[Array, ""]:
     """Return the analytic radial norm of one contracted STO row."""
     gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
         dtype=jnp.float64,
     )
-    primitive_norms: Float[Array, " n_contraction"] = (
+    primitive_norms: Float64[Array, " n_contraction"] = (
         (2.0 * zeta_row) ** (effective_principal + 0.5)
     ) / jnp.sqrt(gamma_value)
-    denominator: Float[Array, "n_contraction n_contraction"] = (
+    denominator: Float64[Array, "n_contraction n_contraction"] = (
         zeta_row[:, None] + zeta_row[None, :]
     ) ** (2.0 * effective_principal + 1.0)
-    overlap: Float[Array, "n_contraction n_contraction"] = (
+    overlap: Float64[Array, "n_contraction n_contraction"] = (
         primitive_norms[:, None]
         * primitive_norms[None, :]
         * gamma_value
         / denominator
     )
-    norm_squared: Float[Array, ""] = jnp.einsum(
+    norm_squared: Float64[Array, ""] = jnp.einsum(
         "i,ij,j->",
         coefficient_row,
         overlap,
@@ -181,19 +181,19 @@ def _slater_norm_squared(
 
 
 def _slater_coefficient_condition(
-    zeta_row: Float[Array, " n_contraction"],
-    coefficient_row: Float[Array, " n_contraction"],
+    zeta_row: Float64[Array, " n_contraction"],
+    coefficient_row: Float64[Array, " n_contraction"],
     effective_principal: float,
-) -> Float[Array, ""]:
+) -> Float64[Array, ""]:
     """Return the scale-invariant normalized-contraction tail condition."""
-    norm_squared: Float[Array, ""] = _slater_norm_squared(
+    norm_squared: Float64[Array, ""] = _slater_norm_squared(
         zeta_row,
         coefficient_row,
         effective_principal,
     )
-    condition: Float[Array, ""] = jnp.sum(jnp.abs(coefficient_row)) / jnp.sqrt(
-        norm_squared
-    )
+    condition: Float64[Array, ""] = jnp.sum(
+        jnp.abs(coefficient_row)
+    ) / jnp.sqrt(norm_squared)
     return condition
 
 
@@ -383,9 +383,9 @@ def _validate_radial_shell_structure(
 
 
 def _validate_radial_array_shapes(
-    zeta_shell: Float[Array, "n_shell n_contraction"],
-    coefficients_shell: Float[Array, "n_shell n_contraction"],
-    effective_charge_shell: Float[Array, " n_shell"],
+    zeta_shell: Float64[Array, "n_shell n_contraction"],
+    coefficients_shell: Float64[Array, "n_shell n_contraction"],
+    effective_charge_shell: Float64[Array, " n_shell"],
     n_shells: int,
 ) -> None:
     """Validate common shell and contraction axes."""
@@ -648,7 +648,7 @@ class FinalStateSpec(eqx.Module):
         ``"plane_wave"`` or ``"coulomb"`` (**static**).
     radial_accelerator : str
         ``"direct"`` (**static**). The schema retains ``"hermite"`` for
-        validation and raises because the frozen G13 convergence ladder fails.
+        validation and raises because the frozen radial accelerator fails.
     table_n_points : int
         Registered Hermite table size (**static**).
     """
@@ -670,7 +670,7 @@ class FinalStateSpec(eqx.Module):
             raise ValueError(message)
         if self.radial_accelerator == "hermite":
             message = (
-                "Hermite radial acceleration failed the frozen G13 "
+                "Hermite mode failed the frozen radial accelerator "
                 "1025-to-2049 next-rung certification"
             )
             raise ValueError(message)
@@ -683,7 +683,7 @@ class FinalStateSpec(eqx.Module):
 
 
 def _validate_slater_koster_structure(
-    values: Float[Array, " n_sk"],
+    values: Float64[Array, " n_sk"],
     keys: tuple[str, ...],
 ) -> None:
     """Validate Slater--Koster parameter axes and static identifiers."""
@@ -864,12 +864,14 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     basis: OrbitalBasis,
     radial_shell_index: tuple[int, ...],
     mode: str = "slater",
-    zeta_shell: Optional[Float[Array, "n_shell n_contraction"]] = None,
-    coefficients_shell: Optional[Float[Array, "n_shell n_contraction"]] = None,
-    effective_charge_shell: Optional[Float[Array, " n_shell"]] = None,
-    r_grid: Optional[Float[Array, " n_r"]] = None,
-    grid_values_shell: Optional[Float[Array, "n_shell n_r"]] = None,
-    fixed_integrals_shell: Optional[Float[Array, "n_shell 2"]] = None,
+    zeta_shell: Optional[Float64[Array, "n_shell n_contraction"]] = None,
+    coefficients_shell: Optional[
+        Float64[Array, "n_shell n_contraction"]
+    ] = None,
+    effective_charge_shell: Optional[Float64[Array, " n_shell"]] = None,
+    r_grid: Optional[Float64[Array, " n_r"]] = None,
+    grid_values_shell: Optional[Float64[Array, "n_shell n_r"]] = None,
+    fixed_integrals_shell: Optional[Float64[Array, "n_shell 2"]] = None,
     n_star_shell: Optional[tuple[float, ...]] = None,
     tail_envelope_id: str = _CERTIFIED_TAIL_ENVELOPE_ID,
 ) -> RadialSpec:
@@ -889,17 +891,17 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         Static orbital-to-shell partition.
     mode : str, optional
         ``"slater"``, ``"hydrogenic"``, ``"grid"``, or ``"fixed"``.
-    zeta_shell : Optional[Float[Array, "n_shell n_contraction"]], optional
+    zeta_shell : Optional[Float64[Array, "n_shell n_contraction"]], optional
         Slater exponents in inverse Bohr.
-    coefficients_shell : Optional[Float[Array, "S C"]], optional
+    coefficients_shell : Optional[Float64[Array, "S C"]], optional
         Real Slater contraction coefficients.
-    effective_charge_shell : Optional[Float[Array, " n_shell"]], optional
+    effective_charge_shell : Optional[Float64[Array, " n_shell"]], optional
         Hydrogenic effective charges.
-    r_grid : Optional[Float[Array, " n_r"]], optional
+    r_grid : Optional[Float64[Array, " n_r"]], optional
         Uniform compact-support grid in Bohr.
-    grid_values_shell : Optional[Float[Array, "n_shell n_r"]], optional
+    grid_values_shell : Optional[Float64[Array, "n_shell n_r"]], optional
         Sampled radial rows on ``r_grid``.
-    fixed_integrals_shell : Optional[Float[Array, "n_shell 2"]], optional
+    fixed_integrals_shell : Optional[Float64[Array, "n_shell 2"]], optional
         Real phase-free fixed channel integrals.
     n_star_shell : Optional[tuple[float, ...]], optional
         Slater effective principal numbers.
@@ -960,7 +962,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     else:
         zeta_array = jnp.asarray(zeta_shell, dtype=jnp.float64)
     if coefficients_shell is None:
-        coefficient_array: Float[Array, "n_shell n_contraction"] = (
+        coefficient_array: Float64[Array, "n_shell n_contraction"] = (
             jnp.ones_like(zeta_array)
         )
     else:
@@ -985,9 +987,9 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         n_shells,
     )
 
-    grid_array: Optional[Float[Array, " n_r"]] = None
-    grid_value_array: Optional[Float[Array, "n_shell n_r"]] = None
-    fixed_array: Optional[Float[Array, "n_shell 2"]] = None
+    grid_array: Optional[Float64[Array, " n_r"]] = None
+    grid_value_array: Optional[Float64[Array, "n_shell n_r"]] = None
+    fixed_array: Optional[Float64[Array, "n_shell 2"]] = None
     if mode == "grid":
         if r_grid is None or grid_values_shell is None:
             message = "grid mode requires r_grid and grid_values_shell"
@@ -1007,7 +1009,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         ):
             message = "grid mode arrays have inconsistent shapes"
             raise ValueError(message)
-        spacings: Float[Array, " n_interval"] = jnp.diff(grid_array)
+        spacings: Float64[Array, " n_interval"] = jnp.diff(grid_array)
         grid_array = eqx.error_if(
             grid_array,
             ~jnp.all(jnp.isfinite(grid_array))
@@ -1026,7 +1028,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             | ~jnp.all(grid_value_array[:, -1] == 0.0),
             "grid rows must be finite and exactly compact-supported",
         )
-        grid_norms: Float[Array, " n_shell"] = jnp.trapezoid(
+        grid_norms: Float64[Array, " n_shell"] = jnp.trapezoid(
             grid_value_array**2 * grid_array[None, :] ** 2,
             x=grid_array,
             axis=-1,
@@ -1052,7 +1054,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         if fixed_array.shape != (n_shells, 2):
             message = "fixed_integrals_shell must have shape (n_shell, 2)"
             raise ValueError(message)
-        fixed_norms: Float[Array, " n_shell"] = jnp.linalg.norm(
+        fixed_norms: Float64[Array, " n_shell"] = jnp.linalg.norm(
             fixed_array,
             axis=-1,
         )
@@ -1090,8 +1092,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             | jnp.any(zeta_array > _MAX_DECAY_PARAMETER),
             "slater zeta_shell leaves the certified tail envelope",
         )
-        shell_norms: list[Float[Array, ""]] = []
-        coefficient_conditions: list[Float[Array, ""]] = []
+        shell_norms: list[Float64[Array, ""]] = []
+        coefficient_conditions: list[Float64[Array, ""]] = []
         shell_index: int
         for shell_index in range(n_shells):
             effective_principal: float = resolved_n_star[shell_index]
@@ -1109,8 +1111,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
                     effective_principal,
                 )
             )
-        contraction_norms: Float[Array, " n_shell"] = jnp.stack(shell_norms)
-        contraction_conditions: Float[Array, " n_shell"] = jnp.stack(
+        contraction_norms: Float64[Array, " n_shell"] = jnp.stack(shell_norms)
+        contraction_conditions: Float64[Array, " n_shell"] = jnp.stack(
             coefficient_conditions
         )
         coefficient_array = eqx.error_if(
@@ -1165,8 +1167,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
 def make_matrix_element_params(  # noqa: DOC502, DOC503
     basis: OrbitalBasis,
     radial_shell_index: tuple[int, ...],
-    sigma_shell: Optional[Float[Array, "n_shell"]] = None,
-    phase_shift_angles_shell: Optional[Float[Array, "n_phase"]] = None,
+    sigma_shell: Optional[Float64[Array, "n_shell"]] = None,
+    phase_shift_angles_shell: Optional[Float64[Array, "n_phase"]] = None,
 ) -> MatrixElementParams:
     """Create validated shell-shared matrix-element parameters.
 
@@ -1186,9 +1188,9 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         Static orbital metadata.
     radial_shell_index : tuple[int, ...]
         Static orbital-to-shell partition.
-    sigma_shell : Optional[Float[Array, "n_shell"]], optional
+    sigma_shell : Optional[Float64[Array, "n_shell"]], optional
         Real shell scales, defaulting to one.
-    phase_shift_angles_shell : Optional[Float[Array, "n_phase"]], optional
+    phase_shift_angles_shell : Optional[Float64[Array, "n_phase"]], optional
         Real compact channel phase angles, defaulting to zero. Their static
         coordinates follow shell order and then increasing ``l_prime``.
 
@@ -1320,7 +1322,7 @@ def make_radial_quadrature_spec(
 @jaxtyped(typechecker=beartype)
 def make_final_state_spec(  # noqa: DOC503
     mode: str = "plane_wave",
-    effective_charge: float | Float[Array, ""] = 0.0,
+    effective_charge: float | Float64[Array, ""] = 0.0,
     radial_accelerator: str = "direct",
     table_n_points: int = 257,
 ) -> FinalStateSpec:
@@ -1339,7 +1341,7 @@ def make_final_state_spec(  # noqa: DOC503
     ----------
     mode : str, optional
         ``"plane_wave"`` or ``"coulomb"``.
-    effective_charge : float | Float[Array, ""], optional
+    effective_charge : float | Float64[Array, ""], optional
         Final-state effective charge.
     radial_accelerator : str, optional
         ``"direct"``. The factory recognizes ``"hermite"`` but raises.
@@ -1366,7 +1368,7 @@ def make_final_state_spec(  # noqa: DOC503
         raise ValueError(message)
     if radial_accelerator == "hermite":
         message = (
-            "Hermite radial acceleration failed the frozen G13 "
+            "Hermite mode failed the frozen radial accelerator "
             "1025-to-2049 next-rung certification"
         )
         raise ValueError(message)

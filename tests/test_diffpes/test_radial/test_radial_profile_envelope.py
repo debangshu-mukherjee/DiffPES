@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 from scipy.integrate import quad
 from scipy.special import eval_genlaguerre, gamma, gammaincc, spherical_jn
@@ -200,7 +200,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
         "gl2048-r120-k4-l9-reference-v1"
     )
     final_state: FinalStateSpec = make_final_state_spec()
-    sto_reference: Float[NDArray, "n_orb n_k n_branch"] = np.asarray(
+    sto_reference: Float64[NDArray, "n_orb n_k n_branch"] = np.asarray(
         radial_bvals(
             sto,
             jnp.asarray(tail_momenta),
@@ -208,7 +208,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
             final_state,
         )
     )
-    hydrogenic_reference: Float[NDArray, "n_orb n_k n_branch"] = np.asarray(
+    hydrogenic_reference: Float64[NDArray, "n_orb n_k n_branch"] = np.asarray(
         radial_bvals(
             hydrogenic,
             jnp.asarray(tail_momenta),
@@ -324,12 +324,14 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
         ),
     )
 
-    exponent_values: Float[NDArray, " n_prim"] = np.asarray(exponents[0])
-    coefficient_values: Float[NDArray, " n_prim"] = np.asarray(coefficients[0])
-    primitive_norms: Float[NDArray, " n_prim"] = (2.0 * exponent_values) ** (
+    exponent_values: Float64[NDArray, " n_prim"] = np.asarray(exponents[0])
+    coefficient_values: Float64[NDArray, " n_prim"] = np.asarray(
+        coefficients[0]
+    )
+    primitive_norms: Float64[NDArray, " n_prim"] = (2.0 * exponent_values) ** (
         effective_principal + 0.5
     ) / math.sqrt(float(gamma(2.0 * effective_principal + 1.0)))
-    overlap: Float[NDArray, "n_prim n_prim"] = (
+    overlap: Float64[NDArray, "n_prim n_prim"] = (
         primitive_norms[:, None]
         * primitive_norms[None, :]
         * float(gamma(2.0 * effective_principal + 1.0))
@@ -347,7 +349,7 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
 
     def contracted_tail_integrand(radius: float) -> float:
         """Return the independently normalized absolute tail integrand."""
-        primitives: Float[NDArray, " n_prim"] = (
+        primitives: Float64[NDArray, " n_prim"] = (
             primitive_norms
             * radius ** (effective_principal - 1.0)
             * np.exp(-exponent_values * radius)

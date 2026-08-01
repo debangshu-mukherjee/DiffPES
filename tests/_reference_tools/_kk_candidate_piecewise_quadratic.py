@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 jax.config.update("jax_enable_x64", True)
 
@@ -20,10 +20,10 @@ DESCRIPTION = (
 
 
 def core_pv_transform(
-    core_grid_ev: Float[Array, " n_kk"],
-    core_imag_values: Float[Array, " n_kk"],
-    queries_ev: Float[Array, " n_query"],
-) -> Float[Array, " n_query"]:
+    core_grid_ev: Float64[Array, " n_kk"],
+    core_imag_values: Float64[Array, " n_kk"],
+    queries_ev: Float64[Array, " n_query"],
+) -> Float64[Array, " n_query"]:
     """Return the unsubtracted core principal-value contribution to Sigma'.
 
     Cells are grouped as ``(0, 1), (2, 3), ...``.  Both cells in a pair use the

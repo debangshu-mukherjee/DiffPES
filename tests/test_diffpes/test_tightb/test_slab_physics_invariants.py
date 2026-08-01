@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any
-from jaxtyping import Complex, Float, Int
+from jaxtyping import Complex128, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.tightb import bloch_hamiltonian
@@ -84,7 +84,7 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
 
 def _dense_block_records(
     cell: tuple[int, int, int],
-    block: Complex[NDArray, "n_orb n_orb"],
+    block: Complex128[NDArray, "n_orb n_orb"],
 ) -> tuple[
     list[tuple[int, int]],
     list[tuple[int, int, int]],
@@ -104,7 +104,7 @@ def _dense_block_records(
     return pairs, cells, amplitudes
 
 
-def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
+def _inversion_bulk_model() -> tuple[TBModel, Int64[NDArray, " n_orb"]]:
     """Build a generic-complex model with a nontrivial inversion action."""
     basis: Any
     block: Any
@@ -115,9 +115,9 @@ def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
     column: Any
     geometry: Any
     row: Any
-    local_permutation: Int[NDArray, " 4"] = np.asarray((2, 3, 0, 1))
-    inversion: Float[NDArray, "4 4"] = np.eye(4)[local_permutation]
-    trial: Complex[NDArray, "4 4"] = np.asarray(
+    local_permutation: Int64[NDArray, " 4"] = np.asarray((2, 3, 0, 1))
+    inversion: Float64[NDArray, "4 4"] = np.eye(4)[local_permutation]
+    trial: Complex128[NDArray, "4 4"] = np.asarray(
         (
             (0.2 + 0.3j, 0.1 - 0.4j, 0.2 + 0.1j, -0.3j),
             (0.4 + 0.2j, -0.1 + 0.5j, 0.7 - 0.2j, 0.2 + 0.6j),
@@ -126,10 +126,10 @@ def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
         ),
         dtype=np.complex128,
     )
-    x_block: Complex[NDArray, "4 4"] = (
+    x_block: Complex128[NDArray, "4 4"] = (
         trial + inversion @ trial.conj().T @ inversion
     ) / 2.0
-    onsite_trial: Complex[NDArray, "4 4"] = np.asarray(
+    onsite_trial: Complex128[NDArray, "4 4"] = np.asarray(
         (
             (0.2, 0.1 + 0.2j, 0.3, 0.4j),
             (0.1 - 0.2j, -0.4, 0.2 + 0.1j, 0.5),
@@ -138,7 +138,7 @@ def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
         ),
         dtype=np.complex128,
     )
-    onsite_block: Complex[NDArray, "4 4"] = (
+    onsite_block: Complex128[NDArray, "4 4"] = (
         onsite_trial + inversion @ onsite_trial @ inversion
     ) / 2.0
     pairs: list[tuple[int, int]] = []
@@ -157,7 +157,7 @@ def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
         pairs.extend(block_pairs)
         cells.extend(block_cells)
         amplitudes.extend(block_amplitudes)
-    onsite_energies: Float[NDArray, " 4"] = np.real(np.diag(onsite_block))
+    onsite_energies: Float64[NDArray, " 4"] = np.real(np.diag(onsite_block))
     for row in range(4):
         for column in range(4):
             if row != column:
@@ -199,8 +199,8 @@ def _inversion_bulk_model() -> tuple[TBModel, Int[NDArray, " n_orb"]]:
 
 def _assert_inversion_witness(
     model: TBModel,
-    permutation: Int[NDArray, " n_orb"],
-    centre: Float[NDArray, " 3"],
+    permutation: Int64[NDArray, " n_orb"],
+    centre: Float64[NDArray, " 3"],
 ) -> None:
     """Validate positions, depths, signatures, and Hamiltonian covariance."""
     kpoint: Any
@@ -209,10 +209,10 @@ def _assert_inversion_witness(
         np.sort(permutation),
         np.arange(permutation.size),
     )
-    positions: Float[NDArray, "n_atom 3"] = np.asarray(
+    positions: Float64[NDArray, "n_atom 3"] = np.asarray(
         model.geometry.positions
     )
-    image_residual: Float[NDArray, "n_atom 3"] = positions[permutation] - (
+    image_residual: Float64[NDArray, "n_atom 3"] = positions[permutation] - (
         2.0 * centre - positions
     )
     image_residual[:, :2] -= np.rint(image_residual[:, :2])
@@ -228,7 +228,7 @@ def _assert_inversion_witness(
     assert tuple(orbital_species[index] for index in permutation) == (
         orbital_species
     )
-    depths: Float[NDArray, " n_orb"] = np.asarray(model.depths)
+    depths: Float64[NDArray, " n_orb"] = np.asarray(model.depths)
     np.testing.assert_allclose(
         depths[permutation],
         np.max(depths) - depths,
@@ -239,10 +239,10 @@ def _assert_inversion_witness(
         jnp.asarray((0.17, -0.23, 0.0), dtype=jnp.float64),
         jnp.asarray((0.31, 0.14, 0.0), dtype=jnp.float64),
     ):
-        hamiltonian: Complex[NDArray, "n_orb n_orb"] = np.asarray(
+        hamiltonian: Complex128[NDArray, "n_orb n_orb"] = np.asarray(
             bloch_hamiltonian(model, kpoint)
         )
-        inverted: Complex[NDArray, "n_orb n_orb"] = np.asarray(
+        inverted: Complex128[NDArray, "n_orb n_orb"] = np.asarray(
             bloch_hamiltonian(model, -kpoint)
         )
         np.testing.assert_allclose(
@@ -482,7 +482,7 @@ class TestDepthAndInversionGates:
             vacuum_ang=5.0,
         )
         n_local: int = local_permutation.size
-        permutation: Int[NDArray, " n_orb"] = np.asarray(
+        permutation: Int64[NDArray, " n_orb"] = np.asarray(
             [
                 (spec.n_layers - 1 - layer) * n_local
                 + local_permutation[orbital]
@@ -490,10 +490,10 @@ class TestDepthAndInversionGates:
                 for orbital in range(n_local)
             ]
         )
-        positions: Float[NDArray, "n_atom 3"] = np.asarray(
+        positions: Float64[NDArray, "n_atom 3"] = np.asarray(
             slab.geometry.positions
         )
-        centre: Float[NDArray, " 3"] = np.asarray(
+        centre: Float64[NDArray, " 3"] = np.asarray(
             (
                 0.5,
                 0.5,
@@ -502,7 +502,7 @@ class TestDepthAndInversionGates:
         )
         _assert_inversion_witness(slab, permutation, centre)
 
-        reversed_order: Int[NDArray, " n_orb"] = np.arange(permutation.size)[
+        reversed_order: Int64[NDArray, " n_orb"] = np.arange(permutation.size)[
             ::-1
         ]
         with pytest.raises(AssertionError):

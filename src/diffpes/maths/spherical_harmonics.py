@@ -33,7 +33,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Float64, Integer, jaxtyped
+from jaxtyping import Array, Float64, Int64, jaxtyped
 
 
 def _normalization(l: int, m: int) -> float:
@@ -90,8 +90,8 @@ def _normalization(l: int, m: int) -> float:
 def _associated_legendre_plm(
     l: int,
     m: int,
-    x: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
+    x: Float64[Array, " ..."],
+) -> Float64[Array, " ..."]:
     r"""Evaluate associated Legendre polynomial P_l^m(x).
 
     Extended Summary
@@ -139,12 +139,12 @@ def _associated_legendre_plm(
         Degree (l >= 0).
     m : int
         Order (0 <= m <= l). Caller must pass |m|.
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         cos(theta) values.
 
     Returns
     -------
-    plm : Float[Array, " ..."]
+    plm : Float64[Array, " ..."]
         P_l^m(x) evaluated element-wise.
 
     Notes
@@ -156,9 +156,9 @@ def _associated_legendre_plm(
     """
     i: int
 
-    pmm: Float[Array, " ..."] = jnp.ones_like(x)
+    pmm: Float64[Array, " ..."] = jnp.ones_like(x)
     if m > 0:
-        sin_theta: Float[Array, " ..."] = jnp.sqrt(
+        sin_theta: Float64[Array, " ..."] = jnp.sqrt(
             jnp.maximum(1.0 - x * x, 0.0)
         )
         double_fact: float = 1.0
@@ -169,32 +169,34 @@ def _associated_legendre_plm(
     if l == m:
         return pmm
 
-    pmm1: Float[Array, " ..."] = x * (2.0 * m + 1.0) * pmm
+    pmm1: Float64[Array, " ..."] = x * (2.0 * m + 1.0) * pmm
     if l == m + 1:
         return pmm1
 
     def _step(
-        idx: Integer[Array, ""],
-        state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
-    ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
-        p_prev2: Float[Array, " ..."]
-        p_prev1: Float[Array, " ..."]
+        idx: Int64[Array, ""],
+        state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        p_prev2: Float64[Array, " ..."]
+        p_prev1: Float64[Array, " ..."]
         p_prev2, p_prev1 = state
         idx_f: Float64[Array, ""] = jnp.asarray(idx, dtype=jnp.float64)
         m_f: Float64[Array, ""] = jnp.asarray(m, dtype=jnp.float64)
-        p_curr: Float[Array, " ..."] = (
+        p_curr: Float64[Array, " ..."] = (
             (2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2
         ) / (idx_f - m_f)
-        recurrence_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+        recurrence_state: tuple[
+            Float64[Array, " ..."], Float64[Array, " ..."]
+        ] = (
             p_prev1,
             p_curr,
         )
         return recurrence_state
 
-    recurrence_result: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
-        jax.lax.fori_loop(m + 2, l + 1, _step, (pmm, pmm1))
-    )
-    plm: Float[Array, " ..."] = recurrence_result[1]
+    recurrence_result: tuple[
+        Float64[Array, " ..."], Float64[Array, " ..."]
+    ] = jax.lax.fori_loop(m + 2, l + 1, _step, (pmm, pmm1))
+    plm: Float64[Array, " ..."] = recurrence_result[1]
     return plm
 
 
@@ -202,9 +204,9 @@ def _associated_legendre_plm(
 def real_spherical_harmonic(
     l: int,
     m: int,
-    theta: Float[Array, " ..."],
-    phi: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
+    theta: Float64[Array, " ..."],
+    phi: Float64[Array, " ..."],
+) -> Float64[Array, " ..."]:
     r"""Evaluate a single real spherical harmonic.
 
     The function computes :math:`Y_l^m(\theta, \varphi)`.
@@ -242,9 +244,9 @@ def real_spherical_harmonic(
     --------------------
     1. **Compute the associated Legendre values**::
 
-           cos_theta: Float[Array, " ..."] = jnp.cos(theta)
+           cos_theta: Float64[Array, " ..."] = jnp.cos(theta)
            am: int = abs(m)
-           plm: Float[Array, " ..."] = _associated_legendre_plm(
+           plm: Float64[Array, " ..."] = _associated_legendre_plm(
                l, am, cos_theta
            )
 
@@ -264,14 +266,14 @@ def real_spherical_harmonic(
         Degree (0 <= l).
     m : int
         Order (-l <= m <= l).
-    theta : Float[Array, " ..."]
+    theta : Float64[Array, " ..."]
         Polar angle from z-axis in radians.
-    phi : Float[Array, " ..."]
+    phi : Float64[Array, " ..."]
         Azimuthal angle in radians.
 
     Returns
     -------
-    ylm : Float[Array, " ..."]
+    ylm : Float64[Array, " ..."]
         Real spherical harmonic values.
 
     Raises
@@ -286,12 +288,12 @@ def real_spherical_harmonic(
         msg: str = f"|m|={abs(m)} must be <= l={l}"
         raise ValueError(msg)
 
-    cos_theta: Float[Array, " ..."] = jnp.cos(theta)
+    cos_theta: Float64[Array, " ..."] = jnp.cos(theta)
     am: int = abs(m)
-    plm: Float[Array, " ..."] = _associated_legendre_plm(l, am, cos_theta)
+    plm: Float64[Array, " ..."] = _associated_legendre_plm(l, am, cos_theta)
     norm: float = _normalization(l, m)
 
-    ylm: Float[Array, " ..."]
+    ylm: Float64[Array, " ..."]
     if m > 0:
         ylm = ((-1.0) ** m) * jnp.sqrt(2.0) * norm * plm * jnp.cos(m * phi)
         return ylm
@@ -305,9 +307,9 @@ def real_spherical_harmonic(
 @jaxtyped(typechecker=beartype)
 def real_spherical_harmonics_all(
     l_max: int,
-    theta: Float[Array, " ..."],
-    phi: Float[Array, " ..."],
-) -> Float[Array, " ... N"]:
+    theta: Float64[Array, " ..."],
+    phi: Float64[Array, " ..."],
+) -> Float64[Array, " ... N"]:
     r"""Evaluate all real spherical harmonics up to l_max.
 
     The function computes every real spherical harmonic
@@ -347,7 +349,7 @@ def real_spherical_harmonics_all(
 
     2. **Stack the harmonic fields**::
 
-           ylm_all: Float[Array, " ... N"] = jnp.stack(
+           ylm_all: Float64[Array, " ... N"] = jnp.stack(
                results, axis=-1
            )
 
@@ -357,25 +359,25 @@ def real_spherical_harmonics_all(
     ----------
     l_max : int
         Maximum angular momentum.
-    theta : Float[Array, " ..."]
+    theta : Float64[Array, " ..."]
         Polar angle from z-axis.
-    phi : Float[Array, " ..."]
+    phi : Float64[Array, " ..."]
         Azimuthal angle.
 
     Returns
     -------
-    ylm_all : Float[Array, " ... N"]
+    ylm_all : Float64[Array, " ... N"]
         All spherical harmonics stacked along the last axis,
         where ``N = (l_max + 1)**2``.
     """
     l: int
     m: int
 
-    results: list[Float[Array, " ..."]] = []
+    results: list[Float64[Array, " ..."]] = []
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             results.append(real_spherical_harmonic(l, m, theta, phi))
-    ylm_all: Float[Array, " ... N"] = jnp.stack(results, axis=-1)
+    ylm_all: Float64[Array, " ... N"] = jnp.stack(results, axis=-1)
     return ylm_all
 
 

@@ -25,7 +25,7 @@ import jax.numpy as jnp
 import pytest
 from beartype.typing import Any, Callable
 from jax.extend.core import ClosedJaxpr, Jaxpr, Literal
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.tightb.diagonalize import diagonalize_tb, eigvalsh_bands
 from diffpes.tightb.hamiltonian import (
@@ -84,12 +84,12 @@ def _make_hopping_count_model(n_hoppings: int) -> TBModel:
     reverse_cells: tuple[tuple[int, int, int], ...] = tuple(
         (-cell, 0, 0) for cell in range(1, half_count + 1)
     )
-    forward: Float[Array, " n_half"] = -1.0 / jnp.arange(
+    forward: Float64[Array, " n_half"] = -1.0 / jnp.arange(
         2,
         half_count + 2,
         dtype=jnp.float64,
     )
-    amplitudes: Complex[Array, " n_hop"] = jnp.concatenate(
+    amplitudes: Complex128[Array, " n_hop"] = jnp.concatenate(
         (forward, forward)
     ).astype(jnp.complex128)
     model: TBModel = make_tb_model(
@@ -116,13 +116,13 @@ def _make_dispersive_diagonal_model(n_orbitals: int) -> TBModel:
     cells: tuple[tuple[int, int, int], ...] = ((1, 0, 0),) * n_orbitals + (
         (-1, 0, 0),
     ) * n_orbitals
-    forward: Float[Array, " n_orb"] = jnp.linspace(
+    forward: Float64[Array, " n_orb"] = jnp.linspace(
         -0.2,
         -0.5,
         n_orbitals,
         dtype=jnp.float64,
     )
-    amplitudes: Complex[Array, " n_hop"] = jnp.concatenate(
+    amplitudes: Complex128[Array, " n_hop"] = jnp.concatenate(
         (forward, forward)
     ).astype(jnp.complex128)
     model: TBModel = make_tb_model(
@@ -143,15 +143,15 @@ def _make_dispersive_diagonal_model(n_orbitals: int) -> TBModel:
     return model
 
 
-def _kpoints(n_kpoints: int) -> Float[Array, "n_k 3"]:
+def _kpoints(n_kpoints: int) -> Float64[Array, "n_k 3"]:
     """Build a deterministic generic one-dimensional k-point batch."""
-    k_x: Float[Array, " n_k"] = jnp.linspace(
+    k_x: Float64[Array, " n_k"] = jnp.linspace(
         -0.47,
         0.43,
         n_kpoints,
         dtype=jnp.float64,
     )
-    points: Float[Array, "n_k 3"] = jnp.stack(
+    points: Float64[Array, "n_k 3"] = jnp.stack(
         (
             k_x,
             0.17 * k_x + 0.03,
@@ -259,7 +259,7 @@ class TestBlochAssemblyScalability:
         10,000 closed hopping records. Counting nested JAXPRs catches hidden
         unrolling behind a call primitive as well as top-level Python loops.
         """
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             [0.17, -0.08, 0.03],
             dtype=jnp.float64,
         )
@@ -293,10 +293,10 @@ class TestBlochAssemblyScalability:
 
         def counted(
             model: TBModel,
-            kpoint: Float[Array, " 3"],
-        ) -> Complex[Array, "1 1"]:
+            kpoint: Float64[Array, " 3"],
+        ) -> Complex128[Array, "1 1"]:
             trace_count[0] += 1
-            hamiltonian: Complex[Array, "1 1"] = bloch_hamiltonian(
+            hamiltonian: Complex128[Array, "1 1"] = bloch_hamiltonian(
                 model,
                 kpoint,
             )
@@ -306,7 +306,7 @@ class TestBlochAssemblyScalability:
         index: int
         model: TBModel
         for index, model in enumerate(hopping_sweep_models):
-            kpoint: Float[Array, " 3"] = jnp.asarray(
+            kpoint: Float64[Array, " 3"] = jnp.asarray(
                 [0.01 * (index + 1), 0.0, 0.0],
                 dtype=jnp.float64,
             )
@@ -423,14 +423,14 @@ class TestBatchScalability:
         n_kpoints: int = 32
         n_orbitals: int = 64
         model: TBModel = _make_dispersive_diagonal_model(n_orbitals)
-        kpoints: Float[Array, "n_k 3"] = _kpoints(n_kpoints)
+        kpoints: Float64[Array, "n_k 3"] = _kpoints(n_kpoints)
 
         hamiltonian_executable: Any = (
             jax.jit(lambda points: bloch_hamiltonian_batch(model, points))
             .lower(kpoints)
             .compile()
         )
-        hamiltonians: Complex[Array, "n_k n n"] = hamiltonian_executable(
+        hamiltonians: Complex128[Array, "n_k n n"] = hamiltonian_executable(
             kpoints
         )
         hamiltonians.block_until_ready()
@@ -451,16 +451,16 @@ class TestBatchScalability:
             .lower(kpoints)
             .compile()
         )
-        eigenvalues: Float[Array, "n_k n"] = eigenvalue_executable(kpoints)
+        eigenvalues: Float64[Array, "n_k n"] = eigenvalue_executable(kpoints)
         eigenvalues.block_until_ready()
         eigenvalue_statistics: Any = _memory_analysis(eigenvalue_executable)
         expected_eigenvalue_bytes: int = (
             n_kpoints * n_orbitals * _FLOAT64_BYTES
         )
-        forward: Float[Array, " n"] = jnp.real(
+        forward: Float64[Array, " n"] = jnp.real(
             model.hopping_amplitudes[:n_orbitals]
         )
-        analytic: Float[Array, "n_k n"] = (
+        analytic: Float64[Array, "n_k n"] = (
             model.onsite_energies[None, :]
             + 2.0 * jnp.cos(2.0 * jnp.pi * kpoints[:, :1]) * forward[None, :]
         )
@@ -479,7 +479,7 @@ class TestBatchScalability:
         )
 
         diagonalize_model: TBModel = _make_dispersive_diagonal_model(32)
-        diagonalize_kpoints: Float[Array, "n_k 3"] = _kpoints(32)
+        diagonalize_kpoints: Float64[Array, "n_k 3"] = _kpoints(32)
         compiled_diagonalize: Callable[..., Any] = eqx.filter_jit(
             lambda points: diagonalize_tb(diagonalize_model, points)
         )
@@ -511,15 +511,15 @@ class TestEigenvalueReverseScalability:
         small_n_k: int = 8
         large_n_k: int = 32
         model: TBModel = _make_dispersive_diagonal_model(n_orbitals)
-        initial: Float[Array, " n"] = jnp.real(
+        initial: Float64[Array, " n"] = jnp.real(
             model.hopping_amplitudes[:n_orbitals]
         )
 
         def loss(
-            hopping: Float[Array, " n"],
-            kpoints: Float[Array, "n_k 3"],
-        ) -> Float[Array, ""]:
-            closed: Complex[Array, " n_hop"] = jnp.concatenate(
+            hopping: Float64[Array, " n"],
+            kpoints: Float64[Array, "n_k 3"],
+        ) -> Float64[Array, ""]:
+            closed: Complex128[Array, " n_hop"] = jnp.concatenate(
                 (hopping, hopping)
             ).astype(jnp.complex128)
             candidate: TBModel = eqx.tree_at(
@@ -527,16 +527,16 @@ class TestEigenvalueReverseScalability:
                 model,
                 closed,
             )
-            eigenvalues: Float[Array, "n_k n"] = eigvalsh_bands(
+            eigenvalues: Float64[Array, "n_k n"] = eigvalsh_bands(
                 candidate,
                 kpoints,
             )
-            value: Float[Array, ""] = jnp.mean(eigenvalues**2)
+            value: Float64[Array, ""] = jnp.mean(eigenvalues**2)
             return value
 
         reverse: Any = jax.jit(jax.value_and_grad(loss))
-        small_kpoints: Float[Array, "n_k 3"] = _kpoints(small_n_k)
-        large_kpoints: Float[Array, "n_k 3"] = _kpoints(large_n_k)
+        small_kpoints: Float64[Array, "n_k 3"] = _kpoints(small_n_k)
+        large_kpoints: Float64[Array, "n_k 3"] = _kpoints(large_n_k)
         small_executable: Any = reverse.lower(
             initial,
             small_kpoints,
@@ -552,19 +552,19 @@ class TestEigenvalueReverseScalability:
             scale * small_statistics.temp_size_in_bytes + 64 * 1024
         )
 
-        value: Float[Array, ""]
-        gradient: Float[Array, " n"]
+        value: Float64[Array, ""]
+        gradient: Float64[Array, " n"]
         value, gradient = large_executable(initial, large_kpoints)
         value.block_until_ready()
         gradient.block_until_ready()
-        cosine: Float[Array, " n_k"] = jnp.cos(
+        cosine: Float64[Array, " n_k"] = jnp.cos(
             2.0 * jnp.pi * large_kpoints[:, 0]
         )
-        unsorted_energies: Float[Array, "n_k n"] = (
+        unsorted_energies: Float64[Array, "n_k n"] = (
             model.onsite_energies[None, :]
             + 2.0 * cosine[:, None] * initial[None, :]
         )
-        expected_gradient: Float[Array, " n"] = (
+        expected_gradient: Float64[Array, " n"] = (
             4.0
             * jnp.sum(unsorted_energies * cosine[:, None], axis=0)
             / (large_n_k * n_orbitals)
@@ -608,15 +608,15 @@ class TestBlochPhaseDifferentiability:
         formula incorrectly to a complex value with a nonzero imaginary
         baseline.
         """
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             [0.31, -0.27, 0.19],
             dtype=jnp.float64,
         )
-        displacement: Float[Array, " 3"] = jnp.asarray(
+        displacement: Float64[Array, " 3"] = jnp.asarray(
             [1.13, -0.42, 0.28],
             dtype=jnp.float64,
         )
-        direction: Float[Array, " 3"] = jnp.asarray(
+        direction: Float64[Array, " 3"] = jnp.asarray(
             [-0.37, 0.51, 0.23],
             dtype=jnp.float64,
         )
@@ -633,16 +633,16 @@ class TestBlochPhaseDifferentiability:
             channels: Array = jnp.stack((jnp.cos(angle), jnp.sin(angle)))
             return channels
 
-        origin: Float[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
-        derivative_channels: Float[Array, " 2"] = complex_step_derivative(
+        origin: Float64[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
+        derivative_channels: Float64[Array, " 2"] = complex_step_derivative(
             phase_channels,
             origin,
             h=1e-20,
         )
-        complex_step: Complex[Array, ""] = (
+        complex_step: Complex128[Array, ""] = (
             derivative_channels[0] + 1j * derivative_channels[1]
         )
-        angle: Float[Array, ""] = (
+        angle: Float64[Array, ""] = (
             2.0
             * jnp.pi
             * jnp.dot(
@@ -650,8 +650,8 @@ class TestBlochPhaseDifferentiability:
                 displacement,
             )
         )
-        phase: Complex[Array, ""] = jnp.exp(1j * angle)
-        angle_rate: Float[Array, ""] = (
+        phase: Complex128[Array, ""] = jnp.exp(1j * angle)
+        angle_rate: Float64[Array, ""] = (
             2.0
             * jnp.pi
             * jnp.dot(
@@ -659,14 +659,14 @@ class TestBlochPhaseDifferentiability:
                 direction,
             )
         )
-        expected: Complex[Array, ""] = 1j * angle_rate * phase
+        expected: Complex128[Array, ""] = 1j * angle_rate * phase
 
         def complex_phase(step: Array) -> Array:
             shifted: Array = displacement + step * direction
             return jnp.exp(2j * jnp.pi * jnp.dot(kpoint, shifted))
 
-        _: Complex[Array, ""]
-        jvp: Complex[Array, ""]
+        _: Complex128[Array, ""]
+        jvp: Complex128[Array, ""]
         _, jvp = jax.jvp(
             complex_phase,
             (origin,),

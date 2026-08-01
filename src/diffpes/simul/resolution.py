@@ -21,7 +21,7 @@ and differentiate them with respect to ``dk``.
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.maths import safe_divide
 from diffpes.types import EPS, ScalarFloat
@@ -29,10 +29,10 @@ from diffpes.types import EPS, ScalarFloat
 
 @jaxtyped(typechecker=beartype)
 def apply_momentum_broadening(
-    intensity: Float[Array, "K E"],
-    k_distances: Float[Array, " K"],
+    intensity: Float64[Array, "K E"],
+    k_distances: Float64[Array, " K"],
     dk: ScalarFloat,
-) -> Float[Array, "K E"]:
+) -> Float64[Array, "K E"]:
     r"""Convolve I(k, E) with a Gaussian in k-space.
 
     Simulates the finite angular (momentum) resolution of an ARPES
@@ -52,14 +52,14 @@ def apply_momentum_broadening(
     --------------------
     1. **Guard the Gaussian width**::
 
-           safe_dk: Float[Array, ""] = jnp.maximum(dk_arr, EPS)
+           safe_dk: Float64[Array, ""] = jnp.maximum(dk_arr, EPS)
 
        This guard prevents division by zero. A zero width produces an
        effectively diagonal kernel.
 
     2. **Build the Gaussian kernel**::
 
-           kernel: Float[Array, " K K"] = jnp.exp(
+           kernel: Float64[Array, " K K"] = jnp.exp(
                -0.5 * scaled_distances**2
            )
 
@@ -75,16 +75,16 @@ def apply_momentum_broadening(
 
     4. **Apply the kernel**::
 
-           broadened: Float[Array, "K E"] = kernel @ intensity
+           broadened: Float64[Array, "K E"] = kernel @ intensity
 
        The matrix product applies the momentum response independently to
        every energy column.
 
     Parameters
     ----------
-    intensity : Float[Array, "K E"]
+    intensity : Float64[Array, "K E"]
         ARPES intensity map with shape ``(n_kpoints, n_energies)``.
-    k_distances : Float[Array, " K"]
+    k_distances : Float64[Array, " K"]
         Cumulative k-path distances of shape ``(n_kpoints,)``,
         in inverse Angstroms. Must be monotonically increasing.
     dk : ScalarFloat
@@ -93,7 +93,7 @@ def apply_momentum_broadening(
 
     Returns
     -------
-    broadened : Float[Array, "K E"]
+    broadened : Float64[Array, "K E"]
         Momentum-broadened intensity map, same shape as ``intensity``.
 
     Notes
@@ -103,15 +103,15 @@ def apply_momentum_broadening(
     and ``intensity``. For very large numbers of k-points, memory
     usage scales as ``O(K^2)``.
     """
-    dk_arr: Float[Array, ""] = jnp.asarray(dk, dtype=jnp.float64)
-    safe_dk: Float[Array, ""] = jnp.maximum(dk_arr, EPS)
-    k_i: Float[Array, " K 1"] = k_distances[:, jnp.newaxis]
-    k_j: Float[Array, " 1 K"] = k_distances[jnp.newaxis, :]
-    scaled_distances: Float[Array, " K K"] = safe_divide(k_i - k_j, safe_dk)
-    kernel: Float[Array, " K K"] = jnp.exp(-0.5 * scaled_distances**2)
-    row_sum: Float[Array, " K 1"] = jnp.sum(kernel, axis=1, keepdims=True)
+    dk_arr: Float64[Array, ""] = jnp.asarray(dk, dtype=jnp.float64)
+    safe_dk: Float64[Array, ""] = jnp.maximum(dk_arr, EPS)
+    k_i: Float64[Array, " K 1"] = k_distances[:, jnp.newaxis]
+    k_j: Float64[Array, " 1 K"] = k_distances[jnp.newaxis, :]
+    scaled_distances: Float64[Array, " K K"] = safe_divide(k_i - k_j, safe_dk)
+    kernel: Float64[Array, " K K"] = jnp.exp(-0.5 * scaled_distances**2)
+    row_sum: Float64[Array, " K 1"] = jnp.sum(kernel, axis=1, keepdims=True)
     kernel = safe_divide(kernel, row_sum)
-    broadened: Float[Array, " K E"] = kernel @ intensity
+    broadened: Float64[Array, " K E"] = kernel @ intensity
     return broadened
 
 

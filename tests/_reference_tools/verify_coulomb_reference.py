@@ -8,7 +8,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Float, Shaped
+from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
 from diffpes.radial import coulomb_fg
@@ -31,7 +31,7 @@ RHO_FD_SCALE_RULE: str = (
 
 def _mixed_budget_ratio(
     actual: jax.Array,
-    reference: Float[NDArray, "..."],
+    reference: Float64[NDArray, "..."],
 ) -> float:
     """Return the maximum D11 mixed-tolerance consumption."""
     ratio: jax.Array = jnp.abs(actual - jnp.asarray(reference)) / (
@@ -55,8 +55,8 @@ def main() -> None:  # noqa: PLR0915
         reference: dict[str, Shaped[NDArray, "..."]] = {
             name: archive[name] for name in archive.files
         }
-    eta_grid_numpy: Float[NDArray, "n_eta n_rho"]
-    rho_grid_numpy: Float[NDArray, "n_eta n_rho"]
+    eta_grid_numpy: Float64[NDArray, "n_eta n_rho"]
+    rho_grid_numpy: Float64[NDArray, "n_eta n_rho"]
     eta_grid_numpy, rho_grid_numpy = np.meshgrid(
         reference["etas"],
         reference["rhos"],

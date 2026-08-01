@@ -23,7 +23,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Union
-from jaxtyping import Array, Float, Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 
@@ -79,8 +79,8 @@ class CrystalGeometry(eqx.Module):
 
 
 def _compute_reciprocal_lattice(
-    lattice: Float[Array, "3 3"],
-) -> Float[Array, "3 3"]:
+    lattice: Float64[Array, "3 3"],
+) -> Float64[Array, "3 3"]:
     r"""Compute reciprocal lattice vectors from real-space lattice.
 
     Derives the reciprocal lattice from the real-space lattice using
@@ -111,30 +111,30 @@ def _compute_reciprocal_lattice(
 
     Parameters
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows.
 
     Returns
     -------
-    reciprocal : Float[Array, "3 3"]
+    reciprocal : Float64[Array, "3 3"]
         Reciprocal lattice vectors as rows (units of 1/angstrom,
         with the 2 pi prefactor included).
     """
-    a1: Float[Array, " 3"] = lattice[0]
-    a2: Float[Array, " 3"] = lattice[1]
-    a3: Float[Array, " 3"] = lattice[2]
-    volume: Float[Array, " "] = jnp.dot(a1, jnp.cross(a2, a3))
-    b1: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a2, a3) / volume
-    b2: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a3, a1) / volume
-    b3: Float[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a1, a2) / volume
-    reciprocal: Float[Array, "3 3"] = jnp.stack([b1, b2, b3])
+    a1: Float64[Array, " 3"] = lattice[0]
+    a2: Float64[Array, " 3"] = lattice[1]
+    a3: Float64[Array, " 3"] = lattice[2]
+    volume: Float64[Array, " "] = jnp.dot(a1, jnp.cross(a2, a3))
+    b1: Float64[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a2, a3) / volume
+    b2: Float64[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a3, a1) / volume
+    b3: Float64[Array, " 3"] = 2.0 * jnp.pi * jnp.cross(a1, a2) / volume
+    reciprocal: Float64[Array, "3 3"] = jnp.stack([b1, b2, b3])
     return reciprocal
 
 
 @jaxtyped(typechecker=beartype)
 def make_crystal_geometry(  # noqa: DOC503
-    lattice: Union[Float[Array, "3 3"], "list[list[ScalarNumeric]]"],
-    positions: Float[Array, "N 3"],
+    lattice: Union[Float64[Array, "3 3"], "list[list[ScalarNumeric]]"],
+    positions: Float64[Array, "N 3"],
     species: tuple[str, ...],
 ) -> CrystalGeometry:
     """Create a validated CrystalGeometry instance.
@@ -175,9 +175,9 @@ def make_crystal_geometry(  # noqa: DOC503
 
     Parameters
     ----------
-    lattice : Union[Float[Array, "3 3"], "list[list[ScalarNumeric]]"]
+    lattice : Union[Float64[Array, "3 3"], "list[list[ScalarNumeric]]"]
         Real-space lattice vectors as rows (angstroms).
-    positions : Float[Array, "N 3"]
+    positions : Float64[Array, "N 3"]
         Fractional atomic positions.
     species : tuple[str, ...]
         Per-atom species symbols (**static** -- compile-time constants;
@@ -232,22 +232,22 @@ def make_crystal_geometry(  # noqa: DOC503
             ~(jnp.all(jnp.isfinite(lattice_arr))),
             "make_crystal_geometry: lattice finite",
         )
-        determinant: Float[Array, " "] = jnp.linalg.det(lattice_arr)
+        determinant: Float64[Array, " "] = jnp.linalg.det(lattice_arr)
         lattice_arr = eqx.error_if(
             lattice_arr,
             ~(determinant > 0.0),
             "make_crystal_geometry: lattice must be right-handed",
         )
-        singular_values: Float[Array, " 3"] = jnp.linalg.svdvals(lattice_arr)
-        largest: Float[Array, " "] = singular_values[0]
-        smallest: Float[Array, " "] = singular_values[-1]
-        scaled_smallest: Float[Array, " "] = smallest / largest
+        singular_values: Float64[Array, " 3"] = jnp.linalg.svdvals(lattice_arr)
+        largest: Float64[Array, " "] = singular_values[0]
+        smallest: Float64[Array, " "] = singular_values[-1]
+        scaled_smallest: Float64[Array, " "] = smallest / largest
         lattice_arr = eqx.error_if(
             lattice_arr,
             scaled_smallest < _MIN_SCALED_SINGULAR_VALUE,
             "make_crystal_geometry: scaled singular value below limit",
         )
-        condition_number: Float[Array, " "] = largest / smallest
+        condition_number: Float64[Array, " "] = largest / smallest
         lattice_arr = eqx.error_if(
             lattice_arr,
             condition_number > _MAX_LATTICE_CONDITION_NUMBER,
@@ -258,7 +258,7 @@ def make_crystal_geometry(  # noqa: DOC503
             ~(jnp.all(jnp.isfinite(positions_arr))),
             "make_crystal_geometry: positions must be finite",
         )
-        reciprocal: Float[Array, "3 3"] = _compute_reciprocal_lattice(
+        reciprocal: Float64[Array, "3 3"] = _compute_reciprocal_lattice(
             lattice_arr
         )
         validated_geometry: CrystalGeometry = CrystalGeometry(

@@ -42,7 +42,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jax import core
-from jaxtyping import Array, Bool, Complex, Float, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -74,28 +74,28 @@ def _validate_angular_momentum(l: int, name: str) -> None:  # noqa: E741
 
 
 def _rotation_z_to_direction(
-    direction: Float[Array, " 3"],
-) -> Float[Array, "3 3"]:
+    direction: Float64[Array, " 3"],
+) -> Float64[Array, "3 3"]:
     """Construct a proper rotation taking positive z onto ``direction``."""
     dtype: jnp.dtype = direction.dtype
-    identity: Float[Array, "3 3"] = jnp.eye(
+    identity: Float64[Array, "3 3"] = jnp.eye(
         CARTESIAN_COMPONENTS,
         dtype=dtype,
     )
-    direction_x: Float[Array, ""] = direction[0]
-    direction_y: Float[Array, ""] = direction[1]
-    direction_z: Float[Array, ""] = direction[2]
+    direction_x: Float64[Array, ""] = direction[0]
+    direction_y: Float64[Array, ""] = direction[1]
+    direction_z: Float64[Array, ""] = direction[2]
     use_north_chart: Array = direction_z >= 0.0
 
-    north_denominator: Float[Array, ""] = jnp.where(
+    north_denominator: Float64[Array, ""] = jnp.where(
         use_north_chart,
         1.0 + direction_z,
         1.0,
     )
-    north_cross: Float[Array, " 3"] = jnp.stack(
+    north_cross: Float64[Array, " 3"] = jnp.stack(
         (-direction_y, direction_x, jnp.zeros_like(direction_z))
     )
-    north_skew: Float[Array, "3 3"] = jnp.asarray(
+    north_skew: Float64[Array, "3 3"] = jnp.asarray(
         (
             (0.0, -north_cross[2], north_cross[1]),
             (north_cross[2], 0.0, -north_cross[0]),
@@ -103,19 +103,19 @@ def _rotation_z_to_direction(
         ),
         dtype=dtype,
     )
-    north_rotation: Float[Array, "3 3"] = (
+    north_rotation: Float64[Array, "3 3"] = (
         identity + north_skew + north_skew @ north_skew / north_denominator
     )
 
-    south_denominator: Float[Array, ""] = jnp.where(
+    south_denominator: Float64[Array, ""] = jnp.where(
         use_north_chart,
         1.0,
         1.0 - direction_z,
     )
-    south_cross: Float[Array, " 3"] = jnp.stack(
+    south_cross: Float64[Array, " 3"] = jnp.stack(
         (direction_y, -direction_x, jnp.zeros_like(direction_z))
     )
-    south_skew: Float[Array, "3 3"] = jnp.asarray(
+    south_skew: Float64[Array, "3 3"] = jnp.asarray(
         (
             (0.0, -south_cross[2], south_cross[1]),
             (south_cross[2], 0.0, -south_cross[0]),
@@ -123,14 +123,14 @@ def _rotation_z_to_direction(
         ),
         dtype=dtype,
     )
-    half_turn_x: Float[Array, "3 3"] = jnp.diag(
+    half_turn_x: Float64[Array, "3 3"] = jnp.diag(
         jnp.asarray((1.0, -1.0, -1.0), dtype=dtype)
     )
-    from_negative_z: Float[Array, "3 3"] = (
+    from_negative_z: Float64[Array, "3 3"] = (
         identity + south_skew + south_skew @ south_skew / south_denominator
     )
-    south_rotation: Float[Array, "3 3"] = from_negative_z @ half_turn_x
-    rotation: Float[Array, "3 3"] = jnp.where(
+    south_rotation: Float64[Array, "3 3"] = from_negative_z @ half_turn_x
+    rotation: Float64[Array, "3 3"] = jnp.where(
         use_north_chart,
         north_rotation,
         south_rotation,
@@ -138,9 +138,9 @@ def _rotation_z_to_direction(
     return rotation
 
 
-def _p_axes(dtype: jnp.dtype) -> Float[Array, "3 3"]:
+def _p_axes(dtype: jnp.dtype) -> Float64[Array, "3 3"]:
     """Return Cartesian unit vectors in real-harmonic p-shell order."""
-    axes: Float[Array, "3 3"] = jnp.asarray(
+    axes: Float64[Array, "3 3"] = jnp.asarray(
         (
             (0.0, 1.0, 0.0),
             (0.0, 0.0, 1.0),
@@ -151,11 +151,11 @@ def _p_axes(dtype: jnp.dtype) -> Float[Array, "3 3"]:
     return axes
 
 
-def _d_tensors(dtype: jnp.dtype) -> Float[Array, "5 3 3"]:
+def _d_tensors(dtype: jnp.dtype) -> Float64[Array, "5 3 3"]:
     """Return orthonormal traceless tensors in real d-shell order."""
     inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
     inverse_sqrt_six: float = 1.0 / np.sqrt(6.0)
-    tensors: Float[Array, "5 3 3"] = jnp.asarray(
+    tensors: Float64[Array, "5 3 3"] = jnp.asarray(
         (
             (
                 (0.0, inverse_sqrt_two, 0.0),
@@ -190,28 +190,28 @@ def _d_tensors(dtype: jnp.dtype) -> Float[Array, "5 3 3"]:
 
 def _orbital_rotation(
     l: int,  # noqa: E741
-    rotation: Float[Array, "3 3"],
-) -> Float[Array, "m1 m2"]:
+    rotation: Float64[Array, "3 3"],
+) -> Float64[Array, "m1 m2"]:
     """Represent a Cartesian rotation in a real s, p, or d shell."""
     if l == 0:
-        scalar: Float[Array, "1 1"] = jnp.ones(
+        scalar: Float64[Array, "1 1"] = jnp.ones(
             (1, 1),
             dtype=rotation.dtype,
         )
         return scalar
     if l == 1:
-        axes: Float[Array, "3 3"] = _p_axes(rotation.dtype)
-        vector_representation: Float[Array, "3 3"] = axes @ rotation @ axes.T
+        axes: Float64[Array, "3 3"] = _p_axes(rotation.dtype)
+        vector_representation: Float64[Array, "3 3"] = axes @ rotation @ axes.T
         return vector_representation
 
-    tensors: Float[Array, "5 3 3"] = _d_tensors(rotation.dtype)
-    rotated_tensors: Float[Array, "5 3 3"] = jnp.einsum(
+    tensors: Float64[Array, "5 3 3"] = _d_tensors(rotation.dtype)
+    rotated_tensors: Float64[Array, "5 3 3"] = jnp.einsum(
         "ik,akl,jl->aij",
         rotation,
         tensors,
         rotation,
     )
-    tensor_representation: Float[Array, "5 5"] = jnp.einsum(
+    tensor_representation: Float64[Array, "5 5"] = jnp.einsum(
         "bij,aij->ba",
         tensors,
         rotated_tensors,
@@ -223,9 +223,9 @@ def _orbital_rotation(
 def sk_block(  # noqa: DOC502, DOC503
     l1: int,
     l2: int,
-    v_llm: Float[Array, " n_m"],
-    bond_cart: Float[Array, " 3"],
-) -> Float[Array, "m1 m2"]:
+    v_llm: Float64[Array, " n_m"],
+    bond_cart: Float64[Array, " 3"],
+) -> Float64[Array, "m1 m2"]:
     r"""Construct a real-harmonic Slater--Koster hopping block.
 
     Rotate the bond-axis sigma, pi, and delta channels into the declared
@@ -240,16 +240,16 @@ def sk_block(  # noqa: DOC502, DOC503
         (d).
     l2 : int
         Angular momentum of the column shell, with the same range.
-    v_llm : Float[Array, " n_m"]
+    v_llm : Float64[Array, " n_m"]
         Fundamental integrals ordered by ``abs(m)``: sigma, pi, then delta.
         Its length must be ``min(l1, l2) + 1``.
-    bond_cart : Float[Array, " 3"]
+    bond_cart : Float64[Array, " 3"]
         Nonzero Cartesian displacement from the row-shell atom to the
         column-shell atom.
 
     Returns
     -------
-    block : Float[Array, "m1 m2"]
+    block : Float64[Array, "m1 m2"]
         Hopping matrix with shape ``(2*l1 + 1, 2*l2 + 1)`` in the declared
         real-harmonic order.
 
@@ -282,28 +282,28 @@ def sk_block(  # noqa: DOC502, DOC503
         )
         raise ValueError(message)
 
-    values: Float[Array, " n_m"] = eqx.error_if(
+    values: Float64[Array, " n_m"] = eqx.error_if(
         v_llm,
         ~jnp.all(jnp.isfinite(v_llm)),
         "sk_block: integrals finite",
     )
-    bond: Float[Array, " 3"] = eqx.error_if(
+    bond: Float64[Array, " 3"] = eqx.error_if(
         bond_cart,
         ~jnp.all(jnp.isfinite(bond_cart)),
         "sk_block: bond finite",
     )
-    bond_norm: Float[Array, ""] = jnp.linalg.norm(bond)
+    bond_norm: Float64[Array, ""] = jnp.linalg.norm(bond)
     bond = eqx.error_if(
         bond,
         ~(bond_norm > 0.0),
         "sk_block: bond nonzero",
     )
-    direction: Float[Array, " 3"] = bond / bond_norm
-    rotation: Float[Array, "3 3"] = _rotation_z_to_direction(direction)
-    left_rotation: Float[Array, "m1 m1"] = _orbital_rotation(l1, rotation)
-    right_rotation: Float[Array, "m2 m2"] = _orbital_rotation(l2, rotation)
+    direction: Float64[Array, " 3"] = bond / bond_norm
+    rotation: Float64[Array, "3 3"] = _rotation_z_to_direction(direction)
+    left_rotation: Float64[Array, "m1 m1"] = _orbital_rotation(l1, rotation)
+    right_rotation: Float64[Array, "m2 m2"] = _orbital_rotation(l2, rotation)
 
-    bond_axis: Float[Array, "m1 m2"] = jnp.zeros(
+    bond_axis: Float64[Array, "m1 m2"] = jnp.zeros(
         (2 * l1 + 1, 2 * l2 + 1),
         dtype=values.dtype,
     )
@@ -315,7 +315,7 @@ def sk_block(  # noqa: DOC502, DOC503
         ].set(values[abs(magnetic_number)])
 
     radial_parity: int = (-1) ** (l1 + l2) if l1 > l2 else 1
-    block: Float[Array, "m1 m2"] = (
+    block: Float64[Array, "m1 m2"] = (
         radial_parity * left_rotation @ bond_axis @ right_rotation.T
     )
     return block
@@ -383,13 +383,13 @@ def _certified_supercell_radius(
     contains every possible retained translation. The outward floating-point
     rounding keeps the host certificate conservative.
     """
-    lattice: Float[NDArray, "3 3"] = np.asarray(
+    lattice: Float64[NDArray, "3 3"] = np.asarray(
         geometry.lattice, dtype=np.float64
     )
-    positions: Float[NDArray, "n_atom 3"] = np.asarray(
+    positions: Float64[NDArray, "n_atom 3"] = np.asarray(
         geometry.positions, dtype=np.float64
     )
-    singular_values: Float[NDArray, " 3"] = np.linalg.svd(
+    singular_values: Float64[NDArray, " 3"] = np.linalg.svd(
         lattice,
         compute_uv=False,
     )
@@ -403,10 +403,10 @@ def _certified_supercell_radius(
     if positions.shape[0] <= 1:
         basis_diameter: float = 0.0
     else:
-        fractional_pairs: Float[NDArray, "n_atom n_atom 3"] = (
+        fractional_pairs: Float64[NDArray, "n_atom n_atom 3"] = (
             positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
         )
-        cartesian_pairs: Float[NDArray, "n_atom n_atom 3"] = (
+        cartesian_pairs: Float64[NDArray, "n_atom n_atom 3"] = (
             fractional_pairs @ lattice
         )
         basis_diameter = float(
@@ -425,20 +425,20 @@ def _displacements_and_distances(
     geometry: CrystalGeometry,
     atom_pairs: tuple[tuple[int, int], ...],
     cells: tuple[tuple[int, int, int], ...],
-) -> tuple[Float[Array, "n_bond 3"], Float[Array, " n_bond"]]:
+) -> tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]:
     """Derive differentiable fractional bonds and Cartesian distances."""
     if not atom_pairs:
-        empty_displacements: Float[Array, "0 3"] = jnp.zeros(
+        empty_displacements: Float64[Array, "0 3"] = jnp.zeros(
             (0, CARTESIAN_COMPONENTS),
             dtype=geometry.positions.dtype,
         )
-        empty_distances: Float[Array, " 0"] = jnp.zeros(
+        empty_distances: Float64[Array, " 0"] = jnp.zeros(
             (0,),
             dtype=geometry.positions.dtype,
         )
         empty_result: tuple[
-            Float[Array, "0 3"],
-            Float[Array, " 0"],
+            Float64[Array, "0 3"],
+            Float64[Array, " 0"],
         ] = (empty_displacements, empty_distances)
         return empty_result
     atom_i: Array = jnp.asarray(
@@ -449,21 +449,21 @@ def _displacements_and_distances(
         tuple(pair[1] for pair in atom_pairs),
         dtype=jnp.int32,
     )
-    cell_array: Float[Array, "n_bond 3"] = jnp.asarray(
+    cell_array: Float64[Array, "n_bond 3"] = jnp.asarray(
         cells,
         dtype=geometry.positions.dtype,
     )
-    displacements: Float[Array, "n_bond 3"] = (
+    displacements: Float64[Array, "n_bond 3"] = (
         cell_array + geometry.positions[atom_j] - geometry.positions[atom_i]
     )
-    cartesian: Float[Array, "n_bond 3"] = displacements @ geometry.lattice
-    distances: Float[Array, " n_bond"] = jnp.linalg.norm(
+    cartesian: Float64[Array, "n_bond 3"] = displacements @ geometry.lattice
+    distances: Float64[Array, " n_bond"] = jnp.linalg.norm(
         cartesian,
         axis=1,
     )
     result: tuple[
-        Float[Array, "n_bond 3"],
-        Float[Array, " n_bond"],
+        Float64[Array, "n_bond 3"],
+        Float64[Array, " n_bond"],
     ] = (displacements, distances)
     return result
 
@@ -516,8 +516,8 @@ def neighbor_shells(  # noqa: DOC502
 ) -> tuple[
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
-    Float[Array, "n_bond 3"],
-    Float[Array, " n_bond"],
+    Float64[Array, "n_bond 3"],
+    Float64[Array, " n_bond"],
 ]:
     """Find unique undirected neighbor bonds at host setup time.
 
@@ -543,9 +543,9 @@ def neighbor_shells(  # noqa: DOC502
         Canonical undirected atom pairs. Every physical bond appears once.
     cells : tuple[tuple[int, int, int], ...]
         Exact integer cell translations from the first atom to the second.
-    displacements : Float[Array, "n_bond 3"]
+    displacements : Float64[Array, "n_bond 3"]
         Fractional displacements ``R + tau_j - tau_i``.
-    distances : Float[Array, " n_bond"]
+    distances : Float64[Array, " n_bond"]
         Cartesian bond lengths in angstroms.
 
     Raises
@@ -594,8 +594,8 @@ def neighbor_shells(  # noqa: DOC502
         search_radius,
     )
     with jax.ensure_compile_time_eval():
-        candidate_displacements: Float[Array, "n_candidate 3"]
-        candidate_distances: Float[Array, " n_candidate"]
+        candidate_displacements: Float64[Array, "n_candidate 3"]
+        candidate_distances: Float64[Array, " n_candidate"]
         candidate_displacements, candidate_distances = (
             _displacements_and_distances(
                 geometry,
@@ -603,7 +603,7 @@ def neighbor_shells(  # noqa: DOC502
                 candidate_cells,
             )
         )
-        host_distances: Float[NDArray, " n_candidate"] = np.asarray(
+        host_distances: Float64[NDArray, " n_candidate"] = np.asarray(
             candidate_distances
         )
     if np.any(host_distances <= MIN_BOND_DISTANCE):
@@ -619,8 +619,8 @@ def neighbor_shells(  # noqa: DOC502
     cells: tuple[tuple[int, int, int], ...] = tuple(
         candidate_cells[index] for index in kept_indices
     )
-    displacements: Float[Array, "n_bond 3"]
-    distances: Float[Array, " n_bond"]
+    displacements: Float64[Array, "n_bond 3"]
+    distances: Float64[Array, " n_bond"]
     displacements, distances = _displacements_and_distances(
         geometry,
         atom_pairs,
@@ -629,8 +629,8 @@ def neighbor_shells(  # noqa: DOC502
     result: tuple[
         tuple[tuple[int, int], ...],
         tuple[tuple[int, int, int], ...],
-        Float[Array, "n_bond 3"],
-        Float[Array, " n_bond"],
+        Float64[Array, "n_bond 3"],
+        Float64[Array, " n_bond"],
     ] = (atom_pairs, cells, displacements, distances)
     return result
 
@@ -695,10 +695,10 @@ def _species_pair(
 def _shell_numbers(
     geometry: CrystalGeometry,
     atom_pairs: tuple[tuple[int, int], ...],
-    distances: Float[Array, " n_bond"],
+    distances: Float64[Array, " n_bond"],
 ) -> tuple[int, ...]:
     """Create one-based distance-shell numbers within each species pair."""
-    host_distances: Float[NDArray, " n_bond"] = np.asarray(distances)
+    host_distances: Float64[NDArray, " n_bond"] = np.asarray(distances)
     grouped: dict[tuple[str, str], list[float]] = {}
     pair_groups: list[tuple[str, str]] = []
     atom_pair: tuple[int, int]
@@ -794,9 +794,9 @@ def _integral_vector(
     reverse_pair: str | None,
     shell: int,
     channels: tuple[str, ...],
-) -> tuple[Float[Array, " n_m"], bool]:
+) -> tuple[Float64[Array, " n_m"], bool]:
     """Collect sigma/pi/delta values, treating omitted channels as zero."""
-    values: list[Float[Array, ""]] = []
+    values: list[Float64[Array, ""]] = []
     found_any: bool = False
     channel: str
     for channel in channels:
@@ -812,8 +812,8 @@ def _integral_vector(
         else:
             values.append(sk_params.values[index])
             found_any = True
-    vector: Float[Array, " n_m"] = jnp.stack(values)
-    result: tuple[Float[Array, " n_m"], bool] = (vector, found_any)
+    vector: Float64[Array, " n_m"] = jnp.stack(values)
+    result: tuple[Float64[Array, " n_m"], bool] = (vector, found_any)
     return result
 
 
@@ -830,7 +830,7 @@ def _freeze_neighbor_topology(
     cells: tuple[tuple[int, int, int], ...]
     atom_pairs, cells, _, _ = neighbor_shells(geometry, cutoff)
     with jax.ensure_compile_time_eval():
-        distances: Float[Array, " n_bond"]
+        distances: Float64[Array, " n_bond"]
         _, distances = _displacements_and_distances(
             geometry,
             atom_pairs,
@@ -853,8 +853,8 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     sk_params: SlaterKosterParams,
-    onsite_energies: Float[Array, " n_orb"],
-    soc_lambdas: Float[Array, " n_shells"],
+    onsite_energies: Float64[Array, " n_orb"],
+    soc_lambdas: Float64[Array, " n_shells"],
     shell_index: tuple[int, ...],
     atom_pairs: tuple[tuple[int, int], ...],
     cells: tuple[tuple[int, int, int], ...],
@@ -866,7 +866,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
     lookup: dict[tuple[str | None, int | None, str], int] = (
         _parse_parameter_keys(sk_params.keys)
     )
-    displacements: Float[Array, "n_bond 3"]
+    displacements: Float64[Array, "n_bond 3"]
     displacements, _ = _displacements_and_distances(
         geometry,
         atom_pairs,
@@ -880,7 +880,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         )
         for atom_index in range(geometry.positions.shape[0])
     )
-    amplitudes: list[Complex[Array, ""]] = []
+    amplitudes: list[Complex128[Array, ""]] = []
     hopping_pairs: list[tuple[int, int]] = []
     hopping_cells: list[tuple[int, int, int]] = []
     bond_index: int
@@ -892,10 +892,10 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         forward_pair: str | None
         reverse_pair: str | None
         forward_pair, reverse_pair = _species_pair(geometry, atom_pair)
-        cartesian_bond: Float[Array, " 3"] = (
+        cartesian_bond: Float64[Array, " 3"] = (
             displacements[bond_index] @ geometry.lattice
         )
-        block_cache: dict[tuple[int, int], Float[Array, "m1 m2"]] = {}
+        block_cache: dict[tuple[int, int], Float64[Array, "m1 m2"]] = {}
         orbital_i: int
         orbital_j: int
         for orbital_i in orbitals_by_atom[atom_pair[0]]:
@@ -906,7 +906,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
                 l2: int = basis.l[orbital_j]
                 angular_pair: tuple[int, int] = tuple(sorted((l1, l2)))
                 channels: tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
-                integral_vector: Float[Array, " n_m"]
+                integral_vector: Float64[Array, " n_m"]
                 found_any: bool
                 integral_vector, found_any = _integral_vector(
                     sk_params,
@@ -926,12 +926,12 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
                         integral_vector,
                         cartesian_bond,
                     )
-                block: Float[Array, "m1 m2"] = block_cache[cache_key]
-                amplitude: Float[Array, ""] = block[
+                block: Float64[Array, "m1 m2"] = block_cache[cache_key]
+                amplitude: Float64[Array, ""] = block[
                     basis.m[orbital_i] + l1,
                     basis.m[orbital_j] + l2,
                 ]
-                complex_amplitude: Complex[Array, ""] = jnp.asarray(
+                complex_amplitude: Complex128[Array, ""] = jnp.asarray(
                     amplitude,
                     dtype=jnp.complex128,
                 )
@@ -949,7 +949,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
                 )
 
     if amplitudes:
-        hopping_array: Complex[Array, " n_hop"] = jnp.stack(amplitudes)
+        hopping_array: Complex128[Array, " n_hop"] = jnp.stack(amplitudes)
     else:
         hopping_array = jnp.zeros((0,), dtype=jnp.complex128)
     model: TBModel = make_tb_model(
@@ -971,8 +971,8 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     sk_params: SlaterKosterParams,
-    onsite_energies: Float[Array, " n_orb"],
-    soc_lambdas: Float[Array, " n_shells"],
+    onsite_energies: Float64[Array, " n_orb"],
+    soc_lambdas: Float64[Array, " n_shells"],
     shell_index: tuple[int, ...],
     cutoff: float,
     spinor: bool = False,
@@ -992,9 +992,9 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
         Orbital metadata in package real-harmonic order.
     sk_params : SlaterKosterParams
         Fundamental two-center values and their static keys.
-    onsite_energies : Float[Array, " n_orb"]
+    onsite_energies : Float64[Array, " n_orb"]
         Onsite orbital energies in eV.
-    soc_lambdas : Float[Array, " n_shells"]
+    soc_lambdas : Float64[Array, " n_shells"]
         Atomic spin--orbit strengths in eV.
     shell_index : tuple[int, ...]
         Orbital-to-SOC-shell map passed to the tight-binding carrier.

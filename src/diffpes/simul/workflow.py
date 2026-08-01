@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Literal, Optional, cast
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.inout import (
     check_consistency,
@@ -245,7 +245,7 @@ def prepare_projection(
         prepared = select_atoms(prepared, atom_indices)
 
     if attach_oam and prepared.oam is None:
-        oam: Float[Array, "K B A 3"] = compute_oam(prepared.projections)
+        oam: Float64[Array, "K B A 3"] = compute_oam(prepared.projections)
         if isinstance(prepared, SpinOrbitalProjection):
             prepared = make_spin_orbital_projection(
                 projections=prepared.projections,
@@ -263,12 +263,12 @@ def prepare_projection(
 
 @beartype
 def _kpath_distances(
-    kpoints: Float[Array, "K 3"],
-) -> Float[Array, " K"]:
+    kpoints: Float64[Array, "K 3"],
+) -> Float64[Array, " K"]:
     """Compute cumulative k-path distances from k-point coordinates."""
-    dk_vecs: Float[Array, "Km1 3"] = jnp.diff(kpoints, axis=0)
-    dk_norms: Float[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)
-    distances: Float[Array, " K"] = jnp.concatenate(
+    dk_vecs: Float64[Array, "Km1 3"] = jnp.diff(kpoints, axis=0)
+    dk_norms: Float64[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)
+    distances: Float64[Array, " K"] = jnp.concatenate(
         [jnp.zeros(1, dtype=kpoints.dtype), jnp.cumsum(dk_norms)]
     )
     return distances
@@ -379,9 +379,9 @@ def simulate_context(  # noqa: PLR0913
         atomic_numbers=atomic_numbers,
     )
 
-    intensity: Float[Array, "K E"] = spectrum.intensity
+    intensity: Float64[Array, "K E"] = spectrum.intensity
     if dk is not None:
-        k_dist: Float[Array, " K"] = _kpath_distances(context.bands.kpoints)
+        k_dist: Float64[Array, " K"] = _kpath_distances(context.bands.kpoints)
         intensity = apply_momentum_broadening(intensity, k_dist, dk)
 
     if normalize:

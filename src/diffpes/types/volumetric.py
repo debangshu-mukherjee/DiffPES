@@ -33,7 +33,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, Float64, Int, Int32, jaxtyped
+from jaxtyping import Array, Float64, Int32, jaxtyped
 
 
 class VolumetricData(eqx.Module):
@@ -71,7 +71,7 @@ class VolumetricData(eqx.Module):
         Scalar magnetization density (spin-up minus spin-down), or
         ``None`` for non-spin-polarized calculations (ISPIN=1).
         Same units and grid as ``charge``. JAX-traced when present.
-    atom_counts : Int[Array, " S"]
+    atom_counts : Int32[Array, " S"]
         Number of atoms per species, with S = number of species.
         JAX-traced (differentiable, int32).
     grid_shape : tuple[int, int, int]
@@ -101,20 +101,20 @@ class VolumetricData(eqx.Module):
     coords: Float64[Array, "N 3"]
     charge: Float64[Array, "Nx Ny Nz"]
     magnetization: Optional[Float64[Array, "Nx Ny Nz"]]
-    atom_counts: Int[Array, " S"]
+    atom_counts: Int32[Array, " S"]
     grid_shape: tuple[int, int, int] = eqx.field(static=True)
     symbols: tuple[str, ...] = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
 def make_volumetric_data(  # noqa: DOC503
-    lattice: Float[Array, "3 3"],
-    coords: Float[Array, "N 3"],
-    charge: Float[Array, "Cx Cy Cz"],
-    magnetization: Optional[Float[Array, "Mx My Mz"]] = None,
+    lattice: Float64[Array, "3 3"],
+    coords: Float64[Array, "N 3"],
+    charge: Float64[Array, "Cx Cy Cz"],
+    magnetization: Optional[Float64[Array, "Mx My Mz"]] = None,
     grid_shape: tuple[int, int, int] = (1, 1, 1),
     symbols: tuple[str, ...] = (),
-    atom_counts: Optional[Int[Array, " S"]] = None,
+    atom_counts: Optional[Int32[Array, " S"]] = None,
 ) -> VolumetricData:
     """Create a validated ``VolumetricData`` instance.
 
@@ -161,13 +161,13 @@ def make_volumetric_data(  # noqa: DOC503
 
     Parameters
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows, in Angstroms.
-    coords : Float[Array, "N 3"]
+    coords : Float64[Array, "N 3"]
         Fractional atomic coordinates.
-    charge : Float[Array, "Cx Cy Cz"]
+    charge : Float64[Array, "Cx Cy Cz"]
         Charge density on 3-D grid (electrons per unit cell volume).
-    magnetization : Optional[Float[Array, "Mx My Mz"]], optional
+    magnetization : Optional[Float64[Array, "Mx My Mz"]], optional
         Magnetization density (spin-up minus spin-down).
         Default is ``None`` (non-spin-polarized).
     grid_shape : tuple[int, int, int], optional
@@ -176,7 +176,7 @@ def make_volumetric_data(  # noqa: DOC503
     symbols : tuple[str, ...], optional
         Element symbols per species (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty tuple.
-    atom_counts : Optional[Int[Array, " S"]], optional
+    atom_counts : Optional[Int32[Array, " S"]], optional
         Number of atoms per species. Default is ``None`` (replaced
         by an empty int32 array).
 
@@ -214,7 +214,7 @@ def make_volumetric_data(  # noqa: DOC503
     charge_arr: Float64[Array, "Nx Ny Nz"] = jnp.asarray(
         charge, dtype=jnp.float64
     )
-    mag_arr: Optional[Float[Array, "Nx Ny Nz"]] = None
+    mag_arr: Optional[Float64[Array, "Nx Ny Nz"]] = None
     if magnetization is not None:
         mag_arr = jnp.asarray(magnetization, dtype=jnp.float64)
     if atom_counts is None:
@@ -298,7 +298,7 @@ class SOCVolumetricData(eqx.Module):
         Full vector magnetization ``(mx, my, mz)`` at each grid
         point. The last axis indexes the three Cartesian components.
         JAX-traced (differentiable).
-    atom_counts : Int[Array, " S"]
+    atom_counts : Int32[Array, " S"]
         Number of atoms per species. JAX-traced (int32).
     grid_shape : tuple[int, int, int]
         Grid dimensions ``(Nx, Ny, Nz)`` (**static** -- a compile-time
@@ -329,21 +329,21 @@ class SOCVolumetricData(eqx.Module):
     charge: Float64[Array, "Nx Ny Nz"]
     magnetization: Float64[Array, "Nx Ny Nz"]
     magnetization_vector: Float64[Array, "Nx Ny Nz 3"]
-    atom_counts: Int[Array, " S"]
+    atom_counts: Int32[Array, " S"]
     grid_shape: tuple[int, int, int] = eqx.field(static=True)
     symbols: tuple[str, ...] = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
 def make_soc_volumetric_data(  # noqa: DOC503
-    lattice: Float[Array, "3 3"],
-    coords: Float[Array, "N 3"],
-    charge: Float[Array, "Cx Cy Cz"],
-    magnetization: Float[Array, "Mx My Mz"],
-    magnetization_vector: Float[Array, "Vx Vy Vz 3"],
+    lattice: Float64[Array, "3 3"],
+    coords: Float64[Array, "N 3"],
+    charge: Float64[Array, "Cx Cy Cz"],
+    magnetization: Float64[Array, "Mx My Mz"],
+    magnetization_vector: Float64[Array, "Vx Vy Vz 3"],
     grid_shape: tuple[int, int, int] = (1, 1, 1),
     symbols: tuple[str, ...] = (),
-    atom_counts: Optional[Int[Array, " S"]] = None,
+    atom_counts: Optional[Int32[Array, " S"]] = None,
 ) -> SOCVolumetricData:
     """Create a validated ``SOCVolumetricData`` instance.
 
@@ -391,17 +391,17 @@ def make_soc_volumetric_data(  # noqa: DOC503
 
     Parameters
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows, in Angstroms.
-    coords : Float[Array, "N 3"]
+    coords : Float64[Array, "N 3"]
         Fractional atomic coordinates.
-    charge : Float[Array, "Cx Cy Cz"]
+    charge : Float64[Array, "Cx Cy Cz"]
         Total charge density on 3-D grid (electrons per unit cell
         volume).
-    magnetization : Float[Array, "Mx My Mz"]
+    magnetization : Float64[Array, "Mx My Mz"]
         Scalar magnetization density (mz component), for backward
         compatibility with ISPIN=2 consumers.
-    magnetization_vector : Float[Array, "Vx Vy Vz 3"]
+    magnetization_vector : Float64[Array, "Vx Vy Vz 3"]
         Full vector magnetization ``(mx, my, mz)`` at each grid
         point.
     grid_shape : tuple[int, int, int], optional
@@ -410,7 +410,7 @@ def make_soc_volumetric_data(  # noqa: DOC503
     symbols : tuple[str, ...], optional
         Element symbols per species (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty tuple.
-    atom_counts : Optional[Int[Array, " S"]], optional
+    atom_counts : Optional[Int32[Array, " S"]], optional
         Number of atoms per species. Default is ``None`` (replaced
         by an empty int32 array).
 

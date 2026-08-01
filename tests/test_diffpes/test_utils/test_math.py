@@ -19,7 +19,7 @@ import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable
 from jax.test_util import check_grads
-from jaxtyping import Array, Complex, Float, Shaped, jaxtyped
+from jaxtyping import Array, Complex128, Float64, Shaped, jaxtyped
 from numpy.typing import NDArray
 from scipy.special import wofz
 
@@ -48,18 +48,18 @@ def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
 
 @jaxtyped(typechecker=beartype)
 def _packed_norm_squared(
-    packed: Float[Array, " ... 2"],
-) -> Float[Array, ""]:
+    packed: Float64[Array, " ... 2"],
+) -> Float64[Array, ""]:
     """Compute squared complex magnitude from packed real coordinates.
 
     Parameters
     ----------
-    packed : Float[Array, " ... 2"]
+    packed : Float64[Array, " ... 2"]
         Packed real and imaginary coordinates.
 
     Returns
     -------
-    loss : Float[Array, ""]
+    loss : Float64[Array, ""]
         Sum of the squared complex magnitudes.
 
     Notes
@@ -67,30 +67,30 @@ def _packed_norm_squared(
     The helper unpacks the coordinates and sums ``abs(z)**2`` for the
     gradient test.
     """
-    unpacked: Complex[Array, " ..."] = unpack_complex(packed)
-    loss: Float[Array, ""] = jnp.sum(jnp.abs(unpacked) ** 2)
+    unpacked: Complex128[Array, " ..."] = unpack_complex(packed)
+    loss: Float64[Array, ""] = jnp.sum(jnp.abs(unpacked) ** 2)
     return loss
 
 
 @jaxtyped(typechecker=beartype)
-def _complex_abs_squared(z: Complex[Array, ""]) -> Float[Array, ""]:
+def _complex_abs_squared(z: Complex128[Array, ""]) -> Float64[Array, ""]:
     """Compute squared magnitude for the Wirtinger convention test.
 
     Parameters
     ----------
-    z : Complex[Array, ""]
-        Complex scalar under test.
+    z : Complex128[Array, ""]
+        Complex128 scalar under test.
 
     Returns
     -------
-    loss : Float[Array, ""]
+    loss : Float64[Array, ""]
         Squared magnitude of ``z``.
 
     Notes
     -----
     The helper supplies a real scalar loss to ``jax.grad``.
     """
-    loss: Float[Array, ""] = jnp.abs(z) ** 2
+    loss: Float64[Array, ""] = jnp.abs(z) ** 2
     return loss
 
 
@@ -135,7 +135,7 @@ class TestFaddeeva(chex.TestCase):
             == manifest["generator_sha256"]
         )
         reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
-        scipy_values: Complex[NDArray, " n"] = wofz(reference["points"])
+        scipy_values: Complex128[NDArray, " n"] = wofz(reference["points"])
         np.testing.assert_allclose(
             scipy_values,
             reference["values"],
@@ -155,13 +155,15 @@ class TestFaddeeva(chex.TestCase):
         real and imaginary output rows.
         """
         reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
-        points: Complex[Array, " n"] = jnp.asarray(reference["points"])
-        expected: Complex[NDArray, " n"] = reference["values"]
-        actual: Complex[NDArray, " n"] = np.asarray(jax.jit(faddeeva)(points))
-        real_bound: Float[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
+        points: Complex128[Array, " n"] = jnp.asarray(reference["points"])
+        expected: Complex128[NDArray, " n"] = reference["values"]
+        actual: Complex128[NDArray, " n"] = np.asarray(
+            jax.jit(faddeeva)(points)
+        )
+        real_bound: Float64[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
             expected.real
         )
-        imag_bound: Float[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
+        imag_bound: Float64[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
             expected.imag
         )
         np.testing.assert_array_less(
@@ -185,12 +187,14 @@ class TestFaddeeva(chex.TestCase):
         artifact rounds it to complex128.
         """
         reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
-        points: Complex[Array, " n"] = jnp.asarray(reference["points"])
-        derivatives: Complex[NDArray, " n"] = reference["derivatives"]
+        points: Complex128[Array, " n"] = jnp.asarray(reference["points"])
+        derivatives: Complex128[NDArray, " n"] = reference["derivatives"]
         direction: complex
         for direction in reference["directions"]:
-            tangents: Complex[Array, " n"] = jnp.full_like(points, direction)
-            actual: Complex[NDArray, " n"] = np.asarray(
+            tangents: Complex128[Array, " n"] = jnp.full_like(
+                points, direction
+            )
+            actual: Complex128[NDArray, " n"] = np.asarray(
                 jax.jit(
                     lambda arguments, vectors: jax.jvp(
                         faddeeva,
@@ -199,8 +203,8 @@ class TestFaddeeva(chex.TestCase):
                     )[1]
                 )(points, tangents)
             )
-            expected: Complex[NDArray, " n"] = derivatives * direction
-            bound: Float[NDArray, " n"] = 2.0e-14 / (
+            expected: Complex128[NDArray, " n"] = derivatives * direction
+            bound: Float64[NDArray, " n"] = 2.0e-14 / (
                 1.0 + np.abs(reference["points"])
             ) ** 2 + 2.0e-11 * np.abs(expected)
             np.testing.assert_array_less(np.abs(actual - expected), bound)
@@ -227,10 +231,10 @@ class TestFaddeeva(chex.TestCase):
         direction: complex
         exponent: int
         for point in points:
-            argument: Complex[Array, ""] = jnp.asarray(point)
+            argument: Complex128[Array, ""] = jnp.asarray(point)
             scale: float = max(1.0, abs(point))
             for direction in directions:
-                tangent: Complex[Array, ""] = jnp.asarray(direction)
+                tangent: Complex128[Array, ""] = jnp.asarray(direction)
                 exact: complex = complex(
                     jax.jvp(faddeeva, (argument,), (tangent,))[1]
                 )
@@ -268,10 +272,10 @@ class TestFaddeeva(chex.TestCase):
         point: complex
         for point in points:
 
-            def loss(argument: Complex[Array, ""]) -> Float[Array, ""]:
-                normalized: Complex[Array, ""] = jnp.asarray(argument)
-                value: Complex[Array, ""] = faddeeva(normalized)
-                result: Float[Array, ""] = jnp.real(value) + 0.37 * jnp.imag(
+            def loss(argument: Complex128[Array, ""]) -> Float64[Array, ""]:
+                normalized: Complex128[Array, ""] = jnp.asarray(argument)
+                value: Complex128[Array, ""] = faddeeva(normalized)
+                result: Float64[Array, ""] = jnp.real(value) + 0.37 * jnp.imag(
                     value
                 )
                 return result
@@ -319,10 +323,10 @@ class TestFaddeeva(chex.TestCase):
         It checks ``Re(w(x))=exp(-x**2)`` and exact agreement between the two
         public JAX transformation patterns.
         """
-        coordinates: Float[Array, " n"] = jnp.linspace(-10.0, 10.0, 201)
-        points: Complex[Array, " n"] = coordinates.astype(jnp.complex128)
-        direct: Complex[Array, " n"] = faddeeva(points)
-        mapped: Complex[Array, " n"] = jax.vmap(faddeeva)(points)
+        coordinates: Float64[Array, " n"] = jnp.linspace(-10.0, 10.0, 201)
+        points: Complex128[Array, " n"] = coordinates.astype(jnp.complex128)
+        direct: Complex128[Array, " n"] = faddeeva(points)
+        mapped: Complex128[Array, " n"] = jax.vmap(faddeeva)(points)
         chex.assert_trees_all_equal(mapped, direct)
         np.testing.assert_allclose(
             np.asarray(jnp.real(direct)),
@@ -502,12 +506,14 @@ class TestPackComplex(chex.TestCase):
         The test packs and unpacks a ``(2, 2)`` array with ``jax.jit``. It
         checks the packed shape, both dtypes, and exact value equality.
         """
-        complex_values: Complex[Array, "2 2"] = jnp.array(
+        complex_values: Complex128[Array, "2 2"] = jnp.array(
             [[1.0 + 2.0j, -3.0 + 0.5j], [7.0 - 4.0j, 0.25 + 9.0j]],
             dtype=jnp.complex128,
         )
-        packed: Float[Array, "2 2 2"] = jax.jit(pack_complex)(complex_values)
-        round_tripped: Complex[Array, "2 2"] = jax.jit(unpack_complex)(packed)
+        packed: Float64[Array, "2 2 2"] = jax.jit(pack_complex)(complex_values)
+        round_tripped: Complex128[Array, "2 2"] = jax.jit(unpack_complex)(
+            packed
+        )
 
         chex.assert_shape(packed, (2, 2, 2))
         chex.assert_equal(packed.dtype, jnp.dtype("float64"))
@@ -524,7 +530,7 @@ class TestPackComplex(chex.TestCase):
         The test applies ``jax.vmap`` to three complex parameter vectors. It
         compares the result with direct packing and checks the exact round trip.
         """
-        complex_values: Complex[Array, "3 2"] = jnp.array(
+        complex_values: Complex128[Array, "3 2"] = jnp.array(
             [
                 [1.0 + 4.0j, 2.0 - 3.0j],
                 [-5.0 + 0.25j, 7.0 + 8.0j],
@@ -532,9 +538,11 @@ class TestPackComplex(chex.TestCase):
             ],
             dtype=jnp.complex128,
         )
-        vmapped: Float[Array, "3 2 2"] = jax.vmap(pack_complex)(complex_values)
-        direct: Float[Array, "3 2 2"] = pack_complex(complex_values)
-        unpacked: Complex[Array, "3 2"] = jax.vmap(unpack_complex)(vmapped)
+        vmapped: Float64[Array, "3 2 2"] = jax.vmap(pack_complex)(
+            complex_values
+        )
+        direct: Float64[Array, "3 2 2"] = pack_complex(complex_values)
+        unpacked: Complex128[Array, "3 2"] = jax.vmap(unpack_complex)(vmapped)
 
         chex.assert_shape(vmapped, (3, 2, 2))
         chex.assert_trees_all_equal(vmapped, direct)
@@ -561,17 +569,19 @@ class TestUnpackComplex(chex.TestCase):
         The test unpacks and packs a ``(2, 3, 2)`` array with ``jax.jit``.
         It checks the unpacked shape, both dtypes, and exact coordinate equality.
         """
-        packed_values: Float[Array, "2 3 2"] = jnp.array(
+        packed_values: Float64[Array, "2 3 2"] = jnp.array(
             [
                 [[1.0, 2.0], [-3.0, 0.5], [7.0, -4.0]],
                 [[0.25, 9.0], [6.0, -8.0], [-2.5, 11.0]],
             ],
             dtype=jnp.float64,
         )
-        unpacked: Complex[Array, "2 3"] = jax.jit(unpack_complex)(
+        unpacked: Complex128[Array, "2 3"] = jax.jit(unpack_complex)(
             packed_values
         )
-        round_tripped: Float[Array, "2 3 2"] = jax.jit(pack_complex)(unpacked)
+        round_tripped: Float64[Array, "2 3 2"] = jax.jit(pack_complex)(
+            unpacked
+        )
 
         chex.assert_shape(unpacked, (2, 3))
         chex.assert_equal(unpacked.dtype, jnp.dtype("complex128"))
@@ -588,13 +598,13 @@ class TestUnpackComplex(chex.TestCase):
         The test differentiates a compiled loss on generic float64 coordinates.
         It compares the gradient with twice the input by exact equality.
         """
-        packed_values: Float[Array, "3 2"] = jnp.array(
+        packed_values: Float64[Array, "3 2"] = jnp.array(
             [[1.0, 2.0], [-3.0, 0.5], [7.0, -4.0]], dtype=jnp.float64
         )
-        gradient: Float[Array, "3 2"] = jax.jit(
+        gradient: Float64[Array, "3 2"] = jax.jit(
             jax.grad(_packed_norm_squared)
         )(packed_values)
-        expected: Float[Array, "3 2"] = 2.0 * packed_values
+        expected: Float64[Array, "3 2"] = 2.0 * packed_values
 
         chex.assert_trees_all_equal(gradient, expected)
 
@@ -620,9 +630,11 @@ class TestComplexAutodiffConvention(chex.TestCase):
         The test applies reverse-mode autodiff at ``1+1j``. It checks exact
         equality with ``2-2j`` to detect a change in the JAX convention.
         """
-        z: Complex[Array, ""] = jnp.asarray(1.0 + 1.0j, dtype=jnp.complex128)
-        gradient: Complex[Array, ""] = jax.grad(_complex_abs_squared)(z)
-        expected: Complex[Array, ""] = jnp.asarray(
+        z: Complex128[Array, ""] = jnp.asarray(
+            1.0 + 1.0j, dtype=jnp.complex128
+        )
+        gradient: Complex128[Array, ""] = jax.grad(_complex_abs_squared)(z)
+        expected: Complex128[Array, ""] = jnp.asarray(
             2.0 - 2.0j, dtype=jnp.complex128
         )
 

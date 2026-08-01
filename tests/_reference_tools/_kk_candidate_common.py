@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import core
-from jaxtyping import Float
+from jaxtyping import Float64
 from numpy.typing import NDArray
 
 jax.config.update("jax_enable_x64", True)
@@ -93,7 +93,7 @@ def wigner_semicircle_fixture(
 
 def load_analytic_reference(
     reference_directory: str | Path = REFERENCE_DIRECTORY,
-) -> dict[str, Float[NDArray, "..."]]:
+) -> dict[str, Float64[NDArray, "..."]]:
     """Load the committed reference after verifying its manifest SHA-256 and schema."""
     directory = Path(reference_directory)
     manifest_path = directory / "manifest.json"

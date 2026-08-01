@@ -15,7 +15,7 @@ import matplotlib
 import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 import diffpes
 
@@ -90,10 +90,10 @@ def _make_spectrum(nk: int = 20, ne: int = 120) -> ArpesSpectrum:
     spectrum : ArpesSpectrum
         PyTree with intensity (nk, ne) and energy_axis (ne,).
     """
-    intensity: Float[Array, "nk ne"] = jnp.linspace(
+    intensity: Float64[Array, "nk ne"] = jnp.linspace(
         0.0, 1.0, nk * ne, dtype=jnp.float64
     ).reshape(nk, ne)
-    energy_axis: Float[Array, " ne"] = jnp.linspace(-2.0, 0.5, ne)
+    energy_axis: Float64[Array, " ne"] = jnp.linspace(-2.0, 0.5, ne)
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
@@ -375,11 +375,11 @@ def _make_band_and_projection(
     na: int = 2,
 ) -> tuple[BandStructure, OrbitalProjection]:
     """Build minimal band/projection inputs for band-scatter tests."""
-    eigen: Float[Array, "nk nb"] = jnp.linspace(
+    eigen: Float64[Array, "nk nb"] = jnp.linspace(
         -1.2, 0.8, nk * nb, dtype=jnp.float64
     ).reshape(nk, nb)
-    kx: Float[Array, " nk"] = jnp.linspace(0.0, 1.0, nk, dtype=jnp.float64)
-    kpoints: Float[Array, "nk 3"] = jnp.stack(
+    kx: Float64[Array, " nk"] = jnp.linspace(0.0, 1.0, nk, dtype=jnp.float64)
+    kpoints: Float64[Array, "nk 3"] = jnp.stack(
         [kx, jnp.zeros_like(kx), jnp.zeros_like(kx)],
         axis=1,
     )
@@ -389,11 +389,11 @@ def _make_band_and_projection(
         fermi_energy=0.15,
     )
 
-    projections: Float[Array, "nk nb na 9"] = (
+    projections: Float64[Array, "nk nb na 9"] = (
         jnp.ones((nk, nb, na, 9), dtype=jnp.float64) * 0.05
     )
     projections = projections.at[..., 1:4].set(0.2)
-    spin: Float[Array, "nk nb na 6"] = jnp.zeros(
+    spin: Float64[Array, "nk nb na 6"] = jnp.zeros(
         (nk, nb, na, 6), dtype=jnp.float64
     )
     spin = spin.at[: nk // 2, ..., 4].set(0.2)

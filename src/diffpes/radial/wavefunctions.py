@@ -21,7 +21,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Float64, Integer, jaxtyped
+from jaxtyping import Array, Float64, Integer, jaxtyped
 
 from diffpes.types import RadialSpec, ScalarFloat
 
@@ -146,7 +146,7 @@ def _associated_laguerre(
 
 @jaxtyped(typechecker=beartype)
 def slater_radial(
-    r: Float[Array, " ..."],
+    r: Float64[Array, " ..."],
     n: int,
     zeta: ScalarFloat,
 ) -> Float64[Array, " ..."]:
@@ -195,7 +195,7 @@ def slater_radial(
 
     Parameters
     ----------
-    r : Float[Array, " ..."]
+    r : Float64[Array, " ..."]
         Radial coordinate in atomic units.
     n : int
         Principal quantum number (``n >= 1``).
@@ -239,7 +239,7 @@ def slater_radial(
 
 @jaxtyped(typechecker=beartype)
 def hydrogenic_radial(
-    r: Float[Array, " ..."],
+    r: Float64[Array, " ..."],
     n: int,
     angular_momentum: int,
     z_eff: ScalarFloat,
@@ -293,7 +293,7 @@ def hydrogenic_radial(
 
     Parameters
     ----------
-    r : Float[Array, " ..."]
+    r : Float64[Array, " ..."]
         Radial coordinate in atomic units.
     n : int
         Principal quantum number.
@@ -414,7 +414,7 @@ def _contracted_slater_row(
 @jaxtyped(typechecker=beartype)
 def evaluate_radial(  # noqa: DOC503
     spec: RadialSpec,
-    r: Float[Array, " n_r"],
+    r: Float64[Array, " n_r"],
 ) -> Float64[Array, "n_orb n_r"]:
     """Evaluate normalized shell-shared radial rows on their declared grid.
 
@@ -428,7 +428,7 @@ def evaluate_radial(  # noqa: DOC503
     ----------
     spec : RadialSpec
         Validated radial carrier.
-    r : Float[Array, "n_r"]
+    r : Float64[Array, "n_r"]
         Nonnegative radial evaluation points in Bohr. Grid mode requires the
         exact stored grid.
 

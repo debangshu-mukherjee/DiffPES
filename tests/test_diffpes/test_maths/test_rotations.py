@@ -12,7 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import linalg, special
 from scipy.spatial.transform import Rotation
@@ -30,13 +30,13 @@ from tests._gradients import gradient_gate
 
 def _angular_momentum_matrices(
     l: int,
-) -> tuple[Complex[NDArray, "dim dim"], Complex[NDArray, "dim dim"]]:
+) -> tuple[Complex128[NDArray, "dim dim"], Complex128[NDArray, "dim dim"]]:
     """Construct independent ascending-order Jz and Jy matrices."""
-    magnetic_numbers: Float[NDArray, " dim"] = np.arange(
+    magnetic_numbers: Float64[NDArray, " dim"] = np.arange(
         -l, l + 1, dtype=np.float64
     )
     size: int = 2 * l + 1
-    raising: Complex[NDArray, "dim dim"] = np.zeros(
+    raising: Complex128[NDArray, "dim dim"] = np.zeros(
         (size, size), dtype=np.complex128
     )
     m: int
@@ -44,11 +44,11 @@ def _angular_momentum_matrices(
         column: int = m + l
         row: int = column + 1
         raising[row, column] = np.sqrt(l * (l + 1) - m * (m + 1))
-    lowering: Complex[NDArray, "dim dim"] = raising.conj().T
-    angular_y: Complex[NDArray, "dim dim"] = (raising - lowering) / (2.0j)
-    angular_z: Complex[NDArray, "dim dim"] = np.diag(magnetic_numbers).astype(
-        np.complex128
-    )
+    lowering: Complex128[NDArray, "dim dim"] = raising.conj().T
+    angular_y: Complex128[NDArray, "dim dim"] = (raising - lowering) / (2.0j)
+    angular_z: Complex128[NDArray, "dim dim"] = np.diag(
+        magnetic_numbers
+    ).astype(np.complex128)
     return angular_z, angular_y
 
 
@@ -57,12 +57,12 @@ def _external_wigner_d(
     alpha: float,
     beta: float,
     gamma: float,
-) -> Complex[NDArray, "dim dim"]:
+) -> Complex128[NDArray, "dim dim"]:
     """Construct an external Wigner matrix from independent generators."""
-    angular_z: Complex[NDArray, "dim dim"]
-    angular_y: Complex[NDArray, "dim dim"]
+    angular_z: Complex128[NDArray, "dim dim"]
+    angular_y: Complex128[NDArray, "dim dim"]
     angular_z, angular_y = _angular_momentum_matrices(l)
-    matrix: Complex[NDArray, "dim dim"] = (
+    matrix: Complex128[NDArray, "dim dim"] = (
         linalg.expm(-1j * alpha * angular_z)
         @ linalg.expm(-1j * beta * angular_y)
         @ linalg.expm(-1j * gamma * angular_z)
@@ -99,21 +99,21 @@ class TestRodriguesRotation(chex.TestCase):
         angle_value: float
         for axis_values, angle_value in cases:
             with self.subTest(axis=axis_values, angle=angle_value):
-                axis: Float[Array, "3"] = jnp.asarray(
+                axis: Float64[Array, "3"] = jnp.asarray(
                     axis_values,
                     dtype=jnp.float64,
                 )
-                axis_numpy: Float[NDArray, " 3"] = np.asarray(
+                axis_numpy: Float64[NDArray, " 3"] = np.asarray(
                     axis_values,
                     dtype=np.float64,
                 )
-                rotation_vector: Float[NDArray, " 3"] = (
+                rotation_vector: Float64[NDArray, " 3"] = (
                     angle_value * axis_numpy / np.linalg.norm(axis_numpy)
                 )
-                expected: Float[Array, "3 3"] = jnp.asarray(
+                expected: Float64[Array, "3 3"] = jnp.asarray(
                     Rotation.from_rotvec(rotation_vector).as_matrix()
                 )
-                actual: Float[Array, "3 3"] = rodrigues_rotation(
+                actual: Float64[Array, "3 3"] = rodrigues_rotation(
                     axis,
                     angle_value,
                 )
@@ -135,9 +135,9 @@ class TestRodriguesRotation(chex.TestCase):
         Use a generic axis and a 0.73 radian angle. Check each invariant at
         absolute tolerance ``1e-14``.
         """
-        axis: Float[Array, "3"] = jnp.array([1.4, -0.2, 0.9])
-        normalized_axis: Float[Array, "3"] = axis / jnp.linalg.norm(axis)
-        rotation: Float[Array, "3 3"] = rodrigues_rotation(axis, 0.73)
+        axis: Float64[Array, "3"] = jnp.array([1.4, -0.2, 0.9])
+        normalized_axis: Float64[Array, "3"] = axis / jnp.linalg.norm(axis)
+        rotation: Float64[Array, "3 3"] = rodrigues_rotation(axis, 0.73)
         chex.assert_trees_all_close(
             rotation @ rotation.T,
             jnp.eye(3),
@@ -168,12 +168,12 @@ class TestRodriguesRotation(chex.TestCase):
         JIT the matrix calculation. Differentiate its sum with respect to the
         three axis components.
         """
-        axis: Float[Array, "3"] = jnp.zeros(3)
-        rotation: Float[Array, "3 3"] = jax.jit(rodrigues_rotation)(
+        axis: Float64[Array, "3"] = jnp.zeros(3)
+        rotation: Float64[Array, "3 3"] = jax.jit(rodrigues_rotation)(
             axis,
             0.4,
         )
-        gradient: Float[Array, "3"] = jax.grad(
+        gradient: Float64[Array, "3"] = jax.grad(
             lambda candidate: jnp.sum(rodrigues_rotation(candidate, 0.4))
         )(axis)
         chex.assert_trees_all_close(
@@ -201,12 +201,12 @@ class TestRodriguesRotation(chex.TestCase):
         JIT a vmapped Rodrigues call over the angle axis. Compare all entries
         at ``rtol=1e-14``.
         """
-        axis: Float[Array, "3"] = jnp.array([0.4, -0.8, 1.3])
-        angles: Float[Array, " 5"] = jnp.linspace(-0.7, 0.9, 5)
-        vmapped: Float[Array, "5 3 3"] = jax.jit(
+        axis: Float64[Array, "3"] = jnp.array([0.4, -0.8, 1.3])
+        angles: Float64[Array, " 5"] = jnp.linspace(-0.7, 0.9, 5)
+        vmapped: Float64[Array, "5 3 3"] = jax.jit(
             jax.vmap(lambda angle: rodrigues_rotation(axis, angle))
         )(angles)
-        eager: Float[Array, "5 3 3"] = jnp.stack(
+        eager: Float64[Array, "5 3 3"] = jnp.stack(
             tuple(rodrigues_rotation(axis, angle) for angle in angles)
         )
         chex.assert_trees_all_close(
@@ -227,9 +227,9 @@ class TestRodriguesRotation(chex.TestCase):
         Contract the matrix with asymmetric weights. Require nonzero gradient
         norms for the axis leaf and the angle leaf.
         """
-        axis: Float[Array, "3"] = jnp.array([0.7, -1.1, 0.3])
-        angle: Float[Array, ""] = jnp.array(0.61)
-        weights: Float[Array, "3 3"] = jnp.array(
+        axis: Float64[Array, "3"] = jnp.array([0.7, -1.1, 0.3])
+        angle: Float64[Array, ""] = jnp.array(0.61)
+        weights: Float64[Array, "3 3"] = jnp.array(
             [
                 [0.2, -0.7, 1.1],
                 [1.4, 0.5, -0.3],
@@ -238,12 +238,12 @@ class TestRodriguesRotation(chex.TestCase):
         )
 
         def loss(
-            parameters: tuple[Float[Array, "3"], Float[Array, ""]],
-        ) -> Float[Array, ""]:
-            candidate_axis: Float[Array, "3"]
-            candidate_angle: Float[Array, ""]
+            parameters: tuple[Float64[Array, "3"], Float64[Array, ""]],
+        ) -> Float64[Array, ""]:
+            candidate_axis: Float64[Array, "3"]
+            candidate_angle: Float64[Array, ""]
             candidate_axis, candidate_angle = parameters
-            value: Float[Array, ""] = jnp.sum(
+            value: Float64[Array, ""] = jnp.sum(
                 rodrigues_rotation(candidate_axis, candidate_angle) * weights
             )
             return value
@@ -278,10 +278,10 @@ class TestWignerSmallD(chex.TestCase):
         for l in range(5):
             for beta in beta_values:
                 with self.subTest(l=l, beta=beta):
-                    expected: Float[Array, "m1 m2"] = jnp.asarray(
+                    expected: Float64[Array, "m1 m2"] = jnp.asarray(
                         _external_wigner_d(l, 0.0, beta, 0.0).real
                     )
-                    actual: Float[Array, "m1 m2"] = wigner_small_d(
+                    actual: Float64[Array, "m1 m2"] = wigner_small_d(
                         l,
                         beta,
                     )
@@ -303,11 +303,11 @@ class TestWignerSmallD(chex.TestCase):
         JIT a closure over static ``l=1`` at a generic traced angle. Compare
         the result with the analytic half-angle matrix at ``1e-14``.
         """
-        beta: Float[Array, ""] = jnp.array(0.61)
-        cosine_half: Float[Array, ""] = jnp.cos(beta / 2.0)
-        sine_half: Float[Array, ""] = jnp.sin(beta / 2.0)
-        sine_beta: Float[Array, ""] = jnp.sin(beta)
-        expected: Float[Array, "3 3"] = jnp.array(
+        beta: Float64[Array, ""] = jnp.array(0.61)
+        cosine_half: Float64[Array, ""] = jnp.cos(beta / 2.0)
+        sine_half: Float64[Array, ""] = jnp.sin(beta / 2.0)
+        sine_beta: Float64[Array, ""] = jnp.sin(beta)
+        expected: Float64[Array, "3 3"] = jnp.array(
             [
                 [
                     cosine_half**2,
@@ -326,7 +326,7 @@ class TestWignerSmallD(chex.TestCase):
                 ],
             ]
         )
-        actual: Float[Array, "3 3"] = jax.jit(
+        actual: Float64[Array, "3 3"] = jax.jit(
             lambda angle: wigner_small_d(1, angle)
         )(beta)
         chex.assert_trees_all_close(
@@ -347,14 +347,14 @@ class TestWignerSmallD(chex.TestCase):
         Run the shared forward-mode, reverse-mode, and central-FD gate at one
         smooth interior angle and require a nonzero derivative.
         """
-        beta: Float[Array, ""] = jnp.array(0.73)
-        weights: Float[Array, "9 9"] = jnp.reshape(
+        beta: Float64[Array, ""] = jnp.array(0.73)
+        weights: Float64[Array, "9 9"] = jnp.reshape(
             jnp.linspace(-0.8, 1.3, 81),
             (9, 9),
         )
 
-        def loss(candidate: Float[Array, ""]) -> Float[Array, ""]:
-            value: Float[Array, ""] = jnp.sum(
+        def loss(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
+            value: Float64[Array, ""] = jnp.sum(
                 weights * wigner_small_d(4, candidate)
             )
             return value
@@ -399,11 +399,11 @@ class TestWignerD(chex.TestCase):
         JIT each static-l closure on a generic angle triple. Compare values and
         ``D.conj().T @ D`` at relative and absolute tolerance ``1e-13``.
         """
-        angles: Float[Array, "3"] = jnp.array([0.31, 0.82, -0.47])
+        angles: Float64[Array, "3"] = jnp.array([0.31, 0.82, -0.47])
         l: int
         for l in range(5):
             with self.subTest(l=l):
-                expected: Complex[Array, "m1 m2"] = jnp.asarray(
+                expected: Complex128[Array, "m1 m2"] = jnp.asarray(
                     _external_wigner_d(
                         l,
                         float(angles[0]),
@@ -411,7 +411,7 @@ class TestWignerD(chex.TestCase):
                         float(angles[2]),
                     )
                 )
-                actual: Complex[Array, "m1 m2"] = jax.jit(
+                actual: Complex128[Array, "m1 m2"] = jax.jit(
                     lambda euler: wigner_d(
                         l,
                         euler[0],
@@ -419,7 +419,7 @@ class TestWignerD(chex.TestCase):
                         euler[2],
                     )
                 )(angles)
-                identity: Complex[Array, "m1 m2"] = jnp.eye(
+                identity: Complex128[Array, "m1 m2"] = jnp.eye(
                     2 * l + 1,
                     dtype=jnp.complex128,
                 )
@@ -448,38 +448,40 @@ class TestWignerD(chex.TestCase):
         Use two generic rotations away from Euler singularities and compare
         ``D(R1) @ D(R2)`` with ``D(R1 @ R2)`` for ``l=1..4`` at ``1e-13``.
         """
-        first_angles: Float[NDArray, " 3"] = np.array([0.27, 0.64, -0.19])
-        second_angles: Float[NDArray, " 3"] = np.array([-0.38, 0.91, 0.44])
+        first_angles: Float64[NDArray, " 3"] = np.array([0.27, 0.64, -0.19])
+        second_angles: Float64[NDArray, " 3"] = np.array([-0.38, 0.91, 0.44])
         first_rotation: Rotation = Rotation.from_euler("ZYZ", first_angles)
         second_rotation: Rotation = Rotation.from_euler(
             "ZYZ",
             second_angles,
         )
-        product_angles: Float[NDArray, " 3"] = (
+        product_angles: Float64[NDArray, " 3"] = (
             first_rotation * second_rotation
         ).as_euler("ZYZ")
         l: int
         for l in range(1, 5):
             with self.subTest(l=l):
-                first_matrix: Complex[Array, "m1 m2"] = wigner_d(
+                first_matrix: Complex128[Array, "m1 m2"] = wigner_d(
                     l,
                     first_angles[0],
                     first_angles[1],
                     first_angles[2],
                 )
-                second_matrix: Complex[Array, "m1 m2"] = wigner_d(
+                second_matrix: Complex128[Array, "m1 m2"] = wigner_d(
                     l,
                     second_angles[0],
                     second_angles[1],
                     second_angles[2],
                 )
-                expected: Complex[Array, "m1 m2"] = wigner_d(
+                expected: Complex128[Array, "m1 m2"] = wigner_d(
                     l,
                     product_angles[0],
                     product_angles[1],
                     product_angles[2],
                 )
-                actual: Complex[Array, "m1 m2"] = first_matrix @ second_matrix
+                actual: Complex128[Array, "m1 m2"] = (
+                    first_matrix @ second_matrix
+                )
                 chex.assert_trees_all_close(
                     actual,
                     expected,
@@ -510,7 +512,7 @@ class TestRealHarmonicUnitary(chex.TestCase):
         combinations from canon equations 5b and 5c at zero tolerance.
         """
         inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
-        expected: Complex[Array, "3 3"] = jnp.array(
+        expected: Complex128[Array, "3 3"] = jnp.array(
             [
                 [
                     1j * inverse_sqrt_two,
@@ -526,7 +528,7 @@ class TestRealHarmonicUnitary(chex.TestCase):
             ],
             dtype=jnp.complex128,
         )
-        actual: Complex[Array, "3 3"] = real_harmonic_unitary(1)
+        actual: Complex128[Array, "3 3"] = real_harmonic_unitary(1)
         chex.assert_trees_all_close(
             actual,
             expected,
@@ -536,13 +538,15 @@ class TestRealHarmonicUnitary(chex.TestCase):
 
         theta: float = 0.83
         phi: float = -0.41
-        complex_values: Complex[NDArray, " 3"] = special.sph_harm_y(
+        complex_values: Complex128[NDArray, " 3"] = special.sph_harm_y(
             1,
             np.arange(-1, 2),
             theta,
             phi,
         )
-        real_values: Complex[Array, "3"] = actual @ jnp.asarray(complex_values)
+        real_values: Complex128[Array, "3"] = actual @ jnp.asarray(
+            complex_values
+        )
         normalization: float = np.sqrt(3.0 / (4.0 * np.pi))
         px: float = normalization * np.sin(theta) * np.cos(phi)
         py: float = normalization * np.sin(theta) * np.sin(phi)
@@ -570,21 +574,23 @@ class TestRealHarmonicUnitary(chex.TestCase):
         l: int
         for l in range(5):
             with self.subTest(l=l):
-                unitary: Complex[Array, "m1 m2"] = real_harmonic_unitary(l)
-                identity: Complex[Array, "m1 m2"] = jnp.eye(
+                unitary: Complex128[Array, "m1 m2"] = real_harmonic_unitary(l)
+                identity: Complex128[Array, "m1 m2"] = jnp.eye(
                     2 * l + 1,
                     dtype=jnp.complex128,
                 )
-                complex_values: Complex[NDArray, " dim"] = special.sph_harm_y(
-                    l,
-                    np.arange(-l, l + 1),
-                    theta,
-                    phi,
+                complex_values: Complex128[NDArray, " dim"] = (
+                    special.sph_harm_y(
+                        l,
+                        np.arange(-l, l + 1),
+                        theta,
+                        phi,
+                    )
                 )
-                reconstructed: Complex[Array, " m"] = unitary @ jnp.asarray(
+                reconstructed: Complex128[Array, " m"] = unitary @ jnp.asarray(
                     complex_values
                 )
-                expected: Float[Array, " m"] = jnp.stack(
+                expected: Float64[Array, " m"] = jnp.stack(
                     tuple(
                         real_spherical_harmonic(
                             l,
@@ -620,32 +626,32 @@ class TestRealHarmonicUnitary(chex.TestCase):
         Build both normalized states in real order ``(p_y, p_z, p_x)`` and
         compare their expectation values with ``+1`` and ``-1`` at ``1e-14``.
         """
-        unitary: Complex[Array, "3 3"] = real_harmonic_unitary(1)
-        lz_complex: Complex[Array, "3 3"] = jnp.diag(
+        unitary: Complex128[Array, "3 3"] = real_harmonic_unitary(1)
+        lz_complex: Complex128[Array, "3 3"] = jnp.diag(
             jnp.array([-1.0, 0.0, 1.0], dtype=jnp.complex128)
         )
-        lz_real: Complex[Array, "3 3"] = (
+        lz_real: Complex128[Array, "3 3"] = (
             unitary.conj() @ lz_complex @ unitary.T
         )
         inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
-        plus_state: Complex[Array, "3"] = (
+        plus_state: Complex128[Array, "3"] = (
             jnp.array(
                 [1j, 0.0, 1.0],
                 dtype=jnp.complex128,
             )
             * inverse_sqrt_two
         )
-        minus_state: Complex[Array, "3"] = (
+        minus_state: Complex128[Array, "3"] = (
             jnp.array(
                 [-1j, 0.0, 1.0],
                 dtype=jnp.complex128,
             )
             * inverse_sqrt_two
         )
-        plus_expectation: Complex[Array, ""] = (
+        plus_expectation: Complex128[Array, ""] = (
             plus_state.conj() @ lz_real @ plus_state
         )
-        minus_expectation: Complex[Array, ""] = (
+        minus_expectation: Complex128[Array, ""] = (
             minus_state.conj() @ lz_real @ minus_state
         )
         chex.assert_trees_all_close(
@@ -698,23 +704,23 @@ class TestBondAngles(chex.TestCase):
         JIT the conversion for a generic vector and its sevenfold rescaling.
         Reconstruct Cartesian unit vectors and compare at ``1e-14``.
         """
-        bond: Float[Array, "3"] = jnp.array([0.7, -1.1, 0.4])
-        angles: Float[Array, "2"] = jax.jit(
+        bond: Float64[Array, "3"] = jnp.array([0.7, -1.1, 0.4])
+        angles: Float64[Array, "2"] = jax.jit(
             lambda vector: jnp.stack(bond_angles(vector))
         )(bond)
-        scaled_angles: Float[Array, "2"] = jax.jit(
+        scaled_angles: Float64[Array, "2"] = jax.jit(
             lambda vector: jnp.stack(bond_angles(vector))
         )(7.0 * bond)
-        beta: Float[Array, ""] = angles[0]
-        alpha: Float[Array, ""] = angles[1]
-        reconstructed: Float[Array, "3"] = jnp.array(
+        beta: Float64[Array, ""] = angles[0]
+        alpha: Float64[Array, ""] = angles[1]
+        reconstructed: Float64[Array, "3"] = jnp.array(
             [
                 jnp.sin(beta) * jnp.cos(alpha),
                 jnp.sin(beta) * jnp.sin(alpha),
                 jnp.cos(beta),
             ]
         )
-        expected: Float[Array, "3"] = bond / jnp.linalg.norm(bond)
+        expected: Float64[Array, "3"] = bond / jnp.linalg.norm(bond)
         chex.assert_trees_all_close(
             reconstructed,
             expected,
@@ -749,11 +755,11 @@ class TestBondAngles(chex.TestCase):
         expected_values: list[float]
         for bond_values, expected_values in cases:
             with self.subTest(bond=bond_values):
-                bond: Float[Array, "3"] = jnp.asarray(bond_values)
-                angles: Float[Array, "2"] = jax.jit(
+                bond: Float64[Array, "3"] = jnp.asarray(bond_values)
+                angles: Float64[Array, "2"] = jax.jit(
                     lambda vector: jnp.stack(bond_angles(vector))
                 )(bond)
-                jacobian: Float[Array, "2 3"] = jax.jacrev(
+                jacobian: Float64[Array, "2 3"] = jax.jacrev(
                     lambda vector: jnp.stack(bond_angles(vector))
                 )(bond)
                 chex.assert_trees_all_close(
@@ -775,13 +781,13 @@ class TestBondAngles(chex.TestCase):
         Run the shared forward-mode, reverse-mode, and central-FD gate in the
         smooth regime. Require a nonzero gradient for the bond leaf.
         """
-        bond: Float[Array, "3"] = jnp.array([0.8, -0.5, 1.2])
+        bond: Float64[Array, "3"] = jnp.array([0.8, -0.5, 1.2])
 
-        def loss(candidate: Float[Array, "3"]) -> Float[Array, ""]:
-            beta: Float[Array, ""]
-            alpha: Float[Array, ""]
+        def loss(candidate: Float64[Array, "3"]) -> Float64[Array, ""]:
+            beta: Float64[Array, ""]
+            alpha: Float64[Array, ""]
             beta, alpha = bond_angles(candidate)
-            value: Float[Array, ""] = 0.7 * beta - 0.3 * alpha
+            value: Float64[Array, ""] = 0.7 * beta - 0.3 * alpha
             return value
 
         gradient_gate(loss, bond, regime="smooth")

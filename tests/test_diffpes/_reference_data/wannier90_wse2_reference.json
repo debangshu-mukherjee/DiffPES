@@ -65,7 +65,6 @@
     "classification": "K-type published-input companion benchmark",
     "energy_unit": "eV",
     "fourier_convention": "H(k)=sum_R exp(+2*pi*i*k.R)*H(R)/degeneracy(R)",
-    "gate": "04.G7",
     "generated_utc_date": "2026-07-24",
     "generator": "gen_wannier90_wse2_reference.py",
     "generator_sha256": "9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8",
@@ -77,7 +76,8 @@
     "source_repository": "https://github.com/michaelschueler/dynamics-w90",
     "source_sha256": "8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1",
     "source_size_bytes": 5543022,
-    "source_snapshot_path": "data/WSe2_soc/wse2_soc_11bnd_hr.dat"
+    "source_snapshot_path": "data/WSe2_soc/wse2_soc_11bnd_hr.dat",
+    "requirement": "wannier90-wse2-parity"
   },
   "num_cells": 229,
   "num_wann": 22

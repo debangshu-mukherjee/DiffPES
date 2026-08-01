@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.tree_util import PyTreeDef
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.maths import (
     channel_tables,
@@ -70,11 +70,11 @@ def _complete_pd_fixture() -> tuple[
 def _real_wigner(
     degree: int,
     angles: tuple[float, float, float],
-) -> Float[Array, "m1 m2"]:
+) -> Float64[Array, "m1 m2"]:
     """Return one complex Wigner matrix in the real-harmonic basis."""
-    unitary: Complex[Array, "m1 m2"] = real_harmonic_unitary(degree)
-    complex_rotation: Complex[Array, "m1 m2"] = wigner_d(degree, *angles)
-    real_rotation: Float[Array, "m1 m2"] = jnp.real(
+    unitary: Complex128[Array, "m1 m2"] = real_harmonic_unitary(degree)
+    complex_rotation: Complex128[Array, "m1 m2"] = wigner_d(degree, *angles)
+    real_rotation: Float64[Array, "m1 m2"] = jnp.real(
         unitary.conj() @ complex_rotation @ unitary.T
     )
     return real_rotation
@@ -99,7 +99,7 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
         (1, 1),
         (1, 3),
     )
-    coupling: Float[Array, "n_orb 2 3 36"] = channel_tables(basis)[0]
+    coupling: Float64[Array, "n_orb 2 3 36"] = channel_tables(basis)[0]
     generator: np.random.Generator = np.random.default_rng(20260728)
     degree: int
     start: int
@@ -113,44 +113,44 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
                     high=(np.pi, np.pi - 0.2, np.pi),
                 )
             )
-            initial_rotation: Float[Array, "m1 m2"] = _real_wigner(
+            initial_rotation: Float64[Array, "m1 m2"] = _real_wigner(
                 degree,
                 angles,
             )
-            photon_rotation: Float[Array, "3 3"] = _real_wigner(1, angles)
-            initial_coefficients: Complex[Array, " m"] = jnp.asarray(
+            photon_rotation: Float64[Array, "3 3"] = _real_wigner(1, angles)
+            initial_coefficients: Complex128[Array, " m"] = jnp.asarray(
                 generator.normal(size=shell_size)
                 + 1j * generator.normal(size=shell_size)
             )
-            polarization: Complex[Array, " 3"] = jnp.asarray(
+            polarization: Complex128[Array, " 3"] = jnp.asarray(
                 generator.normal(size=3) + 1j * generator.normal(size=3)
             )
             branch: int
             final_degree: int
             for branch, final_degree in enumerate((degree - 1, degree + 1)):
                 final_size: int = 2 * final_degree + 1
-                block: Float[Array, "m 3 mf"] = coupling[
+                block: Float64[Array, "m 3 mf"] = coupling[
                     start : start + shell_size,
                     branch,
                     :,
                     final_degree**2 : (final_degree + 1) ** 2,
                 ]
-                final_harmonics: Complex[Array, " mf"] = jnp.asarray(
+                final_harmonics: Complex128[Array, " mf"] = jnp.asarray(
                     generator.normal(size=final_size)
                     + 1j * generator.normal(size=final_size)
                 )
-                final_rotation: Float[Array, "mf1 mf2"] = _real_wigner(
+                final_rotation: Float64[Array, "mf1 mf2"] = _real_wigner(
                     final_degree,
                     angles,
                 )
-                amplitude: Complex[Array, ""] = jnp.einsum(
+                amplitude: Complex128[Array, ""] = jnp.einsum(
                     "aqb,a,q,b->",
                     block,
                     initial_coefficients,
                     polarization,
                     final_harmonics,
                 )
-                rotated: Complex[Array, ""] = jnp.einsum(
+                rotated: Complex128[Array, ""] = jnp.einsum(
                     "aqb,a,q,b->",
                     block,
                     initial_rotation @ initial_coefficients,
@@ -179,8 +179,8 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
     radial: RadialSpec
     params: MatrixElementParams
     basis, _, radial, params = _complete_pd_fixture()
-    mean_free_path: Float[Array, ""] = jnp.asarray(8.4)
-    flat: Float[Array, " n_theta"]
+    mean_free_path: Float64[Array, ""] = jnp.asarray(8.4)
+    flat: Float64[Array, " n_theta"]
     tree_definition: PyTreeDef
     metadata: tuple[tuple[tuple[int, ...], bool], ...]
     flat, tree_definition, metadata = pack_matrixel_params(
@@ -188,14 +188,14 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
         params,
         mean_free_path,
     )
-    directions: Float[Array, "2 n_theta"] = (
+    directions: Float64[Array, "2 n_theta"] = (
         radial_coefficient_scale_gauge_directions(
             radial,
             params,
             mean_free_path,
         )
     )
-    coefficients: Complex[Array, " 8"] = jnp.asarray(
+    coefficients: Complex128[Array, " 8"] = jnp.asarray(
         (
             0.2 + 0.1j,
             -0.4 + 0.3j,
@@ -208,11 +208,11 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
         )
     )
 
-    def intensity(candidate: Float[Array, " n_theta"]) -> Float[Array, ""]:
+    def intensity(candidate: Float64[Array, " n_theta"]) -> Float64[Array, ""]:
         """Return one fully composed coherent shell intensity."""
         rebuilt_radial: RadialSpec
         rebuilt_params: MatrixElementParams
-        rebuilt_mfp: Float[Array, ""]
+        rebuilt_mfp: Float64[Array, ""]
         rebuilt_radial, rebuilt_params, rebuilt_mfp = unpack_matrixel_params(
             candidate,
             tree_definition,
@@ -220,13 +220,13 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
             radial,
             params,
         )
-        bvals: Complex[Array, "1 8 2"] = radial_bvals(
+        bvals: Complex128[Array, "1 8 2"] = radial_bvals(
             rebuilt_radial,
             jnp.asarray((0.9,)),
             make_radial_quadrature_spec(),
             make_final_state_spec(),
         )
-        channels: Complex[Array, "1 1 8 3"] = orbital_transition_channels(
+        channels: Complex128[Array, "1 1 8 3"] = orbital_transition_channels(
             jnp.asarray(((0.12, -0.08, 0.03),)),
             jnp.asarray(((0.12, -0.08, 1.7),)),
             jnp.zeros((8, 3)),
@@ -236,16 +236,16 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
             rebuilt_mfp,
             basis,
         )
-        polarized: Complex[Array, " 8"] = contract_polarization(
+        polarized: Complex128[Array, " 8"] = contract_polarization(
             channels[0, 0],
             jnp.asarray((0.3 + 0.2j, -0.4j, 0.7 - 0.1j)),
         )
-        amplitude: Complex[Array, ""] = jnp.sum(polarized * coefficients)
+        amplitude: Complex128[Array, ""] = jnp.sum(polarized * coefficients)
         return jnp.abs(amplitude) ** 2
 
-    direction: Float[Array, " n_theta"]
+    direction: Float64[Array, " n_theta"]
     for direction in directions:
-        derivative: Float[Array, ""] = jax.jvp(
+        derivative: Float64[Array, ""] = jax.jvp(
             intensity,
             (flat,),
             (direction,),
@@ -269,10 +269,10 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
             )
         )
     )
-    sigma_tangent: Float[Array, " n_theta"] = (
+    sigma_tangent: Float64[Array, " n_theta"] = (
         jnp.zeros_like(flat).at[sigma_start].set(1.0)
     )
-    physical_sigma_derivative: Float[Array, ""] = jax.jvp(
+    physical_sigma_derivative: Float64[Array, ""] = jax.jvp(
         intensity,
         (flat,),
         (sigma_tangent,),

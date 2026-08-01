@@ -1,5 +1,5 @@
 {
-  "gate": "03.I2",
+  "requirement": "kz-energy-dependence-reference",
   "convention": {
     "omega_rel_fermi_ev": "E - E_F",
     "kinetic_energy_ev": "photon_energy_ev - work_function_ev + omega_rel_fermi_ev",

@@ -45,7 +45,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, Bool, Complex, Float, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
 from diffpes.maths import safe_arctan2, safe_divide, safe_norm, safe_sqrt
 from diffpes.types import (
@@ -59,8 +59,8 @@ from diffpes.types import (
 def kinetic_energy_ev(
     photon_energy_ev: ScalarFloat,
     work_function_ev: ScalarFloat,
-    omega_rel_fermi_ev: Float[Array, " ..."],
-) -> Tuple[Float[Array, " ..."], Bool[Array, " ..."]]:
+    omega_rel_fermi_ev: Float64[Array, " ..."],
+) -> Tuple[Float64[Array, " ..."], Bool[Array, " ..."]]:
     r"""Compute signed photoelectron kinetic energy and its validity mask.
 
     The function applies energy conservation in the three-step photoemission
@@ -74,12 +74,12 @@ def kinetic_energy_ev(
         Photon energy in eV.
     work_function_ev : ScalarFloat
         Work function in eV.
-    omega_rel_fermi_ev : Float[Array, " ..."]
+    omega_rel_fermi_ev : Float64[Array, " ..."]
         Electron energy relative to the Fermi level, ``E - E_F``, in eV.
 
     Returns
     -------
-    kinetic_energies : Float[Array, " ..."]
+    kinetic_energies : Float64[Array, " ..."]
         Signed kinetic energies in eV.
     emission_valid : Bool[Array, " ..."]
         Mask selecting strictly positive kinetic energies.
@@ -97,13 +97,13 @@ def kinetic_energy_ev(
     .. [3] A. Damascelli, Z. Hussain, and Z.-X. Shen, Rev. Mod. Phys. 75,
        473 (2003).
     """
-    photon_energy_array: Float[Array, ""] = jnp.asarray(photon_energy_ev)
-    work_function_array: Float[Array, ""] = jnp.asarray(work_function_ev)
-    kinetic_energies: Float[Array, " ..."] = (
+    photon_energy_array: Float64[Array, ""] = jnp.asarray(photon_energy_ev)
+    work_function_array: Float64[Array, ""] = jnp.asarray(work_function_ev)
+    kinetic_energies: Float64[Array, " ..."] = (
         photon_energy_array + omega_rel_fermi_ev - work_function_array
     )
     emission_valid: Bool[Array, " ..."] = kinetic_energies > 0.0
-    result: Tuple[Float[Array, " ..."], Bool[Array, " ..."]] = (
+    result: Tuple[Float64[Array, " ..."], Bool[Array, " ..."]] = (
         kinetic_energies,
         emission_valid,
     )
@@ -112,8 +112,8 @@ def kinetic_energy_ev(
 
 @jaxtyped(typechecker=beartype)
 def final_state_k_inv_ang(
-    kinetic_energy_ev: Float[Array, " ..."],
-) -> Tuple[Float[Array, " ..."], Bool[Array, " ..."]]:
+    kinetic_energy_ev: Float64[Array, " ..."],
+) -> Tuple[Float64[Array, " ..."], Bool[Array, " ..."]]:
     """Convert kinetic energy to momentum and return its validity mask.
 
     The function applies the free-electron dispersion. Forbidden inputs map
@@ -123,12 +123,12 @@ def final_state_k_inv_ang(
 
     Parameters
     ----------
-    kinetic_energy_ev : Float[Array, " ..."]
+    kinetic_energy_ev : Float64[Array, " ..."]
         Photoelectron kinetic energies in eV.
 
     Returns
     -------
-    momentum_magnitudes : Float[Array, " ..."]
+    momentum_magnitudes : Float64[Array, " ..."]
         Final-state momentum magnitudes in 1/Angstrom.
     emission_valid : Bool[Array, " ..."]
         Mask selecting strictly positive kinetic energies.
@@ -141,20 +141,20 @@ def final_state_k_inv_ang(
     than interpreting the zero sentinel as an emitted state.
     """
     emission_valid: Bool[Array, " ..."] = kinetic_energy_ev > 0.0
-    sanitized_energies: Float[Array, " ..."] = jnp.where(
+    sanitized_energies: Float64[Array, " ..."] = jnp.where(
         emission_valid,
         kinetic_energy_ev,
         1.0,
     )
-    rooted_momenta: Float[Array, " ..."] = (
+    rooted_momenta: Float64[Array, " ..."] = (
         K_PREFACTOR_INV_ANG_SQRT_EV * jnp.sqrt(sanitized_energies)
     )
-    momentum_magnitudes: Float[Array, " ..."] = jnp.where(
+    momentum_magnitudes: Float64[Array, " ..."] = jnp.where(
         emission_valid,
         rooted_momenta,
         0.0,
     )
-    result: Tuple[Float[Array, " ..."], Bool[Array, " ..."]] = (
+    result: Tuple[Float64[Array, " ..."], Bool[Array, " ..."]] = (
         momentum_magnitudes,
         emission_valid,
     )
@@ -166,9 +166,9 @@ def kz_from_inner_potential(
     photon_energy_ev: ScalarFloat,
     work_function_ev: ScalarFloat,
     inner_potential_ev: ScalarFloat,
-    omega_rel_fermi_ev: Float[Array, " ..."],
-    k_par_inv_ang: Float[Array, " ..."],
-) -> Tuple[Complex[Array, " ..."], Bool[Array, " ..."]]:
+    omega_rel_fermi_ev: Float64[Array, " ..."],
+    k_par_inv_ang: Float64[Array, " ..."],
+) -> Tuple[Complex128[Array, " ..."], Bool[Array, " ..."]]:
     r"""Compute complex out-of-plane momentum from the inner potential.
 
     The function implements the free-electron final-state approximation [4]_.
@@ -184,14 +184,14 @@ def kz_from_inner_potential(
         Work function in eV.
     inner_potential_ev : ScalarFloat
         Inner potential in eV.
-    omega_rel_fermi_ev : Float[Array, " ..."]
+    omega_rel_fermi_ev : Float64[Array, " ..."]
         Electron energy relative to the Fermi level, ``E - E_F``, in eV.
-    k_par_inv_ang : Float[Array, " ..."]
+    k_par_inv_ang : Float64[Array, " ..."]
         Parallel momentum magnitudes in 1/Angstrom.
 
     Returns
     -------
-    kz_values : Complex[Array, " ..."]
+    kz_values : Complex128[Array, " ..."]
         Principal out-of-plane momenta in 1/Angstrom.
     propagating : Bool[Array, " ..."]
         Mask requiring both valid photoemission and a positive real radicand.
@@ -212,19 +212,19 @@ def kz_from_inner_potential(
     .. [4] A. Damascelli, Z. Hussain, and Z.-X. Shen, Rev. Mod. Phys. 75,
        473 (2003).
     """
-    surface_kinetic_energies: Float[Array, " ..."]
+    surface_kinetic_energies: Float64[Array, " ..."]
     energy_valid: Bool[Array, " ..."]
     surface_kinetic_energies, energy_valid = kinetic_energy_ev(
         photon_energy_ev,
         work_function_ev,
         omega_rel_fermi_ev,
     )
-    inner_potential_array: Float[Array, ""] = jnp.asarray(inner_potential_ev)
+    inner_potential_array: Float64[Array, ""] = jnp.asarray(inner_potential_ev)
     surface_aperture_valid: Bool[Array, " ..."] = energy_valid & (
         k_par_inv_ang * k_par_inv_ang
         < TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 * surface_kinetic_energies
     )
-    radicand: Float[Array, " ..."] = (
+    radicand: Float64[Array, " ..."] = (
         TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2
         * (surface_kinetic_energies + inner_potential_array)
         - k_par_inv_ang * k_par_inv_ang
@@ -232,21 +232,23 @@ def kz_from_inner_potential(
     propagating: Bool[Array, " ..."] = surface_aperture_valid & (
         radicand > 0.0
     )
-    sanitized_radicand: Float[Array, " ..."] = jnp.where(
+    sanitized_radicand: Float64[Array, " ..."] = jnp.where(
         surface_aperture_valid,
         radicand,
         1.0,
     )
-    complex_radicand: Complex[Array, " ..."] = sanitized_radicand.astype(
+    complex_radicand: Complex128[Array, " ..."] = sanitized_radicand.astype(
         jnp.complex128
     )
-    rooted_values: Complex[Array, " ..."] = jnp.sqrt(complex_radicand)
-    kz_values: Complex[Array, " ..."] = jnp.where(
+    rooted_values: Complex128[Array, " ..."] = jnp.sqrt(complex_radicand)
+    kz_values: Complex128[Array, " ..."] = jnp.where(
         surface_aperture_valid,
         rooted_values,
         jnp.zeros_like(rooted_values),
     )
-    kinematics_result: Tuple[Complex[Array, " ..."], Bool[Array, " ..."]] = (
+    kinematics_result: Tuple[
+        Complex128[Array, " ..."], Bool[Array, " ..."]
+    ] = (
         kz_values,
         propagating,
     )
@@ -258,8 +260,8 @@ def kz_from_inner_potential_at_fermi(
     photon_energy_ev: ScalarFloat,
     work_function_ev: ScalarFloat,
     inner_potential_ev: ScalarFloat,
-    k_par_inv_ang: Float[Array, " ..."],
-) -> Tuple[Complex[Array, " ..."], Bool[Array, " ..."]]:
+    k_par_inv_ang: Float64[Array, " ..."],
+) -> Tuple[Complex128[Array, " ..."], Bool[Array, " ..."]]:
     """Evaluate the named Fermi-level ``kz`` approximation.
 
     This compatibility helper evaluates :func:`kz_from_inner_potential` at
@@ -276,12 +278,12 @@ def kz_from_inner_potential_at_fermi(
         Work function in eV.
     inner_potential_ev : ScalarFloat
         Inner potential in eV.
-    k_par_inv_ang : Float[Array, " ..."]
+    k_par_inv_ang : Float64[Array, " ..."]
         Parallel momentum magnitudes in 1/Angstrom.
 
     Returns
     -------
-    kz_values : Complex[Array, " ..."]
+    kz_values : Complex128[Array, " ..."]
         Principal at-Fermi out-of-plane momenta in 1/Angstrom.
     propagating : Bool[Array, " ..."]
         Physical propagation mask.
@@ -291,8 +293,8 @@ def kz_from_inner_potential_at_fermi(
     The helper constructs a zero energy array and delegates all validity,
     aperture, and branch handling to the exact function.
     """
-    omega_at_fermi: Float[Array, " ..."] = jnp.zeros_like(k_par_inv_ang)
-    result: Tuple[Complex[Array, " ..."], Bool[Array, " ..."]] = (
+    omega_at_fermi: Float64[Array, " ..."] = jnp.zeros_like(k_par_inv_ang)
+    result: Tuple[Complex128[Array, " ..."], Bool[Array, " ..."]] = (
         kz_from_inner_potential(
             photon_energy_ev,
             work_function_ev,
@@ -306,8 +308,8 @@ def kz_from_inner_potential_at_fermi(
 
 @jaxtyped(typechecker=beartype)
 def emission_angles(
-    k_cart_inv_ang: Float[Array, "... 3"],
-) -> Tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+    k_cart_inv_ang: Float64[Array, "... 3"],
+) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     """Convert Cartesian momentum to emission angles.
 
     The function returns the polar angle from positive z and the azimuth from
@@ -317,14 +319,14 @@ def emission_angles(
 
     Parameters
     ----------
-    k_cart_inv_ang : Float[Array, "... 3"]
+    k_cart_inv_ang : Float64[Array, "... 3"]
         Cartesian momentum vectors in 1/Angstrom.
 
     Returns
     -------
-    theta : Float[Array, " ..."]
+    theta : Float64[Array, " ..."]
         Polar emission angles in radians.
-    phi : Float[Array, " ..."]
+    phi : Float64[Array, " ..."]
         Azimuthal emission angles in radians.
 
     Notes
@@ -333,26 +335,29 @@ def emission_angles(
     ``arctan2(ky, kx)``. Safe primitives give zero coordinate gradients at
     their undefined origins.
     """
-    k_parallel: Float[Array, " ..."] = safe_norm(k_cart_inv_ang[..., :2])
-    theta: Float[Array, " ..."] = safe_arctan2(
+    k_parallel: Float64[Array, " ..."] = safe_norm(k_cart_inv_ang[..., :2])
+    theta: Float64[Array, " ..."] = safe_arctan2(
         k_parallel,
         k_cart_inv_ang[..., 2],
     )
-    phi: Float[Array, " ..."] = safe_arctan2(
+    phi: Float64[Array, " ..."] = safe_arctan2(
         k_cart_inv_ang[..., 1],
         k_cart_inv_ang[..., 0],
     )
-    angles: Tuple[Float[Array, " ..."], Float[Array, " ..."]] = (theta, phi)
+    angles: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+        theta,
+        phi,
+    )
     return angles
 
 
 @jaxtyped(typechecker=beartype)
 def detector_angles_to_kpar(
-    tx: Float[Array, " ..."],
-    ty: Float[Array, " ..."],
-    kinetic_energy_ev: Float[Array, " ..."],
+    tx: Float64[Array, " ..."],
+    ty: Float64[Array, " ..."],
+    kinetic_energy_ev: Float64[Array, " ..."],
     slit: str,
-) -> Float[Array, "... 2"]:
+) -> Float64[Array, "... 2"]:
     """Convert detector angles to parallel momentum.
 
     The function rotates the positive z direction with the detector
@@ -362,11 +367,11 @@ def detector_angles_to_kpar(
 
     Parameters
     ----------
-    tx : Float[Array, " ..."]
+    tx : Float64[Array, " ..."]
         First detector angles in radians.
-    ty : Float[Array, " ..."]
+    ty : Float64[Array, " ..."]
         Second detector angles in radians.
-    kinetic_energy_ev : Float[Array, " ..."]
+    kinetic_energy_ev : Float64[Array, " ..."]
         Photoelectron kinetic energies in eV.
     slit : str
         Static slit orientation, ``"H"`` or ``"V"``. A change causes
@@ -374,7 +379,7 @@ def detector_angles_to_kpar(
 
     Returns
     -------
-    k_parallel : Float[Array, "... 2"]
+    k_parallel : Float64[Array, "... 2"]
         Cartesian parallel momenta ``(kx, ky)`` in 1/Angstrom.
 
     Raises
@@ -392,9 +397,9 @@ def detector_angles_to_kpar(
     if slit not in {"H", "V"}:
         message: str = "slit must be 'H' or 'V'"
         raise ValueError(message)
-    broadcast_tx: Float[Array, " ..."]
-    broadcast_ty: Float[Array, " ..."]
-    broadcast_energy: Float[Array, " ..."]
+    broadcast_tx: Float64[Array, " ..."]
+    broadcast_ty: Float64[Array, " ..."]
+    broadcast_energy: Float64[Array, " ..."]
     broadcast_tx, broadcast_ty, broadcast_energy = jnp.broadcast_arrays(
         tx,
         ty,
@@ -405,7 +410,7 @@ def detector_angles_to_kpar(
         & (jnp.abs(broadcast_tx) < jnp.pi / 2.0)
         & (jnp.abs(broadcast_ty) < jnp.pi / 2.0)
     )
-    checked_tx: Float[Array, " ..."] = eqx.error_if(
+    checked_tx: Float64[Array, " ..."] = eqx.error_if(
         broadcast_tx,
         ~jnp.all(chart_valid),
         (
@@ -413,31 +418,31 @@ def detector_angles_to_kpar(
             "tx, ty in (-pi/2, pi/2)"
         ),
     )
-    checked_ty: Float[Array, " ..."] = jnp.where(
+    checked_ty: Float64[Array, " ..."] = jnp.where(
         chart_valid,
         broadcast_ty,
         0.0,
     )
-    momentum_magnitudes: Float[Array, " ..."]
+    momentum_magnitudes: Float64[Array, " ..."]
     momentum_magnitudes, _ = final_state_k_inv_ang(broadcast_energy)
     if slit == "H":
-        kx: Float[Array, " ..."] = momentum_magnitudes * jnp.sin(checked_tx)
-        ky: Float[Array, " ..."] = (
+        kx: Float64[Array, " ..."] = momentum_magnitudes * jnp.sin(checked_tx)
+        ky: Float64[Array, " ..."] = (
             -momentum_magnitudes * jnp.cos(checked_tx) * jnp.sin(checked_ty)
         )
     else:
         kx = momentum_magnitudes * jnp.sin(checked_ty)
         ky = -momentum_magnitudes * jnp.sin(checked_tx) * jnp.cos(checked_ty)
-    k_parallel: Float[Array, "... 2"] = jnp.stack((kx, ky), axis=-1)
+    k_parallel: Float64[Array, "... 2"] = jnp.stack((kx, ky), axis=-1)
     return k_parallel
 
 
 @jaxtyped(typechecker=beartype)
 def kpar_to_detector_angles(
-    k_par_inv_ang: Float[Array, "... 2"],
-    kinetic_energy_ev: Float[Array, " ..."],
+    k_par_inv_ang: Float64[Array, "... 2"],
+    kinetic_energy_ev: Float64[Array, " ..."],
     slit: str,
-) -> Tuple[Float[Array, " ..."], Float[Array, " ..."]]:
+) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     """Convert parallel momentum to detector angles.
 
     The function gives the exact inverse detector map on the physical domain.
@@ -447,9 +452,9 @@ def kpar_to_detector_angles(
 
     Parameters
     ----------
-    k_par_inv_ang : Float[Array, "... 2"]
+    k_par_inv_ang : Float64[Array, "... 2"]
         Cartesian parallel momenta ``(kx, ky)`` in 1/Angstrom.
-    kinetic_energy_ev : Float[Array, " ..."]
+    kinetic_energy_ev : Float64[Array, " ..."]
         Photoelectron kinetic energies in eV.
     slit : str
         Static slit orientation, ``"H"`` or ``"V"``. A change causes
@@ -457,9 +462,9 @@ def kpar_to_detector_angles(
 
     Returns
     -------
-    tx : Float[Array, " ..."]
+    tx : Float64[Array, " ..."]
         First detector angles in radians.
-    ty : Float[Array, " ..."]
+    ty : Float64[Array, " ..."]
         Second detector angles in radians.
 
     Raises
@@ -481,41 +486,41 @@ def kpar_to_detector_angles(
         k_par_inv_ang.shape[:-1],
         kinetic_energy_ev.shape,
     )
-    broadcast_k_parallel: Float[Array, "... 2"] = jnp.broadcast_to(
+    broadcast_k_parallel: Float64[Array, "... 2"] = jnp.broadcast_to(
         k_par_inv_ang,
         (*target_shape, 2),
     )
-    broadcast_energy: Float[Array, " ..."] = jnp.broadcast_to(
+    broadcast_energy: Float64[Array, " ..."] = jnp.broadcast_to(
         kinetic_energy_ev,
         target_shape,
     )
-    momentum_magnitudes: Float[Array, " ..."]
+    momentum_magnitudes: Float64[Array, " ..."]
     emission_valid: Bool[Array, " ..."]
     momentum_magnitudes, emission_valid = final_state_k_inv_ang(
         broadcast_energy
     )
-    aperture_sq: Float[Array, " ..."] = jnp.sum(
+    aperture_sq: Float64[Array, " ..."] = jnp.sum(
         broadcast_k_parallel * broadcast_k_parallel,
         axis=-1,
     )
-    momentum_sq: Float[Array, " ..."] = (
+    momentum_sq: Float64[Array, " ..."] = (
         momentum_magnitudes * momentum_magnitudes
     )
     chart_valid: Bool[Array, " ..."] = emission_valid & (
         aperture_sq < momentum_sq
     )
-    checked_k_parallel: Float[Array, "... 2"] = eqx.error_if(
+    checked_k_parallel: Float64[Array, "... 2"] = eqx.error_if(
         broadcast_k_parallel,
         ~jnp.all(chart_valid),
         "kpar_to_detector_angles requires Ekin > 0 and norm(kpar) < kf",
     )
-    normalized_k_parallel: Float[Array, "... 2"] = safe_divide(
+    normalized_k_parallel: Float64[Array, "... 2"] = safe_divide(
         checked_k_parallel,
         momentum_magnitudes[..., None],
     )
-    normalized_kx: Float[Array, " ..."] = normalized_k_parallel[..., 0]
-    normalized_ky: Float[Array, " ..."] = normalized_k_parallel[..., 1]
-    normal_component: Float[Array, " ..."] = jnp.sqrt(
+    normalized_kx: Float64[Array, " ..."] = normalized_k_parallel[..., 0]
+    normalized_ky: Float64[Array, " ..."] = normalized_k_parallel[..., 1]
+    normal_component: Float64[Array, " ..."] = jnp.sqrt(
         jnp.maximum(
             1.0
             - normalized_kx * normalized_kx
@@ -524,11 +529,11 @@ def kpar_to_detector_angles(
         )
     )
     if slit == "H":
-        tx: Float[Array, " ..."] = safe_arctan2(
+        tx: Float64[Array, " ..."] = safe_arctan2(
             normalized_kx,
             safe_sqrt(1.0 - normalized_kx * normalized_kx),
         )
-        ty: Float[Array, " ..."] = safe_arctan2(
+        ty: Float64[Array, " ..."] = safe_arctan2(
             -normalized_ky,
             normal_component,
         )
@@ -538,7 +543,7 @@ def kpar_to_detector_angles(
             normalized_kx,
             safe_sqrt(1.0 - normalized_kx * normalized_kx),
         )
-    detector_angles: Tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+    detector_angles: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
         tx,
         ty,
     )

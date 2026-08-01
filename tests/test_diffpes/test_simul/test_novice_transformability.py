@@ -12,7 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype.typing import Any, Callable
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 import diffpes
 from diffpes.simul import simulate_novice
@@ -36,7 +36,7 @@ def _novice_fixture(
         eigenvalues=jnp.array([[-1.0, 1.0]], dtype=jnp.float64),
         kpoints=jnp.zeros((1, 3), dtype=jnp.float64),
     )
-    projections: Float[Array, "1 2 1 9"] = jnp.ones(
+    projections: Float64[Array, "1 2 1 9"] = jnp.ones(
         (1, 2, 1, 9), dtype=jnp.float64
     )
     orbital_projection: OrbitalProjection = make_orbital_projection(
@@ -83,25 +83,27 @@ class TestNoviceCarrierGradients:
 
         bands, projections, params = _novice_fixture()
 
-        def bands_loss(candidate: BandStructure) -> Float[Array, ""]:
+        def bands_loss(candidate: BandStructure) -> Float64[Array, ""]:
             spectrum: ArpesSpectrum = simulate_novice(
                 candidate, projections, params, 15.0
             )
-            loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
+            loss: Float64[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
-        def projection_loss(candidate: OrbitalProjection) -> Float[Array, ""]:
+        def projection_loss(
+            candidate: OrbitalProjection,
+        ) -> Float64[Array, ""]:
             spectrum: ArpesSpectrum = simulate_novice(
                 bands, candidate, params, 15.0
             )
-            loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
+            loss: Float64[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
-        def params_loss(candidate: SimulationParams) -> Float[Array, ""]:
+        def params_loss(candidate: SimulationParams) -> Float64[Array, ""]:
             spectrum: ArpesSpectrum = simulate_novice(
                 bands, projections, candidate, 15.0
             )
-            loss: Float[Array, ""] = jnp.sum(spectrum.intensity)
+            loss: Float64[Array, ""] = jnp.sum(spectrum.intensity)
             return loss
 
         assert_grad_matches_fd(bands_loss, bands, modes=("rev",))
@@ -198,18 +200,22 @@ class TestNoviceScalability:
         params: diffpes.types.SimulationParams
 
         bands, projections, params = _novice_fixture()
-        sigmas: Float[Array, " 3"] = jnp.array([0.04, 0.08, 0.16])
+        sigmas: Float64[Array, " 3"] = jnp.array([0.04, 0.08, 0.16])
 
-        def simulate_sigma(sigma: Float[Array, ""]) -> Float[Array, "1 16"]:
+        def simulate_sigma(
+            sigma: Float64[Array, ""],
+        ) -> Float64[Array, "1 16"]:
             mapped_params: SimulationParams = eqx.tree_at(
                 lambda carrier: carrier.sigma, params, sigma
             )
             spectrum: ArpesSpectrum = simulate_novice(
                 bands, projections, mapped_params, 15.0
             )
-            result: Float[Array, "1 16"] = spectrum.intensity
+            result: Float64[Array, "1 16"] = spectrum.intensity
             return result
 
-        intensities: Float[Array, "3 1 16"] = jax.vmap(simulate_sigma)(sigmas)
+        intensities: Float64[Array, "3 1 16"] = jax.vmap(simulate_sigma)(
+            sigmas
+        )
         chex.assert_shape(intensities, (3, 1, 16))
         chex.assert_tree_all_finite(intensities)

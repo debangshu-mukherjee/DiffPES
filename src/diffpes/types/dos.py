@@ -26,7 +26,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 
@@ -72,8 +72,8 @@ class DensityOfStates(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_density_of_states(  # noqa: DOC503
-    energy: Float[Array, " Ee"],
-    total_dos: Float[Array, " Ed"],
+    energy: Float64[Array, " Ee"],
+    total_dos: Float64[Array, " Ed"],
     fermi_energy: ScalarNumeric = 0.0,
 ) -> DensityOfStates:
     """Create a validated DensityOfStates instance.
@@ -116,9 +116,9 @@ def make_density_of_states(  # noqa: DOC503
 
     Parameters
     ----------
-    energy : Float[Array, " Ee"]
+    energy : Float64[Array, " Ee"]
         Energy axis in eV.
-    total_dos : Float[Array, " Ed"]
+    total_dos : Float64[Array, " Ed"]
         Total density of states.
     fermi_energy : ScalarNumeric, optional
         Fermi level in eV. Default is 0.0.
@@ -261,13 +261,13 @@ class FullDensityOfStates(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_full_density_of_states(  # noqa: DOC503
-    energy: Float[Array, " Ee"],
-    total_dos_up: Float[Array, " Eu"],
-    integrated_dos_up: Float[Array, " Eiu"],
+    energy: Float64[Array, " Ee"],
+    total_dos_up: Float64[Array, " Eu"],
+    integrated_dos_up: Float64[Array, " Eiu"],
     fermi_energy: ScalarNumeric = 0.0,
-    total_dos_down: Optional[Float[Array, " Ed"]] = None,
-    integrated_dos_down: Optional[Float[Array, " Eid"]] = None,
-    pdos: Optional[Float[Array, "A Ep C"]] = None,
+    total_dos_down: Optional[Float64[Array, " Ed"]] = None,
+    integrated_dos_down: Optional[Float64[Array, " Eid"]] = None,
+    pdos: Optional[Float64[Array, "A Ep C"]] = None,
     natoms: int = 0,
 ) -> FullDensityOfStates:
     """Create a validated ``FullDensityOfStates`` instance.
@@ -320,19 +320,19 @@ def make_full_density_of_states(  # noqa: DOC503
 
     Parameters
     ----------
-    energy : Float[Array, " Ee"]
+    energy : Float64[Array, " Ee"]
         Energy axis in eV.
-    total_dos_up : Float[Array, " Eu"]
+    total_dos_up : Float64[Array, " Eu"]
         Spin-up total DOS (states/eV).
-    integrated_dos_up : Float[Array, " Eiu"]
+    integrated_dos_up : Float64[Array, " Eiu"]
         Spin-up integrated (cumulative) DOS.
     fermi_energy : ScalarNumeric, optional
         Fermi level in eV. Default is 0.0.
-    total_dos_down : Optional[Float[Array, " Ed"]], optional
+    total_dos_down : Optional[Float64[Array, " Ed"]], optional
         Spin-down total DOS. Default is None (ISPIN=1).
-    integrated_dos_down : Optional[Float[Array, " Eid"]], optional
+    integrated_dos_down : Optional[Float64[Array, " Eid"]], optional
         Spin-down integrated DOS. Default is None.
-    pdos : Optional[Float[Array, "A Ep C"]], optional
+    pdos : Optional[Float64[Array, "A Ep C"]], optional
         Per-atom site-projected DOS with C orbital columns.
         Default is None.
     natoms : int, optional
@@ -375,13 +375,13 @@ def make_full_density_of_states(  # noqa: DOC503
     fermi_arr: Float64[Array, " "] = jnp.asarray(
         fermi_energy, dtype=jnp.float64
     )
-    down_arr: Optional[Float[Array, " E"]] = None
+    down_arr: Optional[Float64[Array, " E"]] = None
     if total_dos_down is not None:
         down_arr = jnp.asarray(total_dos_down, dtype=jnp.float64)
-    int_down_arr: Optional[Float[Array, " E"]] = None
+    int_down_arr: Optional[Float64[Array, " E"]] = None
     if integrated_dos_down is not None:
         int_down_arr = jnp.asarray(integrated_dos_down, dtype=jnp.float64)
-    pdos_arr: Optional[Float[Array, "A E C"]] = None
+    pdos_arr: Optional[Float64[Array, "A E C"]] = None
     if pdos is not None:
         pdos_arr = jnp.asarray(pdos, dtype=jnp.float64)
 

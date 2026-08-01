@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any
-from jaxtyping import Int
+from jaxtyping import Int64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -41,9 +41,9 @@ def _exact_inverse(
         tuple[int, int, int],
         tuple[int, int, int],
     ],
-) -> Int[NDArray, "3 3"]:
+) -> Int64[NDArray, "3 3"]:
     """Return a unimodular integer inverse from its exact adjugate."""
-    matrix: Int[NDArray, "3 3"] = np.asarray(rows, dtype=np.int64)
+    matrix: Int64[NDArray, "3 3"] = np.asarray(rows, dtype=np.int64)
     determinant: int = int(
         matrix[0, 0]
         * (matrix[1, 1] * matrix[2, 2] - matrix[1, 2] * matrix[2, 1])
@@ -52,7 +52,7 @@ def _exact_inverse(
         + matrix[0, 2]
         * (matrix[1, 0] * matrix[2, 1] - matrix[1, 1] * matrix[2, 0])
     )
-    cofactors: Int[NDArray, "3 3"] = np.asarray(
+    cofactors: Int64[NDArray, "3 3"] = np.asarray(
         (
             (
                 matrix[1, 1] * matrix[2, 2] - matrix[1, 2] * matrix[2, 1],
@@ -273,13 +273,13 @@ class TestExactLongRangeGather:
             *spec.surface_cell.in_plane_coeffs,
             spec.surface_cell.stacking_coeffs,
         )
-        inverse: Int[NDArray, "3 3"] = _exact_inverse(frame)
+        inverse: Int64[NDArray, "3 3"] = _exact_inverse(frame)
         expected_pairs: list[tuple[int, int]] = []
         expected_cells: list[tuple[int, int, int]] = []
         expected_gather: list[int] = []
         for source_layer in range(n_layers):
             for hopping, bulk_cell in enumerate(rotated.hopping_cells):
-                transformed: Int[NDArray, " 3"] = (
+                transformed: Int64[NDArray, " 3"] = (
                     np.asarray(bulk_cell, dtype=np.int64) @ inverse
                 )
                 target_layer: int = source_layer + int(transformed[2])
@@ -337,7 +337,7 @@ class TestExactLongRangeGather:
             thickness_ang=5.0,
             vacuum_ang=7.0,
         )
-        inverse: Int[NDArray, "3 3"] = _exact_inverse(
+        inverse: Int64[NDArray, "3 3"] = _exact_inverse(
             (
                 *spec.surface_cell.in_plane_coeffs,
                 spec.surface_cell.stacking_coeffs,
@@ -443,7 +443,7 @@ class TestCompleteShellOperatorPropagation:
             orbital_rotated,
             rotation,
         )
-        inverse: Int[NDArray, "3 3"] = _exact_inverse(
+        inverse: Int64[NDArray, "3 3"] = _exact_inverse(
             (
                 *spec.surface_cell.in_plane_coeffs,
                 spec.surface_cell.stacking_coeffs,
@@ -455,7 +455,7 @@ class TestCompleteShellOperatorPropagation:
         expected: jax.Array = jnp.zeros_like(propagated.position_matrices)
         for source_layer in range(spec.n_layers):
             for cell_index, bulk_cell in enumerate(operator_data.cells):
-                transformed: Int[NDArray, " 3"] = (
+                transformed: Int64[NDArray, " 3"] = (
                     np.asarray(bulk_cell, dtype=np.int64) @ inverse
                 )
                 target_layer: int = source_layer + int(transformed[2])

@@ -143,7 +143,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Any, Callable, Optional
-from jaxtyping import Array, Bool, Float64, Int, PyTree, jaxtyped
+from jaxtyping import Array, Bool, Float64, Int32, PyTree, jaxtyped
 
 from .contracts import TransformationContract
 
@@ -286,7 +286,7 @@ class DomainResult(eqx.Module):
     in_domain : Bool[Array, ""]
         In domain retained as a differentiable JAX leaf in the declared
         physical units.
-    severity_code : Int[Array, ""]
+    severity_code : Int32[Array, ""]
         Severity code retained as a differentiable JAX leaf in the
         declared physical units.
     """
@@ -300,7 +300,7 @@ class DomainResult(eqx.Module):
     passed: Bool[Array, ""]
     checked: Bool[Array, ""]
     in_domain: Bool[Array, ""]
-    severity_code: Int[Array, ""]
+    severity_code: Int32[Array, ""]
 
 
 type CheckFunction = Callable[[PyTree], DomainResult]
@@ -725,7 +725,7 @@ class CertificationClaim(eqx.Module):
     margin : Float64[Array, ""]
         Margin retained as a differentiable JAX leaf in the declared
         physical units.
-    severity_code : Int[Array, ""]
+    severity_code : Int32[Array, ""]
         Severity code retained as a differentiable JAX leaf in the
         declared physical units.
     """
@@ -742,7 +742,7 @@ class CertificationClaim(eqx.Module):
     checked: Bool[Array, ""]
     in_domain: Bool[Array, ""]
     margin: Float64[Array, ""]
-    severity_code: Int[Array, ""]
+    severity_code: Int32[Array, ""]
 
 
 class DerivativeEvidence(eqx.Module):
@@ -782,7 +782,7 @@ class DerivativeEvidence(eqx.Module):
     singular_values : Float64[Array, " n_sv"]
         Singular values retained as a differentiable JAX leaf in the
         declared physical units.
-    effective_rank : Int[Array, ""]
+    effective_rank : Int32[Array, ""]
         Effective rank retained as a differentiable JAX leaf in the
         declared physical units.
     condition_estimate : Float64[Array, ""]
@@ -806,7 +806,7 @@ class DerivativeEvidence(eqx.Module):
     reference_derivatives: Float64[Array, "n_probe n_deriv"]
     derivative_residuals: Float64[Array, "n_probe n_deriv"]
     singular_values: Float64[Array, " n_sv"]
-    effective_rank: Int[Array, ""]
+    effective_rank: Int32[Array, ""]
     condition_estimate: Float64[Array, ""]
     finite: Bool[Array, ""]
     fd_correct: Bool[Array, ""]
@@ -903,7 +903,7 @@ class InformationSpectrum(eqx.Module):
     right_singular_vectors : Float64[Array, "n_sv n_input"]
         Right singular vectors retained as a differentiable JAX leaf in
         the declared physical units.
-    effective_rank : Int[Array, ""]
+    effective_rank : Int32[Array, ""]
         Effective rank retained as a differentiable JAX leaf in the
         declared physical units.
     condition_estimate : Float64[Array, ""]
@@ -918,7 +918,7 @@ class InformationSpectrum(eqx.Module):
     input_paths: tuple[str, ...] = eqx.field(static=True)
     singular_values: Float64[Array, " n_sv"]
     right_singular_vectors: Float64[Array, "n_sv n_input"]
-    effective_rank: Int[Array, ""]
+    effective_rank: Int32[Array, ""]
     condition_estimate: Float64[Array, ""]
     threshold: Float64[Array, ""]
 

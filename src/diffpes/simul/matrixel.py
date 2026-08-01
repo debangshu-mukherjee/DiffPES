@@ -76,7 +76,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Callable
 from jax.tree_util import PyTreeDef
-from jaxtyping import Array, Bool, Complex, Float, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.maths import channel_tables, polarization_cart_to_real
@@ -146,25 +146,25 @@ def _spin_layout(basis: OrbitalBasis) -> tuple[int, int]:
 
 
 def _solid_harmonic_component(
-    direction_unit: Float[Array, "... 3"],
+    direction_unit: Float64[Array, "... 3"],
     degree: int,
     order: int,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     """Evaluate one normalized real solid harmonic on the unit sphere."""
     absolute_order: int = abs(order)
-    x_component: Float[Array, " ..."] = direction_unit[..., 0]
-    y_component: Float[Array, " ..."] = direction_unit[..., 1]
-    z_component: Float[Array, " ..."] = direction_unit[..., 2]
-    transverse: Complex[Array, " ..."] = x_component.astype(
+    x_component: Float64[Array, " ..."] = direction_unit[..., 0]
+    y_component: Float64[Array, " ..."] = direction_unit[..., 1]
+    z_component: Float64[Array, " ..."] = direction_unit[..., 2]
+    transverse: Complex128[Array, " ..."] = x_component.astype(
         jnp.complex128
     ) + 1j * y_component.astype(jnp.complex128)
     double_factorial: float = 1.0
     factor_index: int
     for factor_index in range(1, absolute_order + 1):
         double_factorial *= 2.0 * factor_index - 1.0
-    sectoral_complex: Complex[Array, " ..."] = transverse**absolute_order
+    sectoral_complex: Complex128[Array, " ..."] = transverse**absolute_order
     if order > 0:
-        sectoral: Float[Array, " ..."] = double_factorial * jnp.real(
+        sectoral: Float64[Array, " ..."] = double_factorial * jnp.real(
             sectoral_complex
         )
     elif order < 0:
@@ -172,10 +172,10 @@ def _solid_harmonic_component(
     else:
         sectoral = jnp.ones_like(z_component)
 
-    polynomial: Float[Array, " ..."] = sectoral
+    polynomial: Float64[Array, " ..."] = sectoral
     if degree > absolute_order:
-        previous_two: Float[Array, " ..."] = sectoral
-        previous_one: Float[Array, " ..."] = (
+        previous_two: Float64[Array, " ..."] = sectoral
+        previous_one: Float64[Array, " ..."] = (
             (2.0 * absolute_order + 1.0) * z_component * sectoral
         )
         if degree == absolute_order + 1:
@@ -183,7 +183,7 @@ def _solid_harmonic_component(
         else:
             recurrence_degree: int
             for recurrence_degree in range(absolute_order + 2, degree + 1):
-                current: Float[Array, " ..."] = (
+                current: Float64[Array, " ..."] = (
                     (2.0 * recurrence_degree - 1.0)
                     * z_component
                     * previous_one
@@ -200,7 +200,7 @@ def _solid_harmonic_component(
     )
     if order != 0:
         normalization *= math.sqrt(2.0)
-    value: Float[Array, " ..."] = normalization * polynomial
+    value: Float64[Array, " ..."] = normalization * polynomial
     return value
 
 
@@ -232,7 +232,7 @@ def _orbital_phase_indices(
 def _active_parameter_tree(
     radial: RadialSpec,
     me_params: MatrixElementParams,
-    mean_free_path_ang: Float[Array, ""],
+    mean_free_path_ang: Float64[Array, ""],
 ) -> dict[str, Array]:
     """Collect the mode-active matrix-element parameter leaves."""
     active: dict[str, Array] = {}
@@ -253,7 +253,7 @@ def _active_parameter_tree(
 def _pack_active_tree(
     active: dict[str, Array],
 ) -> tuple[
-    Float[Array, " n_theta"],
+    Float64[Array, " n_theta"],
     PyTreeDef,
     tuple[tuple[tuple[int, ...], bool], ...],
 ]:
@@ -261,25 +261,25 @@ def _pack_active_tree(
     leaves: list[Array]
     tree_definition: PyTreeDef
     leaves, tree_definition = jax.tree_util.tree_flatten(active)
-    packed_leaves: list[Float[Array, " n_leaf"]] = []
+    packed_leaves: list[Float64[Array, " n_leaf"]] = []
     metadata: list[tuple[tuple[int, ...], bool]] = []
     leaf: Array
     for leaf in leaves:
         is_complex: bool = bool(jnp.iscomplexobj(leaf))
         shape: tuple[int, ...] = tuple(leaf.shape)
-        packed_leaf: Float[Array, " n_leaf"] = (
+        packed_leaf: Float64[Array, " n_leaf"] = (
             pack_complex(leaf).reshape(-1)
             if is_complex
             else jnp.asarray(leaf, dtype=jnp.float64).reshape(-1)
         )
         packed_leaves.append(packed_leaf)
         metadata.append((shape, is_complex))
-    flat: Float[Array, " n_theta"] = jnp.concatenate(packed_leaves)
+    flat: Float64[Array, " n_theta"] = jnp.concatenate(packed_leaves)
     packing_metadata: tuple[tuple[tuple[int, ...], bool], ...] = tuple(
         metadata
     )
     result: tuple[
-        Float[Array, " n_theta"],
+        Float64[Array, " n_theta"],
         PyTreeDef,
         tuple[tuple[tuple[int, ...], bool], ...],
     ] = (flat, tree_definition, packing_metadata)
@@ -296,7 +296,7 @@ def _validate_band_groups(
         raise ValueError(message)
     n_bands: int = bands.eigenvalues.shape[1]
     occupied: set[int] = set()
-    energies: Float[NDArray, "nkpt nband"] = np.asarray(bands.eigenvalues)
+    energies: Float64[NDArray, "nkpt nband"] = np.asarray(bands.eigenvalues)
     group: tuple[int, ...]
     for group in band_groups:
         if (
@@ -317,7 +317,7 @@ def _validate_band_groups(
         )
         if not complement:
             continue
-        cross_gaps: Float[NDArray, "nkpt n_group n_complement"] = np.abs(
+        cross_gaps: Float64[NDArray, "nkpt n_group n_complement"] = np.abs(
             energies[:, np.asarray(group), None]
             - energies[:, None, np.asarray(complement)]
         )
@@ -332,9 +332,9 @@ def _validate_band_groups(
 def pack_matrixel_params(
     radial: RadialSpec,
     me_params: MatrixElementParams,
-    mean_free_path_ang: Float[Array, ""],
+    mean_free_path_ang: Float64[Array, ""],
 ) -> tuple[
-    Float[Array, " n_theta"],
+    Float64[Array, " n_theta"],
     PyTreeDef,
     tuple[tuple[tuple[int, ...], bool], ...],
 ]:
@@ -356,12 +356,12 @@ def pack_matrixel_params(
         Radial template and active mode.
     me_params : MatrixElementParams
         Shell scales and channel phases.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Scalar intensity mean free path in Angstrom.
 
     Returns
     -------
-    flat : Float[Array, "n_theta"]
+    flat : Float64[Array, "n_theta"]
         Flat real optimizer coordinates.
     tree_definition : PyTreeDef
         Active parameter-tree definition.
@@ -394,7 +394,7 @@ def pack_matrixel_params(
         mean_free_path_ang,
     )
     result: tuple[
-        Float[Array, " n_theta"],
+        Float64[Array, " n_theta"],
         PyTreeDef,
         tuple[tuple[tuple[int, ...], bool], ...],
     ] = _pack_active_tree(active)
@@ -403,12 +403,12 @@ def pack_matrixel_params(
 
 @jaxtyped(typechecker=beartype)
 def unpack_matrixel_params(
-    flat: Float[Array, " n_theta"],
+    flat: Float64[Array, " n_theta"],
     tree_definition: PyTreeDef,
     packing_metadata: tuple[tuple[tuple[int, ...], bool], ...],
     radial_template: RadialSpec,
     me_params_template: MatrixElementParams,
-) -> tuple[RadialSpec, MatrixElementParams, Float[Array, ""]]:
+) -> tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]]:
     """Construct active matrix-element parameters from one real vector.
 
     Reuse static metadata and excluded calibration leaves from the templates.
@@ -422,7 +422,7 @@ def unpack_matrixel_params(
 
     Parameters
     ----------
-    flat : Float[Array, "n_theta"]
+    flat : Float64[Array, "n_theta"]
         Flat real optimizer coordinates.
     tree_definition : PyTreeDef
         Tree definition returned by :func:`pack_matrixel_params`.
@@ -439,7 +439,7 @@ def unpack_matrixel_params(
         Reconstructed radial carrier.
     me_params : MatrixElementParams
         Reconstructed matrix-element carrier.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Reconstructed scalar mean free path.
 
     Raises
@@ -468,7 +468,7 @@ def unpack_matrixel_params(
         if next_offset > flat.shape[0]:
             message = "flat vector is shorter than its packing metadata"
             raise ValueError(message)
-        packed_leaf: Float[Array, " n_leaf"] = flat[offset:next_offset]
+        packed_leaf: Float64[Array, " n_leaf"] = flat[offset:next_offset]
         leaf: Array = (
             unpack_complex(packed_leaf.reshape(shape + (2,)))
             if is_complex
@@ -512,8 +512,8 @@ def unpack_matrixel_params(
             active["phase_shift_angles_shell"],
         ),
     )
-    mean_free_path_ang: Float[Array, ""] = active["mean_free_path_ang"]
-    result: tuple[RadialSpec, MatrixElementParams, Float[Array, ""]] = (
+    mean_free_path_ang: Float64[Array, ""] = active["mean_free_path_ang"]
+    result: tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]] = (
         radial,
         me_params,
         mean_free_path_ang,
@@ -525,8 +525,8 @@ def unpack_matrixel_params(
 def matrix_element_phase_gauge_direction(
     radial: RadialSpec,
     me_params: MatrixElementParams,
-    mean_free_path_ang: Float[Array, ""],
-) -> Float[Array, " n_theta"]:
+    mean_free_path_ang: Float64[Array, ""],
+) -> Float64[Array, " n_theta"]:
     """Build the unit overall-phase tangent in packed coordinates.
 
     Shift every physical final-state channel phase by the same angle.
@@ -544,24 +544,24 @@ def matrix_element_phase_gauge_direction(
         Radial parameter carrier.
     me_params : MatrixElementParams
         Matrix-element parameter carrier.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Scalar intensity mean free path.
 
     Returns
     -------
-    direction : Float[Array, "n_theta"]
+    direction : Float64[Array, "n_theta"]
         Unit packed phase-gauge tangent.
 
     Notes
     -----
     Pack a unit common phase displacement and subtract the base vector.
     """
-    base: Float[Array, " n_theta"] = pack_matrixel_params(
+    base: Float64[Array, " n_theta"] = pack_matrixel_params(
         radial,
         me_params,
         mean_free_path_ang,
     )[0]
-    shifted_angles: Float[Array, " n_valid_phase"] = (
+    shifted_angles: Float64[Array, " n_valid_phase"] = (
         me_params.phase_shift_angles_shell + 1.0
     )
     shifted_params: MatrixElementParams = eqx.tree_at(
@@ -569,13 +569,13 @@ def matrix_element_phase_gauge_direction(
         me_params,
         shifted_angles,
     )
-    displaced: Float[Array, " n_theta"] = pack_matrixel_params(
+    displaced: Float64[Array, " n_theta"] = pack_matrixel_params(
         radial,
         shifted_params,
         mean_free_path_ang,
     )[0]
-    tangent: Float[Array, " n_theta"] = displaced - base
-    direction: Float[Array, " n_theta"] = tangent / jnp.linalg.norm(tangent)
+    tangent: Float64[Array, " n_theta"] = displaced - base
+    direction: Float64[Array, " n_theta"] = tangent / jnp.linalg.norm(tangent)
     return direction
 
 
@@ -583,8 +583,8 @@ def matrix_element_phase_gauge_direction(
 def radial_coefficient_scale_gauge_directions(
     radial: RadialSpec,
     me_params: MatrixElementParams,
-    mean_free_path_ang: Float[Array, ""],
-) -> Float[Array, "n_gauge n_theta"]:
+    mean_free_path_ang: Float64[Array, ""],
+) -> Float64[Array, "n_gauge n_theta"]:
     """Build normalized radial coefficient-scale gauge tangents.
 
     Return one tangent for every normalized Slater contraction shell.
@@ -601,33 +601,33 @@ def radial_coefficient_scale_gauge_directions(
         Radial parameter carrier.
     me_params : MatrixElementParams
         Matrix-element parameter carrier.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Scalar intensity mean free path.
 
     Returns
     -------
-    directions : Float[Array, "n_gauge n_theta"]
+    directions : Float64[Array, "n_gauge n_theta"]
         Unit packed coefficient-scale tangents.
 
     Notes
     -----
     Differentiate the finite common rescaling in each shell coordinate block.
     """
-    base: Float[Array, " n_theta"] = pack_matrixel_params(
+    base: Float64[Array, " n_theta"] = pack_matrixel_params(
         radial,
         me_params,
         mean_free_path_ang,
     )[0]
     if radial.mode != "slater":
-        directions: Float[Array, "n_gauge n_theta"] = jnp.zeros(
+        directions: Float64[Array, "n_gauge n_theta"] = jnp.zeros(
             (0, base.shape[0]),
             dtype=jnp.float64,
         )
         return directions
-    tangents: list[Float[Array, " n_theta"]] = []
+    tangents: list[Float64[Array, " n_theta"]] = []
     shell: int
     for shell in range(radial.coefficients_shell.shape[0]):
-        displaced_coefficients: Float[Array, "n_shell n_contraction"] = (
+        displaced_coefficients: Float64[Array, "n_shell n_contraction"] = (
             radial.coefficients_shell.at[shell].add(
                 radial.coefficients_shell[shell]
             )
@@ -637,12 +637,12 @@ def radial_coefficient_scale_gauge_directions(
             radial,
             displaced_coefficients,
         )
-        displaced: Float[Array, " n_theta"] = pack_matrixel_params(
+        displaced: Float64[Array, " n_theta"] = pack_matrixel_params(
             displaced_radial,
             me_params,
             mean_free_path_ang,
         )[0]
-        tangent: Float[Array, " n_theta"] = displaced - base
+        tangent: Float64[Array, " n_theta"] = displaced - base
         tangents.append(tangent / jnp.linalg.norm(tangent))
     directions = jnp.stack(tangents)
     return directions  # noqa: RET504 -- assign-before-return is required.
@@ -650,17 +650,17 @@ def radial_coefficient_scale_gauge_directions(
 
 @jaxtyped(typechecker=beartype)
 def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
-    flat_params: Float[Array, " n_theta"],
+    flat_params: Float64[Array, " n_theta"],
     rebuild: Callable[
-        [Float[Array, " n_theta"], DiagonalizedBands, ExperimentGeometry],
-        Complex[Array, "n_k n_bands n_spin"],
+        [Float64[Array, " n_theta"], DiagonalizedBands, ExperimentGeometry],
+        Complex128[Array, "n_k n_bands n_spin"],
     ],
     bands: DiagonalizedBands,
     experiment: ExperimentGeometry,
     band_groups: tuple[tuple[int, ...], ...],
 ) -> tuple[
-    Float[Array, "n_k n_group"],
-    Float[Array, "n_theta n_k n_group"],
+    Float64[Array, "n_k n_group"],
+    Float64[Array, "n_theta n_k n_group"],
 ]:
     """Compute complete isolated band-group weights and their Jacobian.
 
@@ -675,7 +675,7 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
 
     Parameters
     ----------
-    flat_params : Float[Array, "n_theta"]
+    flat_params : Float64[Array, "n_theta"]
         Real packed parameter vector.
     rebuild : Callable
         Callback from parameters, bands, and experiment to ``[K,B,S]``
@@ -689,9 +689,9 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
 
     Returns
     -------
-    band_group_weights : Float[Array, "n_k n_group"]
+    band_group_weights : Float64[Array, "n_k n_group"]
         Unresolved-spin complete-group matrix-element weights.
-    weight_jacobian : Float[Array, "n_theta n_k n_group"]
+    weight_jacobian : Float64[Array, "n_theta n_k n_group"]
         Forward-mode derivative of every group weight.
 
     Raises
@@ -707,10 +707,10 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
     _validate_band_groups(bands, band_groups)
 
     def group_weights(
-        candidate: Float[Array, " n_theta"],
-    ) -> Float[Array, "n_k n_group"]:
+        candidate: Float64[Array, " n_theta"],
+    ) -> Float64[Array, "n_k n_group"]:
         """Return unresolved-spin weights summed over static band groups."""
-        spin_amplitudes: Complex[Array, "n_k n_bands n_spin"] = rebuild(
+        spin_amplitudes: Complex128[Array, "n_k n_bands n_spin"] = rebuild(
             candidate,
             bands,
             experiment,
@@ -721,10 +721,10 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
         ):
             message: str = "rebuild must return amplitudes with shape [K,B,S]"
             raise ValueError(message)
-        band_weights: Float[Array, "n_k n_bands"] = matrix_element_intensity(
+        band_weights: Float64[Array, "n_k n_bands"] = matrix_element_intensity(
             spin_amplitudes
         )
-        weights: Float[Array, "n_k n_group"] = jnp.stack(
+        weights: Float64[Array, "n_k n_group"] = jnp.stack(
             tuple(
                 jnp.sum(
                     band_weights[:, jnp.asarray(group, dtype=jnp.int32)],
@@ -736,30 +736,30 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
         )
         return weights
 
-    band_group_weights: Float[Array, "n_k n_group"] = group_weights(
+    band_group_weights: Float64[Array, "n_k n_group"] = group_weights(
         flat_params
     )
-    output_first_jacobian: Float[Array, "n_k n_group n_theta"] = jax.jacfwd(
+    output_first_jacobian: Float64[Array, "n_k n_group n_theta"] = jax.jacfwd(
         group_weights
     )(flat_params)
-    weight_jacobian: Float[Array, "n_theta n_k n_group"] = jnp.moveaxis(
+    weight_jacobian: Float64[Array, "n_theta n_k n_group"] = jnp.moveaxis(
         output_first_jacobian,
         -1,
         0,
     )
     result: tuple[
-        Float[Array, "n_k n_group"],
-        Float[Array, "n_theta n_k n_group"],
+        Float64[Array, "n_k n_group"],
+        Float64[Array, "n_theta n_k n_group"],
     ] = (band_group_weights, weight_jacobian)
     return result
 
 
 @jaxtyped(typechecker=beartype)
 def log_band_group_weight_sensitivity(
-    band_group_weights: Float[Array, " ..."],
-    weight_jacobian: Float[Array, "n_theta ..."],
+    band_group_weights: Float64[Array, " ..."],
+    weight_jacobian: Float64[Array, "n_theta ..."],
     min_band_group_weight: float,
-) -> tuple[Float[Array, "n_theta ..."], Bool[Array, " ..."]]:
+) -> tuple[Float64[Array, "n_theta ..."], Bool[Array, " ..."]]:
     """Convert positive group-weight derivatives to logarithmic derivatives.
 
     Mark dark or sub-floor weights invalid without dividing by them.
@@ -772,16 +772,16 @@ def log_band_group_weight_sensitivity(
 
     Parameters
     ----------
-    band_group_weights : Float[Array, "..."]
+    band_group_weights : Float64[Array, "..."]
         Complete-group matrix-element weights.
-    weight_jacobian : Float[Array, "n_theta ..."]
+    weight_jacobian : Float64[Array, "n_theta ..."]
         Derivatives of those weights.
     min_band_group_weight : float
         Static strictly positive validity floor.
 
     Returns
     -------
-    log_weight_jacobian : Float[Array, "n_theta ..."]
+    log_weight_jacobian : Float64[Array, "n_theta ..."]
         ``dw / w`` on valid weights and zero elsewhere.
     valid : Bool[Array, "..."]
         Positive-domain validity mask.
@@ -806,18 +806,18 @@ def log_band_group_weight_sensitivity(
         message = "weight Jacobian trailing axes must match group weights"
         raise ValueError(message)
     valid: Bool[Array, " ..."] = band_group_weights >= min_band_group_weight
-    safe_weights: Float[Array, " ..."] = jnp.where(
+    safe_weights: Float64[Array, " ..."] = jnp.where(
         valid,
         band_group_weights,
         1.0,
     )
-    log_weight_jacobian: Float[Array, "n_theta ..."] = jnp.where(
+    log_weight_jacobian: Float64[Array, "n_theta ..."] = jnp.where(
         valid[None, ...],
         weight_jacobian / safe_weights[None, ...],
         0.0,
     )
     result: tuple[
-        Float[Array, "n_theta ..."],
+        Float64[Array, "n_theta ..."],
         Bool[Array, " ..."],
     ] = (log_weight_jacobian, valid)
     return result
@@ -826,7 +826,7 @@ def log_band_group_weight_sensitivity(
 @jaxtyped(typechecker=beartype)
 def resolve_orbital_positions_cart(
     bands: DiagonalizedBands,
-) -> Float[Array, "n_orb 3"]:
+) -> Float64[Array, "n_orb 3"]:
     """Resolve orbital centres in Cartesian Angstrom coordinates.
 
     Preserve the basis-position gauge at the structural boundary.
@@ -844,14 +844,14 @@ def resolve_orbital_positions_cart(
 
     Returns
     -------
-    positions_cart : Float[Array, "n_orb 3"]
+    positions_cart : Float64[Array, "n_orb 3"]
         Orbital centres in Cartesian Angstrom coordinates.
 
     Notes
     -----
     Select one fractional source before applying the lattice multiplication.
     """
-    positions_fractional: Float[Array, "n_orb 3"]
+    positions_fractional: Float64[Array, "n_orb 3"]
     if bands.orbital_positions is not None:
         positions_fractional = bands.orbital_positions
     else:
@@ -860,7 +860,7 @@ def resolve_orbital_positions_cart(
             dtype=jnp.int32,
         )
         positions_fractional = bands.geometry.positions[atom_indices]
-    positions_cart: Float[Array, "n_orb 3"] = (
+    positions_cart: Float64[Array, "n_orb 3"] = (
         positions_fractional @ bands.geometry.lattice
     )
     return positions_cart
@@ -868,9 +868,9 @@ def resolve_orbital_positions_cart(
 
 @jaxtyped(typechecker=beartype)
 def real_spherical_harmonics_cartesian_all(  # noqa: DOC503
-    direction_cart: Float[Array, "... 3"],
+    direction_cart: Float64[Array, "... 3"],
     l_max: int,
-) -> Float[Array, "... n_y"]:
+) -> Float64[Array, "... n_y"]:
     """Evaluate all real spherical harmonics from Cartesian directions.
 
     Avoid the azimuthal coordinate singularity at normal emission.
@@ -883,14 +883,14 @@ def real_spherical_harmonics_cartesian_all(  # noqa: DOC503
 
     Parameters
     ----------
-    direction_cart : Float[Array, "... 3"]
+    direction_cart : Float64[Array, "... 3"]
         Nonzero Cartesian direction vectors.
     l_max : int
         Static maximum degree in the inclusive range zero through five.
 
     Returns
     -------
-    harmonics : Float[Array, "... n_y"]
+    harmonics : Float64[Array, "... n_y"]
         Normalized real harmonics with ``n_y = (l_max + 1)**2``.
 
     Raises
@@ -913,19 +913,21 @@ def real_spherical_harmonics_cartesian_all(  # noqa: DOC503
     ):
         message = "direction_cart must have a trailing axis of length 3"
         raise ValueError(message)
-    directions: Float[Array, "... 3"] = jnp.asarray(
+    directions: Float64[Array, "... 3"] = jnp.asarray(
         direction_cart,
         dtype=jnp.float64,
     )
-    norms: Float[Array, " ..."] = jnp.linalg.norm(directions, axis=-1)
+    norms: Float64[Array, " ..."] = jnp.linalg.norm(directions, axis=-1)
     directions = eqx.error_if(
         directions,
         ~jnp.all(jnp.isfinite(directions)) | jnp.any(norms <= 0.0),
         "Cartesian harmonic directions must be finite and nonzero",
     )
-    safe_norms: Float[Array, " ..."] = jnp.where(norms > 0.0, norms, 1.0)
-    direction_unit: Float[Array, "... 3"] = directions / safe_norms[..., None]
-    values: list[Float[Array, " ..."]] = []
+    safe_norms: Float64[Array, " ..."] = jnp.where(norms > 0.0, norms, 1.0)
+    direction_unit: Float64[Array, "... 3"] = (
+        directions / safe_norms[..., None]
+    )
+    values: list[Float64[Array, " ..."]] = []
     degree: int
     order: int
     for degree in range(l_max + 1):
@@ -933,21 +935,21 @@ def real_spherical_harmonics_cartesian_all(  # noqa: DOC503
             values.append(
                 _solid_harmonic_component(direction_unit, degree, order)
             )
-    harmonics: Float[Array, "... n_y"] = jnp.stack(values, axis=-1)
+    harmonics: Float64[Array, "... n_y"] = jnp.stack(values, axis=-1)
     return harmonics
 
 
 @jaxtyped(typechecker=beartype)
 def orbital_transition_channels(  # noqa: DOC503
-    k_i_cart: Float[Array, "n_k 3"],
-    k_f_cart: Float[Array, "n_k 3"],
-    positions_cart: Float[Array, "n_orb 3"],
-    depths: Float[Array, " n_orb"],
-    bvals: Complex[Array, "n_k n_orb 2"],
+    k_i_cart: Float64[Array, "n_k 3"],
+    k_f_cart: Float64[Array, "n_k 3"],
+    positions_cart: Float64[Array, "n_orb 3"],
+    depths: Float64[Array, " n_orb"],
+    bvals: Complex128[Array, "n_k n_orb 2"],
     me_params: MatrixElementParams,
-    mean_free_path_ang: Float[Array, ""],
+    mean_free_path_ang: Float64[Array, ""],
     basis: OrbitalBasis,
-) -> Complex[Array, "n_k n_spin n_orb_per_spin 3"]:
+) -> Complex128[Array, "n_k n_spin n_orb_per_spin 3"]:
     r"""Assemble coherent orbital transition channels.
 
     Keep every orbital factor at amplitude level.
@@ -960,26 +962,26 @@ def orbital_transition_channels(  # noqa: DOC503
 
     Parameters
     ----------
-    k_i_cart : Float[Array, "n_k 3"]
+    k_i_cart : Float64[Array, "n_k 3"]
         Initial crystal momenta in sample Cartesian inverse Angstrom.
-    k_f_cart : Float[Array, "n_k 3"]
+    k_f_cart : Float64[Array, "n_k 3"]
         Explicit vacuum final momenta in the same frame and units.
-    positions_cart : Float[Array, "n_orb 3"]
+    positions_cart : Float64[Array, "n_orb 3"]
         Cartesian orbital centres in Angstrom.
-    depths : Float[Array, "n_orb"]
+    depths : Float64[Array, "n_orb"]
         Orbital depths below the surface in Angstrom.
-    bvals : Complex[Array, "n_k n_orb 2"]
+    bvals : Complex128[Array, "n_k n_orb 2"]
         Radial channels in static order ``(l-1, l+1)``.
     me_params : MatrixElementParams
         Shell-shared amplitude scales and channel phase angles.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Positive photoelectron intensity mean free path in Angstrom.
     basis : OrbitalBasis
         Static real-orbital and spin layout.
 
     Returns
     -------
-    transition_channels : Complex[Array, "n_k n_spin n_orb_per_spin 3"]
+    transition_channels : Complex128[Array, "n_k n_spin n_orb_per_spin 3"]
         Real dipole channels in order ``(y,z,x)``.
 
     Raises
@@ -1024,31 +1026,31 @@ def orbital_transition_channels(  # noqa: DOC503
         message = "spin blocks must share paired radial shells"
         raise ValueError(message)
 
-    initial_momentum: Float[Array, "n_k 3"] = jnp.asarray(
+    initial_momentum: Float64[Array, "n_k 3"] = jnp.asarray(
         k_i_cart,
         dtype=jnp.float64,
     )
-    final_momentum: Float[Array, "n_k 3"] = jnp.asarray(
+    final_momentum: Float64[Array, "n_k 3"] = jnp.asarray(
         k_f_cart,
         dtype=jnp.float64,
     )
-    positions: Float[Array, "n_orb 3"] = jnp.asarray(
+    positions: Float64[Array, "n_orb 3"] = jnp.asarray(
         positions_cart,
         dtype=jnp.float64,
     )
-    depth_values: Float[Array, " n_orb"] = jnp.asarray(
+    depth_values: Float64[Array, " n_orb"] = jnp.asarray(
         depths,
         dtype=jnp.float64,
     )
-    radial_values: Complex[Array, "n_k n_orb 2"] = jnp.asarray(
+    radial_values: Complex128[Array, "n_k n_orb 2"] = jnp.asarray(
         bvals,
         dtype=jnp.complex128,
     )
-    mean_free_path: Float[Array, ""] = jnp.asarray(
+    mean_free_path: Float64[Array, ""] = jnp.asarray(
         mean_free_path_ang,
         dtype=jnp.float64,
     )
-    checked_arrays: Float[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
+    checked_arrays: Float64[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
     checked_arrays = eqx.error_if(
         checked_arrays,
         ~jnp.all(jnp.isfinite(initial_momentum))
@@ -1062,17 +1064,19 @@ def orbital_transition_channels(  # noqa: DOC503
         "matrix-element inputs must be finite with physical depth and mfp",
     )
     initial_momentum = initial_momentum + checked_arrays
-    depth_nonnegative: Float[Array, " n_orb"] = jnp.maximum(depth_values, 0.0)
+    depth_nonnegative: Float64[Array, " n_orb"] = jnp.maximum(
+        depth_values, 0.0
+    )
     shell_indices: Array = jnp.asarray(
         me_params.radial_shell_index,
         dtype=jnp.int32,
     )
-    sigma_shell: Float[Array, " n_shell"] = eqx.error_if(
+    sigma_shell: Float64[Array, " n_shell"] = eqx.error_if(
         me_params.sigma_shell,
         ~jnp.all(jnp.isfinite(me_params.sigma_shell)),
         "matrix-element shell scales must be finite",
     )
-    compact_phase_angles: Float[Array, " n_valid_phase"] = eqx.error_if(
+    compact_phase_angles: Float64[Array, " n_valid_phase"] = eqx.error_if(
         me_params.phase_shift_angles_shell,
         ~jnp.all(jnp.isfinite(me_params.phase_shift_angles_shell)),
         "matrix-element phase angles must be finite",
@@ -1081,46 +1085,48 @@ def orbital_transition_channels(  # noqa: DOC503
         _orbital_phase_indices(me_params),
         dtype=jnp.int32,
     )
-    phase_angles: Float[Array, "n_valid_phase_plus_zero"] = jnp.concatenate(
+    phase_angles: Float64[Array, "n_valid_phase_plus_zero"] = jnp.concatenate(
         (
             compact_phase_angles,
             jnp.zeros((1,), dtype=jnp.float64),
         )
     )
-    orbital_scales: Float[Array, " n_orb"] = sigma_shell[shell_indices]
-    channel_phases: Complex[Array, "n_orb 2"] = jnp.exp(
+    orbital_scales: Float64[Array, " n_orb"] = sigma_shell[shell_indices]
+    channel_phases: Complex128[Array, "n_orb 2"] = jnp.exp(
         1j * phase_angles[phase_indices]
     )
-    attenuation: Float[Array, " n_orb"] = jnp.exp(
+    attenuation: Float64[Array, " n_orb"] = jnp.exp(
         -depth_nonnegative / (2.0 * mean_free_path)
     )
-    momentum_difference: Float[Array, "n_k 3"] = (
+    momentum_difference: Float64[Array, "n_k 3"] = (
         initial_momentum - final_momentum
     )
-    position_phase: Complex[Array, "n_k n_orb"] = jnp.exp(
+    position_phase: Complex128[Array, "n_k n_orb"] = jnp.exp(
         1j * jnp.einsum("kd,od->ko", momentum_difference, positions)
     )
-    harmonics: Float[Array, "n_k 36"] = real_spherical_harmonics_cartesian_all(
-        final_momentum,
-        L_MAX + 1,
+    harmonics: Float64[Array, "n_k 36"] = (
+        real_spherical_harmonics_cartesian_all(
+            final_momentum,
+            L_MAX + 1,
+        )
     )
-    coupling_coefficients: Float[Array, "n_orb 2 3 36"]
-    channel_valid: Float[Array, "n_orb 2 3 36"]
+    coupling_coefficients: Float64[Array, "n_orb 2 3 36"]
+    channel_valid: Float64[Array, "n_orb 2 3 36"]
     coupling_coefficients, channel_valid = channel_tables(basis)
-    angular_channels: Complex[Array, "n_k n_orb 3"] = jnp.einsum(
+    angular_channels: Complex128[Array, "n_k n_orb 3"] = jnp.einsum(
         "koc,oc,ocdy,ky->kod",
         radial_values,
         channel_phases,
         coupling_coefficients * channel_valid,
         harmonics,
     )
-    prefactor: Complex[Array, "n_k n_orb"] = (
+    prefactor: Complex128[Array, "n_k n_orb"] = (
         orbital_scales[None, :] * attenuation[None, :] * position_phase
     )
-    flat_channels: Complex[Array, "n_k n_orb 3"] = (
+    flat_channels: Complex128[Array, "n_k n_orb 3"] = (
         prefactor[..., None] * angular_channels
     )
-    transition_channels: Complex[Array, "n_k n_spin n_orb_per_spin 3"] = (
+    transition_channels: Complex128[Array, "n_k n_spin n_orb_per_spin 3"] = (
         flat_channels.reshape(
             n_kpoints,
             n_spin,
@@ -1133,9 +1139,9 @@ def orbital_transition_channels(  # noqa: DOC503
 
 @jaxtyped(typechecker=beartype)
 def contract_polarization(
-    transition_channels: Complex[Array, "... 3"],
-    polarization_sample_cart: Complex[Array, " 3"],
-) -> Complex[Array, " ..."]:
+    transition_channels: Complex128[Array, "... 3"],
+    polarization_sample_cart: Complex128[Array, " 3"],
+) -> Complex128[Array, " ..."]:
     """Compute the sample-frame polarization contraction.
 
     Preserve generic complex optical phases through the late linear step.
@@ -1144,28 +1150,28 @@ def contract_polarization(
 
     Parameters
     ----------
-    transition_channels : Complex[Array, "... 3"]
+    transition_channels : Complex128[Array, "... 3"]
         Real dipole channels in order ``(y,z,x)``.
-    polarization_sample_cart : Complex[Array, "3"]
+    polarization_sample_cart : Complex128[Array, "3"]
         Cartesian complex polarization in order ``(x,y,z)``.
 
     Returns
     -------
-    polarized_transition : Complex[Array, "..."]
+    polarized_transition : Complex128[Array, "..."]
         Complex amplitude with the channel axis contracted once.
 
     Notes
     -----
     Permute Cartesian components into real-harmonic order before summing.
     """
-    polarization: Complex[Array, " 3"] = jnp.asarray(
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
         polarization_sample_cart,
         dtype=jnp.complex128,
     )
-    polarization_real: Complex[Array, " 3"] = polarization_cart_to_real(
+    polarization_real: Complex128[Array, " 3"] = polarization_cart_to_real(
         polarization
     )
-    polarized_transition: Complex[Array, " ..."] = jnp.sum(
+    polarized_transition: Complex128[Array, " ..."] = jnp.sum(
         transition_channels * polarization_real,
         axis=-1,
     )
@@ -1174,9 +1180,9 @@ def contract_polarization(
 
 @jaxtyped(typechecker=beartype)
 def contract_experiment_polarization(
-    transition_channels: Complex[Array, "... 3"],
+    transition_channels: Complex128[Array, "... 3"],
     experiment: ExperimentGeometry,
-) -> Complex[Array, " ..."]:
+) -> Complex128[Array, " ..."]:
     """Rotate laboratory polarization to the sample and contract it late.
 
     Keep the physical beam fixed while the sample azimuth changes.
@@ -1185,28 +1191,28 @@ def contract_experiment_polarization(
 
     Parameters
     ----------
-    transition_channels : Complex[Array, "... 3"]
+    transition_channels : Complex128[Array, "... 3"]
         Real dipole channels in order ``(y,z,x)``.
     experiment : ExperimentGeometry
         Experiment whose stored polarization is in the laboratory frame.
 
     Returns
     -------
-    polarized_transition : Complex[Array, "..."]
+    polarized_transition : Complex128[Array, "..."]
         Complex sample-frame polarization contraction.
 
     Notes
     -----
     Apply the inverse sample orientation exactly once before contraction.
     """
-    sample_orientation: Float[Array, "3 3"] = sample_azimuth_rotation(
+    sample_orientation: Float64[Array, "3 3"] = sample_azimuth_rotation(
         experiment.sample_azimuth
     )
-    polarization_sample: Complex[Array, " 3"] = lab_polarization_to_sample(
+    polarization_sample: Complex128[Array, " 3"] = lab_polarization_to_sample(
         experiment.polarization,
         sample_orientation,
     )
-    polarized_transition: Complex[Array, " ..."] = contract_polarization(
+    polarized_transition: Complex128[Array, " ..."] = contract_polarization(
         transition_channels,
         polarization_sample,
     )
@@ -1215,8 +1221,8 @@ def contract_experiment_polarization(
 
 @jaxtyped(typechecker=beartype)
 def transition_source(
-    transition_row: Complex[Array, "... n_spin n_orb_per_spin"],
-) -> Complex[Array, "... n_spin n_orb"]:
+    transition_row: Complex128[Array, "... n_spin n_orb_per_spin"],
+) -> Complex128[Array, "... n_spin n_orb"]:
     """Build conjugated outgoing-spin rows as full source kets.
 
     Retain separate sources for each outgoing-spin measurement channel.
@@ -1225,12 +1231,12 @@ def transition_source(
 
     Parameters
     ----------
-    transition_row : Complex[Array, "... n_spin n_orb_per_spin"]
+    transition_row : Complex128[Array, "... n_spin n_orb_per_spin"]
         Polarization-contracted outgoing-spin orbital rows.
 
     Returns
     -------
-    source : Complex[Array, "... n_spin n_orb"]
+    source : Complex128[Array, "... n_spin n_orb"]
         Conjugated source kets, with exact zero in the opposite spin block.
 
     Raises
@@ -1247,18 +1253,18 @@ def transition_source(
         message: str = "transition rows must contain one or two spin channels"
         raise ValueError(message)
     n_spatial: int = transition_row.shape[-1]
-    spin_identity: Float[Array, "n_spin n_spin"] = jnp.eye(
+    spin_identity: Float64[Array, "n_spin n_spin"] = jnp.eye(
         n_spin,
         dtype=jnp.float64,
     )
-    blocked_source: Complex[Array, "... n_spin n_spin n_orb_per_spin"] = (
+    blocked_source: Complex128[Array, "... n_spin n_spin n_orb_per_spin"] = (
         jnp.einsum(
             "...sa,st->...sta",
             jnp.conj(transition_row),
             spin_identity,
         )
     )
-    source: Complex[Array, "... n_spin n_orb"] = blocked_source.reshape(
+    source: Complex128[Array, "... n_spin n_orb"] = blocked_source.reshape(
         transition_row.shape[:-2] + (n_spin, n_spin * n_spatial)
     )
     return source
@@ -1266,9 +1272,9 @@ def transition_source(
 
 @jaxtyped(typechecker=beartype)
 def project_band_channels(
-    transition_channels: Complex[Array, "n_k n_spin n_orb_per_spin 3"],
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
-) -> Complex[Array, "n_k n_bands n_spin 3"]:
+    transition_channels: Complex128[Array, "n_k n_spin n_orb_per_spin 3"],
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
+) -> Complex128[Array, "n_k n_bands n_spin 3"]:
     """Compute band channels without conjugating orbital coefficients.
 
     Follow the stored ket-coefficient convention for generic complex bands.
@@ -1277,14 +1283,14 @@ def project_band_channels(
 
     Parameters
     ----------
-    transition_channels : Complex[Array, "n_k n_spin n_orb_per_spin 3"]
+    transition_channels : Complex128[Array, "n_k n_spin n_orb_per_spin 3"]
         Orbital-space transition channels.
-    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
         Basis-position-gauge band coefficients.
 
     Returns
     -------
-    band_channels : Complex[Array, "n_k n_bands n_spin 3"]
+    band_channels : Complex128[Array, "n_k n_bands n_spin 3"]
         Band amplitudes with outgoing spin retained.
 
     Raises
@@ -1309,15 +1315,15 @@ def project_band_channels(
     ):
         message = "eigenvector axes must match transition channels"
         raise ValueError(message)
-    eigenvector_blocks: Complex[Array, "n_k n_bands n_spin n_orb_per_spin"] = (
-        eigenvectors.reshape(
-            eigenvectors.shape[0],
-            eigenvectors.shape[1],
-            n_spin,
-            n_spatial,
-        )
+    eigenvector_blocks: Complex128[
+        Array, "n_k n_bands n_spin n_orb_per_spin"
+    ] = eigenvectors.reshape(
+        eigenvectors.shape[0],
+        eigenvectors.shape[1],
+        n_spin,
+        n_spatial,
     )
-    band_channels: Complex[Array, "n_k n_bands n_spin 3"] = jnp.einsum(
+    band_channels: Complex128[Array, "n_k n_bands n_spin 3"] = jnp.einsum(
         "ksad,kbsa->kbsd",
         transition_channels,
         eigenvector_blocks,
@@ -1327,8 +1333,8 @@ def project_band_channels(
 
 @jaxtyped(typechecker=beartype)
 def matrix_element_intensity(
-    spin_amplitude: Complex[Array, "... n_spin"],
-) -> Float[Array, " ..."]:
+    spin_amplitude: Complex128[Array, "... n_spin"],
+) -> Float64[Array, " ..."]:
     """Sum outgoing-spin modulus squares exactly once.
 
     Preserve interference within spins and exclude interference across spins.
@@ -1337,19 +1343,19 @@ def matrix_element_intensity(
 
     Parameters
     ----------
-    spin_amplitude : Complex[Array, "... n_spin"]
+    spin_amplitude : Complex128[Array, "... n_spin"]
         Polarization-contracted amplitude for each outgoing spin.
 
     Returns
     -------
-    intensity : Float[Array, "..."]
+    intensity : Float64[Array, "..."]
         Incoherent unresolved-spin intensity.
 
     Notes
     -----
     Form one modulus square and reduce only the final outgoing-spin axis.
     """
-    intensity: Float[Array, " ..."] = jnp.sum(
+    intensity: Float64[Array, " ..."] = jnp.sum(
         jnp.real(jnp.conj(spin_amplitude) * spin_amplitude),
         axis=-1,
     )
@@ -1364,9 +1370,9 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
     quadrature: RadialQuadratureSpec,
     final_state: FinalStateSpec,
     experiment: ExperimentGeometry,
-    k_f_cart: Float[Array, "n_k 3"],
+    k_f_cart: Float64[Array, "n_k 3"],
     emission_valid: Bool[Array, " n_k"],
-) -> Complex[Array, "n_k n_spin n_orb_per_spin 3"]:
+) -> Complex128[Array, "n_k n_spin n_orb_per_spin 3"]:
     """Assemble the validated orbital transition tensor.
 
     Bind carrier data to the scalar-energy orbital transition primitive.
@@ -1391,14 +1397,14 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
         Explicit radial final-state model.
     experiment : ExperimentGeometry
         Supplies the traced intensity mean free path.
-    k_f_cart : Float[Array, "n_k 3"]
+    k_f_cart : Float64[Array, "n_k 3"]
         Explicit vacuum final momentum in sample inverse Angstrom.
     emission_valid : Bool[Array, "n_k"]
         Explicit emission validity mask from vacuum kinematics.
 
     Returns
     -------
-    transition_channels : Complex[Array, "n_k n_spin n_orb_per_spin 3"]
+    transition_channels : Complex128[Array, "n_k n_spin n_orb_per_spin 3"]
         Coherent orbital transition channels in real order ``(y,z,x)``.
 
     Raises
@@ -1427,7 +1433,7 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
     ):
         message = "vacuum momentum and validity axes must match band kpoints"
         raise ValueError(message)
-    final_momentum: Float[Array, "n_k 3"] = jnp.asarray(
+    final_momentum: Float64[Array, "n_k 3"] = jnp.asarray(
         k_f_cart,
         dtype=jnp.float64,
     )
@@ -1435,10 +1441,10 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
         emission_valid,
         dtype=jnp.bool_,
     )
-    initial_momentum: Float[Array, "n_k 3"] = (
+    initial_momentum: Float64[Array, "n_k 3"] = (
         bands.kpoints @ bands.geometry.reciprocal
     )
-    final_norm: Float[Array, " n_k"] = jnp.linalg.norm(
+    final_norm: Float64[Array, " n_k"] = jnp.linalg.norm(
         final_momentum,
         axis=-1,
     )
@@ -1456,25 +1462,25 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
             "in the registered G_parallel=0 channel"
         ),
     )
-    positions_cart: Float[Array, "n_orb 3"] = resolve_orbital_positions_cart(
+    positions_cart: Float64[Array, "n_orb 3"] = resolve_orbital_positions_cart(
         bands
     )
     n_orbitals: int = len(bands.basis.n)
-    depths: Float[Array, " n_orb"] = (
+    depths: Float64[Array, " n_orb"] = (
         jnp.zeros((n_orbitals,), dtype=jnp.float64)
         if bands.depths is None
         else bands.depths
     )
-    momentum_bohr_inv: Float[Array, " n_k"] = momentum_inv_ang_to_bohr_inv(
+    momentum_bohr_inv: Float64[Array, " n_k"] = momentum_inv_ang_to_bohr_inv(
         final_norm
     )
-    bvals: Complex[Array, "n_k n_orb 2"] = radial_bvals(
+    bvals: Complex128[Array, "n_k n_orb 2"] = radial_bvals(
         radial,
         momentum_bohr_inv,
         quadrature,
         final_state,
     )
-    transition_channels: Complex[Array, "n_k n_spin n_orb_per_spin 3"] = (
+    transition_channels: Complex128[Array, "n_k n_spin n_orb_per_spin 3"] = (
         orbital_transition_channels(
             initial_momentum,
             final_momentum,

@@ -10,7 +10,7 @@
     0.5625,
     0.75
   ],
-  "gate": "03.G5",
+  "requirement": "kmesh-reduction-reference",
   "kept_indices": [
     173,
     174,

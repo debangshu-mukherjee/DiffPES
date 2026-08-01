@@ -49,7 +49,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 HOPPING_LIST_COMPLEX_FIELDS: int = 7
 HOPPING_LIST_REAL_FIELDS: int = 6
@@ -76,8 +76,8 @@ _SPIN_LAYOUTS: tuple[str, ...] = (
 
 
 def _validate_wannier_operator_structure(  # noqa: PLR0912
-    position_matrices: Optional[Complex[Array, "n_R n_orb n_orb 3"]],
-    centres_cart: Float[Array, "n_orb 3"],
+    position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]],
+    centres_cart: Float64[Array, "n_orb 3"],
     cells: tuple[tuple[int, int, int], ...],
     degeneracies: tuple[int, ...],
     spin_layout: str,
@@ -201,8 +201,8 @@ class WannierOperatorData(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_wannier_operator_data(  # noqa: DOC502
-    position_matrices: Optional[Complex[Array, "n_R n_orb n_orb 3"]],
-    centres_cart: Float[Array, "n_orb 3"],
+    position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]],
+    centres_cart: Float64[Array, "n_orb 3"],
     cells: tuple[tuple[int, int, int], ...],
     degeneracies: tuple[int, ...],
     spin_layout: str,
@@ -217,10 +217,10 @@ def make_wannier_operator_data(  # noqa: DOC502
 
     Parameters
     ----------
-    position_matrices : Optional[Complex[Array, "n_R n_orb n_orb 3"]]
+    position_matrices : Optional[Complex128[Array, "n_R n_orb n_orb 3"]]
         Degeneracy-normalized position matrices in Angstrom, or ``None`` for
         an ``hr.dat`` source.
-    centres_cart : Float[Array, "n_orb 3"]
+    centres_cart : Float64[Array, "n_orb 3"]
         Explicit Cartesian Wannier centres in Angstrom.
     cells : tuple[tuple[int, int, int], ...]
         Exact integer translations in serialized order.
@@ -252,7 +252,7 @@ def make_wannier_operator_data(  # noqa: DOC502
         centres_cart,
         dtype=jnp.float64,
     )
-    position_array: Optional[Complex[Array, "n_R n_orb n_orb 3"]] = None
+    position_array: Optional[Complex128[Array, "n_R n_orb n_orb 3"]] = None
     if position_matrices is not None:
         position_array = jnp.asarray(
             position_matrices,

@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any
-from jaxtyping import Array, Int
+from jaxtyping import Array, Int64
 from numpy.typing import NDArray
 
 from diffpes.maths import rodrigues_rotation
@@ -155,8 +155,8 @@ class TestFindSurfaceCell:
         """
         cell: Any
         cell = find_surface_cell(_geometry(), miller)
-        miller_array: Int[NDArray, " 3"] = np.asarray(miller, dtype=np.int64)
-        coefficients: Int[NDArray, "3 3"] = np.asarray(
+        miller_array: Int64[NDArray, " 3"] = np.asarray(miller, dtype=np.int64)
+        coefficients: Int64[NDArray, "3 3"] = np.asarray(
             (*cell.in_plane_coeffs, cell.stacking_coeffs),
             dtype=np.int64,
         )

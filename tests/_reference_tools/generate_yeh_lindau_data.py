@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-from jaxtyping import Float
+from jaxtyping import Float64
 from numpy.typing import NDArray
 
 _MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -80,8 +80,9 @@ def _cell_value(
 
 
 def _pchip_slopes(
-    x_values: Float[NDArray, " n_node"], y_values: Float[NDArray, " n_node"]
-) -> Float[NDArray, " n_node"]:
+    x_values: Float64[NDArray, " n_node"],
+    y_values: Float64[NDArray, " n_node"],
+) -> Float64[NDArray, " n_node"]:
     """Compute shape-preserving cubic Hermite derivatives."""
     count = len(x_values)
     intervals = np.diff(x_values)
@@ -138,16 +139,16 @@ def _workbook_rows(
 ) -> list[
     tuple[
         tuple[int, int, int],
-        Float[NDArray, " n_node"],
-        Float[NDArray, " n_node"],
+        Float64[NDArray, " n_node"],
+        Float64[NDArray, " n_node"],
     ]
 ]:
     """Extract subshell rows, preserving missing and published zero entries."""
     rows: list[
         tuple[
             tuple[int, int, int],
-            Float[NDArray, " n_node"],
-            Float[NDArray, " n_node"],
+            Float64[NDArray, " n_node"],
+            Float64[NDArray, " n_node"],
         ]
     ] = []
     with zipfile.ZipFile(source) as archive:
@@ -236,9 +237,9 @@ def generate(source: Path, output_directory: Path) -> None:
     rows = _workbook_rows(source)
     keys = np.asarray([row[0] for row in rows], dtype=np.int16)
     offsets = [0]
-    energy_parts: list[Float[NDArray, " n_node"]] = []
-    sigma_parts: list[Float[NDArray, " n_node"]] = []
-    slope_parts: list[Float[NDArray, " n_node"]] = []
+    energy_parts: list[Float64[NDArray, " n_node"]] = []
+    sigma_parts: list[Float64[NDArray, " n_node"]] = []
+    slope_parts: list[Float64[NDArray, " n_node"]] = []
     domains: dict[str, list[list[float]]] = {}
     for key, energies, sigmas in rows:
         log_energies = np.log(energies)

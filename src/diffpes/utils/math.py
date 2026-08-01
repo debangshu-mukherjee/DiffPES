@@ -31,7 +31,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.maths import safe_divide
 
@@ -83,7 +83,7 @@ _W_POLY: Float64[Array, " N"] = _faddeeva_weideman_coefficients()
 
 @jaxtyped(typechecker=beartype)
 def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
-    z: Complex[Array, " ..."],
+    z: Complex128[Array, " ..."],
 ) -> Complex128[Array, " ..."]:
     r"""Evaluate the Faddeeva function w(z) = exp(-z^2) erfc(-iz).
 
@@ -106,7 +106,7 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     Parameters
     ----------
-    z : Complex[Array, " ..."]
+    z : Complex128[Array, " ..."]
         Complex arguments with ``Im(z) >= 0`` and ``abs(z) <= 1e8``.
 
     Returns
@@ -157,8 +157,8 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
 @jaxtyped(typechecker=beartype)
 def pack_complex(
-    z: Complex[Array, " ..."],
-) -> Float[Array, " ... 2"]:
+    z: Complex128[Array, " ..."],
+) -> Float64[Array, " ... 2"]:
     """Pack complex parameters as stacked real values.
 
     Complex parameters cross the optimizer and Fisher-information boundary as
@@ -169,12 +169,12 @@ def pack_complex(
 
     Parameters
     ----------
-    z : Complex[Array, " ..."]
+    z : Complex128[Array, " ..."]
         Complex-valued physics parameters of arbitrary shape.
 
     Returns
     -------
-    packed : Float[Array, " ... 2"]
+    packed : Float64[Array, " ... 2"]
         Real-valued parameters with real and imaginary components in the final
         axis, in that order.
 
@@ -188,14 +188,14 @@ def pack_complex(
     --------
     unpack_complex : Restore complex values inside the physics pipeline.
     """
-    packed: Float[Array, " ... 2"] = jnp.stack([z.real, z.imag], axis=-1)
+    packed: Float64[Array, " ... 2"] = jnp.stack([z.real, z.imag], axis=-1)
     return packed
 
 
 @jaxtyped(typechecker=beartype)
 def unpack_complex(
-    p: Float[Array, " ... 2"],
-) -> Complex[Array, " ..."]:
+    p: Float64[Array, " ... 2"],
+) -> Complex128[Array, " ..."]:
     """Unpack stacked real parameters into complex values.
 
     Complex parameters cross the optimizer and Fisher-information boundary as
@@ -206,13 +206,13 @@ def unpack_complex(
 
     Parameters
     ----------
-    p : Float[Array, " ... 2"]
+    p : Float64[Array, " ... 2"]
         Real-valued optimizer parameters whose final axis stores real and
         imaginary components, in that order.
 
     Returns
     -------
-    unpacked : Complex[Array, " ..."]
+    unpacked : Complex128[Array, " ..."]
         Complex-valued physics parameters with the packing axis removed.
 
     Notes
@@ -225,14 +225,14 @@ def unpack_complex(
     --------
     pack_complex : Expose complex parameters at the real optimizer boundary.
     """
-    unpacked: Complex[Array, " ..."] = jax.lax.complex(p[..., 0], p[..., 1])
+    unpacked: Complex128[Array, " ..."] = jax.lax.complex(p[..., 0], p[..., 1])
     return unpacked
 
 
 @jaxtyped(typechecker=beartype)
 def zscore_normalize(
-    data: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
+    data: Float64[Array, " ..."],
+) -> Float64[Array, " ..."]:
     r"""Apply z-score normalization (zero-mean, unit-variance).
 
     The function transforms a float array to zero mean and unit standard
@@ -262,12 +262,12 @@ def zscore_normalize(
 
     Parameters
     ----------
-    data : Float[Array, " ..."]
+    data : Float64[Array, " ..."]
         Input data array of any shape.
 
     Returns
     -------
-    normalized : Float[Array, " ..."]
+    normalized : Float64[Array, " ..."]
         Normalized data with mean 0 and standard deviation 1
         (or all zeros if the input is constant).
 
@@ -281,10 +281,10 @@ def zscore_normalize(
     the input ``data``. The gradient propagates through both the
     mean-subtraction and the division by standard deviation.
     """
-    mean_val: Float[Array, " "] = jnp.mean(data)
-    std_val: Float[Array, " "] = jnp.std(data)
-    centered: Float[Array, " ..."] = data - mean_val
-    normalized: Float[Array, " ..."] = safe_divide(centered, std_val)
+    mean_val: Float64[Array, " "] = jnp.mean(data)
+    std_val: Float64[Array, " "] = jnp.std(data)
+    centered: Float64[Array, " ..."] = data - mean_val
+    normalized: Float64[Array, " ..."] = safe_divide(centered, std_val)
     return normalized
 
 

@@ -28,11 +28,8 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import (
     Array,
-    Complex,
     Complex128,
-    Float,
     Float64,
-    Int,
     Int32,
     jaxtyped,
 )
@@ -42,7 +39,7 @@ from diffpes.types import EPS, TBModel
 from .soc import soc_matrix
 
 
-def _reverse_hopping_indices(model: TBModel) -> Int[Array, " n_hop"]:
+def _reverse_hopping_indices(model: TBModel) -> Int32[Array, " n_hop"]:
     """Derive the reverse-entry permutation from exact static metadata."""
     records: tuple[tuple[int, int, tuple[int, int, int]], ...] = tuple(
         (pair[0], pair[1], cell)
@@ -65,15 +62,17 @@ def _reverse_hopping_indices(model: TBModel) -> Int[Array, " n_hop"]:
 
 def _validated_hopping_amplitudes(
     model: TBModel,
-) -> Complex[Array, " n_hop"]:
+) -> Complex128[Array, " n_hop"]:
     """Validate traced hopping invariants again."""
-    amplitudes: Complex[Array, " n_hop"] = eqx.error_if(
+    amplitudes: Complex128[Array, " n_hop"] = eqx.error_if(
         model.hopping_amplitudes,
         ~jnp.all(jnp.isfinite(model.hopping_amplitudes)),
         "bloch_hamiltonian: hopping amplitudes finite",
     )
-    reverse_indices: Int[Array, " n_hop"] = _reverse_hopping_indices(model)
-    reverse_amplitudes: Complex[Array, " n_hop"] = amplitudes[reverse_indices]
+    reverse_indices: Int32[Array, " n_hop"] = _reverse_hopping_indices(model)
+    reverse_amplitudes: Complex128[Array, " n_hop"] = amplitudes[
+        reverse_indices
+    ]
     amplitudes = eqx.error_if(
         amplitudes,
         ~jnp.all(jnp.abs(reverse_amplitudes - jnp.conj(amplitudes)) <= EPS),
@@ -84,9 +83,9 @@ def _validated_hopping_amplitudes(
 
 def _assemble_bloch_hamiltonian(
     model: TBModel,
-    k: Float[Array, " 3"],
-    amplitudes: Complex[Array, " n_hop"],
-) -> Complex[Array, "n_orb n_orb"]:
+    k: Float64[Array, " 3"],
+    amplitudes: Complex128[Array, " n_hop"],
+) -> Complex128[Array, "n_orb n_orb"]:
     """Assemble one Hamiltonian from already validated amplitudes."""
     n_orbitals: int = model.onsite_energies.shape[0]
     if model.orbital_positions is None:
@@ -94,9 +93,9 @@ def _assemble_bloch_hamiltonian(
             model.basis.atom_indices,
             dtype=jnp.int32,
         )
-        orbital_positions: Float[Array, "n_orb 3"] = model.geometry.positions[
-            atom_indices
-        ]
+        orbital_positions: Float64[Array, "n_orb 3"] = (
+            model.geometry.positions[atom_indices]
+        )
     else:
         orbital_positions = eqx.error_if(
             model.orbital_positions,
@@ -113,10 +112,10 @@ def _assemble_bloch_hamiltonian(
     ).reshape((-1, 3))
     source: Int32[Array, " n_hop"] = pairs[:, 0]
     target: Int32[Array, " n_hop"] = pairs[:, 1]
-    displacements: Float[Array, "n_hop 3"] = (
+    displacements: Float64[Array, "n_hop 3"] = (
         cells + orbital_positions[target] - orbital_positions[source]
     )
-    phases: Complex[Array, " n_hop"] = jnp.exp(
+    phases: Complex128[Array, " n_hop"] = jnp.exp(
         2j * jnp.pi * (displacements @ k)
     )
     flat_indices: Int32[Array, " n_hop"] = source * n_orbitals + target
@@ -164,8 +163,8 @@ def _assemble_bloch_hamiltonian(
 @jaxtyped(typechecker=beartype)
 def bloch_hamiltonian(  # noqa: DOC502
     model: TBModel,
-    k: Float[Array, " 3"],
-) -> Complex[Array, "n_orb n_orb"]:
+    k: Float64[Array, " 3"],
+) -> Complex128[Array, "n_orb n_orb"]:
     r"""Assemble one basis-position-gauge Bloch Hamiltonian.
 
     The phase of hopping record ``(i, j, R)`` is
@@ -181,12 +180,12 @@ def bloch_hamiltonian(  # noqa: DOC502
     model : TBModel
         Validated tight-binding model. Static connectivity changes trigger
         retracing.
-    k : Float[Array, " 3"]
+    k : Float64[Array, " 3"]
         Fractional reciprocal-space k-point.
 
     Returns
     -------
-    hamiltonian : Complex[Array, "n_orb n_orb"]
+    hamiltonian : Complex128[Array, "n_orb n_orb"]
         Complex Hermitian Bloch Hamiltonian in eV.
 
     Raises
@@ -205,9 +204,11 @@ def bloch_hamiltonian(  # noqa: DOC502
     represent the complete Hamiltonian dimension; ``spinor=True`` never
     doubles it again.
     """
-    amplitudes: Complex[Array, " n_hop"] = _validated_hopping_amplitudes(model)
-    hamiltonian: Complex[Array, "n_orb n_orb"] = _assemble_bloch_hamiltonian(
-        model, k, amplitudes
+    amplitudes: Complex128[Array, " n_hop"] = _validated_hopping_amplitudes(
+        model
+    )
+    hamiltonian: Complex128[Array, "n_orb n_orb"] = (
+        _assemble_bloch_hamiltonian(model, k, amplitudes)
     )
     return hamiltonian  # noqa: RET504 -- assign-before-return is required.
 
@@ -215,8 +216,8 @@ def bloch_hamiltonian(  # noqa: DOC502
 @jaxtyped(typechecker=beartype)
 def bloch_hamiltonian_batch(  # noqa: DOC502
     model: TBModel,
-    kpoints: Float[Array, "n_k 3"],
-) -> Complex[Array, "n_k n_orb n_orb"]:
+    kpoints: Float64[Array, "n_k 3"],
+) -> Complex128[Array, "n_k n_orb n_orb"]:
     """Assemble Bloch Hamiltonians for a batch of fractional k-points.
 
     The function maps the single-point assembler over the leading k-point
@@ -229,12 +230,12 @@ def bloch_hamiltonian_batch(  # noqa: DOC502
     model : TBModel
         Validated tight-binding model. Static connectivity changes trigger
         retracing.
-    kpoints : Float[Array, "n_k 3"]
+    kpoints : Float64[Array, "n_k 3"]
         Fractional reciprocal-space k-points.
 
     Returns
     -------
-    hamiltonians : Complex[Array, "n_k n_orb n_orb"]
+    hamiltonians : Complex128[Array, "n_k n_orb n_orb"]
         Complex Hermitian Bloch Hamiltonians in eV.
 
     Raises
@@ -249,8 +250,10 @@ def bloch_hamiltonian_batch(  # noqa: DOC502
     :func:`jax.vmap` traces one assembler and broadcasts the shared model over
     all supplied fractional k-points.
     """
-    amplitudes: Complex[Array, " n_hop"] = _validated_hopping_amplitudes(model)
-    hamiltonians: Complex[Array, "n_k n_orb n_orb"] = jax.vmap(
+    amplitudes: Complex128[Array, " n_hop"] = _validated_hopping_amplitudes(
+        model
+    )
+    hamiltonians: Complex128[Array, "n_k n_orb n_orb"] = jax.vmap(
         lambda point: _assemble_bloch_hamiltonian(model, point, amplitudes)
     )(kpoints)
     return hamiltonians

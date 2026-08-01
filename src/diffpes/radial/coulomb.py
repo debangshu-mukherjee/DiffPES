@@ -35,7 +35,7 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from jax import lax
-from jaxtyping import Array, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import FinalStateSpec
 
@@ -1137,7 +1137,7 @@ def _normalized_coulomb_rows_jvp(
 @jaxtyped(typechecker=beartype)
 def coulomb_phase_shift(  # noqa: DOC502
     order: int,
-    eta: Float[Array, " ..."],
+    eta: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
     r"""Evaluate the continuous Coulomb arg-Gamma phase.
 
@@ -1150,7 +1150,7 @@ def coulomb_phase_shift(  # noqa: DOC502
     ----------
     order : int
         Static angular momentum from zero through five.
-    eta : Float[Array, " ..."]
+    eta : Float64[Array, " ..."]
         Dimensionless Sommerfeld parameter.
 
     Returns
@@ -1184,8 +1184,8 @@ def coulomb_phase_shift(  # noqa: DOC502
 @jaxtyped(typechecker=beartype)
 def coulomb_fg(  # noqa: DOC503
     order: int,
-    eta: Float[Array, " ..."],
-    rho: Float[Array, " ..."],
+    eta: Float64[Array, " ..."],
+    rho: Float64[Array, " ..."],
 ) -> tuple[
     Float64[Array, " ..."],
     Float64[Array, " ..."],
@@ -1203,9 +1203,9 @@ def coulomb_fg(  # noqa: DOC503
     ----------
     order : int
         Static angular momentum from zero through five.
-    eta : Float[Array, " ..."]
+    eta : Float64[Array, " ..."]
         Dimensionless Sommerfeld parameter.
-    rho : Float[Array, " ..."]
+    rho : Float64[Array, " ..."]
         Strictly positive dimensionless radius.
 
     Returns
@@ -1275,8 +1275,8 @@ def coulomb_fg(  # noqa: DOC503
 @jaxtyped(typechecker=beartype)
 def final_state_radial(  # noqa: DOC503
     order: int,
-    k_bohr_inv: Float[Array, " ..."],
-    r_bohr: Float[Array, " n_r"],
+    k_bohr_inv: Float64[Array, " ..."],
+    r_bohr: Float64[Array, " n_r"],
     spec: FinalStateSpec,
 ) -> Complex128[Array, "... n_r"]:
     """Evaluate a plane-wave or Coulomb final-state radial row.
@@ -1291,9 +1291,9 @@ def final_state_radial(  # noqa: DOC503
     ----------
     order : int
         Static final-state angular momentum.
-    k_bohr_inv : Float[Array, " ..."]
+    k_bohr_inv : Float64[Array, " ..."]
         Momentum in inverse Bohr.
-    r_bohr : Float[Array, " n_r"]
+    r_bohr : Float64[Array, " n_r"]
         Nonnegative radii in Bohr.
     spec : FinalStateSpec
         Validated final-state selection.

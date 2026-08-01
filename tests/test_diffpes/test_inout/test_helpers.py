@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 import diffpes
 from diffpes.inout import (
@@ -45,7 +45,9 @@ def _make_test_orb() -> OrbitalProjection:
         PyTree with ``projections`` of shape (2, 2, 3, 9) and no spin
         or OAM data.
     """
-    proj: Float[Array, "2 2 3 9"] = jnp.zeros((2, 2, 3, 9), dtype=jnp.float64)
+    proj: Float64[Array, "2 2 3 9"] = jnp.zeros(
+        (2, 2, 3, 9), dtype=jnp.float64
+    )
     proj = proj.at[:, :, 0, 0].set(1.0)
     proj = proj.at[:, :, 1, 0].set(2.0)
     proj = proj.at[:, :, 2, 0].set(3.0)

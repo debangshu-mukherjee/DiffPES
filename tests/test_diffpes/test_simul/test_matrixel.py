@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from jax.tree_util import PyTreeDef
-from jaxtyping import Array, Bool, Complex, Float
+from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
 
 from diffpes.maths import real_spherical_harmonics_all
@@ -100,7 +100,7 @@ def _matrix_params(
 def _packing_fixture() -> tuple[
     RadialSpec,
     MatrixElementParams,
-    Float[Array, ""],
+    Float64[Array, ""],
 ]:
     """Return a two-shell Slater packing fixture."""
     basis: OrbitalBasis = make_orbital_basis(
@@ -122,11 +122,11 @@ def _packing_fixture() -> tuple[
         sigma_shell=jnp.array([1.3, 0.7]),
         phase_shift_angles_shell=jnp.array([0.2, -0.4, 0.6]),
     )
-    mean_free_path: Float[Array, ""] = jnp.array(8.5)
+    mean_free_path: Float64[Array, ""] = jnp.array(8.5)
     fixture: tuple[
         RadialSpec,
         MatrixElementParams,
-        Float[Array, ""],
+        Float64[Array, ""],
     ] = (radial, params, mean_free_path)
     return fixture
 
@@ -140,7 +140,7 @@ def _isolated_group_bands(group_size: int) -> DiagonalizedBands:
         jnp.zeros((1, 3)),
         ("X",),
     )
-    eigenvalues: Float[Array, "1 n_bands"] = jnp.concatenate(
+    eigenvalues: Float64[Array, "1 n_bands"] = jnp.concatenate(
         (
             jnp.zeros((1, group_size)),
             2.0 * jnp.ones((1, 1)),
@@ -168,10 +168,10 @@ def _sensitivity_experiment() -> ExperimentGeometry:
 
 def _simple_bands(
     basis: OrbitalBasis,
-    atom_positions: Float[Array, "n_atom 3"],
+    atom_positions: Float64[Array, "n_atom 3"],
     *,
-    orbital_positions: Float[Array, "n_orb 3"] | None = None,
-    depths: Float[Array, " n_orb"] | None = None,
+    orbital_positions: Float64[Array, "n_orb 3"] | None = None,
+    depths: Float64[Array, " n_orb"] | None = None,
 ) -> DiagonalizedBands:
     """Return a one-k-point carrier on a unit real-space lattice."""
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -209,9 +209,9 @@ class TestPackMatrixelParams:
         """
         radial: RadialSpec
         params: MatrixElementParams
-        mean_free_path: Float[Array, ""]
+        mean_free_path: Float64[Array, ""]
         radial, params, mean_free_path = _packing_fixture()
-        flat: Float[Array, " n_theta"]
+        flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
         metadata: tuple[tuple[tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
@@ -236,7 +236,7 @@ class TestPackMatrixelParams:
         """
         radial: RadialSpec
         params: MatrixElementParams
-        mean_free_path: Float[Array, ""]
+        mean_free_path: Float64[Array, ""]
         radial, params, mean_free_path = _packing_fixture()
         first: RadialSpec = make_radial_spec(
             radial.basis,
@@ -250,12 +250,12 @@ class TestPackMatrixelParams:
             mode="fixed",
             fixed_integrals_shell=jnp.array([[0.0, 2.0], [0.8, 0.6]]),
         )
-        first_flat: Float[Array, " n_theta"] = pack_matrixel_params(
+        first_flat: Float64[Array, " n_theta"] = pack_matrixel_params(
             first,
             params,
             mean_free_path,
         )[0]
-        second_flat: Float[Array, " n_theta"] = pack_matrixel_params(
+        second_flat: Float64[Array, " n_theta"] = pack_matrixel_params(
             second,
             params,
             mean_free_path,
@@ -285,9 +285,9 @@ class TestUnpackMatrixelParams:
         """
         radial: RadialSpec
         params: MatrixElementParams
-        mean_free_path: Float[Array, ""]
+        mean_free_path: Float64[Array, ""]
         radial, params, mean_free_path = _packing_fixture()
-        flat: Float[Array, " n_theta"]
+        flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
         metadata: tuple[tuple[tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
@@ -297,7 +297,7 @@ class TestUnpackMatrixelParams:
         )
         rebuilt_radial: RadialSpec
         rebuilt_params: MatrixElementParams
-        rebuilt_mfp: Float[Array, ""]
+        rebuilt_mfp: Float64[Array, ""]
         rebuilt_radial, rebuilt_params, rebuilt_mfp = unpack_matrixel_params(
             flat,
             tree_definition,
@@ -327,9 +327,9 @@ class TestMatrixElementPhaseGaugeDirection:
         """
         radial: RadialSpec
         params: MatrixElementParams
-        mean_free_path: Float[Array, ""]
+        mean_free_path: Float64[Array, ""]
         radial, params, mean_free_path = _packing_fixture()
-        flat: Float[Array, " n_theta"]
+        flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
         metadata: tuple[tuple[tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
@@ -337,7 +337,7 @@ class TestMatrixElementPhaseGaugeDirection:
             params,
             mean_free_path,
         )
-        direction: Float[Array, " n_theta"] = (
+        direction: Float64[Array, " n_theta"] = (
             matrix_element_phase_gauge_direction(
                 radial,
                 params,
@@ -351,11 +351,13 @@ class TestMatrixElementPhaseGaugeDirection:
             atol=1e-14,
         )
 
-        def intensity(candidate: Float[Array, " n_theta"]) -> Float[Array, ""]:
+        def intensity(
+            candidate: Float64[Array, " n_theta"],
+        ) -> Float64[Array, ""]:
             """Return one coherent generic-complex orbital intensity."""
             rebuilt_radial: RadialSpec
             rebuilt_params: MatrixElementParams
-            rebuilt_mfp: Float[Array, ""]
+            rebuilt_mfp: Float64[Array, ""]
             rebuilt_radial, rebuilt_params, rebuilt_mfp = (
                 unpack_matrixel_params(
                     candidate,
@@ -366,7 +368,7 @@ class TestMatrixElementPhaseGaugeDirection:
                 )
             )
             del rebuilt_radial
-            bvals: Complex[Array, "1 4 2"] = jnp.array(
+            bvals: Complex128[Array, "1 4 2"] = jnp.array(
                 [
                     [
                         [0.0 + 0.0j, 0.7 + 0.2j],
@@ -376,24 +378,26 @@ class TestMatrixElementPhaseGaugeDirection:
                     ]
                 ]
             )
-            channels: Complex[Array, "1 1 4 3"] = orbital_transition_channels(
-                jnp.array([[0.1, -0.2, 0.0]]),
-                jnp.array([[0.3, 0.2, 1.1]]),
-                jnp.zeros((4, 3)),
-                jnp.zeros(4),
-                bvals,
-                rebuilt_params,
-                rebuilt_mfp,
-                params.basis,
+            channels: Complex128[Array, "1 1 4 3"] = (
+                orbital_transition_channels(
+                    jnp.array([[0.1, -0.2, 0.0]]),
+                    jnp.array([[0.3, 0.2, 1.1]]),
+                    jnp.zeros((4, 3)),
+                    jnp.zeros(4),
+                    bvals,
+                    rebuilt_params,
+                    rebuilt_mfp,
+                    params.basis,
+                )
             )
-            polarized: Complex[Array, "1 1 4"] = contract_polarization(
+            polarized: Complex128[Array, "1 1 4"] = contract_polarization(
                 channels,
                 jnp.array([0.2 + 0.3j, -0.4 + 0.1j, 0.7 - 0.2j]),
             )
-            result: Float[Array, ""] = jnp.abs(jnp.sum(polarized)) ** 2
+            result: Float64[Array, ""] = jnp.abs(jnp.sum(polarized)) ** 2
             return result
 
-        reference: Float[Array, ""] = intensity(flat)
+        reference: Float64[Array, ""] = intensity(flat)
         alpha: float
         for alpha in (-2.0, -0.3, 0.8, 2.4):
             chex.assert_trees_all_close(
@@ -402,7 +406,7 @@ class TestMatrixElementPhaseGaugeDirection:
                 rtol=1e-13,
                 atol=1e-13,
             )
-        derivative: Float[Array, ""] = jax.jvp(
+        derivative: Float64[Array, ""] = jax.jvp(
             intensity,
             (flat,),
             (direction,),
@@ -432,9 +436,9 @@ class TestRadialCoefficientScaleGaugeDirections:
         """
         radial: RadialSpec
         params: MatrixElementParams
-        mean_free_path: Float[Array, ""]
+        mean_free_path: Float64[Array, ""]
         radial, params, mean_free_path = _packing_fixture()
-        flat: Float[Array, " n_theta"]
+        flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
         metadata: tuple[tuple[tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
@@ -442,7 +446,7 @@ class TestRadialCoefficientScaleGaugeDirections:
             params,
             mean_free_path,
         )
-        directions: Float[Array, "n_gauge n_theta"] = (
+        directions: Float64[Array, "n_gauge n_theta"] = (
             radial_coefficient_scale_gauge_directions(
                 radial,
                 params,
@@ -458,8 +462,8 @@ class TestRadialCoefficientScaleGaugeDirections:
         )
 
         def radial_values(
-            candidate: Float[Array, " n_theta"],
-        ) -> Float[Array, "n_orb n_r"]:
+            candidate: Float64[Array, " n_theta"],
+        ) -> Float64[Array, "n_orb n_r"]:
             """Return normalized orbital radial rows."""
             rebuilt: RadialSpec = unpack_matrixel_params(
                 candidate,
@@ -468,15 +472,15 @@ class TestRadialCoefficientScaleGaugeDirections:
                 radial,
                 params,
             )[0]
-            values: Float[Array, "n_orb n_r"] = evaluate_radial(
+            values: Float64[Array, "n_orb n_r"] = evaluate_radial(
                 rebuilt,
                 jnp.linspace(0.01, 5.0, 41),
             )
             return values
 
-        direction: Float[Array, " n_theta"]
+        direction: Float64[Array, " n_theta"]
         for direction in directions:
-            derivative: Float[Array, "n_orb n_r"] = jax.jvp(
+            derivative: Float64[Array, "n_orb n_r"] = jax.jvp(
                 radial_values,
                 (flat,),
                 (direction,),
@@ -497,20 +501,20 @@ class TestBandGroupWeightSensitivity:
 
     @staticmethod
     def _rebuild(
-        candidate: Float[Array, " n_theta"],
+        candidate: Float64[Array, " n_theta"],
         bands: DiagonalizedBands,
         experiment: ExperimentGeometry,
-    ) -> Complex[Array, "n_k n_bands 2"]:
+    ) -> Complex128[Array, "n_k n_bands 2"]:
         """Build generic complex two-spin amplitudes from orbital rows."""
         del experiment
         n_orbitals: int = bands.eigenvectors.shape[-1]
-        index: Float[Array, " n_orb"] = jnp.arange(
+        index: Float64[Array, " n_orb"] = jnp.arange(
             1,
             n_orbitals + 1,
             dtype=jnp.float64,
         )
-        base: Complex[Array, " n_orb"] = index * (0.3 + 0.2j) + (0.1 - 0.4j)
-        orbital_rows: Complex[Array, "n_orb 2"] = jnp.stack(
+        base: Complex128[Array, " n_orb"] = index * (0.3 + 0.2j) + (0.1 - 0.4j)
+        orbital_rows: Complex128[Array, "n_orb 2"] = jnp.stack(
             (
                 (1.0 + candidate[0]) * base + candidate[1] * jnp.conj(base),
                 (0.4 - 0.3 * candidate[0]) * jnp.conj(base)
@@ -518,7 +522,7 @@ class TestBandGroupWeightSensitivity:
             ),
             axis=-1,
         )
-        amplitudes: Complex[Array, "n_k n_bands 2"] = jnp.einsum(
+        amplitudes: Complex128[Array, "n_k n_bands 2"] = jnp.einsum(
             "kbo,os->kbs",
             bands.eigenvectors,
             orbital_rows,
@@ -540,10 +544,10 @@ class TestBandGroupWeightSensitivity:
         """
         bands: DiagonalizedBands = _isolated_group_bands(group_size)
         experiment: ExperimentGeometry = _sensitivity_experiment()
-        flat: Float[Array, " 2"] = jnp.array([0.2, -0.15])
+        flat: Float64[Array, " 2"] = jnp.array([0.2, -0.15])
         group: tuple[int, ...] = tuple(range(group_size))
-        weights: Float[Array, "1 1"]
-        jacobian: Float[Array, "2 1 1"]
+        weights: Float64[Array, "1 1"]
+        jacobian: Float64[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
             flat,
             self._rebuild,
@@ -551,7 +555,7 @@ class TestBandGroupWeightSensitivity:
             experiment,
             (group,),
         )
-        unitary: Complex[Array, "n_group n_group"]
+        unitary: Complex128[Array, "n_group n_group"]
         if group_size == 2:
             angle: float = 0.61
             unitary = jnp.array(
@@ -562,7 +566,7 @@ class TestBandGroupWeightSensitivity:
                 dtype=jnp.complex128,
             )
         else:
-            root: Complex[Array, ""] = jnp.exp(2.0j * jnp.pi / 3.0)
+            root: Complex128[Array, ""] = jnp.exp(2.0j * jnp.pi / 3.0)
             unitary = jnp.array(
                 [
                     [1.0, 1.0, 1.0],
@@ -571,7 +575,7 @@ class TestBandGroupWeightSensitivity:
                 ],
                 dtype=jnp.complex128,
             ) / math.sqrt(3.0)
-        rotated_eigenvectors: Complex[Array, "1 n_bands n_orb"] = (
+        rotated_eigenvectors: Complex128[Array, "1 n_bands n_orb"] = (
             bands.eigenvectors.at[0, :group_size].set(
                 unitary @ bands.eigenvectors[0, :group_size]
             )
@@ -581,8 +585,8 @@ class TestBandGroupWeightSensitivity:
             bands,
             rotated_eigenvectors,
         )
-        rotated_weights: Float[Array, "1 1"]
-        rotated_jacobian: Float[Array, "2 1 1"]
+        rotated_weights: Float64[Array, "1 1"]
+        rotated_jacobian: Float64[Array, "2 1 1"]
         rotated_weights, rotated_jacobian = band_group_weight_sensitivity(
             flat,
             self._rebuild,
@@ -590,11 +594,15 @@ class TestBandGroupWeightSensitivity:
             experiment,
             (group,),
         )
-        original_members: Float[Array, "1 n_group"] = matrix_element_intensity(
-            self._rebuild(flat, bands, experiment)[:, :group_size]
+        original_members: Float64[Array, "1 n_group"] = (
+            matrix_element_intensity(
+                self._rebuild(flat, bands, experiment)[:, :group_size]
+            )
         )
-        rotated_members: Float[Array, "1 n_group"] = matrix_element_intensity(
-            self._rebuild(flat, rotated_bands, experiment)[:, :group_size]
+        rotated_members: Float64[Array, "1 n_group"] = (
+            matrix_element_intensity(
+                self._rebuild(flat, rotated_bands, experiment)[:, :group_size]
+            )
         )
         assert not jnp.allclose(original_members, rotated_members)
         chex.assert_trees_all_close(
@@ -622,11 +630,13 @@ class TestBandGroupWeightSensitivity:
         """
         bands: DiagonalizedBands = _isolated_group_bands(2)
         experiment: ExperimentGeometry = _sensitivity_experiment()
-        flat: Float[Array, " 2"] = jnp.array([0.13, -0.21])
+        flat: Float64[Array, " 2"] = jnp.array([0.13, -0.21])
 
-        def group_weight(candidate: Float[Array, " 2"]) -> Float[Array, ""]:
+        def group_weight(
+            candidate: Float64[Array, " 2"],
+        ) -> Float64[Array, ""]:
             """Return the complete isolated-group weight."""
-            candidate_weights: Float[Array, "1 1"] = (
+            candidate_weights: Float64[Array, "1 1"] = (
                 band_group_weight_sensitivity(
                     candidate,
                     self._rebuild,
@@ -644,8 +654,8 @@ class TestBandGroupWeightSensitivity:
             modes=("fwd", "rev"),
             elementwise=True,
         )
-        weights: Float[Array, "1 1"]
-        jacobian: Float[Array, "2 1 1"]
+        weights: Float64[Array, "1 1"]
+        jacobian: Float64[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
             flat,
             self._rebuild,
@@ -673,7 +683,7 @@ class TestBandGroupWeightSensitivity:
                 experiment,
                 ((0,),),
             )
-        close_eigenvalues: Float[Array, "1 3"] = bands.eigenvalues.at[
+        close_eigenvalues: Float64[Array, "1 3"] = bands.eigenvalues.at[
             0, 2
         ].set(0.5e-6)
         nonisolated: DiagonalizedBands = eqx.tree_at(
@@ -704,20 +714,20 @@ class TestBandGroupWeightSensitivity:
         experiment: ExperimentGeometry = _sensitivity_experiment()
 
         def dark_rebuild(
-            candidate: Float[Array, " 2"],
+            candidate: Float64[Array, " 2"],
             candidate_bands: DiagonalizedBands,
             candidate_experiment: ExperimentGeometry,
-        ) -> Complex[Array, "1 2 1"]:
+        ) -> Complex128[Array, "1 2 1"]:
             """Build one dark band and one inert complement amplitude."""
             del candidate_bands, candidate_experiment
-            amplitudes: Complex[Array, "1 2 1"] = jnp.array(
+            amplitudes: Complex128[Array, "1 2 1"] = jnp.array(
                 [[[candidate[0] + 1j * candidate[1]], [0.0 + 0.0j]]]
             )
             return amplitudes
 
-        def dark_weight(candidate: Float[Array, " 2"]) -> Float[Array, ""]:
+        def dark_weight(candidate: Float64[Array, " 2"]) -> Float64[Array, ""]:
             """Return the manufactured complete-group corridor weight."""
-            candidate_weights: Float[Array, "1 1"] = (
+            candidate_weights: Float64[Array, "1 1"] = (
                 band_group_weight_sensitivity(
                     candidate,
                     dark_rebuild,
@@ -728,15 +738,15 @@ class TestBandGroupWeightSensitivity:
             )
             return candidate_weights[0, 0]
 
-        dark: Float[Array, " 2"] = jnp.zeros(2)
+        dark: Float64[Array, " 2"] = jnp.zeros(2)
         assert_grad_matches_fd(
             dark_weight,
             dark,
             regime="smooth",
             modes=("fwd", "rev"),
         )
-        weights: Float[Array, "1 1"]
-        jacobian: Float[Array, "2 1 1"]
+        weights: Float64[Array, "1 1"]
+        jacobian: Float64[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
             dark,
             dark_rebuild,
@@ -747,7 +757,7 @@ class TestBandGroupWeightSensitivity:
         chex.assert_trees_all_close(weights, jnp.zeros((1, 1)))
         chex.assert_trees_all_close(jacobian, jnp.zeros((2, 1, 1)))
         chex.assert_tree_all_finite(jacobian)
-        dark_log_jacobian: Float[Array, "2 1 1"]
+        dark_log_jacobian: Float64[Array, "2 1 1"]
         dark_valid: Bool[Array, "1 1"]
         dark_log_jacobian, dark_valid = log_band_group_weight_sensitivity(
             weights,
@@ -760,7 +770,7 @@ class TestBandGroupWeightSensitivity:
             jnp.zeros((2, 1, 1)),
         )
 
-        positive: Float[Array, " 2"] = jnp.array([0.2, -0.15])
+        positive: Float64[Array, " 2"] = jnp.array([0.2, -0.15])
         gradient_gate(
             dark_weight,
             positive,
@@ -768,8 +778,8 @@ class TestBandGroupWeightSensitivity:
             modes=("fwd", "rev"),
             elementwise=True,
         )
-        positive_weights: Float[Array, "1 1"]
-        positive_jacobian: Float[Array, "2 1 1"]
+        positive_weights: Float64[Array, "1 1"]
+        positive_jacobian: Float64[Array, "2 1 1"]
         positive_weights, positive_jacobian = band_group_weight_sensitivity(
             positive,
             dark_rebuild,
@@ -777,7 +787,7 @@ class TestBandGroupWeightSensitivity:
             experiment,
             ((0,),),
         )
-        positive_log_jacobian: Float[Array, "2 1 1"]
+        positive_log_jacobian: Float64[Array, "2 1 1"]
         positive_valid: Bool[Array, "1 1"]
         positive_log_jacobian, positive_valid = (
             log_band_group_weight_sensitivity(
@@ -812,9 +822,9 @@ class TestLogBandGroupWeightSensitivity:
         -----
         Supply analytic weights and Jacobians and compare every returned entry.
         """
-        weights: Float[Array, " 2"] = jnp.array([0.0, 0.05])
-        jacobian: Float[Array, "2 2"] = jnp.array([[0.0, 0.4], [0.0, -0.2]])
-        log_jacobian: Float[Array, "2 2"]
+        weights: Float64[Array, " 2"] = jnp.array([0.0, 0.05])
+        jacobian: Float64[Array, "2 2"] = jnp.array([[0.0, 0.4], [0.0, -0.2]])
+        log_jacobian: Float64[Array, "2 2"]
         valid: Bool[Array, " 2"]
         log_jacobian, valid = log_band_group_weight_sensitivity(
             weights,
@@ -853,7 +863,7 @@ class TestResolveOrbitalPositionsCart:
             jnp.array([[0.1, 0.2, 0.3], [0.6, 0.4, 0.2]]),
             ("A", "B"),
         )
-        explicit: Float[Array, "2 3"] = jnp.array(
+        explicit: Float64[Array, "2 3"] = jnp.array(
             [[0.17, 0.11, 0.07], [0.55, 0.45, 0.25]]
         )
         bands: DiagonalizedBands = make_diagonalized_bands(
@@ -864,7 +874,7 @@ class TestResolveOrbitalPositionsCart:
             basis,
             orbital_positions=explicit,
         )
-        actual: Float[Array, "2 3"] = resolve_orbital_positions_cart(bands)
+        actual: Float64[Array, "2 3"] = resolve_orbital_positions_cart(bands)
         chex.assert_trees_all_close(
             actual,
             explicit @ geometry.lattice,
@@ -890,7 +900,7 @@ class TestResolveOrbitalPositionsCart:
             basis,
             jnp.array([[0.1, 0.2, 0.3], [0.7, 0.5, 0.4]]),
         )
-        expected: Float[Array, "2 3"] = bands.geometry.positions[
+        expected: Float64[Array, "2 3"] = bands.geometry.positions[
             jnp.array([1, 0])
         ]
         chex.assert_trees_all_close(
@@ -916,16 +926,16 @@ class TestRealSphericalHarmonicsCartesianAll:
         -----
         Convert the direction to angles only inside the independent reference.
         """
-        direction: Float[Array, " 3"] = jnp.array([0.3, -0.4, 0.8])
+        direction: Float64[Array, " 3"] = jnp.array([0.3, -0.4, 0.8])
         direction = direction / jnp.linalg.norm(direction)
-        theta: Float[Array, ""] = jnp.arccos(direction[2])
-        phi: Float[Array, ""] = jnp.arctan2(direction[1], direction[0])
-        expected: Float[Array, " 36"] = real_spherical_harmonics_all(
+        theta: Float64[Array, ""] = jnp.arccos(direction[2])
+        phi: Float64[Array, ""] = jnp.arctan2(direction[1], direction[0])
+        expected: Float64[Array, " 36"] = real_spherical_harmonics_all(
             5,
             theta,
             phi,
         )
-        actual: Float[Array, " 36"] = real_spherical_harmonics_cartesian_all(
+        actual: Float64[Array, " 36"] = real_spherical_harmonics_cartesian_all(
             direction, 5
         )
         chex.assert_trees_all_close(actual, expected, rtol=1e-14, atol=1e-14)
@@ -939,11 +949,11 @@ class TestRealSphericalHarmonicsCartesianAll:
         -----
         Compare analytic parity values and the real p-orbital Cartesian slopes.
         """
-        poles: Float[Array, "2 3"] = jnp.array(
+        poles: Float64[Array, "2 3"] = jnp.array(
             [[0.0, 0.0, 1.0], [0.0, 0.0, -1.0]]
         )
-        actual: Float[Array, "2 36"] = real_spherical_harmonics_cartesian_all(
-            poles, 5
+        actual: Float64[Array, "2 36"] = (
+            real_spherical_harmonics_cartesian_all(poles, 5)
         )
         degree: int
         for degree in range(6):
@@ -960,20 +970,22 @@ class TestRealSphericalHarmonicsCartesianAll:
         )
         chex.assert_trees_all_close(off_axis, jnp.zeros_like(off_axis))
 
-        def p_harmonics(transverse: Float[Array, " 2"]) -> Float[Array, " 2"]:
+        def p_harmonics(
+            transverse: Float64[Array, " 2"],
+        ) -> Float64[Array, " 2"]:
             """Return the real p_y and p_x rows near the north pole."""
-            vector: Float[Array, " 3"] = jnp.array(
+            vector: Float64[Array, " 3"] = jnp.array(
                 [transverse[0], transverse[1], 1.0]
             )
-            values: Float[Array, " 4"] = (
+            values: Float64[Array, " 4"] = (
                 real_spherical_harmonics_cartesian_all(vector, 1)
             )
-            result: Float[Array, " 2"] = values[jnp.asarray([1, 3])]
+            result: Float64[Array, " 2"] = values[jnp.asarray([1, 3])]
             return result
 
-        jacobian: Float[Array, "2 2"] = jax.jacfwd(p_harmonics)(jnp.zeros(2))
+        jacobian: Float64[Array, "2 2"] = jax.jacfwd(p_harmonics)(jnp.zeros(2))
         normalization: float = math.sqrt(3.0 / (4.0 * math.pi))
-        expected_jacobian: Float[Array, "2 2"] = jnp.array(
+        expected_jacobian: Float64[Array, "2 2"] = jnp.array(
             [[0.0, normalization], [normalization, 0.0]]
         )
         chex.assert_trees_all_close(
@@ -992,10 +1004,10 @@ class TestRealSphericalHarmonicsCartesianAll:
         -----
         Compile two nonzero rows and call the eager boundary with zero.
         """
-        directions: Float[Array, "2 3"] = jnp.array(
+        directions: Float64[Array, "2 3"] = jnp.array(
             [[1.0, 0.0, 1.0], [0.0, -2.0, 1.0]]
         )
-        actual: Float[Array, "2 16"] = jax.jit(
+        actual: Float64[Array, "2 16"] = jax.jit(
             lambda values: real_spherical_harmonics_cartesian_all(values, 3)
         )(directions)
         chex.assert_shape(actual, (2, 16))
@@ -1022,15 +1034,15 @@ class TestOrbitalTransitionChannels:
         basis: OrbitalBasis = _s_basis((0, 1))
         params: MatrixElementParams = _matrix_params(basis, (0, 1))
         separation: float = 1.7
-        positions: Float[Array, "2 3"] = jnp.array(
+        positions: Float64[Array, "2 3"] = jnp.array(
             [[-separation / 2.0, 0.0, 0.0], [separation / 2.0, 0.0, 0.0]]
         )
-        initial: Float[Array, "1 3"] = jnp.array([[0.63, 0.0, 0.0]])
-        final: Float[Array, "1 3"] = jnp.array([[0.0, 0.0, 1.2]])
-        bvals: Complex[Array, "1 2 2"] = jnp.array(
+        initial: Float64[Array, "1 3"] = jnp.array([[0.63, 0.0, 0.0]])
+        final: Float64[Array, "1 3"] = jnp.array([[0.0, 0.0, 1.2]])
+        bvals: Complex128[Array, "1 2 2"] = jnp.array(
             [[[0.0 + 0.0j, 0.2 + 1.1j], [0.0 + 0.0j, 0.2 + 1.1j]]]
         )
-        channels: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
+        channels: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
             initial,
             final,
             positions,
@@ -1040,18 +1052,18 @@ class TestOrbitalTransitionChannels:
             jnp.array(9.0),
             basis,
         )
-        amplitude: Complex[Array, ""] = jnp.sum(
+        amplitude: Complex128[Array, ""] = jnp.sum(
             contract_polarization(
                 channels,
                 jnp.array([0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j]),
             )
         )
-        atomic_amplitude: Complex[Array, ""] = contract_polarization(
+        atomic_amplitude: Complex128[Array, ""] = contract_polarization(
             channels[:, :, :1, :],
             jnp.array([0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j]),
         )[0, 0, 0]
         phase_argument: float = 0.63 * separation / 2.0
-        expected_intensity: Float[Array, ""] = (
+        expected_intensity: Float64[Array, ""] = (
             4.0
             * math.cos(phase_argument) ** 2
             * jnp.abs(atomic_amplitude) ** 2
@@ -1063,8 +1075,8 @@ class TestOrbitalTransitionChannels:
             atol=1e-14,
         )
 
-        translation: Float[Array, " 3"] = jnp.array([0.21, -0.14, 0.08])
-        translated: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
+        translation: Float64[Array, " 3"] = jnp.array([0.21, -0.14, 0.08])
+        translated: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
             initial,
             final,
             positions + translation,
@@ -1074,7 +1086,7 @@ class TestOrbitalTransitionChannels:
             jnp.array(9.0),
             basis,
         )
-        expected_phase: Complex[Array, ""] = jnp.exp(
+        expected_phase: Complex128[Array, ""] = jnp.exp(
             1j * jnp.dot(initial[0] - final[0], translation)
         )
         chex.assert_trees_all_close(
@@ -1100,10 +1112,10 @@ class TestOrbitalTransitionChannels:
         separation: float = 1.7
         valley_phase: float = 2.0 * math.pi / 3.0
         valley_momentum: float = valley_phase / separation
-        positions: Float[Array, "2 3"] = jnp.asarray(
+        positions: Float64[Array, "2 3"] = jnp.asarray(
             ((0.0, 0.0, 0.0), (separation, 0.0, 0.0))
         )
-        initial_momenta: Float[Array, "4 3"] = jnp.asarray(
+        initial_momenta: Float64[Array, "4 3"] = jnp.asarray(
             (
                 (0.0, 0.0, 0.0),
                 (math.pi / separation, 0.0, 0.0),
@@ -1111,15 +1123,15 @@ class TestOrbitalTransitionChannels:
                 (-valley_momentum, 0.0, 0.0),
             )
         )
-        final_momenta: Float[Array, "4 3"] = jnp.broadcast_to(
+        final_momenta: Float64[Array, "4 3"] = jnp.broadcast_to(
             jnp.asarray((0.0, 0.0, 1.2)),
             (4, 3),
         )
-        radial_values: Complex[Array, "4 2 2"] = jnp.broadcast_to(
+        radial_values: Complex128[Array, "4 2 2"] = jnp.broadcast_to(
             jnp.asarray(((0.0j, 1.0j), (0.0j, 1.0j))),
             (4, 2, 2),
         )
-        channels: Complex[Array, "4 1 2 3"] = orbital_transition_channels(
+        channels: Complex128[Array, "4 1 2 3"] = orbital_transition_channels(
             initial_momenta,
             final_momenta,
             positions,
@@ -1129,18 +1141,18 @@ class TestOrbitalTransitionChannels:
             jnp.asarray(9.0),
             basis,
         )
-        polarization: Complex[Array, " 3"] = jnp.asarray(
+        polarization: Complex128[Array, " 3"] = jnp.asarray(
             (0.0j, 0.0j, 1.0 + 0.0j)
         )
-        orbital_amplitudes: Complex[Array, "4 2"] = contract_polarization(
+        orbital_amplitudes: Complex128[Array, "4 2"] = contract_polarization(
             channels,
             polarization,
         )[:, 0, :]
-        atomic_intensity: Float[Array, ""] = (
+        atomic_intensity: Float64[Array, ""] = (
             jnp.abs(orbital_amplitudes[0, 0]) ** 2
         )
-        gamma_amplitude: Complex[Array, ""] = jnp.sum(orbital_amplitudes[0])
-        destructive_amplitude: Complex[Array, ""] = jnp.sum(
+        gamma_amplitude: Complex128[Array, ""] = jnp.sum(orbital_amplitudes[0])
+        destructive_amplitude: Complex128[Array, ""] = jnp.sum(
             orbital_amplitudes[1]
         )
         chex.assert_trees_all_close(
@@ -1156,10 +1168,10 @@ class TestOrbitalTransitionChannels:
             atol=1.0e-14,
         )
 
-        plus_phase: Complex[Array, ""] = jnp.exp(
+        plus_phase: Complex128[Array, ""] = jnp.exp(
             1j * jnp.asarray(valley_phase)
         )
-        minus_phase: Complex[Array, ""] = jnp.conj(plus_phase)
+        minus_phase: Complex128[Array, ""] = jnp.conj(plus_phase)
         chex.assert_trees_all_close(
             orbital_amplitudes[2, 1] / orbital_amplitudes[2, 0],
             plus_phase,
@@ -1172,7 +1184,7 @@ class TestOrbitalTransitionChannels:
             rtol=1.0e-14,
             atol=1.0e-14,
         )
-        valley_eigenvectors: Complex[Array, "2 2 2"] = jnp.asarray(
+        valley_eigenvectors: Complex128[Array, "2 2 2"] = jnp.asarray(
             (
                 (
                     (1.0, -jnp.conj(plus_phase)),
@@ -1184,11 +1196,11 @@ class TestOrbitalTransitionChannels:
                 ),
             )
         ) / math.sqrt(2.0)
-        valley_channels: Complex[Array, "2 2 1 3"] = project_band_channels(
+        valley_channels: Complex128[Array, "2 2 1 3"] = project_band_channels(
             channels[2:],
             valley_eigenvectors,
         )
-        valley_amplitudes: Complex[Array, "2 2"] = contract_polarization(
+        valley_amplitudes: Complex128[Array, "2 2"] = contract_polarization(
             valley_channels,
             polarization,
         )[:, :, 0]
@@ -1217,19 +1229,19 @@ class TestOrbitalTransitionChannels:
         basis: OrbitalBasis = _s_basis((0, 1))
         params: MatrixElementParams = _matrix_params(basis, (0, 1))
         depth: float = 4.5
-        mean_free_path: Float[Array, ""] = jnp.array(8.0)
+        mean_free_path: Float64[Array, ""] = jnp.array(8.0)
         common_arguments: tuple[Array, ...] = (
             jnp.zeros((1, 3)),
             jnp.array([[0.0, 0.0, 1.0]]),
             jnp.zeros((2, 3)),
         )
-        radial: Complex[Array, "1 2 2"] = jnp.array(
+        radial: Complex128[Array, "1 2 2"] = jnp.array(
             [[[0.0 + 0.0j, 1.0j], [0.0 + 0.0j, 1.0j]]]
         )
 
-        def layer_intensity(mfp: Float[Array, ""]) -> Float[Array, ""]:
+        def layer_intensity(mfp: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return the isolated deep-layer intensity."""
-            transition: Complex[Array, "1 1 2 3"] = (
+            transition: Complex128[Array, "1 1 2 3"] = (
                 orbital_transition_channels(
                     *common_arguments,
                     jnp.array([-0.5e-12, depth]),
@@ -1239,12 +1251,12 @@ class TestOrbitalTransitionChannels:
                     basis,
                 )
             )
-            result: Float[Array, ""] = jnp.sum(
+            result: Float64[Array, ""] = jnp.sum(
                 jnp.abs(transition[0, 0, 1]) ** 2
             )
             return result
 
-        channels: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
+        channels: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
             *common_arguments,
             jnp.array([-0.5e-12, depth]),
             radial,
@@ -1252,7 +1264,7 @@ class TestOrbitalTransitionChannels:
             mean_free_path,
             basis,
         )
-        intensities: Float[Array, " 2"] = jnp.sum(
+        intensities: Float64[Array, " 2"] = jnp.sum(
             jnp.abs(channels[0, 0]) ** 2,
             axis=-1,
         )
@@ -1262,10 +1274,10 @@ class TestOrbitalTransitionChannels:
             rtol=1e-14,
             atol=1e-14,
         )
-        actual_gradient: Float[Array, ""] = jax.grad(layer_intensity)(
+        actual_gradient: Float64[Array, ""] = jax.grad(layer_intensity)(
             mean_free_path
         )
-        expected_gradient: Float[Array, ""] = (
+        expected_gradient: Float64[Array, ""] = (
             layer_intensity(mean_free_path) * depth / mean_free_path**2
         )
         chex.assert_trees_all_close(
@@ -1293,16 +1305,16 @@ class TestContractPolarization:
         -----
         Compute the expected direct matrix-vector product in real-channel order.
         """
-        channels: Complex[Array, "2 3"] = jnp.array(
+        channels: Complex128[Array, "2 3"] = jnp.array(
             [[1.0 + 2.0j, -0.3 + 0.4j, 0.7 - 0.2j], [2.0j, 3.0, -1.0j]]
         )
-        polarization: Complex[Array, " 3"] = jnp.array(
+        polarization: Complex128[Array, " 3"] = jnp.array(
             [0.2 + 0.1j, -0.4 + 0.3j, 0.5 - 0.7j]
         )
-        expected: Complex[Array, " 2"] = (
+        expected: Complex128[Array, " 2"] = (
             channels @ polarization[jnp.asarray([1, 2, 0])]
         )
-        actual: Complex[Array, " 2"] = contract_polarization(
+        actual: Complex128[Array, " 2"] = contract_polarization(
             channels,
             polarization,
         )
@@ -1330,18 +1342,18 @@ class TestContractExperimentPolarization:
             jnp.array([1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j]),
             sample_azimuth=azimuth,
         )
-        channels: Complex[Array, " 3"] = jnp.array(
+        channels: Complex128[Array, " 3"] = jnp.array(
             [0.7 + 0.2j, -0.1j, 1.3 - 0.4j]
         )
-        polarization_sample: Complex[Array, " 3"] = jnp.array(
+        polarization_sample: Complex128[Array, " 3"] = jnp.array(
             [math.cos(azimuth), -math.sin(azimuth), 0.0],
             dtype=jnp.complex128,
         )
-        expected: Complex[Array, ""] = contract_polarization(
+        expected: Complex128[Array, ""] = contract_polarization(
             channels,
             polarization_sample,
         )
-        actual: Complex[Array, ""] = contract_experiment_polarization(
+        actual: Complex128[Array, ""] = contract_experiment_polarization(
             channels,
             experiment,
         )
@@ -1363,11 +1375,11 @@ class TestTransitionSource:
         -----
         Compare every embedded entry and each exact opposite-block zero.
         """
-        rows: Complex[Array, "2 2"] = jnp.array(
+        rows: Complex128[Array, "2 2"] = jnp.array(
             [[1.0 + 2.0j, -0.3j], [0.7 - 0.2j, -1.1 + 0.4j]]
         )
-        actual: Complex[Array, "2 4"] = transition_source(rows)
-        expected: Complex[Array, "2 4"] = jnp.array(
+        actual: Complex128[Array, "2 4"] = transition_source(rows)
+        expected: Complex128[Array, "2 4"] = jnp.array(
             [
                 [1.0 - 2.0j, 0.3j, 0.0 + 0.0j, 0.0 + 0.0j],
                 [0.0 + 0.0j, 0.0 + 0.0j, 0.7 + 0.2j, -1.1 - 0.4j],
@@ -1387,7 +1399,7 @@ class TestTransitionSource:
         Build an independent NumPy resolvent and compare its spectral expansion.
         Differentiate the same source convention and check a centered quotient.
         """
-        hamiltonian: Complex[NDArray, "4 4"] = np.asarray(
+        hamiltonian: Complex128[NDArray, "4 4"] = np.asarray(
             [
                 [0.2, 0.13 + 0.07j, 0.04j, -0.03],
                 [0.13 - 0.07j, -0.4, 0.05 + 0.02j, 0.01j],
@@ -1397,28 +1409,28 @@ class TestTransitionSource:
             dtype=np.complex128,
         )
         energy: complex = 0.31 + 0.27j
-        rows_numpy: Complex[NDArray, "2 2"] = np.asarray(
+        rows_numpy: Complex128[NDArray, "2 2"] = np.asarray(
             [[0.7 + 0.2j, -0.1 + 0.4j], [0.3 - 0.5j, -0.6 + 0.1j]],
             dtype=np.complex128,
         )
-        source_numpy: Complex[NDArray, "2 4"] = np.asarray(
+        source_numpy: Complex128[NDArray, "2 4"] = np.asarray(
             transition_source(jnp.asarray(rows_numpy))
         )
-        resolvent: Complex[NDArray, "4 4"] = np.linalg.inv(
+        resolvent: Complex128[NDArray, "4 4"] = np.linalg.inv(
             energy * np.eye(4, dtype=np.complex128) - hamiltonian
         )
         direct: complex = sum(
             source.conj() @ resolvent @ source for source in source_numpy
         )
-        eigenvalues: Float[NDArray, " 4"]
-        eigenvectors: Complex[NDArray, "4 4"]
+        eigenvalues: Float64[NDArray, " 4"]
+        eigenvectors: Complex128[NDArray, "4 4"]
         eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
         spectral: complex = 0.0 + 0.0j
         outgoing_spin: int
         band: int
         for outgoing_spin in range(2):
             for band in range(4):
-                spin_block: Complex[NDArray, " 2"] = eigenvectors[
+                spin_block: Complex128[NDArray, " 2"] = eigenvectors[
                     2 * outgoing_spin : 2 * (outgoing_spin + 1),
                     band,
                 ]
@@ -1427,7 +1439,9 @@ class TestTransitionSource:
         np.testing.assert_allclose(
             direct, spectral, rtol=1.0e-12, atol=1.0e-12
         )
-        coherent_source: Complex[NDArray, " 4"] = np.sum(source_numpy, axis=0)
+        coherent_source: Complex128[NDArray, " 4"] = np.sum(
+            source_numpy, axis=0
+        )
         coherent_control: complex = (
             coherent_source.conj() @ resolvent @ coherent_source
         )
@@ -1438,32 +1452,34 @@ class TestTransitionSource:
             atol=1.0e-8,
         )
 
-        hamiltonian_jax: Complex[Array, "4 4"] = jnp.asarray(hamiltonian)
-        resolvent_jax: Complex[Array, "4 4"] = jnp.linalg.inv(
+        hamiltonian_jax: Complex128[Array, "4 4"] = jnp.asarray(hamiltonian)
+        resolvent_jax: Complex128[Array, "4 4"] = jnp.linalg.inv(
             energy * jnp.eye(4, dtype=jnp.complex128) - hamiltonian_jax
         )
-        direction: Complex[Array, "2 2"] = jnp.asarray(
+        direction: Complex128[Array, "2 2"] = jnp.asarray(
             [[0.2 - 0.3j, 0.1 + 0.05j], [-0.08j, 0.17 + 0.11j]]
         )
 
-        def response(parameter: Float[Array, ""]) -> Complex[Array, ""]:
+        def response(parameter: Float64[Array, ""]) -> Complex128[Array, ""]:
             """Return the dense response along one real row direction."""
-            rows: Complex[Array, "2 2"] = (
+            rows: Complex128[Array, "2 2"] = (
                 jnp.asarray(rows_numpy) + parameter * direction
             )
-            sources: Complex[Array, "2 4"] = transition_source(rows)
-            values: Complex[Array, " 2"] = jnp.einsum(
+            sources: Complex128[Array, "2 4"] = transition_source(rows)
+            values: Complex128[Array, " 2"] = jnp.einsum(
                 "si,ij,sj->s",
                 jnp.conj(sources),
                 resolvent_jax,
                 sources,
             )
-            result: Complex[Array, ""] = jnp.sum(values)
+            result: Complex128[Array, ""] = jnp.sum(values)
             return result
 
-        derivative: Complex[Array, ""] = jax.jacfwd(response)(jnp.asarray(0.0))
+        derivative: Complex128[Array, ""] = jax.jacfwd(response)(
+            jnp.asarray(0.0)
+        )
         step: float = 1.0e-5
-        finite_difference: Complex[Array, ""] = (
+        finite_difference: Complex128[Array, ""] = (
             response(jnp.asarray(step)) - response(jnp.asarray(-step))
         ) / (2.0 * step)
         chex.assert_trees_all_close(
@@ -1484,7 +1500,7 @@ class TestTransitionSource:
         Compare a direct NumPy inverse with its spectral expansion. Reject a
         planted bra row and check the JAX directional derivative by FD.
         """
-        hamiltonian: Complex[NDArray, "3 3"] = np.asarray(
+        hamiltonian: Complex128[NDArray, "3 3"] = np.asarray(
             (
                 (0.17, 0.21 + 0.09j, -0.04j),
                 (0.21 - 0.09j, -0.38, 0.13 + 0.06j),
@@ -1493,21 +1509,21 @@ class TestTransitionSource:
             dtype=np.complex128,
         )
         energy: complex = 0.29 + 0.23j
-        row_numpy: Complex[NDArray, " 3"] = np.asarray(
+        row_numpy: Complex128[NDArray, " 3"] = np.asarray(
             (0.61 + 0.17j, -0.32 + 0.49j, 0.28 - 0.37j),
             dtype=np.complex128,
         )
-        source_numpy: Complex[NDArray, " 3"] = np.asarray(
+        source_numpy: Complex128[NDArray, " 3"] = np.asarray(
             transition_source(jnp.asarray(row_numpy[None, :]))
         )[0]
-        resolvent_numpy: Complex[NDArray, "3 3"] = np.linalg.inv(
+        resolvent_numpy: Complex128[NDArray, "3 3"] = np.linalg.inv(
             energy * np.eye(3, dtype=np.complex128) - hamiltonian
         )
         direct: complex = source_numpy.conj() @ resolvent_numpy @ source_numpy
-        eigenvalues: Float[NDArray, " 3"]
-        eigenvectors: Complex[NDArray, "3 3"]
+        eigenvalues: Float64[NDArray, " 3"]
+        eigenvectors: Complex128[NDArray, "3 3"]
         eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
-        band_amplitudes: Complex[NDArray, " 3"] = row_numpy @ eigenvectors
+        band_amplitudes: Complex128[NDArray, " 3"] = row_numpy @ eigenvectors
         spectral: complex = complex(
             np.sum(np.abs(band_amplitudes) ** 2 / (energy - eigenvalues))
         )
@@ -1517,7 +1533,9 @@ class TestTransitionSource:
             rtol=1.0e-12,
             atol=1.0e-12,
         )
-        planted_bra: Complex[NDArray, " 3"] = np.conj(row_numpy) @ eigenvectors
+        planted_bra: Complex128[NDArray, " 3"] = (
+            np.conj(row_numpy) @ eigenvectors
+        )
         planted_response: complex = complex(
             np.sum(np.abs(planted_bra) ** 2 / (energy - eigenvalues))
         )
@@ -1528,28 +1546,32 @@ class TestTransitionSource:
             atol=1.0e-8,
         )
 
-        hamiltonian_jax: Complex[Array, "3 3"] = jnp.asarray(hamiltonian)
-        resolvent_jax: Complex[Array, "3 3"] = jnp.linalg.inv(
+        hamiltonian_jax: Complex128[Array, "3 3"] = jnp.asarray(hamiltonian)
+        resolvent_jax: Complex128[Array, "3 3"] = jnp.linalg.inv(
             energy * jnp.eye(3, dtype=jnp.complex128) - hamiltonian_jax
         )
-        direction: Complex[Array, " 3"] = jnp.asarray(
+        direction: Complex128[Array, " 3"] = jnp.asarray(
             (0.19 - 0.11j, -0.07 + 0.16j, 0.13 + 0.05j)
         )
 
-        def response(parameter: Float[Array, ""]) -> Complex[Array, ""]:
+        def response(parameter: Float64[Array, ""]) -> Complex128[Array, ""]:
             """Return the spinless response along one real row direction."""
-            row: Complex[Array, " 3"] = (
+            row: Complex128[Array, " 3"] = (
                 jnp.asarray(row_numpy) + parameter * direction
             )
-            source: Complex[Array, " 3"] = transition_source(row[None, :])[0]
-            value: Complex[Array, ""] = (
+            source: Complex128[Array, " 3"] = transition_source(row[None, :])[
+                0
+            ]
+            value: Complex128[Array, ""] = (
                 jnp.conj(source) @ resolvent_jax @ source
             )
             return value
 
-        derivative: Complex[Array, ""] = jax.jacfwd(response)(jnp.asarray(0.0))
+        derivative: Complex128[Array, ""] = jax.jacfwd(response)(
+            jnp.asarray(0.0)
+        )
         step: float = 1.0e-5
-        finite_difference: Complex[Array, ""] = (
+        finite_difference: Complex128[Array, ""] = (
             response(jnp.asarray(step)) - response(jnp.asarray(-step))
         ) / (2.0 * step)
         chex.assert_trees_all_close(
@@ -1575,21 +1597,21 @@ class TestProjectBandChannels:
         -----
         Compare with direct and deliberately conjugated coefficient contractions.
         """
-        transition: Complex[Array, "1 1 2 3"] = jnp.array(
+        transition: Complex128[Array, "1 1 2 3"] = jnp.array(
             [[[[1.0 + 0.3j, 0.2j, -0.4], [0.7j, 1.2, 0.5 - 0.1j]]]]
         )
-        eigenvectors: Complex[Array, "1 1 2"] = jnp.array(
+        eigenvectors: Complex128[Array, "1 1 2"] = jnp.array(
             [[[0.6 + 0.2j, -0.3 + 0.7j]]]
         )
-        actual: Complex[Array, "1 1 1 3"] = project_band_channels(
+        actual: Complex128[Array, "1 1 1 3"] = project_band_channels(
             transition,
             eigenvectors,
         )
-        expected: Complex[Array, " 3"] = jnp.sum(
+        expected: Complex128[Array, " 3"] = jnp.sum(
             transition[0, 0] * eigenvectors[0, 0, :, None],
             axis=0,
         )
-        planted_wrong: Complex[Array, " 3"] = jnp.sum(
+        planted_wrong: Complex128[Array, " 3"] = jnp.sum(
             transition[0, 0] * jnp.conj(eigenvectors[0, 0, :, None]),
             axis=0,
         )
@@ -1610,18 +1632,18 @@ class TestProjectBandChannels:
         -----
         Multiply every coefficient by one phase and compare reduced intensities.
         """
-        transition: Complex[Array, "1 1 2 3"] = jnp.array(
+        transition: Complex128[Array, "1 1 2 3"] = jnp.array(
             [[[[1.0j, 0.4, -0.2j], [0.3 + 0.7j, -0.1j, 0.8]]]]
         )
-        eigenvectors: Complex[Array, "1 1 2"] = jnp.array(
+        eigenvectors: Complex128[Array, "1 1 2"] = jnp.array(
             [[[0.5 + 0.4j, -0.2 + 0.7j]]]
         )
-        phase: Complex[Array, ""] = jnp.exp(0.83j)
-        first: Complex[Array, "1 1 1"] = contract_polarization(
+        phase: Complex128[Array, ""] = jnp.exp(0.83j)
+        first: Complex128[Array, "1 1 1"] = contract_polarization(
             project_band_channels(transition, eigenvectors),
             jnp.array([0.2 + 0.1j, 0.4 - 0.3j, -0.5j]),
         )
-        second: Complex[Array, "1 1 1"] = contract_polarization(
+        second: Complex128[Array, "1 1 1"] = contract_polarization(
             project_band_channels(transition, phase * eigenvectors),
             jnp.array([0.2 + 0.1j, 0.4 - 0.3j, -0.5j]),
         )
@@ -1648,16 +1670,16 @@ class TestMatrixElementIntensity:
         -----
         Compare the production reduction with a deliberately coherent control.
         """
-        phases: Float[Array, " 4"] = jnp.array([0.0, 0.4, 1.7, math.pi])
-        amplitudes: Complex[Array, "4 2"] = jnp.stack(
+        phases: Float64[Array, " 4"] = jnp.array([0.0, 0.4, 1.7, math.pi])
+        amplitudes: Complex128[Array, "4 2"] = jnp.stack(
             (
                 jnp.ones_like(phases, dtype=jnp.complex128),
                 jnp.exp(1j * phases),
             ),
             axis=-1,
         ) / math.sqrt(2.0)
-        actual: Float[Array, " 4"] = matrix_element_intensity(amplitudes)
-        planted_coherent: Float[Array, " 4"] = (
+        actual: Float64[Array, " 4"] = matrix_element_intensity(amplitudes)
+        planted_coherent: Float64[Array, " 4"] = (
             jnp.abs(jnp.sum(amplitudes, axis=-1)) ** 2
         )
         chex.assert_trees_all_close(
@@ -1713,8 +1735,8 @@ class TestAssembleOrbitalTransitionChannels:
         Replace only the inner potential and compare the complete transition tensor.
         """
         fixture: MatrixFixture = self._fixture()
-        final_momentum: Float[Array, "1 3"] = jnp.array([[0.0, 0.0, 1.0]])
-        first: Complex[Array, "1 1 1 3"] = (
+        final_momentum: Float64[Array, "1 3"] = jnp.array([[0.0, 0.0, 1.0]])
+        first: Complex128[Array, "1 1 1 3"] = (
             assemble_orbital_transition_channels(
                 *fixture,
                 final_momentum,
@@ -1727,7 +1749,7 @@ class TestAssembleOrbitalTransitionChannels:
             jnp.array(77.0),
         )
         second_fixture: MatrixFixture = fixture[:-1] + (changed_experiment,)
-        second: Complex[Array, "1 1 1 3"] = (
+        second: Complex128[Array, "1 1 1 3"] = (
             assemble_orbital_transition_channels(
                 *second_fixture,
                 final_momentum,
@@ -1748,7 +1770,7 @@ class TestAssembleOrbitalTransitionChannels:
     )
     def test_rejects_nonzero_gparallel_invalidity_and_zero_momentum(
         self,
-        final_momentum: Float[Array, "1 3"],
+        final_momentum: Float64[Array, "1 3"],
         validity: Array,
     ) -> None:
         """Reject every forbidden explicit vacuum-momentum boundary.

@@ -28,7 +28,7 @@ _ARTIFACT_PATH: Path = (
     / "chinook_tightb_reference.json"
 )
 _ARTIFACT_SHA256: str = (
-    "db52d72562f2efb49d25f9ce2b9affefed1af6f6fac927d1e20f9bb96f1510dc"
+    "86e92af3d455bf744521c993f838b397f7ef38163ad92bd4230b0b7d009ef7fa"
 )
 _COMPATIBILITY_RTOL: float = 1e-8
 _COMPATIBILITY_ATOL: float = 2e-12
@@ -45,7 +45,7 @@ def _reference() -> dict[str, Any]:
         raise ValueError(message)
     payload: dict[str, Any] = json.loads(encoded)
     if (
-        payload["metadata"]["gate"] != "chinook-tightbinding-parity"
+        payload["metadata"]["requirement"] != "chinook-tightbinding-parity"
         or payload["metadata"]["classification"]
         != "K-type behavioral compatibility"
     ):

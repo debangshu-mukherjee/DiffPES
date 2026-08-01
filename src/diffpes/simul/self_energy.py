@@ -34,16 +34,16 @@ compiles one code path for each invocation.
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import SelfEnergyModel
 
 
 @jaxtyped(typechecker=beartype)
 def evaluate_self_energy(
-    energy: Float[Array, " ..."],
+    energy: Float64[Array, " ..."],
     config: SelfEnergyModel,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     r"""Evaluate the imaginary self-energy :math:`\Gamma(E)`.
 
     The function computes an energy-dependent Lorentzian broadening width from
@@ -92,7 +92,7 @@ def evaluate_self_energy(
 
     Parameters
     ----------
-    energy : Float[Array, " ..."]
+    energy : Float64[Array, " ..."]
         Energy values in eV at which to evaluate the self-energy.
         Any shape. The output has the same shape.
     config : SelfEnergyModel
@@ -108,7 +108,7 @@ def evaluate_self_energy(
 
     Returns
     -------
-    result : Float[Array, " ..."]
+    result : Float64[Array, " ..."]
         Energy-dependent Lorentzian broadening in eV, same shape
         as ``energy``.
 
@@ -129,7 +129,7 @@ def evaluate_self_energy(
     mode: str = config.mode
 
     if mode == "constant":
-        result: Float[Array, " ..."] = jnp.broadcast_to(
+        result: Float64[Array, " ..."] = jnp.broadcast_to(
             jax.nn.softplus(config.coefficients[0]), energy.shape
         )
     elif mode == "poly":
@@ -142,15 +142,15 @@ def evaluate_self_energy(
             jax.nn.softplus(config.coefficients),
         )
     elif mode == "fermi_liquid":
-        gamma0: Float[Array, ""] = jax.nn.softplus(config.coefficients[0])
-        beta: Float[Array, ""] = jax.nn.softplus(config.coefficients[1])
-        omega_c: Float[Array, ""] = jax.nn.softplus(config.coefficients[2])
+        gamma0: Float64[Array, ""] = jax.nn.softplus(config.coefficients[0])
+        beta: Float64[Array, ""] = jax.nn.softplus(config.coefficients[1])
+        omega_c: Float64[Array, ""] = jax.nn.softplus(config.coefficients[2])
         result = gamma0 + beta * energy**2 / (1.0 + (energy / omega_c) ** 4)
     elif mode == "bosonic_kink":
         gamma0 = jax.nn.softplus(config.coefficients[0])
-        coupling: Float[Array, ""] = jax.nn.softplus(config.coefficients[1])
-        omega0: Float[Array, ""] = jax.nn.softplus(config.coefficients[2])
-        width: Float[Array, ""] = jax.nn.softplus(config.coefficients[3])
+        coupling: Float64[Array, ""] = jax.nn.softplus(config.coefficients[1])
+        omega0: Float64[Array, ""] = jax.nn.softplus(config.coefficients[2])
+        width: Float64[Array, ""] = jax.nn.softplus(config.coefficients[3])
         result = gamma0 + coupling**2 * width * (
             1.0 / ((energy - omega0) ** 2 + width**2)
             + 1.0 / ((energy + omega0) ** 2 + width**2)

@@ -6,7 +6,7 @@
     7.499999999999999,
     14.999999999999998
   ],
-  "gate": "03.G4",
+  "requirement": "tilt-polarization-reference",
   "mapping": {
     "H": {
       "active_rotation": "Rx(diffpes_ty) @ Ry(diffpes_tx)",

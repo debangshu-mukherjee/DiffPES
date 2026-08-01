@@ -10,7 +10,10 @@ the random-key fixture supplies stable, worker-independent test randomness.
 """
 
 import hashlib
+import os
+import subprocess
 import sys
+from pathlib import Path
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec
 from types import ModuleType
@@ -28,6 +31,7 @@ from jaxtyping import PRNGKeyArray, jaxtyped
 
 pytest_plugins: tuple[str, ...] = ("pytester",)
 
+_PREFLIGHT_SKIP_VARIABLE: str = "DIFFPES_SKIP_PREFLIGHT"
 RSS_LEAK_LIMIT_MB: float = 500.0
 _BYTES_PER_MEBIBYTE: int = 1024**2
 
@@ -54,9 +58,54 @@ class _ChinookImportBlocker(MetaPathFinder):
 _CHINOOK_IMPORT_BLOCKER = _ChinookImportBlocker()
 
 
+def _run_annotation_preflight(config: pytest.Config) -> None:
+    """Reject invalid annotations before pytest collects test modules.
+
+    The gate runs ``tests/_preflight_types.py`` in a subprocess. A subprocess
+    keeps the jaxtyping import hook out of this process. An in-process run
+    leaves decorated modules in ``sys.modules``. Pytest then collects wrapped
+    fixtures.
+
+    The gate runs once for each session. It does not run on a pytest-xdist
+    worker, and it does not run inside a nested ``pytester`` session.
+
+    Parameters
+    ----------
+    config : pytest.Config
+        Active pytest configuration. A worker configuration carries
+        ``workerinput``.
+
+    Raises
+    ------
+    pytest.UsageError
+        If one module or more carries an invalid annotation.
+    """
+    if hasattr(config, "workerinput"):
+        return
+    if os.environ.get(_PREFLIGHT_SKIP_VARIABLE):
+        return
+    os.environ[_PREFLIGHT_SKIP_VARIABLE] = "1"
+    script: Path = Path(__file__).resolve().parent / "_preflight_types.py"
+    if not script.is_file():
+        return
+    completed: subprocess.CompletedProcess[str] = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        message: str = (
+            "annotation pre-flight failed; fix these before running tests:\n"
+            + completed.stdout
+            + completed.stderr
+        )
+        raise pytest.UsageError(message)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Install the test-suite firewall before pytest collects test modules."""
-    del config
+    _run_annotation_preflight(config)
     imported: tuple[str, ...] = tuple(
         sorted(
             name

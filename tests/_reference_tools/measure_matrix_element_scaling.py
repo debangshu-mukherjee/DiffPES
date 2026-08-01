@@ -28,7 +28,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.extend.core import ClosedJaxpr, Jaxpr
-from jaxtyping import Array, Complex, Float, Shaped
+from jaxtyping import Array, Complex128, Float64, Shaped
 from numpy.typing import NDArray
 
 from diffpes.simul.matrixel import (
@@ -58,13 +58,13 @@ MAX_CONTRACTION_RATIO: float = 1.5
 class DynamicInputs(NamedTuple):
     """Contain every dynamic numerical argument to the channel primitive."""
 
-    initial_momentum: Float[Array, "n_k 3"]
-    final_momentum: Float[Array, "n_k 3"]
-    positions: Float[Array, "n_orb 3"]
-    depths: Float[Array, " n_orb"]
-    bvals: Complex[Array, "n_k n_orb 2"]
+    initial_momentum: Float64[Array, "n_k 3"]
+    final_momentum: Float64[Array, "n_k 3"]
+    positions: Float64[Array, "n_orb 3"]
+    depths: Float64[Array, " n_orb"]
+    bvals: Complex128[Array, "n_k n_orb 2"]
     matrix_params: MatrixElementParams
-    mean_free_path: Float[Array, ""]
+    mean_free_path: Float64[Array, ""]
 
 
 @dataclass(frozen=True)
@@ -73,9 +73,9 @@ class Fixture:
 
     basis: OrbitalBasis
     dynamic: DynamicInputs
-    eigenvectors: Complex[Array, "n_k n_band n_orb"]
-    energy_scales: Float[Array, " n_energy"]
-    polarizations: Complex[Array, "n_pol 3"]
+    eigenvectors: Complex128[Array, "n_k n_band n_orb"]
+    energy_scales: Float64[Array, " n_energy"]
+    polarizations: Complex128[Array, "n_pol 3"]
 
 
 def _recursive_equation_count(value: object) -> int:
@@ -127,13 +127,13 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
             dtype=jnp.float64,
         ),
     )
-    coordinate: Float[Array, " n_k"] = jnp.linspace(
+    coordinate: Float64[Array, " n_k"] = jnp.linspace(
         -1.0,
         1.0,
         n_k,
         dtype=jnp.float64,
     )
-    initial_momentum: Float[Array, "n_k 3"] = jnp.stack(
+    initial_momentum: Float64[Array, "n_k 3"] = jnp.stack(
         (
             0.18 * coordinate,
             0.11 * jnp.sin(1.7 * coordinate),
@@ -141,16 +141,16 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
         ),
         axis=-1,
     )
-    final_momentum: Float[Array, "n_k 3"] = initial_momentum.at[:, 2].set(
+    final_momentum: Float64[Array, "n_k 3"] = initial_momentum.at[:, 2].set(
         1.4 + 0.07 * jnp.cos(2.1 * coordinate)
     )
-    orbital_coordinate: Float[Array, " n_orb"] = jnp.linspace(
+    orbital_coordinate: Float64[Array, " n_orb"] = jnp.linspace(
         -1.0,
         1.0,
         n_orbitals,
         dtype=jnp.float64,
     )
-    positions: Float[Array, "n_orb 3"] = jnp.stack(
+    positions: Float64[Array, "n_orb 3"] = jnp.stack(
         (
             0.7 * orbital_coordinate,
             0.3 * orbital_coordinate**2,
@@ -158,33 +158,33 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
         ),
         axis=-1,
     )
-    depths: Float[Array, " n_orb"] = jnp.linspace(
+    depths: Float64[Array, " n_orb"] = jnp.linspace(
         0.0,
         12.0,
         n_orbitals,
         dtype=jnp.float64,
     )
-    radial_amplitude: Float[Array, "n_k n_orb"] = 0.9 + 0.08 * jnp.cos(
+    radial_amplitude: Float64[Array, "n_k n_orb"] = 0.9 + 0.08 * jnp.cos(
         coordinate[:, None] + orbital_coordinate[None, :]
     )
-    bvals: Complex[Array, "n_k n_orb 2"] = jnp.stack(
+    bvals: Complex128[Array, "n_k n_orb 2"] = jnp.stack(
         (
             jnp.zeros_like(radial_amplitude, dtype=jnp.complex128),
             1j * radial_amplitude.astype(jnp.complex128),
         ),
         axis=-1,
     )
-    eigenvectors: Complex[Array, "n_k n_band n_orb"] = jnp.broadcast_to(
+    eigenvectors: Complex128[Array, "n_k n_band n_orb"] = jnp.broadcast_to(
         jnp.eye(n_orbitals, dtype=jnp.complex128),
         (n_k, n_orbitals, n_orbitals),
     )
-    energy_scales: Float[Array, " n_energy"] = jnp.linspace(
+    energy_scales: Float64[Array, " n_energy"] = jnp.linspace(
         0.94,
         1.08,
         N_ENERGY,
         dtype=jnp.float64,
     )
-    polarizations: Complex[Array, "n_pol 3"] = jnp.asarray(
+    polarizations: Complex128[Array, "n_pol 3"] = jnp.asarray(
         (
             (1.0, 0.0, 0.0),
             (0.0, 1.0, 0.0),
@@ -216,7 +216,7 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
 def _channel_function(basis: OrbitalBasis) -> Any:
     """Return the scalar-energy channel primitive with dynamic arrays."""
 
-    def channel(dynamic: DynamicInputs) -> Complex[Array, "n_k 1 n_orb 3"]:
+    def channel(dynamic: DynamicInputs) -> Complex128[Array, "n_k 1 n_orb 3"]:
         return orbital_transition_channels(
             dynamic.initial_momentum,
             dynamic.final_momentum,
@@ -232,24 +232,24 @@ def _channel_function(basis: OrbitalBasis) -> Any:
 
 
 def _group_weights(
-    channels: Complex[Array, "n_k 1 n_orb 3"],
-    eigenvectors: Complex[Array, "n_k n_band n_orb"],
-    polarization: Complex[Array, " 3"],
-) -> Float[Array, "n_k n_group"]:
+    channels: Complex128[Array, "n_k 1 n_orb 3"],
+    eigenvectors: Complex128[Array, "n_k n_band n_orb"],
+    polarization: Complex128[Array, " 3"],
+) -> Float64[Array, "n_k n_group"]:
     """Reduce one scalar-energy channel tensor to six complete groups."""
-    band_channels: Complex[Array, "n_k n_band 1 3"] = project_band_channels(
+    band_channels: Complex128[Array, "n_k n_band 1 3"] = project_band_channels(
         channels,
         eigenvectors,
     )
-    amplitudes: Complex[Array, "n_k n_band 1"] = contract_polarization(
+    amplitudes: Complex128[Array, "n_k n_band 1"] = contract_polarization(
         band_channels,
         polarization,
     )
-    weights: Float[Array, "n_k n_band"] = jnp.sum(
+    weights: Float64[Array, "n_k n_band"] = jnp.sum(
         jnp.real(jnp.conj(amplitudes) * amplitudes),
         axis=-1,
     )
-    groups: Float[Array, "n_k n_group"] = jnp.sum(
+    groups: Float64[Array, "n_k n_group"] = jnp.sum(
         weights.reshape(weights.shape[0], N_GROUPS, -1),
         axis=-1,
     )
@@ -262,29 +262,31 @@ def _scan_function(basis: OrbitalBasis) -> Any:
 
     def scan_weights(
         dynamic: DynamicInputs,
-        eigenvectors: Complex[Array, "n_k n_band n_orb"],
-        energy_scales: Float[Array, " n_energy"],
-        polarization: Complex[Array, " 3"],
-    ) -> Float[Array, "n_energy n_k n_group"]:
+        eigenvectors: Complex128[Array, "n_k n_band n_orb"],
+        energy_scales: Float64[Array, " n_energy"],
+        polarization: Complex128[Array, " 3"],
+    ) -> Float64[Array, "n_energy n_k n_group"]:
         def body(
-            carry: Float[Array, ""],
-            scale: Float[Array, ""],
-        ) -> tuple[Float[Array, ""], Float[Array, "n_k n_group"]]:
-            scaled_final: Float[Array, "n_k 3"] = dynamic.final_momentum.at[
+            carry: Float64[Array, ""],
+            scale: Float64[Array, ""],
+        ) -> tuple[Float64[Array, ""], Float64[Array, "n_k n_group"]]:
+            scaled_final: Float64[Array, "n_k 3"] = dynamic.final_momentum.at[
                 :, 2
             ].multiply(scale)
-            phase: Complex[Array, ""] = jnp.exp(0.17j * (scale - 1.0))
-            scaled_bvals: Complex[Array, "n_k n_orb 2"] = dynamic.bvals * phase
+            phase: Complex128[Array, ""] = jnp.exp(0.17j * (scale - 1.0))
+            scaled_bvals: Complex128[Array, "n_k n_orb 2"] = (
+                dynamic.bvals * phase
+            )
             scaled_dynamic: DynamicInputs = dynamic._replace(
                 final_momentum=scaled_final,
                 bvals=scaled_bvals,
             )
-            groups: Float[Array, "n_k n_group"] = _group_weights(
+            groups: Float64[Array, "n_k n_group"] = _group_weights(
                 channel(scaled_dynamic),
                 eigenvectors,
                 polarization,
             )
-            next_carry: Float[Array, ""] = carry + jnp.sum(groups)
+            next_carry: Float64[Array, ""] = carry + jnp.sum(groups)
             return next_carry, groups
 
         _, groups = jax.lax.scan(
@@ -303,19 +305,19 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
 
     def scalar_with_gradient(
         dynamic: DynamicInputs,
-        eigenvectors: Complex[Array, "n_k n_band n_orb"],
-        polarization: Complex[Array, " 3"],
+        eigenvectors: Complex128[Array, "n_k n_band n_orb"],
+        polarization: Complex128[Array, " 3"],
     ) -> tuple[
-        Float[Array, "n_k n_group"],
-        Float[Array, " n_shell"],
+        Float64[Array, "n_k n_group"],
+        Float64[Array, " n_shell"],
     ]:
-        groups: Float[Array, "n_k n_group"] = _group_weights(
+        groups: Float64[Array, "n_k n_group"] = _group_weights(
             channel(dynamic),
             eigenvectors,
             polarization,
         )
 
-        def loss(sigma: Float[Array, " n_shell"]) -> Float[Array, ""]:
+        def loss(sigma: Float64[Array, " n_shell"]) -> Float64[Array, ""]:
             changed_params: MatrixElementParams = eqx.tree_at(
                 lambda item: item.sigma_shell,
                 dynamic.matrix_params,
@@ -324,14 +326,14 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
             changed_dynamic: DynamicInputs = dynamic._replace(
                 matrix_params=changed_params
             )
-            values: Float[Array, "n_k n_group"] = _group_weights(
+            values: Float64[Array, "n_k n_group"] = _group_weights(
                 channel(changed_dynamic),
                 eigenvectors,
                 polarization,
             )
             return jnp.sum(values)
 
-        sigma_gradient: Float[Array, " n_shell"] = jax.grad(loss)(
+        sigma_gradient: Float64[Array, " n_shell"] = jax.grad(loss)(
             dynamic.matrix_params.sigma_shell
         )
         return groups, sigma_gradient
@@ -662,9 +664,9 @@ def _s3(fixture: Fixture) -> dict[str, object]:
     channel = _channel_function(fixture.basis)
 
     def batch_contract(
-        channels: Complex[Array, "n_k 1 n_orb 3"],
-        polarizations: Complex[Array, "n_pol 3"],
-    ) -> Complex[Array, "n_pol n_k 1 n_orb"]:
+        channels: Complex128[Array, "n_k 1 n_orb 3"],
+        polarizations: Complex128[Array, "n_pol 3"],
+    ) -> Complex128[Array, "n_pol n_k 1 n_orb"]:
         return jax.vmap(
             lambda polarization: contract_polarization(
                 channels,
@@ -673,21 +675,21 @@ def _s3(fixture: Fixture) -> dict[str, object]:
         )(polarizations)
 
     def single_contract(
-        channels: Complex[Array, "n_k 1 n_orb 3"],
-        polarization: Complex[Array, " 3"],
-    ) -> Complex[Array, "n_k 1 n_orb"]:
+        channels: Complex128[Array, "n_k 1 n_orb 3"],
+        polarization: Complex128[Array, " 3"],
+    ) -> Complex128[Array, "n_k 1 n_orb"]:
         return contract_polarization(channels, polarization)
 
     def late_pipeline(
         dynamic: DynamicInputs,
-        polarizations: Complex[Array, "n_pol 3"],
-    ) -> Complex[Array, "n_pol n_k 1 n_orb"]:
+        polarizations: Complex128[Array, "n_pol 3"],
+    ) -> Complex128[Array, "n_pol n_k 1 n_orb"]:
         return batch_contract(channel(dynamic), polarizations)
 
     def rebuild_pipeline(
         dynamic: DynamicInputs,
-        polarization: Complex[Array, " 3"],
-    ) -> Complex[Array, "n_k 1 n_orb"]:
+        polarization: Complex128[Array, " 3"],
+    ) -> Complex128[Array, "n_k 1 n_orb"]:
         return single_contract(channel(dynamic), polarization)
 
     channel_compiled, channel_compile = _compile(channel, fixture.dynamic)

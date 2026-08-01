@@ -11,7 +11,7 @@ from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
 from diffpes.inout import read_wannier90_hr
@@ -32,7 +32,7 @@ _COMPRESSED_SHA256 = (
     "756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4"
 )
 _REFERENCE_SHA256 = (
-    "afd95f0e6f26771b10e6d825f4e487f88bab0bdc5b326348d43bb6a24194d18c"
+    "0a9acf21d86167b7f3a9533b87139e4383981f65bed9acad7f951a275a18b411"
 )
 _SOURCE_SHA256 = (
     "8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1"
@@ -83,7 +83,7 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     hr_path.write_bytes(source)
 
     reference: dict[str, Any] = json.loads(reference_payload)
-    assert reference["metadata"]["gate"] == "wannier90-wse2-parity"
+    assert reference["metadata"]["requirement"] == "wannier90-wse2-parity"
     assert reference["metadata"]["source_sha256"] == _SOURCE_SHA256
     n_wannier: int = int(reference["num_wann"])
     geometry: CrystalGeometry
@@ -103,15 +103,15 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     assert len(operator_data.cells) == int(reference["num_cells"])
 
     labels: tuple[str, ...] = ("Gamma", "X")
-    kpoints: Float[Array, "2 3"] = jnp.asarray(
+    kpoints: Float64[Array, "2 3"] = jnp.asarray(
         [reference["kpoints_fractional"][label] for label in labels],
         dtype=jnp.float64,
     )
-    expected: Float[NDArray, "n_label nband"] = np.asarray(
+    expected: Float64[NDArray, "n_label nband"] = np.asarray(
         [reference["eigenvalues_ev"][label] for label in labels],
         dtype=np.float64,
     )
-    actual: Float[NDArray, "n_label nband"] = np.asarray(
+    actual: Float64[NDArray, "n_label nband"] = np.asarray(
         eigvalsh_bands(model, kpoints)
     )
     np.testing.assert_allclose(

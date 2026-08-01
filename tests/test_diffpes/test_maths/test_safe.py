@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import numpy as np
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 from diffpes.maths import (
     safe_arccos,
@@ -53,10 +53,10 @@ class TestSafeDivide:
         It differentiates a scalar guarded call for both operands with
         JIT-backed autodiff.
         """
-        numerator: Float[Array, " 3"] = jnp.array([1.5, -2.0, 4.0])
-        denominator: Float[Array, " 3"] = jnp.array([0.5, 4.0, -2.0])
-        values: Float[Array, " 3"] = safe_divide(numerator, denominator)
-        expected: Float[Array, " 3"] = jnp.asarray(
+        numerator: Float64[Array, " 3"] = jnp.array([1.5, -2.0, 4.0])
+        denominator: Float64[Array, " 3"] = jnp.array([0.5, 4.0, -2.0])
+        values: Float64[Array, " 3"] = safe_divide(numerator, denominator)
+        expected: Float64[Array, " 3"] = jnp.asarray(
             np.divide(np.asarray(numerator), np.asarray(denominator))
         )
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
@@ -67,10 +67,10 @@ class TestSafeDivide:
             numerator,
         )
 
-        guarded: Float[Array, ""] = jax.jit(safe_divide)(
+        guarded: Float64[Array, ""] = jax.jit(safe_divide)(
             jnp.array(3.0), jnp.array(0.0), -7.0
         )
-        gradients: tuple[Float[Array, ""], Float[Array, ""]] = jax.grad(
+        gradients: tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
             lambda n, d: safe_divide(n, d, -7.0), argnums=(0, 1)
         )(jnp.array(3.0), jnp.array(0.0))
         chex.assert_trees_all_close(guarded, -7.0, rtol=0.0, atol=0.0)
@@ -112,10 +112,14 @@ class TestSafeDivide:
         Hypothesis generates twenty three-component vectors and divisors away
         from zero; Chex checks shape and sign symmetry at ``rtol=1e-15``.
         """
-        numerator: Float[Array, " 3"] = jnp.asarray(values, dtype=jnp.float64)
-        divisor: Float[Array, ""] = jnp.asarray(denominator, dtype=jnp.float64)
-        positive: Float[Array, " 3"] = safe_divide(numerator, divisor)
-        negative: Float[Array, " 3"] = safe_divide(-numerator, divisor)
+        numerator: Float64[Array, " 3"] = jnp.asarray(
+            values, dtype=jnp.float64
+        )
+        divisor: Float64[Array, ""] = jnp.asarray(
+            denominator, dtype=jnp.float64
+        )
+        positive: Float64[Array, " 3"] = safe_divide(numerator, divisor)
+        negative: Float64[Array, " 3"] = safe_divide(-numerator, divisor)
         chex.assert_shape(positive, (3,))
         chex.assert_trees_all_close(
             negative, -positive, rtol=1e-15, atol=1e-15
@@ -145,17 +149,17 @@ class TestSafeSqrt:
         The test evaluates three positive values away from the branch boundary and a
         JIT-compiled two-value guard probe before differentiating each guard.
         """
-        x: Float[Array, " 3"] = jnp.array([0.25, 2.0, 9.0])
-        values: Float[Array, " 3"] = safe_sqrt(x)
-        expected: Float[Array, " 3"] = jnp.asarray(np.sqrt(np.asarray(x)))
+        x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 9.0])
+        values: Float64[Array, " 3"] = safe_sqrt(x)
+        expected: Float64[Array, " 3"] = jnp.asarray(np.sqrt(np.asarray(x)))
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
         assert_grad_matches_fd(
             lambda value: jnp.sum(safe_sqrt(jnp.asarray(value))), x
         )
 
-        guarded_x: Float[Array, " 2"] = jnp.array([0.0, -4.0])
-        guarded: Float[Array, " 2"] = jax.jit(safe_sqrt)(guarded_x)
-        gradients: Float[Array, " 2"] = jax.grad(
+        guarded_x: Float64[Array, " 2"] = jnp.array([0.0, -4.0])
+        guarded: Float64[Array, " 2"] = jax.jit(safe_sqrt)(guarded_x)
+        gradients: Float64[Array, " 2"] = jax.grad(
             lambda value: jnp.sum(safe_sqrt(value))
         )(guarded_x)
         chex.assert_trees_all_close(guarded, jnp.zeros(2), rtol=0.0, atol=0.0)
@@ -188,9 +192,11 @@ class TestSafeNorm:
         The test uses two generic three-vectors for the ordinary path and an independent
         JIT and reverse-mode probe at the origin.
         """
-        x: Float[Array, "2 3"] = jnp.array([[3.0, 4.0, 1.0], [-2.0, 5.0, 7.0]])
-        values: Float[Array, "2 1"] = safe_norm(x, axis=-1, keepdims=True)
-        expected: Float[Array, "2 1"] = jnp.asarray(
+        x: Float64[Array, "2 3"] = jnp.array(
+            [[3.0, 4.0, 1.0], [-2.0, 5.0, 7.0]]
+        )
+        values: Float64[Array, "2 1"] = safe_norm(x, axis=-1, keepdims=True)
+        expected: Float64[Array, "2 1"] = jnp.asarray(
             np.linalg.norm(np.asarray(x), axis=-1, keepdims=True)
         )
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
@@ -198,9 +204,9 @@ class TestSafeNorm:
             lambda value: jnp.sum(safe_norm(jnp.asarray(value))), x
         )
 
-        zero: Float[Array, " 3"] = jnp.zeros(3)
-        guarded: Float[Array, ""] = jax.jit(safe_norm)(zero)
-        gradient: Float[Array, " 3"] = jax.grad(safe_norm)(zero)
+        zero: Float64[Array, " 3"] = jnp.zeros(3)
+        guarded: Float64[Array, ""] = jax.jit(safe_norm)(zero)
+        gradient: Float64[Array, " 3"] = jax.grad(safe_norm)(zero)
         chex.assert_trees_all_close(guarded, 0.0, rtol=0.0, atol=0.0)
         chex.assert_trees_all_close(gradient, zero, rtol=0.0, atol=0.0)
         chex.assert_tree_all_finite((guarded, gradient))
@@ -231,9 +237,9 @@ class TestSafeNorm:
         Hypothesis generates twenty vectors across both signs and Chex checks
         the two scalar norms at ``rtol=1e-15``.
         """
-        x: Float[Array, " 3"] = jnp.asarray(values, dtype=jnp.float64)
-        positive: Float[Array, ""] = safe_norm(x)
-        negative: Float[Array, ""] = safe_norm(-x)
+        x: Float64[Array, " 3"] = jnp.asarray(values, dtype=jnp.float64)
+        positive: Float64[Array, ""] = safe_norm(x)
+        negative: Float64[Array, ""] = safe_norm(-x)
         chex.assert_trees_all_close(negative, positive, rtol=1e-15, atol=1e-15)
 
 
@@ -260,20 +266,20 @@ class TestSafeArccos:
         The test uses three generic interior cosines and a four-value JIT guard probe
         spanning both endpoints and both out-of-domain sides.
         """
-        x: Float[Array, " 3"] = jnp.array([-0.6, 0.2, 0.7])
-        values: Float[Array, " 3"] = safe_arccos(x)
-        expected: Float[Array, " 3"] = jnp.asarray(np.arccos(np.asarray(x)))
+        x: Float64[Array, " 3"] = jnp.array([-0.6, 0.2, 0.7])
+        values: Float64[Array, " 3"] = safe_arccos(x)
+        expected: Float64[Array, " 3"] = jnp.asarray(np.arccos(np.asarray(x)))
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
         assert_grad_matches_fd(
             lambda value: jnp.sum(safe_arccos(jnp.asarray(value))), x
         )
 
-        guarded_x: Float[Array, " 4"] = jnp.array([-2.0, -1.0, 1.0, 2.0])
-        guarded: Float[Array, " 4"] = jax.jit(safe_arccos)(guarded_x)
-        gradient: Float[Array, " 4"] = jax.grad(
+        guarded_x: Float64[Array, " 4"] = jnp.array([-2.0, -1.0, 1.0, 2.0])
+        guarded: Float64[Array, " 4"] = jax.jit(safe_arccos)(guarded_x)
+        gradient: Float64[Array, " 4"] = jax.grad(
             lambda value: jnp.sum(safe_arccos(value))
         )(guarded_x)
-        expected_guard: Float[Array, " 4"] = jnp.array(
+        expected_guard: Float64[Array, " 4"] = jnp.array(
             [jnp.pi, jnp.pi, 0.0, 0.0]
         )
         chex.assert_trees_all_close(
@@ -306,21 +312,21 @@ class TestSafeArctan2:
         The test uses points in three quadrants for ordinary behavior, then runs the
         scalar origin through JIT and differentiates both arguments.
         """
-        coordinates: Float[Array, "3 2"] = jnp.array(
+        coordinates: Float64[Array, "3 2"] = jnp.array(
             [[0.5, 1.0], [2.0, -3.0], [-4.0, -2.0]]
         )
 
-        def summed_angles(value: Float[Array, "3 2"]) -> Float[Array, ""]:
-            value_array: Float[Array, "3 2"] = jnp.asarray(value)
-            result: Float[Array, ""] = jnp.sum(
+        def summed_angles(value: Float64[Array, "3 2"]) -> Float64[Array, ""]:
+            value_array: Float64[Array, "3 2"] = jnp.asarray(value)
+            result: Float64[Array, ""] = jnp.sum(
                 safe_arctan2(value_array[:, 0], value_array[:, 1])
             )
             return result
 
-        values: Float[Array, " 3"] = safe_arctan2(
+        values: Float64[Array, " 3"] = safe_arctan2(
             coordinates[:, 0], coordinates[:, 1]
         )
-        expected: Float[Array, " 3"] = jnp.asarray(
+        expected: Float64[Array, " 3"] = jnp.asarray(
             np.arctan2(
                 np.asarray(coordinates[:, 0]), np.asarray(coordinates[:, 1])
             )
@@ -328,10 +334,10 @@ class TestSafeArctan2:
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
         assert_grad_matches_fd(summed_angles, coordinates)
 
-        guarded: Float[Array, ""] = jax.jit(safe_arctan2)(
+        guarded: Float64[Array, ""] = jax.jit(safe_arctan2)(
             jnp.array(0.0), jnp.array(0.0)
         )
-        gradients: tuple[Float[Array, ""], Float[Array, ""]] = jax.grad(
+        gradients: tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
             safe_arctan2, argnums=(0, 1)
         )(jnp.array(0.0), jnp.array(0.0))
         chex.assert_trees_all_close(guarded, 0.0, rtol=0.0, atol=0.0)
@@ -362,22 +368,22 @@ class TestSafeLog:
         The test uses three ordinary positive values and a three-value JIT probe
         containing the floor, zero, and a negative input.
         """
-        x: Float[Array, " 3"] = jnp.array([0.25, 2.0, 10.0])
-        values: Float[Array, " 3"] = safe_log(x)
-        expected: Float[Array, " 3"] = jnp.asarray(np.log(np.asarray(x)))
+        x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 10.0])
+        values: Float64[Array, " 3"] = safe_log(x)
+        expected: Float64[Array, " 3"] = jnp.asarray(np.log(np.asarray(x)))
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
         assert_grad_matches_fd(
             lambda value: jnp.sum(safe_log(jnp.asarray(value))), x
         )
 
-        guarded_x: Float[Array, " 3"] = jnp.array([1e-3, 0.0, -2.0])
-        guarded: Float[Array, " 3"] = jax.jit(
+        guarded_x: Float64[Array, " 3"] = jnp.array([1e-3, 0.0, -2.0])
+        guarded: Float64[Array, " 3"] = jax.jit(
             lambda value: safe_log(value, 1e-3)
         )(guarded_x)
-        gradient: Float[Array, " 3"] = jax.grad(
+        gradient: Float64[Array, " 3"] = jax.grad(
             lambda value: jnp.sum(safe_log(value, 1e-3))
         )(guarded_x)
-        expected_guard: Float[Array, " 3"] = jnp.full(3, jnp.log(1e-3))
+        expected_guard: Float64[Array, " 3"] = jnp.full(3, jnp.log(1e-3))
         chex.assert_trees_all_close(
             guarded, expected_guard, rtol=0.0, atol=0.0
         )
@@ -408,10 +414,10 @@ class TestSafePower:
         The test uses exponent ``1.7`` on three positive bases, then evaluates and
         differentiates a two-base guarded sum under JIT-compatible primitives.
         """
-        exponent: Float[Array, ""] = jnp.array(1.7)
-        x: Float[Array, " 3"] = jnp.array([0.25, 2.0, 7.0])
-        values: Float[Array, " 3"] = safe_power(x, exponent)
-        expected: Float[Array, " 3"] = jnp.asarray(
+        exponent: Float64[Array, ""] = jnp.array(1.7)
+        x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 7.0])
+        values: Float64[Array, " 3"] = safe_power(x, exponent)
+        expected: Float64[Array, " 3"] = jnp.asarray(
             np.power(np.asarray(x), float(exponent))
         )
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
@@ -420,9 +426,11 @@ class TestSafePower:
             x,
         )
 
-        guarded_x: Float[Array, " 2"] = jnp.array([0.0, -3.0])
-        guarded: Float[Array, " 2"] = jax.jit(safe_power)(guarded_x, exponent)
-        gradients: tuple[Float[Array, " 2"], Float[Array, ""]] = jax.grad(
+        guarded_x: Float64[Array, " 2"] = jnp.array([0.0, -3.0])
+        guarded: Float64[Array, " 2"] = jax.jit(safe_power)(
+            guarded_x, exponent
+        )
+        gradients: tuple[Float64[Array, " 2"], Float64[Array, ""]] = jax.grad(
             lambda bases, power: jnp.sum(safe_power(bases, power)),
             argnums=(0, 1),
         )(guarded_x, exponent)

@@ -924,6 +924,34 @@ pytest
 formatting, and the other hooks. If a hook modifies files, stage the changes
 and commit again.
 
+#### The annotation pre-flight gate
+
+`pytest` runs an annotation gate before it collects one test. The gate is
+`tests/_preflight_types.py`. It imports every module in `diffpes` and `tests`
+while the jaxtyping import hook is active. Decoration evaluates each
+annotation. An invalid annotation therefore fails the session immediately.
+
+The gate rejects three defect classes in about 8 seconds:
+
+- a malformed jaxtyping specification, such as a wrong dtype name or a wrong
+  shape string;
+- a name that an annotation uses but the module does not import;
+- a hint that beartype cannot use, such as a bare `NDArray`.
+
+Run the gate alone during development:
+
+```bash
+python tests/_preflight_types.py
+```
+
+Set `DIFFPES_SKIP_PREFLIGHT=1` to skip the gate for one fast local run. Do not
+skip it before you submit a pull request.
+
+The gate does **not** detect a wrong dtype at runtime, because that defect
+requires real array values. The test suite detects that defect for `src/`,
+where the jaxtyping hook checks every signature. Annotations in `tests/` carry
+no runtime check, so keep them correct by inspection.
+
 Pre-commit hooks generate two files. **Do not edit these files manually.**
 The files are `.github/badges/loc.json` and `requirements.txt`. The first file
 contains badge data for the line count. The second file exports `uv.lock` for

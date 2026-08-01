@@ -21,7 +21,7 @@ Routine Listings
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Union
-from jaxtyping import Array, Float, Int32, jaxtyped
+from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from diffpes.types import (
     D_ORBITAL_SLICE,
@@ -89,11 +89,11 @@ def select_atoms(
     code that ``jax.jit`` compiles.
     """
     idx: Int32[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
-    proj_sub: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
-    spin_sub: Optional[Float[Array, "K B N 9"]] = None
+    proj_sub: Float64[Array, "K B N 9"] = orb.projections[:, :, idx, :]
+    spin_sub: Optional[Float64[Array, "K B N 9"]] = None
     if orb.spin is not None:
         spin_sub = orb.spin[:, :, idx, :]
-    oam_sub: Optional[Float[Array, "K B N 9"]] = None
+    oam_sub: Optional[Float64[Array, "K B N 9"]] = None
     if orb.oam is not None:
         oam_sub = orb.oam[:, :, idx, :]
     if isinstance(orb, SpinOrbitalProjection):
@@ -117,7 +117,7 @@ def select_atoms(
 def aggregate_atoms(
     orb: OrbitalProjection,
     atom_indices: Optional[list[int]] = None,
-) -> Float[Array, "K B 9"]:
+) -> Float64[Array, "K B 9"]:
     """Sum orbital projections over a set of atoms.
 
     The function sums the atom axis and produces a ``(K, B, 9)`` array.
@@ -151,7 +151,7 @@ def aggregate_atoms(
 
     Returns
     -------
-    result : Float[Array, "K B 9"]
+    result : Float64[Array, "K B 9"]
         Atom-summed orbital projections.
 
     Notes
@@ -163,17 +163,17 @@ def aggregate_atoms(
     """
     if atom_indices is not None:
         idx: Int32[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
-        proj: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
+        proj: Float64[Array, "K B N 9"] = orb.projections[:, :, idx, :]
     else:
         proj = orb.projections
-    result: Float[Array, "K B 9"] = jnp.sum(proj, axis=2)
+    result: Float64[Array, "K B 9"] = jnp.sum(proj, axis=2)
     return result
 
 
 @jaxtyped(typechecker=beartype)
 def reduce_orbitals(
-    projections: Float[Array, "K B A 9"],
-) -> Float[Array, "K B A 3"]:
+    projections: Float64[Array, "K B A 9"],
+) -> Float64[Array, "K B A 3"]:
     """Reduce 9 orbital channels to s/p/d totals.
 
     Collapses the 9-channel VASP orbital decomposition
@@ -201,12 +201,12 @@ def reduce_orbitals(
 
     Parameters
     ----------
-    projections : Float[Array, "K B A 9"]
+    projections : Float64[Array, "K B A 9"]
         Full 9-channel orbital projections.
 
     Returns
     -------
-    reduced : Float[Array, "K B A 3"]
+    reduced : Float64[Array, "K B A 3"]
         Reduced projections: ``[s_total, p_total, d_total]``.
 
     Notes
@@ -216,14 +216,14 @@ def reduce_orbitals(
     This matches the standard PROCAR output when ``LORBIT=11`` or
     ``LORBIT=12``.
     """
-    s_total: Float[Array, "K B A"] = projections[..., S_IDX]
-    p_total: Float[Array, "K B A"] = jnp.sum(
+    s_total: Float64[Array, "K B A"] = projections[..., S_IDX]
+    p_total: Float64[Array, "K B A"] = jnp.sum(
         projections[..., P_ORBITAL_SLICE], axis=-1
     )
-    d_total: Float[Array, "K B A"] = jnp.sum(
+    d_total: Float64[Array, "K B A"] = jnp.sum(
         projections[..., D_ORBITAL_SLICE], axis=-1
     )
-    reduced: Float[Array, "K B A 3"] = jnp.stack(
+    reduced: Float64[Array, "K B A 3"] = jnp.stack(
         [s_total, p_total, d_total], axis=-1
     )
     return reduced

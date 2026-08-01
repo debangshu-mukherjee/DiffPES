@@ -16,7 +16,7 @@ import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable, Tuple
 from hypothesis import given, settings, strategies
-from jaxtyping import Array, Bool, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 
 from diffpes.simul import (
     detector_angles_to_kpar,
@@ -38,12 +38,12 @@ from tests._gradients import assert_grad_matches_fd, gradient_gate
 
 
 @jaxtyped(typechecker=beartype)
-def _make_geometry(lattice: Float[Array, "3 3"]) -> CrystalGeometry:
+def _make_geometry(lattice: Float64[Array, "3 3"]) -> CrystalGeometry:
     """Create a one-site geometry for a specified lattice.
 
     Parameters
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows in Angstrom.
 
     Returns
@@ -86,7 +86,7 @@ class TestKpointsFracToCart:
         """
         lattice_constant: float = 2.46
         layer_height: float = 15.0
-        lattice: Float[Array, "3 3"] = jnp.array(
+        lattice: Float64[Array, "3 3"] = jnp.array(
             [
                 [lattice_constant, 0.0, 0.0],
                 [
@@ -98,7 +98,7 @@ class TestKpointsFracToCart:
             ]
         )
         geometry: CrystalGeometry = _make_geometry(lattice)
-        expected_reciprocal: Float[Array, "3 3"] = jnp.array(
+        expected_reciprocal: Float64[Array, "3 3"] = jnp.array(
             [
                 [
                     2.0 * jnp.pi / lattice_constant,
@@ -113,11 +113,11 @@ class TestKpointsFracToCart:
                 [0.0, 0.0, 2.0 * jnp.pi / layer_height],
             ]
         )
-        cartesian: Float[Array, "1 3"] = kpoints_frac_to_cart(
+        cartesian: Float64[Array, "1 3"] = kpoints_frac_to_cart(
             jnp.array([[1.0 / 3.0, 1.0 / 3.0, 0.0]]), geometry
         )
-        magnitude: Float[Array, ""] = jnp.linalg.norm(cartesian[0])
-        azimuth: Float[Array, ""] = jnp.arctan2(
+        magnitude: Float64[Array, ""] = jnp.linalg.norm(cartesian[0])
+        azimuth: Float64[Array, ""] = jnp.arctan2(
             cartesian[0, 1], cartesian[0, 0]
         )
 
@@ -166,12 +166,14 @@ class TestKpointsFracToCart:
         The test multiplies the real-space rows by the independently stored
         reciprocal rows rather than relying on a coordinate round trip.
         """
-        lattice: Float[Array, "3 3"] = jnp.array(
+        lattice: Float64[Array, "3 3"] = jnp.array(
             [[a, xy, xz], [0.0, b, yz], [0.0, 0.0, c]]
         )
         geometry: CrystalGeometry = _make_geometry(lattice)
-        direct_identity: Float[Array, "3 3"] = lattice @ geometry.reciprocal.T
-        expected: Float[Array, "3 3"] = 2.0 * jnp.pi * jnp.eye(3)
+        direct_identity: Float64[Array, "3 3"] = (
+            lattice @ geometry.reciprocal.T
+        )
+        expected: Float64[Array, "3 3"] = 2.0 * jnp.pi * jnp.eye(3)
         chex.assert_trees_all_close(
             direct_identity,
             expected,
@@ -192,10 +194,10 @@ class TestKpointsFracToCart:
         """
 
         def k_magnitude(
-            lattice_constant: Float[Array, ""],
-        ) -> Float[Array, ""]:
+            lattice_constant: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
             """Compute the graphene K-point magnitude for one lattice scale."""
-            lattice: Float[Array, "3 3"] = jnp.array(
+            lattice: Float64[Array, "3 3"] = jnp.array(
                 [
                     [lattice_constant, 0.0, 0.0],
                     [
@@ -207,15 +209,15 @@ class TestKpointsFracToCart:
                 ]
             )
             geometry: CrystalGeometry = _make_geometry(lattice)
-            cartesian: Float[Array, "1 3"] = kpoints_frac_to_cart(
+            cartesian: Float64[Array, "1 3"] = kpoints_frac_to_cart(
                 jnp.array([[1.0 / 3.0, 1.0 / 3.0, 0.0]]), geometry
             )
-            magnitude: Float[Array, ""] = jnp.linalg.norm(cartesian[0])
+            magnitude: Float64[Array, ""] = jnp.linalg.norm(cartesian[0])
             return magnitude
 
-        lattice_constant: Float[Array, ""] = jnp.asarray(2.46)
-        actual: Float[Array, ""] = jax.grad(k_magnitude)(lattice_constant)
-        expected: Float[Array, ""] = (
+        lattice_constant: Float64[Array, ""] = jnp.asarray(2.46)
+        actual: Float64[Array, ""] = jax.grad(k_magnitude)(lattice_constant)
+        expected: Float64[Array, ""] = (
             -4.0 * jnp.pi / (3.0 * lattice_constant * lattice_constant)
         )
         chex.assert_trees_all_close(actual, expected, rtol=1e-10, atol=1e-12)
@@ -231,23 +233,23 @@ class TestKpointsFracToCart:
         A weighted Cartesian reduction makes every reciprocal-lattice entry
         relevant. The shared gate checks reverse mode and every coordinate.
         """
-        lattice: Float[Array, "3 3"] = jnp.array(
+        lattice: Float64[Array, "3 3"] = jnp.array(
             [[2.4, 0.2, 0.1], [0.1, 2.8, 0.3], [0.2, 0.1, 3.2]]
         )
-        fractional: Float[Array, "2 3"] = jnp.array(
+        fractional: Float64[Array, "2 3"] = jnp.array(
             [[0.2, -0.3, 0.4], [0.7, 0.1, -0.2]]
         )
-        weights: Float[Array, "2 3"] = jnp.array(
+        weights: Float64[Array, "2 3"] = jnp.array(
             [[1.0, 2.0, 3.0], [4.0, 6.0, 5.0]]
         )
 
-        def loss(candidate: Float[Array, "3 3"]) -> Float[Array, ""]:
+        def loss(candidate: Float64[Array, "3 3"]) -> Float64[Array, ""]:
             """Reduce converted points with generic Cartesian weights."""
             geometry: CrystalGeometry = _make_geometry(candidate)
-            cartesian: Float[Array, "2 3"] = kpoints_frac_to_cart(
+            cartesian: Float64[Array, "2 3"] = kpoints_frac_to_cart(
                 fractional, geometry
             )
-            result: Float[Array, ""] = jnp.sum(cartesian * weights)
+            result: Float64[Array, ""] = jnp.sum(cartesian * weights)
             return result
 
         gradient_gate(
@@ -295,17 +297,17 @@ class TestKpointsCartToFrac:
         Hypothesis supplies positive diagonal values and bounded shear values.
         The resulting upper-triangular lattice cannot be singular.
         """
-        lattice: Float[Array, "3 3"] = jnp.array(
+        lattice: Float64[Array, "3 3"] = jnp.array(
             [[a, xy, xz], [0.0, b, yz], [0.0, 0.0, c]]
         )
         geometry: CrystalGeometry = _make_geometry(lattice)
-        fractional: Float[Array, "3 3"] = jnp.array(
+        fractional: Float64[Array, "3 3"] = jnp.array(
             [[0.2, -0.3, 0.4], [0.7, 0.1, -0.2], [-0.5, 0.6, 0.9]]
         )
-        cartesian: Float[Array, "3 3"] = kpoints_frac_to_cart(
+        cartesian: Float64[Array, "3 3"] = kpoints_frac_to_cart(
             fractional, geometry
         )
-        restored: Float[Array, "3 3"] = kpoints_cart_to_frac(
+        restored: Float64[Array, "3 3"] = kpoints_cart_to_frac(
             cartesian, geometry
         )
         chex.assert_trees_all_close(
@@ -334,11 +336,11 @@ class TestBuildKpath:
         interpolation table.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        anchors: Float[Array, "3 3"] = jnp.array(
+        anchors: Float64[Array, "3 3"] = jnp.array(
             [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0]]
         )
         kpath: KPath = build_kpath(anchors, geometry, 3, ("G", "X", "M"))
-        expected: Float[Array, "6 3"] = jnp.array(
+        expected: Float64[Array, "6 3"] = jnp.array(
             [
                 [0.0, 0.0, 0.0],
                 [0.25, 0.0, 0.0],
@@ -365,7 +367,7 @@ class TestBuildKpath:
         endpoints with the analytic fractional coordinates.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        anchors: Float[Array, "2 3"] = jnp.array(
+        anchors: Float64[Array, "2 3"] = jnp.array(
             [[0.0, 0.0, 0.0], [jnp.pi, 0.0, 0.0]]
         )
         kpath: KPath = build_kpath(
@@ -375,7 +377,7 @@ class TestBuildKpath:
             ("G", "X"),
             anchor_units="absolute",
         )
-        expected: Float[Array, "2 3"] = jnp.array(
+        expected: Float64[Array, "2 3"] = jnp.array(
             [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]]
         )
         chex.assert_trees_all_close(kpath.kpoints, expected, atol=1e-15)
@@ -391,7 +393,7 @@ class TestBuildKpath:
         finite-value branch in eager and compiled execution.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        anchors: Float[Array, "2 3"] = jnp.zeros((2, 3))
+        anchors: Float64[Array, "2 3"] = jnp.zeros((2, 3))
         assert_rejects(
             build_kpath,
             anchors[:1],
@@ -462,8 +464,8 @@ class TestKpathArcLength:
             3,
             ("G", "X", "M"),
         )
-        actual: Float[Array, "6"] = kpath_arc_length(kpath, geometry)
-        expected: Float[Array, "6"] = (
+        actual: Float64[Array, "6"] = kpath_arc_length(kpath, geometry)
+        expected: Float64[Array, "6"] = (
             jnp.array([0.0, 0.25, 0.5, 0.5, 0.75, 1.0]) * jnp.pi
         )
         chex.assert_trees_all_close(actual, expected, rtol=1e-12, atol=1e-12)
@@ -481,10 +483,10 @@ class TestKpathArcLength:
         The shared gradient harness compares reverse mode with central finite
         differences for a weighted cumulative path distance.
         """
-        lattice: Float[Array, "3 3"] = jnp.array(
+        lattice: Float64[Array, "3 3"] = jnp.array(
             [[2.3, 0.1, 0.0], [0.2, 2.7, 0.1], [0.1, 0.2, 3.1]]
         )
-        points: Float[Array, "6 3"] = jnp.array(
+        points: Float64[Array, "6 3"] = jnp.array(
             [
                 [0.0, 0.0, 0.0],
                 [0.2, 0.0, 0.0],
@@ -501,13 +503,13 @@ class TestKpathArcLength:
             label_indices=(0, 3, 5),
             n_per_segment=3,
         )
-        weights: Float[Array, "6"] = jnp.arange(1.0, 7.0)
+        weights: Float64[Array, "6"] = jnp.arange(1.0, 7.0)
 
-        def loss(candidate: Float[Array, "3 3"]) -> Float[Array, ""]:
+        def loss(candidate: Float64[Array, "3 3"]) -> Float64[Array, ""]:
             """Reduce cumulative distance for one candidate lattice."""
             geometry: CrystalGeometry = _make_geometry(candidate)
-            distances: Float[Array, "6"] = kpath_arc_length(kpath, geometry)
-            result: Float[Array, ""] = jnp.sum(weights * distances)
+            distances: Float64[Array, "6"] = kpath_arc_length(kpath, geometry)
+            result: Float64[Array, ""] = jnp.sum(weights * distances)
             return result
 
         assert_grad_matches_fd(loss, lattice, modes=("rev",))
@@ -533,7 +535,7 @@ class TestFirstBzMask:
         with a hand-classified point table.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        points: Float[Array, "7 3"] = jnp.array(
+        points: Float64[Array, "7 3"] = jnp.array(
             [
                 [0.0, 0.0, 0.0],
                 [jnp.pi, 0.0, 0.0],
@@ -580,26 +582,28 @@ class TestFirstBzMask:
             "python": "3.11.13",
         }
 
-        chex.assert_equal(reference["gate"], "kmesh-reduction-reference")
+        chex.assert_equal(
+            reference["requirement"], "kmesh-reduction-reference"
+        )
         key: str
         expected_value: str
         for key, expected_value in expected_metadata.items():
             chex.assert_equal(metadata[key], expected_value)
 
-        lattice: Float[Array, "3 3"] = jnp.asarray(
+        lattice: Float64[Array, "3 3"] = jnp.asarray(
             reference["lattice_angstrom"], dtype=jnp.float64
         )
         geometry: CrystalGeometry = _make_geometry(lattice)
-        expected_reciprocal: Float[Array, "3 3"] = jnp.asarray(
+        expected_reciprocal: Float64[Array, "3 3"] = jnp.asarray(
             reference["reciprocal_inv_ang"], dtype=jnp.float64
         )
-        mesh: Float[Array, "n_k 3"] = jnp.asarray(
+        mesh: Float64[Array, "n_k 3"] = jnp.asarray(
             reference["mesh_cartesian_inv_ang"], dtype=jnp.float64
         )
-        expected_indices: Int[Array, " n_kept"] = jnp.asarray(
+        expected_indices: Int64[Array, " n_kept"] = jnp.asarray(
             reference["kept_indices"], dtype=jnp.int32
         )
-        expected_points: Float[Array, "n_kept 3"] = jnp.asarray(
+        expected_points: Float64[Array, "n_kept 3"] = jnp.asarray(
             reference["reduced_cartesian_inv_ang"], dtype=jnp.float64
         )
         tolerance: float = float(reference["rtol"])
@@ -608,10 +612,10 @@ class TestFirstBzMask:
         expected_count: int = expected_indices.shape[0]
 
         chex.assert_equal(actual_count, expected_count)
-        actual_indices: Int[Array, " n_kept"] = jnp.flatnonzero(
+        actual_indices: Int64[Array, " n_kept"] = jnp.flatnonzero(
             mask, size=expected_count
         )
-        actual_points: Float[Array, "n_kept 3"] = mesh[actual_indices]
+        actual_points: Float64[Array, "n_kept 3"] = mesh[actual_indices]
         chex.assert_trees_all_close(
             geometry.reciprocal,
             expected_reciprocal,
@@ -638,7 +642,7 @@ class TestFirstBzMask:
         Use a fixed regression from a larger-shell independent search. Check
         the public result and the insufficient-radius diagnostic under JIT.
         """
-        lattice: Float[Array, "3 3"] = jnp.asarray(
+        lattice: Float64[Array, "3 3"] = jnp.asarray(
             [
                 [
                     -0.24707167010074266,
@@ -650,10 +654,10 @@ class TestFirstBzMask:
             ]
         )
         geometry: CrystalGeometry = _make_geometry(lattice)
-        fractional: Float[Array, "1 3"] = jnp.asarray(
+        fractional: Float64[Array, "1 3"] = jnp.asarray(
             [[-0.5248987892602519, -0.9982714929009722, 0.03732934725712278]]
         )
-        point: Float[Array, "1 3"] = kpoints_frac_to_cart(
+        point: Float64[Array, "1 3"] = kpoints_frac_to_cart(
             fractional,
             geometry,
         )
@@ -697,13 +701,13 @@ class TestBuildBzMesh:
         kgrid: KGrid
         mask: Bool[Array, " n_k"]
         kgrid, mask = build_bz_mesh(geometry, n_per_axis)
-        reciprocal_volume: Float[Array, ""] = jnp.abs(
+        reciprocal_volume: Float64[Array, ""] = jnp.abs(
             jnp.linalg.det(geometry.reciprocal)
         )
-        estimated_volume: Float[Array, ""] = (
+        estimated_volume: Float64[Array, ""] = (
             jnp.mean(mask.astype(jnp.float64)) * 8.0 * reciprocal_volume
         )
-        relative_error: Float[Array, ""] = jnp.abs(
+        relative_error: Float64[Array, ""] = jnp.abs(
             estimated_volume / reciprocal_volume - 1.0
         )
 
@@ -743,7 +747,7 @@ class TestBuildBzMesh:
         Use the unreduced regression lattice. Require the coverage diagnostic
         in eager and compiled execution instead of accepting a partial zone.
         """
-        lattice: Float[Array, "3 3"] = jnp.asarray(
+        lattice: Float64[Array, "3 3"] = jnp.asarray(
             [
                 [
                     -0.24707167010074266,
@@ -789,14 +793,14 @@ class TestBuildArpesKmesh:
         geometry: CrystalGeometry = _make_geometry(
             jnp.array([[2.4, 0.2, 0.0], [0.1, 2.7, 0.0], [0.0, 0.0, 4.1]])
         )
-        tx: Float[Array, ""] = jnp.array(0.23)
-        ty: Float[Array, ""] = jnp.array(-0.17)
-        energy: Float[Array, ""] = jnp.array(35.0)
-        kz: Float[Array, ""] = jnp.array(1.4)
-        azimuth: Float[Array, ""] = jnp.array(0.41)
-        cosine: Float[Array, ""] = jnp.cos(azimuth)
-        sine: Float[Array, ""] = jnp.sin(azimuth)
-        sample_orientation: Float[Array, "3 3"] = jnp.array(
+        tx: Float64[Array, ""] = jnp.array(0.23)
+        ty: Float64[Array, ""] = jnp.array(-0.17)
+        energy: Float64[Array, ""] = jnp.array(35.0)
+        kz: Float64[Array, ""] = jnp.array(1.4)
+        azimuth: Float64[Array, ""] = jnp.array(0.41)
+        cosine: Float64[Array, ""] = jnp.cos(azimuth)
+        sine: Float64[Array, ""] = jnp.sin(azimuth)
+        sample_orientation: Float64[Array, "3 3"] = jnp.array(
             [
                 [cosine, -sine, 0.0],
                 [sine, cosine, 0.0],
@@ -805,16 +809,16 @@ class TestBuildArpesKmesh:
         )
         slit: str
         for slit in ("H", "V"):
-            k_parallel_lab: Float[Array, "2"] = detector_angles_to_kpar(
+            k_parallel_lab: Float64[Array, "2"] = detector_angles_to_kpar(
                 tx,
                 ty,
                 energy,
                 slit,
             )
-            lab_momentum: Float[Array, "3"] = jnp.concatenate(
+            lab_momentum: Float64[Array, "3"] = jnp.concatenate(
                 (k_parallel_lab, kz[None])
             )
-            expected: Float[Array, "1 3"] = (
+            expected: Float64[Array, "1 3"] = (
                 sample_orientation.T @ lab_momentum
             )[None, :]
             kgrid: KGrid = build_arpes_kmesh(
@@ -824,7 +828,7 @@ class TestBuildArpesKmesh:
                 azimuth,
                 geometry,
             )
-            actual: Float[Array, "1 3"] = kpoints_frac_to_cart(
+            actual: Float64[Array, "1 3"] = kpoints_frac_to_cart(
                 kgrid.kpoints,
                 geometry,
             )
@@ -854,10 +858,10 @@ class TestBuildArpesKmesh:
             0.5 * jnp.pi,
             geometry,
         )
-        cartesian: Float[Array, "1 3"] = kpoints_frac_to_cart(
+        cartesian: Float64[Array, "1 3"] = kpoints_frac_to_cart(
             kgrid.kpoints, geometry
         )
-        expected: Float[Array, "1 3"] = jnp.array([[0.0, -1.0, 0.5]])
+        expected: Float64[Array, "1 3"] = jnp.array([[0.0, -1.0, 0.5]])
         chex.assert_trees_all_close(
             cartesian, expected, atol=1e-12, rtol=1e-12
         )
@@ -876,9 +880,9 @@ class TestBuildArpesKmesh:
         geometry: CrystalGeometry = _make_geometry(
             jnp.array([[2.4, 0.1, 0.0], [0.2, 2.7, 0.0], [0.0, 0.0, 4.0]])
         )
-        weights: Float[Array, "6 3"] = jnp.arange(1.0, 19.0).reshape((6, 3))
+        weights: Float64[Array, "6 3"] = jnp.arange(1.0, 19.0).reshape((6, 3))
 
-        def loss(azimuth: Float[Array, ""]) -> Float[Array, ""]:
+        def loss(azimuth: Float64[Array, ""]) -> Float64[Array, ""]:
             """Reduce one ARPES raster at the candidate sample azimuth."""
             kgrid: KGrid = build_arpes_kmesh(
                 jnp.array([-0.4, 0.1, 0.7]),
@@ -887,7 +891,7 @@ class TestBuildArpesKmesh:
                 azimuth,
                 geometry,
             )
-            result: Float[Array, ""] = jnp.sum(kgrid.kpoints * weights)
+            result: Float64[Array, ""] = jnp.sum(kgrid.kpoints * weights)
             return result
 
         gradient_gate(loss, jnp.asarray(0.23), modes=("rev",))
@@ -907,9 +911,9 @@ class TestBuildArpesKmesh:
         trace_count: list[int] = [0]
 
         def counted(
-            kz: Float[Array, ""],
-            azimuth: Float[Array, ""],
-            photon_energies: Float[Array, "2"],
+            kz: Float64[Array, ""],
+            azimuth: Float64[Array, ""],
+            photon_energies: Float64[Array, "2"],
         ) -> Array:
             """Build both fixed-shape rasters and return their coordinates."""
             trace_count[0] += 1
@@ -964,8 +968,8 @@ class TestBuildKmeshHvAtFermi:
         :func:`diffpes.simul.kz_from_inner_potential_at_fermi`.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        parallel_axis: Float[Array, "3"] = jnp.array([-0.5, 0.0, 0.5])
-        photon_energies: Float[Array, "2"] = jnp.array([30.0, 50.0])
+        parallel_axis: Float64[Array, "3"] = jnp.array([-0.5, 0.0, 0.5])
+        photon_energies: Float64[Array, "2"] = jnp.array([30.0, 50.0])
         kgrid: KGrid = build_kmesh_hv_at_fermi(
             parallel_axis,
             photon_energies,
@@ -975,31 +979,31 @@ class TestBuildKmeshHvAtFermi:
             jnp.array([1.0, 0.0]),
             geometry,
         )
-        cartesian: Float[Array, "2 3 3"] = kpoints_frac_to_cart(
+        cartesian: Float64[Array, "2 3 3"] = kpoints_frac_to_cart(
             kgrid.kpoints, geometry
         ).reshape((2, 3, 3))
 
         def expected_row(
-            photon_energy: Float[Array, ""],
-        ) -> Tuple[Complex[Array, "3"], Bool[Array, "3"]]:
+            photon_energy: Float64[Array, ""],
+        ) -> Tuple[Complex128[Array, "3"], Bool[Array, "3"]]:
             """Compute one direct free-electron row."""
-            kz_values: Complex[Array, "3"]
+            kz_values: Complex128[Array, "3"]
             propagating: Bool[Array, "3"]
             kz_values, propagating = kz_from_inner_potential_at_fermi(
                 photon_energy, 4.5, 12.0, jnp.abs(parallel_axis)
             )
-            result: Tuple[Complex[Array, "3"], Bool[Array, "3"]] = (
+            result: Tuple[Complex128[Array, "3"], Bool[Array, "3"]] = (
                 kz_values,
                 propagating,
             )
             return result
 
-        expected_complex: Complex[Array, "2 3"]
+        expected_complex: Complex128[Array, "2 3"]
         propagating: Bool[Array, "2 3"]
         expected_complex, propagating = jax.vmap(expected_row)(photon_energies)
-        expected_kz: Float[Array, "2 3"] = jnp.real(expected_complex)
+        expected_kz: Float64[Array, "2 3"] = jnp.real(expected_complex)
         chex.assert_trees_all_equal(propagating, jnp.ones((2, 3), dtype=bool))
-        expected_x: Float[Array, "2 3"] = jnp.broadcast_to(
+        expected_x: Float64[Array, "2 3"] = jnp.broadcast_to(
             parallel_axis, (2, 3)
         )
 
@@ -1031,20 +1035,20 @@ class TestBuildKmeshHvAtFermi:
         n_photon: int = 64
         n_parallel: int = 256 * 256
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        parallel_axis: Float[Array, " 65536"] = jnp.linspace(
+        parallel_axis: Float64[Array, " 65536"] = jnp.linspace(
             -1.5,
             1.5,
             n_parallel,
         )
-        photon_energies: Float[Array, " 64"] = jnp.linspace(
+        photon_energies: Float64[Array, " 64"] = jnp.linspace(
             20.0,
             150.0,
             n_photon,
         )
 
         def composed_builder(
-            axis: Float[Array, " 65536"],
-            energies: Float[Array, " 64"],
+            axis: Float64[Array, " 65536"],
+            energies: Float64[Array, " 64"],
         ) -> KGrid:
             """Build one full photon-energy raster through the kz primitive."""
             kgrid: KGrid = build_kmesh_hv_at_fermi(

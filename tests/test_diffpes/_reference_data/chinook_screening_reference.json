@@ -2,7 +2,7 @@
   "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
   "chinook_configuration_sha256": "2e4d1977365dfd17df5b4738f9782298050be007e97d131d3b26d150da200b04",
   "chinook_module_sha256": "93341ec1b7cee8cd4982a968391294d91d4669d44a0a3e8fc51b0a9adc34fbf3",
-  "gate": "06.G4",
+  "requirement": "chinook-screening-reference",
   "policy": "Generated offline in the isolated pinned Chinook environment; DiffPES pytest consumes inert JSON only.",
   "round_digits": 12,
   "samples": [

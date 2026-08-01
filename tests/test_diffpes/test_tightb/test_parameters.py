@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.tightb import (
     bloch_hamiltonian,
@@ -51,7 +51,7 @@ def _materialized_model(
     )
     forward: complex = complex(1.2, -0.35)
     self_reverse: complex = complex(0.7, -0.0)
-    amplitudes: Complex[Array, " 3"] = jnp.asarray(
+    amplitudes: Complex128[Array, " 3"] = jnp.asarray(
         (
             forward,
             np.conj(forward) + reverse_residual,
@@ -76,7 +76,7 @@ def _graphene_context() -> tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
-    Float[Array, " 2"],
+    Float64[Array, " 2"],
 ]:
     """Construct the minimal pz Slater--Koster graphene context."""
     lattice_constant: float = 2.46
@@ -110,7 +110,7 @@ def _graphene_context() -> tuple[
         jnp.asarray((-2.7,), dtype=jnp.float64),
         ("C-C:pp_pi",),
     )
-    onsite: Float[Array, " 2"] = jnp.asarray(
+    onsite: Float64[Array, " 2"] = jnp.asarray(
         (0.11, -0.09),
         dtype=jnp.float64,
     )
@@ -121,7 +121,7 @@ def _sp_context() -> tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
-    Float[Array, " 2"],
+    Float64[Array, " 2"],
 ]:
     """Construct an oblique isolated s--px bond with lattice sensitivity."""
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -143,7 +143,7 @@ def _sp_context() -> tuple[
         jnp.asarray((1.1,), dtype=jnp.float64),
         ("X-X:sp_sigma",),
     )
-    onsite: Float[Array, " 2"] = jnp.asarray(
+    onsite: Float64[Array, " 2"] = jnp.asarray(
         (0.2, -0.1),
         dtype=jnp.float64,
     )
@@ -185,8 +185,8 @@ class TestTBParameterView:
         reconstruction of all numerical leaves.
         """
         model: TBModel = _materialized_model()
-        parameters: Float[Array, " 5"]
-        rebuild: Callable[[Float[Array, " 5"]], TBModel]
+        parameters: Float64[Array, " 5"]
+        rebuild: Callable[[Float64[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
 
         np.testing.assert_array_equal(
@@ -214,14 +214,14 @@ class TestTBParameterView:
         static hopping topology. Require reciprocal-lattice recomputation.
         """
         model: TBModel = _materialized_model()
-        parameters: Float[Array, " 17"]
-        rebuild: Callable[[Float[Array, " 17"]], TBModel]
+        parameters: Float64[Array, " 17"]
+        rebuild: Callable[[Float64[Array, " 17"]], TBModel]
         parameters, rebuild = tb_parameter_view(
             model,
             include_positions=True,
             include_lattice=True,
         )
-        perturbed: Float[Array, " 17"] = parameters.at[5].add(0.02)
+        perturbed: Float64[Array, " 17"] = parameters.at[5].add(0.02)
         perturbed = perturbed.at[8].add(0.1)
         rebuilt: TBModel = jax.jit(rebuild)(perturbed)
 
@@ -258,27 +258,27 @@ class TestTBParameterView:
         geometry coordinate and require the documented structural zero.
         """
         model: TBModel = _materialized_model()
-        parameters: Float[Array, " 17"]
-        rebuild: Callable[[Float[Array, " 17"]], TBModel]
+        parameters: Float64[Array, " 17"]
+        rebuild: Callable[[Float64[Array, " 17"]], TBModel]
         parameters, rebuild = tb_parameter_view(
             model,
             include_positions=True,
             include_lattice=True,
         )
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.231, -0.117, 0.083),
             dtype=jnp.float64,
         )
 
-        def loss(vector: Float[Array, " 12"]) -> jax.Array:
+        def loss(vector: Float64[Array, " 12"]) -> jax.Array:
             """Return a spectral invariant with hoppings and k fixed."""
             candidate: TBModel = rebuild(parameters.at[5:].set(vector))
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(candidate, kpoint)
             )
             return jnp.sum(eigenvalues**2)
 
-        derivative: Float[Array, " 12"] = jax.grad(loss)(parameters[5:])
+        derivative: Float64[Array, " 12"] = jax.grad(loss)(parameters[5:])
 
         np.testing.assert_allclose(derivative, 0.0, rtol=0.0, atol=1e-13)
 
@@ -292,26 +292,26 @@ class TestTBParameterView:
         Compare the two stacked-real hopping derivatives at ``1e-12``.
         """
         model: TBModel = _materialized_model()
-        parameters: Float[Array, " 5"]
-        rebuild: Callable[[Float[Array, " 5"]], TBModel]
+        parameters: Float64[Array, " 5"]
+        rebuild: Callable[[Float64[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
         kpoint: float = 0.231
         phase: complex = np.exp(2.0j * np.pi * kpoint)
 
-        def view_loss(packed: Float[Array, " 2"]) -> jax.Array:
+        def view_loss(packed: Float64[Array, " 2"]) -> jax.Array:
             """Evaluate the scalar band loss through the inverse view."""
-            vector: Float[Array, " 5"] = parameters.at[:2].set(packed)
+            vector: Float64[Array, " 5"] = parameters.at[:2].set(packed)
             candidate: TBModel = rebuild(vector)
-            hamiltonian: Complex[Array, "1 1"] = bloch_hamiltonian(
+            hamiltonian: Complex128[Array, "1 1"] = bloch_hamiltonian(
                 candidate,
                 jnp.asarray((kpoint, 0.0, 0.0), dtype=jnp.float64),
             )
             return jnp.real(hamiltonian[0, 0]) ** 2
 
-        def direct_loss(packed: Float[Array, " 2"]) -> jax.Array:
+        def direct_loss(packed: Float64[Array, " 2"]) -> jax.Array:
             """Evaluate the same scalar band loss from the closed form."""
-            amplitude: Complex[Array, ""] = unpack_complex(packed)
-            energy: Complex[Array, ""] = (
+            amplitude: Complex128[Array, ""] = unpack_complex(packed)
+            energy: Complex128[Array, ""] = (
                 model.onsite_energies[0]
                 + jnp.real(model.hopping_amplitudes[2])
                 + amplitude * phase
@@ -319,8 +319,8 @@ class TestTBParameterView:
             )
             return jnp.real(energy) ** 2
 
-        actual: Float[Array, " 2"] = jax.grad(view_loss)(parameters[:2])
-        expected: Float[Array, " 2"] = jax.grad(direct_loss)(parameters[:2])
+        actual: Float64[Array, " 2"] = jax.grad(view_loss)(parameters[:2])
+        expected: Float64[Array, " 2"] = jax.grad(direct_loss)(parameters[:2])
 
         np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-13)
 
@@ -342,8 +342,8 @@ class TestTBParameterView:
         with pytest.raises(ValueError, match="exactly conjugate-closed"):
             tb_parameter_view(tolerance_close)
 
-        parameters: Float[Array, " 5"]
-        rebuild: Callable[[Float[Array, " 5"]], TBModel]
+        parameters: Float64[Array, " 5"]
+        rebuild: Callable[[Float64[Array, " 5"]], TBModel]
         parameters, rebuild = tb_parameter_view(_materialized_model())
         with pytest.raises(ValueError, match="must have shape"):
             rebuild(jnp.zeros((parameters.size + 1,), dtype=jnp.float64))
@@ -366,7 +366,7 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
         expected: TBModel = build_sk_model(
             geometry,
@@ -377,8 +377,8 @@ class TestSKModelParameterView:
             (-1, -1),
             1.5,
         )
-        parameters: Float[Array, " 3"]
-        rebuild: Callable[[Float[Array, " 3"]], TBModel]
+        parameters: Float64[Array, " 3"]
+        rebuild: Callable[[Float64[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -390,8 +390,8 @@ class TestSKModelParameterView:
         )
         _assert_models_bitwise(rebuild(parameters), expected)
 
-        positioned: Float[Array, " 9"]
-        rebuild_positioned: Callable[[Float[Array, " 9"]], TBModel]
+        positioned: Float64[Array, " 9"]
+        rebuild_positioned: Callable[[Float64[Array, " 9"]], TBModel]
         positioned, rebuild_positioned = sk_model_parameter_view(
             geometry,
             basis,
@@ -405,15 +405,15 @@ class TestSKModelParameterView:
         assert parameters.shape == (3,)
         assert positioned.shape == (9,)
         np.testing.assert_array_equal(positioned[:3], parameters)
-        shifted: Float[Array, " 9"] = positioned.at[-3].add(1e-4)
+        shifted: Float64[Array, " 9"] = positioned.at[-3].add(1e-4)
         shifted_model: TBModel = rebuild_positioned(shifted)
         np.testing.assert_array_equal(
             shifted_model.geometry.positions,
             geometry.positions.at[1, 0].add(1e-4),
         )
 
-        geometric: Float[Array, " 18"]
-        rebuild_geometric: Callable[[Float[Array, " 18"]], TBModel]
+        geometric: Float64[Array, " 18"]
+        rebuild_geometric: Callable[[Float64[Array, " 18"]], TBModel]
         geometric, rebuild_geometric = sk_model_parameter_view(
             geometry,
             basis,
@@ -427,7 +427,7 @@ class TestSKModelParameterView:
         )
         assert geometric.shape == (18,)
         np.testing.assert_array_equal(geometric[:9], positioned)
-        strained: Float[Array, " 18"] = geometric.at[9].add(1e-4)
+        strained: Float64[Array, " 18"] = geometric.at[9].add(1e-4)
         strained_model: TBModel = rebuild_geometric(strained)
         np.testing.assert_array_equal(
             strained_model.geometry.lattice,
@@ -453,10 +453,10 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
-        parameters: Float[Array, " 3"]
-        rebuild: Callable[[Float[Array, " 3"]], TBModel]
+        parameters: Float64[Array, " 3"]
+        rebuild: Callable[[Float64[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -466,26 +466,26 @@ class TestSKModelParameterView:
             (-1, -1),
             1.5,
         )
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.173, -0.081, 0.0),
             dtype=jnp.float64,
         )
 
         def band_loss(model: TBModel) -> jax.Array:
             """Return a gauge-invariant spectral polynomial."""
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
             result: jax.Array = jnp.sum(eigenvalues**2)
             return result
 
-        def through_view(value: Float[Array, ""]) -> jax.Array:
+        def through_view(value: Float64[Array, ""]) -> jax.Array:
             """Return bands after rebuilding from optimizer coordinates."""
-            vector: Float[Array, " 3"] = parameters.at[0].set(value)
+            vector: Float64[Array, " 3"] = parameters.at[0].set(value)
             result: jax.Array = band_loss(rebuild(vector))
             return result
 
-        def direct(value: Float[Array, ""]) -> jax.Array:
+        def direct(value: Float64[Array, ""]) -> jax.Array:
             """Return bands rebuilt from the fundamental SK value."""
             direct_params: SlaterKosterParams = SlaterKosterParams(
                 values=jnp.reshape(value, (1,)),
@@ -503,8 +503,8 @@ class TestSKModelParameterView:
             result: jax.Array = band_loss(model)
             return result
 
-        actual: Float[Array, ""] = jax.grad(through_view)(parameters[0])
-        expected: Float[Array, ""] = jax.grad(direct)(parameters[0])
+        actual: Float64[Array, ""] = jax.grad(through_view)(parameters[0])
+        expected: Float64[Array, ""] = jax.grad(direct)(parameters[0])
 
         np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-13)
 
@@ -524,10 +524,10 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _sp_context()
-        parameters: Float[Array, " 12"]
-        rebuild: Callable[[Float[Array, " 12"]], TBModel]
+        parameters: Float64[Array, " 12"]
+        rebuild: Callable[[Float64[Array, " 12"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -539,28 +539,28 @@ class TestSKModelParameterView:
             include_lattice=True,
         )
         lattice_offset: int = 3
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.17, -0.09, 0.03),
             dtype=jnp.float64,
         )
 
         def band_loss(model: TBModel) -> jax.Array:
             """Return a spectral invariant with bond-direction sensitivity."""
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
             result: jax.Array = jnp.sum(eigenvalues**2)
             return result
 
-        def through_view(value: Float[Array, ""]) -> jax.Array:
+        def through_view(value: Float64[Array, ""]) -> jax.Array:
             """Replace one lattice coordinate in the flat view."""
-            vector: Float[Array, " 12"] = parameters.at[lattice_offset].set(
+            vector: Float64[Array, " 12"] = parameters.at[lattice_offset].set(
                 value
             )
             result: jax.Array = band_loss(rebuild(vector))
             return result
 
-        def direct(value: Float[Array, ""]) -> jax.Array:
+        def direct(value: Float64[Array, ""]) -> jax.Array:
             """Return bands rebuilt from the same lattice coordinate."""
             direct_geometry: CrystalGeometry = make_crystal_geometry(
                 geometry.lattice.at[0, 0].set(value),
@@ -579,9 +579,9 @@ class TestSKModelParameterView:
             result: jax.Array = band_loss(model)
             return result
 
-        initial: Float[Array, ""] = parameters[lattice_offset]
-        actual: Float[Array, ""] = jax.grad(through_view)(initial)
-        expected: Float[Array, ""] = jax.grad(direct)(initial)
+        initial: Float64[Array, ""] = parameters[lattice_offset]
+        actual: Float64[Array, ""] = jax.grad(through_view)(initial)
+        expected: Float64[Array, ""] = jax.grad(direct)(initial)
 
         assert jnp.abs(actual) > 1e-8
         np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-13)
@@ -605,10 +605,10 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _sp_context()
-        parameters: Float[Array, " 18"]
-        rebuild: Callable[[Float[Array, " 18"]], TBModel]
+        parameters: Float64[Array, " 18"]
+        rebuild: Callable[[Float64[Array, " 18"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -620,42 +620,42 @@ class TestSKModelParameterView:
             include_positions=True,
             include_lattice=True,
         )
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.17, -0.09, 0.03),
             dtype=jnp.float64,
         )
         position_slice: slice = slice(3, 9)
         lattice_slice: slice = slice(9, 18)
 
-        def band_loss(vector: Float[Array, " 18"]) -> jax.Array:
+        def band_loss(vector: Float64[Array, " 18"]) -> jax.Array:
             """Return a spectral invariant at fixed fractional k."""
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(rebuild(vector), kpoint)
             )
             return jnp.sum(eigenvalues**2)
 
-        def translated(shift: Float[Array, " 3"]) -> jax.Array:
+        def translated(shift: Float64[Array, " 3"]) -> jax.Array:
             """Return equally translated fractional basis positions."""
-            positions: Float[Array, "2 3"] = jnp.reshape(
+            positions: Float64[Array, "2 3"] = jnp.reshape(
                 parameters[position_slice],
                 (2, 3),
             )
-            vector: Float[Array, " 18"] = parameters.at[position_slice].set(
+            vector: Float64[Array, " 18"] = parameters.at[position_slice].set(
                 jnp.ravel(positions + shift[None, :])
             )
             return band_loss(vector)
 
-        def dilated(scale: Float[Array, ""]) -> jax.Array:
+        def dilated(scale: Float64[Array, ""]) -> jax.Array:
             """Return lattice rows dilated by one scale."""
-            vector: Float[Array, " 18"] = parameters.at[lattice_slice].set(
+            vector: Float64[Array, " 18"] = parameters.at[lattice_slice].set(
                 scale * parameters[lattice_slice]
             )
             return band_loss(vector)
 
-        translation_gradient: Float[Array, " 3"] = jax.grad(translated)(
+        translation_gradient: Float64[Array, " 3"] = jax.grad(translated)(
             jnp.zeros((3,), dtype=jnp.float64)
         )
-        dilation_gradient: Float[Array, ""] = jax.grad(dilated)(
+        dilation_gradient: Float64[Array, ""] = jax.grad(dilated)(
             jnp.asarray(1.0, dtype=jnp.float64)
         )
 
@@ -679,10 +679,10 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _graphene_context()
-        parameters: Float[Array, " 3"]
-        rebuild: Callable[[Float[Array, " 3"]], TBModel]
+        parameters: Float64[Array, " 3"]
+        rebuild: Callable[[Float64[Array, " 3"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -720,10 +720,10 @@ class TestSKModelParameterView:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         params: SlaterKosterParams
-        onsite: Float[Array, " 2"]
+        onsite: Float64[Array, " 2"]
         geometry, basis, params, onsite = _sp_context()
-        parameters: Float[Array, " 18"]
-        rebuild: Callable[[Float[Array, " 18"]], TBModel]
+        parameters: Float64[Array, " 18"]
+        rebuild: Callable[[Float64[Array, " 18"]], TBModel]
         parameters, rebuild = sk_model_parameter_view(
             geometry,
             basis,
@@ -735,39 +735,39 @@ class TestSKModelParameterView:
             include_positions=True,
             include_lattice=True,
         )
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.17, -0.09, 0.03),
             dtype=jnp.float64,
         )
 
-        def loss(vector: Float[Array, " 18"]) -> Float[Array, ""]:
+        def loss(vector: Float64[Array, " 18"]) -> Float64[Array, ""]:
             """Return a spectral invariant from the frozen-topology view."""
             model: TBModel = rebuild(vector)
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
             return jnp.sum(eigenvalues**2)
 
         def loss_with_model(
-            vector: Float[Array, " 18"],
-        ) -> tuple[Float[Array, ""], TBModel]:
+            vector: Float64[Array, " 18"],
+        ) -> tuple[Float64[Array, ""], TBModel]:
             """Return the spectral invariant and rebuilt auxiliary model."""
             model: TBModel = rebuild(vector)
-            eigenvalues: Float[Array, " n_orb"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
-            value: Float[Array, ""] = jnp.sum(eigenvalues**2)
+            value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
             return value, model
 
-        expected_value: Float[Array, ""]
-        expected_gradient: Float[Array, " 18"]
+        expected_value: Float64[Array, ""]
+        expected_gradient: Float64[Array, " 18"]
         expected_value, expected_gradient = jax.value_and_grad(loss)(
             parameters
         )
         expected_model: TBModel = rebuild(parameters)
-        actual_value: Float[Array, ""]
+        actual_value: Float64[Array, ""]
         actual_model: TBModel
-        actual_gradient: Float[Array, " 18"]
+        actual_gradient: Float64[Array, " 18"]
         (actual_value, actual_model), actual_gradient = jax.jit(
             jax.value_and_grad(loss_with_model, has_aux=True)
         )(parameters)

@@ -9,7 +9,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Bool, Complex, Float
+from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
     assemble_orbital_transition_channels,
@@ -76,13 +76,13 @@ def _fixture() -> Fixture:
         geometry=geometry,
         basis=basis,
     )
-    radius: Float[Array, " 65"] = jnp.linspace(
+    radius: Float64[Array, " 65"] = jnp.linspace(
         0.0,
         8.0,
         65,
         dtype=jnp.float64,
     )
-    radial_row: Float[Array, " 65"] = (
+    radial_row: Float64[Array, " 65"] = (
         jnp.exp(-radius) * (1.0 - radius / 8.0) ** 2
     )
     radial_row = radial_row.at[-1].set(0.0)
@@ -116,33 +116,33 @@ def _fixture() -> Fixture:
 
 
 def _intensity(
-    parameters: Float[Array, " 2"],
+    parameters: Float64[Array, " 2"],
     fixture: Fixture,
-) -> Float[Array, ""]:
+) -> Float64[Array, ""]:
     """Compose charge and photon energy through the complete assembly."""
-    effective_charge: Float[Array, ""] = parameters[0]
-    photon_energy: Float[Array, ""] = parameters[1]
+    effective_charge: Float64[Array, ""] = parameters[0]
+    photon_energy: Float64[Array, ""] = parameters[1]
     bands: DiagonalizedBands
     radial: RadialSpec
     matrix_params: MatrixElementParams
     quadrature: RadialQuadratureSpec
     experiment: ExperimentGeometry
     bands, radial, matrix_params, quadrature, experiment = fixture
-    kinetic_energy: Float[Array, " 1"]
+    kinetic_energy: Float64[Array, " 1"]
     energy_valid: Bool[Array, " 1"]
     kinetic_energy, energy_valid = kinetic_energy_ev(
         photon_energy,
         experiment.work_function_ev,
         jnp.zeros((1,), dtype=jnp.float64),
     )
-    momentum_magnitude: Float[Array, " 1"]
+    momentum_magnitude: Float64[Array, " 1"]
     momentum_valid: Bool[Array, " 1"]
     momentum_magnitude, momentum_valid = final_state_k_inv_ang(kinetic_energy)
-    parallel_momentum: Float[Array, " 1"] = jnp.full_like(
+    parallel_momentum: Float64[Array, " 1"] = jnp.full_like(
         momentum_magnitude,
         0.35,
     )
-    final_momentum: Float[Array, "1 3"] = jnp.stack(
+    final_momentum: Float64[Array, "1 3"] = jnp.stack(
         (
             parallel_momentum,
             jnp.zeros_like(parallel_momentum),
@@ -154,7 +154,7 @@ def _intensity(
         mode="coulomb",
         effective_charge=effective_charge,
     )
-    orbital_channels: Complex[Array, "1 1 1 3"] = (
+    orbital_channels: Complex128[Array, "1 1 1 3"] = (
         assemble_orbital_transition_channels(
             bands,
             radial,
@@ -166,29 +166,29 @@ def _intensity(
             energy_valid & momentum_valid,
         )
     )
-    band_channels: Complex[Array, "1 1 1 3"] = project_band_channels(
+    band_channels: Complex128[Array, "1 1 1 3"] = project_band_channels(
         orbital_channels,
         bands.eigenvectors,
     )
-    amplitudes: Complex[Array, "1 1 1"] = contract_experiment_polarization(
+    amplitudes: Complex128[Array, "1 1 1"] = contract_experiment_polarization(
         band_channels,
         experiment,
     )
-    intensity: Float[Array, ""] = matrix_element_intensity(amplitudes)[0, 0]
+    intensity: Float64[Array, ""] = matrix_element_intensity(amplitudes)[0, 0]
     return intensity
 
 
 def _five_point_derivative(
-    parameters: Float[Array, " 2"],
+    parameters: Float64[Array, " 2"],
     coordinate: int,
     step: float,
     fixture: Fixture,
-) -> Float[Array, ""]:
+) -> Float64[Array, ""]:
     """Evaluate one five-point central derivative."""
-    direction: Float[Array, " 2"] = (
+    direction: Float64[Array, " 2"] = (
         jnp.zeros_like(parameters).at[coordinate].set(step)
     )
-    derivative: Float[Array, ""] = (
+    derivative: Float64[Array, ""] = (
         -_intensity(parameters + 2.0 * direction, fixture)
         + 8.0 * _intensity(parameters + direction, fixture)
         - 8.0 * _intensity(parameters - direction, fixture)
@@ -200,17 +200,17 @@ def _five_point_derivative(
 def main() -> None:
     """Compare forward/reverse autodiff with a registered FD plateau."""
     fixture: Fixture = _fixture()
-    parameters: Float[Array, " 2"] = jnp.asarray(
+    parameters: Float64[Array, " 2"] = jnp.asarray(
         [0.4, 30.0],
         dtype=jnp.float64,
     )
 
-    def objective(values: Float[Array, " 2"]) -> Float[Array, ""]:
+    def objective(values: Float64[Array, " 2"]) -> Float64[Array, ""]:
         return _intensity(values, fixture)
 
-    forward: Float[Array, " 2"] = jax.jacfwd(objective)(parameters)
-    reverse: Float[Array, " 2"] = jax.jacrev(objective)(parameters)
-    finite_difference: Float[Array, "3 2"] = jnp.stack(
+    forward: Float64[Array, " 2"] = jax.jacfwd(objective)(parameters)
+    reverse: Float64[Array, " 2"] = jax.jacrev(objective)(parameters)
+    finite_difference: Float64[Array, "3 2"] = jnp.stack(
         tuple(
             jnp.stack(
                 tuple(
@@ -244,17 +244,17 @@ def main() -> None:
     if float(jnp.abs(forward[1])) <= _PHOTON_ENERGY_DERIVATIVE_FLOOR:
         message = "photon-energy derivative tripwire failed"
         raise AssertionError(message)
-    value: Float[Array, ""] = objective(parameters)
+    value: Float64[Array, ""] = objective(parameters)
     np.testing.assert_allclose(
         value,
         2.0058154144143075e-4,
         rtol=1.0e-10,
         atol=1.0e-14,
     )
-    fd_budget_ratios: Float[Array, "3 2"] = jnp.abs(
+    fd_budget_ratios: Float64[Array, "3 2"] = jnp.abs(
         finite_difference - forward[None, :]
     ) / (1.0e-10 + 1.0e-6 * jnp.abs(forward[None, :]))
-    plateau_spread: Float[Array, " 2"] = jnp.abs(
+    plateau_spread: Float64[Array, " 2"] = jnp.abs(
         finite_difference[-1] - finite_difference[-2]
     ) / (1.0e-10 + 1.0e-6 * jnp.abs(forward))
     if bool(jnp.any(plateau_spread > 1.0)):

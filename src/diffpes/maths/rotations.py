@@ -44,7 +44,7 @@ import math
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Complex128, Float, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import L_MAX, ScalarFloat
 
@@ -62,7 +62,7 @@ def _validate_l(l: int) -> None:
 def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
     l: int,
     beta: ScalarFloat,
-) -> Float[Array, "m1 m2"]:
+) -> Float64[Array, "m1 m2"]:
     r"""Construct a Wigner small-d matrix from its finite factorial sum.
 
     The function evaluates the matrix of an active y-axis rotation in the
@@ -83,7 +83,7 @@ def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
 
     Returns
     -------
-    small_d : Float[Array, "m1 m2"]
+    small_d : Float64[Array, "m1 m2"]
         Real matrix with shape ``(2*l + 1, 2*l + 1)``.
 
     Raises
@@ -108,15 +108,15 @@ def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
     and powers.
     """
     _validate_l(l)
-    beta_array: Float[Array, ""] = jnp.asarray(beta)
-    cosine_half: Float[Array, ""] = jnp.cos(0.5 * beta_array)
-    sine_half: Float[Array, ""] = jnp.sin(0.5 * beta_array)
-    rows: list[Float[Array, " m2"]] = []
+    beta_array: Float64[Array, ""] = jnp.asarray(beta)
+    cosine_half: Float64[Array, ""] = jnp.cos(0.5 * beta_array)
+    sine_half: Float64[Array, ""] = jnp.sin(0.5 * beta_array)
+    rows: list[Float64[Array, " m2"]] = []
     m_prime: int
     m: int
     k: int
     for m_prime in range(-l, l + 1):
-        entries: list[Float[Array, ""]] = []
+        entries: list[Float64[Array, ""]] = []
         for m in range(-l, l + 1):
             prefactor: float = math.sqrt(
                 math.factorial(l + m)
@@ -126,7 +126,7 @@ def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
             )
             k_min: int = max(0, m - m_prime)
             k_max: int = min(l + m, l - m_prime)
-            element: Float[Array, ""] = jnp.zeros_like(beta_array)
+            element: Float64[Array, ""] = jnp.zeros_like(beta_array)
             for k in range(k_min, k_max + 1):
                 denominator: int = (
                     math.factorial(l + m - k)
@@ -146,7 +146,7 @@ def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
                 )
             entries.append(element)
         rows.append(jnp.stack(entries))
-    small_d: Float[Array, "m1 m2"] = jnp.stack(rows)
+    small_d: Float64[Array, "m1 m2"] = jnp.stack(rows)
     return small_d
 
 
@@ -156,7 +156,7 @@ def wigner_d(  # noqa: DOC502 -- validation is shared in _validate_l.
     alpha: ScalarFloat,
     beta: ScalarFloat,
     gamma: ScalarFloat,
-) -> Complex[Array, "m1 m2"]:
+) -> Complex128[Array, "m1 m2"]:
     r"""Construct a Wigner D matrix for an active z--y--z rotation.
 
     The function dresses :func:`wigner_small_d` with the two diagonal z-axis
@@ -179,7 +179,7 @@ def wigner_d(  # noqa: DOC502 -- validation is shared in _validate_l.
 
     Returns
     -------
-    matrix : Complex[Array, "m1 m2"]
+    matrix : Complex128[Array, "m1 m2"]
         Complex Wigner matrix with shape ``(2*l + 1, 2*l + 1)``.
 
     Raises
@@ -195,22 +195,22 @@ def wigner_d(  # noqa: DOC502 -- validation is shared in _validate_l.
     canon.
     """
     _validate_l(l)
-    alpha_array: Float[Array, ""] = jnp.asarray(alpha)
-    beta_array: Float[Array, ""] = jnp.asarray(beta)
-    gamma_array: Float[Array, ""] = jnp.asarray(gamma)
-    magnetic_numbers: Float[Array, " m"] = jnp.arange(
+    alpha_array: Float64[Array, ""] = jnp.asarray(alpha)
+    beta_array: Float64[Array, ""] = jnp.asarray(beta)
+    gamma_array: Float64[Array, ""] = jnp.asarray(gamma)
+    magnetic_numbers: Float64[Array, " m"] = jnp.arange(
         -l,
         l + 1,
         dtype=beta_array.dtype,
     )
-    alpha_phases: Complex[Array, " m"] = jnp.exp(
+    alpha_phases: Complex128[Array, " m"] = jnp.exp(
         -1j * magnetic_numbers * alpha_array
     )
-    gamma_phases: Complex[Array, " m"] = jnp.exp(
+    gamma_phases: Complex128[Array, " m"] = jnp.exp(
         -1j * magnetic_numbers * gamma_array
     )
-    small_d: Float[Array, "m1 m2"] = wigner_small_d(l, beta_array)
-    matrix: Complex[Array, "m1 m2"] = (
+    small_d: Float64[Array, "m1 m2"] = wigner_small_d(l, beta_array)
+    matrix: Complex128[Array, "m1 m2"] = (
         alpha_phases[:, None] * small_d * gamma_phases[None, :]
     )
     return matrix
@@ -285,8 +285,8 @@ def real_harmonic_unitary(  # noqa: DOC502 -- validation is shared in _validate_
 
 @jaxtyped(typechecker=beartype)
 def bond_angles(
-    bond_cart: Float[Array, " 3"],
-) -> tuple[Float[Array, ""], Float[Array, ""]]:
+    bond_cart: Float64[Array, " 3"],
+) -> tuple[Float64[Array, ""], Float64[Array, ""]]:
     r"""Convert a Cartesian bond to safe polar and azimuthal angles.
 
     The function returns the polar angle from positive z followed by the
@@ -298,14 +298,14 @@ def bond_angles(
 
     Parameters
     ----------
-    bond_cart : Float[Array, " 3"]
+    bond_cart : Float64[Array, " 3"]
         Cartesian bond vector.
 
     Returns
     -------
-    beta : Float[Array, ""]
+    beta : Float64[Array, ""]
         Polar angle in radians on the closed interval ``[0, pi]``.
-    alpha : Float[Array, ""]
+    alpha : Float64[Array, ""]
         Azimuthal angle in radians on the interval ``[-pi, pi]``.
 
     Notes
@@ -317,23 +317,23 @@ def bond_angles(
     Production differentiates only composed Slater--Koster blocks and never
     treats these singular Euler coordinates as observables.
     """
-    norm: Float[Array, ""] = safe_norm(bond_cart)
-    cosine_beta: Float[Array, ""] = safe_divide(
+    norm: Float64[Array, ""] = safe_norm(bond_cart)
+    cosine_beta: Float64[Array, ""] = safe_divide(
         bond_cart[2],
         norm,
         fallback=1.0,
     )
-    beta: Float[Array, ""] = safe_arccos(cosine_beta)
-    alpha: Float[Array, ""] = safe_arctan2(bond_cart[1], bond_cart[0])
-    angles: tuple[Float[Array, ""], Float[Array, ""]] = (beta, alpha)
+    beta: Float64[Array, ""] = safe_arccos(cosine_beta)
+    alpha: Float64[Array, ""] = safe_arctan2(bond_cart[1], bond_cart[0])
+    angles: tuple[Float64[Array, ""], Float64[Array, ""]] = (beta, alpha)
     return angles
 
 
 @jaxtyped(typechecker=beartype)
 def rodrigues_rotation(
-    axis: Float[Array, "3"],
+    axis: Float64[Array, "3"],
     angle: ScalarFloat,
-) -> Float[Array, "3 3"]:
+) -> Float64[Array, "3 3"]:
     r"""Construct a rotation matrix with Rodrigues' formula.
 
     The function safely normalizes the rotation axis. It then constructs an
@@ -343,14 +343,14 @@ def rodrigues_rotation(
 
     Parameters
     ----------
-    axis : Float[Array, "3"]
+    axis : Float64[Array, "3"]
         Rotation axis in Cartesian coordinates.
     angle : ScalarFloat
         Active rotation angle in radians.
 
     Returns
     -------
-    rotation : Float[Array, "3 3"]
+    rotation : Float64[Array, "3 3"]
         Active Cartesian rotation matrix.
 
     Notes
@@ -360,23 +360,23 @@ def rodrigues_rotation(
     (1 - \cos(\alpha))[\hat n]_\times^2`.
     The safe normalization gives the identity matrix for a zero axis.
     """
-    angle_array: Float[Array, ""] = jnp.asarray(angle)
-    axis_norm: Float[Array, ""] = safe_norm(axis)
-    normalized_axis: Float[Array, "3"] = safe_divide(axis, axis_norm)
-    axis_x: Float[Array, ""] = normalized_axis[0]
-    axis_y: Float[Array, ""] = normalized_axis[1]
-    axis_z: Float[Array, ""] = normalized_axis[2]
-    zero: Float[Array, ""] = jnp.zeros_like(axis_x)
-    skew: Float[Array, "3 3"] = jnp.stack(
+    angle_array: Float64[Array, ""] = jnp.asarray(angle)
+    axis_norm: Float64[Array, ""] = safe_norm(axis)
+    normalized_axis: Float64[Array, "3"] = safe_divide(axis, axis_norm)
+    axis_x: Float64[Array, ""] = normalized_axis[0]
+    axis_y: Float64[Array, ""] = normalized_axis[1]
+    axis_z: Float64[Array, ""] = normalized_axis[2]
+    zero: Float64[Array, ""] = jnp.zeros_like(axis_x)
+    skew: Float64[Array, "3 3"] = jnp.stack(
         (
             jnp.stack((zero, -axis_z, axis_y)),
             jnp.stack((axis_z, zero, -axis_x)),
             jnp.stack((-axis_y, axis_x, zero)),
         )
     )
-    identity: Float[Array, "3 3"] = jnp.eye(3, dtype=axis.dtype)
-    skew_squared: Float[Array, "3 3"] = skew @ skew
-    rotation: Float[Array, "3 3"] = (
+    identity: Float64[Array, "3 3"] = jnp.eye(3, dtype=axis.dtype)
+    skew_squared: Float64[Array, "3 3"] = skew @ skew
+    rotation: Float64[Array, "3 3"] = (
         identity
         + jnp.sin(angle_array) * skew
         + (1.0 - jnp.cos(angle_array)) * skew_squared

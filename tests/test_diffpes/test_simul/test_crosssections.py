@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float64, Int, Int32
 from numpy.typing import NDArray
 
 from diffpes.simul import (
@@ -45,9 +45,9 @@ class TestYehLindauCrossSectionTable:
         -----
         Read one table row, compare three nodes, and hash the adjacent data.
         """
-        energies: Float[NDArray, " node"]
-        sigma: Float[NDArray, " node"]
-        slopes: Float[NDArray, " node"]
+        energies: Float64[NDArray, " node"]
+        sigma: Float64[NDArray, " node"]
+        slopes: Float64[NDArray, " node"]
         energies, sigma, slopes = yeh_lindau_cross_section_table(6, 2, 1)
         indices: dict[float, int] = {
             float(value): index for index, value in enumerate(energies)
@@ -86,9 +86,9 @@ class TestYehLindauCrossSectionTable:
         -----
         Inspect the missing Li 1s node and request an absent hydrogen shell.
         """
-        energies: Float[NDArray, " node"]
-        sigma: Float[NDArray, " node"]
-        slopes: Float[NDArray, " node"]
+        energies: Float64[NDArray, " node"]
+        sigma: Float64[NDArray, " node"]
+        slopes: Float64[NDArray, " node"]
         energies, sigma, slopes = yeh_lindau_cross_section_table(3, 1, 0)
         index_200: int = int(np.flatnonzero(energies == 200.0)[0])
         assert np.isnan(sigma[index_200])
@@ -141,16 +141,18 @@ class TestYehLindauCrossSectionTable:
         archive: Any
         with np.load(archive_path) as archive:
             keys: Int[NDArray, "n_row 3"] = archive["keys"]
-            offsets: Int[NDArray, " n_row_plus_one"] = archive["offsets"]
-            energies: Float[NDArray, " n_packed"] = archive["photon_energy_ev"]
-            sigma: Float[NDArray, " n_packed"] = archive["sigma_megabarn"]
+            offsets: Int32[NDArray, " n_row_plus_one"] = archive["offsets"]
+            energies: Float64[NDArray, " n_packed"] = archive[
+                "photon_energy_ev"
+            ]
+            sigma: Float64[NDArray, " n_packed"] = archive["sigma_megabarn"]
         derived_domains: dict[str, list[list[float]]] = {}
         row_index: int
         key: Int[NDArray, " 3"]
         for row_index, key in enumerate(keys):
             start: int = int(offsets[row_index])
             stop: int = int(offsets[row_index + 1])
-            row_energies: Float[NDArray, " node"] = energies[start:stop]
+            row_energies: Float64[NDArray, " node"] = energies[start:stop]
             positive: Bool[NDArray, " node"] = np.isfinite(
                 sigma[start:stop]
             ) & (sigma[start:stop] > 0.0)
@@ -184,8 +186,8 @@ class TestYehLindauCrossSectionTable:
         assert len(spot_checks) >= 4
         check: dict[str, Any]
         for check in spot_checks:
-            table_energies: Float[NDArray, " node"]
-            table_sigma: Float[NDArray, " node"]
+            table_energies: Float64[NDArray, " node"]
+            table_sigma: Float64[NDArray, " node"]
             table_energies, table_sigma, _ = yeh_lindau_cross_section_table(
                 int(check["atomic_number"]),
                 int(check["n"]),

@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Any
-from jaxtyping import Bool, Complex, Float, Int, Shaped
+from jaxtyping import Bool, Complex128, Float64, Int64, Shaped
 from numpy.typing import NDArray
 
 from diffpes.simul import (
@@ -43,10 +43,10 @@ _RING_HALF_WIDTH_INV_ANG = 0.018
 
 
 def _transition_band_channels(
-    k_i_state: Float[NDArray, "n_state 3"],
-    k_f_state: Float[NDArray, "n_state 3"],
-    positions_cartesian: Float[NDArray, "n_orb 3"],
-    coefficients_state: Complex[NDArray, "n_state n_orb"],
+    k_i_state: Float64[NDArray, "n_state 3"],
+    k_f_state: Float64[NDArray, "n_state 3"],
+    positions_cartesian: Float64[NDArray, "n_orb 3"],
+    coefficients_state: Complex128[NDArray, "n_state n_orb"],
 ) -> jax.Array:
     """Build transition and band channels through public DiffPES APIs."""
     n_states: int = len(k_i_state)
@@ -84,27 +84,29 @@ def _transition_band_channels(
 
 def _polarized_amplitudes(
     band_channels: jax.Array,
-    polarizations: Complex[NDArray, "n_pol 3"],
-) -> Complex[NDArray, "n_state n_pol"]:
+    polarizations: Complex128[NDArray, "n_pol 3"],
+) -> Complex128[NDArray, "n_state n_pol"]:
     """Return public band amplitudes for each supplied polarization."""
-    amplitudes: list[Complex[NDArray, " n_state"]] = []
-    polarization: Complex[NDArray, " 3"]
+    amplitudes: list[Complex128[NDArray, " n_state"]] = []
+    polarization: Complex128[NDArray, " 3"]
     for polarization in polarizations:
         contracted: jax.Array = contract_polarization(
             band_channels,
             jnp.asarray(polarization),
         )
         amplitudes.append(np.asarray(contracted[:, 0, 0]))
-    result: Complex[NDArray, "n_state n_pol"] = np.stack(amplitudes, axis=-1)
+    result: Complex128[NDArray, "n_state n_pol"] = np.stack(
+        amplitudes, axis=-1
+    )
     return result
 
 
 def _canonical_cartesian_amplitudes(
-    k_i_state: Float[NDArray, "n_state 3"],
-    k_f_state: Float[NDArray, "n_state 3"],
-    positions_cartesian: Float[NDArray, "n_orb 3"],
-    coefficients_state: Complex[NDArray, "n_state n_orb"],
-) -> Complex[NDArray, "n_state 3"]:
+    k_i_state: Float64[NDArray, "n_state 3"],
+    k_f_state: Float64[NDArray, "n_state 3"],
+    positions_cartesian: Float64[NDArray, "n_orb 3"],
+    coefficients_state: Complex128[NDArray, "n_state n_orb"],
+) -> Complex128[NDArray, "n_state 3"]:
     """Evaluate Cartesian components through the public low-level assembly."""
     band_channels: jax.Array = _transition_band_channels(
         k_i_state,
@@ -112,7 +114,7 @@ def _canonical_cartesian_amplitudes(
         positions_cartesian,
         coefficients_state,
     )
-    result: Complex[NDArray, "n_state 3"] = _polarized_amplitudes(
+    result: Complex128[NDArray, "n_state 3"] = _polarized_amplitudes(
         band_channels,
         np.eye(3, dtype=complex),
     )
@@ -120,34 +122,34 @@ def _canonical_cartesian_amplitudes(
 
 
 def _dark_ring_angles(
-    k_i_state: Float[NDArray, "n_state 3"],
-    band_indices: Int[NDArray, " n_state"],
-    valley_indices: Int[NDArray, " n_state"],
-    valley_centres: Float[NDArray, "n_valley 3"],
-    intensities: Float[NDArray, " n_state"],
-) -> Float[NDArray, " n_angle"]:
+    k_i_state: Float64[NDArray, "n_state 3"],
+    band_indices: Int64[NDArray, " n_state"],
+    valley_indices: Int64[NDArray, " n_state"],
+    valley_centres: Float64[NDArray, "n_valley 3"],
+    intensities: Float64[NDArray, " n_state"],
+) -> Float64[NDArray, " n_angle"]:
     """Measure the darkest sampled annular angle for each valley and band."""
     angles: list[float] = []
     valley_index: int
     band_index: int
     for valley_index in range(2):
-        centre: Float[NDArray, " 2"] = valley_centres[valley_index, :2]
+        centre: Float64[NDArray, " 2"] = valley_centres[valley_index, :2]
         for band_index in range(2):
             selected: Bool[NDArray, " n_state"] = (
                 valley_indices == valley_index
             ) & (band_indices == band_index)
-            offsets: Float[NDArray, "n_selected 2"] = (
+            offsets: Float64[NDArray, "n_selected 2"] = (
                 k_i_state[selected, :2] - centre
             )
-            radii: Float[NDArray, " n_selected"] = np.linalg.norm(
+            radii: Float64[NDArray, " n_selected"] = np.linalg.norm(
                 offsets, axis=1
             )
             annulus: Bool[NDArray, " n_selected"] = (
                 np.abs(radii - _RING_RADIUS_INV_ANG)
                 <= _RING_HALF_WIDTH_INV_ANG
             )
-            annulus_offsets: Float[NDArray, "n_annulus 2"] = offsets[annulus]
-            annulus_intensities: Float[NDArray, " n_annulus"] = intensities[
+            annulus_offsets: Float64[NDArray, "n_annulus 2"] = offsets[annulus]
+            annulus_intensities: Float64[NDArray, " n_annulus"] = intensities[
                 selected
             ][annulus]
             minimum: int = int(np.argmin(annulus_intensities))
@@ -156,7 +158,7 @@ def _dark_ring_angles(
                 float(annulus_offsets[minimum, 0]),
             )
             angles.append(angle)
-    result: Float[NDArray, " n_angle"] = np.asarray(angles)
+    result: Float64[NDArray, " n_angle"] = np.asarray(angles)
     return result
 
 
@@ -174,13 +176,15 @@ def test_graphene_pointwise_map_and_valley_orientation() -> None:
         reference: dict[str, Shaped[NDArray, "..."]] = {
             key: archive[key] for key in archive.files
         }
-    measured: Complex[NDArray, "n_state 3"] = _canonical_cartesian_amplitudes(
-        reference["graphene_k_i_state"],
-        reference["graphene_k_f_state"],
-        reference["graphene_positions_cartesian_angstrom"],
-        reference["graphene_coefficients_state_orb"],
+    measured: Complex128[NDArray, "n_state 3"] = (
+        _canonical_cartesian_amplitudes(
+            reference["graphene_k_i_state"],
+            reference["graphene_k_f_state"],
+            reference["graphene_positions_cartesian_angstrom"],
+            reference["graphene_coefficients_state_orb"],
+        )
     )
-    expected: Complex[NDArray, "n_state 3"] = reference[
+    expected: Complex128[NDArray, "n_state 3"] = reference[
         "graphene_canonical_amplitudes_state_spin_cartesian"
     ][:, 0, :]
     np.testing.assert_allclose(
@@ -189,10 +193,10 @@ def test_graphene_pointwise_map_and_valley_orientation() -> None:
         rtol=_RTOL,
         atol=_ATOL,
     )
-    measured_intensity: Float[NDArray, " n_state"] = (
+    measured_intensity: Float64[NDArray, " n_state"] = (
         np.abs(measured[:, 0]) ** 2
     )
-    expected_intensity: Float[NDArray, " n_state"] = (
+    expected_intensity: Float64[NDArray, " n_state"] = (
         np.abs(expected[:, 0]) ** 2
     )
     np.testing.assert_allclose(
@@ -201,14 +205,14 @@ def test_graphene_pointwise_map_and_valley_orientation() -> None:
         rtol=_RTOL,
         atol=_ATOL,
     )
-    measured_angles: Float[NDArray, " n_angle"] = _dark_ring_angles(
+    measured_angles: Float64[NDArray, " n_angle"] = _dark_ring_angles(
         reference["graphene_k_i_state"],
         reference["graphene_band_indices"],
         reference["graphene_valley_index_state"],
         reference["graphene_valley_centres_inverse_angstrom"],
         measured_intensity,
     )
-    expected_angles: Float[NDArray, " n_angle"] = _dark_ring_angles(
+    expected_angles: Float64[NDArray, " n_angle"] = _dark_ring_angles(
         reference["graphene_k_i_state"],
         reference["graphene_band_indices"],
         reference["graphene_valley_index_state"],
@@ -238,12 +242,12 @@ def test_polarization_intensities_and_ratios() -> None:
         np.zeros((1, 3), dtype=float),
         np.ones((1, 1), dtype=complex),
     )
-    amplitudes: Complex[NDArray, " n_pol"] = _polarized_amplitudes(
+    amplitudes: Complex128[NDArray, " n_pol"] = _polarized_amplitudes(
         band_channels,
         reference["polarization_cartesian"],
     )[0]
-    intensities: Float[NDArray, " n_pol"] = np.abs(amplitudes) ** 2
-    ratios: Float[NDArray, " n_pol"] = intensities / intensities[1]
+    intensities: Float64[NDArray, " n_pol"] = np.abs(amplitudes) ** 2
+    ratios: Float64[NDArray, " n_pol"] = intensities / intensities[1]
     np.testing.assert_allclose(
         intensities,
         reference["polarization_intensities_physical"],

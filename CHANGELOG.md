@@ -52,6 +52,13 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Two pinned `generator_sha256` values are re-pinned:
+  `tests/test_diffpes/test_radial/data/coulomb_mpmath_80digit.manifest.json` and
+  `src/diffpes/simul/data/yeh_lindau_1985.json`. Their generator scripts changed
+  through documentation edits and NumPy type annotations. No generator logic
+  changed. Every reference archive stays byte-identical, and each
+  `archive_sha256` still validates against unchanged data. The re-pin records a
+  documentation change to the generator, not new scientific evidence.
 - Certification owners and evidence identifiers now use scientific domain names.
   This breaking identity re-issue invalidates records that use the former identifiers.
 - Every NumPy array annotation now carries a jaxtyping dtype and shape, in the

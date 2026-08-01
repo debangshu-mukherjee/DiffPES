@@ -729,7 +729,9 @@ class TestRadialBvals:
         )
         chex.assert_tree_all_finite(coulomb_values)
         assert bool(jnp.any(jnp.abs(jnp.imag(coulomb_values)) > 1.0e-8))
-        with pytest.raises(ValueError, match="failed the frozen G13"):
+        with pytest.raises(
+            ValueError, match="failed the frozen radial accelerator"
+        ):
             make_final_state_spec(radial_accelerator="hermite")
 
 

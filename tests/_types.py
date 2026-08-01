@@ -8,7 +8,7 @@ It does not duplicate production type definitions.
 """
 
 from beartype.typing import Callable, Literal, TypeAlias
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 GradRegime: TypeAlias = Literal["smooth", "stiff", "singular"]
-ScalarLoss: TypeAlias = Callable[..., Float[Array, ""]]
+ScalarLoss: TypeAlias = Callable[..., Float64[Array, ""]]

@@ -4,7 +4,7 @@ Extended Summary
 ----------------
 Exercises scale-aware finite differences, JAX's complex-to-real convention,
 complex-step differentiation, and planted wrong and zero gradients. These
-self-tests establish gates 01.G3 and 01.G4 before physics code relies on the
+self-tests establish finite-difference and gradient checks before physics code relies on the
 shared harness.
 """
 
@@ -125,7 +125,7 @@ def _mixed_scale_linear_jvp(
 
 
 class TestGradientHarness(chex.TestCase):
-    """Validate the shared gradient harness and gates 01.G3 and 01.G4.
+    """Validate the shared finite-difference and gradient harness.
 
     Covers analytic real and complex derivatives, scale-aware steps, planted
     tangent defects, zero-gradient tripwires, and complex-step restrictions.
@@ -149,7 +149,7 @@ class TestGradientHarness(chex.TestCase):
         The test checks sine, a Gaussian sum, and the two-dimensional
         Rosenbrock function. It also checks a mixed-unit rational monomial.
         Each check uses both autodiff modes and elementwise finite differences
-        for gate 01.G3.
+        for the finite-difference requirement.
         """
         sine_input: Float[Array, "3"] = jnp.array([-0.7, 0.2, 1.1])
         assert_grad_matches_fd(lambda x: jnp.sum(jnp.sin(x)), sine_input)
@@ -179,7 +179,7 @@ class TestGradientHarness(chex.TestCase):
         Notes
         -----
         The test compares a mixed-unit vector against the exact
-        ``eps**(1/3) * max(abs(theta), 1e-3)`` prescription (01.G3).
+        ``eps**(1/3) * max(abs(theta), 1e-3)`` prescription.
         """
         theta: Float[Array, "3"] = jnp.array([1e-4, 5.0, -3.0])
         actual: Float[Array, "3"] = fd_step(theta)
@@ -197,7 +197,7 @@ class TestGradientHarness(chex.TestCase):
         -----
         The test checks the exact gradient ``2-2j`` at ``1+1j``.
         It also checks generic asymmetric complex data at relative tolerance
-        ``1e-8`` for gate 01.G3.
+        ``1e-8`` for the finite-difference requirement.
         """
         exact: Complex[Array, ""] = jax.grad(lambda z: jnp.abs(z) ** 2)(
             jnp.asarray(1.0 + 1.0j)
@@ -225,7 +225,7 @@ class TestGradientHarness(chex.TestCase):
         Notes
         -----
         A ``custom_jvp`` retains the correct sine primal. It scales the
-        derivative by 1.1. The shared gate must raise for gate 01.G4.
+        derivative by 1.1. The shared check must raise for the gradient requirement.
         """
         theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
         regime: GradRegime
@@ -244,7 +244,7 @@ class TestGradientHarness(chex.TestCase):
         Notes
         -----
         The test uses a planted ``1.00001*cos(x)`` tangent and demands detection at the
-        strictest 1e-6 relative rung, documenting gate 01.G4's floor.
+        strictest 1e-6 relative rung, documenting the gradient-check floor.
         """
         theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
         with pytest.raises(AssertionError):
@@ -337,7 +337,7 @@ class TestGradientHarness(chex.TestCase):
         -----
         The primal remains ``sum(x**2)`` while ``stop_gradient`` removes all
         autodiff sensitivity. Finite differences and the independent norm
-        check must each raise for gate 01.G4.
+        check must each raise for the gradient requirement.
         """
         theta: Float[Array, "2"] = jnp.array([1.0, -2.0])
 
@@ -509,7 +509,7 @@ class TestGradientHarness(chex.TestCase):
         -----
         The test calls the JAX directional-gradient checker on sine and the
         scaled ``custom_jvp``. This direct check establishes the independent
-        semantic reference for gate 01.G3.
+        semantic reference for the finite-difference requirement.
         """
         theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
         test_util.check_grads(

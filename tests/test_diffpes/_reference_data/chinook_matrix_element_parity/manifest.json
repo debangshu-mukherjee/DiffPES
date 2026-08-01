@@ -1,6 +1,6 @@
 {
   "schema": "diffpes.chinook-matrix-element-reference.v1",
-  "gates": [
+  "requirements": [
     "chinook-pointwise-matrix-element-parity",
     "chinook-polarization-intensity-parity"
   ],

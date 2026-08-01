@@ -11,7 +11,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array, Complex
+from jaxtyping import Array, Complex128
 
 from diffpes.maths import real_harmonic_unitary
 from diffpes.tightb import (
@@ -184,7 +184,7 @@ class TestSocShellBlock:
         -----
         Compare every complex entry with the canonical literal matrix.
         """
-        expected: Complex[Array, "6 6"] = 0.5 * jnp.asarray(
+        expected: Complex128[Array, "6 6"] = 0.5 * jnp.asarray(
             [
                 [0, 0, -1j, 0, -1j, 0],
                 [0, 0, 0, 1j, 0, 1],
@@ -195,7 +195,7 @@ class TestSocShellBlock:
             ],
             dtype=jnp.complex128,
         )
-        actual: Complex[Array, "6 6"] = soc_shell_block(1)
+        actual: Complex128[Array, "6 6"] = soc_shell_block(1)
 
         assert jnp.allclose(actual, expected, rtol=0.0, atol=1e-13)
 

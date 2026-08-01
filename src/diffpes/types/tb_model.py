@@ -43,9 +43,7 @@ from beartype import beartype
 from beartype.typing import Optional
 from jaxtyping import (
     Array,
-    Complex,
     Complex128,
-    Float,
     Float64,
     Int32,
     jaxtyped,
@@ -67,7 +65,7 @@ _ROTATION_ORTHOGONALITY_TOLERANCE: float = 1e-10
 
 
 def _validate_depths_shape(
-    depths: Optional[Float[Array, " n_depth"]],
+    depths: Optional[Float64[Array, " n_depth"]],
     n_orbitals: int,
 ) -> None:
     """Validate the optional orbital-depth axis."""
@@ -124,10 +122,10 @@ def _integer_determinant(
 
 
 def _validate_surface_cell_structure(
-    in_plane_vectors: Float[Array, "2 3"],
-    stacking_vector: Float[Array, " 3"],
-    rotation: Float[Array, "3 3"],
-    interlayer_spacing_ang: Float[Array, ""],
+    in_plane_vectors: Float64[Array, "2 3"],
+    stacking_vector: Float64[Array, " 3"],
+    rotation: Float64[Array, "3 3"],
+    interlayer_spacing_ang: Float64[Array, ""],
     miller: tuple[int, int, int],
     in_plane_coeffs: tuple[
         tuple[int, int, int],
@@ -344,7 +342,7 @@ def _validate_hopping_metadata(
 
 
 def _validate_shell_metadata(
-    soc_lambdas: Float[Array, " n_shells"],
+    soc_lambdas: Float64[Array, " n_shells"],
     basis: OrbitalBasis,
     shell_index: tuple[int, ...],
 ) -> None:
@@ -391,17 +389,17 @@ def _validate_shell_metadata(
 
 
 def _validate_tb_structure(  # noqa: PLR0913
-    hopping_amplitudes: Complex[Array, " n_hop"],
-    onsite_energies: Float[Array, " n_orb"],
-    soc_lambdas: Float[Array, " n_shells"],
+    hopping_amplitudes: Complex128[Array, " n_hop"],
+    onsite_energies: Float64[Array, " n_orb"],
+    soc_lambdas: Float64[Array, " n_shells"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     hopping_pairs: tuple[tuple[int, int], ...],
     hopping_cells: tuple[tuple[int, int, int], ...],
     shell_index: tuple[int, ...],
     spinor: bool,
-    orbital_positions: Optional[Float[Array, "n_orb 3"]],
-    depths: Optional[Float[Array, " n_depth"]],
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]],
+    depths: Optional[Float64[Array, " n_depth"]],
 ) -> tuple[int, ...]:
     """Validate static tight-binding structure and return reverse indices."""
     if not isinstance(geometry, CrystalGeometry):
@@ -477,17 +475,17 @@ def _checked_geometry(
     geometry: CrystalGeometry, context: str
 ) -> CrystalGeometry:
     """Attach finite-value runtime checks to every geometry array leaf."""
-    lattice: Float[Array, "3 3"] = eqx.error_if(
+    lattice: Float64[Array, "3 3"] = eqx.error_if(
         geometry.lattice,
         ~jnp.all(jnp.isfinite(geometry.lattice)),
         f"{context}: geometry lattice finite",
     )
-    reciprocal: Float[Array, "3 3"] = eqx.error_if(
+    reciprocal: Float64[Array, "3 3"] = eqx.error_if(
         geometry.reciprocal,
         ~jnp.all(jnp.isfinite(geometry.reciprocal)),
         f"{context}: geometry reciprocal finite",
     )
-    positions: Float[Array, "n_atoms 3"] = eqx.error_if(
+    positions: Float64[Array, "n_atoms 3"] = eqx.error_if(
         geometry.positions,
         ~jnp.all(jnp.isfinite(geometry.positions)),
         f"{context}: geometry positions finite",
@@ -794,14 +792,14 @@ class SlabSpec(eqx.Module):
 
 
 def _validate_diagonalized_structure(
-    eigenvalues: Float[Array, "n_k_e n_bands_e"],
-    eigenvectors: Complex[Array, "n_k_v n_bands_v n_orb"],
-    kpoints: Float[Array, "n_k_p 3"],
-    fermi_energy: Float[Array, ""],
+    eigenvalues: Float64[Array, "n_k_e n_bands_e"],
+    eigenvectors: Complex128[Array, "n_k_v n_bands_v n_orb"],
+    kpoints: Float64[Array, "n_k_p 3"],
+    fermi_energy: Float64[Array, ""],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
-    orbital_positions: Optional[Float[Array, "n_orb 3"]],
-    depths: Optional[Float[Array, " n_depth"]],
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]],
+    depths: Optional[Float64[Array, " n_depth"]],
 ) -> None:
     """Validate static eigensystem shapes and context."""
     if not isinstance(geometry, CrystalGeometry):
@@ -846,14 +844,14 @@ def _validate_diagonalized_structure(
 
 @jaxtyped(typechecker=beartype)
 def make_diagonalized_bands(  # noqa: DOC502, DOC503
-    eigenvalues: Float[Array, "n_k_e n_bands_e"],
-    eigenvectors: Complex[Array, "n_k_v n_bands_v n_orb"],
-    kpoints: Float[Array, "n_k_p 3"],
+    eigenvalues: Float64[Array, "n_k_e n_bands_e"],
+    eigenvectors: Complex128[Array, "n_k_v n_bands_v n_orb"],
+    kpoints: Float64[Array, "n_k_p 3"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     fermi_energy: ScalarNumeric = 0.0,
-    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
-    depths: Optional[Float[Array, " n_depth"]] = None,
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None,
+    depths: Optional[Float64[Array, " n_depth"]] = None,
 ) -> DiagonalizedBands:
     """Create a validated ``DiagonalizedBands`` instance.
 
@@ -864,11 +862,11 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
 
     Parameters
     ----------
-    eigenvalues : Float[Array, "n_k_e n_bands_e"]
+    eigenvalues : Float64[Array, "n_k_e n_bands_e"]
         Band energies in eV.
-    eigenvectors : Complex[Array, "n_k_v n_bands_v n_orb"]
+    eigenvectors : Complex128[Array, "n_k_v n_bands_v n_orb"]
         Complex orbital coefficients in the basis-position gauge.
-    kpoints : Float[Array, "n_k_p 3"]
+    kpoints : Float64[Array, "n_k_p 3"]
         Fractional reciprocal-space coordinates.
     geometry : CrystalGeometry
         Crystal geometry whose numerical leaves remain differentiable.
@@ -877,11 +875,11 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         retracing).
     fermi_energy : ScalarNumeric, optional
         Fermi energy in eV. Default is 0.0.
-    orbital_positions : Optional[Float[Array, "n_orb 3"]], optional
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]], optional
         Explicit fractional orbital centres associated with the
         basis-position-gauge coefficients. ``None`` derives centres from
         atom assignments. Default is ``None``.
-    depths : Optional[Float[Array, "n_depth"]], optional
+    depths : Optional[Float64[Array, "n_depth"]], optional
         Orbital depths in Angstrom below the top surface. ``None`` denotes a
         bulk model. Default is ``None``.
 
@@ -924,13 +922,13 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
         fermi_energy,
         dtype=jnp.float64,
     )
-    orbital_position_array: Optional[Float[Array, "n_orb 3"]] = None
+    orbital_position_array: Optional[Float64[Array, "n_orb 3"]] = None
     if orbital_positions is not None:
         orbital_position_array = jnp.asarray(
             orbital_positions,
             dtype=jnp.float64,
         )
-    depth_array: Optional[Float[Array, " n_depth"]] = None
+    depth_array: Optional[Float64[Array, " n_depth"]] = None
     if depths is not None:
         depth_array = jnp.asarray(depths, dtype=jnp.float64)
     _validate_diagonalized_structure(
@@ -1000,17 +998,17 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
 
 @jaxtyped(typechecker=beartype)
 def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
-    hopping_amplitudes: Complex[Array, "n_hop"],
-    onsite_energies: Float[Array, "n_orb"],
-    soc_lambdas: Float[Array, "n_shells"],
+    hopping_amplitudes: Complex128[Array, "n_hop"],
+    onsite_energies: Float64[Array, "n_orb"],
+    soc_lambdas: Float64[Array, "n_shells"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     hopping_pairs: tuple[tuple[int, int], ...],
     hopping_cells: tuple[tuple[int, int, int], ...],
     shell_index: tuple[int, ...],
     spinor: bool = False,
-    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
-    depths: Optional[Float[Array, " n_depth"]] = None,
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None,
+    depths: Optional[Float64[Array, " n_depth"]] = None,
 ) -> TBModel:
     r"""Create a validated ``TBModel`` instance.
 
@@ -1021,11 +1019,11 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
 
     Parameters
     ----------
-    hopping_amplitudes : Complex[Array, "n_hop"]
+    hopping_amplitudes : Complex128[Array, "n_hop"]
         Directed hopping amplitudes in eV.
-    onsite_energies : Float[Array, "n_orb"]
+    onsite_energies : Float64[Array, "n_orb"]
         Onsite orbital energies in eV.
-    soc_lambdas : Float[Array, "n_shells"]
+    soc_lambdas : Float64[Array, "n_shells"]
         Spin-orbit coupling energies in eV, one per atomic shell.
     geometry : CrystalGeometry
         Crystal lattice and fractional atomic positions.
@@ -1044,10 +1042,10 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
     spinor : bool, optional
         Whether the basis has explicit spin channels (**static** -- changing
         it triggers retracing). Default is ``False``.
-    orbital_positions : Optional[Float[Array, "n_orb 3"]], optional
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]], optional
         Explicit fractional orbital centres for the basis-position gauge.
         ``None`` derives centres from atom assignments. Default is ``None``.
-    depths : Optional[Float[Array, "n_depth"]], optional
+    depths : Optional[Float64[Array, "n_depth"]], optional
         Orbital depths in Angstrom below the top surface. ``None`` denotes a
         bulk model. Default is ``None``.
 
@@ -1097,13 +1095,13 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
         soc_lambdas,
         dtype=jnp.float64,
     )
-    orbital_position_array: Optional[Float[Array, "n_orb 3"]] = None
+    orbital_position_array: Optional[Float64[Array, "n_orb 3"]] = None
     if orbital_positions is not None:
         orbital_position_array = jnp.asarray(
             orbital_positions,
             dtype=jnp.float64,
         )
-    depth_array: Optional[Float[Array, " n_depth"]] = None
+    depth_array: Optional[Float64[Array, " n_depth"]] = None
     if depths is not None:
         depth_array = jnp.asarray(depths, dtype=jnp.float64)
     closure: tuple[int, ...] = _validate_tb_structure(
@@ -1156,10 +1154,10 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
         closure,
         dtype=jnp.int32,
     )
-    reverse_amplitudes: Complex[Array, " n_hop"] = hopping_array[
+    reverse_amplitudes: Complex128[Array, " n_hop"] = hopping_array[
         closure_indices
     ]
-    closure_error: Float[Array, " n_hop"] = jnp.abs(
+    closure_error: Float64[Array, " n_hop"] = jnp.abs(
         reverse_amplitudes - jnp.conj(hopping_array)
     )
     hopping_array = eqx.error_if(
@@ -1189,9 +1187,9 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
 
 @jaxtyped(typechecker=beartype)
 def make_surface_cell(  # noqa: DOC502, DOC503
-    in_plane_vectors: Float[Array, "2 3"],
-    stacking_vector: Float[Array, " 3"],
-    rotation: Float[Array, "3 3"],
+    in_plane_vectors: Float64[Array, "2 3"],
+    stacking_vector: Float64[Array, " 3"],
+    rotation: Float64[Array, "3 3"],
     interlayer_spacing_ang: ScalarNumeric,
     miller: tuple[int, int, int],
     in_plane_coeffs: tuple[
@@ -1209,11 +1207,11 @@ def make_surface_cell(  # noqa: DOC502, DOC503
 
     Parameters
     ----------
-    in_plane_vectors : Float[Array, "2 3"]
+    in_plane_vectors : Float64[Array, "2 3"]
         Cartesian in-plane vectors in Angstrom, as rows.
-    stacking_vector : Float[Array, "3"]
+    stacking_vector : Float64[Array, "3"]
         Cartesian stacking vector in Angstrom.
-    rotation : Float[Array, "3 3"]
+    rotation : Float64[Array, "3 3"]
         Active Cartesian rotation from bulk to surface frame.
     interlayer_spacing_ang : ScalarNumeric
         Positive interlayer spacing in Angstrom.

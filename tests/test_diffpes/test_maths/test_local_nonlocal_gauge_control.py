@@ -11,7 +11,7 @@ from pathlib import Path
 import chex
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float, Int
+from jaxtyping import Array, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.maths import (
@@ -30,19 +30,19 @@ _REFERENCE_SHA256 = (
 
 
 def _derivative_sixth(
-    values: Float[NDArray, " n_node"], spacing: float
-) -> Float[NDArray, " n_node"]:
+    values: Float64[NDArray, " n_node"], spacing: float
+) -> Float64[NDArray, " n_node"]:
     """Differentiate with the frozen seven-point sixth-order stencils."""
-    derivative: Float[NDArray, " n_node"] = np.empty_like(values)
+    derivative: Float64[NDArray, " n_node"] = np.empty_like(values)
     index: int
     for index in range(values.size):
         start: int = min(max(index - 3, 0), values.size - 7)
-        stencil_indices: Int[NDArray, " 7"] = np.arange(start, start + 7)
-        offsets: Float[NDArray, " 7"] = (stencil_indices - index) * spacing
-        moments: Float[NDArray, "7 7"] = np.vander(
+        stencil_indices: Int64[NDArray, " 7"] = np.arange(start, start + 7)
+        offsets: Float64[NDArray, " 7"] = (stencil_indices - index) * spacing
+        moments: Float64[NDArray, "7 7"] = np.vander(
             offsets, 7, increasing=True
         ).T
-        target: Float[NDArray, " 7"] = np.zeros(7)
+        target: Float64[NDArray, " 7"] = np.zeros(7)
         target[1] = 1.0
         derivative[index] = (
             np.linalg.solve(moments, target) @ values[stencil_indices]
@@ -51,30 +51,30 @@ def _derivative_sixth(
 
 
 def _public_reduced_gauges(
-    radial_grid: Float[NDArray, " n_node"],
-    radial_weights: Float[NDArray, " n_node"],
-    states: Float[NDArray, "2 n_node"],
+    radial_grid: Float64[NDArray, " n_node"],
+    radial_weights: Float64[NDArray, " n_node"],
+    states: Float64[NDArray, "2 n_node"],
 ) -> tuple[Array, Array]:
     """Pass the exact radial angular reduction through both public APIs."""
-    state_s: Float[NDArray, " n_node"] = states[0]
-    state_p: Float[NDArray, " n_node"] = states[1]
-    radial_initial: Float[NDArray, " n_node"] = np.divide(
+    state_s: Float64[NDArray, " n_node"] = states[0]
+    state_p: Float64[NDArray, " n_node"] = states[1]
+    radial_initial: Float64[NDArray, " n_node"] = np.divide(
         state_s,
         radial_grid,
         out=np.zeros_like(state_s),
         where=radial_grid > 0.0,
     )
-    radial_final: Float[NDArray, " n_node"] = np.divide(
+    radial_final: Float64[NDArray, " n_node"] = np.divide(
         state_p,
         radial_grid,
         out=np.zeros_like(state_p),
         where=radial_grid > 0.0,
     )
-    derivative_s: Float[NDArray, " n_node"] = _derivative_sixth(
+    derivative_s: Float64[NDArray, " n_node"] = _derivative_sixth(
         state_s,
         radial_grid[1] - radial_grid[0],
     )
-    radial_initial_derivative: Float[NDArray, " n_node"] = np.divide(
+    radial_initial_derivative: Float64[NDArray, " n_node"] = np.divide(
         derivative_s * radial_grid - state_s,
         radial_grid**2,
         out=np.zeros_like(state_s),
@@ -130,18 +130,20 @@ def test_g12_d12_local_passes_and_nonlocal_projector_must_disagree() -> None:
     assert digest == _REFERENCE_SHA256
     reference: np.lib.npyio.NpzFile
     with np.load(_REFERENCE_PATH) as reference:
-        radial_grid: Float[NDArray, " n_node"] = reference["local_r_coarse"]
-        radial_weights: Float[NDArray, " n_node"] = reference["local_w_coarse"]
-        local_states: Float[NDArray, "2 n_node"] = reference[
+        radial_grid: Float64[NDArray, " n_node"] = reference["local_r_coarse"]
+        radial_weights: Float64[NDArray, " n_node"] = reference[
+            "local_w_coarse"
+        ]
+        local_states: Float64[NDArray, "2 n_node"] = reference[
             "local_states_coarse"
         ]
-        local_energies: Float[NDArray, " 2"] = reference[
+        local_energies: Float64[NDArray, " 2"] = reference[
             "local_energies_coarse"
         ]
-        nonlocal_states: Float[NDArray, "2 n_node"] = reference[
+        nonlocal_states: Float64[NDArray, "2 n_node"] = reference[
             "nonlocal_states"
         ]
-        nonlocal_energies: Float[NDArray, " 2"] = reference[
+        nonlocal_energies: Float64[NDArray, " 2"] = reference[
             "nonlocal_energies"
         ]
         nonlocal_strength_derivative: complex = complex(

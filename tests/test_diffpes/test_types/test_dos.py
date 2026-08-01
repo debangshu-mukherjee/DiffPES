@@ -8,7 +8,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from beartype.typing import Callable
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 from diffpes.types import (
     DensityOfStates,
@@ -39,8 +39,8 @@ class TestDensityOfStates:
         The test constructs the carrier through the public factory and checks shapes
         and the independently specified scalar with Chex.
         """
-        energy: Float[Array, "16"] = jnp.linspace(-10.0, 5.0, 16)
-        density: Float[Array, "16"] = jnp.ones(16)
+        energy: Float64[Array, "16"] = jnp.linspace(-10.0, 5.0, 16)
+        density: Float64[Array, "16"] = jnp.ones(16)
         result: DensityOfStates = make_density_of_states(
             energy=energy, total_dos=density, fermi_energy=-1.5
         )
@@ -70,9 +70,9 @@ class TestFullDensityOfStates:
         The test builds a spin-up-only full carrier, uses JAX tree utilities for the
         round trip, and compares the restored values with Chex.
         """
-        energy: Float[Array, "50"] = jnp.linspace(-3, 1, 50)
-        density_up: Float[Array, "50"] = jnp.ones(50)
-        integrated_up: Float[Array, "50"] = jnp.cumsum(density_up)
+        energy: Float64[Array, "50"] = jnp.linspace(-3, 1, 50)
+        density_up: Float64[Array, "50"] = jnp.ones(50)
+        integrated_up: Float64[Array, "50"] = jnp.cumsum(density_up)
         full_dos: FullDensityOfStates = make_full_density_of_states(
             energy=energy,
             total_dos_up=density_up,
@@ -165,7 +165,7 @@ class TestMakeFullDensityOfStates:
         Supplies two repeated energy coordinates and matches the factory's
         traced ordering diagnostic through the rejection helper.
         """
-        energy: Float[Array, "2"] = jnp.array([0.0, 0.0])
+        energy: Float64[Array, "2"] = jnp.array([0.0, 0.0])
 
         assert_rejects(
             make_full_density_of_states,

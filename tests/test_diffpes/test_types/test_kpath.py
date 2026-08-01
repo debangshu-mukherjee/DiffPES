@@ -8,7 +8,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 from diffpes.types import (
     KGrid,
@@ -308,7 +308,7 @@ class TestMakeKPath:
         The test sends three independent invalid cases through eager and
         compiled execution with the shared rejection helper.
         """
-        points: Float[Array, "3 3"] = jnp.zeros((3, 3))
+        points: Float64[Array, "3 3"] = jnp.zeros((3, 3))
         assert_rejects(
             make_kpath,
             points,
@@ -343,12 +343,12 @@ class TestMakeKPath:
         The shared gradient gate checks reverse mode and every component of a
         generic two-point path.
         """
-        points: Float[Array, "2 3"] = jnp.array(
+        points: Float64[Array, "2 3"] = jnp.array(
             [[0.1, 0.2, 0.3], [0.4, -0.2, 0.5]]
         )
-        weights: Float[Array, "2 3"] = jnp.arange(1.0, 7.0).reshape((2, 3))
+        weights: Float64[Array, "2 3"] = jnp.arange(1.0, 7.0).reshape((2, 3))
 
-        def loss(candidate: Float[Array, "2 3"]) -> Float[Array, ""]:
+        def loss(candidate: Float64[Array, "2 3"]) -> Float64[Array, ""]:
             """Reduce all traced path coordinates with distinct weights."""
             kpath: KPath = make_kpath(
                 candidate,
@@ -356,7 +356,7 @@ class TestMakeKPath:
                 label_indices=(0, 1),
                 n_per_segment=2,
             )
-            result: Float[Array, ""] = jnp.sum(kpath.kpoints * weights)
+            result: Float64[Array, ""] = jnp.sum(kpath.kpoints * weights)
             return result
 
         gradient_gate(loss, points, modes=("rev",))
@@ -454,15 +454,15 @@ class TestMakeKGrid:
         The shared gradient gate checks reverse mode and every component of a
         generic two-by-two raster.
         """
-        points: Float[Array, "4 3"] = jnp.arange(1.0, 13.0).reshape((4, 3))
-        weights: Float[Array, "4 3"] = jnp.linspace(0.2, 1.3, 12).reshape(
+        points: Float64[Array, "4 3"] = jnp.arange(1.0, 13.0).reshape((4, 3))
+        weights: Float64[Array, "4 3"] = jnp.linspace(0.2, 1.3, 12).reshape(
             (4, 3)
         )
 
-        def loss(candidate: Float[Array, "4 3"]) -> Float[Array, ""]:
+        def loss(candidate: Float64[Array, "4 3"]) -> Float64[Array, ""]:
             """Reduce all traced grid coordinates with distinct weights."""
             kgrid: KGrid = make_kgrid(candidate, (2, 2))
-            result: Float[Array, ""] = jnp.sum(kgrid.kpoints * weights)
+            result: Float64[Array, ""] = jnp.sum(kgrid.kpoints * weights)
             return result
 
         gradient_gate(loss, points, modes=("rev",))

@@ -36,7 +36,7 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, Bool, Complex, Float, Float64, Int, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 
 from diffpes.maths import safe_norm
 from diffpes.simul import kz_from_inner_potential_at_fermi
@@ -52,9 +52,9 @@ from diffpes.types import (
 
 @jaxtyped(typechecker=beartype)
 def kpoints_frac_to_cart(
-    kpoints_frac: Float[Array, "n_k 3"],
+    kpoints_frac: Float64[Array, "n_k 3"],
     geometry: CrystalGeometry,
-) -> Float[Array, "n_k 3"]:
+) -> Float64[Array, "n_k 3"]:
     r"""Convert fractional k-points to Cartesian momenta.
 
     The row-vector convention applies the reciprocal lattice once. The
@@ -64,14 +64,14 @@ def kpoints_frac_to_cart(
 
     Parameters
     ----------
-    kpoints_frac : Float[Array, "n_k 3"]
+    kpoints_frac : Float64[Array, "n_k 3"]
         Fractional k-points.
     geometry : CrystalGeometry
         Crystal geometry with reciprocal vectors in 1/Angstrom.
 
     Returns
     -------
-    kpoints_cart : Float[Array, "n_k 3"]
+    kpoints_cart : Float64[Array, "n_k 3"]
         Cartesian momenta in 1/Angstrom.
 
     Notes
@@ -79,15 +79,15 @@ def kpoints_frac_to_cart(
     The function computes ``kpoints_frac @ geometry.reciprocal``. Gradients
     flow through the coordinates and all applicable lattice entries.
     """
-    kpoints_cart: Float[Array, "n_k 3"] = kpoints_frac @ geometry.reciprocal
+    kpoints_cart: Float64[Array, "n_k 3"] = kpoints_frac @ geometry.reciprocal
     return kpoints_cart
 
 
 @jaxtyped(typechecker=beartype)
 def kpoints_cart_to_frac(
-    kpoints_cart: Float[Array, "n_k 3"],
+    kpoints_cart: Float64[Array, "n_k 3"],
     geometry: CrystalGeometry,
-) -> Float[Array, "n_k 3"]:
+) -> Float64[Array, "n_k 3"]:
     r"""Convert Cartesian momenta to fractional k-points.
 
     The function uses the closed reciprocal identity instead of a numerical
@@ -97,14 +97,14 @@ def kpoints_cart_to_frac(
 
     Parameters
     ----------
-    kpoints_cart : Float[Array, "n_k 3"]
+    kpoints_cart : Float64[Array, "n_k 3"]
         Cartesian momenta in 1/Angstrom.
     geometry : CrystalGeometry
         Crystal geometry with real-space vectors in Angstrom.
 
     Returns
     -------
-    kpoints_frac : Float[Array, "n_k 3"]
+    kpoints_frac : Float64[Array, "n_k 3"]
         Fractional k-points.
 
     Notes
@@ -113,7 +113,7 @@ def kpoints_cart_to_frac(
     :math:`B A^T=2\pi I`. Thus, the exact expression is
     ``kpoints_cart @ geometry.lattice.T / (2 * pi)``.
     """
-    kpoints_frac: Float[Array, "n_k 3"] = (
+    kpoints_frac: Float64[Array, "n_k 3"] = (
         kpoints_cart @ geometry.lattice.T / (2.0 * jnp.pi)
     )
     return kpoints_frac
@@ -121,7 +121,7 @@ def kpoints_cart_to_frac(
 
 @jaxtyped(typechecker=beartype)
 def build_kpath(  # noqa: DOC503, PLR2004
-    anchors: Float[Array, "n_anchor 3"],
+    anchors: Float64[Array, "n_anchor 3"],
     geometry: CrystalGeometry,
     n_per_segment: int,
     labels: tuple[str, ...],
@@ -156,7 +156,7 @@ def build_kpath(  # noqa: DOC503, PLR2004
 
     Parameters
     ----------
-    anchors : Float[Array, "n_anchor 3"]
+    anchors : Float64[Array, "n_anchor 3"]
         Path anchors in the coordinates selected by ``anchor_units``.
     geometry : CrystalGeometry
         Crystal geometry for absolute-to-fractional conversion.
@@ -200,27 +200,27 @@ def build_kpath(  # noqa: DOC503, PLR2004
         message = "anchor_units must be 'fractional' or 'absolute'"
         raise ValueError(message)
 
-    checked_anchors: Float[Array, "n_anchor 3"] = eqx.error_if(
+    checked_anchors: Float64[Array, "n_anchor 3"] = eqx.error_if(
         anchors,
         ~jnp.all(jnp.isfinite(anchors)),
         "anchors must be finite",
     )
-    fractional_anchors: Float[Array, "n_anchor 3"]
+    fractional_anchors: Float64[Array, "n_anchor 3"]
     if anchor_units == "absolute":
         fractional_anchors = kpoints_cart_to_frac(checked_anchors, geometry)
     else:
         fractional_anchors = checked_anchors
-    fractions: Float[Array, " n_per_segment"] = jnp.linspace(
+    fractions: Float64[Array, " n_per_segment"] = jnp.linspace(
         0.0, 1.0, n_per_segment
     )
-    starts: Float[Array, "n_segment 1 3"] = fractional_anchors[:-1, None, :]
-    changes: Float[Array, "n_segment 1 3"] = (
+    starts: Float64[Array, "n_segment 1 3"] = fractional_anchors[:-1, None, :]
+    changes: Float64[Array, "n_segment 1 3"] = (
         fractional_anchors[1:, None, :] - starts
     )
-    segments: Float[Array, "n_segment n_per_segment 3"] = (
+    segments: Float64[Array, "n_segment n_per_segment 3"] = (
         starts + fractions[None, :, None] * changes
     )
-    kpoints: Float[Array, "n_k 3"] = jnp.reshape(segments, (-1, 3))
+    kpoints: Float64[Array, "n_k 3"] = jnp.reshape(segments, (-1, 3))
     last_index: int = kpoints.shape[0] - 1
     label_indices: tuple[int, ...] = tuple(
         anchor_index * n_per_segment
@@ -241,7 +241,7 @@ def build_kpath(  # noqa: DOC503, PLR2004
 def kpath_arc_length(
     kpath: KPath,
     geometry: CrystalGeometry,
-) -> Float[Array, " n_k"]:
+) -> Float64[Array, " n_k"]:
     """Compute cumulative Cartesian distance along a k-path.
 
     The plotting coordinate measures each segment after reciprocal-lattice
@@ -258,7 +258,7 @@ def kpath_arc_length(
 
     Returns
     -------
-    arc_length : Float[Array, " n_k"]
+    arc_length : Float64[Array, " n_k"]
         Cumulative Cartesian path distance in 1/Angstrom.
 
     Notes
@@ -266,12 +266,12 @@ def kpath_arc_length(
     :func:`diffpes.maths.safe_norm` gives a zero gradient for a repeated
     junction. All nonzero segment lengths retain their usual gradients.
     """
-    cartesian: Float[Array, "n_k 3"] = kpoints_frac_to_cart(
+    cartesian: Float64[Array, "n_k 3"] = kpoints_frac_to_cart(
         kpath.kpoints, geometry
     )
-    changes: Float[Array, "n_delta 3"] = jnp.diff(cartesian, axis=0)
-    segment_lengths: Float[Array, " n_delta"] = safe_norm(changes)
-    arc_length: Float[Array, " n_k"] = jnp.concatenate(
+    changes: Float64[Array, "n_delta 3"] = jnp.diff(cartesian, axis=0)
+    segment_lengths: Float64[Array, " n_delta"] = safe_norm(changes)
+    arc_length: Float64[Array, " n_k"] = jnp.concatenate(
         (
             jnp.zeros((1,), dtype=segment_lengths.dtype),
             jnp.cumsum(segment_lengths),
@@ -282,7 +282,7 @@ def kpath_arc_length(
 
 @jaxtyped(typechecker=beartype)
 def first_bz_mask(  # noqa: DOC503, PLR2004
-    kpoints_cart: Float[Array, "n_k 3"],
+    kpoints_cart: Float64[Array, "n_k 3"],
     geometry: CrystalGeometry,
     shell_radius: int = 2,
 ) -> Bool[Array, " n_k"]:
@@ -296,7 +296,7 @@ def first_bz_mask(  # noqa: DOC503, PLR2004
 
     Parameters
     ----------
-    kpoints_cart : Float[Array, "n_k 3"]
+    kpoints_cart : Float64[Array, "n_k 3"]
         Cartesian momenta in 1/Angstrom.
     geometry : CrystalGeometry
         Crystal geometry with reciprocal vectors in 1/Angstrom.
@@ -339,42 +339,44 @@ def first_bz_mask(  # noqa: DOC503, PLR2004
         empty_mask: Bool[Array, " 0"] = jnp.ones((0,), dtype=bool)
         return empty_mask
 
-    shell_axis: Float[Array, " shell_size"] = jnp.arange(
+    shell_axis: Float64[Array, " shell_size"] = jnp.arange(
         -shell_radius,
         shell_radius + 1,
         dtype=jnp.float64,
     )
-    shell_x: Float[Array, "shell_size shell_size shell_size"]
-    shell_y: Float[Array, "shell_size shell_size shell_size"]
-    shell_z: Float[Array, "shell_size shell_size shell_size"]
+    shell_x: Float64[Array, "shell_size shell_size shell_size"]
+    shell_y: Float64[Array, "shell_size shell_size shell_size"]
+    shell_z: Float64[Array, "shell_size shell_size shell_size"]
     shell_x, shell_y, shell_z = jnp.meshgrid(
         shell_axis, shell_axis, shell_axis, indexing="ij"
     )
-    shell: Float[Array, "n_shell 3"] = jnp.stack(
+    shell: Float64[Array, "n_shell 3"] = jnp.stack(
         (shell_x, shell_y, shell_z), axis=-1
     ).reshape((-1, 3))
-    reciprocal_points: Float[Array, "n_shell 3"] = shell @ geometry.reciprocal
-    origin_distances: Float[Array, " n_k"] = jnp.sum(
+    reciprocal_points: Float64[Array, "n_shell 3"] = (
+        shell @ geometry.reciprocal
+    )
+    origin_distances: Float64[Array, " n_k"] = jnp.sum(
         kpoints_cart * kpoints_cart, axis=-1
     )
 
     def compare_reciprocal_point(
-        index: Int[Array, ""],
+        index: Int64[Array, ""],
         current_mask: Bool[Array, " n_k"],
     ) -> Bool[Array, " n_k"]:
         """Update membership against one reciprocal-lattice point."""
-        differences: Float[Array, "n_k 3"] = (
+        differences: Float64[Array, "n_k 3"] = (
             kpoints_cart - reciprocal_points[index]
         )
-        reciprocal_distances: Float[Array, " n_k"] = jnp.sum(
+        reciprocal_distances: Float64[Array, " n_k"] = jnp.sum(
             differences * differences,
             axis=-1,
         )
-        distance_scale: Float[Array, " n_k"] = jnp.maximum(
+        distance_scale: Float64[Array, " n_k"] = jnp.maximum(
             1.0,
             jnp.maximum(origin_distances, reciprocal_distances),
         )
-        distance_tolerance: Float[Array, " n_k"] = (
+        distance_tolerance: Float64[Array, " n_k"] = (
             64.0 * jnp.finfo(kpoints_cart.dtype).eps * distance_scale
         )
         updated_mask: Bool[Array, " n_k"] = current_mask & (
@@ -392,19 +394,19 @@ def first_bz_mask(  # noqa: DOC503, PLR2004
         compare_reciprocal_point,
         initial_mask,
     )
-    retained_norms: Float[Array, " n_k"] = jnp.where(
+    retained_norms: Float64[Array, " n_k"] = jnp.where(
         mask,
         safe_norm(kpoints_cart),
         0.0,
     )
-    maximum_retained_norm: Float[Array, ""] = jnp.max(retained_norms)
-    singular_values: Float[Array, " 3"] = jnp.linalg.svdvals(
+    maximum_retained_norm: Float64[Array, ""] = jnp.max(retained_norms)
+    singular_values: Float64[Array, " 3"] = jnp.linalg.svdvals(
         geometry.reciprocal
     )
-    singular_tolerance: Float[Array, ""] = (
+    singular_tolerance: Float64[Array, ""] = (
         64.0 * jnp.finfo(geometry.reciprocal.dtype).eps * singular_values[0]
     )
-    smallest_singular_value: Float[Array, ""] = jnp.maximum(
+    smallest_singular_value: Float64[Array, ""] = jnp.maximum(
         singular_values[-1] - singular_tolerance,
         0.0,
     )
@@ -494,15 +496,17 @@ def build_bz_mesh(  # noqa: DOC503, PLR2004
     if n_per_axis < 2:  # noqa: PLR2004
         message: str = "n_per_axis must be at least two"
         raise ValueError(message)
-    reciprocal_gram: Float[Array, "3 3"] = (
+    reciprocal_gram: Float64[Array, "3 3"] = (
         geometry.reciprocal @ geometry.reciprocal.T
     )
-    half_squared_lengths: Float[Array, " 3"] = 0.5 * jnp.diag(reciprocal_gram)
-    inverse_gram: Float[Array, "3 3"] = jnp.linalg.inv(reciprocal_gram)
-    required_fractional_extents: Float[Array, " 3"] = (
+    half_squared_lengths: Float64[Array, " 3"] = 0.5 * jnp.diag(
+        reciprocal_gram
+    )
+    inverse_gram: Float64[Array, "3 3"] = jnp.linalg.inv(reciprocal_gram)
+    required_fractional_extents: Float64[Array, " 3"] = (
         half_squared_lengths @ jnp.abs(inverse_gram)
     )
-    coverage_tolerance: Float[Array, " 3"] = (
+    coverage_tolerance: Float64[Array, " 3"] = (
         64.0
         * jnp.finfo(geometry.reciprocal.dtype).eps
         * jnp.maximum(1.0, required_fractional_extents)
@@ -510,28 +514,30 @@ def build_bz_mesh(  # noqa: DOC503, PLR2004
     coverage_sufficient: Bool[Array, ""] = jnp.all(
         required_fractional_extents <= 1.0 + coverage_tolerance
     )
-    unchecked_axis: Float[Array, " n_per_axis"] = jnp.linspace(
+    unchecked_axis: Float64[Array, " n_per_axis"] = jnp.linspace(
         -1.0,
         1.0,
         n_per_axis,
     )
-    axis: Float[Array, " n_per_axis"] = eqx.error_if(
+    axis: Float64[Array, " n_per_axis"] = eqx.error_if(
         unchecked_axis,
         ~coverage_sufficient,
         "build_bz_mesh: reciprocal basis does not prove cube coverage",
     )
-    mesh_x: Float[Array, "n_per_axis n_per_axis n_per_axis"]
-    mesh_y: Float[Array, "n_per_axis n_per_axis n_per_axis"]
-    mesh_z: Float[Array, "n_per_axis n_per_axis n_per_axis"]
+    mesh_x: Float64[Array, "n_per_axis n_per_axis n_per_axis"]
+    mesh_y: Float64[Array, "n_per_axis n_per_axis n_per_axis"]
+    mesh_z: Float64[Array, "n_per_axis n_per_axis n_per_axis"]
     mesh_x, mesh_y, mesh_z = jnp.meshgrid(axis, axis, axis, indexing="ij")
-    kpoints: Float[Array, "n_k 3"] = jnp.stack(
+    kpoints: Float64[Array, "n_k 3"] = jnp.stack(
         (mesh_x, mesh_y, mesh_z), axis=-1
     ).reshape((-1, 3))
     kgrid: KGrid = make_kgrid(
         kpoints=kpoints,
         mesh_shape=(n_per_axis * n_per_axis, n_per_axis),
     )
-    cartesian: Float[Array, "n_k 3"] = kpoints_frac_to_cart(kpoints, geometry)
+    cartesian: Float64[Array, "n_k 3"] = kpoints_frac_to_cart(
+        kpoints, geometry
+    )
     mask: Bool[Array, " n_k"] = first_bz_mask(
         cartesian,
         geometry,
@@ -543,8 +549,8 @@ def build_bz_mesh(  # noqa: DOC503, PLR2004
 
 @jaxtyped(typechecker=beartype)
 def build_arpes_kmesh(
-    kx_axis_inv_ang: Float[Array, " n_kx"],
-    ky_axis_inv_ang: Float[Array, " n_ky"],
+    kx_axis_inv_ang: Float64[Array, " n_kx"],
+    ky_axis_inv_ang: Float64[Array, " n_ky"],
     kz_inv_ang: ScalarFloat,
     sample_azimuth: ScalarFloat,
     geometry: CrystalGeometry,
@@ -578,9 +584,9 @@ def build_arpes_kmesh(
 
     Parameters
     ----------
-    kx_axis_inv_ang : Float[Array, " n_kx"]
+    kx_axis_inv_ang : Float64[Array, " n_kx"]
         Laboratory x momenta in 1/Angstrom.
-    ky_axis_inv_ang : Float[Array, " n_ky"]
+    ky_axis_inv_ang : Float64[Array, " n_ky"]
         Laboratory y momenta in 1/Angstrom.
     kz_inv_ang : ScalarFloat
         Fixed out-of-plane momentum in 1/Angstrom.
@@ -599,26 +605,26 @@ def build_arpes_kmesh(
     Gradients flow through both axes, ``kz``, the azimuth, and the lattice.
     The raster shape depends only on the static input shapes.
     """
-    lab_x: Float[Array, "n_ky n_kx"]
-    lab_y: Float[Array, "n_ky n_kx"]
+    lab_x: Float64[Array, "n_ky n_kx"]
+    lab_y: Float64[Array, "n_ky n_kx"]
     lab_x, lab_y = jnp.meshgrid(
         kx_axis_inv_ang, ky_axis_inv_ang, indexing="xy"
     )
     azimuth: Float64[Array, ""] = jnp.asarray(
         sample_azimuth, dtype=jnp.float64
     )
-    cosine: Float[Array, ""] = jnp.cos(azimuth)
-    sine: Float[Array, ""] = jnp.sin(azimuth)
-    sample_x: Float[Array, "n_ky n_kx"] = cosine * lab_x + sine * lab_y
-    sample_y: Float[Array, "n_ky n_kx"] = -sine * lab_x + cosine * lab_y
+    cosine: Float64[Array, ""] = jnp.cos(azimuth)
+    sine: Float64[Array, ""] = jnp.sin(azimuth)
+    sample_x: Float64[Array, "n_ky n_kx"] = cosine * lab_x + sine * lab_y
+    sample_y: Float64[Array, "n_ky n_kx"] = -sine * lab_x + cosine * lab_y
     kz_array: Float64[Array, ""] = jnp.asarray(kz_inv_ang, dtype=jnp.float64)
-    sample_z: Float[Array, "n_ky n_kx"] = jnp.broadcast_to(
+    sample_z: Float64[Array, "n_ky n_kx"] = jnp.broadcast_to(
         kz_array, sample_x.shape
     )
-    cartesian: Float[Array, "n_k 3"] = jnp.stack(
+    cartesian: Float64[Array, "n_k 3"] = jnp.stack(
         (sample_x, sample_y, sample_z), axis=-1
     ).reshape((-1, 3))
-    fractional: Float[Array, "n_k 3"] = kpoints_cart_to_frac(
+    fractional: Float64[Array, "n_k 3"] = kpoints_cart_to_frac(
         cartesian, geometry
     )
     kgrid: KGrid = make_kgrid(
@@ -631,12 +637,12 @@ def build_arpes_kmesh(
 
 @jaxtyped(typechecker=beartype)
 def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
-    kpar_axis_inv_ang: Float[Array, " n_kpar"],
-    photon_energies_ev: Float[Array, " n_hv"],
+    kpar_axis_inv_ang: Float64[Array, " n_kpar"],
+    photon_energies_ev: Float64[Array, " n_hv"],
     work_function_ev: ScalarFloat,
     inner_potential_ev: ScalarFloat,
     sample_azimuth: ScalarFloat,
-    kpar_direction: Float[Array, "2"],
+    kpar_direction: Float64[Array, "2"],
     geometry: CrystalGeometry,
 ) -> KGrid:
     """Build an at-Fermi photon-energy raster in fractional coordinates.
@@ -670,9 +676,9 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
 
     Parameters
     ----------
-    kpar_axis_inv_ang : Float[Array, " n_kpar"]
+    kpar_axis_inv_ang : Float64[Array, " n_kpar"]
         Signed parallel momenta in 1/Angstrom.
-    photon_energies_ev : Float[Array, " n_hv"]
+    photon_energies_ev : Float64[Array, " n_hv"]
         Photon energies in eV.
     work_function_ev : ScalarFloat
         Work function in eV.
@@ -680,7 +686,7 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
         Inner potential in eV.
     sample_azimuth : ScalarFloat
         Sample rotation about the surface normal in radians.
-    kpar_direction : Float[Array, "2"]
+    kpar_direction : Float64[Array, "2"]
         Unit direction in the laboratory surface plane.
     geometry : CrystalGeometry
         Crystal geometry for Cartesian-to-fractional conversion.
@@ -701,8 +707,8 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
     The ``KGrid`` carrier stores no scalar ``kz`` because each row has a
     different value. The third coordinate of each point stores that value.
     """
-    direction_norm: Float[Array, ""] = safe_norm(kpar_direction)
-    checked_direction: Float[Array, "2"] = eqx.error_if(
+    direction_norm: Float64[Array, ""] = safe_norm(kpar_direction)
+    checked_direction: Float64[Array, "2"] = eqx.error_if(
         kpar_direction,
         ~jnp.all(jnp.isfinite(kpar_direction))
         | (jnp.abs(direction_norm - 1.0) > 1e-12),  # noqa: PLR2004
@@ -710,10 +716,10 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
     )
 
     def kz_for_energy(
-        photon_energy: Float[Array, ""],
-    ) -> Tuple[Complex[Array, " n_kpar"], Bool[Array, " n_kpar"]]:
+        photon_energy: Float64[Array, ""],
+    ) -> Tuple[Complex128[Array, " n_kpar"], Bool[Array, " n_kpar"]]:
         """Compute one out-of-plane row for a photon energy."""
-        kz_row: Complex[Array, " n_kpar"]
+        kz_row: Complex128[Array, " n_kpar"]
         propagating_row: Bool[Array, " n_kpar"]
         kz_row, propagating_row = kz_from_inner_potential_at_fermi(
             photon_energy,
@@ -721,38 +727,38 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
             inner_potential_ev,
             jnp.abs(kpar_axis_inv_ang),
         )
-        result: Tuple[Complex[Array, " n_kpar"], Bool[Array, " n_kpar"]] = (
+        result: Tuple[Complex128[Array, " n_kpar"], Bool[Array, " n_kpar"]] = (
             kz_row,
             propagating_row,
         )
         return result
 
-    kz_rows: Complex[Array, "n_hv n_kpar"]
+    kz_rows: Complex128[Array, "n_hv n_kpar"]
     propagating: Bool[Array, "n_hv n_kpar"]
     kz_rows, propagating = jax.vmap(kz_for_energy)(photon_energies_ev)
-    checked_kz_rows: Complex[Array, "n_hv n_kpar"] = eqx.error_if(
+    checked_kz_rows: Complex128[Array, "n_hv n_kpar"] = eqx.error_if(
         kz_rows,
         ~jnp.all(propagating),
         "build_kmesh_hv_at_fermi requires propagating channels",
     )
-    real_kz_rows: Float[Array, "n_hv n_kpar"] = jnp.real(checked_kz_rows)
-    lab_x: Float[Array, "n_hv n_kpar"] = jnp.broadcast_to(
+    real_kz_rows: Float64[Array, "n_hv n_kpar"] = jnp.real(checked_kz_rows)
+    lab_x: Float64[Array, "n_hv n_kpar"] = jnp.broadcast_to(
         kpar_axis_inv_ang[None, :] * checked_direction[0], real_kz_rows.shape
     )
-    lab_y: Float[Array, "n_hv n_kpar"] = jnp.broadcast_to(
+    lab_y: Float64[Array, "n_hv n_kpar"] = jnp.broadcast_to(
         kpar_axis_inv_ang[None, :] * checked_direction[1], real_kz_rows.shape
     )
     azimuth: Float64[Array, ""] = jnp.asarray(
         sample_azimuth, dtype=jnp.float64
     )
-    cosine: Float[Array, ""] = jnp.cos(azimuth)
-    sine: Float[Array, ""] = jnp.sin(azimuth)
-    sample_x: Float[Array, "n_hv n_kpar"] = cosine * lab_x + sine * lab_y
-    sample_y: Float[Array, "n_hv n_kpar"] = -sine * lab_x + cosine * lab_y
-    cartesian: Float[Array, "n_k 3"] = jnp.stack(
+    cosine: Float64[Array, ""] = jnp.cos(azimuth)
+    sine: Float64[Array, ""] = jnp.sin(azimuth)
+    sample_x: Float64[Array, "n_hv n_kpar"] = cosine * lab_x + sine * lab_y
+    sample_y: Float64[Array, "n_hv n_kpar"] = -sine * lab_x + cosine * lab_y
+    cartesian: Float64[Array, "n_k 3"] = jnp.stack(
         (sample_x, sample_y, real_kz_rows), axis=-1
     ).reshape((-1, 3))
-    fractional: Float[Array, "n_k 3"] = kpoints_cart_to_frac(
+    fractional: Float64[Array, "n_k 3"] = kpoints_cart_to_frac(
         cartesian, geometry
     )
     kgrid: KGrid = make_kgrid(

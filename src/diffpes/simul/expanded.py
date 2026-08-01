@@ -19,7 +19,7 @@ Routine Listings
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import (
     ArpesSpectrum,
@@ -38,20 +38,20 @@ from .spectrum import simulate_basic, simulate_novice
 
 @jaxtyped(typechecker=beartype)
 def _build_inputs(
-    eigenbands: Float[Array, "K B"],
-    surface_orb: Float[Array, "K B A 9"],
+    eigenbands: Float64[Array, "K B"],
+    surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat,
 ) -> tuple[BandStructure, OrbitalProjection]:
     """Convert plain arrays into validated spectrum input carriers."""
-    bands_array: Float[Array, "K B"] = jnp.asarray(
+    bands_array: Float64[Array, "K B"] = jnp.asarray(
         eigenbands,
         dtype=jnp.float64,
     )
-    projection_array: Float[Array, "K B A 9"] = jnp.asarray(
+    projection_array: Float64[Array, "K B A 9"] = jnp.asarray(
         surface_orb,
         dtype=jnp.float64,
     )
-    kpoints: Float[Array, "K 3"] = jnp.zeros(
+    kpoints: Float64[Array, "K 3"] = jnp.zeros(
         (bands_array.shape[0], 3),
         dtype=jnp.float64,
     )
@@ -69,8 +69,8 @@ def _build_inputs(
 
 @jaxtyped(typechecker=beartype)
 def simulate_novice_expanded(
-    eigenbands: Float[Array, "K B"],
-    surface_orb: Float[Array, "K B A 9"],
+    eigenbands: Float64[Array, "K B"],
+    surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat,
     sigma: ScalarFloat,
     gamma: ScalarFloat,
@@ -86,9 +86,9 @@ def simulate_novice_expanded(
 
     Parameters
     ----------
-    eigenbands : Float[Array, "K B"]
+    eigenbands : Float64[Array, "K B"]
         Band energies in eV.
-    surface_orb : Float[Array, "K B A 9"]
+    surface_orb : Float64[Array, "K B A 9"]
         VASP-order projection probabilities.
     ef : ScalarFloat
         Fermi energy in eV.
@@ -131,8 +131,8 @@ def simulate_novice_expanded(
 
 @jaxtyped(typechecker=beartype)
 def simulate_basic_expanded(
-    eigenbands: Float[Array, "K B"],
-    surface_orb: Float[Array, "K B A 9"],
+    eigenbands: Float64[Array, "K B"],
+    surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat,
     sigma: ScalarFloat,
     fidelity: int,
@@ -150,9 +150,9 @@ def simulate_basic_expanded(
 
     Parameters
     ----------
-    eigenbands : Float[Array, "K B"]
+    eigenbands : Float64[Array, "K B"]
         Band energies in eV.
-    surface_orb : Float[Array, "K B A 9"]
+    surface_orb : Float64[Array, "K B A 9"]
         VASP-order projection probabilities.
     ef : ScalarFloat
         Fermi energy in eV.
@@ -202,8 +202,8 @@ def simulate_basic_expanded(
 @jaxtyped(typechecker=beartype)
 def simulate_expanded(  # noqa: PLR0913
     level: str,
-    eigenbands: Float[Array, "K B"],
-    surface_orb: Float[Array, "K B A 9"],
+    eigenbands: Float64[Array, "K B"],
+    surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat = 0.0,
     sigma: ScalarFloat = 0.04,
     gamma: ScalarFloat = 0.1,
@@ -224,9 +224,9 @@ def simulate_expanded(  # noqa: PLR0913
     ----------
     level : str
         ``"novice"`` or ``"basic"`` (case-insensitive).
-    eigenbands : Float[Array, "K B"]
+    eigenbands : Float64[Array, "K B"]
         Band energies in eV.
-    surface_orb : Float[Array, "K B A 9"]
+    surface_orb : Float64[Array, "K B A 9"]
         VASP-order projection probabilities.
     ef : ScalarFloat, optional
         Fermi energy in eV.

@@ -30,7 +30,7 @@ them for analysis visualizations. Do not include them in functions that
 import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, Tuple, Union
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Float64, Int32, jaxtyped
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
@@ -55,7 +55,7 @@ from diffpes.types import (
 @beartype
 def _prepare_plot_arrays(
     spectrum: ArpesSpectrum,
-) -> Tuple[Float[NDArray, "K E"], Float[NDArray, " E"]]:
+) -> Tuple[Float64[NDArray, "K E"], Float64[NDArray, " E"]]:
     """Convert and validate spectrum arrays for plotting.
 
     Extended Summary
@@ -80,9 +80,9 @@ def _prepare_plot_arrays(
 
     Returns
     -------
-    intensity : Float[NDArray, "K E"]
+    intensity : Float64[NDArray, "K E"]
         2D intensity array of shape ``(K, E)``.
-    energy_axis : Float[NDArray, " E"]
+    energy_axis : Float64[NDArray, " E"]
         1D energy axis array of shape ``(E,)``.
 
     Raises
@@ -91,10 +91,10 @@ def _prepare_plot_arrays(
         If array ranks are invalid or if intensity/energy sizes are
         incompatible.
     """
-    intensity: Float[NDArray, "K E"] = np.asarray(
+    intensity: Float64[NDArray, "K E"] = np.asarray(
         spectrum.intensity, dtype=np.float64
     )
-    energy_axis: Float[NDArray, " E"] = np.asarray(
+    energy_axis: Float64[NDArray, " E"] = np.asarray(
         spectrum.energy_axis, dtype=np.float64
     )
     if intensity.ndim != INTENSITY_NDIM:
@@ -109,7 +109,7 @@ def _prepare_plot_arrays(
             "energy_axis.shape[0]."
         )
         raise ValueError(msg)
-    plot_arrays: Tuple[Float[NDArray, "K E"], Float[NDArray, " E"]] = (
+    plot_arrays: Tuple[Float64[NDArray, "K E"], Float64[NDArray, " E"]] = (
         intensity,
         energy_axis,
     )
@@ -199,8 +199,8 @@ def plot_arpes_spectrum(
         Image artist created by ``imshow``.
 
     """
-    intensity: Float[NDArray, "K E"]
-    energy_axis: Float[NDArray, " E"]
+    intensity: Float64[NDArray, "K E"]
+    energy_axis: Float64[NDArray, " E"]
     intensity, energy_axis = _prepare_plot_arrays(spectrum)
 
     fig: Union[Figure, SubFigure]
@@ -481,16 +481,16 @@ def list_band_scatter_presets() -> tuple[str, ...]:
 @beartype
 def _prepare_band_arrays(
     bands: BandStructure,
-) -> tuple[Float[NDArray, "K B"], float]:
+) -> tuple[Float64[NDArray, "K B"], float]:
     """Convert and validate band arrays for scatter plotting."""
-    eigenvalues: Float[NDArray, "K B"] = np.asarray(
+    eigenvalues: Float64[NDArray, "K B"] = np.asarray(
         bands.eigenvalues, dtype=np.float64
     )
     if eigenvalues.ndim != BAND_NDIM:
         msg: str = "Expected bands.eigenvalues to have shape (K, B)."
         raise ValueError(msg)
     fermi: float = float(np.asarray(bands.fermi_energy, dtype=np.float64))
-    band_arrays: tuple[Float[NDArray, "K B"], float] = (
+    band_arrays: tuple[Float64[NDArray, "K B"], float] = (
         eigenvalues,
         fermi,
     )
@@ -499,14 +499,14 @@ def _prepare_band_arrays(
 
 @beartype
 def _subset_atom_axis(
-    data: Float[NDArray, "K B A C"],
+    data: Float64[NDArray, "K B A C"],
     atom_indices: Optional[list[int]],
-) -> Float[NDArray, "K B A2 C"]:
+) -> Float64[NDArray, "K B A2 C"]:
     """Subset an array on atom axis when the caller provides atom indices."""
     if atom_indices is None:
-        subset: Float[NDArray, "K B A2 C"] = data
+        subset: Float64[NDArray, "K B A2 C"] = data
     else:
-        idx: Int[NDArray, " A"] = np.asarray(atom_indices, dtype=np.int32)
+        idx: Int32[NDArray, " A"] = np.asarray(atom_indices, dtype=np.int32)
         subset = data[:, :, idx, :]
     return subset
 
@@ -516,7 +516,7 @@ def _weights_from_preset(  # noqa: PLR0912
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     preset: str,
     atom_indices: Optional[list[int]],
-) -> tuple[Float[NDArray, "K B"], bool]:
+) -> tuple[Float64[NDArray, "K B"], bool]:
     """Resolve a band-weight matrix from a preset name.
 
     Parameters
@@ -530,7 +530,7 @@ def _weights_from_preset(  # noqa: PLR0912
 
     Returns
     -------
-    weights : Float[NDArray, "K B"]
+    weights : Float64[NDArray, "K B"]
         Band weights with shape ``(K, B)``.
     signed : bool
         Whether the weights have signs and require a color map.
@@ -541,7 +541,7 @@ def _weights_from_preset(  # noqa: PLR0912
         If the preset is unknown or requires unavailable spin or OAM data.
     """
     key: str = preset.lower()
-    proj: Float[NDArray, "K B A O"] = _subset_atom_axis(
+    proj: Float64[NDArray, "K B A O"] = _subset_atom_axis(
         np.asarray(orb_proj.projections, dtype=np.float64),
         atom_indices,
     )
@@ -551,7 +551,7 @@ def _weights_from_preset(  # noqa: PLR0912
         "d": slice(4, 9),
         "non_s": slice(1, 9),
     }
-    weights: Optional[Float[NDArray, "K B"]] = None
+    weights: Optional[Float64[NDArray, "K B"]] = None
     signed: bool = False
 
     if key in ORBITAL_INDEX:
@@ -562,7 +562,7 @@ def _weights_from_preset(  # noqa: PLR0912
     elif key == "total":
         weights = np.sum(proj, axis=(2, 3))
 
-    spin_arr: Optional[Float[NDArray, "K B A 6"]] = None
+    spin_arr: Optional[Float64[NDArray, "K B A 6"]] = None
     if orb_proj.spin is not None:
         spin_arr = _subset_atom_axis(
             np.asarray(orb_proj.spin, dtype=np.float64),
@@ -599,7 +599,7 @@ def _weights_from_preset(  # noqa: PLR0912
             )
             signed = True
 
-    oam_arr: Optional[Float[NDArray, "K B A C"]] = None
+    oam_arr: Optional[Float64[NDArray, "K B A C"]] = None
     if orb_proj.oam is not None:
         oam_arr = _subset_atom_axis(
             np.asarray(orb_proj.oam, dtype=np.float64),
@@ -625,7 +625,7 @@ def _weights_from_preset(  # noqa: PLR0912
         presets: str = ", ".join(PRESET_NAMES)
         msg = f"Unknown preset '{preset}'. Available presets: {presets}."
         raise ValueError(msg)
-    preset_weights: tuple[Float[NDArray, "K B"], bool] = (weights, signed)
+    preset_weights: tuple[Float64[NDArray, "K B"], bool] = (weights, signed)
     return preset_weights
 
 
@@ -668,7 +668,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913
 
     2. **Scale the marker areas**::
 
-           marker_sizes: Float[NDArray, "K B"] = np.maximum(
+           marker_sizes: Float64[NDArray, "K B"] = np.maximum(
                np.abs(weights) * size_scale,
                min_size,
            )
@@ -729,10 +729,10 @@ def plot_band_scatter_preset(  # noqa: PLR0913
     ValueError
         If the preset weights and band eigenvalues have different shapes.
     """
-    eigenvalues: Float[NDArray, "K B"]
+    eigenvalues: Float64[NDArray, "K B"]
     fermi: float
     eigenvalues, fermi = _prepare_band_arrays(bands)
-    weights: Float[NDArray, "K B"]
+    weights: Float64[NDArray, "K B"]
     signed: bool
     weights, signed = _weights_from_preset(orb_proj, preset, atom_indices)
     if weights.shape != eigenvalues.shape:
@@ -741,15 +741,15 @@ def plot_band_scatter_preset(  # noqa: PLR0913
         )
         raise ValueError(msg)
 
-    yvals: Float[NDArray, "K B"] = (
+    yvals: Float64[NDArray, "K B"] = (
         eigenvalues - fermi if shift_fermi else eigenvalues
     )
     nkpoints: int = yvals.shape[0]
-    xvals: Float[NDArray, "K B"] = np.broadcast_to(
+    xvals: Float64[NDArray, "K B"] = np.broadcast_to(
         np.arange(nkpoints, dtype=np.float64)[:, np.newaxis],
         yvals.shape,
     )
-    marker_sizes: Float[NDArray, "K B"] = np.maximum(
+    marker_sizes: Float64[NDArray, "K B"] = np.maximum(
         np.abs(weights) * size_scale,
         min_size,
     )

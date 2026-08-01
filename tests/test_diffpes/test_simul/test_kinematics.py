@@ -16,7 +16,7 @@ import pytest
 from beartype.typing import Any, Callable
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Array, Bool, Complex, Float
+from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul.kinematics import (
     detector_angles_to_kpar,
@@ -54,11 +54,11 @@ class TestKineticEnergyEv(chex.TestCase):
         Use 21.2 eV photons and a 4.3 eV work function. Compare four signed
         Fermi-relative electron energies with the closed-form values.
         """
-        omega_rel_fermi: Float[Array, " 4"] = jnp.array(
+        omega_rel_fermi: Float64[Array, " 4"] = jnp.array(
             [-0.4, 0.0, 0.7, -40.0]
         )
-        expected: Float[Array, " 4"] = jnp.array([16.5, 16.9, 17.6, -23.1])
-        actual: Float[Array, " 4"]
+        expected: Float64[Array, " 4"] = jnp.array([16.5, 16.9, 17.6, -23.1])
+        actual: Float64[Array, " 4"]
         valid: Bool[Array, " 4"]
         actual, valid = jax.jit(kinetic_energy_ev)(
             21.2,
@@ -89,14 +89,14 @@ class TestKineticEnergyEv(chex.TestCase):
         Differentiate one allowed point and one rejected point, staying away
         from the nondifferentiable Boolean threshold itself.
         """
-        allowed_gradient: Float[Array, ""] = jax.grad(
+        allowed_gradient: Float64[Array, ""] = jax.grad(
             lambda photon: kinetic_energy_ev(
                 photon,
                 4.3,
                 jnp.array(0.7),
             )[0]
         )(jnp.array(21.2))
-        forbidden_gradient: Float[Array, ""] = jax.grad(
+        forbidden_gradient: Float64[Array, ""] = jax.grad(
             lambda photon: kinetic_energy_ev(
                 photon,
                 4.3,
@@ -138,11 +138,11 @@ class TestFinalStateKInvAng(chex.TestCase):
         Evaluate energies of 1, 16, and 100 eV under JIT. Compare at
         ``rtol=1e-14``.
         """
-        energies: Float[Array, " 3"] = jnp.array([1.0, 16.0, 100.0])
-        expected: Float[Array, " 3"] = K_PREFACTOR_INV_ANG_SQRT_EV * jnp.sqrt(
-            energies
+        energies: Float64[Array, " 3"] = jnp.array([1.0, 16.0, 100.0])
+        expected: Float64[Array, " 3"] = (
+            K_PREFACTOR_INV_ANG_SQRT_EV * jnp.sqrt(energies)
         )
-        actual: Float[Array, " 3"]
+        actual: Float64[Array, " 3"]
         valid: Bool[Array, " 3"]
         actual, valid = jax.jit(final_state_k_inv_ang)(energies)
         chex.assert_shape(actual, (3,))
@@ -166,27 +166,27 @@ class TestFinalStateKInvAng(chex.TestCase):
         Apply the shared finite-difference harness at 24 eV. Differentiate a
         negative input away from the threshold.
         """
-        energy: Float[Array, ""] = jnp.array(24.0)
+        energy: Float64[Array, ""] = jnp.array(24.0)
 
-        def momentum(candidate: Float[Array, ""]) -> Float[Array, ""]:
+        def momentum(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return only the differentiable momentum value."""
-            value: Float[Array, ""] = final_state_k_inv_ang(candidate)[0]
+            value: Float64[Array, ""] = final_state_k_inv_ang(candidate)[0]
             return value
 
         assert_grad_matches_fd(momentum, energy)
-        actual_gradient: Float[Array, ""] = jax.grad(
+        actual_gradient: Float64[Array, ""] = jax.grad(
             final_state_k_inv_ang,
             has_aux=True,
         )(energy)[0]
-        expected_gradient: Float[Array, ""] = K_PREFACTOR_INV_ANG_SQRT_EV / (
+        expected_gradient: Float64[Array, ""] = K_PREFACTOR_INV_ANG_SQRT_EV / (
             2.0 * jnp.sqrt(energy)
         )
-        forbidden_momentum: Float[Array, ""]
+        forbidden_momentum: Float64[Array, ""]
         forbidden_valid: Bool[Array, ""]
         forbidden_momentum, forbidden_valid = final_state_k_inv_ang(
             jnp.array(-1.0)
         )
-        forbidden_gradient: Float[Array, ""] = jax.grad(momentum)(
+        forbidden_gradient: Float64[Array, ""] = jax.grad(momentum)(
             jnp.array(-1.0)
         )
         chex.assert_trees_all_close(
@@ -231,14 +231,14 @@ class TestKzFromInnerPotential(chex.TestCase):
         boundaries under eager and compiled execution. Require exact zero
         sentinels and false masks.
         """
-        raw_energy: Float[Array, ""]
+        raw_energy: Float64[Array, ""]
         energy_valid: Bool[Array, ""]
         raw_energy, energy_valid = kinetic_energy_ev(
             4.5,
             4.5,
             jnp.array(0.0),
         )
-        final_momentum: Float[Array, ""]
+        final_momentum: Float64[Array, ""]
         momentum_valid: Bool[Array, ""]
         final_momentum, momentum_valid = final_state_k_inv_ang(raw_energy)
         chex.assert_trees_all_equal(raw_energy, jnp.array(0.0))
@@ -252,7 +252,7 @@ class TestKzFromInnerPotential(chex.TestCase):
             operation = kz_from_inner_potential
             if compiled:
                 operation = jax.jit(operation)
-            threshold_value: Complex[Array, ""]
+            threshold_value: Complex128[Array, ""]
             threshold_valid: Bool[Array, ""]
             threshold_value, threshold_valid = operation(
                 4.5,
@@ -261,7 +261,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 jnp.array(0.0),
                 jnp.array(0.0),
             )
-            aperture_value: Complex[Array, ""]
+            aperture_value: Complex128[Array, ""]
             aperture_valid: Bool[Array, ""]
             aperture_value, aperture_valid = operation(
                 5.5,
@@ -294,7 +294,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         Evaluate one forbidden point twice and differentiate its real sentinel
         with respect to signed energy.
         """
-        eager: tuple[Complex[Array, ""], Bool[Array, ""]] = (
+        eager: tuple[Complex128[Array, ""], Bool[Array, ""]] = (
             kz_from_inner_potential(
                 4.0,
                 4.5,
@@ -303,7 +303,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 jnp.array(0.0),
             )
         )
-        compiled: tuple[Complex[Array, ""], Bool[Array, ""]] = jax.jit(
+        compiled: tuple[Complex128[Array, ""], Bool[Array, ""]] = jax.jit(
             kz_from_inner_potential
         )(
             4.0,
@@ -312,12 +312,12 @@ class TestKzFromInnerPotential(chex.TestCase):
             jnp.array(-1.0),
             jnp.array(0.0),
         )
-        value: Complex[Array, ""]
+        value: Complex128[Array, ""]
         valid: Bool[Array, ""]
         for value, valid in (eager, compiled):
             chex.assert_trees_all_equal(value, jnp.array(0.0 + 0.0j))
             self.assertFalse(bool(valid))
-        forbidden_gradient: Float[Array, ""] = jax.grad(
+        forbidden_gradient: Float64[Array, ""] = jax.grad(
             lambda omega: jnp.real(
                 kz_from_inner_potential(
                     4.0,
@@ -349,7 +349,7 @@ class TestKzFromInnerPotential(chex.TestCase):
             operation = kz_from_inner_potential
             if compiled:
                 operation = jax.jit(operation)
-            value: Complex[Array, ""]
+            value: Complex128[Array, ""]
             valid: Bool[Array, ""]
             value, valid = operation(
                 5.5,
@@ -362,9 +362,11 @@ class TestKzFromInnerPotential(chex.TestCase):
                 chex.assert_trees_all_equal(value, jnp.array(0.0 + 0.0j))
                 self.assertFalse(bool(valid))
 
-        def rejected_value(k_parallel: Float[Array, ""]) -> Float[Array, ""]:
+        def rejected_value(
+            k_parallel: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
             """Return the zero sentinel outside the aperture."""
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex128[Array, ""] = kz_from_inner_potential(
                 5.5,
                 4.5,
                 10.0,
@@ -373,7 +375,7 @@ class TestKzFromInnerPotential(chex.TestCase):
             )[0]
             return jnp.real(value)
 
-        gradient: Float[Array, ""] = jax.grad(rejected_value)(jnp.array(1.0))
+        gradient: Float64[Array, ""] = jax.grad(rejected_value)(jnp.array(1.0))
         chex.assert_trees_all_equal(gradient, jnp.array(0.0))
         chex.assert_tree_all_finite(gradient)
 
@@ -397,12 +399,12 @@ class TestKzFromInnerPotential(chex.TestCase):
         )
         reference: dict[str, Any] = json.loads(reference_path.read_text())
         inputs: dict[str, Any] = reference["inputs"]
-        omega: Float[Array, " 5"] = jnp.asarray(inputs["omega_rel_fermi_ev"])
-        k_parallel: Float[Array, " 5"] = jnp.full(
+        omega: Float64[Array, " 5"] = jnp.asarray(inputs["omega_rel_fermi_ev"])
+        k_parallel: Float64[Array, " 5"] = jnp.full(
             (5,),
             inputs["k_parallel_inv_ang"],
         )
-        exact: Complex[Array, " 5"]
+        exact: Complex128[Array, " 5"]
         propagating: Bool[Array, " 5"]
         exact, propagating = kz_from_inner_potential(
             inputs["photon_energy_ev"],
@@ -411,13 +413,15 @@ class TestKzFromInnerPotential(chex.TestCase):
             omega,
             k_parallel,
         )
-        approximate: Complex[Array, " 5"] = kz_from_inner_potential_at_fermi(
-            inputs["photon_energy_ev"],
-            inputs["work_function_ev"],
-            inputs["inner_potential_ev"],
-            k_parallel,
-        )[0]
-        expected: Complex[Array, " 5"] = jnp.sqrt(
+        approximate: Complex128[Array, " 5"] = (
+            kz_from_inner_potential_at_fermi(
+                inputs["photon_energy_ev"],
+                inputs["work_function_ev"],
+                inputs["inner_potential_ev"],
+                k_parallel,
+            )[0]
+        )
+        expected: Complex128[Array, " 5"] = jnp.sqrt(
             (
                 TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2
                 * (
@@ -429,7 +433,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 - k_parallel**2
             ).astype(jnp.complex128)
         )
-        relative_error: Float[Array, " 5"] = jnp.abs(
+        relative_error: Float64[Array, " 5"] = jnp.abs(
             approximate - exact
         ) / jnp.abs(exact)
         chex.assert_trees_all_close(exact, expected, rtol=1e-14, atol=1e-14)
@@ -445,7 +449,9 @@ class TestKzFromInnerPotential(chex.TestCase):
             rtol=1e-14,
             atol=1e-14,
         )
-        self.assertEqual(reference["gate"], "03.I2")
+        self.assertEqual(
+            reference["requirement"], "kz-energy-dependence-reference"
+        )
         chex.assert_trees_all_equal(propagating, jnp.ones(5, dtype=jnp.bool_))
         self.assertEqual(float(relative_error[2]), 0.0)
         self.assertGreater(float(relative_error[0]), 0.0)
@@ -463,11 +469,11 @@ class TestKzFromInnerPotential(chex.TestCase):
         Compare autodiff with central differences and the analytic derivative
         at one smooth propagating point.
         """
-        omega: Float[Array, ""] = jnp.array(-0.8)
+        omega: Float64[Array, ""] = jnp.array(-0.8)
 
-        def real_kz(candidate: Float[Array, ""]) -> Float[Array, ""]:
+        def real_kz(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return one propagating real root."""
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex128[Array, ""] = kz_from_inner_potential(
                 50.0,
                 4.5,
                 12.0,
@@ -477,9 +483,9 @@ class TestKzFromInnerPotential(chex.TestCase):
             return jnp.real(value)
 
         assert_grad_matches_fd(real_kz, omega)
-        kz_value: Float[Array, ""] = real_kz(omega)
-        actual: Float[Array, ""] = jax.grad(real_kz)(omega)
-        expected: Float[Array, ""] = TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 / (
+        kz_value: Float64[Array, ""] = real_kz(omega)
+        actual: Float64[Array, ""] = jax.grad(real_kz)(omega)
+        expected: Float64[Array, ""] = TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 / (
             2.0 * kz_value
         )
         chex.assert_trees_all_close(actual, expected, rtol=1e-12, atol=1e-12)
@@ -499,11 +505,11 @@ class TestKzFromInnerPotential(chex.TestCase):
         """
 
         def real_kz(
-            work_function: Float[Array, ""],
-            omega: Float[Array, ""],
-        ) -> Float[Array, ""]:
+            work_function: Float64[Array, ""],
+            omega: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
             """Return one propagating real root."""
-            value: Complex[Array, ""] = kz_from_inner_potential(
+            value: Complex128[Array, ""] = kz_from_inner_potential(
                 50.0,
                 work_function,
                 12.0,
@@ -512,8 +518,8 @@ class TestKzFromInnerPotential(chex.TestCase):
             )[0]
             return jnp.real(value)
 
-        work_gradient: Float[Array, ""]
-        omega_gradient: Float[Array, ""]
+        work_gradient: Float64[Array, ""]
+        omega_gradient: Float64[Array, ""]
         work_gradient, omega_gradient = jax.grad(
             real_kz,
             argnums=(0, 1),
@@ -559,20 +565,22 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             theta_value,
         ) in cases:
             with self.subTest(photon_energy=photon_energy, theta=theta_value):
-                theta: Float[Array, ""] = jnp.asarray(theta_value)
-                surface_energy: Float[Array, ""] = jnp.asarray(
+                theta: Float64[Array, ""] = jnp.asarray(theta_value)
+                surface_energy: Float64[Array, ""] = jnp.asarray(
                     photon_energy - work_function
                 )
-                k_parallel_vector: Float[Array, "2"] = detector_angles_to_kpar(
-                    theta,
-                    jnp.array(0.0),
-                    surface_energy,
-                    "H",
+                k_parallel_vector: Float64[Array, "2"] = (
+                    detector_angles_to_kpar(
+                        theta,
+                        jnp.array(0.0),
+                        surface_energy,
+                        "H",
+                    )
                 )
-                k_parallel: Float[Array, ""] = jnp.linalg.norm(
+                k_parallel: Float64[Array, ""] = jnp.linalg.norm(
                     k_parallel_vector
                 )
-                kz_value: Complex[Array, ""]
+                kz_value: Complex128[Array, ""]
                 propagating: Bool[Array, ""]
                 kz_value, propagating = kz_from_inner_potential_at_fermi(
                     photon_energy,
@@ -580,7 +588,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
                     inner_potential,
                     k_parallel,
                 )
-                expected: Float[Array, ""] = (
+                expected: Float64[Array, ""] = (
                     K_PREFACTOR_INV_ANG_SQRT_EV
                     * jnp.sqrt(
                         surface_energy * jnp.cos(theta) ** 2 + inner_potential
@@ -628,41 +636,41 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         )
         self.assertEqual(len(records), 168)
 
-        photon_energies: Float[Array, " 168"] = jnp.asarray(
+        photon_energies: Float64[Array, " 168"] = jnp.asarray(
             [record["photon_energy_ev"] for record in records]
         )
-        work_functions: Float[Array, " 168"] = jnp.asarray(
+        work_functions: Float64[Array, " 168"] = jnp.asarray(
             [record["work_function_ev"] for record in records]
         )
-        inner_potentials: Float[Array, " 168"] = jnp.asarray(
+        inner_potentials: Float64[Array, " 168"] = jnp.asarray(
             [record["inner_potential_ev"] for record in records]
         )
-        k_parallel: Float[Array, " 168"] = jnp.asarray(
+        k_parallel: Float64[Array, " 168"] = jnp.asarray(
             [record["k_parallel_inv_ang"] for record in records]
         )
-        chinook_values: Float[Array, " 168"] = jnp.asarray(
+        chinook_values: Float64[Array, " 168"] = jnp.asarray(
             [record["kz_chinook_inv_ang"] for record in records]
         )
-        recorded_production: Float[Array, " 168"] = jnp.asarray(
+        recorded_production: Float64[Array, " 168"] = jnp.asarray(
             [record["kz_production_constants_inv_ang"] for record in records]
         )
-        chinook_prefactor: Float[Array, ""] = jnp.asarray(
+        chinook_prefactor: Float64[Array, ""] = jnp.asarray(
             document["chinook_constants"]["momentum_prefactor_inv_ang_sqrt_ev"]
         )
-        injected_values: Float[Array, " 168"] = jnp.sqrt(
+        injected_values: Float64[Array, " 168"] = jnp.sqrt(
             chinook_prefactor**2
             * (photon_energies - work_functions + inner_potentials)
             - k_parallel**2
         )
 
         def production_value(
-            photon_energy: Float[Array, ""],
-            work_function: Float[Array, ""],
-            inner_potential: Float[Array, ""],
-            parallel_momentum: Float[Array, ""],
-        ) -> Float[Array, ""]:
+            photon_energy: Float64[Array, ""],
+            work_function: Float64[Array, ""],
+            inner_potential: Float64[Array, ""],
+            parallel_momentum: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
             """Return one real production out-of-plane momentum."""
-            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
+            value: Complex128[Array, ""] = kz_from_inner_potential_at_fermi(
                 photon_energy,
                 work_function,
                 inner_potential,
@@ -670,7 +678,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             )[0]
             return jnp.real(value)
 
-        production_values: Float[Array, " 168"] = jax.vmap(production_value)(
+        production_values: Float64[Array, " 168"] = jax.vmap(production_value)(
             photon_energies,
             work_functions,
             inner_potentials,
@@ -704,8 +712,8 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Evaluate parallel momenta 0 and 1.5 in 1/Angstrom at a -10 eV inner
         potential. Compare both values with the direct complex square root.
         """
-        k_parallel: Float[Array, " 2"] = jnp.array([0.0, 1.5])
-        kz_values: Complex[Array, " 2"]
+        k_parallel: Float64[Array, " 2"] = jnp.array([0.0, 1.5])
+        kz_values: Complex128[Array, " 2"]
         propagating: Bool[Array, " 2"]
         kz_values, propagating = jax.jit(kz_from_inner_potential_at_fermi)(
             21.2,
@@ -714,11 +722,11 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             k_parallel,
         )
         surface_energy: float = 21.2 - 4.5
-        radicands: Float[Array, " 2"] = (
+        radicands: Float64[Array, " 2"] = (
             TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 * (surface_energy - 10.0)
             - k_parallel**2
         )
-        expected: Complex[Array, " 2"] = jnp.sqrt(
+        expected: Complex128[Array, " 2"] = jnp.sqrt(
             radicands.astype(jnp.complex128)
         )
         chex.assert_trees_all_close(
@@ -744,7 +752,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Vmap the scalar kinematics over twelve tuples. The shared harness
         checks both autodiff modes and central finite differences.
         """
-        photon_energies: Float[Array, " 12"] = jnp.array(
+        photon_energies: Float64[Array, " 12"] = jnp.array(
             [
                 21.2,
                 25.0,
@@ -760,44 +768,46 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
                 500.0,
             ]
         )
-        work_functions: Float[Array, " 12"] = jnp.linspace(4.0, 4.5, 12)
-        inner_potentials: Float[Array, " 12"] = jnp.linspace(8.0, 15.0, 12)
-        k_parallel: Float[Array, " 12"] = jnp.linspace(0.1, 1.2, 12)
+        work_functions: Float64[Array, " 12"] = jnp.linspace(4.0, 4.5, 12)
+        inner_potentials: Float64[Array, " 12"] = jnp.linspace(8.0, 15.0, 12)
+        k_parallel: Float64[Array, " 12"] = jnp.linspace(0.1, 1.2, 12)
 
         def loss(
             parameters: tuple[
-                Float[Array, " 12"],
-                Float[Array, " 12"],
-                Float[Array, " 12"],
+                Float64[Array, " 12"],
+                Float64[Array, " 12"],
+                Float64[Array, " 12"],
             ],
-        ) -> Float[Array, ""]:
-            photon_values: Float[Array, " 12"]
-            work_values: Float[Array, " 12"]
-            inner_values: Float[Array, " 12"]
+        ) -> Float64[Array, ""]:
+            photon_values: Float64[Array, " 12"]
+            work_values: Float64[Array, " 12"]
+            inner_values: Float64[Array, " 12"]
             photon_values, work_values, inner_values = parameters
 
             def one_kz(
-                photon: Float[Array, ""],
-                work: Float[Array, ""],
-                inner: Float[Array, ""],
-                parallel: Float[Array, ""],
-            ) -> Float[Array, ""]:
-                value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
-                    photon,
-                    work,
-                    inner,
-                    parallel,
-                )[0]
-                real_value: Float[Array, ""] = jnp.real(value)
+                photon: Float64[Array, ""],
+                work: Float64[Array, ""],
+                inner: Float64[Array, ""],
+                parallel: Float64[Array, ""],
+            ) -> Float64[Array, ""]:
+                value: Complex128[Array, ""] = (
+                    kz_from_inner_potential_at_fermi(
+                        photon,
+                        work,
+                        inner,
+                        parallel,
+                    )[0]
+                )
+                real_value: Float64[Array, ""] = jnp.real(value)
                 return real_value
 
-            values: Float[Array, " 12"] = jax.vmap(one_kz)(
+            values: Float64[Array, " 12"] = jax.vmap(one_kz)(
                 photon_values,
                 work_values,
                 inner_values,
                 k_parallel,
             )
-            total: Float[Array, ""] = jnp.sum(values)
+            total: Float64[Array, ""] = jnp.sum(values)
             return total
 
         gradient_gate(
@@ -817,22 +827,22 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Differentiate at 50 eV photon energy and 0.7 1/Angstrom. Compare at
         ``rtol=1e-10`` and require nonzero sensitivity.
         """
-        inner_potential: Float[Array, ""] = jnp.array(12.0)
-        k_parallel: Float[Array, ""] = jnp.array(0.7)
+        inner_potential: Float64[Array, ""] = jnp.array(12.0)
+        k_parallel: Float64[Array, ""] = jnp.array(0.7)
 
-        def real_kz(candidate: Float[Array, ""]) -> Float[Array, ""]:
-            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
+        def real_kz(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
+            value: Complex128[Array, ""] = kz_from_inner_potential_at_fermi(
                 50.0,
                 4.5,
                 candidate,
                 k_parallel,
             )[0]
-            real_value: Float[Array, ""] = jnp.real(value)
+            real_value: Float64[Array, ""] = jnp.real(value)
             return real_value
 
-        kz_value: Float[Array, ""] = real_kz(inner_potential)
-        actual: Float[Array, ""] = jax.grad(real_kz)(inner_potential)
-        expected: Float[Array, ""] = TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 / (
+        kz_value: Float64[Array, ""] = real_kz(inner_potential)
+        actual: Float64[Array, ""] = jax.grad(real_kz)(inner_potential)
+        expected: Float64[Array, ""] = TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2 / (
             2.0 * kz_value
         )
         chex.assert_trees_all_close(
@@ -880,13 +890,13 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Hypothesis generates twenty photon energies and ordered potentials.
         Compare real roots at fixed work function and parallel momentum.
         """
-        lower_kz: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
+        lower_kz: Complex128[Array, ""] = kz_from_inner_potential_at_fermi(
             photon_energy,
             4.5,
             lower_potential,
             jnp.array(0.4),
         )[0]
-        upper_kz: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
+        upper_kz: Complex128[Array, ""] = kz_from_inner_potential_at_fermi(
             photon_energy,
             4.5,
             lower_potential + potential_step,
@@ -905,24 +915,24 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Differentiate one scalar real root. Apply JIT and vmap to the gradient
         and compare with an eager stack.
         """
-        photon_energies: Float[Array, " 4"] = jnp.array(
+        photon_energies: Float64[Array, " 4"] = jnp.array(
             [21.2, 50.0, 100.0, 150.0]
         )
 
-        def real_kz(photon: Float[Array, ""]) -> Float[Array, ""]:
-            value: Complex[Array, ""] = kz_from_inner_potential_at_fermi(
+        def real_kz(photon: Float64[Array, ""]) -> Float64[Array, ""]:
+            value: Complex128[Array, ""] = kz_from_inner_potential_at_fermi(
                 photon,
                 4.3,
                 12.0,
                 jnp.array(0.6),
             )[0]
-            real_value: Float[Array, ""] = jnp.real(value)
+            real_value: Float64[Array, ""] = jnp.real(value)
             return real_value
 
-        vmapped: Float[Array, " 4"] = jax.jit(jax.vmap(jax.grad(real_kz)))(
+        vmapped: Float64[Array, " 4"] = jax.jit(jax.vmap(jax.grad(real_kz)))(
             photon_energies
         )
-        elementwise: Float[Array, " 4"] = jnp.stack(
+        elementwise: Float64[Array, " 4"] = jnp.stack(
             tuple(jax.grad(real_kz)(photon) for photon in photon_energies)
         )
         chex.assert_trees_all_close(
@@ -945,17 +955,17 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         JIT one vmap over photon energy. Check the two output shapes and all
         finite complex values.
         """
-        photon_energies: Float[Array, " 64"] = jnp.linspace(20.0, 150.0, 64)
-        k_parallel: Float[Array, " 65536"] = jnp.linspace(
+        photon_energies: Float64[Array, " 64"] = jnp.linspace(20.0, 150.0, 64)
+        k_parallel: Float64[Array, " 65536"] = jnp.linspace(
             0.0,
             1.5,
             256 * 256,
         )
 
         def one_row(
-            photon: Float[Array, ""],
-        ) -> tuple[Complex[Array, " 65536"], Bool[Array, " 65536"]]:
-            row: tuple[Complex[Array, " 65536"], Bool[Array, " 65536"]] = (
+            photon: Float64[Array, ""],
+        ) -> tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]]:
+            row: tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]] = (
                 kz_from_inner_potential_at_fermi(
                     photon,
                     4.5,
@@ -965,7 +975,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             )
             return row
 
-        kz_values: Complex[Array, "64 65536"]
+        kz_values: Complex128[Array, "64 65536"]
         propagating: Bool[Array, "64 65536"]
         kz_values, propagating = jax.jit(jax.vmap(one_row))(photon_energies)
         chex.assert_shape(kz_values, (64, 256 * 256))
@@ -993,9 +1003,9 @@ class TestEmissionAngles(chex.TestCase):
         Pass all three directions as one batch through JIT. Compare each angle
         at absolute tolerance ``1e-14``.
         """
-        vectors: Float[Array, "3 3"] = jnp.eye(3)
-        theta: Float[Array, " 3"]
-        phi: Float[Array, " 3"]
+        vectors: Float64[Array, "3 3"] = jnp.eye(3)
+        theta: Float64[Array, " 3"]
+        phi: Float64[Array, " 3"]
         theta, phi = jax.jit(emission_angles)(vectors)
         chex.assert_trees_all_close(
             theta,
@@ -1021,13 +1031,13 @@ class TestEmissionAngles(chex.TestCase):
         Use ``[0.7, -0.4, 1.2]`` in 1/Angstrom. Apply the shared gradient
         harness in both autodiff modes.
         """
-        momentum: Float[Array, "3"] = jnp.array([0.7, -0.4, 1.2])
+        momentum: Float64[Array, "3"] = jnp.array([0.7, -0.4, 1.2])
 
-        def loss(candidate: Float[Array, "3"]) -> Float[Array, ""]:
-            theta: Float[Array, ""]
-            phi: Float[Array, ""]
+        def loss(candidate: Float64[Array, "3"]) -> Float64[Array, ""]:
+            theta: Float64[Array, ""]
+            phi: Float64[Array, ""]
             theta, phi = emission_angles(candidate)
-            value: Float[Array, ""] = theta + 0.37 * phi
+            value: Float64[Array, ""] = theta + 0.37 * phi
             return value
 
         gradient_gate(loss, momentum, regime="smooth")
@@ -1043,18 +1053,18 @@ class TestEmissionAngles(chex.TestCase):
         Compute the Jacobian of both angles at the positive z direction.
         Compare it with a zero matrix exactly.
         """
-        momentum: Float[Array, "3"] = jnp.array([0.0, 0.0, 2.0])
+        momentum: Float64[Array, "3"] = jnp.array([0.0, 0.0, 2.0])
 
         def both_angles(
-            candidate: Float[Array, "3"],
-        ) -> Float[Array, "2"]:
-            theta: Float[Array, ""]
-            phi: Float[Array, ""]
+            candidate: Float64[Array, "3"],
+        ) -> Float64[Array, "2"]:
+            theta: Float64[Array, ""]
+            phi: Float64[Array, ""]
             theta, phi = emission_angles(candidate)
-            angles: Float[Array, "2"] = jnp.stack((theta, phi))
+            angles: Float64[Array, "2"] = jnp.stack((theta, phi))
             return angles
 
-        jacobian: Float[Array, "2 3"] = jax.jacfwd(both_angles)(momentum)
+        jacobian: Float64[Array, "2 3"] = jax.jacfwd(both_angles)(momentum)
         chex.assert_trees_all_close(
             jacobian,
             jnp.zeros((2, 3)),
@@ -1087,19 +1097,19 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         slit: str
         for slit in ("H", "V"):
             with self.subTest(slit=slit):
-                tx: Float[Array, ""] = jnp.array(0.23)
-                ty: Float[Array, ""] = jnp.array(-0.17)
-                energy: Float[Array, ""] = jnp.array(35.0)
-                momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
+                tx: Float64[Array, ""] = jnp.array(0.23)
+                ty: Float64[Array, ""] = jnp.array(-0.17)
+                energy: Float64[Array, ""] = jnp.array(35.0)
+                momentum: Float64[Array, ""] = final_state_k_inv_ang(energy)[0]
                 if slit == "H":
-                    expected: Float[Array, "2"] = momentum * jnp.array(
+                    expected: Float64[Array, "2"] = momentum * jnp.array(
                         [jnp.sin(tx), -jnp.cos(tx) * jnp.sin(ty)]
                     )
                 else:
                     expected = momentum * jnp.array(
                         [jnp.sin(ty), -jnp.sin(tx) * jnp.cos(ty)]
                     )
-                actual: Float[Array, "2"] = jax.jit(
+                actual: Float64[Array, "2"] = jax.jit(
                     detector_angles_to_kpar,
                     static_argnames=("slit",),
                 )(tx, ty, energy, slit)
@@ -1121,10 +1131,10 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         Use nonzero angles and 42 eV kinetic energy. Apply the shared harness
         in forward and reverse autodiff modes.
         """
-        tx: Float[Array, ""] = jnp.array(0.21)
-        ty: Float[Array, ""] = jnp.array(-0.13)
-        energy: Float[Array, ""] = jnp.array(42.0)
-        weights: Float[Array, "2"] = jnp.array([0.7, -1.3])
+        tx: Float64[Array, ""] = jnp.array(0.21)
+        ty: Float64[Array, ""] = jnp.array(-0.13)
+        energy: Float64[Array, ""] = jnp.array(42.0)
+        weights: Float64[Array, "2"] = jnp.array([0.7, -1.3])
 
         slit: str
         for slit in ("H", "V"):
@@ -1132,22 +1142,22 @@ class TestDetectorAnglesToKpar(chex.TestCase):
 
                 def loss(
                     parameters: tuple[
-                        Float[Array, ""],
-                        Float[Array, ""],
-                        Float[Array, ""],
+                        Float64[Array, ""],
+                        Float64[Array, ""],
+                        Float64[Array, ""],
                     ],
-                ) -> Float[Array, ""]:
-                    candidate_tx: Float[Array, ""]
-                    candidate_ty: Float[Array, ""]
-                    candidate_energy: Float[Array, ""]
+                ) -> Float64[Array, ""]:
+                    candidate_tx: Float64[Array, ""]
+                    candidate_ty: Float64[Array, ""]
+                    candidate_energy: Float64[Array, ""]
                     candidate_tx, candidate_ty, candidate_energy = parameters
-                    k_parallel: Float[Array, "2"] = detector_angles_to_kpar(
+                    k_parallel: Float64[Array, "2"] = detector_angles_to_kpar(
                         candidate_tx,
                         candidate_ty,
                         candidate_energy,
                         slit,
                     )
-                    value: Float[Array, ""] = jnp.sum(weights * k_parallel)
+                    value: Float64[Array, ""] = jnp.sum(weights * k_parallel)
                     return value
 
                 gradient_gate(loss, (tx, ty, energy), regime="smooth")
@@ -1163,17 +1173,17 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         Differentiate the two parallel components with respect to both angles.
         Compare each Jacobian with its closed form exactly.
         """
-        energy: Float[Array, ""] = jnp.array(30.0)
-        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
-        angles: Float[Array, "2"] = jnp.zeros(2)
+        energy: Float64[Array, ""] = jnp.array(30.0)
+        momentum: Float64[Array, ""] = final_state_k_inv_ang(energy)[0]
+        angles: Float64[Array, "2"] = jnp.zeros(2)
         slit: str
         for slit in ("H", "V"):
             with self.subTest(slit=slit):
 
                 def angle_map(
-                    candidate: Float[Array, "2"],
-                ) -> Float[Array, "2"]:
-                    result: Float[Array, "2"] = detector_angles_to_kpar(
+                    candidate: Float64[Array, "2"],
+                ) -> Float64[Array, "2"]:
+                    result: Float64[Array, "2"] = detector_angles_to_kpar(
                         candidate[0],
                         candidate[1],
                         energy,
@@ -1181,9 +1191,9 @@ class TestDetectorAnglesToKpar(chex.TestCase):
                     )
                     return result
 
-                jacobian: Float[Array, "2 2"] = jax.jacfwd(angle_map)(angles)
+                jacobian: Float64[Array, "2 2"] = jax.jacfwd(angle_map)(angles)
                 if slit == "H":
-                    expected: Float[Array, "2 2"] = momentum * jnp.array(
+                    expected: Float64[Array, "2 2"] = momentum * jnp.array(
                         [[1.0, 0.0], [0.0, -1.0]]
                     )
                 else:
@@ -1305,19 +1315,19 @@ class TestKparToDetectorAngles(chex.TestCase):
         Compose the forward and inverse maps for each slit. Compare both
         angles at absolute tolerance ``1e-12``.
         """
-        tx: Float[Array, ""] = jnp.asarray(tx_value)
-        ty: Float[Array, ""] = jnp.asarray(ty_value)
-        energy: Float[Array, ""] = jnp.asarray(energy_value)
+        tx: Float64[Array, ""] = jnp.asarray(tx_value)
+        ty: Float64[Array, ""] = jnp.asarray(ty_value)
+        energy: Float64[Array, ""] = jnp.asarray(energy_value)
         slit: str
         for slit in ("H", "V"):
-            k_parallel: Float[Array, "2"] = detector_angles_to_kpar(
+            k_parallel: Float64[Array, "2"] = detector_angles_to_kpar(
                 tx,
                 ty,
                 energy,
                 slit,
             )
-            recovered_tx: Float[Array, ""]
-            recovered_ty: Float[Array, ""]
+            recovered_tx: Float64[Array, ""]
+            recovered_ty: Float64[Array, ""]
             recovered_tx, recovered_ty = kpar_to_detector_angles(
                 k_parallel,
                 energy,
@@ -1360,17 +1370,17 @@ class TestKparToDetectorAngles(chex.TestCase):
         Scale the normalized components by ``k_f`` at 40 eV. Compose inverse
         and forward maps at absolute tolerance ``1e-12``.
         """
-        energy: Float[Array, ""] = jnp.array(40.0)
-        momentum: Float[Array, ""] = final_state_k_inv_ang(energy)[0]
-        k_parallel: Float[Array, "2"] = momentum * jnp.asarray(
+        energy: Float64[Array, ""] = jnp.array(40.0)
+        momentum: Float64[Array, ""] = final_state_k_inv_ang(energy)[0]
+        k_parallel: Float64[Array, "2"] = momentum * jnp.asarray(
             [normalized_kx, normalized_ky]
         )
         slit: str
         for slit in ("H", "V"):
-            tx: Float[Array, ""]
-            ty: Float[Array, ""]
+            tx: Float64[Array, ""]
+            ty: Float64[Array, ""]
             tx, ty = kpar_to_detector_angles(k_parallel, energy, slit)
-            recovered: Float[Array, "2"] = detector_angles_to_kpar(
+            recovered: Float64[Array, "2"] = detector_angles_to_kpar(
                 tx,
                 ty,
                 energy,
@@ -1394,9 +1404,9 @@ class TestKparToDetectorAngles(chex.TestCase):
         Vmap both public maps over scalar angle pairs. JIT each vmap and
         compare at ``rtol=1e-13``.
         """
-        tx: Float[Array, " 5"] = jnp.linspace(-0.3, 0.4, 5)
-        ty: Float[Array, " 5"] = jnp.linspace(0.2, -0.25, 5)
-        energies: Float[Array, " 5"] = jnp.linspace(20.0, 60.0, 5)
+        tx: Float64[Array, " 5"] = jnp.linspace(-0.3, 0.4, 5)
+        ty: Float64[Array, " 5"] = jnp.linspace(0.2, -0.25, 5)
+        energies: Float64[Array, " 5"] = jnp.linspace(20.0, 60.0, 5)
         slit: str
         for slit in ("H", "V"):
             with self.subTest(slit=slit):
@@ -1419,9 +1429,9 @@ class TestKparToDetectorAngles(chex.TestCase):
                         )
                     )
                 )
-                k_parallel: Float[Array, "5 2"] = forward(tx, ty, energies)
-                recovered_tx: Float[Array, " 5"]
-                recovered_ty: Float[Array, " 5"]
+                k_parallel: Float64[Array, "5 2"] = forward(tx, ty, energies)
+                recovered_tx: Float64[Array, " 5"]
+                recovered_ty: Float64[Array, " 5"]
                 recovered_tx, recovered_ty = inverse(k_parallel, energies)
                 chex.assert_trees_all_close(
                     (recovered_tx, recovered_ty),
@@ -1441,29 +1451,29 @@ class TestKparToDetectorAngles(chex.TestCase):
         Use an interior parallel momentum at 38 eV. Apply the shared harness
         in forward and reverse autodiff modes.
         """
-        k_parallel: Float[Array, "2"] = jnp.array([0.3, -0.4])
-        energy: Float[Array, ""] = jnp.array(38.0)
+        k_parallel: Float64[Array, "2"] = jnp.array([0.3, -0.4])
+        energy: Float64[Array, ""] = jnp.array(38.0)
         slit: str
         for slit in ("H", "V"):
             with self.subTest(slit=slit):
 
                 def loss(
                     parameters: tuple[
-                        Float[Array, "2"],
-                        Float[Array, ""],
+                        Float64[Array, "2"],
+                        Float64[Array, ""],
                     ],
-                ) -> Float[Array, ""]:
-                    candidate_k: Float[Array, "2"]
-                    candidate_energy: Float[Array, ""]
+                ) -> Float64[Array, ""]:
+                    candidate_k: Float64[Array, "2"]
+                    candidate_energy: Float64[Array, ""]
                     candidate_k, candidate_energy = parameters
-                    tx: Float[Array, ""]
-                    ty: Float[Array, ""]
+                    tx: Float64[Array, ""]
+                    ty: Float64[Array, ""]
                     tx, ty = kpar_to_detector_angles(
                         candidate_k,
                         candidate_energy,
                         slit,
                     )
-                    value: Float[Array, ""] = tx + 0.37 * ty
+                    value: Float64[Array, ""] = tx + 0.37 * ty
                     return value
 
                 gradient_gate(loss, (k_parallel, energy), regime="smooth")
@@ -1479,16 +1489,18 @@ class TestKparToDetectorAngles(chex.TestCase):
         Exercise the energy threshold, aperture boundary, and exterior under
         eager and compiled execution for both slits.
         """
-        momentum: Float[Array, ""] = final_state_k_inv_ang(jnp.array(30.0))[0]
+        momentum: Float64[Array, ""] = final_state_k_inv_ang(jnp.array(30.0))[
+            0
+        ]
         invalid_cases: tuple[
-            tuple[Float[Array, "2"], Float[Array, ""]], ...
+            tuple[Float64[Array, "2"], Float64[Array, ""]], ...
         ] = (
             (jnp.zeros(2), jnp.array(0.0)),
             (jnp.array([momentum, 0.0]), jnp.array(30.0)),
             (jnp.array([1.01 * momentum, 0.0]), jnp.array(30.0)),
         )
-        k_parallel: Float[Array, "2"]
-        energy: Float[Array, ""]
+        k_parallel: Float64[Array, "2"]
+        energy: Float64[Array, ""]
         case_index: int
         compiled: bool
         slit: str

@@ -10,7 +10,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Any
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -35,7 +35,7 @@ _ARTIFACT_PATH: Path = (
     / "chinook_slab_reference.json"
 )
 _ARTIFACT_SHA256: str = (
-    "40df3ab04842bb3033b79827360179b5c9af717b4527d00ee0127dcf8158532d"
+    "8be4ff280d627dac3bdfce7b56251cfd218a8f173621fa7eafd7ebb914e6eaec"
 )
 _COMPATIBILITY_RTOL: float = 1e-8
 _COMPATIBILITY_ATOL_EV: float = 1e-8
@@ -53,7 +53,7 @@ def _reference() -> dict[str, Any]:
     payload: dict[str, Any] = json.loads(encoded)
     metadata: dict[str, Any] = payload["metadata"]
     if (
-        metadata["gates"]
+        metadata["requirements"]
         != ["chinook-slab-band-parity", "chinook-surface-state-parity"]
         or metadata["classification"] != "K-type behavioral compatibility"
     ):
@@ -133,10 +133,10 @@ def _native_slab(
 
 
 def _gauss_reduced_metric(
-    vectors: Float[NDArray, "2 3"],
-) -> Float[NDArray, "2 3"]:
+    vectors: Float64[NDArray, "2 3"],
+) -> Float64[NDArray, "2 3"]:
     """Return a deterministic reduced two-dimensional lattice metric."""
-    reduced: Float[NDArray, "2 3"] = np.asarray(
+    reduced: Float64[NDArray, "2 3"] = np.asarray(
         vectors, dtype=np.float64
     ).copy()
     for _ in range(32):
@@ -173,11 +173,11 @@ class TestChinookSlabCompatibility:
         payload: dict[str, Any] = _reference()
         reference: dict[str, Any] = payload["chinook_reference"]
         slab, _ = _native_slab(payload)
-        native_vectors: Float[NDArray, "2 3"] = np.asarray(
+        native_vectors: Float64[NDArray, "2 3"] = np.asarray(
             slab.geometry.lattice[:2],
             dtype=np.float64,
         )
-        chinook_vectors: Float[NDArray, "2 3"] = np.asarray(
+        chinook_vectors: Float64[NDArray, "2 3"] = np.asarray(
             reference["realization"]["slab_lattice_angstrom"],
             dtype=np.float64,
         )[:2]

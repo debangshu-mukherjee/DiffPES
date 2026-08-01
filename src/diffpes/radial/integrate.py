@@ -32,7 +32,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -158,7 +158,7 @@ def gauss_legendre_nodes(
 
 @jaxtyped(typechecker=beartype)
 def momentum_inv_ang_to_bohr_inv(
-    momentum_inv_ang: Float[Array, " ..."],
+    momentum_inv_ang: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
     """Convert momentum from inverse Angstrom to inverse Bohr.
 
@@ -172,7 +172,7 @@ def momentum_inv_ang_to_bohr_inv(
 
     Parameters
     ----------
-    momentum_inv_ang : Float[Array, " ..."]
+    momentum_inv_ang : Float64[Array, " ..."]
         Momentum in inverse Angstrom.
 
     Returns
@@ -188,10 +188,10 @@ def momentum_inv_ang_to_bohr_inv(
 
 @jaxtyped(typechecker=beartype)
 def radial_integral(
-    k_bohr_inv: Float[Array, " ..."],
-    r_bohr: Float[Array, " n_r"],
-    weights_bohr: Float[Array, " n_r"],
-    radial_values: Float[Array, " n_r"],
+    k_bohr_inv: Float64[Array, " ..."],
+    r_bohr: Float64[Array, " n_r"],
+    weights_bohr: Float64[Array, " n_r"],
+    radial_values: Float64[Array, " n_r"],
     l_prime: int,
 ) -> Complex128[Array, " ..."]:
     r"""Evaluate a weighted :math:`R(r)r^3j_{l'}(kr)` radial integral.
@@ -202,13 +202,13 @@ def radial_integral(
 
     Parameters
     ----------
-    k_bohr_inv : Float[Array, " ..."]
+    k_bohr_inv : Float64[Array, " ..."]
         Momentum in inverse Bohr.
-    r_bohr : Float[Array, " n_r"]
+    r_bohr : Float64[Array, " n_r"]
         Fixed radial nodes in Bohr.
-    weights_bohr : Float[Array, " n_r"]
+    weights_bohr : Float64[Array, " n_r"]
         Fixed integration weights in Bohr.
-    radial_values : Float[Array, " n_r"]
+    radial_values : Float64[Array, " n_r"]
         Real radial wavefunction values in inverse Bohr to the power 3/2.
     l_prime : int
         Static nonnegative final angular momentum.
@@ -282,9 +282,9 @@ def radial_integral(
 
 @jaxtyped(typechecker=beartype)
 def radial_integral_simpson(
-    k_bohr_inv: Float[Array, " ..."],
-    r_bohr: Float[Array, " n_r"],
-    radial_values: Float[Array, " n_r"],
+    k_bohr_inv: Float64[Array, " ..."],
+    r_bohr: Float64[Array, " n_r"],
+    radial_values: Float64[Array, " n_r"],
     l_prime: int,
 ) -> Complex128[Array, " ..."]:
     """Evaluate a radial integral by composite Simpson quadrature.
@@ -295,11 +295,11 @@ def radial_integral_simpson(
 
     Parameters
     ----------
-    k_bohr_inv : Float[Array, " ..."]
+    k_bohr_inv : Float64[Array, " ..."]
         Momentum in inverse Bohr.
-    r_bohr : Float[Array, " n_r"]
+    r_bohr : Float64[Array, " n_r"]
         Uniform ascending compact-support grid in Bohr.
-    radial_values : Float[Array, " n_r"]
+    radial_values : Float64[Array, " n_r"]
         Real radial values sampled on ``r_bohr``.
     l_prime : int
         Static nonnegative final angular momentum.
@@ -359,7 +359,7 @@ def radial_integral_simpson(
 @jaxtyped(typechecker=beartype)
 def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
     spec: RadialSpec,
-    k_bohr_inv: Float[Array, " ..."],
+    k_bohr_inv: Float64[Array, " ..."],
     quadrature: RadialQuadratureSpec,
     final_state: FinalStateSpec,
 ) -> Complex128[Array, "... n_orb 2"]:
@@ -374,7 +374,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
     ----------
     spec : RadialSpec
         Shell-shared radial-wavefunction carrier.
-    k_bohr_inv : Float[Array, " ..."]
+    k_bohr_inv : Float64[Array, " ..."]
         Nonnegative momentum in inverse Bohr.
     quadrature : RadialQuadratureSpec
         Immutable certified quadrature profile.

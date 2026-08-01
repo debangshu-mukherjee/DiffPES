@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -41,11 +41,11 @@ from diffpes.types import (
 from tests._factories import make_t2g_soc_model
 from tests._gradients import assert_grad_matches_fd, gradient_gate
 
-_DIRAC_K: Float[Array, " 3"] = jnp.asarray(
+_DIRAC_K: Float64[Array, " 3"] = jnp.asarray(
     (2.0 / 3.0, 1.0 / 3.0, 0.0),
     dtype=jnp.float64,
 )
-_GENERIC_K: Float[Array, " 3"] = jnp.asarray(
+_GENERIC_K: Float64[Array, " 3"] = jnp.asarray(
     (0.173, -0.219, 0.083),
     dtype=jnp.float64,
 )
@@ -57,11 +57,11 @@ _GRAPHENE_CELLS: tuple[tuple[int, int, int], ...] = (
 
 
 def _honeycomb_geometry(
-    second_position: Float[Array, " 3"],
+    second_position: Float64[Array, " 3"],
 ) -> CrystalGeometry:
     """Build a graphene lattice with a traced second-atom position."""
     lattice_constant: float = 2.46
-    lattice: Float[Array, "3 3"] = jnp.asarray(
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
             (lattice_constant, 0.0, 0.0),
             (
@@ -73,7 +73,7 @@ def _honeycomb_geometry(
         ),
         dtype=jnp.float64,
     )
-    positions: Float[Array, "2 3"] = jnp.stack(
+    positions: Float64[Array, "2 3"] = jnp.stack(
         (
             jnp.zeros((3,), dtype=jnp.float64),
             second_position,
@@ -88,8 +88,8 @@ def _honeycomb_geometry(
 
 
 def _pz_honeycomb_model(
-    sk_values: Float[Array, " 2"],
-    second_position: Float[Array, " 3"],
+    sk_values: Float64[Array, " 2"],
+    second_position: Float64[Array, " 3"],
     *,
     spinful: bool,
     onsite_offset: float = 0.0,
@@ -106,17 +106,19 @@ def _pz_honeycomb_model(
         sk_values,
         ("X-X:pp_sigma", "X-X:pp_pi"),
     )
-    forward: list[Float[Array, ""]] = []
+    forward: list[Float64[Array, ""]] = []
     cell: tuple[int, int, int]
     for cell in _GRAPHENE_CELLS:
-        displacement: Float[Array, " 3"] = (
+        displacement: Float64[Array, " 3"] = (
             jnp.asarray(cell, dtype=jnp.float64)
             + geometry.positions[1]
             - geometry.positions[0]
         )
-        cartesian: Float[Array, " 3"] = displacement @ geometry.lattice
-        direction: Float[Array, " 3"] = cartesian / jnp.linalg.norm(cartesian)
-        block: Float[Array, "3 3"] = sk_block(
+        cartesian: Float64[Array, " 3"] = displacement @ geometry.lattice
+        direction: Float64[Array, " 3"] = cartesian / jnp.linalg.norm(
+            cartesian
+        )
+        block: Float64[Array, "3 3"] = sk_block(
             1,
             1,
             sk_params.values,
@@ -148,12 +150,12 @@ def _pz_honeycomb_model(
                 for item in _GRAPHENE_CELLS
             )
         )
-        one_spin: list[Float[Array, ""]] = forward + forward
-        hopping: Complex[Array, " 12"] = jnp.asarray(
+        one_spin: list[Float64[Array, ""]] = forward + forward
+        hopping: Complex128[Array, " 12"] = jnp.asarray(
             one_spin + one_spin,
             dtype=jnp.complex128,
         )
-        onsite: Float[Array, " 4"] = jnp.asarray(
+        onsite: Float64[Array, " 4"] = jnp.asarray(
             (
                 onsite_offset,
                 -onsite_offset,
@@ -201,17 +203,17 @@ def _pz_honeycomb_model(
 
 def _spectral_square(
     model: TBModel,
-    kpoint: Float[Array, " 3"],
-) -> Float[Array, ""]:
+    kpoint: Float64[Array, " 3"],
+) -> Float64[Array, ""]:
     r"""Return ``Tr(H**2)``, a symmetric spectral polynomial."""
-    hamiltonian: Complex[Array, "n n"] = bloch_hamiltonian(model, kpoint)
-    value: Float[Array, ""] = jnp.real(jnp.trace(hamiltonian @ hamiltonian))
+    hamiltonian: Complex128[Array, "n n"] = bloch_hamiltonian(model, kpoint)
+    value: Float64[Array, ""] = jnp.real(jnp.trace(hamiltonian @ hamiltonian))
     return value
 
 
 def _minimal_bands(
-    eigenvalues: Float[Array, "n_k n_bands"],
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
+    eigenvalues: Float64[Array, "n_k n_bands"],
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
 ) -> DiagonalizedBands:
     """Attach a minimal geometry and basis to a synthetic eigensystem."""
     n_orbitals: int = eigenvectors.shape[-1]
@@ -275,25 +277,25 @@ class TestD1GenericK:
         Compare forward and reverse derivatives with finite differences.
         """
         model: TBModel = make_t2g_soc_model(coupling=0.41)
-        parameters: Float[Array, " 7"]
-        rebuild: Callable[[Float[Array, " 7"]], TBModel]
+        parameters: Float64[Array, " 7"]
+        rebuild: Callable[[Float64[Array, " 7"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
-        onsite: Float[Array, " 6"] = jnp.asarray(
+        onsite: Float64[Array, " 6"] = jnp.asarray(
             (-0.31, 0.08, 0.22, 0.29, -0.14, 0.37),
             dtype=jnp.float64,
         )
-        magnetic: Float[Array, " 7"] = parameters.at[:6].set(onsite)
-        coupling: Float[Array, ""] = magnetic[-1]
+        magnetic: Float64[Array, " 7"] = parameters.at[:6].set(onsite)
+        coupling: Float64[Array, ""] = magnetic[-1]
 
-        def loss(value: Float[Array, ""]) -> Float[Array, ""]:
+        def loss(value: Float64[Array, ""]) -> Float64[Array, ""]:
             candidate: TBModel = rebuild(magnetic.at[-1].set(value))
-            eigenvalues: Float[Array, " 6"] = eigvalsh_bands(
+            eigenvalues: Float64[Array, " 6"] = eigvalsh_bands(
                 candidate,
                 _GENERIC_K[None, :],
             )[0]
             return eigenvalues[4]
 
-        initial_bands: Float[Array, " 6"] = eigvalsh_bands(
+        initial_bands: Float64[Array, " 6"] = eigvalsh_bands(
             rebuild(magnetic),
             _GENERIC_K[None, :],
         )[0]
@@ -320,23 +322,25 @@ class TestD1GenericK:
         -----
         Compare forward and reverse derivatives with finite differences.
         """
-        sk_values: Float[Array, " 2"] = jnp.asarray(
+        sk_values: Float64[Array, " 2"] = jnp.asarray(
             (1.35, -2.7),
             dtype=jnp.float64,
         )
-        position: Float[Array, " 3"] = jnp.asarray(
+        position: Float64[Array, " 3"] = jnp.asarray(
             (1.0 / 3.0, 1.0 / 3.0, 0.035),
             dtype=jnp.float64,
         )
 
-        def loss(candidate_position: Float[Array, " 3"]) -> Float[Array, ""]:
+        def loss(
+            candidate_position: Float64[Array, " 3"],
+        ) -> Float64[Array, ""]:
             model: TBModel = _pz_honeycomb_model(
                 sk_values,
                 candidate_position,
                 spinful=False,
                 onsite_offset=0.17,
             )
-            eigenvalues: Float[Array, " 2"] = eigvalsh_bands(
+            eigenvalues: Float64[Array, " 2"] = eigvalsh_bands(
                 model,
                 _GENERIC_K[None, :],
             )[0]
@@ -348,7 +352,7 @@ class TestD1GenericK:
             regime="smooth",
             modes=("fwd", "rev"),
         )
-        derivative: Float[Array, " 3"] = jax.grad(loss)(position)
+        derivative: Float64[Array, " 3"] = jax.grad(loss)(position)
         assert float(jnp.linalg.norm(derivative)) > 1e-2
 
 
@@ -365,14 +369,14 @@ class TestD2ExactDegeneracy:
         -----
         Avoid sorted-band derivatives and energy-threshold masks at crossing.
         """
-        planar_position: Float[Array, " 3"] = jnp.asarray(
+        planar_position: Float64[Array, " 3"] = jnp.asarray(
             (1.0 / 3.0, 1.0 / 3.0, 0.0),
             dtype=jnp.float64,
         )
-        sigma: Float[Array, ""] = jnp.asarray(1.2, dtype=jnp.float64)
-        pi: Float[Array, ""] = jnp.asarray(-2.7, dtype=jnp.float64)
+        sigma: Float64[Array, ""] = jnp.asarray(1.2, dtype=jnp.float64)
+        pi: Float64[Array, ""] = jnp.asarray(-2.7, dtype=jnp.float64)
 
-        def loss(value: Float[Array, ""]) -> Float[Array, ""]:
+        def loss(value: Float64[Array, ""]) -> Float64[Array, ""]:
             model: TBModel = _pz_honeycomb_model(
                 jnp.stack((sigma, value)),
                 planar_position,
@@ -385,7 +389,7 @@ class TestD2ExactDegeneracy:
             planar_position,
             spinful=False,
         )
-        eigenvalues: Float[Array, " 2"] = eigvalsh_bands(
+        eigenvalues: Float64[Array, " 2"] = eigvalsh_bands(
             model,
             _DIRAC_K[None, :],
         )[0]
@@ -410,12 +414,12 @@ class TestD2ExactDegeneracy:
         -----
         Require exact pair equality and nonzero invariant gradients.
         """
-        initial: Float[Array, " 5"] = jnp.asarray(
+        initial: Float64[Array, " 5"] = jnp.asarray(
             (1.35, -2.7, 0.34, 0.31, 0.035),
             dtype=jnp.float64,
         )
 
-        def loss(values: Float[Array, " 5"]) -> Float[Array, ""]:
+        def loss(values: Float64[Array, " 5"]) -> Float64[Array, ""]:
             model: TBModel = _pz_honeycomb_model(
                 values[:2],
                 values[2:],
@@ -430,7 +434,7 @@ class TestD2ExactDegeneracy:
             spinful=True,
             onsite_offset=0.11,
         )
-        eigenvalues: Float[Array, " 4"] = eigvalsh_bands(
+        eigenvalues: Float64[Array, " 4"] = eigvalsh_bands(
             model,
             _GENERIC_K[None, :],
         )[0]
@@ -446,7 +450,7 @@ class TestD2ExactDegeneracy:
             regime="stiff",
             modes=("fwd", "rev"),
         )
-        derivative: Float[Array, " 5"] = jax.grad(loss)(initial)
+        derivative: Float64[Array, " 5"] = jax.grad(loss)(initial)
         assert jnp.all(jnp.abs(derivative) > 1e-4)
 
     def test_kramers_soc_lambda_invariant_is_nonzero(self) -> None:
@@ -459,16 +463,16 @@ class TestD2ExactDegeneracy:
         Require exact Kramers pairs and a nonzero invariant gradient.
         """
         model: TBModel = make_t2g_soc_model(coupling=0.41)
-        parameters: Float[Array, " 7"]
-        rebuild: Callable[[Float[Array, " 7"]], TBModel]
+        parameters: Float64[Array, " 7"]
+        rebuild: Callable[[Float64[Array, " 7"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
-        coupling: Float[Array, ""] = parameters[-1]
+        coupling: Float64[Array, ""] = parameters[-1]
 
-        def loss(value: Float[Array, ""]) -> Float[Array, ""]:
+        def loss(value: Float64[Array, ""]) -> Float64[Array, ""]:
             candidate: TBModel = rebuild(parameters.at[-1].set(value))
             return _spectral_square(candidate, _GENERIC_K)
 
-        eigenvalues: Float[Array, " 6"] = eigvalsh_bands(
+        eigenvalues: Float64[Array, " 6"] = eigvalsh_bands(
             model,
             _GENERIC_K[None, :],
         )[0]
@@ -504,18 +508,18 @@ class TestG8GaugeInvariance:
         group_size: int = 2
         key: Array = jax.random.key(408)
         keys: list[Array] = list(jax.random.split(key, 16))
-        raw: Complex[Array, "2 6 6"] = jax.random.normal(
+        raw: Complex128[Array, "2 6 6"] = jax.random.normal(
             keys[0], (n_k, n_orbitals, n_orbitals)
         ) + 1j * jax.random.normal(keys[1], (n_k, n_orbitals, n_orbitals))
-        columns: Complex[Array, "2 6 6"] = jax.vmap(
+        columns: Complex128[Array, "2 6 6"] = jax.vmap(
             lambda matrix: jnp.linalg.qr(matrix)[0]
         )(raw)
-        vectors: Complex[Array, "2 6 6"] = jnp.swapaxes(columns, -1, -2)
-        energies: Float[Array, "2 6"] = jnp.broadcast_to(
+        vectors: Complex128[Array, "2 6 6"] = jnp.swapaxes(columns, -1, -2)
+        energies: Float64[Array, "2 6"] = jnp.broadcast_to(
             jnp.asarray((-1.7, -1.7, 0.2, 0.2, 1.4, 1.4)),
             (n_k, n_orbitals),
         )
-        phases: Complex[Array, "2 6"] = jnp.exp(
+        phases: Complex128[Array, "2 6"] = jnp.exp(
             1j
             * jax.random.uniform(
                 keys[2],
@@ -525,19 +529,21 @@ class TestG8GaugeInvariance:
                 dtype=jnp.float64,
             )
         )
-        rotated: Complex[Array, "2 6 6"] = phases[:, :, None] * vectors
+        rotated: Complex128[Array, "2 6 6"] = phases[:, :, None] * vectors
         key_index: int = 3
         k_index: int
         start: int
         for k_index in range(n_k):
             for start in range(0, n_orbitals, group_size):
-                block_raw: Complex[Array, "2 2"] = jax.random.normal(
+                block_raw: Complex128[Array, "2 2"] = jax.random.normal(
                     keys[key_index], (group_size, group_size)
                 ) + 1j * jax.random.normal(
                     keys[key_index + 1],
                     (group_size, group_size),
                 )
-                rotation: Complex[Array, "2 2"] = jnp.linalg.qr(block_raw)[0]
+                rotation: Complex128[Array, "2 2"] = jnp.linalg.qr(block_raw)[
+                    0
+                ]
                 rotated = rotated.at[
                     k_index,
                     start : start + group_size,
@@ -552,13 +558,13 @@ class TestG8GaugeInvariance:
                 )
                 key_index += 2
 
-        observable_raw: Complex[Array, "6 6"] = jax.random.normal(
+        observable_raw: Complex128[Array, "6 6"] = jax.random.normal(
             keys[15], (n_orbitals, n_orbitals)
         ) + 1j * jax.random.normal(
             jax.random.fold_in(keys[15], 1),
             (n_orbitals, n_orbitals),
         )
-        observable: Complex[Array, "6 6"] = (
+        observable: Complex128[Array, "6 6"] = (
             observable_raw + observable_raw.conj().T
         ) / 2.0
         baseline: DiagonalizedBands = _minimal_bands(energies, vectors)
@@ -616,15 +622,15 @@ class TestEighSafeNumPyTruth:
         rng: np.random.Generator = np.random.default_rng(407)
         dimension: int
         for dimension in (2, 5, 8):
-            raw: Complex[NDArray, "dim dim"] = rng.normal(
+            raw: Complex128[NDArray, "dim dim"] = rng.normal(
                 size=(dimension, dimension)
             ) + 1j * (0.73 * rng.normal(size=(dimension, dimension)))
-            hamiltonian: Complex[NDArray, "dim dim"] = (
+            hamiltonian: Complex128[NDArray, "dim dim"] = (
                 raw + raw.conj().T
             ) / 2.0
             hamiltonian += np.diag(np.linspace(-0.4, 0.6, dimension))
-            expected_values: Float[NDArray, " dim"]
-            expected_vectors: Complex[NDArray, "dim dim"]
+            expected_values: Float64[NDArray, " dim"]
+            expected_vectors: Complex128[NDArray, "dim dim"]
             expected_values, expected_vectors = np.linalg.eigh(hamiltonian)
 
             actual_values: Array
@@ -638,12 +644,14 @@ class TestEighSafeNumPyTruth:
                 rtol=2e-13,
                 atol=2e-13,
             )
-            expected_projectors: Complex[NDArray, "dim dim dim"] = np.einsum(
-                "ib,jb->bij",
-                expected_vectors,
-                expected_vectors.conj(),
+            expected_projectors: Complex128[NDArray, "dim dim dim"] = (
+                np.einsum(
+                    "ib,jb->bij",
+                    expected_vectors,
+                    expected_vectors.conj(),
+                )
             )
-            actual_projectors: Complex[NDArray, "dim dim dim"] = np.einsum(
+            actual_projectors: Complex128[NDArray, "dim dim dim"] = np.einsum(
                 "ib,jb->bij",
                 np.asarray(actual_vectors),
                 np.asarray(actual_vectors).conj(),

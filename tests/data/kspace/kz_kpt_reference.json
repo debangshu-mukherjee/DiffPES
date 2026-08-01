@@ -6,7 +6,7 @@
     "hbar_joule_second": 1.0545606529268985e-34,
     "momentum_prefactor_inv_ang_sqrt_ev": 0.5123112337420551
   },
-  "gate": "03.G3",
+  "requirement": "kz-kinematics-reference",
   "maximum_production_relative_delta": 1.641030044571317e-05,
   "metadata": {
     "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",

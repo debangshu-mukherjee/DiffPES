@@ -26,7 +26,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
 
@@ -58,11 +58,11 @@ def _validate_selection(
 
 
 def _checked_operator(
-    operator: Complex[Array, "n_orb n_orb"],
+    operator: Complex128[Array, "n_orb n_orb"],
     n_orbitals: int,
     *,
     context: str,
-) -> Complex[Array, "n_orb n_orb"]:
+) -> Complex128[Array, "n_orb n_orb"]:
     """Validate the static shape and traced Hermitian-operator contract."""
     if operator.ndim != MATRIX_NDIM or operator.shape != (
         n_orbitals,
@@ -72,7 +72,7 @@ def _checked_operator(
             f"{context}: operator must have shape ({n_orbitals}, {n_orbitals})"
         )
         raise ValueError(message)
-    checked: Complex[Array, "n_orb n_orb"] = eqx.error_if(
+    checked: Complex128[Array, "n_orb n_orb"] = eqx.error_if(
         operator,
         ~jnp.all(jnp.isfinite(operator)),
         f"{context}: operator entries must be finite",
@@ -87,8 +87,8 @@ def _checked_operator(
 
 @jaxtyped(typechecker=beartype)
 def orbital_weights(
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
-) -> Float[Array, "n_k n_bands n_orb"]:
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
+) -> Float64[Array, "n_k n_bands n_orb"]:
     r"""Compute the squared orbital amplitudes of normalized eigenvectors.
 
     Multiplication by an arbitrary per-band U(1) phase leaves every returned
@@ -98,12 +98,12 @@ def orbital_weights(
 
     Parameters
     ----------
-    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
         Band-major complex orbital coefficients.
 
     Returns
     -------
-    weights : Float[Array, "n_k n_bands n_orb"]
+    weights : Float64[Array, "n_k n_bands n_orb"]
         Values :math:`|c_{kno}|^2`.
 
     Notes
@@ -112,14 +112,14 @@ def orbital_weights(
     exactly degenerate subspace. Use :func:`group_trace` for a scientific
     observable at such a degeneracy.
     """
-    weights: Float[Array, "n_k n_bands n_orb"] = jnp.abs(eigenvectors) ** 2
+    weights: Float64[Array, "n_k n_bands n_orb"] = jnp.abs(eigenvectors) ** 2
     return weights
 
 
 @jaxtyped(typechecker=beartype)
 def band_projectors(
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"],
-) -> Complex[Array, "n_k n_bands n_orb n_orb"]:
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
+) -> Complex128[Array, "n_k n_bands n_orb n_orb"]:
     r"""Materialize each U(1)-gauge-invariant rank-one band projector.
 
     Form an outer product from every band-major eigenvector without choosing
@@ -129,12 +129,12 @@ def band_projectors(
 
     Parameters
     ----------
-    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
         Band-major complex orbital coefficients.
 
     Returns
     -------
-    projectors : Complex[Array, "n_k n_bands n_orb n_orb"]
+    projectors : Complex128[Array, "n_k n_bands n_orb n_orb"]
         Outer products :math:`|\psi_{kn}\rangle\langle\psi_{kn}|`.
 
     Notes
@@ -143,7 +143,7 @@ def band_projectors(
     Hot paths that need only an observable should use :func:`group_trace` or
     :func:`expectation_path` and avoid this materialization.
     """
-    projectors: Complex[Array, "n_k n_bands n_orb n_orb"] = jnp.einsum(
+    projectors: Complex128[Array, "n_k n_bands n_orb n_orb"] = jnp.einsum(
         "kbi,kbj->kbij",
         eigenvectors,
         eigenvectors.conj(),
@@ -155,7 +155,7 @@ def band_projectors(
 def group_projector(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
     group: tuple[int, ...],
-) -> Complex[Array, "n_k n_orb n_orb"]:
+) -> Complex128[Array, "n_k n_orb n_orb"]:
     r"""Construct the projector onto one registered, fixed band group.
 
     The sum is invariant under arbitrary unitary rotations among the selected
@@ -172,7 +172,7 @@ def group_projector(  # noqa: DOC502 -- validation is delegated.
 
     Returns
     -------
-    projector : Complex[Array, "n_k n_orb n_orb"]
+    projector : Complex128[Array, "n_k n_orb n_orb"]
         Fixed-group projector at every k-point.
 
     Raises
@@ -190,10 +190,10 @@ def group_projector(  # noqa: DOC502 -- validation is delegated.
         bands.eigenvalues.shape[1],
         name="group",
     )
-    selected: Complex[Array, "n_k n_group n_orb"] = bands.eigenvectors[
+    selected: Complex128[Array, "n_k n_group n_orb"] = bands.eigenvectors[
         :, group, :
     ]
-    projector: Complex[Array, "n_k n_orb n_orb"] = jnp.einsum(
+    projector: Complex128[Array, "n_k n_orb n_orb"] = jnp.einsum(
         "kgi,kgj->kij",
         selected,
         selected.conj(),
@@ -204,9 +204,9 @@ def group_projector(  # noqa: DOC502 -- validation is delegated.
 @jaxtyped(typechecker=beartype)
 def group_trace(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
-    operator: Complex[Array, "n_orb n_orb"],
+    operator: Complex128[Array, "n_orb n_orb"],
     group: tuple[int, ...],
-) -> Float[Array, " n_k"]:
+) -> Float64[Array, " n_k"]:
     r"""Trace a Hermitian operator over one fixed band group.
 
     This is the normative exact-degeneracy observable. It equals
@@ -219,14 +219,14 @@ def group_trace(  # noqa: DOC502 -- validation is delegated.
     ----------
     bands : DiagonalizedBands
         Geometry-bearing, band-major eigensystem.
-    operator : Complex[Array, "n_orb n_orb"]
+    operator : Complex128[Array, "n_orb n_orb"]
         Finite Hermitian operator in the model basis.
     group : tuple[int, ...]
         Fixed unique band indices (**static** -- changing them retraces).
 
     Returns
     -------
-    traces : Float[Array, "n_k"]
+    traces : Float64[Array, "n_k"]
         Real fixed-group operator trace at each k-point.
 
     Raises
@@ -242,30 +242,30 @@ def group_trace(  # noqa: DOC502 -- validation is delegated.
     Hermitian operator and returns the real component.
     """
     n_orbitals: int = bands.eigenvectors.shape[2]
-    checked_operator: Complex[Array, "n_orb n_orb"] = _checked_operator(
+    checked_operator: Complex128[Array, "n_orb n_orb"] = _checked_operator(
         operator,
         n_orbitals,
         context="group_trace",
     )
-    projector: Complex[Array, "n_k n_orb n_orb"] = group_projector(
+    projector: Complex128[Array, "n_k n_orb n_orb"] = group_projector(
         bands,
         group,
     )
-    traces_complex: Complex[Array, " n_k"] = jnp.einsum(
+    traces_complex: Complex128[Array, " n_k"] = jnp.einsum(
         "kij,ji->k",
         projector,
         checked_operator,
     )
-    traces: Float[Array, " n_k"] = jnp.real(traces_complex)
+    traces: Float64[Array, " n_k"] = jnp.real(traces_complex)
     return traces
 
 
 @jaxtyped(typechecker=beartype)
 def expectation_path(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
-    operator: Complex[Array, "n_orb n_orb"],
+    operator: Complex128[Array, "n_orb n_orb"],
     degen_tol: float = 1e-10,
-) -> Float[Array, "n_k n_bands"]:
+) -> Float64[Array, "n_k n_bands"]:
     r"""Compute operator expectations with diagnostic degeneracy averaging.
 
     Average raw quadratic forms over connected components of bands whose
@@ -279,14 +279,14 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
     ----------
     bands : DiagonalizedBands
         Geometry-bearing, band-major eigensystem.
-    operator : Complex[Array, "n_orb n_orb"]
+    operator : Complex128[Array, "n_orb n_orb"]
         Finite Hermitian operator in the model basis.
     degen_tol : float, optional
         Positive diagnostic energy threshold in eV. Default is ``1e-10``.
 
     Returns
     -------
-    expectations : Float[Array, "n_k n_bands"]
+    expectations : Float64[Array, "n_k n_bands"]
         Degeneracy-averaged values :math:`\langle\psi|O|\psi\rangle`.
 
     Raises
@@ -306,7 +306,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
     :func:`group_trace`.
     """
     n_orbitals: int = bands.eigenvectors.shape[2]
-    checked_operator: Complex[Array, "n_orb n_orb"] = _checked_operator(
+    checked_operator: Complex128[Array, "n_orb n_orb"] = _checked_operator(
         operator,
         n_orbitals,
         context="expectation_path",
@@ -317,14 +317,14 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
         ~jnp.isfinite(tolerance) | (tolerance <= 0.0),
         "expectation_path: degen_tol must be finite and positive",
     )
-    raw_complex: Complex[Array, "n_k n_bands"] = jnp.einsum(
+    raw_complex: Complex128[Array, "n_k n_bands"] = jnp.einsum(
         "kbi,ij,kbj->kb",
         bands.eigenvectors.conj(),
         checked_operator,
         bands.eigenvectors,
     )
-    raw: Float[Array, "n_k n_bands"] = jnp.real(raw_complex)
-    gaps: Float[Array, "n_k n_bands n_bands"] = jnp.abs(
+    raw: Float64[Array, "n_k n_bands"] = jnp.real(raw_complex)
+    gaps: Float64[Array, "n_k n_bands n_bands"] = jnp.abs(
         bands.eigenvalues[:, :, None] - bands.eigenvalues[:, None, :]
     )
     connected: Array = gaps < tolerance
@@ -334,13 +334,13 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
             connected[:, :, pivot, None] & connected[:, None, pivot, :]
         )
     mask: Float64[Array, "n_k n_bands n_bands"] = connected.astype(jnp.float64)
-    numerator: Float[Array, "n_k n_bands"] = jnp.einsum(
+    numerator: Float64[Array, "n_k n_bands"] = jnp.einsum(
         "kij,kj->ki",
         mask,
         raw,
     )
-    denominator: Float[Array, "n_k n_bands"] = jnp.sum(mask, axis=-1)
-    expectations: Float[Array, "n_k n_bands"] = numerator / denominator
+    denominator: Float64[Array, "n_k n_bands"] = jnp.sum(mask, axis=-1)
+    expectations: Float64[Array, "n_k n_bands"] = numerator / denominator
     return expectations
 
 
@@ -348,7 +348,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
 def fat_bands(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
     orbital_select: tuple[int, ...],
-) -> Float[Array, "n_k n_bands"]:
+) -> Float64[Array, "n_k n_bands"]:
     """Compute degeneracy-averaged weights of selected model orbitals.
 
     Build one orbital-selection projector and evaluate it along the complete
@@ -365,7 +365,7 @@ def fat_bands(  # noqa: DOC502 -- validation is delegated.
 
     Returns
     -------
-    weights : Float[Array, "n_k n_bands"]
+    weights : Float64[Array, "n_k n_bands"]
         Selected-orbital weights, averaged within diagnostic degeneracies.
 
     Raises
@@ -379,11 +379,11 @@ def fat_bands(  # noqa: DOC502 -- validation is delegated.
     :func:`expectation_path`. Use :func:`group_trace` for scientific
     derivatives at an exact degeneracy.
     """
-    operator: Complex[Array, "n_orb n_orb"] = orbital_projector(
+    operator: Complex128[Array, "n_orb n_orb"] = orbital_projector(
         bands.basis,
         orbital_select,
     )
-    weights: Float[Array, "n_k n_bands"] = expectation_path(bands, operator)
+    weights: Float64[Array, "n_k n_bands"] = expectation_path(bands, operator)
     return weights
 
 

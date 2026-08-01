@@ -18,7 +18,7 @@ import pytest
 from beartype.typing import Any, Callable
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.maths import rodrigues_rotation
 from diffpes.simul import (
@@ -328,21 +328,21 @@ class TestPolarizationFromAngles(chex.TestCase):
         Evaluate a generic incidence direction. Apply the Cartesian cross
         product and compare with eigenvalues plus and minus one.
         """
-        theta: Float[Array, ""] = jnp.asarray(0.61)
-        phi: Float[Array, ""] = jnp.asarray(-0.37)
-        direction: Float[Array, "3"] = photon_wavevector(theta, phi)
-        plus: Complex[Array, "3"] = polarization_from_angles(
+        theta: Float64[Array, ""] = jnp.asarray(0.61)
+        phi: Float64[Array, ""] = jnp.asarray(-0.37)
+        direction: Float64[Array, "3"] = photon_wavevector(theta, phi)
+        plus: Complex128[Array, "3"] = polarization_from_angles(
             theta,
             phi,
             "c+",
         )
-        minus: Complex[Array, "3"] = polarization_from_angles(
+        minus: Complex128[Array, "3"] = polarization_from_angles(
             theta,
             phi,
             "c-",
         )
-        plus_action: Complex[Array, "3"] = 1j * jnp.cross(direction, plus)
-        minus_action: Complex[Array, "3"] = 1j * jnp.cross(direction, minus)
+        plus_action: Complex128[Array, "3"] = 1j * jnp.cross(direction, plus)
+        minus_action: Complex128[Array, "3"] = 1j * jnp.cross(direction, minus)
         chex.assert_trees_all_close(
             plus_action,
             plus,
@@ -686,7 +686,9 @@ class TestDetectorRotation(chex.TestCase):
                 ),
             },
         }
-        self.assertEqual(reference["gate"], "03.G4")
+        self.assertEqual(
+            reference["requirement"], "tilt-polarization-reference"
+        )
         tolerance: float = float(reference["rtol"])
         slit: str
         for slit in ("H", "V"):

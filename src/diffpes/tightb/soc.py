@@ -37,7 +37,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.maths import real_harmonic_unitary
 from diffpes.types import (
@@ -59,7 +59,7 @@ def _validate_angular_momentum(l: int) -> None:
 def _validate_soc_structure(
     basis: OrbitalBasis,
     shell_index: tuple[int, ...],
-    soc_lambdas: Float[Array, " n_shells"],
+    soc_lambdas: Float64[Array, " n_shells"],
 ) -> None:
     """Validate static shell membership for SOC matrix construction."""
     n_orbitals: int = len(basis.n)
@@ -169,9 +169,9 @@ def _shell_maps(
 def l_matrices(  # noqa: DOC502 -- validation is shared.
     l: int,  # noqa: E741
 ) -> tuple[
-    Complex[Array, "m1 m2"],
-    Complex[Array, "m1 m2"],
-    Complex[Array, "m1 m2"],
+    Complex128[Array, "m1 m2"],
+    Complex128[Array, "m1 m2"],
+    Complex128[Array, "m1 m2"],
 ]:
     r"""Construct orbital angular-momentum matrices in the complex basis.
 
@@ -188,11 +188,11 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
 
     Returns
     -------
-    lz : Complex[Array, "m1 m2"]
+    lz : Complex128[Array, "m1 m2"]
         Diagonal :math:`L_z` matrix.
-    raising : Complex[Array, "m1 m2"]
+    raising : Complex128[Array, "m1 m2"]
         :math:`L_+` ladder matrix.
-    lowering : Complex[Array, "m1 m2"]
+    lowering : Complex128[Array, "m1 m2"]
         :math:`L_-` ladder matrix.
 
     Raises
@@ -207,16 +207,16 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
     adjoint of the raising matrix.
     """
     _validate_angular_momentum(l)
-    magnetic_numbers: Float[Array, " m"] = jnp.arange(
+    magnetic_numbers: Float64[Array, " m"] = jnp.arange(
         -l,
         l + 1,
         dtype=jnp.float64,
     )
-    lz: Complex[Array, "m1 m2"] = jnp.diag(magnetic_numbers).astype(
+    lz: Complex128[Array, "m1 m2"] = jnp.diag(magnetic_numbers).astype(
         jnp.complex128
     )
     size: int = 2 * l + 1
-    raising: Complex[Array, "m1 m2"] = jnp.zeros(
+    raising: Complex128[Array, "m1 m2"] = jnp.zeros(
         (size, size),
         dtype=jnp.complex128,
     )
@@ -226,11 +226,11 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
         row: int = column + 1
         coefficient: float = math.sqrt(l * (l + 1) - magnetic * (magnetic + 1))
         raising = raising.at[row, column].set(coefficient)
-    lowering: Complex[Array, "m1 m2"] = raising.conj().T
+    lowering: Complex128[Array, "m1 m2"] = raising.conj().T
     result: tuple[
-        Complex[Array, "m1 m2"],
-        Complex[Array, "m1 m2"],
-        Complex[Array, "m1 m2"],
+        Complex128[Array, "m1 m2"],
+        Complex128[Array, "m1 m2"],
+        Complex128[Array, "m1 m2"],
     ] = (lz, raising, lowering)
     return result
 
@@ -238,7 +238,7 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
 @jaxtyped(typechecker=beartype)
 def soc_shell_block(  # noqa: DOC502 -- validation is shared.
     l: int,  # noqa: E741
-) -> Complex[Array, "s1 s2"]:
+) -> Complex128[Array, "s1 s2"]:
     r"""Construct a unit-strength real-cubic :math:`\mathbf L\cdot\mathbf S`.
 
     The orbital order within each spin block is real-harmonic ``m=-l..+l``.
@@ -255,7 +255,7 @@ def soc_shell_block(  # noqa: DOC502 -- validation is shared.
 
     Returns
     -------
-    block : Complex[Array, "s1 s2"]
+    block : Complex128[Array, "s1 s2"]
         Hermitian matrix of shape ``(2*(2*l+1), 2*(2*l+1))``.
 
     Raises
@@ -272,38 +272,38 @@ def soc_shell_block(  # noqa: DOC502 -- validation is shared.
     storage order. Spin operators are :math:`S_a=\sigma_a/2`.
     """
     _validate_angular_momentum(l)
-    lz_complex: Complex[Array, "m1 m2"]
-    raising: Complex[Array, "m1 m2"]
-    lowering: Complex[Array, "m1 m2"]
+    lz_complex: Complex128[Array, "m1 m2"]
+    raising: Complex128[Array, "m1 m2"]
+    lowering: Complex128[Array, "m1 m2"]
     lz_complex, raising, lowering = l_matrices(l)
-    lx_complex: Complex[Array, "m1 m2"] = 0.5 * (raising + lowering)
-    ly_complex: Complex[Array, "m1 m2"] = (raising - lowering) / (2j)
-    unitary: Complex[Array, "m1 m2"] = real_harmonic_unitary(l)
+    lx_complex: Complex128[Array, "m1 m2"] = 0.5 * (raising + lowering)
+    ly_complex: Complex128[Array, "m1 m2"] = (raising - lowering) / (2j)
+    unitary: Complex128[Array, "m1 m2"] = real_harmonic_unitary(l)
 
     def to_real(
-        operator: Complex[Array, "m1 m2"],
-    ) -> Complex[Array, "m1 m2"]:
-        transformed: Complex[Array, "m1 m2"] = (
+        operator: Complex128[Array, "m1 m2"],
+    ) -> Complex128[Array, "m1 m2"]:
+        transformed: Complex128[Array, "m1 m2"] = (
             unitary.conj() @ operator @ unitary.T
         )
         return transformed
 
-    lx_real: Complex[Array, "m1 m2"] = to_real(lx_complex)
-    ly_real: Complex[Array, "m1 m2"] = to_real(ly_complex)
-    lz_real: Complex[Array, "m1 m2"] = to_real(lz_complex)
-    sigma_x: Complex[Array, "2 2"] = jnp.asarray(
+    lx_real: Complex128[Array, "m1 m2"] = to_real(lx_complex)
+    ly_real: Complex128[Array, "m1 m2"] = to_real(ly_complex)
+    lz_real: Complex128[Array, "m1 m2"] = to_real(lz_complex)
+    sigma_x: Complex128[Array, "2 2"] = jnp.asarray(
         [[0.0, 1.0], [1.0, 0.0]],
         dtype=jnp.complex128,
     )
-    sigma_y: Complex[Array, "2 2"] = jnp.asarray(
+    sigma_y: Complex128[Array, "2 2"] = jnp.asarray(
         [[0.0, 1.0j], [-1.0j, 0.0]],
         dtype=jnp.complex128,
     )
-    sigma_z: Complex[Array, "2 2"] = jnp.asarray(
+    sigma_z: Complex128[Array, "2 2"] = jnp.asarray(
         [[-1.0, 0.0], [0.0, 1.0]],
         dtype=jnp.complex128,
     )
-    block: Complex[Array, "s1 s2"] = 0.5 * (
+    block: Complex128[Array, "s1 s2"] = 0.5 * (
         jnp.kron(sigma_x, lx_real)
         + jnp.kron(sigma_y, ly_real)
         + jnp.kron(sigma_z, lz_real)
@@ -396,13 +396,13 @@ def spin_double_model(model: TBModel) -> TBModel:
         (orbital_i + n_orbitals, orbital_j + n_orbitals)
         for orbital_i, orbital_j in model.hopping_pairs
     )
-    doubled_orbital_positions: Optional[Float[Array, "n_so 3"]] = None
+    doubled_orbital_positions: Optional[Float64[Array, "n_so 3"]] = None
     if model.orbital_positions is not None:
         doubled_orbital_positions = jnp.concatenate(
             (model.orbital_positions, model.orbital_positions),
             axis=0,
         )
-    doubled_depths: Optional[Float[Array, " n_so"]] = None
+    doubled_depths: Optional[Float64[Array, " n_so"]] = None
     if model.depths is not None:
         doubled_depths = jnp.concatenate(
             (model.depths, model.depths),
@@ -432,8 +432,8 @@ def spin_double_model(model: TBModel) -> TBModel:
 def soc_matrix(  # noqa: DOC502 -- validation is shared.
     basis: OrbitalBasis,
     shell_index: tuple[int, ...],
-    soc_lambdas: Float[Array, " n_shells"],
-) -> Complex[Array, "n_so n_so"]:
+    soc_lambdas: Float64[Array, " n_shells"],
+) -> Complex128[Array, "n_so n_so"]:
     """Assemble shell-resolved atomic SOC in an arbitrary spinor basis.
 
     Each nonnegative ``shell_index`` identifies one ``(atom, n, l)`` group.
@@ -451,12 +451,12 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
         an active shell is present.
     shell_index : tuple[int, ...]
         Orbital-to-shell IDs. ``-1`` excludes an orbital from atomic SOC.
-    soc_lambdas : Float[Array, "n_shells"]
+    soc_lambdas : Float64[Array, "n_shells"]
         Differentiable shell coupling energies in eV.
 
     Returns
     -------
-    matrix : Complex[Array, "n_so n_so"]
+    matrix : Complex128[Array, "n_so n_so"]
         Hermitian on-site SOC matrix in the supplied global basis order.
 
     Raises
@@ -473,7 +473,7 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
     multiplication by ``soc_lambdas`` and through no table-construction
     parameter.
     """
-    lambda_array: Float[Array, " n_shells"] = jnp.asarray(
+    lambda_array: Float64[Array, " n_shells"] = jnp.asarray(
         soc_lambdas,
         dtype=jnp.float64,
     )
@@ -484,7 +484,7 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
         "soc_matrix: soc lambdas finite",
     )
     n_orbitals: int = len(basis.n)
-    matrix: Complex[Array, "n_so n_so"] = jnp.zeros(
+    matrix: Complex128[Array, "n_so n_so"] = jnp.zeros(
         (n_orbitals, n_orbitals),
         dtype=jnp.complex128,
     )
@@ -498,16 +498,18 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
             shell_index,
             shell,
         )
-        global_indices: Int[Array, " n_shell_orb"] = jnp.asarray(
+        global_indices: Int32[Array, " n_shell_orb"] = jnp.asarray(
             global_tuple,
             dtype=jnp.int32,
         )
-        local_indices: Int[Array, " n_shell_orb"] = jnp.asarray(
+        local_indices: Int32[Array, " n_shell_orb"] = jnp.asarray(
             local_tuple,
             dtype=jnp.int32,
         )
-        full_block: Complex[Array, "s1 s2"] = soc_shell_block(angular_momentum)
-        projected_block: Complex[Array, "p1 p2"] = full_block[
+        full_block: Complex128[Array, "s1 s2"] = soc_shell_block(
+            angular_momentum
+        )
+        projected_block: Complex128[Array, "p1 p2"] = full_block[
             local_indices[:, None],
             local_indices[None, :],
         ]

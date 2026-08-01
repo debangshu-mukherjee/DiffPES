@@ -25,7 +25,7 @@ defined by the incidence angles.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from .aliases import ScalarFloat
 
@@ -109,7 +109,7 @@ class ExperimentGeometry(eqx.Module):
 @jaxtyped(typechecker=beartype)
 def make_experiment_geometry(  # noqa: DOC503, PLR0913
     photon_energy_ev: ScalarFloat,
-    polarization: Complex[Array, "3"],
+    polarization: Complex128[Array, "3"],
     incidence_theta: ScalarFloat = 0.0,
     incidence_phi: ScalarFloat = 0.0,
     sample_azimuth: ScalarFloat = 0.0,
@@ -161,7 +161,7 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
     ----------
     photon_energy_ev : ScalarFloat
         Photon energy in eV.
-    polarization : Complex[Array, "3"]
+    polarization : Complex128[Array, "3"]
         Nonzero complex polarization vector in the laboratory frame. It must
         be transverse to the photon direction declared by the incidence
         angles.
@@ -249,7 +249,7 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         ~jnp.isfinite(photon_energy) | (photon_energy <= 0.0),
         "photon_energy_ev must be finite and positive",
     )
-    finite_polarization: Float[Array, ""] = jnp.all(
+    finite_polarization: Float64[Array, ""] = jnp.all(
         jnp.isfinite(polarization_array)
     )
     polarization_array = eqx.error_if(
@@ -257,10 +257,10 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         ~finite_polarization,
         "polarization must be finite",
     )
-    safe_polarization: Complex[Array, "3"] = jnp.where(
+    safe_polarization: Complex128[Array, "3"] = jnp.where(
         jnp.isfinite(polarization_array), polarization_array, 0.0 + 0.0j
     )
-    polarization_norm: Float[Array, ""] = jnp.sqrt(
+    polarization_norm: Float64[Array, ""] = jnp.sqrt(
         jnp.real(jnp.vdot(safe_polarization, safe_polarization))
     )
     safe_polarization = eqx.error_if(
@@ -268,10 +268,10 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         polarization_norm <= 0.0,
         "polarization norm must be positive",
     )
-    safe_norm: Float[Array, ""] = jnp.where(
+    safe_norm: Float64[Array, ""] = jnp.where(
         polarization_norm > 0.0, polarization_norm, 1.0
     )
-    normalized_polarization: Complex[Array, "3"] = (
+    normalized_polarization: Complex128[Array, "3"] = (
         safe_polarization / safe_norm
     )
 
@@ -279,16 +279,16 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         theta, ~jnp.isfinite(theta), "incidence_theta must be finite"
     )
     phi = eqx.error_if(phi, ~jnp.isfinite(phi), "incidence_phi must be finite")
-    safe_theta: Float[Array, ""] = jnp.where(jnp.isfinite(theta), theta, 0.0)
-    safe_phi: Float[Array, ""] = jnp.where(jnp.isfinite(phi), phi, 0.0)
-    photon_direction: Float[Array, "3"] = -jnp.stack(
+    safe_theta: Float64[Array, ""] = jnp.where(jnp.isfinite(theta), theta, 0.0)
+    safe_phi: Float64[Array, ""] = jnp.where(jnp.isfinite(phi), phi, 0.0)
+    photon_direction: Float64[Array, "3"] = -jnp.stack(
         (
             jnp.sin(safe_theta) * jnp.cos(safe_phi),
             jnp.sin(safe_theta) * jnp.sin(safe_phi),
             jnp.cos(safe_theta),
         )
     )
-    longitudinal_amplitude: Complex[Array, ""] = jnp.sum(
+    longitudinal_amplitude: Complex128[Array, ""] = jnp.sum(
         photon_direction * normalized_polarization
     )
     normalized_polarization = eqx.error_if(

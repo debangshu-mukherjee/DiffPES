@@ -45,7 +45,7 @@ import math
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import L_MAX, OrbitalBasis
@@ -55,8 +55,8 @@ from .gaunt import GAUNT_TABLE
 
 @jaxtyped(typechecker=beartype)
 def polarization_cart_to_complex(
-    efield_cart: Complex[Array, " 3"],
-) -> Complex[Array, " 3"]:
+    efield_cart: Complex128[Array, " 3"],
+) -> Complex128[Array, " 3"]:
     r"""Convert Cartesian polarization to complex spherical components.
 
     The input order is ``(x, y, z)`` and the returned order is
@@ -67,12 +67,12 @@ def polarization_cart_to_complex(
 
     Parameters
     ----------
-    efield_cart : Complex[Array, " 3"]
+    efield_cart : Complex128[Array, " 3"]
         Cartesian sample-frame polarization in ``(x, y, z)`` order.
 
     Returns
     -------
-    efield_complex : Complex[Array, " 3"]
+    efield_complex : Complex128[Array, " 3"]
         Complex spherical components in ``(-1, 0, +1)`` order.
 
     Notes
@@ -80,10 +80,10 @@ def polarization_cart_to_complex(
     The explicit three-row stack leaves generic complex phases intact.
     """
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    ex: Complex[Array, ""] = efield_cart[0]
-    ey: Complex[Array, ""] = efield_cart[1]
-    ez: Complex[Array, ""] = efield_cart[2]
-    efield_complex: Complex[Array, " 3"] = jnp.stack(
+    ex: Complex128[Array, ""] = efield_cart[0]
+    ey: Complex128[Array, ""] = efield_cart[1]
+    ez: Complex128[Array, ""] = efield_cart[2]
+    efield_complex: Complex128[Array, " 3"] = jnp.stack(
         (
             inverse_sqrt_two * (ex - 1j * ey),
             ez,
@@ -95,8 +95,8 @@ def polarization_cart_to_complex(
 
 @jaxtyped(typechecker=beartype)
 def polarization_complex_to_cart(
-    efield_complex: Complex[Array, " 3"],
-) -> Complex[Array, " 3"]:
+    efield_complex: Complex128[Array, " 3"],
+) -> Complex128[Array, " 3"]:
     r"""Convert complex spherical polarization to Cartesian components.
 
     This function is the exact inverse of
@@ -106,12 +106,12 @@ def polarization_complex_to_cart(
 
     Parameters
     ----------
-    efield_complex : Complex[Array, " 3"]
+    efield_complex : Complex128[Array, " 3"]
         Complex spherical components in ``(-1, 0, +1)`` order.
 
     Returns
     -------
-    efield_cart : Complex[Array, " 3"]
+    efield_cart : Complex128[Array, " 3"]
         Cartesian sample-frame polarization in ``(x, y, z)`` order.
 
     Notes
@@ -120,10 +120,10 @@ def polarization_complex_to_cart(
     conjugating them.
     """
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    e_minus: Complex[Array, ""] = efield_complex[0]
-    e_zero: Complex[Array, ""] = efield_complex[1]
-    e_plus: Complex[Array, ""] = efield_complex[2]
-    efield_cart: Complex[Array, " 3"] = jnp.stack(
+    e_minus: Complex128[Array, ""] = efield_complex[0]
+    e_zero: Complex128[Array, ""] = efield_complex[1]
+    e_plus: Complex128[Array, ""] = efield_complex[2]
+    efield_cart: Complex128[Array, " 3"] = jnp.stack(
         (
             inverse_sqrt_two * (e_minus - e_plus),
             1j * inverse_sqrt_two * (e_minus + e_plus),
@@ -135,8 +135,8 @@ def polarization_complex_to_cart(
 
 @jaxtyped(typechecker=beartype)
 def polarization_cart_to_real(
-    efield_cart: Complex[Array, " 3"],
-) -> Complex[Array, " 3"]:
+    efield_cart: Complex128[Array, " 3"],
+) -> Complex128[Array, " 3"]:
     r"""Convert Cartesian polarization to real-harmonic channel order.
 
     Real :math:`l=1` harmonic rows follow ``(p_y, p_z, p_x)``, corresponding
@@ -146,26 +146,26 @@ def polarization_cart_to_real(
 
     Parameters
     ----------
-    efield_cart : Complex[Array, " 3"]
+    efield_cart : Complex128[Array, " 3"]
         Cartesian sample-frame polarization in ``(x, y, z)`` order.
 
     Returns
     -------
-    efield_real : Complex[Array, " 3"]
+    efield_real : Complex128[Array, " 3"]
         Real-harmonic components in ``(y, z, x)`` order.
 
     Notes
     -----
     Static integer indexing applies the real-harmonic permutation.
     """
-    efield_real: Complex[Array, " 3"] = efield_cart[jnp.asarray((1, 2, 0))]
+    efield_real: Complex128[Array, " 3"] = efield_cart[jnp.asarray((1, 2, 0))]
     return efield_real
 
 
 @jaxtyped(typechecker=beartype)
 def polarization_real_to_cart(
-    efield_real: Complex[Array, " 3"],
-) -> Complex[Array, " 3"]:
+    efield_real: Complex128[Array, " 3"],
+) -> Complex128[Array, " 3"]:
     r"""Convert real-harmonic polarization back to Cartesian order.
 
     This function is the exact inverse of
@@ -175,19 +175,19 @@ def polarization_real_to_cart(
 
     Parameters
     ----------
-    efield_real : Complex[Array, " 3"]
+    efield_real : Complex128[Array, " 3"]
         Real-harmonic components in ``(y, z, x)`` order.
 
     Returns
     -------
-    efield_cart : Complex[Array, " 3"]
+    efield_cart : Complex128[Array, " 3"]
         Cartesian sample-frame polarization in ``(x, y, z)`` order.
 
     Notes
     -----
     Static integer indexing applies the inverse permutation.
     """
-    efield_cart: Complex[Array, " 3"] = efield_real[jnp.asarray((2, 0, 1))]
+    efield_cart: Complex128[Array, " 3"] = efield_real[jnp.asarray((2, 0, 1))]
     return efield_cart
 
 
@@ -301,12 +301,12 @@ def channel_tables(
 
 @jaxtyped(typechecker=beartype)
 def dipole_length_cartesian(
-    psi_final: Complex[Array, " n_q"],
-    psi_initial: Complex[Array, " n_q"],
-    position_bohr: Float[Array, "n_q 3"],
-    volume_weights_bohr3: Float[Array, " n_q"],
-    polarization_cart: Complex[Array, " 3"],
-) -> Complex[Array, ""]:
+    psi_final: Complex128[Array, " n_q"],
+    psi_initial: Complex128[Array, " n_q"],
+    position_bohr: Float64[Array, "n_q 3"],
+    volume_weights_bohr3: Float64[Array, " n_q"],
+    polarization_cart: Complex128[Array, " 3"],
+) -> Complex128[Array, ""]:
     r"""Compute a sampled Cartesian length-gauge contraction.
 
     The returned amplitude is
@@ -318,20 +318,20 @@ def dipole_length_cartesian(
 
     Parameters
     ----------
-    psi_final : Complex[Array, " n_q"]
+    psi_final : Complex128[Array, " n_q"]
         Final-state ket samples.
-    psi_initial : Complex[Array, " n_q"]
+    psi_initial : Complex128[Array, " n_q"]
         Initial-state ket samples.
-    position_bohr : Float[Array, "n_q 3"]
+    position_bohr : Float64[Array, "n_q 3"]
         Cartesian quadrature positions in Bohr.
-    volume_weights_bohr3 : Float[Array, " n_q"]
+    volume_weights_bohr3 : Float64[Array, " n_q"]
         Volume quadrature weights in Bohr cubed.
-    polarization_cart : Complex[Array, " 3"]
+    polarization_cart : Complex128[Array, " 3"]
         Cartesian complex polarization.
 
     Returns
     -------
-    amplitude : Complex[Array, ""]
+    amplitude : Complex128[Array, ""]
         Length-gauge amplitude in Bohr.
 
     Notes
@@ -339,23 +339,25 @@ def dipole_length_cartesian(
     The dot product uses polarization directly and conjugates only the
     final-state ket.
     """
-    polarized_position: Complex[Array, " n_q"] = (
+    polarized_position: Complex128[Array, " n_q"] = (
         position_bohr @ polarization_cart
     )
-    integrand: Complex[Array, " n_q"] = (
+    integrand: Complex128[Array, " n_q"] = (
         jnp.conj(psi_final) * polarized_position * psi_initial
     )
-    amplitude: Complex[Array, ""] = jnp.sum(volume_weights_bohr3 * integrand)
+    amplitude: Complex128[Array, ""] = jnp.sum(
+        volume_weights_bohr3 * integrand
+    )
     return amplitude
 
 
 @jaxtyped(typechecker=beartype)
 def dipole_momentum_cartesian(
-    psi_final: Complex[Array, " n_q"],
-    grad_psi_initial_bohr_inv: Complex[Array, "n_q 3"],
-    volume_weights_bohr3: Float[Array, " n_q"],
-    polarization_cart: Complex[Array, " 3"],
-) -> Complex[Array, ""]:
+    psi_final: Complex128[Array, " n_q"],
+    grad_psi_initial_bohr_inv: Complex128[Array, "n_q 3"],
+    volume_weights_bohr3: Float64[Array, " n_q"],
+    polarization_cart: Complex128[Array, " 3"],
+) -> Complex128[Array, ""]:
     r"""Compute a sampled Cartesian momentum-gauge contraction.
 
     The returned amplitude applies
@@ -368,31 +370,33 @@ def dipole_momentum_cartesian(
 
     Parameters
     ----------
-    psi_final : Complex[Array, " n_q"]
+    psi_final : Complex128[Array, " n_q"]
         Final-state ket samples.
-    grad_psi_initial_bohr_inv : Complex[Array, "n_q 3"]
+    grad_psi_initial_bohr_inv : Complex128[Array, "n_q 3"]
         Cartesian gradient of the initial-state ket in inverse Bohr.
-    volume_weights_bohr3 : Float[Array, " n_q"]
+    volume_weights_bohr3 : Float64[Array, " n_q"]
         Volume quadrature weights in Bohr cubed.
-    polarization_cart : Complex[Array, " 3"]
+    polarization_cart : Complex128[Array, " 3"]
         Cartesian complex polarization.
 
     Returns
     -------
-    amplitude : Complex[Array, ""]
+    amplitude : Complex128[Array, ""]
         Momentum-gauge amplitude in atomic momentum units.
 
     Notes
     -----
     The dot product applies ``-1j`` to the supplied initial-state gradient.
     """
-    polarized_gradient: Complex[Array, " n_q"] = (
+    polarized_gradient: Complex128[Array, " n_q"] = (
         grad_psi_initial_bohr_inv @ polarization_cart
     )
-    integrand: Complex[Array, " n_q"] = (
+    integrand: Complex128[Array, " n_q"] = (
         -1j * jnp.conj(psi_final) * polarized_gradient
     )
-    amplitude: Complex[Array, ""] = jnp.sum(volume_weights_bohr3 * integrand)
+    amplitude: Complex128[Array, ""] = jnp.sum(
+        volume_weights_bohr3 * integrand
+    )
     return amplitude
 
 

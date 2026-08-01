@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -48,11 +48,11 @@ _ALL_SK_KEYS: tuple[str, ...] = (
 )
 
 
-def _reference_d_tensors() -> Float[Array, "5 3 3"]:
+def _reference_d_tensors() -> Float64[Array, "5 3 3"]:
     """Return the normalized Table-I d-orbital Cartesian tensors."""
     inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
     inverse_sqrt_six: float = 1.0 / np.sqrt(6.0)
-    tensors: Float[Array, "5 3 3"] = jnp.asarray(
+    tensors: Float64[Array, "5 3 3"] = jnp.asarray(
         (
             (
                 (0.0, inverse_sqrt_two, 0.0),
@@ -86,43 +86,43 @@ def _reference_d_tensors() -> Float[Array, "5 3 3"]:
 
 
 def _table_i_blocks(
-    direction: Float[Array, " 3"],
-    values: Float[Array, " 10"],
-) -> dict[tuple[int, int], Float[Array, "m1 m2"]]:
+    direction: Float64[Array, " 3"],
+    values: Float64[Array, " 10"],
+) -> dict[tuple[int, int], Float64[Array, "m1 m2"]]:
     """Evaluate the direction-cosine polynomials for all ten channels."""
-    p_axes: Float[Array, "3 3"] = jnp.asarray(
+    p_axes: Float64[Array, "3 3"] = jnp.asarray(
         ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),
         dtype=jnp.float64,
     )
-    tensors: Float[Array, "5 3 3"] = _reference_d_tensors()
-    p_direction: Float[Array, " 3"] = p_axes @ direction
-    tensor_direction: Float[Array, " 5"] = jnp.einsum(
+    tensors: Float64[Array, "5 3 3"] = _reference_d_tensors()
+    p_direction: Float64[Array, " 3"] = p_axes @ direction
+    tensor_direction: Float64[Array, " 5"] = jnp.einsum(
         "aij,i,j->a",
         tensors,
         direction,
         direction,
     )
-    d_sigma: Float[Array, " 5"] = jnp.sqrt(3.0 / 2.0) * tensor_direction
-    tensor_vectors: Float[Array, "5 3"] = jnp.einsum(
+    d_sigma: Float64[Array, " 5"] = jnp.sqrt(3.0 / 2.0) * tensor_direction
+    tensor_vectors: Float64[Array, "5 3"] = jnp.einsum(
         "aij,j->ai",
         tensors,
         direction,
     )
-    p_dot_tensor: Float[Array, "3 5"] = p_axes @ tensor_vectors.T
-    pd_pi_coefficients: Float[Array, "3 5"] = jnp.sqrt(2.0) * (
+    p_dot_tensor: Float64[Array, "3 5"] = p_axes @ tensor_vectors.T
+    pd_pi_coefficients: Float64[Array, "3 5"] = jnp.sqrt(2.0) * (
         p_dot_tensor - p_direction[:, None] * tensor_direction[None, :]
     )
-    d_sigma_projector: Float[Array, "5 5"] = jnp.outer(
+    d_sigma_projector: Float64[Array, "5 5"] = jnp.outer(
         d_sigma,
         d_sigma,
     )
-    d_pi_projector: Float[Array, "5 5"] = 2.0 * (
+    d_pi_projector: Float64[Array, "5 5"] = 2.0 * (
         tensor_vectors @ tensor_vectors.T
         - jnp.outer(tensor_direction, tensor_direction)
     )
-    d_identity: Float[Array, "5 5"] = jnp.eye(5, dtype=jnp.float64)
+    d_identity: Float64[Array, "5 5"] = jnp.eye(5, dtype=jnp.float64)
 
-    blocks: dict[tuple[int, int], Float[Array, "m1 m2"]] = {
+    blocks: dict[tuple[int, int], Float64[Array, "m1 m2"]] = {
         (0, 0): values[0:1, None],
         (0, 1): values[1] * p_direction[None, :],
         (0, 2): values[2] * d_sigma[None, :],
@@ -146,7 +146,7 @@ def _table_i_blocks(
 def _graphene_geometry() -> CrystalGeometry:
     """Construct the two-atom honeycomb geometry used by the shell gate."""
     lattice_constant: float = 2.46
-    lattice: Float[Array, "3 3"] = jnp.asarray(
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
             (lattice_constant, 0.0, 0.0),
             (
@@ -195,19 +195,19 @@ class TestSkBlock:
         slater-koster-analytic-tolerance.
         """
         generator: np.random.Generator = np.random.default_rng(93281)
-        raw: Float[NDArray, "n_direction 3"] = generator.normal(
+        raw: Float64[NDArray, "n_direction 3"] = generator.normal(
             size=(_TABLE_DIRECTIONS, 3)
         )
-        directions: Float[NDArray, "n_direction 3"] = raw / np.linalg.norm(
+        directions: Float64[NDArray, "n_direction 3"] = raw / np.linalg.norm(
             raw,
             axis=1,
             keepdims=True,
         )
-        values: Float[Array, " 10"] = jnp.asarray(
+        values: Float64[Array, " 10"] = jnp.asarray(
             (0.37, -1.1, 0.83, 2.3, -0.61, 1.7, -0.42, 3.1, -0.91, 0.28),
             dtype=jnp.float64,
         )
-        channel_vectors: dict[tuple[int, int], Float[Array, " n_m"]] = {
+        channel_vectors: dict[tuple[int, int], Float64[Array, " n_m"]] = {
             (0, 0): values[0:1],
             (0, 1): values[1:2],
             (0, 2): values[2:3],
@@ -216,19 +216,19 @@ class TestSkBlock:
             (2, 2): values[7:10],
         }
 
-        direction: Float[NDArray, " 3"]
+        direction: Float64[NDArray, " 3"]
         for direction in directions:
-            bond: Float[Array, " 3"] = jnp.asarray(
+            bond: Float64[Array, " 3"] = jnp.asarray(
                 direction,
                 dtype=jnp.float64,
             )
-            references: dict[tuple[int, int], Float[Array, "m1 m2"]] = (
+            references: dict[tuple[int, int], Float64[Array, "m1 m2"]] = (
                 _table_i_blocks(bond, values)
             )
             angular_pair: tuple[int, int]
-            integrals: Float[Array, " n_m"]
+            integrals: Float64[Array, " n_m"]
             for angular_pair, integrals in channel_vectors.items():
-                actual: Float[Array, "m1 m2"] = sk_block(
+                actual: Float64[Array, "m1 m2"] = sk_block(
                     angular_pair[0],
                     angular_pair[1],
                     integrals,
@@ -260,28 +260,28 @@ class TestSkBlock:
         Apply the radial-integral reversal convention automatically for a
         swapped shell order.
         """
-        bond: Float[Array, " 3"] = jnp.asarray(
+        bond: Float64[Array, " 3"] = jnp.asarray(
             (0.31, -0.47, 0.73),
             dtype=jnp.float64,
         )
-        integrals: Float[Array, " n_m"] = jnp.arange(
+        integrals: Float64[Array, " n_m"] = jnp.arange(
             1,
             min(l1, l2) + 2,
             dtype=jnp.float64,
         )
-        block: Float[Array, "m1 m2"] = sk_block(
+        block: Float64[Array, "m1 m2"] = sk_block(
             l1,
             l2,
             integrals,
             bond,
         )
-        reversed_bond: Float[Array, "m1 m2"] = sk_block(
+        reversed_bond: Float64[Array, "m1 m2"] = sk_block(
             l1,
             l2,
             integrals,
             -bond,
         )
-        swapped: Float[Array, "m2 m1"] = sk_block(
+        swapped: Float64[Array, "m2 m1"] = sk_block(
             l2,
             l1,
             integrals,
@@ -315,14 +315,14 @@ class TestSkBlock:
         Compare reverse-mode AD with its exact transverse pole derivative.
         """
         integral: float = 1.7
-        bond: Float[Array, " 3"] = jnp.asarray(
+        bond: Float64[Array, " 3"] = jnp.asarray(
             (0.0, 0.0, 2.0 * pole),
             dtype=jnp.float64,
         )
 
-        def s_px(candidate: Float[Array, " 3"]) -> Float[Array, ""]:
+        def s_px(candidate: Float64[Array, " 3"]) -> Float64[Array, ""]:
             """Return the s--px matrix element."""
-            value: Float[Array, ""] = sk_block(
+            value: Float64[Array, ""] = sk_block(
                 0,
                 1,
                 jnp.asarray((integral,), dtype=jnp.float64),
@@ -330,7 +330,7 @@ class TestSkBlock:
             )[0, 2]
             return value
 
-        gradient: Float[Array, " 3"] = jax.grad(s_px)(bond)
+        gradient: Float64[Array, " 3"] = jax.grad(s_px)(bond)
 
         np.testing.assert_allclose(
             gradient,
@@ -353,7 +353,7 @@ class TestSkBlock:
             sk_block,
             static_argnums=(0, 1),
         )
-        block: Float[Array, "5 3"] = compiled(
+        block: Float64[Array, "5 3"] = compiled(
             2,
             1,
             jnp.asarray((0.8, -0.3), dtype=jnp.float64),
@@ -394,8 +394,8 @@ class TestNeighborShells:
         geometry: CrystalGeometry = _graphene_geometry()
         atom_pairs: tuple[tuple[int, int], ...]
         cells: tuple[tuple[int, int, int], ...]
-        displacements: Float[Array, "3 3"]
-        distances: Float[Array, " 3"]
+        displacements: Float64[Array, "3 3"]
+        distances: Float64[Array, " 3"]
         atom_pairs, cells, displacements, distances = neighbor_shells(
             geometry,
             1.5,
@@ -406,7 +406,7 @@ class TestNeighborShells:
         assert all(
             type(component) is int for cell in cells for component in cell
         )
-        expected: Float[Array, "3 3"] = (
+        expected: Float64[Array, "3 3"] = (
             jnp.asarray(cells, dtype=jnp.float64)
             + geometry.positions[1]
             - geometry.positions[0]
@@ -430,7 +430,7 @@ class TestNeighborShells:
         canonical undirected bonds.
         """
         lattice_constant: float = 3.6
-        lattice: Float[Array, "3 3"] = (
+        lattice: Float64[Array, "3 3"] = (
             lattice_constant
             / 2.0
             * jnp.asarray(
@@ -445,7 +445,7 @@ class TestNeighborShells:
         )
         atom_pairs: tuple[tuple[int, int], ...]
         cells: tuple[tuple[int, int, int], ...]
-        distances: Float[Array, " 6"]
+        distances: Float64[Array, " 6"]
         atom_pairs, cells, _, distances = neighbor_shells(
             geometry,
             float(lattice_constant / np.sqrt(2.0) + 1e-8),
@@ -477,7 +477,7 @@ class TestNeighborShells:
         )
         atom_pairs: tuple[tuple[int, int], ...]
         cells: tuple[tuple[int, int, int], ...]
-        distances: Float[Array, " 3"]
+        distances: Float64[Array, " 3"]
         atom_pairs, cells, _, distances = neighbor_shells(geometry, 1.25)
 
         assert atom_pairs == ((0, 0), (0, 0), (0, 0))
@@ -513,7 +513,7 @@ class TestNeighborShells:
             ("X",),
         )
         cells: tuple[tuple[int, int, int], ...]
-        distances: Float[Array, " n_bond"]
+        distances: Float64[Array, " n_bond"]
         _, cells, _, distances = neighbor_shells(geometry, 0.31)
 
         target_index: int = cells.index((-3, 3, 0))
@@ -679,7 +679,9 @@ class TestBuildSkModel:
             ("X-X:ss_sigma",),
         )
 
-        def hopping(lattice: Float[Array, "3 3"]) -> Float[Array, " n_hop"]:
+        def hopping(
+            lattice: Float64[Array, "3 3"],
+        ) -> Float64[Array, " n_hop"]:
             """Build hopping amplitudes from a traced lattice."""
             candidate: CrystalGeometry = eqx.tree_at(
                 lambda item: item.lattice,
@@ -718,7 +720,7 @@ class TestBuildSkModel:
         Compare the fractional-position derivative with the analytic Cartesian
         derivative times the lattice-vector length.
         """
-        lattice: Float[Array, "3 3"] = jnp.diag(
+        lattice: Float64[Array, "3 3"] = jnp.diag(
             jnp.asarray((10.0, 10.0, 10.0), dtype=jnp.float64)
         )
         geometry: CrystalGeometry = make_crystal_geometry(
@@ -743,8 +745,8 @@ class TestBuildSkModel:
         )
 
         def hopping(
-            positions: Float[Array, "2 3"],
-        ) -> Float[Array, ""]:
+            positions: Float64[Array, "2 3"],
+        ) -> Float64[Array, ""]:
             """Return the forward s--px hopping on frozen topology."""
             candidate: CrystalGeometry = eqx.tree_at(
                 lambda item: item.positions,
@@ -760,10 +762,10 @@ class TestBuildSkModel:
                 (-1, -1),
                 3.0,
             )
-            value: Float[Array, ""] = jnp.real(model.hopping_amplitudes[0])
+            value: Float64[Array, ""] = jnp.real(model.hopping_amplitudes[0])
             return value
 
-        gradient: Float[Array, "2 3"] = jax.grad(hopping)(geometry.positions)
+        gradient: Float64[Array, "2 3"] = jax.grad(hopping)(geometry.positions)
 
         np.testing.assert_allclose(
             gradient[:, 0],
@@ -803,22 +805,22 @@ class TestBuildSkModel:
             ("X", "X"),
         )
         basis: OrbitalBasis = _compact_spd_basis()
-        initial: Float[Array, " 10"] = jnp.asarray(
+        initial: Float64[Array, " 10"] = jnp.asarray(
             (-0.8, 1.1, -0.7, 1.5, -0.4, 0.9, -0.3, 1.2, -0.6, 0.2),
             dtype=jnp.float64,
         )
-        onsite: Float[Array, " 6"] = jnp.linspace(
+        onsite: Float64[Array, " 6"] = jnp.linspace(
             -0.35,
             0.42,
             6,
             dtype=jnp.float64,
         )
-        kpoint: Float[Array, " 3"] = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.137, -0.219, 0.083),
             dtype=jnp.float64,
         )
 
-        def spectral_loss(values: Float[Array, " 10"]) -> Float[Array, ""]:
+        def spectral_loss(values: Float64[Array, " 10"]) -> Float64[Array, ""]:
             """Return the sum of squared tight-binding band energies."""
             params: SlaterKosterParams = make_slater_koster_params(
                 values,
@@ -833,10 +835,10 @@ class TestBuildSkModel:
                 (-1,) * 6,
                 2.0,
             )
-            eigenvalues: Float[Array, " 6"] = jnp.linalg.eigvalsh(
+            eigenvalues: Float64[Array, " 6"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
-            loss: Float[Array, ""] = jnp.sum(eigenvalues**2)
+            loss: Float64[Array, ""] = jnp.sum(eigenvalues**2)
             return loss
 
         assert_grad_matches_fd(spectral_loss, initial)

@@ -15,7 +15,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Any, Callable
 from jax.test_util import check_grads
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 from scipy.special import spherical_jn
 
@@ -225,7 +225,7 @@ class TestSphericalBesselJlDerivative(chex.TestCase):
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        positive: Float[NDArray, " n_positive"] = np.concatenate(
+        positive: Float64[NDArray, " n_positive"] = np.concatenate(
             (
                 np.array(
                     [
@@ -243,17 +243,17 @@ class TestSphericalBesselJlDerivative(chex.TestCase):
                 np.geomspace(3.0e-2, 100.0, 81),
             )
         )
-        arguments: Float[NDArray, " n_arg"] = np.concatenate(
+        arguments: Float64[NDArray, " n_arg"] = np.concatenate(
             (-positive[:0:-1], positive)
         )
         x: Array = jnp.asarray(arguments, dtype=jnp.float64)
         order: int
         for order in range(9):
-            expected_positive: Float[NDArray, " n_arg"] = spherical_jn(
+            expected_positive: Float64[NDArray, " n_arg"] = spherical_jn(
                 order,
                 np.abs(arguments),
             )
-            expected: Float[NDArray, " n_arg"] = np.where(
+            expected: Float64[NDArray, " n_arg"] = np.where(
                 arguments < 0.0,
                 (-1) ** order * expected_positive,
                 expected_positive,
@@ -276,7 +276,7 @@ class TestSphericalBesselJlDerivative(chex.TestCase):
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        arguments: Float[NDArray, " n_arg"] = np.array(
+        arguments: Float64[NDArray, " n_arg"] = np.array(
             [
                 -20.0,
                 -4.493409457909064,
@@ -293,10 +293,10 @@ class TestSphericalBesselJlDerivative(chex.TestCase):
         x: Array = jnp.asarray(arguments, dtype=jnp.float64)
         order: int
         for order in range(9):
-            positive_derivative: Float[NDArray, " n_arg"] = spherical_jn(
+            positive_derivative: Float64[NDArray, " n_arg"] = spherical_jn(
                 order, np.abs(arguments), derivative=True
             )
-            expected: Float[NDArray, " n_arg"] = np.where(
+            expected: Float64[NDArray, " n_arg"] = np.where(
                 arguments < 0.0,
                 (-1) ** (order + 1) * positive_derivative,
                 positive_derivative,

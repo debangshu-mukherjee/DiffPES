@@ -36,7 +36,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -79,12 +79,12 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
 def _require_exact_closure(
     model: TBModel,
     reverse_indices: tuple[int, ...],
-) -> Complex[NDArray, " n_hop"]:
+) -> Complex128[NDArray, " n_hop"]:
     """Require lossless rather than tolerance-projected Hermitian closure."""
-    host_amplitudes: Complex[NDArray, " n_hop"] = np.asarray(
+    host_amplitudes: Complex128[NDArray, " n_hop"] = np.asarray(
         model.hopping_amplitudes
     )
-    reversed_amplitudes: Complex[NDArray, " n_hop"] = host_amplitudes[
+    reversed_amplitudes: Complex128[NDArray, " n_hop"] = host_amplitudes[
         np.asarray(reverse_indices, dtype=np.int64)
     ]
     if not np.array_equal(reversed_amplitudes, np.conj(host_amplitudes)):
@@ -97,12 +97,12 @@ def _require_exact_closure(
 
 
 def _checked_vector(
-    vector: Float[Array, " n_par"],
+    vector: Float64[Array, " n_par"],
     expected_size: int,
     context: str,
-) -> Float[Array, " n_par"]:
+) -> Float64[Array, " n_par"]:
     """Normalize and validate one flat optimizer vector."""
-    array: Float[Array, " n_par"] = jnp.asarray(
+    array: Float64[Array, " n_par"] = jnp.asarray(
         vector,
         dtype=jnp.float64,
     )
@@ -111,7 +111,7 @@ def _checked_vector(
             f"{context}: parameter vector must have shape ({expected_size},)"
         )
         raise ValueError(message)
-    checked: Float[Array, " n_par"] = eqx.error_if(
+    checked: Float64[Array, " n_par"] = eqx.error_if(
         array,
         ~jnp.all(jnp.isfinite(array)),
         f"{context}: parameters finite",
@@ -125,8 +125,8 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     include_positions: bool = False,
     include_lattice: bool = False,
 ) -> tuple[
-    Float[Array, " n_par"],
-    Callable[[Float[Array, " n_par"]], TBModel],
+    Float64[Array, " n_par"],
+    Callable[[Float64[Array, " n_par"]], TBModel],
 ]:
     """Pack a materialized tight-binding model into independent coordinates.
 
@@ -148,12 +148,12 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
 
     Returns
     -------
-    parameters : Float[Array, " n_par"]
+    parameters : Float64[Array, " n_par"]
         Flat float64 optimizer coordinates. Each conjugate pair contributes
         one representative. Complex representatives contribute real and
         imaginary parts. Self-reverse records contribute one real value.
         Onsite, SOC, position, and lattice values follow.
-    rebuild : Callable[[Float[Array, " n_par"]], TBModel]
+    rebuild : Callable[[Float64[Array, " n_par"]], TBModel]
         Pure inverse closure that reconstructs an exactly Hermitian-closed
         model.
 
@@ -190,7 +190,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         message = "include_lattice must be a bool"
         raise ValueError(message)
     reverse_indices: tuple[int, ...] = _reverse_indices(model)
-    host_amplitudes: Complex[NDArray, " n_hop"] = _require_exact_closure(
+    host_amplitudes: Complex128[NDArray, " n_hop"] = _require_exact_closure(
         model,
         reverse_indices,
     )
@@ -204,7 +204,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         for representative in representatives
     )
 
-    parts: list[Float[Array, " n_part"]] = []
+    parts: list[Float64[Array, " n_part"]] = []
     representative: int
     is_self_reverse: bool
     for representative, is_self_reverse in zip(
@@ -212,7 +212,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         self_reverse,
         strict=True,
     ):
-        amplitude: Complex[Array, ""] = model.hopping_amplitudes[
+        amplitude: Complex128[Array, ""] = model.hopping_amplitudes[
             representative
         ]
         if is_self_reverse:
@@ -229,19 +229,19 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         parts.append(jnp.ravel(model.geometry.positions))
     if include_lattice:
         parts.append(jnp.ravel(model.geometry.lattice))
-    parameters: Float[Array, " n_par"] = (
+    parameters: Float64[Array, " n_par"] = (
         jnp.concatenate(parts) if parts else jnp.zeros((0,), dtype=jnp.float64)
     )
     expected_size: int = parameters.shape[0]
 
-    def rebuild(vector: Float[Array, " n_par"]) -> TBModel:
+    def rebuild(vector: Float64[Array, " n_par"]) -> TBModel:
         """Return the model reconstructed from independent coordinates."""
-        checked: Float[Array, " n_par"] = _checked_vector(
+        checked: Float64[Array, " n_par"] = _checked_vector(
             vector,
             expected_size,
             "tb_parameter_view rebuild",
         )
-        hopping: Complex[Array, " n_hop"] = jnp.zeros_like(
+        hopping: Complex128[Array, " n_hop"] = jnp.zeros_like(
             model.hopping_amplitudes
         )
         offset: int = 0
@@ -253,9 +253,9 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
             strict=True,
         ):
             reverse: int = reverse_indices[representative]
-            amplitude: Complex[Array, ""]
+            amplitude: Complex128[Array, ""]
             if is_self_reverse:
-                preserved_zero: Float[Array, ""] = jnp.asarray(
+                preserved_zero: Float64[Array, ""] = jnp.asarray(
                     np.imag(host_amplitudes[representative]),
                     dtype=jnp.float64,
                 )
@@ -266,26 +266,26 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
                 offset += 1
                 hopping = hopping.at[representative].set(amplitude)
             else:
-                packed: Float[Array, " 2"] = checked[offset : offset + 2]
+                packed: Float64[Array, " 2"] = checked[offset : offset + 2]
                 amplitude = unpack_complex(packed)
                 offset += 2
                 hopping = hopping.at[representative].set(amplitude)
                 hopping = hopping.at[reverse].set(jnp.conj(amplitude))
 
         n_onsite: int = model.onsite_energies.size
-        onsite: Float[Array, " n_orb"] = jnp.reshape(
+        onsite: Float64[Array, " n_orb"] = jnp.reshape(
             checked[offset : offset + n_onsite],
             model.onsite_energies.shape,
         )
         offset += n_onsite
         n_soc: int = model.soc_lambdas.size
-        soc: Float[Array, " n_shells"] = jnp.reshape(
+        soc: Float64[Array, " n_shells"] = jnp.reshape(
             checked[offset : offset + n_soc],
             model.soc_lambdas.shape,
         )
         offset += n_soc
         geometry: CrystalGeometry = model.geometry
-        positions: Float[Array, "n_atoms 3"] = model.geometry.positions
+        positions: Float64[Array, "n_atoms 3"] = model.geometry.positions
         if include_positions:
             n_positions: int = model.geometry.positions.size
             positions = jnp.reshape(
@@ -299,7 +299,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
                 positions,
             )
         if include_lattice:
-            lattice: Float[Array, "3 3"] = jnp.reshape(
+            lattice: Float64[Array, "3 3"] = jnp.reshape(
                 checked[offset:],
                 model.geometry.lattice.shape,
             )
@@ -324,8 +324,8 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         return rebuilt
 
     result: tuple[
-        Float[Array, " n_par"],
-        Callable[[Float[Array, " n_par"]], TBModel],
+        Float64[Array, " n_par"],
+        Callable[[Float64[Array, " n_par"]], TBModel],
     ] = (parameters, rebuild)
     return result
 
@@ -335,15 +335,15 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     sk_params: SlaterKosterParams,
-    onsite_energies: Float[Array, " n_orb"],
-    soc_lambdas: Float[Array, " n_shells"],
+    onsite_energies: Float64[Array, " n_orb"],
+    soc_lambdas: Float64[Array, " n_shells"],
     shell_index: tuple[int, ...],
     cutoff: float,
     include_positions: bool = False,
     include_lattice: bool = False,
 ) -> tuple[
-    Float[Array, " n_par"],
-    Callable[[Float[Array, " n_par"]], TBModel],
+    Float64[Array, " n_par"],
+    Callable[[Float64[Array, " n_par"]], TBModel],
 ]:
     """Pack Slater--Koster fundamentals and return a rebuilding closure.
 
@@ -360,9 +360,9 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         Static orbital metadata captured by the builder context.
     sk_params : SlaterKosterParams
         Differentiable fundamental two-center integrals.
-    onsite_energies : Float[Array, " n_orb"]
+    onsite_energies : Float64[Array, " n_orb"]
         Onsite orbital energies in eV.
-    soc_lambdas : Float[Array, " n_shells"]
+    soc_lambdas : Float64[Array, " n_shells"]
         Atomic spin--orbit strengths in eV.
     shell_index : tuple[int, ...]
         Static orbital-to-SOC-shell mapping.
@@ -377,10 +377,10 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
 
     Returns
     -------
-    parameters : Float[Array, " n_par"]
+    parameters : Float64[Array, " n_par"]
         Flat float64 vector ordered as SK values, onsite energies, SOC
         strengths, optional positions, and optional lattice rows.
-    rebuild : Callable[[Float[Array, " n_par"]], TBModel]
+    rebuild : Callable[[Float64[Array, " n_par"]], TBModel]
         Pure closure that rebuilds on the certified topology captured from
         ``geometry`` and ``cutoff``.
 
@@ -440,7 +440,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         geometry,
         cutoff,
     )
-    parts: list[Float[Array, " n_part"]] = [
+    parts: list[Float64[Array, " n_part"]] = [
         jnp.ravel(sk_params.values),
         jnp.ravel(template.onsite_energies),
         jnp.ravel(template.soc_lambdas),
@@ -449,34 +449,34 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         parts.append(jnp.ravel(template.geometry.positions))
     if include_lattice:
         parts.append(jnp.ravel(template.geometry.lattice))
-    parameters: Float[Array, " n_par"] = jnp.concatenate(parts)
+    parameters: Float64[Array, " n_par"] = jnp.concatenate(parts)
     expected_size: int = parameters.shape[0]
     n_sk: int = sk_params.values.size
     n_onsite: int = template.onsite_energies.size
     n_soc: int = template.soc_lambdas.size
 
-    def rebuild(vector: Float[Array, " n_par"]) -> TBModel:
+    def rebuild(vector: Float64[Array, " n_par"]) -> TBModel:
         """Return the Slater--Koster model from optimizer coordinates."""
-        checked: Float[Array, " n_par"] = _checked_vector(
+        checked: Float64[Array, " n_par"] = _checked_vector(
             vector,
             expected_size,
             "sk_model_parameter_view rebuild",
         )
         offset: int = 0
-        values: Float[Array, " n_sk"] = checked[offset : offset + n_sk]
+        values: Float64[Array, " n_sk"] = checked[offset : offset + n_sk]
         offset += n_sk
-        onsite: Float[Array, " n_orb"] = jnp.reshape(
+        onsite: Float64[Array, " n_orb"] = jnp.reshape(
             checked[offset : offset + n_onsite],
             template.onsite_energies.shape,
         )
         offset += n_onsite
-        soc: Float[Array, " n_shells"] = jnp.reshape(
+        soc: Float64[Array, " n_shells"] = jnp.reshape(
             checked[offset : offset + n_soc],
             template.soc_lambdas.shape,
         )
         offset += n_soc
         rebuilt_geometry: CrystalGeometry = template.geometry
-        positions: Float[Array, "n_atoms 3"] = template.geometry.positions
+        positions: Float64[Array, "n_atoms 3"] = template.geometry.positions
         if include_positions:
             n_positions: int = template.geometry.positions.size
             positions = jnp.reshape(
@@ -490,7 +490,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
                 positions,
             )
         if include_lattice:
-            lattice: Float[Array, "3 3"] = jnp.reshape(
+            lattice: Float64[Array, "3 3"] = jnp.reshape(
                 checked[offset:],
                 template.geometry.lattice.shape,
             )
@@ -518,8 +518,8 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         return rebuilt
 
     result: tuple[
-        Float[Array, " n_par"],
-        Callable[[Float[Array, " n_par"]], TBModel],
+        Float64[Array, " n_par"],
+        Callable[[Float64[Array, " n_par"]], TBModel],
     ] = (parameters, rebuild)
     return result
 

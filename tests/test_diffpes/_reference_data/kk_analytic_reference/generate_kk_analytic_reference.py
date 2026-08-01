@@ -60,7 +60,7 @@ def _semicircle_parts(omega_ev: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
 
 
 def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
-    """Numerically integrate the pole KK principal value."""
+    """Integrate the pole KK principal value numerically."""
     theta_0: mp.mpf = mp.atan(omega_ev)
 
     def transformed_numerator(theta: mp.mpf) -> mp.mpf:
@@ -89,7 +89,7 @@ def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
 
 
 def _semicircle_pv_real(omega_ev: mp.mpf) -> mp.mpf:
-    """Numerically integrate the semicircle KK principal value."""
+    """Integrate the semicircle KK principal value numerically."""
     imaginary_0_ev: mp.mpf = _semicircle_parts(omega_ev)[1]
     prefactor: mp.mpf = 2 * _SEMICIRCLE_G_EV2 / _SEMICIRCLE_BAND_EV**2
 
@@ -120,6 +120,7 @@ def _verify_principal_values() -> dict[str, str]:
         "pole_max_abs_error_ev": mp.mpf("0"),
         "semicircle_max_abs_error_ev": mp.mpf("0"),
     }
+    point_text: str
     for point_text in _PV_CHECK_POINTS_EV:
         omega_ev: mp.mpf = mp.mpf(point_text)
         pole_error_ev: mp.mpf = abs(
@@ -156,6 +157,11 @@ def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
     pole_imaginary: list[float] = []
     semicircle_real: list[float] = []
     semicircle_imaginary: list[float] = []
+    omega_ev: mp.mpf
+    pole_real_ev: mp.mpf
+    pole_imaginary_ev: mp.mpf
+    semicircle_real_ev: mp.mpf
+    semicircle_imaginary_ev: mp.mpf
     for omega_ev in omega_mp:
         pole_real_ev, pole_imaginary_ev = _pole_parts(omega_ev)
         semicircle_real_ev, semicircle_imaginary_ev = _semicircle_parts(
@@ -183,6 +189,9 @@ def _write_deterministic_npz(
     archive_path: Path, arrays: dict[str, Float[NDArray, "..."]]
 ) -> None:
     """Write arrays in a deterministic uncompressed NumPy archive."""
+    archive: zipfile.ZipFile
+    name: str
+    array: Float[NDArray, "..."]
     with zipfile.ZipFile(archive_path, "w", allowZip64=True) as archive:
         for name, array in arrays.items():
             buffer: io.BytesIO = io.BytesIO()

@@ -7,7 +7,7 @@ and rejection of a left-handed real-space basis.
 import chex
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 from diffpes.types import CrystalGeometry, make_crystal_geometry
 from tests._assertions import assert_rejects
@@ -33,8 +33,8 @@ class TestCrystalGeometry:
         The test constructs a one-atom geometry, flattens and unflattens it with JAX,
         then uses Chex for the numerical and static comparisons.
         """
-        lattice: Float[Array, "3 3"] = jnp.eye(3) * 3.0
-        positions: Float[Array, "1 3"] = jnp.zeros((1, 3))
+        lattice: Float64[Array, "3 3"] = jnp.eye(3) * 3.0
+        positions: Float64[Array, "1 3"] = jnp.zeros((1, 3))
         geometry: CrystalGeometry = make_crystal_geometry(
             lattice=lattice,
             positions=positions,
@@ -70,13 +70,13 @@ class TestMakeCrystalGeometry:
         matrix independently, and compares both matrices with Chex.
         """
         lattice_constant: float = 5.0
-        lattice: Float[Array, "3 3"] = jnp.eye(3) * lattice_constant
+        lattice: Float64[Array, "3 3"] = jnp.eye(3) * lattice_constant
         geometry: CrystalGeometry = make_crystal_geometry(
             lattice=lattice,
             positions=jnp.zeros((1, 3)),
             species=("X",),
         )
-        expected: Float[Array, "3 3"] = (
+        expected: Float64[Array, "3 3"] = (
             jnp.eye(3) * 2.0 * jnp.pi / lattice_constant
         )
 

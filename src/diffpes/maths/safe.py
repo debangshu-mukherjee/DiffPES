@@ -37,17 +37,17 @@ helper to hide invalid parameters or replace a known nonzero analytic limit.
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Bool, Float, jaxtyped
+from jaxtyping import Array, Bool, Float64, jaxtyped
 
 from diffpes.types import ScalarFloat
 
 
 @jaxtyped(typechecker=beartype)
 def safe_divide(
-    numerator: Float[Array, " ..."],
-    denominator: Float[Array, " ..."],
+    numerator: Float64[Array, " ..."],
+    denominator: Float64[Array, " ..."],
     fallback: ScalarFloat = 0.0,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     """Divide with a fallback and zero quotient gradients at zero denominators.
 
     Applies elementwise guarded division to broadcast-compatible real arrays.
@@ -57,16 +57,16 @@ def safe_divide(
 
     Parameters
     ----------
-    numerator : Float[Array, " ..."]
+    numerator : Float64[Array, " ..."]
         Dividend array.
-    denominator : Float[Array, " ..."]
+    denominator : Float64[Array, " ..."]
         Divisor array broadcast-compatible with ``numerator``.
     fallback : ScalarFloat
         Value returned wherever ``denominator`` is zero.
 
     Returns
     -------
-    quotient : Float[Array, " ..."]
+    quotient : Float64[Array, " ..."]
         Broadcast quotient with ``fallback`` at zero denominators.
 
     Notes
@@ -78,16 +78,16 @@ def safe_divide(
     denominator is valid for the calling model.
     """
     nonzero: Bool[Array, " ..."] = denominator != 0.0
-    sanitized_denominator: Float[Array, " ..."] = jnp.where(
+    sanitized_denominator: Float64[Array, " ..."] = jnp.where(
         nonzero, denominator, 1.0
     )
-    divided: Float[Array, " ..."] = numerator / sanitized_denominator
-    quotient: Float[Array, " ..."] = jnp.where(nonzero, divided, fallback)
+    divided: Float64[Array, " ..."] = numerator / sanitized_denominator
+    quotient: Float64[Array, " ..."] = jnp.where(nonzero, divided, fallback)
     return quotient
 
 
 @jaxtyped(typechecker=beartype)
-def safe_sqrt(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
+def safe_sqrt(x: Float64[Array, " ..."]) -> Float64[Array, " ..."]:
     """Evaluate sqrt on positive inputs and return zero otherwise.
 
     Applies the principal real square root only on its positive domain. The
@@ -98,12 +98,12 @@ def safe_sqrt(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
 
     Parameters
     ----------
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real input array.
 
     Returns
     -------
-    roots : Float[Array, " ..."]
+    roots : Float64[Array, " ..."]
         Principal square roots, with zero for ``x <= 0``.
 
     Notes
@@ -113,18 +113,18 @@ def safe_sqrt(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     Callers for which ``x < 0`` is invalid must reject it before this helper.
     """
     positive: Bool[Array, " ..."] = x > 0.0
-    sanitized_x: Float[Array, " ..."] = jnp.where(positive, x, 1.0)
-    positive_roots: Float[Array, " ..."] = jnp.sqrt(sanitized_x)
-    roots: Float[Array, " ..."] = jnp.where(positive, positive_roots, 0.0)
+    sanitized_x: Float64[Array, " ..."] = jnp.where(positive, x, 1.0)
+    positive_roots: Float64[Array, " ..."] = jnp.sqrt(sanitized_x)
+    roots: Float64[Array, " ..."] = jnp.where(positive, positive_roots, 0.0)
     return roots
 
 
 @jaxtyped(typechecker=beartype)
 def safe_norm(
-    x: Float[Array, " ... n"],
+    x: Float64[Array, " ... n"],
     axis: int = -1,
     keepdims: bool = False,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     """Compute a Euclidean norm with a zero gradient at zero vectors.
 
     Reduces the selected vector axis with a guarded square root. The operation
@@ -134,7 +134,7 @@ def safe_norm(
 
     Parameters
     ----------
-    x : Float[Array, " ... n"]
+    x : Float64[Array, " ... n"]
         Real vectors.
     axis : int
         (**static** — a compile-time constant; changing it triggers
@@ -145,7 +145,7 @@ def safe_norm(
 
     Returns
     -------
-    norms : Float[Array, " ..."]
+    norms : Float64[Array, " ..."]
         Euclidean norms reduced along ``axis``.
 
     Notes
@@ -153,15 +153,15 @@ def safe_norm(
     The function passes the squared norm to :func:`safe_sqrt`. A zero vector
     has value zero and a zero selected gradient.
     """
-    squared_norms: Float[Array, " ..."] = jnp.sum(
+    squared_norms: Float64[Array, " ..."] = jnp.sum(
         x * x, axis=axis, keepdims=keepdims
     )
-    norms: Float[Array, " ..."] = safe_sqrt(squared_norms)
+    norms: Float64[Array, " ..."] = safe_sqrt(squared_norms)
     return norms
 
 
 @jaxtyped(typechecker=beartype)
-def safe_arccos(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
+def safe_arccos(x: Float64[Array, " ..."]) -> Float64[Array, " ..."]:
     """Evaluate arccos with saturated values and zero boundary gradients.
 
     Computes real angles on the closed cosine range. Values outside the range
@@ -171,12 +171,12 @@ def safe_arccos(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
 
     Parameters
     ----------
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real cosine values.
 
     Returns
     -------
-    angles : Float[Array, " ..."]
+    angles : Float64[Array, " ..."]
         Angles in radians, saturated to ``pi`` below -1 and zero above 1.
 
     Notes
@@ -188,10 +188,12 @@ def safe_arccos(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     acceptable.
     """
     interior: Bool[Array, " ..."] = jnp.abs(x) < 1.0
-    sanitized_x: Float[Array, " ..."] = jnp.where(interior, x, 0.0)
-    interior_angles: Float[Array, " ..."] = jnp.arccos(sanitized_x)
-    saturated_angles: Float[Array, " ..."] = jnp.where(x <= -1.0, jnp.pi, 0.0)
-    angles: Float[Array, " ..."] = jnp.where(
+    sanitized_x: Float64[Array, " ..."] = jnp.where(interior, x, 0.0)
+    interior_angles: Float64[Array, " ..."] = jnp.arccos(sanitized_x)
+    saturated_angles: Float64[Array, " ..."] = jnp.where(
+        x <= -1.0, jnp.pi, 0.0
+    )
+    angles: Float64[Array, " ..."] = jnp.where(
         interior, interior_angles, saturated_angles
     )
     return angles
@@ -199,8 +201,8 @@ def safe_arccos(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
 
 @jaxtyped(typechecker=beartype)
 def safe_arctan2(
-    y: Float[Array, " ..."], x: Float[Array, " ..."]
-) -> Float[Array, " ..."]:
+    y: Float64[Array, " ..."], x: Float64[Array, " ..."]
+) -> Float64[Array, " ..."]:
     """Evaluate arctan2 with a zero value and gradient at the origin.
 
     Computes four-quadrant angles for broadcast-compatible Cartesian
@@ -210,14 +212,14 @@ def safe_arctan2(
 
     Parameters
     ----------
-    y : Float[Array, " ..."]
+    y : Float64[Array, " ..."]
         Vertical coordinates.
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Horizontal coordinates broadcast-compatible with ``y``.
 
     Returns
     -------
-    angles : Float[Array, " ..."]
+    angles : Float64[Array, " ..."]
         Four-quadrant angles in radians, with zero at ``(0, 0)``.
 
     Notes
@@ -227,12 +229,12 @@ def safe_arctan2(
     subgradients at the origin are zero.
     """
     away_from_origin: Bool[Array, " ..."] = (x != 0.0) | (y != 0.0)
-    sanitized_x: Float[Array, " ..."] = jnp.where(away_from_origin, x, 1.0)
-    sanitized_y: Float[Array, " ..."] = jnp.where(away_from_origin, y, 0.0)
-    ordinary_angles: Float[Array, " ..."] = jnp.arctan2(
+    sanitized_x: Float64[Array, " ..."] = jnp.where(away_from_origin, x, 1.0)
+    sanitized_y: Float64[Array, " ..."] = jnp.where(away_from_origin, y, 0.0)
+    ordinary_angles: Float64[Array, " ..."] = jnp.arctan2(
         sanitized_y, sanitized_x
     )
-    angles: Float[Array, " ..."] = jnp.where(
+    angles: Float64[Array, " ..."] = jnp.where(
         away_from_origin, ordinary_angles, 0.0
     )
     return angles
@@ -240,8 +242,8 @@ def safe_arctan2(
 
 @jaxtyped(typechecker=beartype)
 def safe_log(
-    x: Float[Array, " ..."], floor: ScalarFloat = 1e-300
-) -> Float[Array, " ..."]:
+    x: Float64[Array, " ..."], floor: ScalarFloat = 1e-300
+) -> Float64[Array, " ..."]:
     """Evaluate log with a finite floor and zero gradients below it.
 
     Computes the natural logarithm on a positive guarded domain. The floor
@@ -252,14 +254,14 @@ def safe_log(
 
     Parameters
     ----------
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real input array.
     floor : ScalarFloat
         Positive lower bound used before taking the logarithm.
 
     Returns
     -------
-    logarithms : Float[Array, " ..."]
+    logarithms : Float64[Array, " ..."]
         Natural logarithms of ``maximum(x, floor)``.
 
     Notes
@@ -270,15 +272,15 @@ def safe_log(
     is a scientific requirement.
     """
     above_floor: Bool[Array, " ..."] = x > floor
-    sanitized_x: Float[Array, " ..."] = jnp.where(above_floor, x, floor)
-    logarithms: Float[Array, " ..."] = jnp.log(sanitized_x)
+    sanitized_x: Float64[Array, " ..."] = jnp.where(above_floor, x, floor)
+    logarithms: Float64[Array, " ..."] = jnp.log(sanitized_x)
     return logarithms
 
 
 @jaxtyped(typechecker=beartype)
 def safe_power(
-    x: Float[Array, " ..."], exponent: ScalarFloat
-) -> Float[Array, " ..."]:
+    x: Float64[Array, " ..."], exponent: ScalarFloat
+) -> Float64[Array, " ..."]:
     """Raise positive inputs to a power and return zero otherwise.
 
     Computes real powers on positive bases for arbitrary real exponents. A
@@ -289,14 +291,14 @@ def safe_power(
 
     Parameters
     ----------
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Real bases.
     exponent : ScalarFloat
         Real exponent, including non-integer values.
 
     Returns
     -------
-    powers : Float[Array, " ..."]
+    powers : Float64[Array, " ..."]
         ``x**exponent`` for positive ``x`` and zero otherwise.
 
     Notes
@@ -308,9 +310,9 @@ def safe_power(
     physics rather than a registered boundary convention.
     """
     positive: Bool[Array, " ..."] = x > 0.0
-    sanitized_x: Float[Array, " ..."] = jnp.where(positive, x, 1.0)
-    positive_powers: Float[Array, " ..."] = jnp.power(sanitized_x, exponent)
-    powers: Float[Array, " ..."] = jnp.where(positive, positive_powers, 0.0)
+    sanitized_x: Float64[Array, " ..."] = jnp.where(positive, x, 1.0)
+    positive_powers: Float64[Array, " ..."] = jnp.power(sanitized_x, exponent)
+    powers: Float64[Array, " ..."] = jnp.where(positive, positive_powers, 0.0)
     return powers
 
 

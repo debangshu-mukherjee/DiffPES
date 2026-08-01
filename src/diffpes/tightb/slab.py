@@ -49,7 +49,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.maths import (
@@ -105,7 +105,7 @@ def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
     return result
 
 
-def _determinant_3x3(matrix: Int[NDArray, "3 3"]) -> int:
+def _determinant_3x3(matrix: Int64[NDArray, "3 3"]) -> int:
     """Evaluate a three-dimensional integer determinant exactly."""
     a: int = int(matrix[0, 0])
     b: int = int(matrix[0, 1])
@@ -124,7 +124,7 @@ def _determinant_3x3(matrix: Int[NDArray, "3 3"]) -> int:
 
 def _primitive_integer_frame(
     miller: tuple[int, int, int],
-) -> tuple[Int[NDArray, "2 3"], Int[NDArray, " 3"]]:
+) -> tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]:
     """Construct an oriented integer kernel basis and unit-advance vector."""
     first: int
     second: int
@@ -138,11 +138,11 @@ def _primitive_integer_frame(
         second,
     )
     if gcd_first_two == 0:
-        kernel: Int[NDArray, "2 3"] = np.asarray(
+        kernel: Int64[NDArray, "2 3"] = np.asarray(
             ((1, 0, 0), (0, 1, 0)),
             dtype=np.int64,
         )
-        stacking: Int[NDArray, " 3"] = np.asarray(
+        stacking: Int64[NDArray, " 3"] = np.asarray(
             (0, 0, third),
             dtype=np.int64,
         )
@@ -176,14 +176,14 @@ def _primitive_integer_frame(
             ),
             dtype=np.int64,
         )
-    frame: Int[NDArray, "3 3"] = np.vstack((kernel, stacking))
+    frame: Int64[NDArray, "3 3"] = np.vstack((kernel, stacking))
     determinant: int = _determinant_3x3(frame)
     if abs(determinant) != 1:
         message = "surface integer frame must be unimodular"
         raise ValueError(message)
     if determinant < 0:
         kernel[1] *= -1
-    result: tuple[Int[NDArray, "2 3"], Int[NDArray, " 3"]] = (
+    result: tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]] = (
         kernel,
         stacking,
     )
@@ -191,13 +191,13 @@ def _primitive_integer_frame(
 
 
 def _gauss_reduce(
-    kernel: Int[NDArray, "2 3"],
-    lattice: Float[NDArray, "3 3"],
-) -> Int[NDArray, "2 3"]:
+    kernel: Int64[NDArray, "2 3"],
+    lattice: Float64[NDArray, "3 3"],
+) -> Int64[NDArray, "2 3"]:
     """Compute an exact reduced basis in the Cartesian lattice metric."""
-    reduced: Int[NDArray, "2 3"] = kernel.copy()
+    reduced: Int64[NDArray, "2 3"] = kernel.copy()
     for _ in range(256):
-        vectors: Float[NDArray, "2 3"] = reduced @ lattice
+        vectors: Float64[NDArray, "2 3"] = reduced @ lattice
         first_norm: float = float(vectors[0] @ vectors[0])
         second_norm: float = float(vectors[1] @ vectors[1])
         if second_norm < first_norm:
@@ -217,37 +217,39 @@ def _gauss_reduce(
 
 
 def _closest_stacking_vector(
-    stacking: Int[NDArray, " 3"],
-    kernel: Int[NDArray, "2 3"],
-    lattice: Float[NDArray, "3 3"],
-) -> Int[NDArray, " 3"]:
+    stacking: Int64[NDArray, " 3"],
+    kernel: Int64[NDArray, "2 3"],
+    lattice: Float64[NDArray, "3 3"],
+) -> Int64[NDArray, " 3"]:
     """Compute the closest unit-advance vector to the plane normal."""
-    in_plane: Float[NDArray, "2 3"] = kernel @ lattice
-    seed: Float[NDArray, " 3"] = stacking @ lattice
-    gram: Float[NDArray, "2 2"] = in_plane @ in_plane.T
-    continuous: Float[NDArray, " 2"] = np.linalg.solve(
+    in_plane: Float64[NDArray, "2 3"] = kernel @ lattice
+    seed: Float64[NDArray, " 3"] = stacking @ lattice
+    gram: Float64[NDArray, "2 2"] = in_plane @ in_plane.T
+    continuous: Float64[NDArray, " 2"] = np.linalg.solve(
         gram, -(in_plane @ seed)
     )
-    rounded: Int[NDArray, " 2"] = np.rint(continuous).astype(np.int64)
+    rounded: Int64[NDArray, " 2"] = np.rint(continuous).astype(np.int64)
 
     def perpendicular_norm_squared(
-        coefficients: Int[NDArray, " 2"],
+        coefficients: Int64[NDArray, " 2"],
     ) -> float:
-        candidate: Float[NDArray, " 3"] = seed + coefficients @ in_plane
+        candidate: Float64[NDArray, " 3"] = seed + coefficients @ in_plane
         norm_squared: float = float(candidate @ candidate)
         return norm_squared
 
-    best_coefficients: Int[NDArray, " 2"] = rounded
+    best_coefficients: Int64[NDArray, " 2"] = rounded
     best_norm: float = perpendicular_norm_squared(best_coefficients)
     smallest_singular: float = float(
         np.linalg.svd(in_plane, compute_uv=False)[-1]
     )
     radius: float = math.sqrt(best_norm) / smallest_singular + 1.0
-    lower: Int[NDArray, " 2"] = np.floor(continuous - radius).astype(np.int64)
-    upper: Int[NDArray, " 2"] = np.ceil(continuous + radius).astype(np.int64)
+    lower: Int64[NDArray, " 2"] = np.floor(continuous - radius).astype(
+        np.int64
+    )
+    upper: Int64[NDArray, " 2"] = np.ceil(continuous + radius).astype(np.int64)
     first_coefficient: int
     second_coefficient: int
-    coefficients: Int[NDArray, " 2"]
+    coefficients: Int64[NDArray, " 2"]
     for first_coefficient in range(int(lower[0]), int(upper[0]) + 1):
         for second_coefficient in range(int(lower[1]), int(upper[1]) + 1):
             coefficients = np.asarray(
@@ -268,7 +270,7 @@ def _closest_stacking_vector(
             if candidate_key < best_key:
                 best_norm = candidate_norm
                 best_coefficients = coefficients
-    closest: Int[NDArray, " 3"] = stacking + best_coefficients @ kernel
+    closest: Int64[NDArray, " 3"] = stacking + best_coefficients @ kernel
     return closest
 
 
@@ -297,42 +299,42 @@ def _validate_miller(
 
 
 def _surface_rotation(
-    reciprocal_normal: Float[Array, " 3"],
-) -> Float[Array, "3 3"]:
+    reciprocal_normal: Float64[Array, " 3"],
+) -> Float64[Array, "3 3"]:
     """Construct the guarded active rotation from a normal to positive z."""
-    normal_norm: Float[Array, ""] = safe_norm(reciprocal_normal)
-    normal: Float[Array, " 3"] = reciprocal_normal / normal_norm
-    z_axis: Float[Array, " 3"] = jnp.asarray(
+    normal_norm: Float64[Array, ""] = safe_norm(reciprocal_normal)
+    normal: Float64[Array, " 3"] = reciprocal_normal / normal_norm
+    z_axis: Float64[Array, " 3"] = jnp.asarray(
         (0.0, 0.0, 1.0),
         dtype=normal.dtype,
     )
-    cross_vector: Float[Array, " 3"] = jnp.cross(normal, z_axis)
-    cross_x: Float[Array, ""] = cross_vector[0]
-    cross_y: Float[Array, ""] = cross_vector[1]
-    cross_z: Float[Array, ""] = cross_vector[2]
-    zero: Float[Array, ""] = jnp.zeros_like(cross_x)
-    skew: Float[Array, "3 3"] = jnp.stack(
+    cross_vector: Float64[Array, " 3"] = jnp.cross(normal, z_axis)
+    cross_x: Float64[Array, ""] = cross_vector[0]
+    cross_y: Float64[Array, ""] = cross_vector[1]
+    cross_z: Float64[Array, ""] = cross_vector[2]
+    zero: Float64[Array, ""] = jnp.zeros_like(cross_x)
+    skew: Float64[Array, "3 3"] = jnp.stack(
         (
             jnp.stack((zero, -cross_z, cross_y)),
             jnp.stack((cross_z, zero, -cross_x)),
             jnp.stack((-cross_y, cross_x, zero)),
         )
     )
-    cosine: Float[Array, ""] = jnp.dot(normal, z_axis)
+    cosine: Float64[Array, ""] = jnp.dot(normal, z_axis)
     away_from_antipode: Array = cosine > -1.0 + 1e-12
-    sanitized_denominator: Float[Array, ""] = jnp.where(
+    sanitized_denominator: Float64[Array, ""] = jnp.where(
         away_from_antipode,
         1.0 + cosine,
         1.0,
     )
-    identity: Float[Array, "3 3"] = jnp.eye(3, dtype=normal.dtype)
-    generic: Float[Array, "3 3"] = (
+    identity: Float64[Array, "3 3"] = jnp.eye(3, dtype=normal.dtype)
+    generic: Float64[Array, "3 3"] = (
         identity + skew + (skew @ skew) / sanitized_denominator
     )
-    antiparallel: Float[Array, "3 3"] = jnp.diag(
+    antiparallel: Float64[Array, "3 3"] = jnp.diag(
         jnp.asarray((1.0, -1.0, -1.0), dtype=normal.dtype)
     )
-    rotation: Float[Array, "3 3"] = jnp.where(
+    rotation: Float64[Array, "3 3"] = jnp.where(
         away_from_antipode,
         generic,
         antiparallel,
@@ -350,19 +352,21 @@ def _assemble_surface_cell(
     stacking_coeffs: tuple[int, int, int],
 ) -> SurfaceCell:
     """Assemble continuous surface geometry from frozen integer topology."""
-    coefficient_array: Float[Array, "3 3"] = jnp.asarray(
+    coefficient_array: Float64[Array, "3 3"] = jnp.asarray(
         (*in_plane_coeffs, stacking_coeffs),
         dtype=jnp.float64,
     )
-    bulk_vectors: Float[Array, "3 3"] = coefficient_array @ geometry.lattice
-    miller_array: Float[Array, " 3"] = jnp.asarray(
+    bulk_vectors: Float64[Array, "3 3"] = coefficient_array @ geometry.lattice
+    miller_array: Float64[Array, " 3"] = jnp.asarray(
         miller,
         dtype=jnp.float64,
     )
-    reciprocal_normal: Float[Array, " 3"] = miller_array @ geometry.reciprocal
-    rotation: Float[Array, "3 3"] = _surface_rotation(reciprocal_normal)
-    surface_vectors: Float[Array, "3 3"] = bulk_vectors @ rotation.T
-    spacing: Float[Array, ""] = 2.0 * jnp.pi / safe_norm(reciprocal_normal)
+    reciprocal_normal: Float64[Array, " 3"] = (
+        miller_array @ geometry.reciprocal
+    )
+    rotation: Float64[Array, "3 3"] = _surface_rotation(reciprocal_normal)
+    surface_vectors: Float64[Array, "3 3"] = bulk_vectors @ rotation.T
+    spacing: Float64[Array, ""] = 2.0 * jnp.pi / safe_norm(reciprocal_normal)
     surface_cell: SurfaceCell = make_surface_cell(
         in_plane_vectors=surface_vectors[:2],
         stacking_vector=surface_vectors[2],
@@ -419,12 +423,12 @@ def find_surface_cell(  # noqa: DOC502
     :see: :class:`~.test_slab.TestFindSurfaceCell`
     """
     primitive_miller: tuple[int, int, int] = _validate_miller(miller)
-    lattice_snapshot: Float[NDArray, "3 3"] = np.asarray(
+    lattice_snapshot: Float64[NDArray, "3 3"] = np.asarray(
         geometry.lattice,
         dtype=np.float64,
     )
-    kernel: Int[NDArray, "2 3"]
-    stacking: Int[NDArray, " 3"]
+    kernel: Int64[NDArray, "2 3"]
+    stacking: Int64[NDArray, " 3"]
     kernel, stacking = _primitive_integer_frame(primitive_miller)
     kernel = _gauss_reduce(kernel, lattice_snapshot)
     stacking = _closest_stacking_vector(
@@ -501,91 +505,91 @@ def _missing_magnetic_numbers(
 
 
 def _rotation_euler_zyz(
-    rotation: Float[Array, "3 3"],
-) -> tuple[Float[Array, ""], Float[Array, ""], Float[Array, ""]]:
+    rotation: Float64[Array, "3 3"],
+) -> tuple[Float64[Array, ""], Float64[Array, ""], Float64[Array, ""]]:
     """Convert one active Cartesian rotation to guarded z-y-z angles."""
-    beta: Float[Array, ""] = safe_arccos(rotation[2, 2])
-    sine_beta: Float[Array, ""] = jnp.sin(beta)
-    generic_alpha: Float[Array, ""] = safe_arctan2(
+    beta: Float64[Array, ""] = safe_arccos(rotation[2, 2])
+    sine_beta: Float64[Array, ""] = jnp.sin(beta)
+    generic_alpha: Float64[Array, ""] = safe_arctan2(
         rotation[1, 2],
         rotation[0, 2],
     )
-    generic_gamma: Float[Array, ""] = safe_arctan2(
+    generic_gamma: Float64[Array, ""] = safe_arctan2(
         rotation[2, 1],
         -rotation[2, 0],
     )
-    positive_alpha: Float[Array, ""] = safe_arctan2(
+    positive_alpha: Float64[Array, ""] = safe_arctan2(
         rotation[1, 0],
         rotation[0, 0],
     )
-    negative_alpha: Float[Array, ""] = safe_arctan2(
+    negative_alpha: Float64[Array, ""] = safe_arctan2(
         -rotation[1, 0],
         -rotation[0, 0],
     )
-    pole_alpha: Float[Array, ""] = jnp.where(
+    pole_alpha: Float64[Array, ""] = jnp.where(
         rotation[2, 2] >= 0.0,
         positive_alpha,
         negative_alpha,
     )
-    alpha: Float[Array, ""] = jnp.where(
+    alpha: Float64[Array, ""] = jnp.where(
         jnp.abs(sine_beta) > 1e-12,  # noqa: PLR2004
         generic_alpha,
         pole_alpha,
     )
-    gamma: Float[Array, ""] = jnp.where(
+    gamma: Float64[Array, ""] = jnp.where(
         jnp.abs(sine_beta) > 1e-12,  # noqa: PLR2004
         generic_gamma,
         0.0,
     )
     result: tuple[
-        Float[Array, ""],
-        Float[Array, ""],
-        Float[Array, ""],
+        Float64[Array, ""],
+        Float64[Array, ""],
+        Float64[Array, ""],
     ] = (alpha, beta, gamma)
     return result
 
 
 def _real_wigner(
     angular: int,
-    alpha: Float[Array, ""],
-    beta: Float[Array, ""],
-    gamma: Float[Array, ""],
-) -> Complex[Array, "m1 m2"]:
+    alpha: Float64[Array, ""],
+    beta: Float64[Array, ""],
+    gamma: Float64[Array, ""],
+) -> Complex128[Array, "m1 m2"]:
     """Convert the complex Wigner representation to real harmonics."""
-    complex_matrix: Complex[Array, "m1 m2"] = wigner_d(
+    complex_matrix: Complex128[Array, "m1 m2"] = wigner_d(
         angular,
         alpha,
         beta,
         gamma,
     )
-    unitary: Complex[Array, "m1 m2"] = real_harmonic_unitary(angular)
-    real_matrix: Complex[Array, "m1 m2"] = (
+    unitary: Complex128[Array, "m1 m2"] = real_harmonic_unitary(angular)
+    real_matrix: Complex128[Array, "m1 m2"] = (
         unitary.conj() @ complex_matrix @ unitary.T
     )
     return real_matrix
 
 
 def _spin_half_wigner(
-    alpha: Float[Array, ""],
-    beta: Float[Array, ""],
-    gamma: Float[Array, ""],
-) -> Complex[Array, "2 2"]:
+    alpha: Float64[Array, ""],
+    beta: Float64[Array, ""],
+    gamma: Float64[Array, ""],
+) -> Complex128[Array, "2 2"]:
     """Construct the spin-half Wigner matrix in (-1, +1) order."""
-    cosine: Float[Array, ""] = jnp.cos(0.5 * beta)
-    sine: Float[Array, ""] = jnp.sin(0.5 * beta)
-    small: Float[Array, "2 2"] = jnp.stack(
+    cosine: Float64[Array, ""] = jnp.cos(0.5 * beta)
+    sine: Float64[Array, ""] = jnp.sin(0.5 * beta)
+    small: Float64[Array, "2 2"] = jnp.stack(
         (
             jnp.stack((cosine, sine)),
             jnp.stack((-sine, cosine)),
         )
     )
-    magnetic: Float[Array, " 2"] = jnp.asarray(
+    magnetic: Float64[Array, " 2"] = jnp.asarray(
         (-0.5, 0.5),
         dtype=beta.dtype,
     )
-    alpha_phase: Complex[Array, " 2"] = jnp.exp(-1j * magnetic * alpha)
-    gamma_phase: Complex[Array, " 2"] = jnp.exp(-1j * magnetic * gamma)
-    matrix: Complex[Array, "2 2"] = (
+    alpha_phase: Complex128[Array, " 2"] = jnp.exp(-1j * magnetic * alpha)
+    gamma_phase: Complex128[Array, " 2"] = jnp.exp(-1j * magnetic * gamma)
+    matrix: Complex128[Array, "2 2"] = (
         alpha_phase[:, None] * small * gamma_phase[None, :]
     )
     return matrix
@@ -593,23 +597,23 @@ def _spin_half_wigner(
 
 def _orbital_rotation(
     model: TBModel,
-    rotation: Float[Array, "3 3"],
-) -> Complex[Array, "n_orb n_orb"]:
+    rotation: Float64[Array, "3 3"],
+) -> Complex128[Array, "n_orb n_orb"]:
     """Assemble the block-diagonal orbital and spin representation."""
-    alpha: Float[Array, ""]
-    beta: Float[Array, ""]
-    gamma: Float[Array, ""]
+    alpha: Float64[Array, ""]
+    beta: Float64[Array, ""]
+    gamma: Float64[Array, ""]
     alpha, beta, gamma = _rotation_euler_zyz(rotation)
     n_orbitals: int = len(model.basis.n)
-    representation: Complex[Array, "n_orb n_orb"] = jnp.zeros(
+    representation: Complex128[Array, "n_orb n_orb"] = jnp.zeros(
         (n_orbitals, n_orbitals),
         dtype=jnp.complex128,
     )
-    angular_matrices: dict[int, Complex[Array, "m1 m2"]] = {
+    angular_matrices: dict[int, Complex128[Array, "m1 m2"]] = {
         angular: _real_wigner(angular, alpha, beta, gamma)
         for angular in set(model.basis.l)
     }
-    spin_matrix: Complex[Array, "2 2"] | None = (
+    spin_matrix: Complex128[Array, "2 2"] | None = (
         _spin_half_wigner(alpha, beta, gamma) if model.spinor else None
     )
     row: int
@@ -625,12 +629,12 @@ def _orbital_rotation(
             if not same_shell:
                 continue
             angular: int = model.basis.l[row]
-            angular_factor: Complex[Array, ""] = angular_matrices[angular][
+            angular_factor: Complex128[Array, ""] = angular_matrices[angular][
                 model.basis.m[row] + angular,
                 model.basis.m[column] + angular,
             ]
             if spin_matrix is None:
-                spin_factor: complex | Complex[Array, ""] = (
+                spin_factor: complex | Complex128[Array, ""] = (
                     1.0 if row == column or same_shell else 0.0
                 )
             else:
@@ -645,14 +649,14 @@ def _orbital_rotation(
 
 def _translation_blocks(
     model: TBModel,
-) -> tuple[tuple[tuple[int, int, int], ...], Complex[Array, "n_r n_o n_o"]]:
+) -> tuple[tuple[tuple[int, int, int], ...], Complex128[Array, "n_r n_o n_o"]]:
     """Materialize translation blocks, including diagonal onsite terms."""
     zero_cell: tuple[int, int, int] = (0, 0, 0)
     cells: tuple[tuple[int, int, int], ...] = tuple(
         sorted(set(model.hopping_cells) | {zero_cell})
     )
     n_orbitals: int = len(model.basis.n)
-    blocks: Complex[Array, "n_r n_o n_o"] = jnp.zeros(
+    blocks: Complex128[Array, "n_r n_o n_o"] = jnp.zeros(
         (len(cells), n_orbitals, n_orbitals),
         dtype=jnp.complex128,
     )
@@ -676,7 +680,7 @@ def _translation_blocks(
     )
     result: tuple[
         tuple[tuple[int, int, int], ...],
-        Complex[Array, "n_r n_o n_o"],
+        Complex128[Array, "n_r n_o n_o"],
     ] = (cells, blocks)
     return result
 
@@ -684,7 +688,7 @@ def _translation_blocks(
 @jaxtyped(typechecker=beartype)
 def rotate_tb_model(  # noqa: DOC503
     model: TBModel,
-    rotation: Float[Array, "3 3"],
+    rotation: Float64[Array, "3 3"],
 ) -> TBModel:
     """Construct a rotated complete-shell tight-binding model.
 
@@ -692,7 +696,7 @@ def rotate_tb_model(  # noqa: DOC503
     ----------
     model : TBModel
         Bulk model in a real-harmonic orbital basis.
-    rotation : Float[Array, "3 3"]
+    rotation : Float64[Array, "3 3"]
         Proper active Cartesian rotation from the old frame to the new frame.
 
     Returns
@@ -717,7 +721,7 @@ def rotate_tb_model(  # noqa: DOC503
 
     :see: :class:`~.test_slab.TestRotateTbModel`
     """
-    rotation_array: Float[Array, "3 3"] = jnp.asarray(
+    rotation_array: Float64[Array, "3 3"] = jnp.asarray(
         rotation,
         dtype=jnp.float64,
     )
@@ -758,7 +762,7 @@ def rotate_tb_model(  # noqa: DOC503
         ~jnp.all(jnp.isfinite(rotation_array)),
         "rotate_tb_model: rotation must be finite",
     )
-    identity: Float[Array, "3 3"] = jnp.eye(3, dtype=jnp.float64)
+    identity: Float64[Array, "3 3"] = jnp.eye(3, dtype=jnp.float64)
     rotation_array = eqx.error_if(
         rotation_array,
         jnp.max(jnp.abs(rotation_array.T @ rotation_array - identity)) > 1e-10,  # noqa: PLR2004
@@ -769,14 +773,14 @@ def rotate_tb_model(  # noqa: DOC503
         jnp.abs(jnp.linalg.det(rotation_array) - 1.0) > 1e-10,  # noqa: PLR2004
         "rotate_tb_model: rotation must be proper",
     )
-    representation: Complex[Array, "n_orb n_orb"] = _orbital_rotation(
+    representation: Complex128[Array, "n_orb n_orb"] = _orbital_rotation(
         model,
         rotation_array,
     )
     cells: tuple[tuple[int, int, int], ...]
-    blocks: Complex[Array, "n_r n_o n_o"]
+    blocks: Complex128[Array, "n_r n_o n_o"]
     cells, blocks = _translation_blocks(model)
-    rotated_blocks: Complex[Array, "n_r n_o n_o"] = (
+    rotated_blocks: Complex128[Array, "n_r n_o n_o"] = (
         representation[None, :, :]
         @ blocks
         @ representation.conj().T[None, :, :]
@@ -794,8 +798,10 @@ def rotate_tb_model(  # noqa: DOC503
         for _row in range(n_orbitals)
         for _column in range(n_orbitals)
     )
-    hopping_amplitudes: Complex[Array, " n_hop"] = rotated_blocks.reshape(-1)
-    rotated_lattice: Float[Array, "3 3"] = (
+    hopping_amplitudes: Complex128[Array, " n_hop"] = rotated_blocks.reshape(
+        -1
+    )
+    rotated_lattice: Float64[Array, "3 3"] = (
         model.geometry.lattice @ rotation_array.T
     )
     rotated_geometry: CrystalGeometry = make_crystal_geometry(
@@ -821,9 +827,9 @@ def rotate_tb_model(  # noqa: DOC503
 
 def _surface_integer_matrix(
     surface_cell: SurfaceCell,
-) -> Int[NDArray, "3 3"]:
+) -> Int64[NDArray, "3 3"]:
     """Return the exact row-wise bulk-to-surface integer frame."""
-    coefficients: Int[NDArray, "3 3"] = np.asarray(
+    coefficients: Int64[NDArray, "3 3"] = np.asarray(
         (
             surface_cell.in_plane_coeffs[0],
             surface_cell.in_plane_coeffs[1],
@@ -842,8 +848,8 @@ def _surface_integer_matrix(
 
 
 def _inverse_integer_matrix(
-    coefficients: Int[NDArray, "3 3"],
-) -> Int[NDArray, "3 3"]:
+    coefficients: Int64[NDArray, "3 3"],
+) -> Int64[NDArray, "3 3"]:
     """Compute a unimodular inverse and verify exact integer recovery."""
     determinant: int = _determinant_3x3(coefficients)
     if determinant != 1:
@@ -858,7 +864,7 @@ def _inverse_integer_matrix(
     g: int = int(coefficients[2, 0])
     h: int = int(coefficients[2, 1])
     i: int = int(coefficients[2, 2])
-    inverse: Int[NDArray, "3 3"] = np.asarray(
+    inverse: Int64[NDArray, "3 3"] = np.asarray(
         (
             (e * i - f * h, c * h - b * i, b * f - c * e),
             (f * g - d * i, a * i - c * g, c * d - a * f),
@@ -866,7 +872,7 @@ def _inverse_integer_matrix(
         ),
         dtype=np.int64,
     )
-    identity: Int[NDArray, "3 3"] = coefficients @ inverse
+    identity: Int64[NDArray, "3 3"] = coefficients @ inverse
     if not np.array_equal(identity, np.eye(3, dtype=np.int64)):
         message: str = "surface integer frame inverse is not exact"
         raise ValueError(message)
@@ -875,18 +881,18 @@ def _inverse_integer_matrix(
 
 def _base_surface_coordinates(
     geometry: CrystalGeometry,
-    inverse_coefficients: Int[NDArray, "3 3"],
-) -> tuple[Float[NDArray, "n_atom 3"], Int[NDArray, "n_atom 3"]]:
+    inverse_coefficients: Int64[NDArray, "3 3"],
+) -> tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]:
     """Compute atom representatives and integer surface-cell shifts."""
-    surface_coordinates: Float[NDArray, "n_atom 3"] = (
+    surface_coordinates: Float64[NDArray, "n_atom 3"] = (
         np.asarray(geometry.positions, dtype=np.float64) @ inverse_coefficients
     )
-    shifts: Int[NDArray, "n_atom 3"] = np.floor(
+    shifts: Int64[NDArray, "n_atom 3"] = np.floor(
         surface_coordinates + 1e-10
     ).astype(np.int64)
-    base: Float[NDArray, "n_atom 3"] = surface_coordinates - shifts
+    base: Float64[NDArray, "n_atom 3"] = surface_coordinates - shifts
     base[np.isclose(base, 1.0, atol=1e-10)] = 0.0
-    result: tuple[Float[NDArray, "n_atom 3"], Int[NDArray, "n_atom 3"]] = (
+    result: tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]] = (
         base,
         shifts,
     )
@@ -895,15 +901,15 @@ def _base_surface_coordinates(
 
 def _natural_atom_copies(
     geometry: CrystalGeometry,
-    base_coordinates: Float[NDArray, "n_atom 3"],
-    surface_vectors: Float[NDArray, "3 3"],
+    base_coordinates: Float64[NDArray, "n_atom 3"],
+    surface_vectors: Float64[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
     fine: tuple[float, float],
 ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]:
     """Select the smallest post-fine natural stack meeting the minimum span."""
     spacing: float = abs(float(surface_vectors[2, 2]))
-    base_heights: Float[NDArray, " n_atom"] = (
+    base_heights: Float64[NDArray, " n_atom"] = (
         base_coordinates @ surface_vectors[:, 2]
     )
     baseline_bottom: float = float(np.min(base_heights))
@@ -953,7 +959,7 @@ def _natural_atom_copies(
     }
     bulk_atoms: tuple[int, ...] = tuple(row[1] for row in candidates)
     layers: tuple[int, ...] = tuple(layer_map[row[2]] for row in candidates)
-    heights: Float[NDArray, " n_candidate"] = np.asarray(
+    heights: Float64[NDArray, " n_candidate"] = np.asarray(
         [row[0] for row in candidates],
         dtype=np.float64,
     )
@@ -976,8 +982,8 @@ def _natural_atom_copies(
 
 def _terminated_atom_copies(  # noqa: PLR0913
     geometry: CrystalGeometry,
-    base_coordinates: Float[NDArray, "n_atom 3"],
-    surface_vectors: Float[NDArray, "3 3"],
+    base_coordinates: Float64[NDArray, "n_atom 3"],
+    surface_vectors: Float64[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
     termination: tuple[str, str],
@@ -991,7 +997,7 @@ def _terminated_atom_copies(  # noqa: PLR0913
     bottom_species: str
     top_species, bottom_species = termination
     spacing: float = abs(float(surface_vectors[2, 2]))
-    base_heights: Float[NDArray, " n_atom"] = (
+    base_heights: Float64[NDArray, " n_atom"] = (
         base_coordinates @ surface_vectors[:, 2]
     )
     baseline_bottom: float = float(np.min(base_heights))
@@ -1199,18 +1205,18 @@ def _orbital_lookup(
 def _propagate_hoppings_with_shifts(
     rotated_bulk: TBModel,
     spec: SlabSpec,
-    atom_shifts: Int[NDArray, "n_atom 3"],
+    atom_shifts: Int64[NDArray, "n_atom 3"],
 ) -> tuple[
-    Complex[Array, " n_hop_slab"],
+    Complex128[Array, " n_hop_slab"],
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
     tuple[int, ...],
 ]:
     """Propagate exact bulk hoppings through one frozen slab topology."""
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
     slab_to_bulk: tuple[int, ...]
     slab_atom_indices: tuple[int, ...]
     slab_layers: tuple[int, ...]
@@ -1231,7 +1237,7 @@ def _propagate_hoppings_with_shifts(
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = rotated_bulk.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
+        source_surface_cell: Int64[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -1254,10 +1260,10 @@ def _propagate_hoppings_with_shifts(
                 continue
             bulk_target: int = pair[1]
             target_atom: int = rotated_bulk.basis.atom_indices[bulk_target]
-            transformed_cell: Int[NDArray, " 3"] = (
+            transformed_cell: Int64[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: Int[NDArray, " 3"] = (
+            target_surface_cell: Int64[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             target_layer: int = int(
@@ -1276,11 +1282,11 @@ def _propagate_hoppings_with_shifts(
             gather.append(hopping_index)
     gather_tuple: tuple[int, ...] = tuple(gather)
     gather_array: Array = jnp.asarray(gather_tuple, dtype=jnp.int32)
-    amplitudes: Complex[Array, " n_hop_slab"] = (
+    amplitudes: Complex128[Array, " n_hop_slab"] = (
         rotated_bulk.hopping_amplitudes[gather_array]
     )
     result: tuple[
-        Complex[Array, " n_hop_slab"],
+        Complex128[Array, " n_hop_slab"],
         tuple[tuple[int, int], ...],
         tuple[tuple[int, int, int], ...],
         tuple[int, ...],
@@ -1293,23 +1299,23 @@ def _propagate_hoppings(
     rotated_bulk: TBModel,
     spec: SlabSpec,
 ) -> tuple[
-    Complex[Array, " n_hop_slab"],
+    Complex128[Array, " n_hop_slab"],
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
     tuple[int, ...],
 ]:
     """Propagate hoppings after eagerly selecting atom representatives."""
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    atom_shifts: Int[NDArray, "n_atom 3"]
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int64[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         rotated_bulk.geometry,
         inverse,
     )
     result: tuple[
-        Complex[Array, " n_hop_slab"],
+        Complex128[Array, " n_hop_slab"],
         tuple[tuple[int, int], ...],
         tuple[tuple[int, int, int], ...],
         tuple[int, ...],
@@ -1364,7 +1370,7 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
             ]
         else:
             orbital_fractional = model.orbital_positions
-        orbital_heights: Float[NDArray, " n_orb"] = np.asarray(
+        orbital_heights: Float64[NDArray, " n_orb"] = np.asarray(
             orbital_fractional @ model.geometry.lattice,
             dtype=np.float64,
         )[:, 2]
@@ -1434,8 +1440,8 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
 def _slab_geometry_and_centres(  # noqa: PLR0913
     rotated_bulk: TBModel,
     surface_cell: SurfaceCell,
-    inverse_coefficients: Int[NDArray, "3 3"],
-    atom_shifts: Int[NDArray, "n_atom 3"],
+    inverse_coefficients: Int64[NDArray, "3 3"],
+    atom_shifts: Int64[NDArray, "n_atom 3"],
     bulk_atoms: tuple[int, ...],
     atom_layers: tuple[int, ...],
     slab_to_bulk: tuple[int, ...],
@@ -1444,44 +1450,46 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
     vacuum_ang: float,
 ) -> tuple[
     CrystalGeometry,
-    Float[Array, " n_orb"],
-    Float[Array, "n_orb 3"] | None,
+    Float64[Array, " n_orb"],
+    Float64[Array, "n_orb 3"] | None,
 ]:
     """Assemble differentiable slab positions, centres, and depth tags."""
-    inverse_array: Float[Array, "3 3"] = jnp.asarray(
+    inverse_array: Float64[Array, "3 3"] = jnp.asarray(
         inverse_coefficients,
         dtype=jnp.float64,
     )
-    surface_vectors: Float[Array, "3 3"] = jnp.vstack(
+    surface_vectors: Float64[Array, "3 3"] = jnp.vstack(
         (
             surface_cell.in_plane_vectors,
             surface_cell.stacking_vector[None, :],
         )
     )
     bulk_atom_array: Array = jnp.asarray(bulk_atoms, dtype=jnp.int32)
-    base_surface: Float[Array, "n_atoms 3"] = (
+    base_surface: Float64[Array, "n_atoms 3"] = (
         rotated_bulk.geometry.positions @ inverse_array
         - jnp.asarray(atom_shifts, dtype=jnp.float64)
     )
-    atom_layer_array: Float[Array, " n_slab_atoms"] = jnp.asarray(
+    atom_layer_array: Float64[Array, " n_slab_atoms"] = jnp.asarray(
         atom_layers,
         dtype=jnp.float64,
     )
-    atom_surface: Float[Array, "n_slab_atoms 3"] = (
+    atom_surface: Float64[Array, "n_slab_atoms 3"] = (
         base_surface[bulk_atom_array].at[:, 2].add(atom_layer_array)
     )
-    atom_cart: Float[Array, "n_slab_atoms 3"] = atom_surface @ surface_vectors
-    bottom: Float[Array, ""] = jnp.min(atom_cart[:, 2])
+    atom_cart: Float64[Array, "n_slab_atoms 3"] = (
+        atom_surface @ surface_vectors
+    )
+    bottom: Float64[Array, ""] = jnp.min(atom_cart[:, 2])
     atom_cart = atom_cart.at[:, 2].add(-bottom)
-    material_period: Float[Array, ""] = (
+    material_period: Float64[Array, ""] = (
         jnp.asarray(float(n_layers), dtype=jnp.float64)
         * surface_cell.interlayer_spacing_ang
     )
-    height: Float[Array, ""] = material_period + jnp.asarray(
+    height: Float64[Array, ""] = material_period + jnp.asarray(
         vacuum_ang,
         dtype=jnp.float64,
     )
-    slab_lattice: Float[Array, "3 3"] = jnp.vstack(
+    slab_lattice: Float64[Array, "3 3"] = jnp.vstack(
         (
             surface_cell.in_plane_vectors,
             jnp.stack(
@@ -1489,8 +1497,8 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
             ),
         )
     )
-    inverse_lattice: Float[Array, "3 3"] = jnp.linalg.inv(slab_lattice)
-    atom_fractional: Float[Array, "n_slab_atoms 3"] = (
+    inverse_lattice: Float64[Array, "3 3"] = jnp.linalg.inv(slab_lattice)
+    atom_fractional: Float64[Array, "n_slab_atoms 3"] = (
         atom_cart @ inverse_lattice
     )
     atom_fractional = atom_fractional.at[:, :2].set(
@@ -1510,16 +1518,16 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
         species=slab_species,
     )
 
-    orbital_position_array: Float[Array, "n_orb 3"] | None = None
+    orbital_position_array: Float64[Array, "n_orb 3"] | None = None
     if rotated_bulk.orbital_positions is not None:
         bulk_orbital_array: Array = jnp.asarray(
             slab_to_bulk,
             dtype=jnp.int32,
         )
-        bulk_centre_surface: Float[Array, "n_bulk_orb 3"] = (
+        bulk_centre_surface: Float64[Array, "n_bulk_orb 3"] = (
             rotated_bulk.orbital_positions @ inverse_array
         )
-        centre_shifts: Float[Array, "n_orb 3"] = jnp.asarray(
+        centre_shifts: Float64[Array, "n_orb 3"] = jnp.asarray(
             [
                 (
                     -atom_shifts[
@@ -1544,29 +1552,31 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
             ],
             dtype=jnp.float64,
         )
-        centre_surface: Float[Array, "n_orb 3"] = (
+        centre_surface: Float64[Array, "n_orb 3"] = (
             bulk_centre_surface[bulk_orbital_array] + centre_shifts
         )
-        centre_cart: Float[Array, "n_orb 3"] = centre_surface @ surface_vectors
+        centre_cart: Float64[Array, "n_orb 3"] = (
+            centre_surface @ surface_vectors
+        )
         centre_cart = centre_cart.at[:, 2].add(-bottom)
         orbital_position_array = centre_cart @ inverse_lattice
         orbital_position_array = orbital_position_array.at[:, :2].set(
             jnp.mod(orbital_position_array[:, :2], 1.0)
         )
-        depth_coordinates: Float[Array, " n_orb"] = centre_cart[:, 2]
+        depth_coordinates: Float64[Array, " n_orb"] = centre_cart[:, 2]
     else:
         slab_atom_index_array: Array = jnp.asarray(
             slab_atom_indices,
             dtype=jnp.int32,
         )
         depth_coordinates = atom_cart[slab_atom_index_array, 2]
-    depths: Float[Array, " n_orb"] = (
+    depths: Float64[Array, " n_orb"] = (
         jnp.max(depth_coordinates) - depth_coordinates
     )
     result: tuple[
         CrystalGeometry,
-        Float[Array, " n_orb"],
-        Float[Array, "n_orb 3"] | None,
+        Float64[Array, " n_orb"],
+        Float64[Array, "n_orb 3"] | None,
     ] = (slab_geometry, depths, orbital_position_array)
     return result
 
@@ -1620,15 +1630,15 @@ def freeze_slab_topology(  # noqa: PLR0913
         bulk_model.geometry,
         miller,
     )
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    base_coordinates: Float[NDArray, "n_atom 3"]
-    atom_shifts: Int[NDArray, "n_atom 3"]
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    base_coordinates: Float64[NDArray, "n_atom 3"]
+    atom_shifts: Int64[NDArray, "n_atom 3"]
     base_coordinates, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
     )
-    surface_vectors_snapshot: Float[NDArray, "3 3"] = np.vstack(
+    surface_vectors_snapshot: Float64[NDArray, "3 3"] = np.vstack(
         (
             np.asarray(surface_cell.in_plane_vectors),
             np.asarray(surface_cell.stacking_vector)[None, :],
@@ -1723,9 +1733,9 @@ def rebuild_slab(
         bulk_model,
         surface_cell.rotation,
     )
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    atom_shifts: Int[NDArray, "n_atom 3"] = np.asarray(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int64[NDArray, "n_atom 3"] = np.asarray(
         topology.atom_shifts,
         dtype=np.int64,
     )
@@ -1762,8 +1772,8 @@ def rebuild_slab(
         slab_atom_indices,
     )
     slab_geometry: CrystalGeometry
-    depths: Float[Array, " n_orb"]
-    orbital_positions: Float[Array, "n_orb 3"] | None
+    depths: Float64[Array, " n_orb"]
+    orbital_positions: Float64[Array, "n_orb 3"] | None
     slab_geometry, depths, orbital_positions = _slab_geometry_and_centres(
         rotated_bulk,
         surface_cell,
@@ -1776,7 +1786,7 @@ def rebuild_slab(
         topology.n_layers,
         topology.vacuum_ang,
     )
-    amplitudes: Complex[Array, " n_hop_slab"]
+    amplitudes: Complex128[Array, " n_hop_slab"]
     hopping_pairs: tuple[tuple[int, int], ...]
     hopping_cells: tuple[tuple[int, int, int], ...]
     _gather: tuple[int, ...]
@@ -1946,13 +1956,13 @@ def _slab_operator_centres(
     bulk_model: TBModel,
     operator_data: WannierOperatorData,
     spec: SlabSpec,
-) -> Float[Array, "n_orb_slab 3"]:
+) -> Float64[Array, "n_orb_slab 3"]:
     """Convert explicit Wannier centres into the slab cell."""
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    atom_shifts: Int[NDArray, "n_atom 3"]
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int64[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -1960,11 +1970,11 @@ def _slab_operator_centres(
     slab_to_bulk: tuple[int, ...]
     slab_layers: tuple[int, ...]
     slab_to_bulk, _, slab_layers, _ = _orbital_lookup(bulk_model, spec)
-    inverse_array: Float[Array, "3 3"] = jnp.asarray(
+    inverse_array: Float64[Array, "3 3"] = jnp.asarray(
         inverse,
         dtype=jnp.float64,
     )
-    surface_vectors: Float[Array, "3 3"] = jnp.vstack(
+    surface_vectors: Float64[Array, "3 3"] = jnp.vstack(
         (
             spec.surface_cell.in_plane_vectors,
             spec.surface_cell.stacking_vector[None, :],
@@ -1982,7 +1992,7 @@ def _slab_operator_centres(
         if not identity_rotation:
             indices: list[int]
             for indices in _shell_groups(bulk_model).values():
-                shell_centres: Float[NDArray, "n_shell 3"] = np.asarray(
+                shell_centres: Float64[NDArray, "n_shell 3"] = np.asarray(
                     operator_data.centres_cart
                 )[indices]
                 if not np.allclose(
@@ -1996,11 +2006,11 @@ def _slab_operator_centres(
                         "per shell under nonidentity rotation"
                     )
                     raise ValueError(message)
-        bulk_centres_rotated: Float[Array, "n_orb 3"] = (
+        bulk_centres_rotated: Float64[Array, "n_orb 3"] = (
             operator_data.centres_cart @ spec.surface_cell.rotation.T
         )
     else:
-        representation: Complex[Array, "n_orb n_orb"] = (
+        representation: Complex128[Array, "n_orb n_orb"] = (
             jnp.eye(len(bulk_model.basis.n), dtype=jnp.complex128)
             if identity_rotation
             else _orbital_rotation(
@@ -2008,13 +2018,13 @@ def _slab_operator_centres(
                 spec.surface_cell.rotation,
             )
         )
-        orbital_rotated: Complex[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
+        orbital_rotated: Complex128[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
             "ai,rijc,bj->rabc",
             representation,
             operator_data.position_matrices,
             representation.conj(),
         )
-        rotated_blocks: Complex[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
+        rotated_blocks: Complex128[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
             "rijc,ac->rija",
             orbital_rotated,
             spec.surface_cell.rotation,
@@ -2027,7 +2037,7 @@ def _slab_operator_centres(
         bulk_centres_rotated = jnp.real(
             rotated_blocks[zero_index, diagonal, diagonal]
         )
-    translations: Float[Array, "n_orb_slab 3"] = jnp.asarray(
+    translations: Float64[Array, "n_orb_slab 3"] = jnp.asarray(
         [
             (
                 -atom_shifts[bulk_model.basis.atom_indices[bulk], 0],
@@ -2043,26 +2053,26 @@ def _slab_operator_centres(
         dtype=jnp.float64,
     )
     bulk_indices: Array = jnp.asarray(slab_to_bulk, dtype=jnp.int32)
-    centres_cart: Float[Array, "n_orb_slab 3"] = (
+    centres_cart: Float64[Array, "n_orb_slab 3"] = (
         bulk_centres_rotated[bulk_indices] + translations @ surface_vectors
     )
 
-    base_atoms: Float[Array, "n_atoms 3"] = (
+    base_atoms: Float64[Array, "n_atoms 3"] = (
         bulk_model.geometry.positions @ inverse_array
         - jnp.asarray(atom_shifts, dtype=jnp.float64)
     )
-    slab_atom_surface: Float[Array, "n_slab_atoms 3"] = base_atoms[
+    slab_atom_surface: Float64[Array, "n_slab_atoms 3"] = base_atoms[
         jnp.asarray(spec.bulk_atom_of_slab_atom, dtype=jnp.int32)
     ]
     slab_atom_surface = slab_atom_surface.at[:, 2].add(
         jnp.asarray(spec.layer_of_slab_atom, dtype=jnp.float64)
     )
-    bottom: Float[Array, ""] = jnp.min(
+    bottom: Float64[Array, ""] = jnp.min(
         (slab_atom_surface @ surface_vectors)[:, 2]
     )
-    shifted_centres: Float[Array, "n_orb_slab 3"] = centres_cart.at[:, 2].add(
-        -bottom
-    )
+    shifted_centres: Float64[Array, "n_orb_slab 3"] = centres_cart.at[
+        :, 2
+    ].add(-bottom)
     return shifted_centres
 
 
@@ -2072,11 +2082,11 @@ def _propagated_operator_cells(
     spec: SlabSpec,
 ) -> tuple[tuple[int, int, int], ...]:
     """Compute an operator cell grid for the exact slab topology."""
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    atom_shifts: Int[NDArray, "n_atom 3"]
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int64[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -2094,7 +2104,7 @@ def _propagated_operator_cells(
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = bulk_model.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
+        source_surface_cell: Int64[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -2104,10 +2114,10 @@ def _propagated_operator_cells(
         )
         bulk_cell: tuple[int, int, int]
         for bulk_cell in operator_data.cells:
-            transformed_cell: Int[NDArray, " 3"] = (
+            transformed_cell: Int64[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: Int[NDArray, " 3"] = (
+            target_surface_cell: Int64[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             bulk_target: int
@@ -2139,9 +2149,9 @@ def _propagate_position_matrices(  # noqa: PLR0915
     bulk_model: TBModel,
     operator_data: WannierOperatorData,
     spec: SlabSpec,
-    slab_centres_cart: Float[Array, "n_orb_slab 3"],
+    slab_centres_cart: Float64[Array, "n_orb_slab 3"],
 ) -> tuple[
-    Complex[Array, "n_R n_orb n_orb 3"],
+    Complex128[Array, "n_R n_orb n_orb 3"],
     tuple[tuple[int, int, int], ...],
 ]:
     """Propagate real-space position matrices with exact cell bookkeeping."""
@@ -2166,7 +2176,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
             "nonidentity rotation"
         )
         raise ValueError(message)
-    representation: Complex[Array, "n_orb n_orb"] = (
+    representation: Complex128[Array, "n_orb n_orb"] = (
         jnp.eye(len(bulk_model.basis.n), dtype=jnp.complex128)
         if identity_rotation
         else _orbital_rotation(
@@ -2174,13 +2184,13 @@ def _propagate_position_matrices(  # noqa: PLR0915
             spec.surface_cell.rotation,
         )
     )
-    orbital_rotated: Complex[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
+    orbital_rotated: Complex128[Array, "n_R n_orb n_orb 3"] = jnp.einsum(
         "ai,rijc,bj->rabc",
         representation,
         operator_data.position_matrices,
         representation.conj(),
     )
-    rotated_position_matrices: Complex[
+    rotated_position_matrices: Complex128[
         Array,
         "n_R n_orb n_orb 3",
     ] = jnp.einsum(
@@ -2188,11 +2198,11 @@ def _propagate_position_matrices(  # noqa: PLR0915
         orbital_rotated,
         spec.surface_cell.rotation,
     )
-    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+    coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
-    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    atom_shifts: Int[NDArray, "n_atom 3"]
+    inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int64[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -2219,7 +2229,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = bulk_model.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
+        source_surface_cell: Int64[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -2230,10 +2240,10 @@ def _propagate_position_matrices(  # noqa: PLR0915
         cell_index: int
         bulk_cell: tuple[int, int, int]
         for cell_index, bulk_cell in enumerate(operator_data.cells):
-            transformed_cell: Int[NDArray, " 3"] = (
+            transformed_cell: Int64[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: Int[NDArray, " 3"] = (
+            target_surface_cell: Int64[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             bulk_target: int
@@ -2269,7 +2279,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
         cell: index for index, cell in enumerate(cells)
     }
     n_slab_orbitals: int = len(slab_to_bulk)
-    matrices: Complex[Array, "n_R n_orb n_orb 3"] = jnp.zeros(
+    matrices: Complex128[Array, "n_R n_orb n_orb 3"] = jnp.zeros(
         (len(cells), n_slab_orbitals, n_slab_orbitals, 3),
         dtype=jnp.complex128,
     )
@@ -2290,7 +2300,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
             bulk_source,
             bulk_target,
         ) = record
-        vector: Complex[Array, " 3"] = rotated_position_matrices[
+        vector: Complex128[Array, " 3"] = rotated_position_matrices[
             cell_index,
             bulk_source,
             bulk_target,
@@ -2304,7 +2314,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
     if zero_cell_index is not None:
         bulk_zero_index: int = operator_data.cells.index((0, 0, 0))
         diagonal: Array = jnp.arange(n_slab_orbitals, dtype=jnp.int32)
-        current_diagonal: Complex[Array, "n_orb 3"] = matrices[
+        current_diagonal: Complex128[Array, "n_orb 3"] = matrices[
             zero_cell_index,
             diagonal,
             diagonal,
@@ -2313,14 +2323,14 @@ def _propagate_position_matrices(  # noqa: PLR0915
             slab_to_bulk,
             dtype=jnp.int32,
         )
-        original_diagonal: Complex[Array, "n_orb 3"] = (
+        original_diagonal: Complex128[Array, "n_orb 3"] = (
             rotated_position_matrices[
                 bulk_zero_index,
                 bulk_indices,
                 bulk_indices,
             ]
         )
-        translation: Complex[Array, "n_orb 3"] = (
+        translation: Complex128[Array, "n_orb 3"] = (
             slab_centres_cart.astype(jnp.complex128) - original_diagonal
         )
         matrices = matrices.at[
@@ -2329,7 +2339,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
             diagonal,
         ].set(current_diagonal + translation)
     result: tuple[
-        Complex[Array, "n_R n_orb n_orb 3"],
+        Complex128[Array, "n_R n_orb n_orb 3"],
         tuple[tuple[int, int, int], ...],
     ] = (matrices, cells)
     return result
@@ -2419,18 +2429,18 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
         termination,
         fine,
     )
-    centres_cart: Float[Array, "n_orb_slab 3"] = _slab_operator_centres(
+    centres_cart: Float64[Array, "n_orb_slab 3"] = _slab_operator_centres(
         bulk_model,
         operator_data,
         spec,
     )
-    centre_fractional: Float[Array, "n_orb_slab 3"] = (
+    centre_fractional: Float64[Array, "n_orb_slab 3"] = (
         centres_cart @ jnp.linalg.inv(slab_model.geometry.lattice)
     )
     centre_fractional = centre_fractional.at[:, :2].set(
         jnp.mod(centre_fractional[:, :2], 1.0)
     )
-    operator_depths: Float[Array, " n_orb_slab"] = (
+    operator_depths: Float64[Array, " n_orb_slab"] = (
         jnp.max(centres_cart[:, 2]) - centres_cart[:, 2]
     )
     slab_model = make_tb_model(
@@ -2446,7 +2456,7 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
         orbital_positions=centre_fractional,
         depths=operator_depths,
     )
-    position_matrices: Complex[Array, "n_R n_orb n_orb 3"] | None
+    position_matrices: Complex128[Array, "n_R n_orb n_orb 3"] | None
     cells: tuple[tuple[int, int, int], ...]
     source_format: str
     if operator_data.position_matrices is None:

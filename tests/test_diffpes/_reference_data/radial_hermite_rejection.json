@@ -24,6 +24,6 @@
     "accepted": false,
     "selected_node_count": null,
     "runtime": "reject-hermite-use-direct",
-    "d13_status": "not activated because no G13 resolution may ship"
+    "derivative_status": "not activated because no accepted Hermite resolution may ship"
   }
 }

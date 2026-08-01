@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from hypothesis import given, settings, strategies
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.types import ExperimentGeometry, make_experiment_geometry
 from tests._assertions import assert_rejects
@@ -38,7 +38,7 @@ class TestExperimentGeometry:
         The test flattens one geometry with JAX and reconstructs it from the
         resulting leaves and tree definition.
         """
-        polarization: Complex[Array, "3"] = jnp.array(
+        polarization: Complex128[Array, "3"] = jnp.array(
             [1.0 + 0.0j, 0.0 + 2.0j, 0.0 + 0.0j]
         )
         geometry: ExperimentGeometry = make_experiment_geometry(
@@ -89,15 +89,17 @@ class TestExperimentGeometry:
             30.0, jnp.array([1.0 + 1.0j, 0.0 + 0.0j, 0.0 + 0.0j])
         )
 
-        def reduce_carrier(candidate: ExperimentGeometry) -> Float[Array, ""]:
+        def reduce_carrier(
+            candidate: ExperimentGeometry,
+        ) -> Float64[Array, ""]:
             """Reduce two traced fields to one scalar."""
-            result: Float[Array, ""] = candidate.photon_energy_ev + jnp.real(
+            result: Float64[Array, ""] = candidate.photon_energy_ev + jnp.real(
                 candidate.polarization[0]
             )
             return result
 
-        actual: Float[Array, ""] = eqx.filter_jit(reduce_carrier)(geometry)
-        expected: Float[Array, ""] = 30.0 + 1.0 / jnp.sqrt(2.0)
+        actual: Float64[Array, ""] = eqx.filter_jit(reduce_carrier)(geometry)
+        expected: Float64[Array, ""] = 30.0 + 1.0 / jnp.sqrt(2.0)
         chex.assert_trees_all_close(actual, expected, atol=1e-15, rtol=1e-15)
 
 
@@ -137,7 +139,7 @@ class TestMakeExperimentGeometry:
         combines them into two complex values and checks the Hermitian vector
         norm.
         """
-        polarization: Complex[Array, "3"] = jnp.array(
+        polarization: Complex128[Array, "3"] = jnp.array(
             [
                 components[0] + 1j * components[1],
                 components[2] + 1j * components[3],
@@ -147,7 +149,7 @@ class TestMakeExperimentGeometry:
         geometry: ExperimentGeometry = make_experiment_geometry(
             21.2, polarization
         )
-        norm: Float[Array, ""] = jnp.linalg.norm(geometry.polarization)
+        norm: Float64[Array, ""] = jnp.linalg.norm(geometry.polarization)
 
         chex.assert_trees_all_close(norm, 1.0, atol=1e-15, rtol=1e-15)
 
@@ -201,7 +203,7 @@ class TestMakeExperimentGeometry:
         ],
     )
     def test_rejects_invalid_polarization_under_jit(
-        self, polarization: Complex[Array, "3"]
+        self, polarization: Complex128[Array, "3"]
     ) -> None:
         """Reject a zero or non-finite polarization under JIT.
 
@@ -239,7 +241,7 @@ class TestMakeExperimentGeometry:
         self,
         theta: object,
         phi: object,
-        polarization: Complex[Array, "3"],
+        polarization: Complex128[Array, "3"],
     ) -> None:
         """Reject electric fields with a longitudinal photon component.
 
@@ -273,12 +275,12 @@ class TestMakeExperimentGeometry:
         Vectorize four azimuths, reconstruct the matching photon directions,
         and compare their complex longitudinal amplitudes with zero.
         """
-        theta: Float[Array, ""] = jnp.asarray(0.43)
-        phis: Float[Array, " 4"] = jnp.asarray([-1.1, -0.2, 0.7, 2.2])
+        theta: Float64[Array, ""] = jnp.asarray(0.43)
+        phis: Float64[Array, " 4"] = jnp.asarray([-1.1, -0.2, 0.7, 2.2])
 
-        def one_geometry(phi: Float[Array, ""]) -> ExperimentGeometry:
+        def one_geometry(phi: Float64[Array, ""]) -> ExperimentGeometry:
             """Construct a covariantly rotated p-polarized geometry."""
-            polarization: Complex[Array, "3"] = jnp.asarray(
+            polarization: Complex128[Array, "3"] = jnp.asarray(
                 [
                     jnp.cos(theta) * jnp.cos(phi),
                     jnp.cos(theta) * jnp.sin(phi),
@@ -294,7 +296,7 @@ class TestMakeExperimentGeometry:
             )
 
         geometries: ExperimentGeometry = eqx.filter_vmap(one_geometry)(phis)
-        directions: Float[Array, "4 3"] = jnp.stack(
+        directions: Float64[Array, "4 3"] = jnp.stack(
             (
                 jnp.sin(theta) * jnp.cos(phis),
                 jnp.sin(theta) * jnp.sin(phis),
@@ -302,7 +304,7 @@ class TestMakeExperimentGeometry:
             ),
             axis=-1,
         )
-        longitudinal: Complex[Array, " 4"] = jnp.sum(
+        longitudinal: Complex128[Array, " 4"] = jnp.sum(
             directions * geometries.polarization,
             axis=-1,
         )
@@ -348,14 +350,14 @@ class TestMakeExperimentGeometry:
         A weighted scalar loss reads all ten scalar fields. The shared gate
         checks reverse mode, finite differences, and every gradient entry.
         """
-        values: Float[Array, "10"] = jnp.array(
+        values: Float64[Array, "10"] = jnp.array(
             [30.0, 0.2, -0.3, 0.1, 4.5, 12.0, 20.0, 0.03, 0.02, 8.0]
         )
-        weights: Float[Array, "10"] = jnp.arange(1.0, 11.0)
+        weights: Float64[Array, "10"] = jnp.arange(1.0, 11.0)
 
-        def loss(candidate: Float[Array, "10"]) -> Float[Array, ""]:
+        def loss(candidate: Float64[Array, "10"]) -> Float64[Array, ""]:
             """Read all scalar fields from one constructed carrier."""
-            polarization: Complex[Array, "3"] = jnp.asarray(
+            polarization: Complex128[Array, "3"] = jnp.asarray(
                 [
                     -jnp.sin(candidate[2]),
                     jnp.cos(candidate[2]),
@@ -376,7 +378,7 @@ class TestMakeExperimentGeometry:
                 momentum_resolution_inv_ang=candidate[8],
                 mean_free_path_ang=candidate[9],
             )
-            fields: Float[Array, "10"] = jnp.stack(
+            fields: Float64[Array, "10"] = jnp.stack(
                 (
                     geometry.photon_energy_ev,
                     geometry.incidence_theta,
@@ -390,7 +392,7 @@ class TestMakeExperimentGeometry:
                     geometry.mean_free_path_ang,
                 )
             )
-            result: Float[Array, ""] = jnp.sum(weights * fields)
+            result: Float64[Array, ""] = jnp.sum(weights * fields)
             return result
 
         gradient_gate(loss, values, modes=("rev",))

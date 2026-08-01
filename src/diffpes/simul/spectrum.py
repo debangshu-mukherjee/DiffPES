@@ -19,7 +19,7 @@ Routine Listings
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import (
     NON_S_ORBITAL_SLICE,
@@ -37,7 +37,7 @@ from .crosssections import yeh_lindau_orbital_weights
 
 
 def _validate_projection_basis(
-    projections: Float[Array, "K B A nine"],
+    projections: Float64[Array, "K B A nine"],
     basis: OrbitalBasis,
 ) -> None:
     """Validate atom-major VASP projection and basis alignment."""
@@ -116,46 +116,46 @@ def simulate_novice(
     The function sums non-s projection probabilities once. It then broadens
     each band with a Voigt profile and sums band contributions.
     """
-    energy_axis: Float[Array, " E"] = jnp.linspace(
+    energy_axis: Float64[Array, " E"] = jnp.linspace(
         params.energy_min,
         params.energy_max,
         params.fidelity,
     )
-    band_weights: Float[Array, "K B"] = jnp.sum(
+    band_weights: Float64[Array, "K B"] = jnp.sum(
         orb_proj.projections[..., NON_S_ORBITAL_SLICE],
         axis=(-2, -1),
     )
 
     def broaden_band(
-        energy: Float[Array, ""],
-        weight: Float[Array, ""],
-    ) -> Float[Array, " E"]:
-        occupation: Float[Array, ""] = fermi_dirac(
+        energy: Float64[Array, ""],
+        weight: Float64[Array, ""],
+    ) -> Float64[Array, " E"]:
+        occupation: Float64[Array, ""] = fermi_dirac(
             energy,
             bands.fermi_energy,
             temperature,
         )
-        profile: Float[Array, " E"] = voigt(
+        profile: Float64[Array, " E"] = voigt(
             energy_axis,
             energy,
             params.sigma,
             params.gamma,
         )
-        contribution: Float[Array, " E"] = weight * occupation * profile
+        contribution: Float64[Array, " E"] = weight * occupation * profile
         return contribution
 
     def broaden_kpoint(
-        energies: Float[Array, " B"],
-        weights: Float[Array, " B"],
-    ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(broaden_band)(
+        energies: Float64[Array, " B"],
+        weights: Float64[Array, " B"],
+    ) -> Float64[Array, " E"]:
+        contributions: Float64[Array, "B E"] = jax.vmap(broaden_band)(
             energies,
             weights,
         )
-        intensity_row: Float[Array, " E"] = jnp.sum(contributions, axis=0)
+        intensity_row: Float64[Array, " E"] = jnp.sum(contributions, axis=0)
         return intensity_row
 
-    intensity: Float[Array, "K E"] = jax.vmap(broaden_kpoint)(
+    intensity: Float64[Array, "K E"] = jax.vmap(broaden_kpoint)(
         bands.eigenvalues,
         band_weights,
     )
@@ -220,62 +220,62 @@ def simulate_basic(
     The function gathers one tabulated subshell weight per basis row. It
     multiplies projection probabilities before one orbital reduction.
     """
-    projections: Float[Array, "K B A nine"] = orb_proj.projections
+    projections: Float64[Array, "K B A nine"] = orb_proj.projections
     _validate_projection_basis(projections, basis)
     if len(atomic_numbers) != projections.shape[2]:
         message: str = (
             "atomic_numbers must contain one entry per projection atom"
         )
         raise ValueError(message)
-    orbital_weights: Float[Array, " n_orb"] = yeh_lindau_orbital_weights(
+    orbital_weights: Float64[Array, " n_orb"] = yeh_lindau_orbital_weights(
         photon_energy,
         basis,
         atomic_numbers,
     )
-    flattened: Float[Array, "K B n_orb"] = projections.reshape(
+    flattened: Float64[Array, "K B n_orb"] = projections.reshape(
         projections.shape[0],
         projections.shape[1],
         -1,
     )
-    band_weights: Float[Array, "K B"] = jnp.sum(
+    band_weights: Float64[Array, "K B"] = jnp.sum(
         flattened * orbital_weights,
         axis=-1,
     )
-    energy_axis: Float[Array, " E"] = jnp.linspace(
+    energy_axis: Float64[Array, " E"] = jnp.linspace(
         params.energy_min,
         params.energy_max,
         params.fidelity,
     )
 
     def broaden_band(
-        energy: Float[Array, ""],
-        weight: Float[Array, ""],
-    ) -> Float[Array, " E"]:
-        occupation: Float[Array, ""] = fermi_dirac(
+        energy: Float64[Array, ""],
+        weight: Float64[Array, ""],
+    ) -> Float64[Array, " E"]:
+        occupation: Float64[Array, ""] = fermi_dirac(
             energy,
             bands.fermi_energy,
             temperature,
         )
-        profile: Float[Array, " E"] = gaussian(
+        profile: Float64[Array, " E"] = gaussian(
             energy_axis,
             energy,
             params.sigma,
         )
-        contribution: Float[Array, " E"] = weight * occupation * profile
+        contribution: Float64[Array, " E"] = weight * occupation * profile
         return contribution
 
     def broaden_kpoint(
-        energies: Float[Array, " B"],
-        weights: Float[Array, " B"],
-    ) -> Float[Array, " E"]:
-        contributions: Float[Array, "B E"] = jax.vmap(broaden_band)(
+        energies: Float64[Array, " B"],
+        weights: Float64[Array, " B"],
+    ) -> Float64[Array, " E"]:
+        contributions: Float64[Array, "B E"] = jax.vmap(broaden_band)(
             energies,
             weights,
         )
-        intensity_row: Float[Array, " E"] = jnp.sum(contributions, axis=0)
+        intensity_row: Float64[Array, " E"] = jnp.sum(contributions, axis=0)
         return intensity_row
 
-    intensity: Float[Array, "K E"] = jax.vmap(broaden_kpoint)(
+    intensity: Float64[Array, "K E"] = jax.vmap(broaden_kpoint)(
         bands.eigenvalues,
         band_weights,
     )

@@ -18,7 +18,7 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex, Float, Float64
 from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
@@ -241,16 +241,16 @@ class TestBuildGauntTable:
         -----
         The test combines Gauss--Legendre polar nodes with a uniform azimuth grid.
         """
-        cosine_nodes: Float[NDArray, " n_theta"]
-        cosine_weights: Float[NDArray, " n_theta"]
+        cosine_nodes: Float64[NDArray, " n_theta"]
+        cosine_weights: Float64[NDArray, " n_theta"]
         cosine_nodes, cosine_weights = np.polynomial.legendre.leggauss(32)
-        phi_values: Float[NDArray, " n_phi"] = np.arange(
+        phi_values: Float64[NDArray, " n_phi"] = np.arange(
             64, dtype=np.float64
         ) * (2.0 * np.pi / 64.0)
-        theta_grid: Float[NDArray, "n_theta 1"] = np.arccos(cosine_nodes)[
+        theta_grid: Float64[NDArray, "n_theta 1"] = np.arccos(cosine_nodes)[
             :, None
         ]
-        phi_grid: Float[NDArray, "1 n_phi"] = phi_values[None, :]
+        phi_grid: Float64[NDArray, "1 n_phi"] = phi_values[None, :]
         phi_weight: float = 2.0 * np.pi / 64.0
         l_initial: int
         m_initial: int
@@ -258,9 +258,9 @@ class TestBuildGauntTable:
         q_value: int
         l_final: int
         m_final: int
-        initial_harmonic: Float[NDArray, "n_theta n_phi"]
-        dipole_harmonic: Float[NDArray, "n_theta n_phi"]
-        final_harmonic: Float[NDArray, "n_theta n_phi"]
+        initial_harmonic: Float64[NDArray, "n_theta n_phi"]
+        dipole_harmonic: Float64[NDArray, "n_theta n_phi"]
+        final_harmonic: Float64[NDArray, "n_theta n_phi"]
         expected: float
         actual: float
         for l_initial in range(L_MAX + 1):

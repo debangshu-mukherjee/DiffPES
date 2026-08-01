@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import mpmath as mp
 from beartype.typing import Any, Callable
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 from scipy import stats
 
 from diffpes.simul import (
@@ -28,36 +28,36 @@ from tests._gradients import assert_grad_matches_fd
 
 
 def _fermi_value_and_gradients(
-    theta: Float[Array, "3"],
-) -> Float[Array, "4"]:
+    theta: Float64[Array, "3"],
+) -> Float64[Array, "4"]:
     """Evaluate Fermi occupation and its three parameter derivatives."""
 
-    def occupation(parameters: Float[Array, "3"]) -> Float[Array, ""]:
-        value: Float[Array, ""] = fermi_dirac(
+    def occupation(parameters: Float64[Array, "3"]) -> Float64[Array, ""]:
+        value: Float64[Array, ""] = fermi_dirac(
             parameters[0], parameters[1], parameters[2]
         )
         return value
 
-    value: Float[Array, ""] = occupation(theta)
-    derivatives: Float[Array, "3"] = jax.grad(occupation)(theta)
-    result: Float[Array, "4"] = jnp.concatenate(
+    value: Float64[Array, ""] = occupation(theta)
+    derivatives: Float64[Array, "3"] = jax.grad(occupation)(theta)
+    result: Float64[Array, "4"] = jnp.concatenate(
         [jnp.reshape(value, (1,)), derivatives]
     )
     return result
 
 
 def _gaussian_parameter_loss(
-    parameters: Float[Array, "2"],
-) -> Float[Array, ""]:
+    parameters: Float64[Array, "2"],
+) -> Float64[Array, ""]:
     """Reduce a Gaussian profile without symmetry cancellation."""
-    energy_axis: Float[Array, "19"] = jnp.linspace(-1.1, 1.6, 19)
-    weights: Float[Array, "19"] = jnp.linspace(0.6, 1.3, 19)
-    profile: Float[Array, "19"] = gaussian(
+    energy_axis: Float64[Array, "19"] = jnp.linspace(-1.1, 1.6, 19)
+    weights: Float64[Array, "19"] = jnp.linspace(0.6, 1.3, 19)
+    profile: Float64[Array, "19"] = gaussian(
         energy_axis,
         parameters[0],
         parameters[1],
     )
-    loss: Float[Array, ""] = jnp.sum(weights * profile)
+    loss: Float64[Array, ""] = jnp.sum(weights * profile)
     return loss
 
 
@@ -198,10 +198,10 @@ class TestGaussian(chex.TestCase):
         cancellation. Compare both parameter derivatives with the shared
         finite-difference harness.
         """
-        loss: Callable[[Float[Array, "2"]], Float[Array, ""]] = self.variant(
-            _gaussian_parameter_loss
+        loss: Callable[[Float64[Array, "2"]], Float64[Array, ""]] = (
+            self.variant(_gaussian_parameter_loss)
         )
-        parameters: Float[Array, "2"] = jnp.array(
+        parameters: Float64[Array, "2"] = jnp.array(
             [0.17, 0.31],
             dtype=jnp.float64,
         )
@@ -223,7 +223,7 @@ class TestGaussian(chex.TestCase):
         """
         sigma: float
 
-        energy_axis: Float[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
+        energy_axis: Float64[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
         for sigma in (-0.2, 0.0, float("nan"), float("inf")):
             assert_rejects(
                 gaussian,
@@ -370,21 +370,21 @@ class TestVoigt(chex.TestCase):
         """
         var_fn: Callable[..., Any]
 
-        energy_axis: Float[Array, "31"] = jnp.linspace(-1.7, 2.1, 31)
+        energy_axis: Float64[Array, "31"] = jnp.linspace(-1.7, 2.1, 31)
         center: float = 0.13
         sigma: float = 0.27
         gamma: float = 0.19
         var_fn = self.variant(voigt)
-        gaussian_profile: Float[Array, "31"] = var_fn(
+        gaussian_profile: Float64[Array, "31"] = var_fn(
             energy_axis, center, sigma, 0.0
         )
-        lorentzian_profile: Float[Array, "31"] = var_fn(
+        lorentzian_profile: Float64[Array, "31"] = var_fn(
             energy_axis, center, 0.0, gamma
         )
-        expected_gaussian: Float[Array, "31"] = jnp.asarray(
+        expected_gaussian: Float64[Array, "31"] = jnp.asarray(
             stats.norm.pdf(energy_axis, loc=center, scale=sigma)
         )
-        expected_lorentzian: Float[Array, "31"] = jnp.asarray(
+        expected_lorentzian: Float64[Array, "31"] = jnp.asarray(
             stats.cauchy.pdf(energy_axis, loc=center, scale=gamma)
         )
         chex.assert_trees_all_close(
@@ -413,7 +413,7 @@ class TestVoigt(chex.TestCase):
         gamma: float
         message: str
 
-        energy_axis: Float[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
+        energy_axis: Float64[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
         invalid_widths: tuple[tuple[float, float, str], ...] = (
             (-0.1, 0.2, "sigma must be finite and nonnegative"),
             (0.1, -0.2, "gamma must be finite and nonnegative"),
@@ -443,7 +443,7 @@ class TestVoigt(chex.TestCase):
         The test uses the shared rejection helper on a finite energy grid, exercising
         both direct execution and ``equinox.filter_jit``.
         """
-        energy_axis: Float[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
+        energy_axis: Float64[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
         assert_rejects(
             voigt,
             energy_axis,
@@ -667,10 +667,10 @@ class TestFermiDirac(chex.TestCase):
                             temperature_derivative,
                         ]
                     )
-        parameter_array: Float[Array, "27 3"] = jnp.asarray(parameters)
-        expected: Float[Array, "27 4"] = jnp.asarray(expected_rows)
+        parameter_array: Float64[Array, "27 3"] = jnp.asarray(parameters)
+        expected: Float64[Array, "27 4"] = jnp.asarray(expected_rows)
         var_fn = self.variant(_fermi_value_and_gradients)
-        actual: Float[Array, "27 4"] = jax.vmap(var_fn)(parameter_array)
+        actual: Float64[Array, "27 4"] = jax.vmap(var_fn)(parameter_array)
         chex.assert_tree_all_finite(actual)
         chex.assert_trees_all_close(actual, expected, rtol=1e-12, atol=0.0)
 
@@ -693,7 +693,7 @@ class TestFermiDirac(chex.TestCase):
 
         temperature: float = 15.0
         thermal_energy: float = KB_EV_PER_K * temperature
-        parameters: Float[Array, "3 3"] = jnp.array(
+        parameters: Float64[Array, "3 3"] = jnp.array(
             [
                 [1.0, 0.0, temperature],
                 [5000.0 * thermal_energy, 0.0, temperature],
@@ -702,7 +702,7 @@ class TestFermiDirac(chex.TestCase):
             dtype=jnp.float64,
         )
         var_fn = self.variant(_fermi_value_and_gradients)
-        results: Float[Array, "3 4"] = jax.vmap(var_fn)(parameters)
+        results: Float64[Array, "3 4"] = jax.vmap(var_fn)(parameters)
         chex.assert_tree_all_finite(results)
         chex.assert_trees_all_equal(results[:, 1:], jnp.zeros((3, 3)))
         chex.assert_trees_all_equal(results[:2, 0], jnp.zeros(2))
@@ -725,18 +725,18 @@ class TestFermiDirac(chex.TestCase):
         """
         var_fn: Callable[..., Any]
 
-        theta: Float[Array, "3"] = jnp.array(
+        theta: Float64[Array, "3"] = jnp.array(
             [KB_EV_PER_K * 15.0, 0.0, 15.0], dtype=jnp.float64
         )
 
-        def occupation(parameters: Float[Array, "3"]) -> Float[Array, ""]:
-            value: Float[Array, ""] = fermi_dirac(
+        def occupation(parameters: Float64[Array, "3"]) -> Float64[Array, ""]:
+            value: Float64[Array, ""] = fermi_dirac(
                 parameters[0], parameters[1], parameters[2]
             )
             return value
 
         var_fn = self.variant(occupation)
-        derivatives: Float[Array, "3"] = jax.grad(var_fn)(theta)
+        derivatives: Float64[Array, "3"] = jax.grad(var_fn)(theta)
         chex.assert_tree_all_finite(derivatives)
         chex.assert_trees_all_equal(derivatives != 0.0, jnp.ones(3, bool))
         assert_grad_matches_fd(var_fn, theta, regime="smooth")

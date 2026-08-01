@@ -15,7 +15,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array, Bool, Complex, Float
+from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
     assemble_orbital_transition_channels,
@@ -56,15 +56,15 @@ from diffpes.types import (
 from tests._gradients import gradient_gate
 
 type Capstone = tuple[
-    Float[Array, " 1"],
-    Callable[[Float[Array, " 1"]], Float[Array, ""]],
+    Float64[Array, " 1"],
+    Callable[[Float64[Array, " 1"]], Float64[Array, ""]],
     Callable[
-        [Float[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
-        Complex[Array, "1 n_bands 1"],
+        [Float64[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
+        Complex128[Array, "1 n_bands 1"],
     ],
     Callable[
-        [Float[Array, " 1"], Float[Array, ""]],
-        Float[Array, ""],
+        [Float64[Array, " 1"], Float64[Array, ""]],
+        Float64[Array, ""],
     ],
     DiagonalizedBands,
     ExperimentGeometry,
@@ -75,7 +75,7 @@ def _bulk_context() -> tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
-    Float[Array, " 2"],
+    Float64[Array, " 2"],
 ]:
     """Build a depth-asymmetric two-site s-orbital SK context."""
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -93,12 +93,12 @@ def _bulk_context() -> tuple[
         jnp.asarray([-1.1]),
         ("X-Y:ss_sigma",),
     )
-    onsite: Float[Array, " 2"] = jnp.asarray([0.2, -0.35])
+    onsite: Float64[Array, " 2"] = jnp.asarray([0.2, -0.35])
     context: tuple[
         CrystalGeometry,
         OrbitalBasis,
         SlaterKosterParams,
-        Float[Array, " 2"],
+        Float64[Array, " 2"],
     ] = (geometry, basis, sk_params, onsite)
     return context
 
@@ -108,7 +108,7 @@ def _capstone() -> Capstone:
     geometry: CrystalGeometry
     basis: OrbitalBasis
     sk_params: SlaterKosterParams
-    onsite: Float[Array, " 2"]
+    onsite: Float64[Array, " 2"]
     geometry, basis, sk_params, onsite = _bulk_context()
     direct_bulk: TBModel = build_sk_model(
         geometry,
@@ -119,8 +119,8 @@ def _capstone() -> Capstone:
         (-1, -1),
         1.6,
     )
-    parameters: Float[Array, " n_parameter"]
-    rebuild_sk: Callable[[Float[Array, " n_parameter"]], TBModel]
+    parameters: Float64[Array, " n_parameter"]
+    rebuild_sk: Callable[[Float64[Array, " n_parameter"]], TBModel]
     parameters, rebuild_sk = sk_model_parameter_view(
         geometry,
         basis,
@@ -158,7 +158,7 @@ def _capstone() -> Capstone:
     )
     quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
     final_state: FinalStateSpec = make_final_state_spec()
-    polarization: Complex[Array, " 3"] = polarization_from_angles(
+    polarization: Complex128[Array, " 3"] = polarization_from_angles(
         jnp.asarray(0.6),
         jnp.asarray(0.2),
         "p",
@@ -172,14 +172,16 @@ def _capstone() -> Capstone:
         work_function_ev=4.5,
         mean_free_path_ang=2.7,
     )
-    kpoints: Float[Array, "1 3"] = jnp.zeros((1, 3), dtype=jnp.float64)
-    final_momentum: Float[Array, "1 3"] = jnp.asarray([[0.0, 0.0, 1.7]])
+    kpoints: Float64[Array, "1 3"] = jnp.zeros((1, 3), dtype=jnp.float64)
+    final_momentum: Float64[Array, "1 3"] = jnp.asarray([[0.0, 0.0, 1.7]])
     validity: Bool[Array, " 1"] = jnp.asarray([True])
-    active: Float[Array, " 1"] = parameters[:1]
+    active: Float64[Array, " 1"] = parameters[:1]
 
-    def bands_for(candidate: Float[Array, " 1"]) -> DiagonalizedBands:
+    def bands_for(candidate: Float64[Array, " 1"]) -> DiagonalizedBands:
         """Build and diagonalize the depth-bearing slab."""
-        vector: Float[Array, " n_parameter"] = parameters.at[:1].set(candidate)
+        vector: Float64[Array, " n_parameter"] = parameters.at[:1].set(
+            candidate
+        )
         bulk: TBModel = rebuild_sk(vector)
         slab: TBModel
         slab, _ = rebuild_slab(bulk, topology)
@@ -187,10 +189,10 @@ def _capstone() -> Capstone:
         return bands
 
     def amplitudes_with_depth_scale(
-        candidate: Float[Array, " 1"],
+        candidate: Float64[Array, " 1"],
         registered_experiment: ExperimentGeometry,
-        depth_scale: Float[Array, ""],
-    ) -> Complex[Array, "1 n_bands 1"]:
+        depth_scale: Float64[Array, ""],
+    ) -> Complex128[Array, "1 n_bands 1"]:
         """Return amplitudes after scaling only the slab depth carrier."""
         bands: DiagonalizedBands = bands_for(candidate)
         if bands.depths is None:
@@ -201,7 +203,7 @@ def _capstone() -> Capstone:
             bands,
             depth_scale * bands.depths,
         )
-        channels: Complex[Array, "1 1 n_orb 3"] = (
+        channels: Complex128[Array, "1 1 n_orb 3"] = (
             assemble_orbital_transition_channels(
                 scaled_bands,
                 radial,
@@ -213,11 +215,13 @@ def _capstone() -> Capstone:
                 validity,
             )
         )
-        band_channels: Complex[Array, "1 n_bands 1 3"] = project_band_channels(
-            channels,
-            scaled_bands.eigenvectors,
+        band_channels: Complex128[Array, "1 n_bands 1 3"] = (
+            project_band_channels(
+                channels,
+                scaled_bands.eigenvectors,
+            )
         )
-        amplitudes: Complex[Array, "1 n_bands 1"] = (
+        amplitudes: Complex128[Array, "1 n_bands 1"] = (
             contract_experiment_polarization(
                 band_channels,
                 registered_experiment,
@@ -226,12 +230,12 @@ def _capstone() -> Capstone:
         return amplitudes
 
     def amplitudes_for(
-        candidate: Float[Array, " 1"],
+        candidate: Float64[Array, " 1"],
         _registered_bands: DiagonalizedBands,
         registered_experiment: ExperimentGeometry,
-    ) -> Complex[Array, "1 n_bands 1"]:
+    ) -> Complex128[Array, "1 n_bands 1"]:
         """Return late-contracted amplitudes for every slab band."""
-        amplitudes: Complex[Array, "1 n_bands 1"] = (
+        amplitudes: Complex128[Array, "1 n_bands 1"] = (
             amplitudes_with_depth_scale(
                 candidate,
                 registered_experiment,
@@ -243,26 +247,26 @@ def _capstone() -> Capstone:
     baseline_bands: DiagonalizedBands = bands_for(active)
 
     def depth_loss(
-        candidate: Float[Array, " 1"],
-        depth_scale: Float[Array, ""],
-    ) -> Float[Array, ""]:
+        candidate: Float64[Array, " 1"],
+        depth_scale: Float64[Array, ""],
+    ) -> Float64[Array, ""]:
         """Return the group weight at one explicit depth-carrier scale."""
-        amplitudes: Complex[Array, "1 n_bands 1"] = (
+        amplitudes: Complex128[Array, "1 n_bands 1"] = (
             amplitudes_with_depth_scale(
                 candidate,
                 experiment,
                 depth_scale,
             )
         )
-        band_weights: Float[Array, "1 n_bands"] = matrix_element_intensity(
+        band_weights: Float64[Array, "1 n_bands"] = matrix_element_intensity(
             amplitudes
         )
-        group_weight: Float[Array, ""] = jnp.sum(band_weights[:, :2])
+        group_weight: Float64[Array, ""] = jnp.sum(band_weights[:, :2])
         return group_weight
 
-    def loss(candidate: Float[Array, " 1"]) -> Float[Array, ""]:
+    def loss(candidate: Float64[Array, " 1"]) -> Float64[Array, ""]:
         """Return the attenuated isolated lower-doublet group weight."""
-        group_weight: Float[Array, ""] = depth_loss(
+        group_weight: Float64[Array, ""] = depth_loss(
             candidate,
             jnp.asarray(1.0),
         )
@@ -294,15 +298,15 @@ class TestSlaterKosterDepthGradient:
         -----
         Run the stiff finite-difference ladder and compare the registered group helper.
         """
-        active: Float[Array, " 1"]
-        loss: Callable[[Float[Array, " 1"]], Float[Array, ""]]
+        active: Float64[Array, " 1"]
+        loss: Callable[[Float64[Array, " 1"]], Float64[Array, ""]]
         amplitudes_for: Callable[
-            [Float[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
-            Complex[Array, "1 n_bands 1"],
+            [Float64[Array, " 1"], DiagonalizedBands, ExperimentGeometry],
+            Complex128[Array, "1 n_bands 1"],
         ]
         depth_loss: Callable[
-            [Float[Array, " 1"], Float[Array, ""]],
-            Float[Array, ""],
+            [Float64[Array, " 1"], Float64[Array, ""]],
+            Float64[Array, ""],
         ]
         baseline_bands: DiagonalizedBands
         experiment: ExperimentGeometry
@@ -322,8 +326,8 @@ class TestSlaterKosterDepthGradient:
             modes=("fwd", "rev"),
             elementwise=True,
         )
-        weights: Float[Array, "1 1"]
-        jacobian: Float[Array, "1 1 1"]
+        weights: Float64[Array, "1 1"]
+        jacobian: Float64[Array, "1 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
             active,
             amplitudes_for,
@@ -331,7 +335,7 @@ class TestSlaterKosterDepthGradient:
             experiment,
             ((0, 1),),
         )
-        expected_gradient: Float[Array, " 1"] = jax.grad(loss)(active)
+        expected_gradient: Float64[Array, " 1"] = jax.grad(loss)(active)
         chex.assert_trees_all_close(
             weights[0, 0],
             loss(active),
@@ -345,14 +349,14 @@ class TestSlaterKosterDepthGradient:
             atol=1.0e-12,
         )
         assert float(jnp.abs(expected_gradient[0])) > 1.0e-8
-        zero_depth_gradient: Float[Array, " 1"] = jax.grad(
+        zero_depth_gradient: Float64[Array, " 1"] = jax.grad(
             lambda candidate: depth_loss(candidate, jnp.asarray(0.0))
         )(active)
-        depth_contribution: Float[Array, " 1"] = (
+        depth_contribution: Float64[Array, " 1"] = (
             expected_gradient - zero_depth_gradient
         )
         assert float(jnp.abs(depth_contribution[0])) > 1.0e-8
-        depth_scale_derivative: Float[Array, ""] = jax.grad(
+        depth_scale_derivative: Float64[Array, ""] = jax.grad(
             lambda scale: depth_loss(active, scale)
         )(jnp.asarray(1.0))
         assert float(jnp.abs(depth_scale_derivative)) > 1.0e-8

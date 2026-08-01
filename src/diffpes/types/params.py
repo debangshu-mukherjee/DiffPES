@@ -20,7 +20,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarFloat, ScalarNumeric
 
@@ -177,7 +177,7 @@ def make_simulation_params(  # noqa: DOC503
 
 @jaxtyped(typechecker=beartype)
 def make_expanded_simulation_params(  # noqa: DOC503
-    eigenbands: Float[Array, "K B"],
+    eigenbands: Float64[Array, "K B"],
     fidelity: int = 25000,
     sigma: ScalarFloat = 0.04,
     gamma: ScalarFloat = 0.1,
@@ -193,7 +193,7 @@ def make_expanded_simulation_params(  # noqa: DOC503
 
     Parameters
     ----------
-    eigenbands : Float[Array, "K B"]
+    eigenbands : Float64[Array, "K B"]
         Band eigenvalues in eV. Their extrema define the energy window.
     fidelity : int, optional
         Number of energy samples. This field is static. Default is 25000.
