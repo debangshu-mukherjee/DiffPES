@@ -34,7 +34,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jaxtyping import Array, Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import GAUNT_IMAG_TOL, L_MAX
 

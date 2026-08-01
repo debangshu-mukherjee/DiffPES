@@ -104,8 +104,7 @@ Each subpackage exposes its public API through `__init__.py` with an explicit
 module.
 
 The repository contains the changelog, documentation, pre-commit configuration,
-and CI workflows. The planning repository tracks the remaining work for paired
-tutorial notebooks.
+and CI workflows.
 
 ## Coding Standards
 
@@ -198,6 +197,41 @@ def simulate_spectrum(
 - Use descriptive dimension names in shape specs:
   `Float[Array, "nkpt nband"]`, `Complex[Array, "nkpt nband natom norb"]`,
   scalars as `Float[Array, ""]`.
+- **Never annotate with a bare `np.ndarray`.** That annotation states no dtype
+  and no shape. Import `NDArray` from `numpy.typing`. Then use `NDArray` as the
+  array type inside a jaxtyping spec: `Float[NDArray, "m n p"]`. This form gives
+  a NumPy array the same dtype and shape checks as a JAX `Array`. Apply the rule
+  to every position, which includes parameters, return types, intermediate
+  variables, and nested types such as
+  `Tuple[Float[NDArray, " n"], Float[NDArray, " n"]]`.
+
+  Take `NDArray` from `numpy.typing` only. Do not write
+  `from numpy import ndarray as NDArray`. That alias needs a `# noqa: N812`
+  suppression, and the repository contains no `N812` suppression. A bare
+  `NDArray` is also invalid: beartype rejects its unbound `_ScalarT` type
+  variable. Always give `NDArray` a jaxtyping dtype and shape.
+  Do not use the NumPy parameterization `NDArray[np.float64]` either.
+
+  ```python
+  import numpy as np
+  from beartype import beartype
+  from jaxtyping import Float, Int, jaxtyped
+  from numpy.typing import NDArray
+
+
+  # ❌ Wrong - no dtype and no shape
+  def bad(nodes: np.ndarray, counts: np.ndarray) -> np.ndarray: ...
+
+
+  # ✅ Correct - dtype and shape are explicit
+  @jaxtyped(typechecker=beartype)
+  def good(
+      nodes: Float[NDArray, " n"],
+      counts: Int[NDArray, " n"],
+  ) -> Float[NDArray, " n"]:
+      weighted: Float[NDArray, " n"] = nodes * counts
+      return weighted
+  ```
 - Prefer the scalar aliases from `diffpes.types` (`types/aliases.py`) for
   scalar arguments. These unions accept Python scalars and zero-dimensional JAX
   arrays.
@@ -214,7 +248,8 @@ def simulate_spectrum(
   `KB_EV_PER_K as _KB` or `_N_ORBITALS as _NORBS`. An alias creates a
   second name for one constant. This extra name complicates searches and
   reviews. Community-standard aliases such as `jnp`, `np`, and `plt` are
-  exceptions. The `ndarray as NDArray` jaxtyping shim is also an exception.
+  exceptions. Import `NDArray` from `numpy.typing`. Do not rename
+  `numpy.ndarray` to `NDArray` with an alias.
 - Import typing constructs (`Optional`, `Union`, `Tuple`, `List`, `Dict`,
   `TypeAlias`) from `beartype.typing`, not the stdlib `typing` module.
 
@@ -308,6 +343,45 @@ def make_band_structure(
   include spherical-harmonic phases, Gaunt coefficients, polarization vectors,
   and rotation frames. Treat a difference between code and canon as a bug. Do
   not define a different local convention.
+
+### Naming: Domain Terms Only
+
+Name every object for the concept that it represents. Use domain terms from
+physics, mathematics, or software structure.
+
+**Never put project-management vocabulary in a name.** This rule excludes plan
+numbers, work-package numbers, gate identifiers, phase labels, sprint labels,
+and milestone labels. Development tracking stays in the separate planning
+repository. It is immaterial to a user of this library.
+
+The rule applies to all of these:
+
+- file and directory names;
+- module, class, function, and variable names;
+- test module, test class, and test function names;
+- reference-data artifacts and their manifest schema strings;
+- docstrings, inline comments, and Markdown prose;
+- certification owner and transformation identities.
+
+```python
+# ❌ Wrong - tracking vocabulary leaks into the repository
+# file: tests/test_diffpes/test_simul/test_plan06_g15.py
+def test_plan07_wp3_carrier() -> None:
+    """Validate the Plan-06 gate 06.G15 covariance requirement."""
+
+
+# ✅ Correct - the name states the content
+# file: tests/test_diffpes/test_simul/test_complete_shell_covariance.py
+def test_complete_shell_covariance() -> None:
+    """Validate rotational covariance across a complete p or d shell."""
+```
+
+Name a verification requirement for the property that it checks. Write
+`chinook-tightbinding-parity`. Do not write `04.G6`. A reader must understand
+the requirement without access to a tracking document.
+
+Name a certification owner for its scientific domain. Write
+`org.diffpes.matrixel`. Do not write `org.diffpes.plan.06`.
 
 ### Documentation Standards
 
@@ -698,8 +772,8 @@ Record each disagreement and its resolution beside the artifact.
 
 **Never import chinook in the test suite.** Tests read pinned chinook values
 from committed artifacts in `tests/data/`. Chinook-importing generators live
-only outside the DiffPES source and test trees, under the planning repository's
-`verification/` area, and run manually in a separate pinned environment. Only
+only outside the DiffPES source and test trees, in a separate repository, and
+run manually in a separate pinned environment. Only
 immutable data, hashes, and provenance cross into DiffPES. Do not add chinook
 to any dependency group. Do not import or invoke it from source, tests,
 conftest, fixtures, helpers, or CI. Keep generator Python outside `tests/`.
@@ -891,8 +965,7 @@ API when it does not apply.
 
 1. **Design Phase:**
    - Discuss the approach in an issue first.
-   - Check the planning repository for the owning plan.
-   - Follow the plan's pinned conventions and gates.
+   - Follow the pinned conventions and verification gates for that area.
    - Consider JAX constraints (tracing, shapes, purity, degeneracies) early.
    - Plan the type signatures, custom types, and public API.
 

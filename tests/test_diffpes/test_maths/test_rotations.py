@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Complex, Float
+from numpy.typing import NDArray
 from scipy import linalg, special
 from scipy.spatial.transform import Rotation
 
@@ -27,19 +28,27 @@ from diffpes.maths.spherical_harmonics import real_spherical_harmonic
 from tests._gradients import gradient_gate
 
 
-def _angular_momentum_matrices(l: int) -> tuple[np.ndarray, np.ndarray]:
+def _angular_momentum_matrices(
+    l: int,
+) -> tuple[Complex[NDArray, "dim dim"], Complex[NDArray, "dim dim"]]:
     """Construct independent ascending-order Jz and Jy matrices."""
-    magnetic_numbers: np.ndarray = np.arange(-l, l + 1, dtype=np.float64)
+    magnetic_numbers: Float[NDArray, " dim"] = np.arange(
+        -l, l + 1, dtype=np.float64
+    )
     size: int = 2 * l + 1
-    raising: np.ndarray = np.zeros((size, size), dtype=np.complex128)
+    raising: Complex[NDArray, "dim dim"] = np.zeros(
+        (size, size), dtype=np.complex128
+    )
     m: int
     for m in range(-l, l):
         column: int = m + l
         row: int = column + 1
         raising[row, column] = np.sqrt(l * (l + 1) - m * (m + 1))
-    lowering: np.ndarray = raising.conj().T
-    angular_y: np.ndarray = (raising - lowering) / (2.0j)
-    angular_z: np.ndarray = np.diag(magnetic_numbers).astype(np.complex128)
+    lowering: Complex[NDArray, "dim dim"] = raising.conj().T
+    angular_y: Complex[NDArray, "dim dim"] = (raising - lowering) / (2.0j)
+    angular_z: Complex[NDArray, "dim dim"] = np.diag(magnetic_numbers).astype(
+        np.complex128
+    )
     return angular_z, angular_y
 
 
@@ -48,12 +57,12 @@ def _external_wigner_d(
     alpha: float,
     beta: float,
     gamma: float,
-) -> np.ndarray:
+) -> Complex[NDArray, "dim dim"]:
     """Construct an external Wigner matrix from independent generators."""
-    angular_z: np.ndarray
-    angular_y: np.ndarray
+    angular_z: Complex[NDArray, "dim dim"]
+    angular_y: Complex[NDArray, "dim dim"]
     angular_z, angular_y = _angular_momentum_matrices(l)
-    matrix: np.ndarray = (
+    matrix: Complex[NDArray, "dim dim"] = (
         linalg.expm(-1j * alpha * angular_z)
         @ linalg.expm(-1j * beta * angular_y)
         @ linalg.expm(-1j * gamma * angular_z)
@@ -94,11 +103,11 @@ class TestRodriguesRotation(chex.TestCase):
                     axis_values,
                     dtype=jnp.float64,
                 )
-                axis_numpy: np.ndarray = np.asarray(
+                axis_numpy: Float[NDArray, " 3"] = np.asarray(
                     axis_values,
                     dtype=np.float64,
                 )
-                rotation_vector: np.ndarray = (
+                rotation_vector: Float[NDArray, " 3"] = (
                     angle_value * axis_numpy / np.linalg.norm(axis_numpy)
                 )
                 expected: Float[Array, "3 3"] = jnp.asarray(
@@ -439,14 +448,14 @@ class TestWignerD(chex.TestCase):
         Use two generic rotations away from Euler singularities and compare
         ``D(R1) @ D(R2)`` with ``D(R1 @ R2)`` for ``l=1..4`` at ``1e-13``.
         """
-        first_angles: np.ndarray = np.array([0.27, 0.64, -0.19])
-        second_angles: np.ndarray = np.array([-0.38, 0.91, 0.44])
+        first_angles: Float[NDArray, " 3"] = np.array([0.27, 0.64, -0.19])
+        second_angles: Float[NDArray, " 3"] = np.array([-0.38, 0.91, 0.44])
         first_rotation: Rotation = Rotation.from_euler("ZYZ", first_angles)
         second_rotation: Rotation = Rotation.from_euler(
             "ZYZ",
             second_angles,
         )
-        product_angles: np.ndarray = (
+        product_angles: Float[NDArray, " 3"] = (
             first_rotation * second_rotation
         ).as_euler("ZYZ")
         l: int
@@ -527,7 +536,7 @@ class TestRealHarmonicUnitary(chex.TestCase):
 
         theta: float = 0.83
         phi: float = -0.41
-        complex_values: np.ndarray = special.sph_harm_y(
+        complex_values: Complex[NDArray, " 3"] = special.sph_harm_y(
             1,
             np.arange(-1, 2),
             theta,
@@ -566,7 +575,7 @@ class TestRealHarmonicUnitary(chex.TestCase):
                     2 * l + 1,
                     dtype=jnp.complex128,
                 )
-                complex_values: np.ndarray = special.sph_harm_y(
+                complex_values: Complex[NDArray, " dim"] = special.sph_harm_y(
                     l,
                     np.arange(-l, l + 1),
                     theta,

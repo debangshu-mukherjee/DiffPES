@@ -18,7 +18,8 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array
+from jaxtyping import Array, Complex, Float
+from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
 from diffpes.maths import GAUNT_TABLE, build_gaunt_table, gaunt_lookup
@@ -28,18 +29,18 @@ from diffpes.types import L_MAX
 def _scipy_real_spherical_harmonic(
     l_value: int,
     m_value: int,
-    theta: np.ndarray,
-    phi: np.ndarray,
-) -> np.ndarray:
+    theta: Float[NDArray, "..."],
+    phi: Float[NDArray, "..."],
+) -> Float[NDArray, "..."]:
     """Evaluate the production real-harmonic convention through SciPy."""
-    complex_value: np.ndarray = sph_harm_y(
+    complex_value: Complex[NDArray, "..."] = sph_harm_y(
         l_value,
         abs(m_value),
         theta,
         phi,
     )
     if m_value > 0:
-        real_value: np.ndarray = (
+        real_value: Float[NDArray, "..."] = (
             np.sqrt(2.0) * (-1) ** m_value * complex_value.real
         )
     elif m_value < 0:
@@ -240,14 +241,16 @@ class TestBuildGauntTable:
         -----
         The test combines Gauss--Legendre polar nodes with a uniform azimuth grid.
         """
-        cosine_nodes: np.ndarray
-        cosine_weights: np.ndarray
+        cosine_nodes: Float[NDArray, " n_theta"]
+        cosine_weights: Float[NDArray, " n_theta"]
         cosine_nodes, cosine_weights = np.polynomial.legendre.leggauss(32)
-        phi_values: np.ndarray = np.arange(64, dtype=np.float64) * (
-            2.0 * np.pi / 64.0
-        )
-        theta_grid: np.ndarray = np.arccos(cosine_nodes)[:, None]
-        phi_grid: np.ndarray = phi_values[None, :]
+        phi_values: Float[NDArray, " n_phi"] = np.arange(
+            64, dtype=np.float64
+        ) * (2.0 * np.pi / 64.0)
+        theta_grid: Float[NDArray, "n_theta 1"] = np.arccos(cosine_nodes)[
+            :, None
+        ]
+        phi_grid: Float[NDArray, "1 n_phi"] = phi_values[None, :]
         phi_weight: float = 2.0 * np.pi / 64.0
         l_initial: int
         m_initial: int
@@ -255,9 +258,9 @@ class TestBuildGauntTable:
         q_value: int
         l_final: int
         m_final: int
-        initial_harmonic: np.ndarray
-        dipole_harmonic: np.ndarray
-        final_harmonic: np.ndarray
+        initial_harmonic: Float[NDArray, "n_theta n_phi"]
+        dipole_harmonic: Float[NDArray, "n_theta n_phi"]
+        final_harmonic: Float[NDArray, "n_theta n_phi"]
         expected: float
         actual: float
         for l_initial in range(L_MAX + 1):

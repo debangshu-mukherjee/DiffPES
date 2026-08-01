@@ -25,7 +25,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import (
     NONSPIN_COLS,

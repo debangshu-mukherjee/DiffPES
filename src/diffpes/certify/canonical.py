@@ -36,7 +36,8 @@ from pathlib import Path
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any, cast
-from jaxtyping import jaxtyped
+from jaxtyping import Shaped, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     CANONICAL_ARRAY_CHUNK_BYTES,
@@ -180,11 +181,11 @@ def _is_array(value: object) -> bool:
     return is_array
 
 
-def _canonical_array(value: object) -> np.ndarray:
+def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
     """Materialize one array in the canonical dtype and memory order."""
     exc: Exception
     try:
-        array: np.ndarray = np.asarray(value)
+        array: Shaped[NDArray, "..."] = np.asarray(value)
     except Exception as exc:
         msg: str = (
             "canonicalization requires concrete arrays and cannot consume "
@@ -200,7 +201,9 @@ def _canonical_array(value: object) -> np.ndarray:
         msg: str = "canonical records reject arrays containing NaN or infinity"
         raise ValueError(msg)
     dtype: np.dtype[Any] = array.dtype.newbyteorder("<")
-    canonical: np.ndarray = np.asarray(array, dtype=dtype, order="C")
+    canonical: Shaped[NDArray, "..."] = np.asarray(
+        array, dtype=dtype, order="C"
+    )
     return canonical
 
 
@@ -212,7 +215,7 @@ def _iter_array_chunks(
     """Yield a canonical typed header followed by bounded array chunks."""
     dimension: Any
     offset: Any
-    array: np.ndarray = _canonical_array(value)
+    array: Shaped[NDArray, "..."] = _canonical_array(value)
     dtype_text: bytes = array.dtype.str.encode("ascii")
     yield b"A" + _length(len(dtype_text)) + dtype_text
     yield _length(array.ndim)

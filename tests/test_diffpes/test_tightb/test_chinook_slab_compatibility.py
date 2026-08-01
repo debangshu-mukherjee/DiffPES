@@ -10,7 +10,8 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Any
-from jaxtyping import Array
+from jaxtyping import Array, Float
+from numpy.typing import NDArray
 
 from diffpes.tightb import (
     diagonalize_tb,
@@ -130,9 +131,13 @@ def _native_slab(
     )
 
 
-def _gauss_reduced_metric(vectors: np.ndarray) -> np.ndarray:
+def _gauss_reduced_metric(
+    vectors: Float[NDArray, "2 3"],
+) -> Float[NDArray, "2 3"]:
     """Return a deterministic reduced two-dimensional lattice metric."""
-    reduced: np.ndarray = np.asarray(vectors, dtype=np.float64).copy()
+    reduced: Float[NDArray, "2 3"] = np.asarray(
+        vectors, dtype=np.float64
+    ).copy()
     for _ in range(32):
         first_norm: float = float(reduced[0] @ reduced[0])
         second_norm: float = float(reduced[1] @ reduced[1])
@@ -167,11 +172,11 @@ class TestPlan05ChinookCompatibility:
         payload: dict[str, Any] = _reference()
         reference: dict[str, Any] = payload["chinook_reference"]
         slab, _ = _native_slab(payload)
-        native_vectors: np.ndarray = np.asarray(
+        native_vectors: Float[NDArray, "2 3"] = np.asarray(
             slab.geometry.lattice[:2],
             dtype=np.float64,
         )
-        chinook_vectors: np.ndarray = np.asarray(
+        chinook_vectors: Float[NDArray, "2 3"] = np.asarray(
             reference["realization"]["slab_lattice_angstrom"],
             dtype=np.float64,
         )[:2]

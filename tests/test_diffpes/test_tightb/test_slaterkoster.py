@@ -14,6 +14,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from jaxtyping import Array, Float
+from numpy.typing import NDArray
 
 from diffpes.tightb import (
     bloch_hamiltonian,
@@ -194,8 +195,10 @@ class TestSkBlock:
         Plan-04 G3 tolerance.
         """
         generator: np.random.Generator = np.random.default_rng(93281)
-        raw: np.ndarray = generator.normal(size=(_TABLE_DIRECTIONS, 3))
-        directions: np.ndarray = raw / np.linalg.norm(
+        raw: Float[NDArray, "n_direction 3"] = generator.normal(
+            size=(_TABLE_DIRECTIONS, 3)
+        )
+        directions: Float[NDArray, "n_direction 3"] = raw / np.linalg.norm(
             raw,
             axis=1,
             keepdims=True,
@@ -213,7 +216,7 @@ class TestSkBlock:
             (2, 2): values[7:10],
         }
 
-        direction: np.ndarray
+        direction: Float[NDArray, " 3"]
         for direction in directions:
             bond: Float[Array, " 3"] = jnp.asarray(
                 direction,

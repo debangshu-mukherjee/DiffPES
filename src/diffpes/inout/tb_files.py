@@ -31,8 +31,8 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     HOPPING_LIST_COMPLEX_FIELDS,
@@ -71,8 +71,8 @@ class _HoppingRecord:
 class _HamiltonianBlocks:
     """Store normalized Hamiltonian matrices with exact block metadata."""
 
-    matrices: NDArray
-    source_lines: NDArray
+    matrices: Complex[NDArray, "n_cell n_orb n_orb"]
+    source_lines: Int[NDArray, "n_cell n_orb n_orb"]
     cells: tuple[tuple[int, int, int], ...]
     degeneracies: tuple[int, ...]
 
@@ -361,11 +361,11 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
     degeneracies: tuple[int, ...],
 ) -> _HamiltonianBlocks:
     """Parse cell-bearing ``hr.dat`` Hamiltonian rows."""
-    matrices: NDArray = np.empty(
+    matrices: Complex[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.complex128,
     )
-    source_lines: NDArray = np.empty(
+    source_lines: Int[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.int64,
     )
@@ -448,9 +448,9 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
     return blocks
 
 
-def _parse_tb_lattice(cursor: _LineCursor) -> NDArray:
+def _parse_tb_lattice(cursor: _LineCursor) -> Float[NDArray, "3 3"]:
     """Parse three Cartesian lattice rows in Angstrom."""
-    lattice: NDArray = np.empty((3, 3), dtype=np.float64)
+    lattice: Float[NDArray, "3 3"] = np.empty((3, 3), dtype=np.float64)
     row: int
     for row in range(3):
         line_number: int
@@ -483,11 +483,11 @@ def _parse_tb_hamiltonian_blocks(
     degeneracies: tuple[int, ...],
 ) -> _HamiltonianBlocks:
     """Parse block-headed ``tb.dat`` Hamiltonian matrices."""
-    matrices: NDArray = np.empty(
+    matrices: Complex[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.complex128,
     )
-    source_lines: NDArray = np.empty(
+    source_lines: Int[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.int64,
     )
@@ -568,9 +568,9 @@ def _parse_tb_position_blocks(
     cursor: _LineCursor,
     n_orbitals: int,
     hamiltonian_blocks: _HamiltonianBlocks,
-) -> NDArray:
+) -> Complex[NDArray, "n_cell n_orb n_orb 3"]:
     """Parse and align block-headed ``tb.dat`` position matrices."""
-    by_cell: dict[tuple[int, int, int], NDArray] = {}
+    by_cell: dict[tuple[int, int, int], Complex[NDArray, "n_orb n_orb 3"]] = {}
     weight_by_cell: dict[tuple[int, int, int], int] = dict(
         zip(
             hamiltonian_blocks.cells,
@@ -602,7 +602,7 @@ def _parse_tb_position_blocks(
                 f"duplicate position cell {cell}",
             )
             raise message
-        matrix: NDArray = np.empty(
+        matrix: Complex[NDArray, "n_orb n_orb 3"] = np.empty(
             (n_orbitals, n_orbitals, 3),
             dtype=np.complex128,
         )
@@ -652,7 +652,7 @@ def _parse_tb_position_blocks(
                 components.append((real + 1j * imaginary) / weight)
             matrix[pair[0], pair[1]] = components
         by_cell[cell] = matrix
-    aligned: NDArray = np.stack(
+    aligned: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.stack(
         tuple(by_cell[cell] for cell in hamiltonian_blocks.cells),
         axis=0,
     )
@@ -727,7 +727,7 @@ def _validate_hopping_closure(
 def _extract_model_data(
     blocks: _HamiltonianBlocks,
     path: Path,
-) -> tuple[NDArray, tuple[_HoppingRecord, ...]]:
+) -> tuple[Float[NDArray, " n_orb"], tuple[_HoppingRecord, ...]]:
     """Extract real origin diagonals and directed hopping records."""
     origin_indices: list[int] = [
         index for index, cell in enumerate(blocks.cells) if cell == (0, 0, 0)
@@ -739,7 +739,9 @@ def _extract_model_data(
         raise ValueError(message)
     origin: int = origin_indices[0]
     n_orbitals: int = blocks.matrices.shape[1]
-    onsite: NDArray = np.empty((n_orbitals,), dtype=np.float64)
+    onsite: Float[NDArray, " n_orb"] = np.empty(
+        (n_orbitals,), dtype=np.float64
+    )
     records: list[_HoppingRecord] = []
     cell_index: int
     cell: tuple[int, int, int]
@@ -774,7 +776,7 @@ def _extract_model_data(
                     )
     record_tuple: tuple[_HoppingRecord, ...] = tuple(records)
     _validate_hopping_closure(record_tuple, path)
-    result: tuple[NDArray, tuple[_HoppingRecord, ...]] = (
+    result: tuple[Float[NDArray, " n_orb"], tuple[_HoppingRecord, ...]] = (
         onsite,
         record_tuple,
     )
@@ -789,7 +791,7 @@ def _make_model(
     orbital_positions: Optional[Float[Array, "n_orb 3"]] = None,
 ) -> TBModel:
     """Convert normalized matrix blocks to a validated native model."""
-    onsite: NDArray
+    onsite: Float[NDArray, " n_orb"]
     records: tuple[_HoppingRecord, ...]
     onsite, records = _extract_model_data(blocks, path)
     n_orbitals: int = onsite.shape[0]
@@ -872,9 +874,11 @@ def _permute_hamiltonian_blocks(
     permutation: tuple[int, ...],
 ) -> _HamiltonianBlocks:
     """Apply one state permutation to both Hamiltonian axes and line maps."""
-    matrices: NDArray = np.take(blocks.matrices, permutation, axis=1)
+    matrices: Complex[NDArray, "n_cell n_orb n_orb"] = np.take(
+        blocks.matrices, permutation, axis=1
+    )
     matrices = np.take(matrices, permutation, axis=2)
-    source_lines: NDArray = np.take(
+    source_lines: Int[NDArray, "n_cell n_orb n_orb"] = np.take(
         blocks.source_lines,
         permutation,
         axis=1,
@@ -890,20 +894,24 @@ def _permute_hamiltonian_blocks(
 
 
 def _permute_position_matrices(
-    matrices: NDArray,
+    matrices: Complex[NDArray, "n_cell n_orb n_orb 3"],
     permutation: tuple[int, ...],
-) -> NDArray:
+) -> Complex[NDArray, "n_cell n_orb n_orb 3"]:
     """Apply one state permutation to both position-operator axes."""
-    permuted: NDArray = np.take(matrices, permutation, axis=1)
-    result: NDArray = np.take(permuted, permutation, axis=2)
+    permuted: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.take(
+        matrices, permutation, axis=1
+    )
+    result: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.take(
+        permuted, permutation, axis=2
+    )
     return result
 
 
 def _centres_from_position_matrices(
-    matrices: NDArray,
+    matrices: Complex[NDArray, "n_cell n_orb n_orb 3"],
     cells: tuple[tuple[int, int, int], ...],
     path: Path,
-) -> NDArray:
+) -> Float[NDArray, "n_orb 3"]:
     """Extract real origin-diagonal Wannier centres in Angstrom."""
     try:
         origin: int = cells.index((0, 0, 0))
@@ -911,7 +919,7 @@ def _centres_from_position_matrices(
         error: ValueError
         message: str = f"{path}: position matrices require an origin cell"
         raise ValueError(message) from error
-    diagonal: NDArray = np.diagonal(
+    diagonal: Complex[NDArray, "n_orb 3"] = np.diagonal(
         matrices[origin],
         axis1=0,
         axis2=1,
@@ -922,13 +930,15 @@ def _centres_from_position_matrices(
             f"within {WANNIER_HERMITICITY_TOLERANCE:.0e} Angstrom"
         )
         raise ValueError(message)
-    centres: NDArray = np.asarray(diagonal.real, dtype=np.float64)
+    centres: Float[NDArray, "n_orb 3"] = np.asarray(
+        diagonal.real, dtype=np.float64
+    )
     return centres
 
 
 def _geometry_from_centres(
-    lattice: NDArray,
-    centres_cart: NDArray,
+    lattice: Float[NDArray, "3 3"],
+    centres_cart: Float[NDArray, "n_orb 3"],
     basis: OrbitalBasis,
     path: Path,
 ) -> CrystalGeometry:
@@ -941,7 +951,9 @@ def _geometry_from_centres(
     if set(atom_indices) != set(range(n_atoms)):
         message = f"{path}: basis atom_indices must be contiguous from zero"
         raise ValueError(message)
-    atom_centres: NDArray = np.empty((n_atoms, 3), dtype=np.float64)
+    atom_centres: Float[NDArray, "n_atom 3"] = np.empty(
+        (n_atoms, 3), dtype=np.float64
+    )
     atom: int
     for atom in range(n_atoms):
         orbital_rows: list[int] = [
@@ -949,8 +961,10 @@ def _geometry_from_centres(
             for index, assigned_atom in enumerate(atom_indices)
             if assigned_atom == atom
         ]
-        reference: NDArray = centres_cart[orbital_rows[0]]
-        differences: NDArray = np.abs(centres_cart[orbital_rows] - reference)
+        reference: Float[NDArray, " 3"] = centres_cart[orbital_rows[0]]
+        differences: Float[NDArray, "n_row 3"] = np.abs(
+            centres_cart[orbital_rows] - reference
+        )
         if np.any(differences > WANNIER_CENTRE_CONSISTENCY_TOLERANCE):
             message = (
                 f"{path}: Wannier centres assigned to atom {atom} differ by "
@@ -960,7 +974,9 @@ def _geometry_from_centres(
             raise ValueError(message)
         atom_centres[atom] = reference
     try:
-        fractional: NDArray = atom_centres @ np.linalg.inv(lattice)
+        fractional: Float[NDArray, "n_atom 3"] = atom_centres @ np.linalg.inv(
+            lattice
+        )
     except np.linalg.LinAlgError as error:
         error: np.linalg.LinAlgError
         message = f"{path}: lattice must be nonsingular"
@@ -977,9 +993,11 @@ def _validated_explicit_centres(
     centres_cart: Float[Array, "n_orb 3"],
     n_orbitals: int,
     path: Path,
-) -> NDArray:
+) -> Float[NDArray, "n_orb 3"]:
     """Validate explicit ``hr.dat`` centres without altering connectivity."""
-    centres: NDArray = np.asarray(centres_cart, dtype=np.float64)
+    centres: Float[NDArray, "n_orb 3"] = np.asarray(
+        centres_cart, dtype=np.float64
+    )
     if centres.shape != (n_orbitals, 3):
         message: str = (
             f"{path}: centres_cart must have shape ({n_orbitals}, 3)"
@@ -992,25 +1010,27 @@ def _validated_explicit_centres(
 
 
 def _fractional_wannier_centres(
-    lattice: NDArray,
-    centres_cart: NDArray,
+    lattice: Float[NDArray, "3 3"],
+    centres_cart: Float[NDArray, "n_orb 3"],
     path: Path,
-) -> NDArray:
+) -> Float[NDArray, "n_orb 3"]:
     """Convert Cartesian Wannier centres to fractional coordinates."""
     try:
-        inverse_lattice: NDArray = np.linalg.inv(lattice)
+        inverse_lattice: Float[NDArray, "3 3"] = np.linalg.inv(lattice)
     except np.linalg.LinAlgError as error:
         error: np.linalg.LinAlgError
         message: str = f"{path}: lattice must be nonsingular"
         raise ValueError(message) from error
-    fractional: NDArray = centres_cart @ inverse_lattice
-    fractional_array: NDArray = np.asarray(fractional, dtype=np.float64)
+    fractional: Float[NDArray, "n_orb 3"] = centres_cart @ inverse_lattice
+    fractional_array: Float[NDArray, "n_orb 3"] = np.asarray(
+        fractional, dtype=np.float64
+    )
     return fractional_array
 
 
 def _resolve_tb_geometry(
-    lattice: NDArray,
-    centres_cart: NDArray,
+    lattice: Float[NDArray, "3 3"],
+    centres_cart: Float[NDArray, "n_orb 3"],
     basis: OrbitalBasis,
     path: Path,
     geometry: Optional[CrystalGeometry],
@@ -1098,8 +1118,12 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         path.read_text(encoding="utf-8").splitlines()
     )
     n_orbitals: int = len(basis.n)
-    lattice: NDArray = np.asarray(geometry.lattice, dtype=np.float64)
-    positions: NDArray = np.asarray(geometry.positions, dtype=np.float64)
+    lattice: Float[NDArray, "3 3"] = np.asarray(
+        geometry.lattice, dtype=np.float64
+    )
+    positions: Float[NDArray, "n_atom 3"] = np.asarray(
+        geometry.positions, dtype=np.float64
+    )
     if any(index >= positions.shape[0] for index in basis.atom_indices):
         message: str = (
             f"{path}: basis atom_indices must refer to geometry position rows"
@@ -1107,12 +1131,14 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         raise ValueError(message)
     _spin_permutation(basis, "block_down_up", path)
     try:
-        inverse_lattice: NDArray = np.linalg.inv(lattice)
+        inverse_lattice: Float[NDArray, "3 3"] = np.linalg.inv(lattice)
     except np.linalg.LinAlgError as error:
         error: np.linalg.LinAlgError
         message: str = f"{path}: geometry lattice must be nonsingular"
         raise ValueError(message) from error
-    onsite: NDArray = np.zeros((n_orbitals,), dtype=np.float64)
+    onsite: Float[NDArray, " n_orb"] = np.zeros(
+        (n_orbitals,), dtype=np.float64
+    )
     onsite_lines: dict[int, int] = {}
     records: list[_HoppingRecord] = []
     saw_row: bool = False
@@ -1152,7 +1178,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
                 f"orbital indices must be in [0, {n_orbitals})",
             )
             raise message
-        cartesian: NDArray = np.asarray(
+        cartesian: Float[NDArray, " 3"] = np.asarray(
             [
                 _parse_finite_float(
                     tokens[index],
@@ -1182,12 +1208,14 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         )
         atom_i: int = basis.atom_indices[orbital_i]
         atom_j: int = basis.atom_indices[orbital_j]
-        fractional_displacement: NDArray = cartesian @ inverse_lattice
-        candidate: NDArray = (
+        fractional_displacement: Float[NDArray, " 3"] = (
+            cartesian @ inverse_lattice
+        )
+        candidate: Float[NDArray, " 3"] = (
             fractional_displacement - positions[atom_j] + positions[atom_i]
         )
-        nearest: NDArray = np.rint(candidate)
-        deviation: NDArray = np.abs(candidate - nearest)
+        nearest: Float[NDArray, " 3"] = np.rint(candidate)
+        deviation: Float[NDArray, " 3"] = np.abs(candidate - nearest)
         if np.any(deviation > WANNIER_INTEGER_RECOVERY_TOLERANCE):
             message = _line_error(
                 path,
@@ -1321,12 +1349,12 @@ def read_wannier90_hr(  # noqa: DOC502
         degeneracies,
     )
     cursor.ensure_exhausted()
-    centres: NDArray = _validated_explicit_centres(
+    centres: Float[NDArray, "n_orb 3"] = _validated_explicit_centres(
         centres_cart,
         n_orbitals,
         path,
     )
-    orbital_positions: NDArray = _fractional_wannier_centres(
+    orbital_positions: Float[NDArray, "n_orb 3"] = _fractional_wannier_centres(
         np.asarray(geometry.lattice),
         centres,
         path,
@@ -1407,7 +1435,7 @@ def read_wannier90_tb(  # noqa: DOC502
     _require_filename_suffix(path, WANNIER_TB_SUFFIX)
     cursor: _LineCursor = _LineCursor.from_path(path)
     _parse_header(cursor)
-    lattice: NDArray = _parse_tb_lattice(cursor)
+    lattice: Float[NDArray, "3 3"] = _parse_tb_lattice(cursor)
     n_orbitals: int
     n_cells: int
     degeneracies: tuple[int, ...]
@@ -1419,10 +1447,12 @@ def read_wannier90_tb(  # noqa: DOC502
         n_cells,
         degeneracies,
     )
-    serialized_positions: NDArray = _parse_tb_position_blocks(
-        cursor,
-        n_orbitals,
-        serialized_blocks,
+    serialized_positions: Complex[NDArray, "n_cell n_orb n_orb 3"] = (
+        _parse_tb_position_blocks(
+            cursor,
+            n_orbitals,
+            serialized_blocks,
+        )
     )
     cursor.ensure_exhausted()
     permutation: tuple[int, ...] = _spin_permutation(
@@ -1434,11 +1464,13 @@ def read_wannier90_tb(  # noqa: DOC502
         serialized_blocks,
         permutation,
     )
-    position_matrices: NDArray = _permute_position_matrices(
-        serialized_positions,
-        permutation,
+    position_matrices: Complex[NDArray, "n_cell n_orb n_orb 3"] = (
+        _permute_position_matrices(
+            serialized_positions,
+            permutation,
+        )
     )
-    centres: NDArray = _centres_from_position_matrices(
+    centres: Float[NDArray, "n_orb 3"] = _centres_from_position_matrices(
         position_matrices,
         blocks.cells,
         path,
@@ -1450,7 +1482,7 @@ def read_wannier90_tb(  # noqa: DOC502
         path,
         geometry,
     )
-    orbital_positions: NDArray = _fractional_wannier_centres(
+    orbital_positions: Float[NDArray, "n_orb 3"] = _fractional_wannier_centres(
         lattice,
         centres,
         path,

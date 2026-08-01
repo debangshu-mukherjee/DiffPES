@@ -12,6 +12,7 @@ from typing import Any
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
+from numpy.typing import NDArray
 
 from diffpes.inout import read_wannier90_hr
 from diffpes.tightb import eigvalsh_bands
@@ -108,11 +109,13 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
         [reference["kpoints_fractional"][label] for label in labels],
         dtype=jnp.float64,
     )
-    expected: np.ndarray = np.asarray(
+    expected: Float[NDArray, "n_label nband"] = np.asarray(
         [reference["eigenvalues_ev"][label] for label in labels],
         dtype=np.float64,
     )
-    actual: np.ndarray = np.asarray(eigvalsh_bands(model, kpoints))
+    actual: Float[NDArray, "n_label nband"] = np.asarray(
+        eigvalsh_bands(model, kpoints)
+    )
     np.testing.assert_allclose(
         actual,
         expected,

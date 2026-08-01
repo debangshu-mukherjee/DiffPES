@@ -47,8 +47,8 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any
-from jaxtyping import jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from jaxtyping import Shaped, UInt, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     CERTIFICATE_ARRAY_KINDS,
@@ -234,7 +234,7 @@ def _encode_array(value: object) -> dict[str, Any]:
     """Encode one concrete numerical leaf without decimal conversion."""
     exc: Exception
     try:
-        array: NDArray = np.asarray(value)
+        array: Shaped[NDArray, "..."] = np.asarray(value)
     except Exception as exc:
         msg: str = (
             "certificate persistence requires concrete, non-traced arrays"
@@ -247,7 +247,7 @@ def _encode_array(value: object) -> dict[str, Any]:
         msg: str = "certificate persistence rejects nonfinite numerical leaves"
         raise ValueError(msg)
     canonical_dtype: np.dtype[Any] = array.dtype.newbyteorder("<")
-    canonical: NDArray = np.asarray(
+    canonical: Shaped[NDArray, "..."] = np.asarray(
         array,
         dtype=canonical_dtype,
         order="C",
@@ -597,7 +597,9 @@ def _decode_array(node: Mapping[str, Any]) -> Any:
             "certificate array byte length does not match dtype and shape"
         )
         raise ValueError(msg)
-    array: NDArray = np.frombuffer(payload, dtype=dtype).reshape(shape)
+    array: Shaped[NDArray, "..."] = np.frombuffer(
+        payload, dtype=dtype
+    ).reshape(shape)
     if dtype.kind in {"f", "c"} and not bool(np.all(np.isfinite(array))):
         msg: str = "certificate persistence rejects nonfinite numerical leaves"
         raise ValueError(msg)
@@ -1084,7 +1086,9 @@ def load_certificate_h5(
         if "canonical_json" not in group:
             msg: str = "HDF5 certificate record has no canonical_json dataset"
             raise ValueError(msg)
-        stored: NDArray = np.asarray(group["canonical_json"][()])
+        stored: UInt[NDArray, " n_byte"] = np.asarray(
+            group["canonical_json"][()]
+        )
         if stored.dtype != np.dtype(np.uint8) or stored.ndim != 1:
             msg: str = (
                 "HDF5 canonical_json dataset must be one-dimensional uint8"

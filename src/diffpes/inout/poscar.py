@@ -25,7 +25,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import TextIO
 from jaxtyping import Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import CrystalGeometry, make_crystal_geometry
 

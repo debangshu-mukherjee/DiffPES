@@ -39,7 +39,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Any, Mapping, Optional, Union
 from jaxtyping import Shaped, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import (
     ATTR_AUX,

@@ -33,6 +33,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     BOHR_TO_ANGSTROM,
@@ -138,14 +139,14 @@ def gauss_legendre_nodes(
     if not np.isfinite(r_max_bohr) or r_max_bohr <= 0.0:
         message = "r_max_bohr must be finite and positive"
         raise ValueError(message)
-    canonical_pair: tuple[np.ndarray, np.ndarray] = (
+    canonical_pair: tuple[Float[NDArray, " n_r"], Float[NDArray, " n_r"]] = (
         np.polynomial.legendre.leggauss(n_nodes)
     )
-    canonical_nodes: np.ndarray = canonical_pair[0]
-    canonical_weights: np.ndarray = canonical_pair[1]
+    canonical_nodes: Float[NDArray, " n_r"] = canonical_pair[0]
+    canonical_weights: Float[NDArray, " n_r"] = canonical_pair[1]
     scale: float = 0.5 * r_max_bohr
-    shifted_nodes: np.ndarray = scale * (canonical_nodes + 1.0)
-    shifted_weights: np.ndarray = scale * canonical_weights
+    shifted_nodes: Float[NDArray, " n_r"] = scale * (canonical_nodes + 1.0)
+    shifted_weights: Float[NDArray, " n_r"] = scale * canonical_weights
     quadrature: tuple[Float[Array, " n_r"], Float[Array, " n_r"]] = (
         jnp.asarray(shifted_nodes, dtype=jnp.float64),
         jnp.asarray(shifted_weights, dtype=jnp.float64),

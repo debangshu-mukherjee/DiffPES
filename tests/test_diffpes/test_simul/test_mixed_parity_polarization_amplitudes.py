@@ -15,6 +15,7 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Complex, Float
+from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
 from diffpes.maths import (
@@ -45,11 +46,11 @@ _PHI_WEIGHT = 2.0 * np.pi / 64.0
 def _complex_harmonic(
     degree: int,
     order: int,
-    theta: np.ndarray | float,
-    phi: np.ndarray | float,
-) -> np.ndarray:
+    theta: Float[NDArray, "..."] | float,
+    phi: Float[NDArray, "..."] | float,
+) -> Complex[NDArray, "..."]:
     """Evaluate one Condon--Shortley complex spherical harmonic."""
-    value: np.ndarray = np.asarray(
+    value: Complex[NDArray, "..."] = np.asarray(
         sph_harm_y(degree, order, theta, phi),
         dtype=np.complex128,
     )
@@ -59,18 +60,20 @@ def _complex_harmonic(
 def _real_harmonic(
     degree: int,
     order: int,
-    theta: np.ndarray | float,
-    phi: np.ndarray | float,
-) -> np.ndarray:
+    theta: Float[NDArray, "..."] | float,
+    phi: Float[NDArray, "..."] | float,
+) -> Float[NDArray, "..."]:
     """Evaluate one real harmonic directly from independent SciPy values."""
-    complex_value: np.ndarray = _complex_harmonic(
+    complex_value: Complex[NDArray, "..."] = _complex_harmonic(
         degree,
         abs(order),
         theta,
         phi,
     )
     if order > 0:
-        value: np.ndarray = np.sqrt(2.0) * (-1) ** order * complex_value.real
+        value: Float[NDArray, "..."] = (
+            np.sqrt(2.0) * (-1) ** order * complex_value.real
+        )
     elif order < 0:
         value = np.sqrt(2.0) * (-1) ** abs(order) * complex_value.imag
     else:
@@ -79,14 +82,14 @@ def _real_harmonic(
 
 
 def _cart_to_complex_independent(
-    polarization_cart: np.ndarray,
-) -> np.ndarray:
+    polarization_cart: Complex[NDArray, " 3"],
+) -> Complex[NDArray, " 3"]:
     """Apply the canonical Cartesian-to-spherical map without package code."""
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
     ex: complex = complex(polarization_cart[0])
     ey: complex = complex(polarization_cart[1])
     ez: complex = complex(polarization_cart[2])
-    result: np.ndarray = np.asarray(
+    result: Complex[NDArray, " 3"] = np.asarray(
         (
             inverse_sqrt_two * (ex - 1j * ey),
             ez,
@@ -100,9 +103,9 @@ def _cart_to_complex_independent(
 def _complex_formula_amplitude(
     degree: int,
     order: int,
-    direction_cart: np.ndarray,
-    radial_channels: np.ndarray,
-    polarization_cart: np.ndarray,
+    direction_cart: Float[NDArray, " 3"],
+    radial_channels: Complex[NDArray, " 2"],
+    polarization_cart: Complex[NDArray, " 3"],
 ) -> complex:
     r"""Evaluate the independent complex-Ylm amplitude.
 
@@ -110,23 +113,25 @@ def _complex_formula_amplitude(
     ``sum_q (-1)^q epsilon_q Y_1^{-q}`` and
     ``sum_m' Y_l'^m'*(khat) Y_l'^m'(rhat)`` by angular quadrature.
     """
-    direction: np.ndarray = np.asarray(direction_cart, dtype=np.float64)
+    direction: Float[NDArray, " 3"] = np.asarray(
+        direction_cart, dtype=np.float64
+    )
     direction = direction / np.linalg.norm(direction)
     theta_direction: float = math.acos(float(direction[2]))
     phi_direction: float = math.atan2(
         float(direction[1]),
         float(direction[0]),
     )
-    initial: np.ndarray = _real_harmonic(
+    initial: Float[NDArray, "n_theta n_phi"] = _real_harmonic(
         degree,
         order,
         _THETA_GRID,
         _PHI_GRID,
     )
-    polarization_complex: np.ndarray = _cart_to_complex_independent(
-        polarization_cart
+    polarization_complex: Complex[NDArray, " 3"] = (
+        _cart_to_complex_independent(polarization_cart)
     )
-    dipole: np.ndarray = np.zeros_like(
+    dipole: Complex[NDArray, "n_theta n_phi"] = np.zeros_like(
         _THETA_GRID + _PHI_GRID,
         dtype=np.complex128,
     )
@@ -152,7 +157,7 @@ def _complex_formula_amplitude(
         branch_amplitude: complex = 0.0j
         final_order: int
         for final_order in range(-final_degree, final_degree + 1):
-            final_grid: np.ndarray = _complex_harmonic(
+            final_grid: Complex[NDArray, "n_theta n_phi"] = _complex_harmonic(
                 final_degree,
                 final_order,
                 _THETA_GRID,
@@ -180,8 +185,8 @@ def _complex_formula_amplitude(
 def _single_orbital_channels(
     degree: int,
     order: int,
-    direction_cart: np.ndarray,
-    radial_channels: np.ndarray,
+    direction_cart: Float[NDArray, " 3"],
+    radial_channels: Complex[NDArray, " 2"],
 ) -> tuple[Complex[jnp.ndarray, " 3"], OrbitalBasis]:
     """Evaluate one production real-orbital transition row."""
     basis: OrbitalBasis = make_orbital_basis(
@@ -230,12 +235,12 @@ def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
     Generic complex polarization and unrelated complex radial branches expose
     conjugation, spherical-metric, real-basis, and magnetic-index errors.
     """
-    direction: np.ndarray = np.asarray((0.37, -0.51, 0.78))
-    polarization: np.ndarray = np.asarray(
+    direction: Float[NDArray, " 3"] = np.asarray((0.37, -0.51, 0.78))
+    polarization: Complex[NDArray, " 3"] = np.asarray(
         (0.31 + 0.27j, -0.42 + 0.19j, 0.53 - 0.11j),
         dtype=np.complex128,
     )
-    radial_channels: np.ndarray = np.asarray(
+    radial_channels: Complex[NDArray, " 2"] = np.asarray(
         (0.29 - 0.33j, -0.47 + 0.21j),
         dtype=np.complex128,
     )
@@ -290,19 +295,19 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         m=(0, 0),
     )
     params: MatrixElementParams = make_matrix_element_params(basis, (0, 1))
-    direction: np.ndarray = np.asarray((0.41, 0.36, 0.84))
-    phase_free: np.ndarray = np.asarray(
+    direction: Float[NDArray, " 3"] = np.asarray((0.41, 0.36, 0.84))
+    phase_free: Complex[NDArray, "2 2"] = np.asarray(
         ((0.0, 0.73), (0.41, -0.52)),
         dtype=np.complex128,
     )
-    coefficients: np.ndarray = np.asarray(
+    coefficients: Complex[NDArray, " 2"] = np.asarray(
         (0.8 + 0.2j, -0.35 + 0.6j),
         dtype=np.complex128,
     )
 
-    def phased_radial(mode: str) -> np.ndarray:
+    def phased_radial(mode: str) -> Complex[NDArray, "2 2"]:
         """Return one planted partial-wave phase convention."""
-        values: np.ndarray = np.zeros_like(phase_free)
+        values: Complex[NDArray, "2 2"] = np.zeros_like(phase_free)
         orbital: int
         degree: int
         branch: int
@@ -323,8 +328,8 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         return values
 
     def production_amplitude(
-        radial_values: np.ndarray,
-        polarization: np.ndarray,
+        radial_values: Complex[NDArray, "2 2"],
+        polarization: Complex[NDArray, " 3"],
     ) -> complex:
         """Return the coherent two-orbital production amplitude."""
         transition: Complex[jnp.ndarray, "1 1 2 3"] = (
@@ -346,13 +351,13 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         return complex(jnp.sum(polarized * jnp.asarray(coefficients)))
 
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    polarizations: tuple[np.ndarray, ...] = (
+    polarizations: tuple[Complex[NDArray, " 3"], ...] = (
         np.asarray((0.23 + 0.17j, -0.49 + 0.31j, 0.61 - 0.09j)),
         inverse_sqrt_two * np.asarray((1.0, 1j, 0.0)),
         inverse_sqrt_two * np.asarray((1.0, -1j, 0.0)),
     )
-    correct_radial: np.ndarray = phased_radial("correct")
-    polarization: np.ndarray
+    correct_radial: Complex[NDArray, "2 2"] = phased_radial("correct")
+    polarization: Complex[NDArray, " 3"]
     for polarization in polarizations:
         expected: complex = sum(
             coefficients[orbital]
@@ -376,7 +381,7 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
             atol=1.0e-13,
         )
 
-    generic: np.ndarray = polarizations[0]
+    generic: Complex[NDArray, " 3"] = polarizations[0]
     correct: complex = production_amplitude(correct_radial, generic)
     wrong_mode: str
     for wrong_mode in ("omitted", "flipped", "doubled"):
@@ -398,8 +403,8 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
     Basis vectors, a generic elliptic vector, and both helicities exercise the
     two unitary transforms; a real-order-as-complex control must disagree.
     """
-    direction: np.ndarray = np.asarray((-0.32, 0.58, 0.75))
-    radial: np.ndarray = np.asarray((0.38 + 0.22j, -0.29 + 0.47j))
+    direction: Float[NDArray, " 3"] = np.asarray((-0.32, 0.58, 0.75))
+    radial: Complex[NDArray, " 2"] = np.asarray((0.38 + 0.22j, -0.29 + 0.47j))
     transition: Complex[jnp.ndarray, " 3"]
     transition, _ = _single_orbital_channels(2, -1, direction, radial)
     dipole_cart: Complex[jnp.ndarray, " 3"] = polarization_real_to_cart(

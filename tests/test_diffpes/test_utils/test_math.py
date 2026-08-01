@@ -19,7 +19,8 @@ import pytest
 from beartype import beartype
 from beartype.typing import Any, Callable
 from jax.test_util import check_grads
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Shaped, jaxtyped
+from numpy.typing import NDArray
 from scipy.special import wofz
 
 from diffpes.utils import (
@@ -30,7 +31,7 @@ from diffpes.utils import (
 )
 
 
-def _faddeeva_reference() -> dict[str, np.ndarray]:
+def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
     """Load the frozen Plan-07 G1/D1 arbitrary-precision reference."""
     path: Path = (
         Path(__file__).parents[1]
@@ -39,7 +40,7 @@ def _faddeeva_reference() -> dict[str, np.ndarray]:
     )
     archive: np.lib.npyio.NpzFile
     with np.load(path, allow_pickle=False) as archive:
-        result: dict[str, np.ndarray] = {
+        result: dict[str, Shaped[NDArray, "..."]] = {
             name: archive[name] for name in archive.files
         }
     return result
@@ -133,8 +134,8 @@ class TestFaddeeva(chex.TestCase):
             hashlib.sha256(generator_path.read_bytes()).hexdigest()
             == manifest["generator_sha256"]
         )
-        reference: dict[str, np.ndarray] = _faddeeva_reference()
-        scipy_values: np.ndarray = wofz(reference["points"])
+        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
+        scipy_values: Complex[NDArray, " n"] = wofz(reference["points"])
         np.testing.assert_allclose(
             scipy_values,
             reference["values"],
@@ -153,12 +154,16 @@ class TestFaddeeva(chex.TestCase):
         It applies the frozen componentwise mixed bound independently to the
         real and imaginary output rows.
         """
-        reference: dict[str, np.ndarray] = _faddeeva_reference()
+        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
         points: Complex[Array, " n"] = jnp.asarray(reference["points"])
-        expected: np.ndarray = reference["values"]
-        actual: np.ndarray = np.asarray(jax.jit(faddeeva)(points))
-        real_bound: np.ndarray = 2.0e-15 + 2.0e-12 * np.abs(expected.real)
-        imag_bound: np.ndarray = 2.0e-15 + 2.0e-12 * np.abs(expected.imag)
+        expected: Complex[NDArray, " n"] = reference["values"]
+        actual: Complex[NDArray, " n"] = np.asarray(jax.jit(faddeeva)(points))
+        real_bound: Float[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
+            expected.real
+        )
+        imag_bound: Float[NDArray, " n"] = 2.0e-15 + 2.0e-12 * np.abs(
+            expected.imag
+        )
         np.testing.assert_array_less(
             np.abs(actual.real - expected.real),
             real_bound,
@@ -179,13 +184,13 @@ class TestFaddeeva(chex.TestCase):
         It forms the cancellation-sensitive ODE truth in mpmath before the
         artifact rounds it to complex128.
         """
-        reference: dict[str, np.ndarray] = _faddeeva_reference()
+        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
         points: Complex[Array, " n"] = jnp.asarray(reference["points"])
-        derivatives: np.ndarray = reference["derivatives"]
+        derivatives: Complex[NDArray, " n"] = reference["derivatives"]
         direction: complex
         for direction in reference["directions"]:
             tangents: Complex[Array, " n"] = jnp.full_like(points, direction)
-            actual: np.ndarray = np.asarray(
+            actual: Complex[NDArray, " n"] = np.asarray(
                 jax.jit(
                     lambda arguments, vectors: jax.jvp(
                         faddeeva,
@@ -194,8 +199,8 @@ class TestFaddeeva(chex.TestCase):
                     )[1]
                 )(points, tangents)
             )
-            expected: np.ndarray = derivatives * direction
-            bound: np.ndarray = 2.0e-14 / (
+            expected: Complex[NDArray, " n"] = derivatives * direction
+            bound: Float[NDArray, " n"] = 2.0e-14 / (
                 1.0 + np.abs(reference["points"])
             ) ** 2 + 2.0e-11 * np.abs(expected)
             np.testing.assert_array_less(np.abs(actual - expected), bound)

@@ -20,7 +20,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Optional, TextIO, Tuple
 from jaxtyping import Array, Float, Int, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import (
     LATTICE_ROWS,

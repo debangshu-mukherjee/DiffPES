@@ -10,6 +10,8 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Float
+from numpy.typing import NDArray
 from scipy.special import loggamma
 
 from diffpes.radial import coulomb_fg, spherical_bessel_jl
@@ -30,13 +32,17 @@ def main() -> None:  # noqa: PLR0915
         / "coulomb_mpmath_80digit.npz"
     )
     with np.load(path) as archive:
-        dense_etas: np.ndarray = archive["dense_etas"]
-        dense_rhos: np.ndarray = archive["dense_rhos"]
-        reference_regular: np.ndarray = archive["dense_f"][order]
-        reference_irregular: np.ndarray = archive["dense_g"][order]
+        dense_etas: Float[NDArray, " n_eta"] = archive["dense_etas"]
+        dense_rhos: Float[NDArray, " n_rho"] = archive["dense_rhos"]
+        reference_regular: Float[NDArray, "n_eta n_rho"] = archive["dense_f"][
+            order
+        ]
+        reference_irregular: Float[NDArray, "n_eta n_rho"] = archive[
+            "dense_g"
+        ][order]
 
-    eta_grid_numpy: np.ndarray
-    rho_grid_numpy: np.ndarray
+    eta_grid_numpy: Float[NDArray, "n_eta n_rho"]
+    rho_grid_numpy: Float[NDArray, "n_eta n_rho"]
     eta_grid_numpy, rho_grid_numpy = np.meshgrid(
         dense_etas,
         dense_rhos,
@@ -150,16 +156,16 @@ def main() -> None:  # noqa: PLR0915
     )
 
     origin_rho: float = float(dense_rhos[0])
-    normalization: np.ndarray = np.exp(
+    normalization: Float[NDArray, " n_eta"] = np.exp(
         order * np.log(2.0)
         - np.pi * dense_etas / 2.0
         + np.real(loggamma(order + 1 + 1j * dense_etas))
         - loggamma(2 * order + 2)
     )
-    regular_origin_ratio: np.ndarray = np.asarray(actual[0, :, 0]) / (
-        normalization * origin_rho ** (order + 1)
-    )
-    irregular_origin_ratio: np.ndarray = (
+    regular_origin_ratio: Float[NDArray, " n_eta"] = np.asarray(
+        actual[0, :, 0]
+    ) / (normalization * origin_rho ** (order + 1))
+    irregular_origin_ratio: Float[NDArray, " n_eta"] = (
         np.asarray(actual[1, :, 0])
         * (2 * order + 1)
         * normalization

@@ -37,6 +37,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     CrystalGeometry,
@@ -78,10 +79,12 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
 def _require_exact_closure(
     model: TBModel,
     reverse_indices: tuple[int, ...],
-) -> np.ndarray:
+) -> Complex[NDArray, " n_hop"]:
     """Require lossless rather than tolerance-projected Hermitian closure."""
-    host_amplitudes: np.ndarray = np.asarray(model.hopping_amplitudes)
-    reversed_amplitudes: np.ndarray = host_amplitudes[
+    host_amplitudes: Complex[NDArray, " n_hop"] = np.asarray(
+        model.hopping_amplitudes
+    )
+    reversed_amplitudes: Complex[NDArray, " n_hop"] = host_amplitudes[
         np.asarray(reverse_indices, dtype=np.int64)
     ]
     if not np.array_equal(reversed_amplitudes, np.conj(host_amplitudes)):
@@ -187,7 +190,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         message = "include_lattice must be a bool"
         raise ValueError(message)
     reverse_indices: tuple[int, ...] = _reverse_indices(model)
-    host_amplitudes: np.ndarray = _require_exact_closure(
+    host_amplitudes: Complex[NDArray, " n_hop"] = _require_exact_closure(
         model,
         reverse_indices,
     )

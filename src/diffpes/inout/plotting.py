@@ -36,7 +36,7 @@ from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
 from matplotlib.figure import Figure, SubFigure
 from matplotlib.image import AxesImage
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import (
     BAND_NDIM,
@@ -80,9 +80,9 @@ def _prepare_plot_arrays(
 
     Returns
     -------
-    intensity : np.ndarray
+    intensity : Float[NDArray, "K E"]
         2D intensity array of shape ``(K, E)``.
-    energy_axis : np.ndarray
+    energy_axis : Float[NDArray, " E"]
         1D energy axis array of shape ``(E,)``.
 
     Raises

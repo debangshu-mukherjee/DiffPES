@@ -11,7 +11,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from numpy import ndarray as NDArray  # noqa: N812
+from jaxtyping import Complex, Float
+from numpy.typing import NDArray
 
 import diffpes.inout as inout
 from diffpes.inout import (
@@ -56,7 +57,7 @@ def _write_hr_fixture(
     path: Path,
     cells: tuple[tuple[int, int, int], ...],
     degeneracies: tuple[int, ...],
-    matrices: NDArray,
+    matrices: Complex[NDArray, "n_cell n_orb n_orb"],
 ) -> None:
     """Write independently assembled normative ``hr.dat`` text."""
     n_orbitals: int = matrices.shape[1]
@@ -70,7 +71,9 @@ def _write_hr_fixture(
     cell_index: int
     cell: tuple[int, int, int]
     for cell_index, cell in enumerate(cells):
-        raw_matrix: NDArray = matrices[cell_index] * degeneracies[cell_index]
+        raw_matrix: Complex[NDArray, "n_orb n_orb"] = (
+            matrices[cell_index] * degeneracies[cell_index]
+        )
         first: int
         second: int
         for first, second in order:
@@ -85,11 +88,11 @@ def _write_hr_fixture(
 
 def _write_tb_fixture(
     path: Path,
-    lattice: NDArray,
+    lattice: Float[NDArray, "3 3"],
     cells: tuple[tuple[int, int, int], ...],
     degeneracies: tuple[int, ...],
-    hamiltonians: NDArray,
-    positions: NDArray,
+    hamiltonians: Complex[NDArray, "n_cell n_orb n_orb"],
+    positions: Complex[NDArray, "n_cell n_orb n_orb 3"],
 ) -> None:
     """Write independently assembled normative ``tb.dat`` text."""
     n_orbitals: int = hamiltonians.shape[1]
@@ -107,7 +110,7 @@ def _write_tb_fixture(
     for cell_index, cell in enumerate(cells):
         lines.append("")
         lines.append(f"{cell[0]} {cell[1]} {cell[2]}")
-        raw_matrix: NDArray = (
+        raw_matrix: Complex[NDArray, "n_orb n_orb"] = (
             hamiltonians[cell_index] * degeneracies[cell_index]
         )
         for first, second in order:
@@ -121,7 +124,7 @@ def _write_tb_fixture(
         lines.append(f"{cell[0]} {cell[1]} {cell[2]}")
         raw_matrix = positions[cell_index] * degeneracies[cell_index]
         for first, second in order:
-            components: NDArray = raw_matrix[first, second]
+            components: Complex[NDArray, " 3"] = raw_matrix[first, second]
             fields: list[str] = [f"{first + 1}", f"{second + 1}"]
             component: np.complexfloating
             for component in components:
@@ -181,10 +184,14 @@ def _spin_basis() -> OrbitalBasis:
     return basis
 
 
-def _serialize_interleaved(native: NDArray) -> NDArray:
+def _serialize_interleaved(
+    native: Complex[NDArray, "n_cell n_orb n_orb ..."],
+) -> Complex[NDArray, "n_cell n_orb n_orb ..."]:
     """Convert native block-down/up matrices into interleaved up/down order."""
     serialized_to_native: tuple[int, ...] = (2, 0, 3, 1)
-    serialized: NDArray = np.take(native, serialized_to_native, axis=1)
+    serialized: Complex[NDArray, "n_cell n_orb n_orb ..."] = np.take(
+        native, serialized_to_native, axis=1
+    )
     serialized = np.take(serialized, serialized_to_native, axis=2)
     return serialized
 
@@ -350,7 +357,7 @@ class TestReadWannier90Hr:
         degeneracies: tuple[int, ...] = (2, 1, 2)
         hopping: float = -0.6
         onsite: float = 0.4
-        matrices: NDArray = np.asarray(
+        matrices: Complex[NDArray, "n_cell n_orb n_orb"] = np.asarray(
             [[[hopping]], [[onsite]], [[hopping]]],
             dtype=np.complex128,
         )
@@ -440,7 +447,7 @@ class TestReadWannier90Hr:
             (0, 0, 0),
             (1, 0, 0),
         )
-        matrices: NDArray = np.asarray(
+        matrices: Complex[NDArray, "n_cell n_orb n_orb"] = np.asarray(
             [[[-0.5]], [[0.2]], [[-0.5]]],
             dtype=np.complex128,
         )
@@ -519,27 +526,31 @@ class TestReadWannier90Tb:
         Parse literal operator blocks and compare every permuted array.
         """
         basis: OrbitalBasis = _spin_basis()
-        lattice: NDArray = np.diag([2.0, 3.0, 4.0]).astype(np.float64)
+        lattice: Float[NDArray, "3 3"] = np.diag([2.0, 3.0, 4.0]).astype(
+            np.float64
+        )
         cells: tuple[tuple[int, int, int], ...] = (
             (-1, 0, 0),
             (0, 0, 0),
             (1, 0, 0),
         )
         degeneracies: tuple[int, ...] = (2, 1, 2)
-        onsite: NDArray = np.asarray([-0.2, 0.3, -0.2, 0.3])
-        hopping: NDArray = np.asarray([-0.5, -0.25, -0.5, -0.25])
-        hamiltonians: NDArray = np.zeros(
+        onsite: Float[NDArray, " n_orb"] = np.asarray([-0.2, 0.3, -0.2, 0.3])
+        hopping: Float[NDArray, " n_orb"] = np.asarray(
+            [-0.5, -0.25, -0.5, -0.25]
+        )
+        hamiltonians: Complex[NDArray, "n_cell n_orb n_orb"] = np.zeros(
             (3, 4, 4),
             dtype=np.complex128,
         )
         hamiltonians[0] = np.diag(hopping)
         hamiltonians[1] = np.diag(onsite)
         hamiltonians[2] = np.diag(hopping)
-        positions: NDArray = np.zeros(
+        positions: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.zeros(
             (3, 4, 4, 3),
             dtype=np.complex128,
         )
-        centres: NDArray = np.asarray(
+        centres: Float[NDArray, "n_orb 3"] = np.asarray(
             [
                 [0.2, 0.3, 0.4],
                 [1.2, 0.6, 0.8],
@@ -548,7 +559,7 @@ class TestReadWannier90Tb:
             ]
         )
         orbital: int
-        centre: NDArray
+        centre: Float[NDArray, " 3"]
         for orbital, centre in enumerate(centres):
             positions[1, orbital, orbital] = centre
         positions[1, 0, 1] = np.asarray([0.2 + 0.1j, -0.3 + 0.4j, 0.5 - 0.2j])
@@ -608,7 +619,7 @@ class TestReadWannier90Tb:
             rtol=0.0,
             atol=0.0,
         )
-        expected_fractional_positions: NDArray = np.asarray(
+        expected_fractional_positions: Float[NDArray, "n_atom 3"] = np.asarray(
             [centres[0], centres[1]]
         ) @ np.linalg.inv(lattice)
         chex.assert_trees_all_close(
@@ -689,10 +700,14 @@ class TestReadWannier90Tb:
             l=(0,),
             m=(0,),
         )
-        lattice: NDArray = np.eye(3)
+        lattice: Float[NDArray, "3 3"] = np.eye(3)
         cells: tuple[tuple[int, int, int], ...] = ((0, 0, 0),)
-        hamiltonians: NDArray = np.asarray([[[0.2 + 0.0j]]])
-        positions: NDArray = np.asarray([[[[0.1, 0.2, 0.3]]]])
+        hamiltonians: Complex[NDArray, "n_cell n_orb n_orb"] = np.asarray(
+            [[[0.2 + 0.0j]]]
+        )
+        positions: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.asarray(
+            [[[[0.1, 0.2, 0.3]]]]
+        )
         path: Path = tmp_path / "truncated_tb.dat"
         _write_tb_fixture(
             path,
@@ -784,8 +799,10 @@ class TestReadWannier90Tb:
             l=(0, 0),
             m=(0, 0),
         )
-        hamiltonians: NDArray = np.zeros((1, 2, 2), dtype=np.complex128)
-        positions: NDArray = np.zeros(
+        hamiltonians: Complex[NDArray, "n_cell n_orb n_orb"] = np.zeros(
+            (1, 2, 2), dtype=np.complex128
+        )
+        positions: Complex[NDArray, "n_cell n_orb n_orb 3"] = np.zeros(
             (1, 2, 2, 3),
             dtype=np.complex128,
         )

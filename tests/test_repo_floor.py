@@ -27,6 +27,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Any
 from jaxtyping import Array, Float, PRNGKeyArray, jaxtyped
+from numpy.typing import NDArray
 
 from tests._assertions import (
     assert_tree_finite,
@@ -441,8 +442,12 @@ class TestRegressionReferences(chex.TestCase):
         )
         archive: Any
         with np.load(reference_path, allow_pickle=False) as archive:
-            desired_intensity: np.ndarray = archive["leaf_000_intensity"]
-            desired_energy_axis: np.ndarray = archive["leaf_001_energy_axis"]
+            desired_intensity: Float[NDArray, "nkpt n_energy"] = archive[
+                "leaf_000_intensity"
+            ]
+            desired_energy_axis: Float[NDArray, " n_energy"] = archive[
+                "leaf_001_energy_axis"
+            ]
         np.testing.assert_allclose(
             np.asarray(novice.intensity),
             desired_intensity,
@@ -1648,6 +1653,79 @@ class TestRepositoryArchitecture(chex.TestCase):
                     for imported_name in node.names
                 ):
                     violations.append(f"{path}:{node.lineno}:import typing")
+        self.assertEqual(violations, [])
+
+    def test_annotations_do_not_use_bare_ndarray(self) -> None:
+        """Forbid dtype-free and shape-free NumPy array annotations.
+
+        The test confirms every NumPy array annotation carries a jaxtyping dtype and
+        shape, so a NumPy array receives the same contract as a JAX ``Array``.
+
+        Notes
+        -----
+        The test inspects annotation positions only, which excludes ``isinstance``
+        checks. It reports ``np.ndarray``, bare ``NDArray``, and NumPy's own
+        ``NDArray[...]`` parameterization across production and the complete test
+        tree. Two SHA-256-pinned Plan-07 generators are exempt because an edit
+        would break their committed manifest digests.
+        """
+        exempt: frozenset[str] = frozenset(
+            (
+                "generate_plan07_voigt_reference.py",
+                "generate_plan07_faddeeva_reference.py",
+            )
+        )
+        violations: list[str] = []
+        path: Path
+        module: ast.Module
+        node: ast.AST
+        inner: ast.AST
+
+        def _names_array(annotation: ast.AST) -> bool:
+            """Return whether one node names the NumPy array type itself."""
+            if isinstance(annotation, ast.Attribute):
+                is_attribute: bool = annotation.attr == "ndarray"
+                return is_attribute
+            is_name: bool = (
+                isinstance(annotation, ast.Name) and annotation.id == "NDArray"
+            )
+            return is_name
+
+        def _qualified(annotation: ast.AST) -> set[int]:
+            """Collect array nodes that a jaxtyping dtype and shape qualify."""
+            allowed: set[int] = set()
+            candidate: ast.AST
+            for candidate in ast.walk(annotation):
+                if not isinstance(candidate, ast.Subscript):
+                    continue
+                arguments: ast.expr = candidate.slice
+                if (
+                    isinstance(arguments, ast.Tuple)
+                    and len(arguments.elts) == 2  # noqa: PLR2004
+                    and _names_array(arguments.elts[0])
+                    and isinstance(arguments.elts[1], ast.Constant)
+                    and isinstance(arguments.elts[1].value, str)
+                ):
+                    allowed.add(id(arguments.elts[0]))
+            return allowed
+
+        for path, module in (
+            self._production_modules() + self._test_tree_modules()
+        ):
+            if path.name in exempt:
+                continue
+            for node in ast.walk(module):
+                annotation: ast.AST | None = getattr(node, "annotation", None)
+                if annotation is None and isinstance(
+                    node, ast.FunctionDef | ast.AsyncFunctionDef
+                ):
+                    annotation = node.returns
+                if annotation is None:
+                    continue
+                allowed_nodes: set[int] = _qualified(annotation)
+                for inner in ast.walk(annotation):
+                    if _names_array(inner) and id(inner) not in allowed_nodes:
+                        violations.append(f"{path}:{inner.lineno}")
         self.assertEqual(violations, [])
 
     def test_package_docstrings_list_every_submodule(self) -> None:

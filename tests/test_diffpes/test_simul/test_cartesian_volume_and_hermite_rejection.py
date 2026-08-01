@@ -16,7 +16,8 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Complex
+from jaxtyping import Complex, Float
+from numpy.typing import NDArray
 from scipy.special import gamma
 
 from diffpes.radial import radial_bvals
@@ -43,13 +44,13 @@ _SPATIAL_AMPLITUDE_REFERENCE: complex = 3.9264107296525 - 2.7583112509178j
 def _normalized_sto(
     principal: int,
     zeta: float,
-    radius: np.ndarray,
-) -> np.ndarray:
+    radius: Float[NDArray, " n_r"],
+) -> Float[NDArray, " n_r"]:
     """Evaluate one independently normalized integer-n Slater row."""
     normalization: float = math.sqrt(
         (2.0 * zeta) ** (2 * principal + 1) / gamma(2 * principal + 1)
     )
-    values: np.ndarray = (
+    values: Float[NDArray, " n_r"] = (
         normalization * radius ** (principal - 1) * np.exp(-zeta * radius)
     )
     return values
@@ -57,50 +58,60 @@ def _normalized_sto(
 
 def _spatial_volume_amplitude(
     momentum_bohr_inv: float,
-    direction_cart: np.ndarray,
-    polarization_cart: np.ndarray,
-    coefficients: np.ndarray,
+    direction_cart: Float[NDArray, " 3"],
+    polarization_cart: Complex[NDArray, " 3"],
+    coefficients: Complex[NDArray, " 2"],
 ) -> tuple[complex, float]:
     """Integrate the normalized mixed s-plus-pz orbital in Cartesian space."""
-    radial_abscissa: np.ndarray
-    radial_weights_raw: np.ndarray
+    radial_abscissa: Float[NDArray, " n_r"]
+    radial_weights_raw: Float[NDArray, " n_r"]
     radial_abscissa, radial_weights_raw = np.polynomial.legendre.leggauss(400)
-    radius: np.ndarray = 25.0 * (radial_abscissa + 1.0)
-    radial_weights: np.ndarray = 25.0 * radial_weights_raw
-    cosine: np.ndarray
-    cosine_weights: np.ndarray
+    radius: Float[NDArray, " n_r"] = 25.0 * (radial_abscissa + 1.0)
+    radial_weights: Float[NDArray, " n_r"] = 25.0 * radial_weights_raw
+    cosine: Float[NDArray, " n_cos"]
+    cosine_weights: Float[NDArray, " n_cos"]
     cosine, cosine_weights = np.polynomial.legendre.leggauss(72)
-    azimuth: np.ndarray = (
+    azimuth: Float[NDArray, " n_phi"] = (
         2.0 * np.pi * np.arange(144, dtype=np.float64) / 144.0
     )
     azimuth_weight: float = 2.0 * np.pi / 144.0
-    sine: np.ndarray = np.sqrt(1.0 - cosine[:, None] ** 2)
-    x_direction: np.ndarray = sine * np.cos(azimuth[None, :])
-    y_direction: np.ndarray = sine * np.sin(azimuth[None, :])
-    z_direction: np.ndarray = np.broadcast_to(
+    sine: Float[NDArray, "n_cos 1"] = np.sqrt(1.0 - cosine[:, None] ** 2)
+    x_direction: Float[NDArray, "n_cos n_phi"] = sine * np.cos(
+        azimuth[None, :]
+    )
+    y_direction: Float[NDArray, "n_cos n_phi"] = sine * np.sin(
+        azimuth[None, :]
+    )
+    z_direction: Float[NDArray, "n_cos n_phi"] = np.broadcast_to(
         cosine[:, None],
         x_direction.shape,
     )
-    direction: np.ndarray = np.asarray(direction_cart, dtype=np.float64)
+    direction: Float[NDArray, " 3"] = np.asarray(
+        direction_cart, dtype=np.float64
+    )
     direction = direction / np.linalg.norm(direction)
-    momentum_projection: np.ndarray = (
+    momentum_projection: Float[NDArray, "n_cos n_phi"] = (
         direction[0] * x_direction
         + direction[1] * y_direction
         + direction[2] * z_direction
     )
-    polarization_projection: np.ndarray = (
+    polarization_projection: Complex[NDArray, "n_cos n_phi"] = (
         polarization_cart[0] * x_direction
         + polarization_cart[1] * y_direction
         + polarization_cart[2] * z_direction
     )
-    y00: np.ndarray = np.full_like(
+    y00: Float[NDArray, "n_cos n_phi"] = np.full_like(
         x_direction,
         1.0 / math.sqrt(4.0 * math.pi),
     )
-    y10: np.ndarray = math.sqrt(3.0 / (4.0 * math.pi)) * z_direction
-    radial_s: np.ndarray = _normalized_sto(1, 1.1, radius)
-    radial_p: np.ndarray = _normalized_sto(2, 0.9, radius)
-    angular_weights: np.ndarray = cosine_weights[:, None] * azimuth_weight
+    y10: Float[NDArray, "n_cos n_phi"] = (
+        math.sqrt(3.0 / (4.0 * math.pi)) * z_direction
+    )
+    radial_s: Float[NDArray, " n_r"] = _normalized_sto(1, 1.1, radius)
+    radial_p: Float[NDArray, " n_r"] = _normalized_sto(2, 0.9, radius)
+    angular_weights: Float[NDArray, "n_cos 1"] = (
+        cosine_weights[:, None] * azimuth_weight
+    )
     amplitude: complex = 0.0j
     norm: float = 0.0
     radial_point: np.float64
@@ -114,10 +125,10 @@ def _spatial_volume_amplitude(
         radial_p,
         strict=True,
     ):
-        wavefunction: np.ndarray = (
+        wavefunction: Complex[NDArray, "n_cos n_phi"] = (
             coefficients[0] * s_value * y00 + coefficients[1] * p_value * y10
         )
-        plane_wave: np.ndarray = np.exp(
+        plane_wave: Complex[NDArray, "n_cos n_phi"] = np.exp(
             1j * momentum_bohr_inv * radial_point * momentum_projection
         )
         amplitude += complex(
@@ -139,10 +150,10 @@ def _spatial_volume_amplitude(
 
 
 def _production_amplitude(
-    radial_values: np.ndarray,
-    direction_cart: np.ndarray,
-    polarization_cart: np.ndarray,
-    coefficients: np.ndarray,
+    radial_values: Complex[NDArray, "n_orb 2"],
+    direction_cart: Float[NDArray, " 3"],
+    polarization_cart: Complex[NDArray, " 3"],
+    coefficients: Complex[NDArray, " n_orb"],
     basis: OrbitalBasis,
     params: MatrixElementParams,
 ) -> complex:
@@ -193,13 +204,13 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
     quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
     final_state: FinalStateSpec = make_final_state_spec()
     momentum: float = 0.73
-    direction: np.ndarray = np.asarray([0.41, -0.36, 0.84])
+    direction: Float[NDArray, " 3"] = np.asarray([0.41, -0.36, 0.84])
     direction = direction / np.linalg.norm(direction)
-    polarization: np.ndarray = np.asarray(
+    polarization: Complex[NDArray, " 3"] = np.asarray(
         [0.31 + 0.27j, -0.42 + 0.19j, 0.53 - 0.11j],
         dtype=np.complex128,
     )
-    coefficients: np.ndarray = np.asarray(
+    coefficients: Complex[NDArray, " 2"] = np.asarray(
         [0.8 + 0.2j, -0.35 + 0.6j],
         dtype=np.complex128,
     )
@@ -219,7 +230,7 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
         atol=1.0e-12,
     )
     expected: complex = _SPATIAL_PLANE_WAVE_FACTOR * spatial_amplitude
-    correct_radial: np.ndarray = np.asarray(
+    correct_radial: Complex[NDArray, "n_orb 2"] = np.asarray(
         radial_bvals(
             radial,
             jnp.asarray([momentum]),
@@ -239,7 +250,7 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
     np.testing.assert_allclose(actual, expected, rtol=1.0e-12, atol=1.0e-13)
 
     final_degrees: tuple[tuple[int, int], ...] = ((-1, 1), (0, 2))
-    phase_free: np.ndarray = np.zeros_like(correct_radial)
+    phase_free: Complex[NDArray, "n_orb 2"] = np.zeros_like(correct_radial)
     orbital: int
     degrees: tuple[int, int]
     branch: int
@@ -250,7 +261,7 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
                 phase_free[orbital, branch] = correct_radial[
                     orbital, branch
                 ] / (1j**final_degree)
-    controls: dict[str, np.ndarray] = {
+    controls: dict[str, Complex[NDArray, "n_orb 2"]] = {
         "omitted": phase_free,
         "flipped": np.asarray(
             [
@@ -278,7 +289,7 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
         ),
     }
     name: str
-    planted: np.ndarray
+    planted: Complex[NDArray, "n_orb 2"]
     for name, planted in controls.items():
         control: complex = _production_amplitude(
             planted,

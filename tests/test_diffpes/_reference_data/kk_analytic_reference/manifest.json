@@ -1,0 +1,64 @@
+{
+  "arbiter": {
+    "decimal_digits": 80,
+    "method": "closed forms checked by numerical principal-value integration",
+    "name": "mpmath",
+    "observed_maximum_errors": {
+      "pole_max_abs_error_ev": "3.35568582744e-81",
+      "semicircle_max_abs_error_ev": "2.63554948581e-82"
+    },
+    "pv_check_absolute_tolerance_ev": "1.0e-45",
+    "pv_check_points_ev": [
+      "-1.0",
+      "-0.75",
+      "-0.2",
+      "0.0",
+      "0.35",
+      "0.8",
+      "1.0"
+    ]
+  },
+  "archive": "kk_reference.npz",
+  "archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
+  "arrays": {
+    "pole_omega": [
+      1001
+    ],
+    "pole_sigma_imag": [
+      1001
+    ],
+    "pole_sigma_real": [
+      1001
+    ],
+    "semicircle_omega": [
+      1001
+    ],
+    "semicircle_sigma_imag": [
+      1001
+    ],
+    "semicircle_sigma_real": [
+      1001
+    ]
+  },
+  "dtype": "float64",
+  "fixtures": {
+    "pole": {
+      "g_ev2": 0.12,
+      "gamma_ev": 0.2,
+      "omega_0_ev": 0.35
+    },
+    "semicircle": {
+      "band_half_width_ev": 1.5,
+      "g_ev2": 0.2
+    }
+  },
+  "generator": "generate_plan07_kk_reference.py",
+  "grid": {
+    "count": 1001,
+    "start_ev": -1.0,
+    "stop_ev": 1.0,
+    "subtraction_point_ev": 0.0
+  },
+  "production_imports": [],
+  "schema": "diffpes.plan07.kk-analytic-reference.v1"
+}

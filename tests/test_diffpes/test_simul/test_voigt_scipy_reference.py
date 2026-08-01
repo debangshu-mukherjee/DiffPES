@@ -18,7 +18,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from jax import test_util
-from jaxtyping import Array, Float
+from jaxtyping import Array, Bool, Complex, Float
+from numpy.typing import NDArray
 from scipy import special
 
 from diffpes.simul import simulate_novice, voigt
@@ -55,7 +56,7 @@ _D1_RTL: float = 1.0e-6
 _D1_ATL: float = 2.0e-10
 
 
-def _load_npz(path: Path) -> dict[str, np.ndarray]:
+def _load_npz(path: Path) -> dict[str, Float[NDArray, "..."]]:
     """Load one inert NPZ into ordinary arrays without pickle."""
     archive: Any
     with np.load(path, allow_pickle=False) as archive:
@@ -68,9 +69,9 @@ def _sha256(path: Path) -> str:
 
 
 def _positive_bound(
-    reference: np.ndarray,
+    reference: Float[NDArray, "..."],
     sigma: float,
-) -> np.ndarray:
+) -> Float[NDArray, "..."]:
     """Return the preregistered G1-propagated positive-width bound."""
     return _POSITIVE_RTL * np.abs(reference) + _POSITIVE_G1_FLOOR / (
         sigma * np.sqrt(2.0 * np.pi)
@@ -78,13 +79,13 @@ def _positive_bound(
 
 
 def _profile(
-    energy: np.ndarray,
+    energy: Float[NDArray, " n"],
     center: float,
     sigma: float,
     gamma: float,
-) -> np.ndarray:
+) -> Float[NDArray, " n"]:
     """Evaluate the independent SciPy profile with analytic endpoints."""
-    displacement: np.ndarray = energy - center
+    displacement: Float[NDArray, " n"] = energy - center
     if gamma == 0.0:
         return np.exp(-((displacement / sigma) ** 2) / 2.0) / (
             sigma * np.sqrt(2.0 * np.pi)
@@ -94,12 +95,14 @@ def _profile(
     return special.voigt_profile(displacement, sigma, gamma)
 
 
-def _stable_fermi(energy: np.ndarray) -> np.ndarray:
+def _stable_fermi(
+    energy: Float[NDArray, "nkpt nband"],
+) -> Float[NDArray, "nkpt nband"]:
     """Evaluate the registered overflow-safe analytic Fermi function."""
-    exponent: np.ndarray = energy / (8.617333e-5 * 15.0)
-    occupation: np.ndarray = np.empty_like(exponent)
-    positive: np.ndarray = exponent >= 0.0
-    decaying: np.ndarray = np.exp(-exponent[positive])
+    exponent: Float[NDArray, "nkpt nband"] = energy / (8.617333e-5 * 15.0)
+    occupation: Float[NDArray, "nkpt nband"] = np.empty_like(exponent)
+    positive: Bool[NDArray, "nkpt nband"] = exponent >= 0.0
+    decaying: Float[NDArray, " n_selected"] = np.exp(-exponent[positive])
     occupation[positive] = decaying / (1.0 + decaying)
     occupation[~positive] = 1.0 / (1.0 + np.exp(exponent[~positive]))
     return occupation
@@ -154,7 +157,7 @@ class TestPlan07VoigtEvidence:
             assert manifest["archives"][archive_key]["sha256"] == _sha256(
                 archive_path
             )
-            arrays: dict[str, np.ndarray] = _load_npz(archive_path)
+            arrays: dict[str, Float[NDArray, "..."]] = _load_npz(archive_path)
             assert arrays
             assert all(array.dtype == np.float64 for array in arrays.values())
         assert not _RETIRED_PLAN02_PATH.exists()
@@ -175,11 +178,17 @@ class TestPlan07VoigtEvidence:
         Evaluate each width row with SciPy, reconstruct its complex
         coordinates, and check value finiteness and nonnegativity.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        widths: np.ndarray = reference["positive_widths"]
-        energies: np.ndarray = reference["positive_energies"]
-        desired: np.ndarray = reference["positive_values"]
-        actual: np.ndarray = np.stack(
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        widths: Float[NDArray, "n_positive 2"] = reference["positive_widths"]
+        energies: Float[NDArray, "n_positive n_q"] = reference[
+            "positive_energies"
+        ]
+        desired: Float[NDArray, "n_positive n_q"] = reference[
+            "positive_values"
+        ]
+        actual: Float[NDArray, "n_positive n_q"] = np.stack(
             [
                 special.voigt_profile(energy - _CENTER, sigma, gamma)
                 for energy, (sigma, gamma) in zip(
@@ -190,7 +199,7 @@ class TestPlan07VoigtEvidence:
             ]
         )
         np.testing.assert_array_equal(actual, desired)
-        z_values: np.ndarray = (
+        z_values: Complex[NDArray, "n_positive n_q"] = (
             reference["positive_z_real"] + 1j * reference["positive_z_imag"]
         )
         assert np.max(np.abs(z_values)) <= 1.0e8
@@ -210,9 +219,11 @@ class TestPlan07VoigtEvidence:
         Reconstruct each normalized coordinate, evaluate its analytic density,
         and compare the resulting arrays exactly.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        rows: list[np.ndarray] = []
-        energy: np.ndarray
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        rows: list[Float[NDArray, " n_q"]] = []
+        energy: Float[NDArray, " n_q"]
         sigma: float
         gamma: float
         for energy, (sigma, gamma) in zip(
@@ -221,15 +232,15 @@ class TestPlan07VoigtEvidence:
             strict=True,
         ):
             nonzero_width: float = max(sigma, gamma)
-            q_hat: np.ndarray = (energy - _CENTER) / nonzero_width
+            q_hat: Float[NDArray, " n_q"] = (energy - _CENTER) / nonzero_width
             if gamma == 0.0:
-                row: np.ndarray = np.exp(-(q_hat**2) / 2.0) / (
+                row: Float[NDArray, " n_q"] = np.exp(-(q_hat**2) / 2.0) / (
                     nonzero_width * np.sqrt(2.0 * np.pi)
                 )
             else:
                 row = 1.0 / (np.pi * nonzero_width * (1.0 + q_hat**2))
             rows.append(row)
-        actual: np.ndarray = np.stack(rows)
+        actual: Float[NDArray, "n_endpoint n_q"] = np.stack(rows)
         np.testing.assert_array_equal(actual, reference["endpoint_values"])
 
     def test_one_sided_reference_rates_are_registered(self) -> None:
@@ -245,8 +256,10 @@ class TestPlan07VoigtEvidence:
         Recompute every rung, require strict error decay, and bound successive
         ratios for both endpoint directions.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        actual: np.ndarray = np.stack(
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        actual: Float[NDArray, "n_onesided n_q"] = np.stack(
             [
                 special.voigt_profile(energy - _CENTER, sigma, gamma)
                 for energy, (sigma, gamma) in zip(
@@ -257,8 +270,10 @@ class TestPlan07VoigtEvidence:
             ]
         )
         np.testing.assert_array_equal(actual, reference["onesided_values"])
-        differences: np.ndarray = reference["onesided_differences"]
-        ratios: np.ndarray = reference["onesided_ratios"]
+        differences: Float[NDArray, "2 3 3"] = reference[
+            "onesided_differences"
+        ]
+        ratios: Float[NDArray, "2 3 2"] = reference["onesided_ratios"]
         assert np.all(np.diff(differences, axis=-1) < 0.0)
         assert np.all((ratios[0] >= 15.5) & (ratios[0] <= 16.5))
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
@@ -276,11 +291,17 @@ class TestPlan07VoigtEvidence:
         Apply the scaled tangent map, include its Jacobian, and compare both
         mass estimates with the committed reference.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        widths: np.ndarray = reference["normalization_widths"]
-        scales: np.ndarray = reference["normalization_scales"]
-        expected_masses: np.ndarray = reference["normalization_masses"]
-        actual_masses: np.ndarray = np.empty_like(expected_masses)
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        widths: Float[NDArray, "n_norm 2"] = reference["normalization_widths"]
+        scales: Float[NDArray, " n_norm"] = reference["normalization_scales"]
+        expected_masses: Float[NDArray, "n_norm 2"] = reference[
+            "normalization_masses"
+        ]
+        actual_masses: Float[NDArray, "n_norm 2"] = np.empty_like(
+            expected_masses
+        )
         row: int
         sigma: float
         gamma: float
@@ -294,12 +315,16 @@ class TestPlan07VoigtEvidence:
                 reference["normalization_orders"]
             ):
                 order: int = int(order_float)
-                nodes: np.ndarray
-                weights: np.ndarray
+                nodes: Float[NDArray, " n_node"]
+                weights: Float[NDArray, " n_node"]
                 nodes, weights = np.polynomial.legendre.leggauss(order)
-                angle: np.ndarray = np.pi * nodes / 2.0
-                energy: np.ndarray = _CENTER + scale * np.tan(angle)
-                jacobian: np.ndarray = scale * np.pi / 2.0 / np.cos(angle) ** 2
+                angle: Float[NDArray, " n_node"] = np.pi * nodes / 2.0
+                energy: Float[NDArray, " n_node"] = _CENTER + scale * np.tan(
+                    angle
+                )
+                jacobian: Float[NDArray, " n_node"] = (
+                    scale * np.pi / 2.0 / np.cos(angle) ** 2
+                )
                 actual_masses[row, column] = np.sum(
                     weights
                     * _profile(energy, _CENTER, sigma, gamma)
@@ -326,16 +351,20 @@ class TestPlan07VoigtEvidence:
         Map energies back to complex arguments, select each row maximum, and
         compare against the registered radii.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
         sigma: float
         gamma: float
         sigma, gamma = reference["envelope_widths"]
-        energies: np.ndarray = reference["envelope_energies"]
-        reconstructed: np.ndarray = np.max(
+        energies: Float[NDArray, "n_envelope n_q_env"] = reference[
+            "envelope_energies"
+        ]
+        reconstructed: Float[NDArray, " n_envelope"] = np.max(
             np.abs((energies - _CENTER + 1j * gamma) / (sigma * np.sqrt(2.0))),
             axis=1,
         )
-        radii: np.ndarray = reference["envelope_radii"]
+        radii: Float[NDArray, " n_envelope"] = reference["envelope_radii"]
         np.testing.assert_array_equal(
             reconstructed,
             reference["envelope_reconstructed_radii"],
@@ -358,16 +387,26 @@ class TestPlan07VoigtEvidence:
         Apply the Faddeeva ODE derivative, contract each probe, and inspect the
         median and spread of all stencil rungs.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        probes: np.ndarray = reference["d1_probes"]
-        energies: np.ndarray = reference["d1_energies"]
-        desired_values: np.ndarray = reference["d1_point_values"]
-        desired_derivatives: np.ndarray = reference["d1_point_derivatives"]
-        actual_values: np.ndarray = np.empty_like(desired_values)
-        actual_derivatives: np.ndarray = np.empty_like(desired_derivatives)
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        probes: Float[NDArray, "n_probe 3"] = reference["d1_probes"]
+        energies: Float[NDArray, "n_probe n_q_d1"] = reference["d1_energies"]
+        desired_values: Float[NDArray, "n_probe n_q_d1"] = reference[
+            "d1_point_values"
+        ]
+        desired_derivatives: Float[NDArray, "n_probe n_q_d1 3"] = reference[
+            "d1_point_derivatives"
+        ]
+        actual_values: Float[NDArray, "n_probe n_q_d1"] = np.empty_like(
+            desired_values
+        )
+        actual_derivatives: Float[NDArray, "n_probe n_q_d1 3"] = np.empty_like(
+            desired_derivatives
+        )
         row: int
-        probe: np.ndarray
-        energy: np.ndarray
+        probe: Float[NDArray, " 3"]
+        energy: Float[NDArray, " n_q_d1"]
         for row, (probe, energy) in enumerate(
             zip(probes, energies, strict=True)
         ):
@@ -375,15 +414,15 @@ class TestPlan07VoigtEvidence:
             sigma: float
             gamma: float
             center, sigma, gamma = probe
-            z_values: np.ndarray = (energy - center + 1j * gamma) / (
-                sigma * np.sqrt(2.0)
-            )
-            w_values: np.ndarray = special.wofz(z_values)
-            w_prime: np.ndarray = -2.0 * z_values * w_values + 2j / np.sqrt(
-                np.pi
+            z_values: Complex[NDArray, " n_q_d1"] = (
+                energy - center + 1j * gamma
+            ) / (sigma * np.sqrt(2.0))
+            w_values: Complex[NDArray, " n_q_d1"] = special.wofz(z_values)
+            w_prime: Complex[NDArray, " n_q_d1"] = (
+                -2.0 * z_values * w_values + 2j / np.sqrt(np.pi)
             )
             prefactor: float = 1.0 / (sigma * np.sqrt(2.0 * np.pi))
-            values: np.ndarray = prefactor * np.real(w_values)
+            values: Float[NDArray, " n_q_d1"] = prefactor * np.real(w_values)
             actual_values[row] = values
             actual_derivatives[row] = np.stack(
                 (
@@ -399,10 +438,14 @@ class TestPlan07VoigtEvidence:
         np.testing.assert_array_equal(actual_values, desired_values)
         np.testing.assert_array_equal(actual_derivatives, desired_derivatives)
 
-        contracted: np.ndarray = reference["d1_analytic_contracted"]
-        estimates: np.ndarray = reference["d1_fd_estimates"]
-        median: np.ndarray = np.median(estimates, axis=1)
-        spread: np.ndarray = np.ptp(estimates, axis=1)
+        contracted: Float[NDArray, "n_probe 3"] = reference[
+            "d1_analytic_contracted"
+        ]
+        estimates: Float[NDArray, "n_probe n_step 3"] = reference[
+            "d1_fd_estimates"
+        ]
+        median: Float[NDArray, "n_probe 3"] = np.median(estimates, axis=1)
+        spread: Float[NDArray, "n_probe 3"] = np.ptp(estimates, axis=1)
         np.testing.assert_allclose(
             median,
             contracted,
@@ -425,18 +468,26 @@ class TestPlan07VoigtEvidence:
         Load frozen eigenvalues and weights, broaden every band, and reduce the
         contributions over the band axis.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        novice: dict[str, np.ndarray] = _load_npz(_NOVICE_PATH)
-        eigenvalues: np.ndarray = reference["novice_eigenvalues"]
-        band_weights: np.ndarray = reference["novice_band_weights"]
-        energy_axis: np.ndarray = np.linspace(-3.0, 0.5, 512)
-        occupations: np.ndarray = _stable_fermi(eigenvalues)
-        profiles: np.ndarray = special.voigt_profile(
-            energy_axis[None, None, :] - eigenvalues[..., None],
-            0.04,
-            0.1,
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
         )
-        intensity: np.ndarray = np.sum(
+        novice: dict[str, Float[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
+        eigenvalues: Float[NDArray, "nkpt nband"] = reference[
+            "novice_eigenvalues"
+        ]
+        band_weights: Float[NDArray, "nkpt nband"] = reference[
+            "novice_band_weights"
+        ]
+        energy_axis: Float[NDArray, " n_energy"] = np.linspace(-3.0, 0.5, 512)
+        occupations: Float[NDArray, "nkpt nband"] = _stable_fermi(eigenvalues)
+        profiles: Float[NDArray, "nkpt nband n_energy"] = (
+            special.voigt_profile(
+                energy_axis[None, None, :] - eigenvalues[..., None],
+                0.04,
+                0.1,
+            )
+        )
+        intensity: Float[NDArray, "nkpt n_energy"] = np.sum(
             band_weights[..., None] * occupations[..., None] * profiles,
             axis=1,
         )
@@ -466,9 +517,11 @@ class TestPlan07VoigtProduction:
         Evaluate each frozen energy row and compare every element with its
         independent SciPy value.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        energy: np.ndarray
-        desired: np.ndarray
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        energy: Float[NDArray, " n_q"]
+        desired: Float[NDArray, " n_q"]
         sigma: float
         gamma: float
         for energy, desired, (sigma, gamma) in zip(
@@ -477,7 +530,7 @@ class TestPlan07VoigtProduction:
             reference["positive_widths"],
             strict=True,
         ):
-            actual: np.ndarray = np.asarray(
+            actual: Float[NDArray, " n_q"] = np.asarray(
                 voigt(jnp.asarray(energy), _CENTER, sigma, gamma)
             )
             assert np.all(np.isfinite(actual))
@@ -499,9 +552,11 @@ class TestPlan07VoigtProduction:
         Evaluate each endpoint row and apply the dedicated mixed endpoint
         tolerance without invoking any derivative transform.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        energy: np.ndarray
-        desired: np.ndarray
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        energy: Float[NDArray, " n_q"]
+        desired: Float[NDArray, " n_q"]
         sigma: float
         gamma: float
         for energy, desired, (sigma, gamma) in zip(
@@ -510,11 +565,11 @@ class TestPlan07VoigtProduction:
             reference["endpoint_widths"],
             strict=True,
         ):
-            actual: np.ndarray = np.asarray(
+            actual: Float[NDArray, " n_q"] = np.asarray(
                 voigt(jnp.asarray(energy), _CENTER, sigma, gamma)
             )
             nonzero_width: float = max(sigma, gamma)
-            bound: np.ndarray = (
+            bound: Float[NDArray, " n_q"] = (
                 _ENDPOINT_FLOOR / nonzero_width
                 + _ENDPOINT_RTL * np.abs(desired)
             )
@@ -533,10 +588,12 @@ class TestPlan07VoigtProduction:
         Collect every positive profile, measure endpoint errors, and bound
         their successive ratios after strict decay checks.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        actual_values: list[np.ndarray] = []
-        energy: np.ndarray
-        desired: np.ndarray
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        actual_values: list[Float[NDArray, " n_q"]] = []
+        energy: Float[NDArray, " n_q"]
+        desired: Float[NDArray, " n_q"]
         sigma: float
         gamma: float
         for energy, desired, (sigma, gamma) in zip(
@@ -545,19 +602,23 @@ class TestPlan07VoigtProduction:
             reference["onesided_widths"],
             strict=True,
         ):
-            actual: np.ndarray = np.asarray(
+            actual: Float[NDArray, " n_q"] = np.asarray(
                 voigt(jnp.asarray(energy), _CENTER, sigma, gamma)
             )
             assert np.all(
                 np.abs(actual - desired) <= _positive_bound(desired, sigma)
             )
             actual_values.append(actual)
-        differences: np.ndarray = np.empty((2, 3, 3), dtype=np.float64)
-        rows: np.ndarray = np.asarray(actual_values).reshape(2, 3, 3, 10)
-        endpoints: np.ndarray = reference["onesided_endpoint_values"].reshape(
+        differences: Float[NDArray, "2 3 3"] = np.empty(
+            (2, 3, 3), dtype=np.float64
+        )
+        rows: Float[NDArray, "2 3 3 n_q"] = np.asarray(actual_values).reshape(
             2, 3, 3, 10
         )
-        anchors: np.ndarray = reference["anchors"]
+        endpoints: Float[NDArray, "2 3 3 n_q"] = reference[
+            "onesided_endpoint_values"
+        ].reshape(2, 3, 3, 10)
+        anchors: Float[NDArray, " 3"] = reference["anchors"]
         direction: int
         anchor_index: int
         anchor: float
@@ -570,7 +631,9 @@ class TestPlan07VoigtProduction:
                     ),
                     axis=1,
                 )
-        ratios: np.ndarray = differences[..., :-1] / differences[..., 1:]
+        ratios: Float[NDArray, "2 3 2"] = (
+            differences[..., :-1] / differences[..., 1:]
+        )
         assert np.all(np.diff(differences, axis=-1) < 0.0)
         assert np.all((ratios[0] >= 15.5) & (ratios[0] <= 16.5))
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
@@ -588,10 +651,12 @@ class TestPlan07VoigtProduction:
         Evaluate production on both scaled tangent grids, apply quadrature
         weights, and check each mass and order delta.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
-        widths: np.ndarray = reference["normalization_widths"]
-        scales: np.ndarray = reference["normalization_scales"]
-        masses: np.ndarray = np.empty((widths.shape[0], 2))
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
+        widths: Float[NDArray, "n_norm 2"] = reference["normalization_widths"]
+        scales: Float[NDArray, " n_norm"] = reference["normalization_scales"]
+        masses: Float[NDArray, "n_norm 2"] = np.empty((widths.shape[0], 2))
         row: int
         sigma: float
         gamma: float
@@ -604,15 +669,19 @@ class TestPlan07VoigtProduction:
             for column, order_float in enumerate(
                 reference["normalization_orders"]
             ):
-                nodes: np.ndarray
-                weights: np.ndarray
+                nodes: Float[NDArray, " n_node"]
+                weights: Float[NDArray, " n_node"]
                 nodes, weights = np.polynomial.legendre.leggauss(
                     int(order_float)
                 )
-                angle: np.ndarray = np.pi * nodes / 2.0
-                energy: np.ndarray = _CENTER + scale * np.tan(angle)
-                jacobian: np.ndarray = scale * np.pi / 2.0 / np.cos(angle) ** 2
-                profile: np.ndarray = np.asarray(
+                angle: Float[NDArray, " n_node"] = np.pi * nodes / 2.0
+                energy: Float[NDArray, " n_node"] = _CENTER + scale * np.tan(
+                    angle
+                )
+                jacobian: Float[NDArray, " n_node"] = (
+                    scale * np.pi / 2.0 / np.cos(angle) ** 2
+                )
+                profile: Float[NDArray, " n_node"] = np.asarray(
                     voigt(jnp.asarray(energy), _CENTER, sigma, gamma)
                 )
                 masses[row, column] = np.sum(weights * profile * jacobian)
@@ -632,12 +701,16 @@ class TestPlan07VoigtProduction:
         Exercise interior and closed-boundary rows in both modes, then plant
         isolated offenders and require the registered diagnostic.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
         sigma: float
         gamma: float
         sigma, gamma = reference["envelope_widths"]
-        energies: np.ndarray = reference["envelope_energies"]
-        accepted: np.ndarray
+        energies: Float[NDArray, "n_envelope n_q_env"] = reference[
+            "envelope_energies"
+        ]
+        accepted: Float[NDArray, " n_q_env"]
         for accepted in energies[:2]:
             eager: Array = voigt(
                 jnp.asarray(accepted),
@@ -661,7 +734,7 @@ class TestPlan07VoigtProduction:
             gamma,
             match="Faddeeva envelope",
         )
-        planted: np.ndarray = np.concatenate(
+        planted: Float[NDArray, " n_q_env"] = np.concatenate(
             (energies[0, :2], energies[2, 2:])
         )
         assert_rejects(
@@ -779,12 +852,14 @@ class TestPlan07VoigtProduction:
         dimensionless parameters, and apply the preregistered comparison
         budget.
         """
-        reference: dict[str, np.ndarray] = _load_npz(_REFERENCE_PATH)
+        reference: dict[str, Float[NDArray, "..."]] = _load_npz(
+            _REFERENCE_PATH
+        )
         weights: Array = jnp.asarray(reference["d1_weights"])
         zero: Float[Array, "3"] = jnp.zeros(3, dtype=jnp.float64)
-        probe: np.ndarray
-        energy: np.ndarray
-        desired: np.ndarray
+        probe: Float[NDArray, " 3"]
+        energy: Float[NDArray, " n_q_d1"]
+        desired: Float[NDArray, " 3"]
         for probe, energy, desired in zip(
             reference["d1_probes"],
             reference["d1_energies"],
@@ -853,7 +928,7 @@ class TestPlan07VoigtProduction:
             toy_simulation_params(fidelity=512),
             15.0,
         )
-        desired: dict[str, np.ndarray] = _load_npz(_NOVICE_PATH)
+        desired: dict[str, Float[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
         np.testing.assert_allclose(
             np.asarray(spectrum.intensity),
             desired["leaf_000_intensity"],

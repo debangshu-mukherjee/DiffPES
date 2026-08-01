@@ -17,6 +17,8 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+from jaxtyping import Float
+from numpy.typing import NDArray
 
 _MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -77,7 +79,9 @@ def _cell_value(
     return value
 
 
-def _pchip_slopes(x_values: np.ndarray, y_values: np.ndarray) -> np.ndarray:
+def _pchip_slopes(
+    x_values: Float[NDArray, " n_node"], y_values: Float[NDArray, " n_node"]
+) -> Float[NDArray, " n_node"]:
     """Compute shape-preserving cubic Hermite derivatives."""
     count = len(x_values)
     intervals = np.diff(x_values)
@@ -131,9 +135,21 @@ def _pchip_slopes(x_values: np.ndarray, y_values: np.ndarray) -> np.ndarray:
 
 def _workbook_rows(
     source: Path,
-) -> list[tuple[tuple[int, int, int], np.ndarray, np.ndarray]]:
+) -> list[
+    tuple[
+        tuple[int, int, int],
+        Float[NDArray, " n_node"],
+        Float[NDArray, " n_node"],
+    ]
+]:
     """Extract subshell rows, preserving missing and published zero entries."""
-    rows: list[tuple[tuple[int, int, int], np.ndarray, np.ndarray]] = []
+    rows: list[
+        tuple[
+            tuple[int, int, int],
+            Float[NDArray, " n_node"],
+            Float[NDArray, " n_node"],
+        ]
+    ] = []
     with zipfile.ZipFile(source) as archive:
         strings = _shared_strings(archive)
         workbook = ET.fromstring(  # noqa: S314 - authenticated workbook input
@@ -220,9 +236,9 @@ def generate(source: Path, output_directory: Path) -> None:
     rows = _workbook_rows(source)
     keys = np.asarray([row[0] for row in rows], dtype=np.int16)
     offsets = [0]
-    energy_parts: list[np.ndarray] = []
-    sigma_parts: list[np.ndarray] = []
-    slope_parts: list[np.ndarray] = []
+    energy_parts: list[Float[NDArray, " n_node"]] = []
+    sigma_parts: list[Float[NDArray, " n_node"]] = []
+    slope_parts: list[Float[NDArray, " n_node"]] = []
     domains: dict[str, list[list[float]]] = {}
     for key, energies, sigmas in rows:
         log_energies = np.log(energies)

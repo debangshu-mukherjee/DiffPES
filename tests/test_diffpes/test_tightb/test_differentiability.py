@@ -15,6 +15,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from jaxtyping import Array, Complex, Float
+from numpy.typing import NDArray
 
 from diffpes.tightb import (
     bloch_hamiltonian,
@@ -615,13 +616,15 @@ class TestEighSafeNumPyTruth:
         rng: np.random.Generator = np.random.default_rng(407)
         dimension: int
         for dimension in (2, 5, 8):
-            raw: np.ndarray = rng.normal(size=(dimension, dimension)) + 1j * (
-                0.73 * rng.normal(size=(dimension, dimension))
-            )
-            hamiltonian: np.ndarray = (raw + raw.conj().T) / 2.0
+            raw: Complex[NDArray, "dim dim"] = rng.normal(
+                size=(dimension, dimension)
+            ) + 1j * (0.73 * rng.normal(size=(dimension, dimension)))
+            hamiltonian: Complex[NDArray, "dim dim"] = (
+                raw + raw.conj().T
+            ) / 2.0
             hamiltonian += np.diag(np.linspace(-0.4, 0.6, dimension))
-            expected_values: np.ndarray
-            expected_vectors: np.ndarray
+            expected_values: Float[NDArray, " dim"]
+            expected_vectors: Complex[NDArray, "dim dim"]
             expected_values, expected_vectors = np.linalg.eigh(hamiltonian)
 
             actual_values: Array
@@ -635,12 +638,12 @@ class TestEighSafeNumPyTruth:
                 rtol=2e-13,
                 atol=2e-13,
             )
-            expected_projectors: np.ndarray = np.einsum(
+            expected_projectors: Complex[NDArray, "dim dim dim"] = np.einsum(
                 "ib,jb->bij",
                 expected_vectors,
                 expected_vectors.conj(),
             )
-            actual_projectors: np.ndarray = np.einsum(
+            actual_projectors: Complex[NDArray, "dim dim dim"] = np.einsum(
                 "ib,jb->bij",
                 np.asarray(actual_vectors),
                 np.asarray(actual_vectors).conj(),

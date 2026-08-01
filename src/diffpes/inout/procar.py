@@ -25,7 +25,7 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import (
     ISPIN2_BLOCKS,
@@ -263,8 +263,8 @@ def _parse_procar_blocks(
         * ``'nkpts'`` (int): number of k-points.
         * ``'nbands'`` (int): number of bands.
         * ``'natoms'`` (int): number of atoms (ions).
-        * ``'projections'`` (np.ndarray): orbital projections with
-          shape ``(nkpts, nbands, natoms, 9)`` and dtype ``float64``.
+        * ``'projections'`` (``Float[NDArray, "nkpts nbands natoms 9"]``):
+          orbital projections with dtype ``float64``.
 
     Notes
     -----

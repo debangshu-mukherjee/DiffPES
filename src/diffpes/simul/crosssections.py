@@ -35,16 +35,17 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jaxtyping import Array, Bool, Float, Int, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import OrbitalBasis, ScalarFloat
 
 
 @cache
 def _load_data() -> tuple[
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
+    Int[NDArray, " n_row_plus_one"],
+    Float[NDArray, " n_packed"],
+    Float[NDArray, " n_packed"],
+    Float[NDArray, " n_packed"],
     dict[tuple[int, int, int], int],
 ]:
     """Load and cache the immutable packed table arrays."""
@@ -54,17 +55,21 @@ def _load_data() -> tuple[
     )
     archive: np.lib.npyio.NpzFile
     with np.load(data_resource) as archive:
-        keys: np.ndarray = np.asarray(archive["keys"], dtype=np.int16)
-        offsets: np.ndarray = np.asarray(archive["offsets"], dtype=np.int32)
-        energy_nodes: np.ndarray = np.asarray(
+        keys: Int[NDArray, "n_row 3"] = np.asarray(
+            archive["keys"], dtype=np.int16
+        )
+        offsets: Int[NDArray, " n_row_plus_one"] = np.asarray(
+            archive["offsets"], dtype=np.int32
+        )
+        energy_nodes: Float[NDArray, " n_packed"] = np.asarray(
             archive["photon_energy_ev"],
             dtype=np.float64,
         )
-        sigma_nodes: np.ndarray = np.asarray(
+        sigma_nodes: Float[NDArray, " n_packed"] = np.asarray(
             archive["sigma_megabarn"],
             dtype=np.float64,
         )
-        log_slopes: np.ndarray = np.asarray(
+        log_slopes: Float[NDArray, " n_packed"] = np.asarray(
             archive["log_slopes"],
             dtype=np.float64,
         )
@@ -73,10 +78,10 @@ def _load_data() -> tuple[
         for index, key in enumerate(keys)
     }
     loaded: tuple[
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
+        Int[NDArray, " n_row_plus_one"],
+        Float[NDArray, " n_packed"],
+        Float[NDArray, " n_packed"],
+        Float[NDArray, " n_packed"],
         dict[tuple[int, int, int], int],
     ] = (
         offsets,
@@ -99,7 +104,7 @@ def _table_slice(
         principal_quantum_number,
         angular_momentum,
     )
-    offsets: np.ndarray
+    offsets: Int[NDArray, " n_row_plus_one"]
     key_to_row: dict[tuple[int, int, int], int]
     offsets, _, _, _, key_to_row = _load_data()
     if key not in key_to_row:
@@ -121,7 +126,11 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
     atomic_number: int,
     n: int,
     l: int,  # noqa: E741
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+    Float[NDArray, " node"],
+    Float[NDArray, " node"],
+    Float[NDArray, " node"],
+]:
     """Return one raw Yeh--Lindau subshell row.
 
     The accessor returns missing entries as ``NaN`` and preserves published
@@ -148,11 +157,11 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
 
     Returns
     -------
-    photon_energy_ev : numpy.ndarray
+    photon_energy_ev : Float[NDArray, " node"]
         Published photon-energy nodes in eV.
-    sigma_megabarn : numpy.ndarray
+    sigma_megabarn : Float[NDArray, " node"]
         Published cross sections in megabarn, preserving missing values.
-    log_slopes : numpy.ndarray
+    log_slopes : Float[NDArray, " node"]
         Precomputed PCHIP derivatives of ``log(sigma)`` with respect to
         ``log(photon_energy)``. Unsupported nodes contain ``NaN``.
 
@@ -162,14 +171,20 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
         If the element/subshell key is not included in the manifest.
     """
     table_slice: slice = _table_slice(atomic_number, n, l)
-    energy_nodes: np.ndarray
-    sigma_nodes: np.ndarray
-    slope_nodes: np.ndarray
+    energy_nodes: Float[NDArray, " n_packed"]
+    sigma_nodes: Float[NDArray, " n_packed"]
+    slope_nodes: Float[NDArray, " n_packed"]
     _, energy_nodes, sigma_nodes, slope_nodes, _ = _load_data()
-    photon_energy_ev: np.ndarray = energy_nodes[table_slice].copy()
-    sigma_megabarn: np.ndarray = sigma_nodes[table_slice].copy()
-    log_slopes: np.ndarray = slope_nodes[table_slice].copy()
-    table: tuple[np.ndarray, np.ndarray, np.ndarray] = (
+    photon_energy_ev: Float[NDArray, " node"] = energy_nodes[
+        table_slice
+    ].copy()
+    sigma_megabarn: Float[NDArray, " node"] = sigma_nodes[table_slice].copy()
+    log_slopes: Float[NDArray, " node"] = slope_nodes[table_slice].copy()
+    table: tuple[
+        Float[NDArray, " node"],
+        Float[NDArray, " node"],
+        Float[NDArray, " node"],
+    ] = (
         photon_energy_ev,
         sigma_megabarn,
         log_slopes,
@@ -268,9 +283,9 @@ def yeh_lindau_cross_section(  # noqa: DOC502
         interval.
     """
     table_slice: slice = _table_slice(atomic_number, n, l)
-    energy_data: np.ndarray
-    sigma_data: np.ndarray
-    slope_data: np.ndarray
+    energy_data: Float[NDArray, " n_packed"]
+    sigma_data: Float[NDArray, " n_packed"]
+    slope_data: Float[NDArray, " n_packed"]
     _, energy_data, sigma_data, slope_data, _ = _load_data()
     energy_nodes: Float[Array, " node"] = jnp.asarray(
         energy_data[table_slice],

@@ -77,6 +77,7 @@ from beartype import beartype
 from beartype.typing import Callable
 from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex, Float, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.maths import channel_tables, polarization_cart_to_real
 from diffpes.radial import momentum_inv_ang_to_bohr_inv, radial_bvals
@@ -295,7 +296,7 @@ def _validate_band_groups(
         raise ValueError(message)
     n_bands: int = bands.eigenvalues.shape[1]
     occupied: set[int] = set()
-    energies: np.ndarray = np.asarray(bands.eigenvalues)
+    energies: Float[NDArray, "nkpt nband"] = np.asarray(bands.eigenvalues)
     group: tuple[int, ...]
     for group in band_groups:
         if (
@@ -316,7 +317,7 @@ def _validate_band_groups(
         )
         if not complement:
             continue
-        cross_gaps: np.ndarray = np.abs(
+        cross_gaps: Float[NDArray, "nkpt n_group n_complement"] = np.abs(
             energies[:, np.asarray(group), None]
             - energies[:, None, np.asarray(complement)]
         )

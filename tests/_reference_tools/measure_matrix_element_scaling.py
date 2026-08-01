@@ -28,7 +28,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.extend.core import ClosedJaxpr, Jaxpr
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex, Float, Shaped
+from numpy.typing import NDArray
 
 from diffpes.simul.matrixel import (
     contract_polarization,
@@ -350,7 +351,7 @@ def _checksum_fixture(fixture: Fixture) -> str:
             fixture.polarizations,
         )
     ):
-        array: np.ndarray = np.asarray(jax.device_get(leaf))
+        array: Shaped[NDArray, "..."] = np.asarray(jax.device_get(leaf))
         digest.update(str(array.shape).encode())
         digest.update(str(array.dtype).encode())
         digest.update(array.tobytes(order="C"))

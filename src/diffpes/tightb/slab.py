@@ -49,7 +49,8 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.maths import (
     real_harmonic_unitary,
@@ -104,7 +105,7 @@ def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
     return result
 
 
-def _determinant_3x3(matrix: np.ndarray) -> int:
+def _determinant_3x3(matrix: Int[NDArray, "3 3"]) -> int:
     """Evaluate a three-dimensional integer determinant exactly."""
     a: int = int(matrix[0, 0])
     b: int = int(matrix[0, 1])
@@ -123,7 +124,7 @@ def _determinant_3x3(matrix: np.ndarray) -> int:
 
 def _primitive_integer_frame(
     miller: tuple[int, int, int],
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Int[NDArray, "2 3"], Int[NDArray, " 3"]]:
     """Construct an oriented integer kernel basis and unit-advance vector."""
     first: int
     second: int
@@ -137,11 +138,11 @@ def _primitive_integer_frame(
         second,
     )
     if gcd_first_two == 0:
-        kernel: np.ndarray = np.asarray(
+        kernel: Int[NDArray, "2 3"] = np.asarray(
             ((1, 0, 0), (0, 1, 0)),
             dtype=np.int64,
         )
-        stacking: np.ndarray = np.asarray(
+        stacking: Int[NDArray, " 3"] = np.asarray(
             (0, 0, third),
             dtype=np.int64,
         )
@@ -175,25 +176,28 @@ def _primitive_integer_frame(
             ),
             dtype=np.int64,
         )
-    frame: np.ndarray = np.vstack((kernel, stacking))
+    frame: Int[NDArray, "3 3"] = np.vstack((kernel, stacking))
     determinant: int = _determinant_3x3(frame)
     if abs(determinant) != 1:
         message = "surface integer frame must be unimodular"
         raise ValueError(message)
     if determinant < 0:
         kernel[1] *= -1
-    result: tuple[np.ndarray, np.ndarray] = (kernel, stacking)
+    result: tuple[Int[NDArray, "2 3"], Int[NDArray, " 3"]] = (
+        kernel,
+        stacking,
+    )
     return result
 
 
 def _gauss_reduce(
-    kernel: np.ndarray,
-    lattice: np.ndarray,
-) -> np.ndarray:
+    kernel: Int[NDArray, "2 3"],
+    lattice: Float[NDArray, "3 3"],
+) -> Int[NDArray, "2 3"]:
     """Compute an exact reduced basis in the Cartesian lattice metric."""
-    reduced: np.ndarray = kernel.copy()
+    reduced: Int[NDArray, "2 3"] = kernel.copy()
     for _ in range(256):
-        vectors: np.ndarray = reduced @ lattice
+        vectors: Float[NDArray, "2 3"] = reduced @ lattice
         first_norm: float = float(vectors[0] @ vectors[0])
         second_norm: float = float(vectors[1] @ vectors[1])
         if second_norm < first_norm:
@@ -213,33 +217,37 @@ def _gauss_reduce(
 
 
 def _closest_stacking_vector(
-    stacking: np.ndarray,
-    kernel: np.ndarray,
-    lattice: np.ndarray,
-) -> np.ndarray:
+    stacking: Int[NDArray, " 3"],
+    kernel: Int[NDArray, "2 3"],
+    lattice: Float[NDArray, "3 3"],
+) -> Int[NDArray, " 3"]:
     """Compute the closest unit-advance vector to the plane normal."""
-    in_plane: np.ndarray = kernel @ lattice
-    seed: np.ndarray = stacking @ lattice
-    gram: np.ndarray = in_plane @ in_plane.T
-    continuous: np.ndarray = np.linalg.solve(gram, -(in_plane @ seed))
-    rounded: np.ndarray = np.rint(continuous).astype(np.int64)
+    in_plane: Float[NDArray, "2 3"] = kernel @ lattice
+    seed: Float[NDArray, " 3"] = stacking @ lattice
+    gram: Float[NDArray, "2 2"] = in_plane @ in_plane.T
+    continuous: Float[NDArray, " 2"] = np.linalg.solve(
+        gram, -(in_plane @ seed)
+    )
+    rounded: Int[NDArray, " 2"] = np.rint(continuous).astype(np.int64)
 
-    def perpendicular_norm_squared(coefficients: np.ndarray) -> float:
-        candidate: np.ndarray = seed + coefficients @ in_plane
+    def perpendicular_norm_squared(
+        coefficients: Int[NDArray, " 2"],
+    ) -> float:
+        candidate: Float[NDArray, " 3"] = seed + coefficients @ in_plane
         norm_squared: float = float(candidate @ candidate)
         return norm_squared
 
-    best_coefficients: np.ndarray = rounded
+    best_coefficients: Int[NDArray, " 2"] = rounded
     best_norm: float = perpendicular_norm_squared(best_coefficients)
     smallest_singular: float = float(
         np.linalg.svd(in_plane, compute_uv=False)[-1]
     )
     radius: float = math.sqrt(best_norm) / smallest_singular + 1.0
-    lower: np.ndarray = np.floor(continuous - radius).astype(np.int64)
-    upper: np.ndarray = np.ceil(continuous + radius).astype(np.int64)
+    lower: Int[NDArray, " 2"] = np.floor(continuous - radius).astype(np.int64)
+    upper: Int[NDArray, " 2"] = np.ceil(continuous + radius).astype(np.int64)
     first_coefficient: int
     second_coefficient: int
-    coefficients: np.ndarray
+    coefficients: Int[NDArray, " 2"]
     for first_coefficient in range(int(lower[0]), int(upper[0]) + 1):
         for second_coefficient in range(int(lower[1]), int(upper[1]) + 1):
             coefficients = np.asarray(
@@ -260,7 +268,7 @@ def _closest_stacking_vector(
             if candidate_key < best_key:
                 best_norm = candidate_norm
                 best_coefficients = coefficients
-    closest: np.ndarray = stacking + best_coefficients @ kernel
+    closest: Int[NDArray, " 3"] = stacking + best_coefficients @ kernel
     return closest
 
 
@@ -411,12 +419,12 @@ def find_surface_cell(  # noqa: DOC502
     :see: :class:`~.test_slab.TestFindSurfaceCell`
     """
     primitive_miller: tuple[int, int, int] = _validate_miller(miller)
-    lattice_snapshot: np.ndarray = np.asarray(
+    lattice_snapshot: Float[NDArray, "3 3"] = np.asarray(
         geometry.lattice,
         dtype=np.float64,
     )
-    kernel: np.ndarray
-    stacking: np.ndarray
+    kernel: Int[NDArray, "2 3"]
+    stacking: Int[NDArray, " 3"]
     kernel, stacking = _primitive_integer_frame(primitive_miller)
     kernel = _gauss_reduce(kernel, lattice_snapshot)
     stacking = _closest_stacking_vector(
@@ -811,9 +819,11 @@ def rotate_tb_model(  # noqa: DOC503
     return rotated_model
 
 
-def _surface_integer_matrix(surface_cell: SurfaceCell) -> np.ndarray:
+def _surface_integer_matrix(
+    surface_cell: SurfaceCell,
+) -> Int[NDArray, "3 3"]:
     """Return the exact row-wise bulk-to-surface integer frame."""
-    coefficients: np.ndarray = np.asarray(
+    coefficients: Int[NDArray, "3 3"] = np.asarray(
         (
             surface_cell.in_plane_coeffs[0],
             surface_cell.in_plane_coeffs[1],
@@ -831,7 +841,9 @@ def _surface_integer_matrix(surface_cell: SurfaceCell) -> np.ndarray:
     return coefficients
 
 
-def _inverse_integer_matrix(coefficients: np.ndarray) -> np.ndarray:
+def _inverse_integer_matrix(
+    coefficients: Int[NDArray, "3 3"],
+) -> Int[NDArray, "3 3"]:
     """Compute a unimodular inverse and verify exact integer recovery."""
     determinant: int = _determinant_3x3(coefficients)
     if determinant != 1:
@@ -846,7 +858,7 @@ def _inverse_integer_matrix(coefficients: np.ndarray) -> np.ndarray:
     g: int = int(coefficients[2, 0])
     h: int = int(coefficients[2, 1])
     i: int = int(coefficients[2, 2])
-    inverse: np.ndarray = np.asarray(
+    inverse: Int[NDArray, "3 3"] = np.asarray(
         (
             (e * i - f * h, c * h - b * i, b * f - c * e),
             (f * g - d * i, a * i - c * g, c * d - a * f),
@@ -854,7 +866,7 @@ def _inverse_integer_matrix(coefficients: np.ndarray) -> np.ndarray:
         ),
         dtype=np.int64,
     )
-    identity: np.ndarray = coefficients @ inverse
+    identity: Int[NDArray, "3 3"] = coefficients @ inverse
     if not np.array_equal(identity, np.eye(3, dtype=np.int64)):
         message: str = "surface integer frame inverse is not exact"
         raise ValueError(message)
@@ -863,30 +875,37 @@ def _inverse_integer_matrix(coefficients: np.ndarray) -> np.ndarray:
 
 def _base_surface_coordinates(
     geometry: CrystalGeometry,
-    inverse_coefficients: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
+    inverse_coefficients: Int[NDArray, "3 3"],
+) -> tuple[Float[NDArray, "n_atom 3"], Int[NDArray, "n_atom 3"]]:
     """Compute atom representatives and integer surface-cell shifts."""
-    surface_coordinates: np.ndarray = (
+    surface_coordinates: Float[NDArray, "n_atom 3"] = (
         np.asarray(geometry.positions, dtype=np.float64) @ inverse_coefficients
     )
-    shifts: np.ndarray = np.floor(surface_coordinates + 1e-10).astype(np.int64)
-    base: np.ndarray = surface_coordinates - shifts
+    shifts: Int[NDArray, "n_atom 3"] = np.floor(
+        surface_coordinates + 1e-10
+    ).astype(np.int64)
+    base: Float[NDArray, "n_atom 3"] = surface_coordinates - shifts
     base[np.isclose(base, 1.0, atol=1e-10)] = 0.0
-    result: tuple[np.ndarray, np.ndarray] = (base, shifts)
+    result: tuple[Float[NDArray, "n_atom 3"], Int[NDArray, "n_atom 3"]] = (
+        base,
+        shifts,
+    )
     return result
 
 
 def _natural_atom_copies(
     geometry: CrystalGeometry,
-    base_coordinates: np.ndarray,
-    surface_vectors: np.ndarray,
+    base_coordinates: Float[NDArray, "n_atom 3"],
+    surface_vectors: Float[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
     fine: tuple[float, float],
 ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]:
     """Select the smallest post-fine natural stack meeting the minimum span."""
     spacing: float = abs(float(surface_vectors[2, 2]))
-    base_heights: np.ndarray = base_coordinates @ surface_vectors[:, 2]
+    base_heights: Float[NDArray, " n_atom"] = (
+        base_coordinates @ surface_vectors[:, 2]
+    )
     baseline_bottom: float = float(np.min(base_heights))
     base_top: float = float(np.max(base_heights))
     positive_fine_span: float = max(fine[0], 0.0) + max(fine[1], 0.0)
@@ -934,7 +953,7 @@ def _natural_atom_copies(
     }
     bulk_atoms: tuple[int, ...] = tuple(row[1] for row in candidates)
     layers: tuple[int, ...] = tuple(layer_map[row[2]] for row in candidates)
-    heights: np.ndarray = np.asarray(
+    heights: Float[NDArray, " n_candidate"] = np.asarray(
         [row[0] for row in candidates],
         dtype=np.float64,
     )
@@ -957,8 +976,8 @@ def _natural_atom_copies(
 
 def _terminated_atom_copies(  # noqa: PLR0913
     geometry: CrystalGeometry,
-    base_coordinates: np.ndarray,
-    surface_vectors: np.ndarray,
+    base_coordinates: Float[NDArray, "n_atom 3"],
+    surface_vectors: Float[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
     termination: tuple[str, str],
@@ -972,7 +991,9 @@ def _terminated_atom_copies(  # noqa: PLR0913
     bottom_species: str
     top_species, bottom_species = termination
     spacing: float = abs(float(surface_vectors[2, 2]))
-    base_heights: np.ndarray = base_coordinates @ surface_vectors[:, 2]
+    base_heights: Float[NDArray, " n_atom"] = (
+        base_coordinates @ surface_vectors[:, 2]
+    )
     baseline_bottom: float = float(np.min(base_heights))
     base_top: float = float(np.max(base_heights))
     positive_fine_span: float = max(fine[0], 0.0) + max(fine[1], 0.0)
@@ -1178,7 +1199,7 @@ def _orbital_lookup(
 def _propagate_hoppings_with_shifts(
     rotated_bulk: TBModel,
     spec: SlabSpec,
-    atom_shifts: np.ndarray,
+    atom_shifts: Int[NDArray, "n_atom 3"],
 ) -> tuple[
     Complex[Array, " n_hop_slab"],
     tuple[tuple[int, int], ...],
@@ -1186,8 +1207,10 @@ def _propagate_hoppings_with_shifts(
     tuple[int, ...],
 ]:
     """Propagate exact bulk hoppings through one frozen slab topology."""
-    coefficients: np.ndarray = _surface_integer_matrix(spec.surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+        spec.surface_cell
+    )
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
     slab_to_bulk: tuple[int, ...]
     slab_atom_indices: tuple[int, ...]
     slab_layers: tuple[int, ...]
@@ -1208,7 +1231,7 @@ def _propagate_hoppings_with_shifts(
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = rotated_bulk.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: np.ndarray = np.asarray(
+        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -1231,10 +1254,10 @@ def _propagate_hoppings_with_shifts(
                 continue
             bulk_target: int = pair[1]
             target_atom: int = rotated_bulk.basis.atom_indices[bulk_target]
-            transformed_cell: np.ndarray = (
+            transformed_cell: Int[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: np.ndarray = (
+            target_surface_cell: Int[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             target_layer: int = int(
@@ -1276,9 +1299,11 @@ def _propagate_hoppings(
     tuple[int, ...],
 ]:
     """Propagate hoppings after eagerly selecting atom representatives."""
-    coefficients: np.ndarray = _surface_integer_matrix(spec.surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    atom_shifts: np.ndarray
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+        spec.surface_cell
+    )
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         rotated_bulk.geometry,
         inverse,
@@ -1339,7 +1364,7 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
             ]
         else:
             orbital_fractional = model.orbital_positions
-        orbital_heights: np.ndarray = np.asarray(
+        orbital_heights: Float[NDArray, " n_orb"] = np.asarray(
             orbital_fractional @ model.geometry.lattice,
             dtype=np.float64,
         )[:, 2]
@@ -1409,8 +1434,8 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
 def _slab_geometry_and_centres(  # noqa: PLR0913
     rotated_bulk: TBModel,
     surface_cell: SurfaceCell,
-    inverse_coefficients: np.ndarray,
-    atom_shifts: np.ndarray,
+    inverse_coefficients: Int[NDArray, "3 3"],
+    atom_shifts: Int[NDArray, "n_atom 3"],
     bulk_atoms: tuple[int, ...],
     atom_layers: tuple[int, ...],
     slab_to_bulk: tuple[int, ...],
@@ -1595,15 +1620,15 @@ def freeze_slab_topology(  # noqa: PLR0913
         bulk_model.geometry,
         miller,
     )
-    coefficients: np.ndarray = _surface_integer_matrix(surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    base_coordinates: np.ndarray
-    atom_shifts: np.ndarray
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    base_coordinates: Float[NDArray, "n_atom 3"]
+    atom_shifts: Int[NDArray, "n_atom 3"]
     base_coordinates, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
     )
-    surface_vectors_snapshot: np.ndarray = np.vstack(
+    surface_vectors_snapshot: Float[NDArray, "3 3"] = np.vstack(
         (
             np.asarray(surface_cell.in_plane_vectors),
             np.asarray(surface_cell.stacking_vector)[None, :],
@@ -1698,9 +1723,9 @@ def rebuild_slab(
         bulk_model,
         surface_cell.rotation,
     )
-    coefficients: np.ndarray = _surface_integer_matrix(surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    atom_shifts: np.ndarray = np.asarray(
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(surface_cell)
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int[NDArray, "n_atom 3"] = np.asarray(
         topology.atom_shifts,
         dtype=np.int64,
     )
@@ -1923,9 +1948,11 @@ def _slab_operator_centres(
     spec: SlabSpec,
 ) -> Float[Array, "n_orb_slab 3"]:
     """Convert explicit Wannier centres into the slab cell."""
-    coefficients: np.ndarray = _surface_integer_matrix(spec.surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    atom_shifts: np.ndarray
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+        spec.surface_cell
+    )
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -1955,7 +1982,7 @@ def _slab_operator_centres(
         if not identity_rotation:
             indices: list[int]
             for indices in _shell_groups(bulk_model).values():
-                shell_centres: np.ndarray = np.asarray(
+                shell_centres: Float[NDArray, "n_shell 3"] = np.asarray(
                     operator_data.centres_cart
                 )[indices]
                 if not np.allclose(
@@ -2045,9 +2072,11 @@ def _propagated_operator_cells(
     spec: SlabSpec,
 ) -> tuple[tuple[int, int, int], ...]:
     """Compute an operator cell grid for the exact slab topology."""
-    coefficients: np.ndarray = _surface_integer_matrix(spec.surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    atom_shifts: np.ndarray
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+        spec.surface_cell
+    )
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -2065,7 +2094,7 @@ def _propagated_operator_cells(
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = bulk_model.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: np.ndarray = np.asarray(
+        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -2075,10 +2104,10 @@ def _propagated_operator_cells(
         )
         bulk_cell: tuple[int, int, int]
         for bulk_cell in operator_data.cells:
-            transformed_cell: np.ndarray = (
+            transformed_cell: Int[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: np.ndarray = (
+            target_surface_cell: Int[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             bulk_target: int
@@ -2159,9 +2188,11 @@ def _propagate_position_matrices(  # noqa: PLR0915
         orbital_rotated,
         spec.surface_cell.rotation,
     )
-    coefficients: np.ndarray = _surface_integer_matrix(spec.surface_cell)
-    inverse: np.ndarray = _inverse_integer_matrix(coefficients)
-    atom_shifts: np.ndarray
+    coefficients: Int[NDArray, "3 3"] = _surface_integer_matrix(
+        spec.surface_cell
+    )
+    inverse: Int[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
+    atom_shifts: Int[NDArray, "n_atom 3"]
     _, atom_shifts = _base_surface_coordinates(
         bulk_model.geometry,
         inverse,
@@ -2188,7 +2219,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = bulk_model.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
-        source_surface_cell: np.ndarray = np.asarray(
+        source_surface_cell: Int[NDArray, " 3"] = np.asarray(
             (
                 -atom_shifts[source_atom, 0],
                 -atom_shifts[source_atom, 1],
@@ -2199,10 +2230,10 @@ def _propagate_position_matrices(  # noqa: PLR0915
         cell_index: int
         bulk_cell: tuple[int, int, int]
         for cell_index, bulk_cell in enumerate(operator_data.cells):
-            transformed_cell: np.ndarray = (
+            transformed_cell: Int[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
             )
-            target_surface_cell: np.ndarray = (
+            target_surface_cell: Int[NDArray, " 3"] = (
                 source_surface_cell + transformed_cell
             )
             bulk_target: int

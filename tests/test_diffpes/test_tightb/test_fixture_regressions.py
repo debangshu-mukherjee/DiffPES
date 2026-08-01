@@ -8,7 +8,8 @@ degenerate groups in the declared down--up spin convention.
 
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array
+from jaxtyping import Array, Float
+from numpy.typing import NDArray
 
 from diffpes.tightb import (
     diagonalize_tb,
@@ -54,14 +55,16 @@ class TestRashbaFixtureRegression:
         model: TBModel = make_rashba_model(hopping, rashba)
         actual: Array = eigvalsh_bands(model, kpoints)
 
-        fractional: np.ndarray = np.asarray(kpoints)
-        qx: np.ndarray = 2.0 * np.pi * fractional[:, 0]
-        qy: np.ndarray = 2.0 * np.pi * fractional[:, 1]
-        center: np.ndarray = 2.0 * hopping * (np.cos(qx) + np.cos(qy))
-        splitting: np.ndarray = abs(rashba) * np.sqrt(
+        fractional: Float[NDArray, "nkpt 3"] = np.asarray(kpoints)
+        qx: Float[NDArray, " nkpt"] = 2.0 * np.pi * fractional[:, 0]
+        qy: Float[NDArray, " nkpt"] = 2.0 * np.pi * fractional[:, 1]
+        center: Float[NDArray, " nkpt"] = (
+            2.0 * hopping * (np.cos(qx) + np.cos(qy))
+        )
+        splitting: Float[NDArray, " nkpt"] = abs(rashba) * np.sqrt(
             np.sin(qx) ** 2 + np.sin(qy) ** 2
         )
-        expected: np.ndarray = np.stack(
+        expected: Float[NDArray, "nkpt 2"] = np.stack(
             (center - splitting, center + splitting),
             axis=-1,
         )
@@ -104,10 +107,10 @@ class TestT2gSocFixtureRegression:
         )
         model: TBModel = make_t2g_soc_model(coupling)
         actual: Array = eigvalsh_bands(model, kpoints)
-        expected_row: np.ndarray = np.asarray(
+        expected_row: Float[NDArray, " nband"] = np.asarray(
             (-0.5 * coupling,) * 4 + (coupling,) * 2,
         )
-        expected: np.ndarray = np.broadcast_to(
+        expected: Float[NDArray, "nkpt nband"] = np.broadcast_to(
             expected_row,
             actual.shape,
         )

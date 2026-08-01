@@ -16,7 +16,8 @@ import jax
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any, Callable
-from jaxtyping import PyTree, jaxtyped
+from jaxtyping import PyTree, Shaped, jaxtyped
+from numpy.typing import NDArray
 
 _REFERENCE_DIRECTORY: Path = (
     Path(__file__).parent / "test_diffpes" / "_reference_data"
@@ -143,7 +144,7 @@ def assert_matches_reference(
     reference_path: Path = _REFERENCE_DIRECTORY / f"{name}.npz"
     archive: Any
     with np.load(reference_path, allow_pickle=False) as archive:
-        desired_leaves: tuple[np.ndarray, ...] = tuple(
+        desired_leaves: tuple[Shaped[NDArray, "..."], ...] = tuple(
             archive[key] for key in archive.files
         )
     actual_leaves: tuple[object, ...] = tuple(jax.tree.leaves(tree))

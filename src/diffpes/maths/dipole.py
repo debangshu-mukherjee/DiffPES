@@ -46,7 +46,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jaxtyping import Array, Complex, Float, jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from numpy.typing import NDArray
 
 from diffpes.types import L_MAX, OrbitalBasis
 
@@ -247,7 +247,7 @@ def channel_tables(
     valid_numpy: Float[NDArray, "n_orb 2 3 n_y"] = np.zeros_like(
         coupling_numpy
     )
-    gaunt_numpy: NDArray = np.asarray(GAUNT_TABLE)
+    gaunt_numpy: Float[NDArray, "..."] = np.asarray(GAUNT_TABLE)
     orbital_index: int
     l_initial: int
     m_initial: int

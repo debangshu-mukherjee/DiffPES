@@ -23,6 +23,8 @@ from typing import Any
 
 import mpmath as mp
 import numpy as np
+from jaxtyping import Float, Shaped
+from numpy.typing import NDArray
 
 ORDERS: tuple[int, ...] = tuple(range(5))
 ETAS: tuple[float, ...] = (-3.0, -1.0, -0.25, 0.0, 0.25, 1.0, 3.0)
@@ -74,7 +76,9 @@ def coulomb_rows(
     return result
 
 
-def dense_value_rows(order: int) -> tuple[int, np.ndarray, np.ndarray]:
+def dense_value_rows(
+    order: int,
+) -> tuple[int, Float[NDArray, "n_eta n_rho"], Float[NDArray, "n_eta n_rho"]]:
     """Evaluate dense F and G values for one independent static order."""
     mp.mp.dps = REFERENCE_DPS
     regular = np.empty((len(DENSE_ETAS), len(DENSE_RHOS)), dtype=np.float64)
@@ -94,7 +98,7 @@ def dense_value_rows(order: int) -> tuple[int, np.ndarray, np.ndarray]:
     return order, regular, irregular
 
 
-def _array_bytes(array: np.ndarray) -> bytes:
+def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
     """Serialize one NumPy array without filesystem timestamp metadata."""
     output = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
@@ -103,7 +107,7 @@ def _array_bytes(array: np.ndarray) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, np.ndarray],
+    arrays: dict[str, Shaped[NDArray, "..."]],
 ) -> None:
     """Write an NPZ whose members have stable order and timestamps."""
     with zipfile.ZipFile(
@@ -113,7 +117,7 @@ def _write_deterministic_npz(
         compresslevel=9,
     ) as archive:
         name: str
-        array: np.ndarray
+        array: Shaped[NDArray, "..."]
         for name, array in sorted(arrays.items()):
             member = zipfile.ZipInfo(
                 filename=f"{name}.npy",
@@ -154,7 +158,7 @@ def main() -> None:
     """Write dense and sparse 80-digit references plus their provenance."""
     mp.mp.dps = REFERENCE_DPS
     shape: tuple[int, int, int] = (len(ORDERS), len(ETAS), len(RHOS))
-    values: dict[str, np.ndarray] = {
+    values: dict[str, Float[NDArray, "n_order n_eta n_rho"]] = {
         name: np.empty(shape, dtype=np.float64)
         for name in (
             "f",
@@ -169,8 +173,10 @@ def main() -> None:
             "d_dg_drho_deta",
         )
     }
-    phase: np.ndarray = np.empty((len(ORDERS), len(ETAS)), dtype=np.float64)
-    phase_eta: np.ndarray = np.empty_like(phase)
+    phase: Float[NDArray, "n_order n_eta"] = np.empty(
+        (len(ORDERS), len(ETAS)), dtype=np.float64
+    )
+    phase_eta: Float[NDArray, "n_order n_eta"] = np.empty_like(phase)
     eta_step: mp.mpf = mp.mpf("1e-20")
 
     for order_index, order in enumerate(ORDERS):
@@ -237,7 +243,9 @@ def main() -> None:
     )
     dense_irregular = np.empty_like(dense_regular)
     with ProcessPoolExecutor(max_workers=len(ORDERS)) as executor:
-        dense_rows: tuple[int, np.ndarray, np.ndarray]
+        dense_rows: tuple[
+            int, Float[NDArray, "n_eta n_rho"], Float[NDArray, "n_eta n_rho"]
+        ]
         for dense_rows in executor.map(dense_value_rows, ORDERS):
             order, regular_row, irregular_row = dense_rows
             dense_regular[order] = regular_row
@@ -249,7 +257,7 @@ def main() -> None:
     )
     target_directory.mkdir(parents=True, exist_ok=True)
     target: Path = target_directory / "coulomb_mpmath_80digit.npz"
-    arrays: dict[str, np.ndarray] = {
+    arrays: dict[str, Shaped[NDArray, "..."]] = {
         "orders": np.asarray(ORDERS, dtype=np.int64),
         "etas": np.asarray(ETAS, dtype=np.float64),
         "rhos": np.asarray(RHOS, dtype=np.float64),

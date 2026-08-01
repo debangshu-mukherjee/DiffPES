@@ -42,7 +42,8 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from jax import core
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Bool, Complex, Float, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     CARTESIAN_COMPONENTS,
@@ -382,9 +383,13 @@ def _certified_supercell_radius(
     contains every possible retained translation. The outward floating-point
     rounding keeps the host certificate conservative.
     """
-    lattice: np.ndarray = np.asarray(geometry.lattice, dtype=np.float64)
-    positions: np.ndarray = np.asarray(geometry.positions, dtype=np.float64)
-    singular_values: np.ndarray = np.linalg.svd(
+    lattice: Float[NDArray, "3 3"] = np.asarray(
+        geometry.lattice, dtype=np.float64
+    )
+    positions: Float[NDArray, "n_atom 3"] = np.asarray(
+        geometry.positions, dtype=np.float64
+    )
+    singular_values: Float[NDArray, " 3"] = np.linalg.svd(
         lattice,
         compute_uv=False,
     )
@@ -398,10 +403,12 @@ def _certified_supercell_radius(
     if positions.shape[0] <= 1:
         basis_diameter: float = 0.0
     else:
-        fractional_pairs: np.ndarray = (
+        fractional_pairs: Float[NDArray, "n_atom n_atom 3"] = (
             positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
         )
-        cartesian_pairs: np.ndarray = fractional_pairs @ lattice
+        cartesian_pairs: Float[NDArray, "n_atom n_atom 3"] = (
+            fractional_pairs @ lattice
+        )
         basis_diameter = float(
             np.max(np.linalg.norm(cartesian_pairs, axis=-1))
         )
@@ -596,11 +603,13 @@ def neighbor_shells(  # noqa: DOC502
                 candidate_cells,
             )
         )
-        host_distances: np.ndarray = np.asarray(candidate_distances)
+        host_distances: Float[NDArray, " n_candidate"] = np.asarray(
+            candidate_distances
+        )
     if np.any(host_distances <= MIN_BOND_DISTANCE):
         message = "neighbor_shells encountered a zero-length atom pair"
         raise ValueError(message)
-    keep: np.ndarray = host_distances <= cutoff
+    keep: Bool[NDArray, " n_candidate"] = host_distances <= cutoff
     kept_indices: tuple[int, ...] = tuple(
         int(index) for index in np.flatnonzero(keep)
     )
@@ -689,7 +698,7 @@ def _shell_numbers(
     distances: Float[Array, " n_bond"],
 ) -> tuple[int, ...]:
     """Create one-based distance-shell numbers within each species pair."""
-    host_distances: np.ndarray = np.asarray(distances)
+    host_distances: Float[NDArray, " n_bond"] = np.asarray(distances)
     grouped: dict[tuple[str, str], list[float]] = {}
     pair_groups: list[tuple[str, str]] = []
     atom_pair: tuple[int, int]

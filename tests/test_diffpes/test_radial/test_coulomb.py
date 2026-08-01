@@ -15,7 +15,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex, Float, Shaped
+from numpy.typing import NDArray
 
 from diffpes.radial import (
     coulomb_fg,
@@ -26,13 +27,13 @@ from diffpes.radial import (
 from diffpes.types import FinalStateSpec, make_final_state_spec
 
 
-def _reference() -> dict[str, np.ndarray]:
+def _reference() -> dict[str, Shaped[NDArray, "..."]]:
     """Load the frozen 80-digit-generated G11/D11 artifact."""
     path: Path = (
         Path(__file__).with_name("data") / "coulomb_mpmath_80digit.npz"
     )
     archive: np.lib.npyio.NpzFile = np.load(path)
-    result: dict[str, np.ndarray] = {
+    result: dict[str, Shaped[NDArray, "..."]] = {
         name: archive[name] for name in archive.files
     }
     return result
@@ -50,7 +51,7 @@ class TestCoulombPhaseShift:
         -----
         It compares production outputs with stored arbitrary-precision values.
         """
-        reference: dict[str, np.ndarray] = _reference()
+        reference: dict[str, Shaped[NDArray, "..."]] = _reference()
         etas: Float[Array, " n_eta"] = jnp.asarray(reference["etas"])
         order: int
         for order in range(5):

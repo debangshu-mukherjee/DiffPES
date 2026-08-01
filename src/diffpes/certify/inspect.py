@@ -23,8 +23,8 @@ from __future__ import annotations
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any
-from jaxtyping import jaxtyped
-from numpy import ndarray as NDArray  # noqa: N812
+from jaxtyping import Bool, Shaped, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.types import (
     CERTIFICATE_ARRAY_PREVIEW_ITEMS,
@@ -39,7 +39,7 @@ from .policy import evidence_is_independent
 
 def _scalar_bool(value: Any) -> bool:
     """Convert one concrete scalar array to ``bool`` for display."""
-    array: NDArray = np.asarray(value)
+    array: Shaped[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         msg: str = (
             f"expected scalar certificate field, received shape {array.shape}"
@@ -51,7 +51,7 @@ def _scalar_bool(value: Any) -> bool:
 
 def _scalar_text(value: Any) -> str:
     """Format one concrete scalar numerical certificate field."""
-    array: NDArray = np.asarray(value)
+    array: Shaped[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         text: str = f"array(shape={array.shape}, dtype={array.dtype})"
         return text  # noqa: RET504
@@ -65,8 +65,8 @@ def _scalar_text(value: Any) -> str:
 
 def _array_text(value: Any) -> str:
     """Format a bounded preview of a numerical evidence array."""
-    array: NDArray = np.asarray(value)
-    flat: NDArray = array.reshape(-1)
+    array: Shaped[NDArray, "..."] = np.asarray(value)
+    flat: Shaped[NDArray, " n_flat"] = array.reshape(-1)
     preview: str = np.array2string(
         flat[:CERTIFICATE_ARRAY_PREVIEW_ITEMS],
         separator=", ",
@@ -256,11 +256,15 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
     )
 
     derivatives: Any = certificate.derivatives
-    dependency_structural: NDArray = np.asarray(
+    dependency_structural: Bool[NDArray, "n_output n_input"] = np.asarray(
         certificate.dependencies.structural
     )
-    dependency_traced: NDArray = np.asarray(certificate.dependencies.traced)
-    sensitivity_active: NDArray = np.asarray(certificate.sensitivities.active)
+    dependency_traced: Bool[NDArray, "n_output n_input"] = np.asarray(
+        certificate.dependencies.traced
+    )
+    sensitivity_active: Bool[NDArray, "n_output n_input"] = np.asarray(
+        certificate.sensitivities.active
+    )
     information: Any = certificate.information
     lines.extend(
         (

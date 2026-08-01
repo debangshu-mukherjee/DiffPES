@@ -52,6 +52,12 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Every NumPy array annotation now carries a jaxtyping dtype and shape, in the
+  form `Float[NDArray, "m n p"]`. The source imports `NDArray` from
+  `numpy.typing`. The previous `from numpy import ndarray as NDArray` alias and
+  its `# noqa: N812` suppression are removed. A bare `np.ndarray` annotation and
+  a bare `NDArray` annotation are now defects. `CONTRIBUTING.md` states the rule,
+  and `tests/test_repo_floor.py` enforces it across the source and the test tree.
 - Plan 07 renames `SelfEnergyConfig` to `SelfEnergyModel` and renames
   `make_self_energy_config` to `make_self_energy_model`. The mode value
   `"polynomial"` becomes `"poly"`, and `"tabulated"` becomes `"grid"`.

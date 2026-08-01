@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex, Float
+from numpy.typing import NDArray
 
 from diffpes.maths import real_spherical_harmonics_all
 from diffpes.radial import evaluate_radial
@@ -1386,7 +1387,7 @@ class TestTransitionSource:
         Build an independent NumPy resolvent and compare its spectral expansion.
         Differentiate the same source convention and check a centered quotient.
         """
-        hamiltonian: np.ndarray = np.asarray(
+        hamiltonian: Complex[NDArray, "4 4"] = np.asarray(
             [
                 [0.2, 0.13 + 0.07j, 0.04j, -0.03],
                 [0.13 - 0.07j, -0.4, 0.05 + 0.02j, 0.01j],
@@ -1396,28 +1397,28 @@ class TestTransitionSource:
             dtype=np.complex128,
         )
         energy: complex = 0.31 + 0.27j
-        rows_numpy: np.ndarray = np.asarray(
+        rows_numpy: Complex[NDArray, "2 2"] = np.asarray(
             [[0.7 + 0.2j, -0.1 + 0.4j], [0.3 - 0.5j, -0.6 + 0.1j]],
             dtype=np.complex128,
         )
-        source_numpy: np.ndarray = np.asarray(
+        source_numpy: Complex[NDArray, "2 4"] = np.asarray(
             transition_source(jnp.asarray(rows_numpy))
         )
-        resolvent: np.ndarray = np.linalg.inv(
+        resolvent: Complex[NDArray, "4 4"] = np.linalg.inv(
             energy * np.eye(4, dtype=np.complex128) - hamiltonian
         )
         direct: complex = sum(
             source.conj() @ resolvent @ source for source in source_numpy
         )
-        eigenvalues: np.ndarray
-        eigenvectors: np.ndarray
+        eigenvalues: Float[NDArray, " 4"]
+        eigenvectors: Complex[NDArray, "4 4"]
         eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
         spectral: complex = 0.0 + 0.0j
         outgoing_spin: int
         band: int
         for outgoing_spin in range(2):
             for band in range(4):
-                spin_block: np.ndarray = eigenvectors[
+                spin_block: Complex[NDArray, " 2"] = eigenvectors[
                     2 * outgoing_spin : 2 * (outgoing_spin + 1),
                     band,
                 ]
@@ -1426,7 +1427,7 @@ class TestTransitionSource:
         np.testing.assert_allclose(
             direct, spectral, rtol=1.0e-12, atol=1.0e-12
         )
-        coherent_source: np.ndarray = np.sum(source_numpy, axis=0)
+        coherent_source: Complex[NDArray, " 4"] = np.sum(source_numpy, axis=0)
         coherent_control: complex = (
             coherent_source.conj() @ resolvent @ coherent_source
         )
@@ -1483,7 +1484,7 @@ class TestTransitionSource:
         Compare a direct NumPy inverse with its spectral expansion. Reject a
         planted bra row and check the JAX directional derivative by FD.
         """
-        hamiltonian: np.ndarray = np.asarray(
+        hamiltonian: Complex[NDArray, "3 3"] = np.asarray(
             (
                 (0.17, 0.21 + 0.09j, -0.04j),
                 (0.21 - 0.09j, -0.38, 0.13 + 0.06j),
@@ -1492,21 +1493,21 @@ class TestTransitionSource:
             dtype=np.complex128,
         )
         energy: complex = 0.29 + 0.23j
-        row_numpy: np.ndarray = np.asarray(
+        row_numpy: Complex[NDArray, " 3"] = np.asarray(
             (0.61 + 0.17j, -0.32 + 0.49j, 0.28 - 0.37j),
             dtype=np.complex128,
         )
-        source_numpy: np.ndarray = np.asarray(
+        source_numpy: Complex[NDArray, " 3"] = np.asarray(
             transition_source(jnp.asarray(row_numpy[None, :]))
         )[0]
-        resolvent_numpy: np.ndarray = np.linalg.inv(
+        resolvent_numpy: Complex[NDArray, "3 3"] = np.linalg.inv(
             energy * np.eye(3, dtype=np.complex128) - hamiltonian
         )
         direct: complex = source_numpy.conj() @ resolvent_numpy @ source_numpy
-        eigenvalues: np.ndarray
-        eigenvectors: np.ndarray
+        eigenvalues: Float[NDArray, " 3"]
+        eigenvectors: Complex[NDArray, "3 3"]
         eigenvalues, eigenvectors = np.linalg.eigh(hamiltonian)
-        band_amplitudes: np.ndarray = row_numpy @ eigenvectors
+        band_amplitudes: Complex[NDArray, " 3"] = row_numpy @ eigenvectors
         spectral: complex = complex(
             np.sum(np.abs(band_amplitudes) ** 2 / (energy - eigenvalues))
         )
@@ -1516,7 +1517,7 @@ class TestTransitionSource:
             rtol=1.0e-12,
             atol=1.0e-12,
         )
-        planted_bra: np.ndarray = np.conj(row_numpy) @ eigenvectors
+        planted_bra: Complex[NDArray, " 3"] = np.conj(row_numpy) @ eigenvectors
         planted_response: complex = complex(
             np.sum(np.abs(planted_bra) ** 2 / (energy - eigenvalues))
         )

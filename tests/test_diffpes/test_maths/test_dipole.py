@@ -13,7 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any
-from jaxtyping import Array
+from jaxtyping import Array, Complex, Float, Int
+from numpy.typing import NDArray
 from scipy.integrate import lebedev_rule
 from scipy.sparse import csr_matrix, diags, lil_matrix
 from scipy.sparse.linalg import eigsh
@@ -40,13 +41,15 @@ def _generic_polarization() -> Array:
     return polarization
 
 
-def _boole_weights(node_count: int, radius: float) -> np.ndarray:
+def _boole_weights(
+    node_count: int, radius: float
+) -> Float[NDArray, " n_node"]:
     """Return composite closed-Boole weights on a uniform inclusive grid."""
     interval_count: int = node_count - 1
     assert interval_count % 4 == 0
     spacing: float = radius / interval_count
-    weights: np.ndarray = np.zeros(node_count, dtype=np.float64)
-    block: np.ndarray = (2.0 * spacing / 45.0) * np.asarray(
+    weights: Float[NDArray, " n_node"] = np.zeros(node_count, dtype=np.float64)
+    block: Float[NDArray, " 5"] = (2.0 * spacing / 45.0) * np.asarray(
         (7.0, 32.0, 12.0, 32.0, 7.0)
     )
     start: int
@@ -56,18 +59,18 @@ def _boole_weights(node_count: int, radius: float) -> np.ndarray:
 
 
 def _tensor_product_gauges(
-    radial_grid: np.ndarray,
-    radial_weights: np.ndarray,
-    radial_initial: np.ndarray,
-    radial_initial_derivative: np.ndarray,
-    radial_final: np.ndarray,
+    radial_grid: Float[NDArray, " n_node"],
+    radial_weights: Float[NDArray, " n_node"],
+    radial_initial: Float[NDArray, " n_node"],
+    radial_initial_derivative: Float[NDArray, " n_node"],
+    radial_final: Float[NDArray, " n_node"],
     lebedev_degree: int,
 ) -> tuple[Array, Array]:
     """Evaluate both public gauges on a radial-by-Lebedev reconstruction."""
-    angular_points: np.ndarray
-    angular_weights: np.ndarray
+    angular_points: Float[NDArray, "3 n_angular"]
+    angular_weights: Float[NDArray, " n_angular"]
     angular_points, angular_weights = lebedev_rule(lebedev_degree)
-    directions: np.ndarray = angular_points.T
+    directions: Float[NDArray, "n_angular 3"] = angular_points.T
     angular_count: int = directions.shape[0]
     polarization: Array = jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128)
     length: Array = jnp.asarray(0.0j)
@@ -76,38 +79,50 @@ def _tensor_product_gauges(
     chunk_start: int
     for chunk_start in range(0, radial_grid.size, chunk_size):
         chunk_stop: int = min(chunk_start + chunk_size, radial_grid.size)
-        radial_chunk: np.ndarray = radial_grid[chunk_start:chunk_stop]
-        radial_weight_chunk: np.ndarray = radial_weights[
+        radial_chunk: Float[NDArray, " n_chunk"] = radial_grid[
             chunk_start:chunk_stop
         ]
-        initial_chunk: np.ndarray = radial_initial[chunk_start:chunk_stop]
-        derivative_chunk: np.ndarray = radial_initial_derivative[
+        radial_weight_chunk: Float[NDArray, " n_chunk"] = radial_weights[
             chunk_start:chunk_stop
         ]
-        final_chunk: np.ndarray = radial_final[chunk_start:chunk_stop]
+        initial_chunk: Float[NDArray, " n_chunk"] = radial_initial[
+            chunk_start:chunk_stop
+        ]
+        derivative_chunk: Float[NDArray, " n_chunk"] = (
+            radial_initial_derivative[chunk_start:chunk_stop]
+        )
+        final_chunk: Float[NDArray, " n_chunk"] = radial_final[
+            chunk_start:chunk_stop
+        ]
         chunk_count: int = chunk_stop - chunk_start
-        radius_flat: np.ndarray = np.repeat(radial_chunk, angular_count)
-        directions_flat: np.ndarray = np.tile(directions, (chunk_count, 1))
-        position_flat: np.ndarray = radius_flat[:, None] * directions_flat
-        volume_weights: np.ndarray = np.repeat(
+        radius_flat: Float[NDArray, " n_flat"] = np.repeat(
+            radial_chunk, angular_count
+        )
+        directions_flat: Float[NDArray, "n_flat 3"] = np.tile(
+            directions, (chunk_count, 1)
+        )
+        position_flat: Float[NDArray, "n_flat 3"] = (
+            radius_flat[:, None] * directions_flat
+        )
+        volume_weights: Float[NDArray, " n_flat"] = np.repeat(
             radial_weight_chunk * radial_chunk**2, angular_count
         ) * np.tile(angular_weights, chunk_count)
-        initial_flat: np.ndarray = np.repeat(
+        initial_flat: Complex[NDArray, " n_flat"] = np.repeat(
             initial_chunk / math.sqrt(4.0 * math.pi),
             angular_count,
         ).astype(np.complex128)
-        final_flat: np.ndarray = (
+        final_flat: Complex[NDArray, " n_flat"] = (
             np.repeat(
                 final_chunk * math.sqrt(3.0 / (4.0 * math.pi)),
                 angular_count,
             )
             * directions_flat[:, 2]
         ).astype(np.complex128)
-        initial_derivative_flat: np.ndarray = np.repeat(
+        initial_derivative_flat: Float[NDArray, " n_flat"] = np.repeat(
             derivative_chunk / math.sqrt(4.0 * math.pi),
             angular_count,
         )
-        gradient_flat: np.ndarray = (
+        gradient_flat: Complex[NDArray, "n_flat 3"] = (
             initial_derivative_flat[:, None] * directions_flat
         ).astype(np.complex128)
         length = length + dipole_length_cartesian(
@@ -133,8 +148,12 @@ def _hydrogenic_gauges(
 ) -> tuple[Array, Array]:
     """Evaluate the normalized hydrogenic 1s-to-2p gauge pair."""
     radius: float = 43.0
-    radial_grid_numpy: np.ndarray = np.linspace(0.0, radius, node_count)
-    radial_weights_numpy: np.ndarray = _boole_weights(node_count, radius)
+    radial_grid_numpy: Float[NDArray, " n_node"] = np.linspace(
+        0.0, radius, node_count
+    )
+    radial_weights_numpy: Float[NDArray, " n_node"] = _boole_weights(
+        node_count, radius
+    )
     radial_grid: Array = jnp.asarray(radial_grid_numpy)
     radial_initial: Array = 2.0 * charge**1.5 * jnp.exp(-charge * radial_grid)
     radial_final: Array = (
@@ -144,8 +163,8 @@ def _hydrogenic_gauges(
         / (2.0 * math.sqrt(6.0))
     )
     radial_derivative: Array = -charge * radial_initial
-    angular_points_numpy: np.ndarray
-    angular_weights_numpy: np.ndarray
+    angular_points_numpy: Float[NDArray, "3 n_angular"]
+    angular_weights_numpy: Float[NDArray, " n_angular"]
     angular_points_numpy, angular_weights_numpy = lebedev_rule(lebedev_degree)
     directions: Array = jnp.asarray(angular_points_numpy.T)
     angular_weights: Array = jnp.asarray(angular_weights_numpy)
@@ -300,20 +319,29 @@ def _radial_second_derivative(
 def _local_box_states(
     node_count: int,
     quadratic_coefficient: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+    Float[NDArray, " n_node"],
+    Float[NDArray, " n_node"],
+    Float[NDArray, " 2"],
+    Float[NDArray, "2 n_node"],
+]:
     """Compute phase-pinned local anharmonic s and p radial states."""
     radius: float = 40.0
-    radial_grid: np.ndarray = np.linspace(0.0, radius, node_count)
-    radial_weights: np.ndarray = _boole_weights(node_count, radius)
-    interior_radius: np.ndarray = radial_grid[1:-1]
+    radial_grid: Float[NDArray, " n_node"] = np.linspace(
+        0.0, radius, node_count
+    )
+    radial_weights: Float[NDArray, " n_node"] = _boole_weights(
+        node_count, radius
+    )
+    interior_radius: Float[NDArray, " n_interior"] = radial_grid[1:-1]
     energies: list[float] = []
-    states: list[np.ndarray] = []
+    states: list[Float[NDArray, " n_node"]] = []
     angular_momentum: int
     for angular_momentum in (0, 1):
         second_derivative: csr_matrix = _radial_second_derivative(
             node_count, radius, angular_momentum
         )
-        potential: np.ndarray = (
+        potential: Float[NDArray, " n_interior"] = (
             angular_momentum
             * (angular_momentum + 1)
             / (2.0 * interior_radius**2)
@@ -321,8 +349,8 @@ def _local_box_states(
             + 0.001 * interior_radius**4
         )
         hamiltonian: csr_matrix = -0.5 * second_derivative + diags(potential)
-        eigenvalues: np.ndarray
-        eigenvectors: np.ndarray
+        eigenvalues: Float[NDArray, " 1"]
+        eigenvectors: Float[NDArray, "n_interior 1"]
         eigenvalues, eigenvectors = eigsh(
             hamiltonian,
             k=1,
@@ -331,7 +359,7 @@ def _local_box_states(
             tol=1e-14,
             maxiter=100_000,
         )
-        state: np.ndarray = np.zeros(node_count)
+        state: Float[NDArray, " n_node"] = np.zeros(node_count)
         state[1:-1] = eigenvectors[:, 0]
         state /= np.sqrt(np.sum(radial_weights * state * state))
         if state[1] < 0.0:
@@ -346,19 +374,25 @@ def _local_box_states(
     )
 
 
-def _derivative_sixth(values: np.ndarray, spacing: float) -> np.ndarray:
+def _derivative_sixth(
+    values: Float[NDArray, " n_node"], spacing: float
+) -> Float[NDArray, " n_node"]:
     """Differentiate a radial array with sixth-order seven-point stencils."""
     node_count: int = values.size
-    derivative: np.ndarray = np.empty_like(values)
+    derivative: Float[NDArray, " n_node"] = np.empty_like(values)
     index: int
     for index in range(node_count):
         start: int = min(max(index - 3, 0), node_count - 7)
-        stencil_indices: np.ndarray = np.arange(start, start + 7)
-        offsets: np.ndarray = (stencil_indices - index) * spacing
-        moment_matrix: np.ndarray = np.vander(offsets, 7, increasing=True).T
-        target: np.ndarray = np.zeros(7)
+        stencil_indices: Int[NDArray, " 7"] = np.arange(start, start + 7)
+        offsets: Float[NDArray, " 7"] = (stencil_indices - index) * spacing
+        moment_matrix: Float[NDArray, "7 7"] = np.vander(
+            offsets, 7, increasing=True
+        ).T
+        target: Float[NDArray, " 7"] = np.zeros(7)
         target[1] = 1.0
-        coefficients: np.ndarray = np.linalg.solve(moment_matrix, target)
+        coefficients: Float[NDArray, " 7"] = np.linalg.solve(
+            moment_matrix, target
+        )
         derivative[index] = coefficients @ values[stencil_indices]
     return derivative
 
@@ -681,7 +715,7 @@ class TestChannelTables:
         valid: Array
         coupling, valid = channel_tables(basis)
         del valid
-        nonzero_indices: np.ndarray = np.argwhere(
+        nonzero_indices: Int[NDArray, "n_nonzero 2"] = np.argwhere(
             np.abs(np.asarray(coupling[0, 1])) > 1e-14
         )
         violates_complex_shortcut: bool = any(
@@ -1157,30 +1191,32 @@ class TestGaugeEquivalenceBattery:
         Compare the full 4097-by-110 public contractions with an analytic
         angular reduction before applying the local commutator identity.
         """
-        radial_grid: np.ndarray
-        radial_weights: np.ndarray
-        energies: np.ndarray
-        states: np.ndarray
+        radial_grid: Float[NDArray, " n_node"]
+        radial_weights: Float[NDArray, " n_node"]
+        energies: Float[NDArray, " 2"]
+        states: Float[NDArray, "2 n_node"]
         radial_grid, radial_weights, energies, states = _local_box_states(
             4097, 0.02
         )
-        state_s: np.ndarray = states[0]
-        state_p: np.ndarray = states[1]
+        state_s: Float[NDArray, " n_node"] = states[0]
+        state_p: Float[NDArray, " n_node"] = states[1]
         spacing: float = radial_grid[1] - radial_grid[0]
-        derivative_s: np.ndarray = _derivative_sixth(state_s, spacing)
-        radial_initial: np.ndarray = np.divide(
+        derivative_s: Float[NDArray, " n_node"] = _derivative_sixth(
+            state_s, spacing
+        )
+        radial_initial: Float[NDArray, " n_node"] = np.divide(
             state_s,
             radial_grid,
             out=np.zeros_like(state_s),
             where=radial_grid > 0.0,
         )
-        radial_final: np.ndarray = np.divide(
+        radial_final: Float[NDArray, " n_node"] = np.divide(
             state_p,
             radial_grid,
             out=np.zeros_like(state_p),
             where=radial_grid > 0.0,
         )
-        radial_initial_derivative: np.ndarray = np.divide(
+        radial_initial_derivative: Float[NDArray, " n_node"] = np.divide(
             derivative_s * radial_grid - state_s,
             radial_grid**2,
             out=np.zeros_like(state_s),
@@ -1196,7 +1232,7 @@ class TestGaugeEquivalenceBattery:
             radial_final,
             17,
         )
-        safe_ratio: np.ndarray = np.divide(
+        safe_ratio: Float[NDArray, " n_node"] = np.divide(
             state_s,
             radial_grid,
             out=np.zeros_like(state_s),
@@ -1231,32 +1267,32 @@ class TestGaugeEquivalenceBattery:
             atol=1e-12,
         )
 
-        fine_grid: np.ndarray
-        fine_weights: np.ndarray
-        fine_energies: np.ndarray
-        fine_states: np.ndarray
+        fine_grid: Float[NDArray, " n_fine"]
+        fine_weights: Float[NDArray, " n_fine"]
+        fine_energies: Float[NDArray, " 2"]
+        fine_states: Float[NDArray, "2 n_fine"]
         fine_grid, fine_weights, fine_energies, fine_states = (
             _local_box_states(8193, 0.02)
         )
         del fine_energies
-        fine_state_s: np.ndarray = fine_states[0]
-        fine_state_p: np.ndarray = fine_states[1]
-        fine_derivative_s: np.ndarray = _derivative_sixth(
+        fine_state_s: Float[NDArray, " n_fine"] = fine_states[0]
+        fine_state_p: Float[NDArray, " n_fine"] = fine_states[1]
+        fine_derivative_s: Float[NDArray, " n_fine"] = _derivative_sixth(
             fine_state_s, fine_grid[1] - fine_grid[0]
         )
-        fine_radial_initial: np.ndarray = np.divide(
+        fine_radial_initial: Float[NDArray, " n_fine"] = np.divide(
             fine_state_s,
             fine_grid,
             out=np.zeros_like(fine_state_s),
             where=fine_grid > 0.0,
         )
-        fine_radial_final: np.ndarray = np.divide(
+        fine_radial_final: Float[NDArray, " n_fine"] = np.divide(
             fine_state_p,
             fine_grid,
             out=np.zeros_like(fine_state_p),
             where=fine_grid > 0.0,
         )
-        fine_radial_derivative: np.ndarray = np.divide(
+        fine_radial_derivative: Float[NDArray, " n_fine"] = np.divide(
             fine_derivative_s * fine_grid - fine_state_s,
             fine_grid**2,
             out=np.zeros_like(fine_state_s),
@@ -1297,24 +1333,24 @@ class TestGaugeEquivalenceBattery:
         """
         coefficient: float = 0.02
         coefficient_step: float = 2.0e-5
-        radial_grid: np.ndarray
-        radial_weights: np.ndarray
-        energies: np.ndarray
-        states: np.ndarray
+        radial_grid: Float[NDArray, " n_node"]
+        radial_weights: Float[NDArray, " n_node"]
+        energies: Float[NDArray, " 2"]
+        states: Float[NDArray, "2 n_node"]
         radial_grid, radial_weights, energies, states = _local_box_states(
             4097, coefficient
         )
-        minus_grid: np.ndarray
-        minus_weights: np.ndarray
-        minus_energies: np.ndarray
-        minus_states: np.ndarray
+        minus_grid: Float[NDArray, " n_node"]
+        minus_weights: Float[NDArray, " n_node"]
+        minus_energies: Float[NDArray, " 2"]
+        minus_states: Float[NDArray, "2 n_node"]
         minus_grid, minus_weights, minus_energies, minus_states = (
             _local_box_states(4097, coefficient - coefficient_step)
         )
-        plus_grid: np.ndarray
-        plus_weights: np.ndarray
-        plus_energies: np.ndarray
-        plus_states: np.ndarray
+        plus_grid: Float[NDArray, " n_node"]
+        plus_weights: Float[NDArray, " n_node"]
+        plus_energies: Float[NDArray, " 2"]
+        plus_states: Float[NDArray, "2 n_node"]
         plus_grid, plus_weights, plus_energies, plus_states = (
             _local_box_states(4097, coefficient + coefficient_step)
         )
@@ -1322,13 +1358,15 @@ class TestGaugeEquivalenceBattery:
         np.testing.assert_array_equal(plus_grid, radial_grid)
         np.testing.assert_array_equal(minus_weights, radial_weights)
         np.testing.assert_array_equal(plus_weights, radial_weights)
-        state_tangents: np.ndarray = (plus_states - minus_states) / (
-            2.0 * coefficient_step
-        )
+        state_tangents: Float[NDArray, "2 n_node"] = (
+            plus_states - minus_states
+        ) / (2.0 * coefficient_step)
         spacing: float = radial_grid[1] - radial_grid[0]
 
-        def radial_function(state: np.ndarray) -> np.ndarray:
-            result: np.ndarray = np.divide(
+        def radial_function(
+            state: Float[NDArray, " n_node"],
+        ) -> Float[NDArray, " n_node"]:
+            result: Float[NDArray, " n_node"] = np.divide(
                 state,
                 radial_grid,
                 out=np.zeros_like(state),
@@ -1336,9 +1374,13 @@ class TestGaugeEquivalenceBattery:
             )
             return result
 
-        def radial_function_derivative(state: np.ndarray) -> np.ndarray:
-            derivative: np.ndarray = _derivative_sixth(state, spacing)
-            result: np.ndarray = np.divide(
+        def radial_function_derivative(
+            state: Float[NDArray, " n_node"],
+        ) -> Float[NDArray, " n_node"]:
+            derivative: Float[NDArray, " n_node"] = _derivative_sixth(
+                state, spacing
+            )
+            result: Float[NDArray, " n_node"] = np.divide(
                 derivative * radial_grid - state,
                 radial_grid**2,
                 out=np.zeros_like(state),
@@ -1346,10 +1388,10 @@ class TestGaugeEquivalenceBattery:
             )
             return result
 
-        angular_points: np.ndarray
-        angular_weights: np.ndarray
+        angular_points: Float[NDArray, "3 n_angular"]
+        angular_weights: Float[NDArray, " n_angular"]
         angular_points, angular_weights = lebedev_rule(17)
-        directions_numpy: np.ndarray = angular_points.T
+        directions_numpy: Float[NDArray, "n_angular 3"] = angular_points.T
         angular_count: int = directions_numpy.shape[0]
         directions: Array = jnp.asarray(
             np.tile(directions_numpy, (radial_grid.size, 1))
@@ -1458,12 +1500,14 @@ class TestGaugeEquivalenceBattery:
         )
 
         def reduced_gauges(
-            selected_states: np.ndarray,
-        ) -> np.ndarray:
-            state_s: np.ndarray = selected_states[0]
-            state_p: np.ndarray = selected_states[1]
-            derivative_s: np.ndarray = _derivative_sixth(state_s, spacing)
-            safe_ratio: np.ndarray = np.divide(
+            selected_states: Float[NDArray, "2 n_node"],
+        ) -> Float[NDArray, " 4"]:
+            state_s: Float[NDArray, " n_node"] = selected_states[0]
+            state_p: Float[NDArray, " n_node"] = selected_states[1]
+            derivative_s: Float[NDArray, " n_node"] = _derivative_sixth(
+                state_s, spacing
+            )
+            safe_ratio: Float[NDArray, " n_node"] = np.divide(
                 state_s,
                 radial_grid,
                 out=np.zeros_like(state_s),
@@ -1480,12 +1524,12 @@ class TestGaugeEquivalenceBattery:
                 )
                 / math.sqrt(3.0)
             )
-            result: np.ndarray = np.asarray(
+            result: Float[NDArray, " 4"] = np.asarray(
                 (length.real, length.imag, momentum.real, momentum.imag)
             )
             return result
 
-        reduced_derivative: np.ndarray = (
+        reduced_derivative: Float[NDArray, " 4"] = (
             reduced_gauges(plus_states) - reduced_gauges(minus_states)
         ) / (2.0 * coefficient_step)
         chex.assert_trees_all_close(
@@ -1494,7 +1538,7 @@ class TestGaugeEquivalenceBattery:
             rtol=1e-7,
             atol=1e-10,
         )
-        base_gauges: np.ndarray = reduced_gauges(states)
+        base_gauges: Float[NDArray, " 4"] = reduced_gauges(states)
         energy_gap: float = energies[1] - energies[0]
         energy_gap_derivative: float = (
             (plus_energies[1] - plus_energies[0])
