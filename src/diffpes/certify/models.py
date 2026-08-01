@@ -2,7 +2,7 @@
 
 Extended Summary
 ----------------
-This module defines built-in transformation contracts and plan-owner
+This module defines built-in transformation contracts and domain-owner
 handshakes.
 Registration is explicit and idempotent. Importing DiffPES does not mutate
 the registry.
@@ -108,7 +108,7 @@ def _register_transformations() -> None:
                 "parallel_momentum",
                 "inner_potential",
             ),
-            produces=("out_of_plane_momentum",),
+            produces=("surface_normal_momentum",),
             preserves=(
                 "complex_evanescent_branch",
                 "convention.positive_kz_branch",
@@ -277,7 +277,7 @@ def _register_transformations() -> None:
             ),
             preserves=(
                 "bulk_parameter_identity",
-                "in_plane_translation_symmetry",
+                "surface_translation_symmetry",
                 "basis_position_gauge",
                 "wannier_operator_sidecar",
             ),
@@ -325,9 +325,9 @@ def _register_transformations() -> None:
             register_transformation(contract)
 
 
-def _register_plan03_handshake() -> None:
-    """Register the Plan 03 certification handshake idempotently."""
-    owner_id: str = "org.diffpes.plan.03"
+def _register_kspace_handshake() -> None:
+    """Register the k-space certification handshake idempotently."""
+    owner_id: str = "org.diffpes.kspace"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
         return
@@ -341,20 +341,20 @@ def _register_plan03_handshake() -> None:
             "org.diffpes.transform.geometry.detector_axis_to_sample@1.0.0",
         ),
         evidence_ids=(
-            "org.diffpes.evidence.03.graphene.closed_form",
-            "org.diffpes.evidence.03.damascelli.kinematics",
-            "org.diffpes.evidence.03.chinook.kz",
-            "org.diffpes.evidence.03.chinook.tilt",
-            "org.diffpes.evidence.03.chinook.mesh",
-            "org.diffpes.evidence.03.polarization.spherical_basis",
+            "org.diffpes.evidence.kspace.graphene.closed_form",
+            "org.diffpes.evidence.kspace.damascelli.kinematics",
+            "org.diffpes.evidence.kspace.chinook.kz",
+            "org.diffpes.evidence.kspace.chinook.tilt",
+            "org.diffpes.evidence.kspace.chinook.mesh",
+            "org.diffpes.evidence.kspace.polarization.spherical_basis",
         ),
     )
     register_handshake(handshake)
 
 
-def _register_plan04_handshake() -> None:
-    """Register the Plan 04 certification handshake idempotently."""
-    owner_id: str = "org.diffpes.plan.04"
+def _register_tightb_handshake() -> None:
+    """Register the tight-binding certification handshake idempotently."""
+    owner_id: str = "org.diffpes.tightb"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
         return
@@ -367,92 +367,123 @@ def _register_plan04_handshake() -> None:
             "org.diffpes.transform.tightb.filling_fermi_level@1.0.0",
         ),
         evidence_ids=(
-            "org.diffpes.evidence.04.g1.hopping_structure",
-            "org.diffpes.evidence.04.g2.wigner_rotation",
-            "org.diffpes.evidence.04.g3.slater_koster_table_i",
-            "org.diffpes.evidence.04.g4.analytic_bands",
-            "org.diffpes.evidence.04.g5.atomic_soc_kramers",
-            "org.diffpes.evidence.04.g6.chinook_k_compatibility_resolved",
-            "org.diffpes.evidence.04.g7.wannier90_normative_ingestion",
-            "org.diffpes.evidence.04.g8.fixed_group_gauge_invariance",
-            "org.diffpes.evidence.04.g9.dos_filling_closed_form",
-            "org.diffpes.evidence.04.d1.generic_parameter_gradients",
-            "org.diffpes.evidence.04.d2.degenerate_invariant_gradients",
-            "org.diffpes.evidence.04.d3.eigh_regularization_bias",
-            "org.diffpes.evidence.04.d4.complex_holomorphic_gradients",
-            "org.diffpes.evidence.04.d5.fermi_implicit_gradient",
-            "org.diffpes.evidence.04.s1.bloch_jaxpr_compile_count",
-            "org.diffpes.evidence.04.s2.batch_memory_shapes",
-            "org.diffpes.evidence.04.s3.eigvalsh_reverse_memory",
+            "org.diffpes.evidence.tightb.hopping_structure",
+            "org.diffpes.evidence.tightb.wigner_rotation",
+            "org.diffpes.evidence.tightb.slater_koster_table_i",
+            "org.diffpes.evidence.tightb.analytic_bands",
+            "org.diffpes.evidence.tightb.atomic_soc_kramers",
+            "org.diffpes.evidence.tightb.chinook_k_compatibility_resolved",
+            "org.diffpes.evidence.tightb.wannier90_normative_ingestion",
+            "org.diffpes.evidence.tightb.fixed_group_gauge_invariance",
+            "org.diffpes.evidence.tightb.dos_filling_closed_form",
+            "org.diffpes.evidence.tightb.generic_parameter_gradients",
+            "org.diffpes.evidence.tightb.degenerate_invariant_gradients",
+            "org.diffpes.evidence.tightb.eigh_regularization_bias",
+            "org.diffpes.evidence.tightb.complex_holomorphic_gradients",
+            "org.diffpes.evidence.tightb.fermi_implicit_gradient",
+            "org.diffpes.evidence.tightb.bloch_jaxpr_compile_count",
+            "org.diffpes.evidence.tightb.batch_memory_shapes",
+            "org.diffpes.evidence.tightb.eigvalsh_reverse_memory",
         ),
     )
     register_handshake(handshake)
 
 
-def _register_plan05_handshakes() -> None:
-    """Register the split Plan 05 carrier and slab handshakes."""
+def _register_slab_surface_handshakes() -> None:
+    """Register the slab carrier and surface handshakes."""
     existing: set[str] = {item.owner_id for item in list_handshakes()}
-    if "org.diffpes.plan.05a" not in existing:
+    if "org.diffpes.slab" not in existing:
         register_handshake(
             make_registration_handshake(
-                owner_id="org.diffpes.plan.05a",
+                owner_id="org.diffpes.slab",
                 transformation_refs=(
                     "org.diffpes.transform.tightb.depth_carrier@1.0.0",
                 ),
                 evidence_ids=(
-                    "org.diffpes.evidence.05a.g1.depth_carrier_persistence",
-                    "org.diffpes.evidence.05a.d1.depth_identity_jacobian",
+                    "org.diffpes.evidence.slab.depth_carrier_persistence",
+                    "org.diffpes.evidence.slab.depth_identity_jacobian",
                 ),
             )
         )
-    if "org.diffpes.plan.05b" not in existing:
+    if "org.diffpes.surface" not in existing:
         register_handshake(
             make_registration_handshake(
-                owner_id="org.diffpes.plan.05b",
+                owner_id="org.diffpes.surface",
                 transformation_refs=(
                     "org.diffpes.transform.tightb.slab_surface@1.0.0",
                     "org.diffpes.transform.tightb.surface_projection@1.0.0",
                 ),
                 evidence_ids=(
-                    "org.diffpes.evidence.05.g1.finite_chain",
-                    "org.diffpes.evidence.05.g2.rotation_covariance",
-                    "org.diffpes.evidence.05.g3.graphene_edges",
-                    "org.diffpes.evidence.05.g4.chinook_slab",
-                    "org.diffpes.evidence.05.g5.primitive_depths",
-                    "org.diffpes.evidence.05.g6.inversion_covariance",
-                    "org.diffpes.evidence.05.g7.open_surface",
-                    "org.diffpes.evidence.05.g8.depth_handoff",
-                    "org.diffpes.evidence.05.g9.surface_projection",
-                    "org.diffpes.evidence.05.g10.exact_operator_gather",
-                    "org.diffpes.evidence.05.g11.incomplete_shell_rejection",
-                    "org.diffpes.evidence.05.g12.fixed_group_gauge",
-                    "org.diffpes.evidence.05.g13.unfolded_graph",
-                    "org.diffpes.evidence.05.g14.acyclic_lifecycle",
-                    "org.diffpes.evidence.05.d1.bulk_parameter_gradients",
-                    "org.diffpes.evidence.05.d2.lattice_depth_gradients",
-                    "org.diffpes.evidence.05.d4.probe_depth_gradients",
-                    "org.diffpes.evidence.05.d5.random_group_gauges",
-                    "org.diffpes.evidence.05.s1.chunked_memory",
-                    "org.diffpes.evidence.05.s2.compile_count",
+                    "org.diffpes.evidence.surface.finite_chain",
+                    "org.diffpes.evidence.surface.rotation_covariance",
+                    "org.diffpes.evidence.surface.graphene_edges",
+                    "org.diffpes.evidence.surface.chinook_slab",
+                    "org.diffpes.evidence.surface.primitive_depths",
+                    "org.diffpes.evidence.surface.inversion_covariance",
+                    "org.diffpes.evidence.surface.open_surface",
+                    "org.diffpes.evidence.surface.depth_handoff",
+                    "org.diffpes.evidence.surface.surface_projection",
+                    "org.diffpes.evidence.surface.exact_operator_gather",
+                    "org.diffpes.evidence.surface.incomplete_shell_rejection",
+                    "org.diffpes.evidence.surface.fixed_group_gauge",
+                    "org.diffpes.evidence.surface.unfolded_graph",
+                    "org.diffpes.evidence.surface.acyclic_lifecycle",
+                    "org.diffpes.evidence.surface.bulk_parameter_gradients",
+                    "org.diffpes.evidence.surface.lattice_depth_gradients",
+                    "org.diffpes.evidence.surface.probe_depth_gradients",
+                    "org.diffpes.evidence.surface.random_group_gauges",
+                    "org.diffpes.evidence.surface.chunked_memory",
+                    "org.diffpes.evidence.surface.compile_count",
                 ),
             )
         )
 
 
-def _register_plan06_handshake() -> None:
-    """Register the Plan 06 matrix-element evidence handshake."""
-    owner_id: str = "org.diffpes.plan.06"
+def _register_matrixel_handshake() -> None:
+    """Register the matrix-element evidence handshake."""
+    owner_id: str = "org.diffpes.matrixel"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
         return
-    gate_evidence: tuple[str, ...] = tuple(
-        f"org.diffpes.evidence.06.g{index}" for index in range(1, 19)
+    verification_evidence: tuple[str, ...] = (
+        "org.diffpes.evidence.matrixel.spherical_bessel_values_derivatives",
+        "org.diffpes.evidence.matrixel.radial_integral_dipole_measure",
+        "org.diffpes.evidence.matrixel.real_gaunt_dipole_table",
+        "org.diffpes.evidence.matrixel.slater_effective_charge",
+        "org.diffpes.evidence.matrixel.yeh_lindau_cross_sections",
+        "org.diffpes.evidence.matrixel.graphene_interference",
+        "org.diffpes.evidence.matrixel.polarization_geometry",
+        "org.diffpes.evidence.matrixel.channel_basis_spin_reduction",
+        "org.diffpes.evidence.matrixel.mean_free_path_attenuation",
+        "org.diffpes.evidence.matrixel.resolvent_dual_convention",
+        "org.diffpes.evidence.matrixel.coulomb_functions_phase_shift",
+        "org.diffpes.evidence.matrixel.dipole_gauge_equivalence",
+        "org.diffpes.evidence.matrixel.free_final_state_hermite_tabulation_rejection",
+        "org.diffpes.evidence.matrixel.polarization_basis_geometry",
+        "org.diffpes.evidence.matrixel.complete_shell_covariance",
+        "org.diffpes.evidence.matrixel.radial_profile_convergence",
+        "org.diffpes.evidence.matrixel.band_group_weight_sensitivity",
+        "org.diffpes.evidence.matrixel.orbital_position_vacuum_momentum",
     )
-    derivative_evidence: tuple[str, ...] = tuple(
-        f"org.diffpes.evidence.06.d{index}" for index in range(1, 13)
-    ) + ("org.diffpes.evidence.06.d13.not_applicable.g13_rejected",)
-    scaling_evidence: tuple[str, ...] = tuple(
-        f"org.diffpes.evidence.06.s{index}" for index in range(1, 4)
+    derivative_evidence: tuple[str, ...] = (
+        "org.diffpes.evidence.matrixel.radial_parameter_gradients",
+        "org.diffpes.evidence.matrixel.photon_energy_kinematics_gradients",
+        "org.diffpes.evidence.matrixel.polarization_geometry_gradients",
+        "org.diffpes.evidence.matrixel.orbital_position_gradients",
+        "org.diffpes.evidence.matrixel.mean_free_path_gradients",
+        "org.diffpes.evidence.matrixel.phase_shift_gradients",
+        "org.diffpes.evidence.matrixel.holomorphic_phase_gradients",
+        "org.diffpes.evidence.matrixel.eigenvector_group_gradients",
+        "org.diffpes.evidence.matrixel.dark_corridor_weight_gradients",
+        "org.diffpes.evidence.matrixel.depth_capstone_gradients",
+        "org.diffpes.evidence.matrixel.coulomb_assembly_gradients",
+        "org.diffpes.evidence.matrixel.dipole_gauge_gradients",
+        "org.diffpes.evidence.matrixel.hermite_acceleration_not_applicable",
+    )
+    scaling_evidence: tuple[str, ...] = (
+        "org.diffpes.evidence.matrixel.orbital_channel_compile_scaling",
+        "org.diffpes.evidence.matrixel.chunk_memory_allocation",
+        "org.diffpes.evidence.matrixel.late_polarization_performance",
     )
     handshake: Any = make_registration_handshake(
         owner_id=owner_id,
@@ -462,16 +493,16 @@ def _register_plan06_handshake() -> None:
             "org.diffpes.transform.tightb.depth_carrier@1.0.0",
         ),
         evidence_ids=(
-            *gate_evidence,
+            *verification_evidence,
             *derivative_evidence,
             *scaling_evidence,
-            "org.diffpes.evidence.06.spin_axis.incoherent_reduction",
-            "org.diffpes.evidence.06.band_group.complete_sensitivity",
-            "org.diffpes.evidence.06.radial.certified_profile",
-            "org.diffpes.evidence.06.coulomb.phase_assembly",
-            "org.diffpes.evidence.06.gauge.length_momentum",
-            "org.diffpes.evidence.06.lifecycle.plan03_kg_e",
-            "org.diffpes.evidence.06.handoff.plan07_transition_rows",
+            "org.diffpes.evidence.matrixel.spin_axis.incoherent_reduction",
+            "org.diffpes.evidence.matrixel.band_group.complete_sensitivity",
+            "org.diffpes.evidence.matrixel.radial.certified_profile",
+            "org.diffpes.evidence.matrixel.coulomb.phase_assembly",
+            "org.diffpes.evidence.matrixel.gauge.length_momentum",
+            "org.diffpes.evidence.matrixel.lifecycle.kspace_kg_e",
+            "org.diffpes.evidence.matrixel.handoff.transition_rows",
         ),
     )
     register_handshake(handshake)
@@ -492,10 +523,10 @@ def register_builtin_models() -> None:
     Numerical model execution and domain predicates remain pure JAX programs.
     """
     _register_transformations()
-    _register_plan03_handshake()
-    _register_plan04_handshake()
-    _register_plan05_handshakes()
-    _register_plan06_handshake()
+    _register_kspace_handshake()
+    _register_matrixel_handshake()
+    _register_slab_surface_handshakes()
+    _register_tightb_handshake()
 
 
 __all__: list[str] = [

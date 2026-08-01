@@ -25,7 +25,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
 
 from diffpes.types import (
     DEGENERACY_GROUP_TOL_EV,
@@ -199,23 +199,23 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
         )
         for index in range(len(basis.n))
     )
-    same_spatial: Float[Array, "n_so n_so"] = jnp.asarray(
+    same_spatial: Float64[Array, "n_so n_so"] = jnp.asarray(
         [
             [float(row_key == column_key) for column_key in keys]
             for row_key in keys
         ],
         dtype=jnp.float64,
     )
-    spin: Float[Array, " n_so"] = jnp.asarray(
+    spin: Float64[Array, " n_so"] = jnp.asarray(
         basis.spin,
         dtype=jnp.float64,
     )
-    row_spin: Float[Array, "n_so 1"] = spin[:, None]
-    column_spin: Float[Array, "1 n_so"] = spin[None, :]
-    sigma_x: Complex[Array, "n_so n_so"] = (
+    row_spin: Float64[Array, "n_so 1"] = spin[:, None]
+    column_spin: Float64[Array, "1 n_so"] = spin[None, :]
+    sigma_x: Complex128[Array, "n_so n_so"] = (
         same_spatial * (row_spin != column_spin)
     ).astype(jnp.complex128)
-    sigma_y: Complex[Array, "n_so n_so"] = same_spatial * jnp.where(
+    sigma_y: Complex128[Array, "n_so n_so"] = same_spatial * jnp.where(
         (row_spin == -1.0) & (column_spin == 1.0),
         1.0j,
         jnp.where(
@@ -224,10 +224,10 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
             0.0j,
         ),
     )
-    sigma_z: Complex[Array, "n_so n_so"] = (
+    sigma_z: Complex128[Array, "n_so n_so"] = (
         same_spatial * (row_spin == column_spin) * row_spin
     ).astype(jnp.complex128)
-    operator: Complex[Array, "n_so n_so"] = 0.5 * (
+    operator: Complex128[Array, "n_so n_so"] = 0.5 * (
         checked_axis[0] * sigma_x
         + checked_axis[1] * sigma_y
         + checked_axis[2] * sigma_z
@@ -272,7 +272,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
     diagnostic operator.
     """
     n_shells: int = max(shell_index, default=-1) + 1
-    strengths: Float[Array, " n_shells"] = jnp.ones(
+    strengths: Float64[Array, " n_shells"] = jnp.ones(
         (n_shells,),
         dtype=jnp.float64,
     )
@@ -319,12 +319,12 @@ def orbital_projector(  # noqa: DOC502 -- validation is delegated.
     tracing. The returned complex matrix remains a numerical array leaf.
     """
     _validate_orbital_selection(basis, orbital_select)
-    diagonal: Float[Array, " n"] = jnp.zeros(
+    diagonal: Float64[Array, " n"] = jnp.zeros(
         (len(basis.n),),
         dtype=jnp.float64,
     )
     diagonal = diagonal.at[jnp.asarray(orbital_select)].set(1.0)
-    projector: Complex[Array, "n n"] = jnp.diag(diagonal).astype(
+    projector: Complex128[Array, "n n"] = jnp.diag(diagonal).astype(
         jnp.complex128
     )
     return projector
@@ -380,7 +380,7 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
         "surface_projector: depths must be finite and nonnegative",
     )
     checked_depths = jnp.maximum(checked_depths, 0.0)
-    escape_length: Float[Array, ""] = jnp.asarray(
+    escape_length: Float64[Array, ""] = jnp.asarray(
         intensity_escape_length_ang,
         dtype=jnp.float64,
     )

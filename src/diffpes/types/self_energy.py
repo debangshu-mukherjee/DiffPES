@@ -12,7 +12,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarFloat
 
@@ -37,16 +37,16 @@ class SelfEnergyModel(eqx.Module):
 
     Attributes
     ----------
-    coefficients : Float[Array, " n_coef"]
+    coefficients : Float64[Array, " n_coef"]
         Unconstrained raw coordinates. Physical positive parameters use a
         smooth softplus map without clipping.
-    energy_nodes_rel_fermi_ev : Optional[Float[Array, " n_nodes"]]
+    energy_nodes_rel_fermi_ev : Optional[Float64[Array, " n_nodes"]]
         Strictly increasing grid nodes on the :math:`E-E_F` axis in eV.
-    kk_domain_rel_fermi_ev : Optional[Float[Array, " 2"]]
+    kk_domain_rel_fermi_ev : Optional[Float64[Array, " 2"]]
         Finite numerical Kramers--Kronig domain ``[a, b]`` in eV.
-    tail_coefficients : Optional[Float[Array, " n_tail"]]
+    tail_coefficients : Optional[Float64[Array, " n_tail"]]
         For ``power2``, the two raw delta-beta coordinates in ``[-30, 30]``.
-    subtraction_point_rel_fermi_ev : Float[Array, ""]
+    subtraction_point_rel_fermi_ev : Float64[Array, ""]
         Fixed subtraction point on the relative-energy axis in eV.
     mode : str
         Model family. **Static** -- changing it triggers retracing.
@@ -62,11 +62,11 @@ class SelfEnergyModel(eqx.Module):
     :func:`equinox.error_if` and remain active in compiled code.
     """
 
-    coefficients: Float[Array, "..."]
-    energy_nodes_rel_fermi_ev: Optional[Float[Array, "..."]]
-    kk_domain_rel_fermi_ev: Optional[Float[Array, "..."]]
-    tail_coefficients: Optional[Float[Array, "..."]]
-    subtraction_point_rel_fermi_ev: Float[Array, ""]
+    coefficients: Float64[Array, "..."]
+    energy_nodes_rel_fermi_ev: Optional[Float64[Array, "..."]]
+    kk_domain_rel_fermi_ev: Optional[Float64[Array, "..."]]
+    tail_coefficients: Optional[Float64[Array, "..."]]
+    subtraction_point_rel_fermi_ev: Float64[Array, ""]
     mode: str = eqx.field(static=True)
     kk_consistent: bool = eqx.field(static=True)
     tail_mode: str = eqx.field(static=True)
@@ -101,8 +101,8 @@ class SelfEnergyModel(eqx.Module):
 
         self._check_node_structure()
         numerical: bool = self.mode in ("poly", "grid", "fermi_liquid")
-        domain: Optional[Float[Array, "..."]] = self.kk_domain_rel_fermi_ev
-        tail: Optional[Float[Array, "..."]] = self.tail_coefficients
+        domain: Optional[Float64[Array, "..."]] = self.kk_domain_rel_fermi_ev
+        tail: Optional[Float64[Array, "..."]] = self.tail_coefficients
         if numerical:
             if not self.kk_consistent or self.tail_mode != "power2":
                 raise ValueError(
@@ -137,7 +137,7 @@ class SelfEnergyModel(eqx.Module):
 
     def _check_node_structure(self) -> None:
         """Reject node shapes incompatible with the selected mode."""
-        nodes: Optional[Float[Array, "..."]] = self.energy_nodes_rel_fermi_ev
+        nodes: Optional[Float64[Array, "..."]] = self.energy_nodes_rel_fermi_ev
         if self.mode == "grid":
             if (
                 nodes is None
@@ -159,9 +159,9 @@ class SelfEnergyModel(eqx.Module):
 
     def _check_values(self) -> None:
         """Reject invalid numerical values eagerly and while traced."""
-        nodes: Optional[Float[Array, "..."]] = self.energy_nodes_rel_fermi_ev
-        domain: Optional[Float[Array, "..."]] = self.kk_domain_rel_fermi_ev
-        tail: Optional[Float[Array, "..."]] = self.tail_coefficients
+        nodes: Optional[Float64[Array, "..."]] = self.energy_nodes_rel_fermi_ev
+        domain: Optional[Float64[Array, "..."]] = self.kk_domain_rel_fermi_ev
+        tail: Optional[Float64[Array, "..."]] = self.tail_coefficients
         object.__setattr__(
             self,
             "coefficients",
@@ -172,7 +172,7 @@ class SelfEnergyModel(eqx.Module):
             ),
         )
         if nodes is not None:
-            checked_nodes: Float[Array, "..."] = eqx.error_if(
+            checked_nodes: Float64[Array, "..."] = eqx.error_if(
                 nodes,
                 ~jnp.all(jnp.isfinite(nodes)),
                 "energy nodes must be finite",
@@ -186,7 +186,7 @@ class SelfEnergyModel(eqx.Module):
                 self, "energy_nodes_rel_fermi_ev", checked_nodes
             )
         if domain is not None:
-            checked_domain: Float[Array, "..."] = eqx.error_if(
+            checked_domain: Float64[Array, "..."] = eqx.error_if(
                 domain,
                 ~jnp.all(jnp.isfinite(domain)),
                 "kk_domain_rel_fermi_ev must be finite",
@@ -205,7 +205,7 @@ class SelfEnergyModel(eqx.Module):
                     ),
                     "grid endpoints must exactly equal the KK domain",
                 )
-            subtraction: Float[Array, ""] = eqx.error_if(
+            subtraction: Float64[Array, ""] = eqx.error_if(
                 self.subtraction_point_rel_fermi_ev,
                 ~jnp.isfinite(self.subtraction_point_rel_fermi_ev),
                 "subtraction point must be finite",
@@ -231,7 +231,7 @@ class SelfEnergyModel(eqx.Module):
                 ),
             )
         if tail is not None:
-            checked_tail: Float[Array, "..."] = eqx.error_if(
+            checked_tail: Float64[Array, "..."] = eqx.error_if(
                 tail,
                 ~jnp.all(
                     jnp.isfinite(tail)
@@ -325,7 +325,7 @@ def make_self_energy_model(
             raise ValueError(
                 "coefficients are required unless mode='constant'"
             )
-        gamma_array: Float[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
+        gamma_array: Float64[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
         gamma_array = eqx.error_if(
             gamma_array,
             ~jnp.isfinite(gamma_array) | (gamma_array <= 0.0),

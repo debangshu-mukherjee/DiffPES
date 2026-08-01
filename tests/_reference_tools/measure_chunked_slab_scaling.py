@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Measure Plan-05 chunked slab diagonalization memory and retracing.
+"""Measure chunked slab diagonalization memory and retracing.
 
 Run this script explicitly on a CPU worker; routine pytest uses bounded
 fixtures and structural JAXPR checks. The defaults execute the registered
@@ -316,7 +316,7 @@ def _compile_count(
 
 
 def main() -> None:
-    """Execute the production forward measurement and bounded gradient gate."""
+    """Execute the production forward measurement and bounded gradient check."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, default=80)
     parser.add_argument("--spinor", action="store_true")
@@ -370,7 +370,7 @@ def main() -> None:
         arguments.chunk_size * n_orbitals * n_orbitals * _COMPLEX128_BYTES
     )
     result: dict[str, Any] = {
-        "gate": "05.S1-S2",
+        "gate": "chunked-slab-forward-memory and chunked-slab-gradient-retracing",
         "backend": jax.default_backend(),
         "jax_version": jax.__version__,
         "layers": specification.n_layers,

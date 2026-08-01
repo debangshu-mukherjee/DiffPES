@@ -315,7 +315,7 @@ def explain_claim(
     --------------------
     1. **Bind the documented output**::
 
-           explanation: str = "\n".join(lines)
+           rationale: str = "\n".join(lines)
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -329,8 +329,8 @@ def explain_claim(
 
     Returns
     -------
-    explanation : str
-        Multiline explanation with status, margin, and evidence arrays.
+    rationale : str
+        Multiline rationale with status, margin, and evidence arrays.
 
     Raises
     ------
@@ -399,8 +399,8 @@ def explain_claim(
                 f"    tolerance: {_array_text(evidence.tolerance)}",
             )
         )
-    explanation: str = "\n".join(lines)
-    return explanation
+    rationale: str = "\n".join(lines)
+    return rationale
 
 
 def _different(left: object, right: object) -> bool:

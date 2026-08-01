@@ -1,6 +1,6 @@
-"""Verify Plan 05 slab extrusion and exact hopping propagation.
+"""Verify slab extrusion and exact hopping propagation.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 import jax
@@ -94,7 +94,7 @@ class TestGenSlab:
     def test_finite_chain_closed_form(self, n_layers: int) -> None:
         """Match every open-chain eigenvalue to the textbook spectrum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -130,7 +130,7 @@ class TestGenSlab:
     def test_depths_and_open_normal_cells_are_exact(self) -> None:
         """Produce integral layer depths and no periodic normal hopping.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -167,7 +167,7 @@ class TestGenSlab:
     def test_hopping_gather_preserves_parameter_gradient(self) -> None:
         """Differentiate a slab Hamiltonian norm through the exact gather.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -202,7 +202,7 @@ class TestGenSlab:
     def test_internal_gather_is_exact(self) -> None:
         """Expose the static source-hop gather for a six-layer chain.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -239,7 +239,7 @@ class TestGenSlab:
     def test_rejects_nonprimitive_miller_tuple(self) -> None:
         """Reject a doubled Miller normal rather than changing layer period.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -263,7 +263,7 @@ class TestGenSlab:
     ) -> None:
         """Expand a natural stack before its fine-shifted planes are cut.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -288,7 +288,7 @@ class TestGenSlab:
     def test_post_fine_explicit_endpoints_match_provenance(self) -> None:
         """Verify inward snapping reaches the requested species.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -319,7 +319,7 @@ class TestGenSlab:
     def test_zero_thickness_survives_symmetric_fine_cut(self) -> None:
         """Keep the T=0 one-plane limit well-defined after fine expansion.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -350,7 +350,7 @@ class TestValidateOpenSurfaceAdjacency:
     def test_rejects_image_edge_even_with_large_vacuum_proxy(self) -> None:
         """Reject a normal image from exact cells without using a distance.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -361,7 +361,7 @@ class TestValidateOpenSurfaceAdjacency:
 
 
 class TestGenSlabWithOperators:
-    """Verify the Plan 04 to Plan 05 Wannier-operator seam.
+    """Verify the bulk-to-slab Wannier-operator seam.
 
     :see: :func:`~diffpes.tightb.gen_slab_with_operators`
     """
@@ -369,7 +369,7 @@ class TestGenSlabWithOperators:
     def test_noncoincident_centres_and_matrix_are_preserved(self) -> None:
         """Propagate distinct same-atom centres and an off-diagonal operator.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -472,7 +472,7 @@ class TestGenSlabWithOperators:
     def test_absent_position_matrix_remains_absent(self) -> None:
         """Keep an hr-format sidecar explicitly matrix-free.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -506,7 +506,7 @@ class TestGenSlabWithOperators:
     def test_matrix_free_sidecar_preserves_in_plane_cells(self) -> None:
         """Verify nonzero hr-cell remapping preserves provenance.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -551,7 +551,7 @@ class TestGenSlabWithOperators:
     def test_natural_slab_accepts_unknown_species(self) -> None:
         """Use the explicit unknown-species sentinel only for natural cuts.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

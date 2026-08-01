@@ -32,11 +32,11 @@ from diffpes.utils import (
 
 
 def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
-    """Load the frozen Plan-07 G1/D1 arbitrary-precision reference."""
+    """Load the frozen arbitrary-precision Faddeeva value and derivative reference."""
     path: Path = (
         Path(__file__).parents[1]
         / "_reference_data"
-        / "plan07_faddeeva_100digit_reference.npz"
+        / "faddeeva_mpmath_100digit_reference.npz"
     )
     archive: np.lib.npyio.NpzFile
     with np.load(path, allow_pickle=False) as archive:
@@ -118,13 +118,13 @@ class TestFaddeeva(chex.TestCase):
         data_directory: Path = (
             root / "tests" / "test_diffpes" / "_reference_data"
         )
-        manifest_path: Path = data_directory / "plan07_faddeeva_manifest.json"
+        manifest_path: Path = data_directory / "faddeeva_mpmath_manifest.json"
         manifest: dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         archive_path: Path = data_directory / manifest["archive"]
         generator_path: Path = root / manifest["generator"]
-        assert manifest["schema"] == "diffpes.plan07.faddeeva-reference.v1"
+        assert manifest["schema"] == "diffpes.faddeeva-mpmath-reference.v1"
         assert manifest["reference_engine"]["decimal_digits"] == 100
         assert (
             hashlib.sha256(archive_path.read_bytes()).hexdigest()

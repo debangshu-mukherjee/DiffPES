@@ -40,36 +40,52 @@ class TestRegisterBuiltinModels:
         )
         assert len(transformations) == len(set(transformations))
         assert len(owner_ids) == len(set(owner_ids))
-        assert "org.diffpes.plan.06" in owner_ids
-        plan06: RegistrationHandshake = next(
+        assert "org.diffpes.matrixel" in owner_ids
+        matrix_element: RegistrationHandshake = next(
             item
             for item in handshakes
-            if item.owner_id == "org.diffpes.plan.06"
-        )
-        assert all(
-            f"org.diffpes.evidence.06.g{index}" in plan06.evidence_ids
-            for index in range(1, 19)
-        )
-        assert all(
-            f"org.diffpes.evidence.06.d{index}" in plan06.evidence_ids
-            for index in range(1, 13)
+            if item.owner_id == "org.diffpes.matrixel"
         )
         assert (
-            "org.diffpes.evidence.06.d13.not_applicable.g13_rejected"
-            in plan06.evidence_ids
-        )
-        assert "org.diffpes.evidence.06.d13" not in plan06.evidence_ids
-        assert all(
-            f"org.diffpes.evidence.06.s{index}" in plan06.evidence_ids
-            for index in range(1, 4)
+            "org.diffpes.evidence.matrixel.spherical_bessel_values_derivatives"
+            in matrix_element.evidence_ids
         )
         assert (
-            "org.diffpes.evidence.06.lifecycle.plan03_kg_e"
-            in plan06.evidence_ids
+            "org.diffpes.evidence.matrixel.orbital_position_vacuum_momentum"
+            in matrix_element.evidence_ids
         )
         assert (
-            "org.diffpes.evidence.06.handoff.plan07_transition_rows"
-            in plan06.evidence_ids
+            "org.diffpes.evidence.matrixel.radial_parameter_gradients"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.dipole_gauge_gradients"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.hermite_acceleration_not_applicable"
+            in matrix_element.evidence_ids
+        )
+        assert len(matrix_element.evidence_ids) == 41
+        assert (
+            "org.diffpes.evidence.matrixel.orbital_channel_compile_scaling"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.chunk_memory_allocation"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.late_polarization_performance"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.lifecycle.kspace_kg_e"
+            in matrix_element.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.matrixel.handoff.transition_rows"
+            in matrix_element.evidence_ids
         )
         destroyed: set[str] = {
             loss

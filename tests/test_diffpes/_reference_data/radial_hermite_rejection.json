@@ -1,7 +1,7 @@
 {
-  "artifact": "diffpes-plans/verification/matrixel_radial_acceleration/manifest.json",
+  "artifact": "verification/matrixel_radial_acceleration/manifest.json",
   "source_manifest_sha256": "8f7e05abaaefb42666a3f1d559031c100ba44a52005c603bfbcd29ecfc555ad2",
-  "schema": "diffpes.plan06.radial-hermite-rejection.v1",
+  "schema": "diffpes.radial-hermite-rejection.v1",
   "registered_witness": {
     "mode": "slater",
     "n": 1,

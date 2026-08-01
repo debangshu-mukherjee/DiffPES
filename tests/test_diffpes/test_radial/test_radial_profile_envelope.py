@@ -1,4 +1,4 @@
-"""Certify the complete Plan 06 radial-profile envelope and false controls.
+"""Certify the complete radial-profile envelope and false controls.
 
 The tests exercise node doubling, missing tails, static boundaries, compact
 modes, rejection paths, and the inverse-Angstrom unit seam.

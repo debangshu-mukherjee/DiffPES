@@ -31,12 +31,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
 
 from diffpes.maths import safe_divide
 
 
-def _faddeeva_weideman_coefficients() -> Float[Array, " N"]:
+def _faddeeva_weideman_coefficients() -> Float64[Array, " N"]:
     r"""Generate fixed-order Weideman rational coefficients.
 
     The construction samples the mapped Gaussian on a fixed tangent grid.
@@ -44,47 +44,47 @@ def _faddeeva_weideman_coefficients() -> Float[Array, " N"]:
 
     Returns
     -------
-    coeffs : Float[Array, " N"]
+    coeffs : Float64[Array, " N"]
         Real coefficients in descending polynomial order.
 
     Notes
     -----
-    The Plan-07 algorithm-selection sweep freezes order 40 before production.
+    The algorithm-selection sweep freezes order 40 before production.
     The transform follows Weideman's published rational construction.
     """
     order: int = 40
     scale: float = math.sqrt(order / math.sqrt(2.0))
     doubled_order: int = 2 * order
-    indices: Float[Array, " grid"] = jnp.arange(
+    indices: Float64[Array, " grid"] = jnp.arange(
         -doubled_order + 1,
         doubled_order,
         dtype=jnp.float64,
     )
-    angles: Float[Array, " grid"] = indices * math.pi / doubled_order
-    mapped: Float[Array, " grid"] = scale * jnp.tan(angles / 2.0)
-    samples: Float[Array, " grid"] = jnp.exp(-(mapped**2)) * (
+    angles: Float64[Array, " grid"] = indices * math.pi / doubled_order
+    mapped: Float64[Array, " grid"] = scale * jnp.tan(angles / 2.0)
+    samples: Float64[Array, " grid"] = jnp.exp(-(mapped**2)) * (
         scale**2 + mapped**2
     )
-    padded: Float[Array, " fft_grid"] = jnp.concatenate(
+    padded: Float64[Array, " fft_grid"] = jnp.concatenate(
         (jnp.zeros(1, dtype=jnp.float64), samples)
     )
-    transformed: Complex[Array, " fft_grid"] = jnp.fft.fft(
+    transformed: Complex128[Array, " fft_grid"] = jnp.fft.fft(
         jnp.fft.fftshift(padded)
     )
-    ascending: Float[Array, " fft_grid"] = jnp.real(transformed) / (
+    ascending: Float64[Array, " fft_grid"] = jnp.real(transformed) / (
         2 * doubled_order
     )
-    result: Float[Array, " N"] = ascending[1 : order + 1][::-1]
+    result: Float64[Array, " N"] = ascending[1 : order + 1][::-1]
     return result
 
 
-_W_POLY: Float[Array, " N"] = _faddeeva_weideman_coefficients()
+_W_POLY: Float64[Array, " N"] = _faddeeva_weideman_coefficients()
 
 
 @jaxtyped(typechecker=beartype)
 def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     z: Complex[Array, " ..."],
-) -> Complex[Array, " ..."]:
+) -> Complex128[Array, " ..."]:
     r"""Evaluate the Faddeeva function w(z) = exp(-z^2) erfc(-iz).
 
     The function evaluates a fixed-order rational approximation on complex
@@ -111,7 +111,7 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     Returns
     -------
-    w : Complex[Array, " ..."]
+    w : Complex128[Array, " ..."]
         Faddeeva function values, same shape as ``z``.
 
     Raises
@@ -127,27 +127,29 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     has positive real part throughout the declared upper-half-plane domain.
     Inputs promote to complex128 before validation and evaluation.
     """
-    z_c: Complex[Array, " ..."] = jnp.asarray(z, dtype=jnp.complex128)
+    z_c: Complex128[Array, " ..."] = jnp.asarray(z, dtype=jnp.complex128)
     maximum_absolute_value: float = 1.0e8
     invalid: Array = (
         ~jnp.all(jnp.isfinite(z_c))
         | jnp.any(jnp.imag(z_c) < 0.0)
         | jnp.any(jnp.abs(z_c) > maximum_absolute_value)
     )
-    checked: Complex[Array, " ..."] = eqx.error_if(
+    checked: Complex128[Array, " ..."] = eqx.error_if(
         z_c,
         invalid,
         "z must be finite with Im(z) >= 0 and abs(z) <= 1e8",
     )
     scale: float = math.sqrt(40 / math.sqrt(2.0))
-    denominator: Complex[Array, " ..."] = scale - 1j * checked
-    transformed: Complex[Array, " ..."] = (scale + 1j * checked) / denominator
-    polynomial: Complex[Array, " ..."] = jnp.polyval(
+    denominator: Complex128[Array, " ..."] = scale - 1j * checked
+    transformed: Complex128[Array, " ..."] = (
+        scale + 1j * checked
+    ) / denominator
+    polynomial: Complex128[Array, " ..."] = jnp.polyval(
         _W_POLY,
         transformed,
         unroll=8,
     )
-    w: Complex[Array, " ..."] = 2.0 * polynomial / denominator**2 + 1.0 / (
+    w: Complex128[Array, " ..."] = 2.0 * polynomial / denominator**2 + 1.0 / (
         jnp.sqrt(jnp.pi) * denominator
     )
     return w

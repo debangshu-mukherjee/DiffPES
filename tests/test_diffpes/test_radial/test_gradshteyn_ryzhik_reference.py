@@ -1,4 +1,4 @@
-"""Certify Plan 06 G2 against frozen G&R 6.621.3 references.
+"""Certify radial transforms against frozen G&R 6.621.3 references.
 
 The tests compare normalized radial transforms and retain arbitrary-precision
 authority metadata for every frozen case.
@@ -20,11 +20,11 @@ from diffpes.radial.wavefunctions import hydrogenic_radial, slater_radial
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
     / "_reference_data"
-    / "plan06_radial_gr66213_reference.csv"
+    / "radial_gradshteyn_ryzhik_66213_reference.csv"
 )
 
 
-class TestPlan06GradshteynRyzhikReference:
+class TestGradshteynRyzhikReference:
     """Compare production STO and hydrogenic dipole transforms with G&R."""
 
     def test_normalized_radial_battery_matches_frozen_50_digit_values(

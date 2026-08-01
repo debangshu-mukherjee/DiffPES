@@ -26,7 +26,16 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import (
+    Array,
+    Complex,
+    Complex128,
+    Float,
+    Float64,
+    Int,
+    Int32,
+    jaxtyped,
+)
 
 from diffpes.types import EPS, TBModel
 
@@ -50,7 +59,7 @@ def _reverse_hopping_indices(model: TBModel) -> Int[Array, " n_hop"]:
         lookup[(orbital_j, orbital_i, (-cell[0], -cell[1], -cell[2]))]
         for orbital_i, orbital_j, cell in records
     )
-    indices: Int[Array, " n_hop"] = jnp.asarray(reverse, dtype=jnp.int32)
+    indices: Int32[Array, " n_hop"] = jnp.asarray(reverse, dtype=jnp.int32)
     return indices
 
 
@@ -81,7 +90,7 @@ def _assemble_bloch_hamiltonian(
     """Assemble one Hamiltonian from already validated amplitudes."""
     n_orbitals: int = model.onsite_energies.shape[0]
     if model.orbital_positions is None:
-        atom_indices: Int[Array, " n_orb"] = jnp.asarray(
+        atom_indices: Int32[Array, " n_orb"] = jnp.asarray(
             model.basis.atom_indices,
             dtype=jnp.int32,
         )
@@ -94,32 +103,32 @@ def _assemble_bloch_hamiltonian(
             ~jnp.all(jnp.isfinite(model.orbital_positions)),
             "bloch_hamiltonian: orbital positions finite",
         )
-    pairs: Int[Array, "n_hop 2"] = jnp.asarray(
+    pairs: Int32[Array, "n_hop 2"] = jnp.asarray(
         model.hopping_pairs,
         dtype=jnp.int32,
     ).reshape((-1, 2))
-    cells: Float[Array, "n_hop 3"] = jnp.asarray(
+    cells: Float64[Array, "n_hop 3"] = jnp.asarray(
         model.hopping_cells,
         dtype=jnp.float64,
     ).reshape((-1, 3))
-    source: Int[Array, " n_hop"] = pairs[:, 0]
-    target: Int[Array, " n_hop"] = pairs[:, 1]
+    source: Int32[Array, " n_hop"] = pairs[:, 0]
+    target: Int32[Array, " n_hop"] = pairs[:, 1]
     displacements: Float[Array, "n_hop 3"] = (
         cells + orbital_positions[target] - orbital_positions[source]
     )
     phases: Complex[Array, " n_hop"] = jnp.exp(
         2j * jnp.pi * (displacements @ k)
     )
-    flat_indices: Int[Array, " n_hop"] = source * n_orbitals + target
-    flattened: Complex[Array, " n_flat"] = jnp.zeros(
+    flat_indices: Int32[Array, " n_hop"] = source * n_orbitals + target
+    flattened: Complex128[Array, " n_flat"] = jnp.zeros(
         (n_orbitals * n_orbitals,),
         dtype=jnp.complex128,
     )
     flattened = flattened.at[flat_indices].add(amplitudes * phases)
-    hamiltonian: Complex[Array, "n_orb n_orb"] = flattened.reshape(
+    hamiltonian: Complex128[Array, "n_orb n_orb"] = flattened.reshape(
         (n_orbitals, n_orbitals)
     )
-    diagonal_indices: Int[Array, " n_orb"] = jnp.arange(
+    diagonal_indices: Int32[Array, " n_orb"] = jnp.arange(
         n_orbitals,
         dtype=jnp.int32,
     )

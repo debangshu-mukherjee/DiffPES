@@ -1,4 +1,4 @@
-"""Certify Plan 06 attenuation and displaced-centre interference gates.
+"""Certify attenuation and displaced-centre interference properties.
 
 Extended Summary
 ----------------

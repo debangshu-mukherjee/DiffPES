@@ -1,4 +1,4 @@
-"""Execute the frozen Plan 06 local/nonlocal gauge negative control.
+"""Execute the frozen local/nonlocal gauge negative control.
 
 The test checks the local commutator identity and the registered nonlocal
 projector disagreement through both public Cartesian gauge APIs.
@@ -22,7 +22,7 @@ from diffpes.maths import (
 _REFERENCE_PATH = (
     Path(__file__).resolve().parents[1]
     / "_reference_data"
-    / "plan06_g12_reference.npz"
+    / "local_nonlocal_gauge_reference.npz"
 )
 _REFERENCE_SHA256 = (
     "e136dfd8214cd4e1e83d11b1d20d87a8597c66e61f54636b949d3c159fc579f0"

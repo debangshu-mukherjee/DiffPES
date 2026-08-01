@@ -355,7 +355,7 @@ def detector_angles_to_kpar(
 ) -> Float[Array, "... 2"]:
     """Convert detector angles to parallel momentum.
 
-    The function rotates the positive z direction with the Plan 03 detector
+    The function rotates the positive z direction with the detector
     convention. It broadcasts all traced inputs over their leading axes.
 
     :see: :class:`~.test_kinematics.TestDetectorAnglesToKpar`

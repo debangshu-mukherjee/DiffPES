@@ -1,11 +1,11 @@
-"""Certify the conservative G8 volume witness and G13 lifecycle.
+"""Certify the Cartesian volume witness and Hermite rejection lifecycle.
 
 Extended Summary
 ----------------
 An independent three-dimensional Cartesian product quadrature integrates a
 normalized mixed-parity orbital against a plane wave and the length-gauge
 dipole operator. A frozen artifact summary then proves that the optional
-Hermite accelerator rejects and leaves D13 inactive.
+Hermite accelerator is rejected and its derivative path remains inactive.
 """
 
 import json
@@ -16,7 +16,7 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Complex, Float
+from jaxtyping import Array, Complex, Float
 from numpy.typing import NDArray
 from scipy.special import gamma
 
@@ -158,7 +158,7 @@ def _production_amplitude(
     params: MatrixElementParams,
 ) -> complex:
     """Assemble the production mixed-parity amplitude from supplied branches."""
-    channels: Complex[jnp.ndarray, "1 1 2 3"] = orbital_transition_channels(
+    channels: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
         jnp.zeros((1, 3)),
         jnp.asarray(direction_cart[None, :]),
         jnp.zeros((2, 3)),
@@ -168,7 +168,7 @@ def _production_amplitude(
         jnp.asarray(9.0),
         basis,
     )
-    polarized: Complex[jnp.ndarray, " 2"] = contract_polarization(
+    polarized: Complex[Array, " 2"] = contract_polarization(
         channels[0, 0],
         jnp.asarray(polarization_cart),
     )
@@ -178,7 +178,7 @@ def _production_amplitude(
     return amplitude
 
 
-def test_g8_full_cartesian_volume_matches_production() -> None:
+def test_full_cartesian_volume_matches_production() -> None:
     """Match a normalized full-volume mixed-parity plane-wave amplitude.
 
     The independent oracle integrates radius and two Cartesian direction
@@ -302,8 +302,8 @@ def test_g8_full_cartesian_volume_matches_production() -> None:
         assert abs(control - expected) > 1.0e-3, name
 
 
-def test_g13_rejection_makes_d13_inactive() -> None:
-    """Bind the decisive G13 artifact to runtime rejection and D13 status.
+def test_hermite_rejection_makes_derivative_path_inactive() -> None:
+    """Bind the decisive artifact to runtime rejection and derivative status.
 
     The frozen 1025-to-2049 witness exceeds the preregistered half-budget
     threshold, so no Hermite resolution exists for derivative certification.
@@ -315,24 +315,26 @@ def test_g13_rejection_makes_d13_inactive() -> None:
     reference_path: Path = (
         Path(__file__).resolve().parents[1]
         / "_reference_data"
-        / "plan06_g13_rejection.json"
+        / "radial_hermite_rejection.json"
     )
     evidence: dict[str, object] = json.loads(reference_path.read_text())
     decision: dict[str, object] = evidence["decision"]
     ratio: float = float(evidence["next_rung_value_budget_ratio"])
     threshold: float = float(evidence["next_rung_fraction_limit"])
-    assert evidence["schema"] == "diffpes.plan06.radial-hermite-rejection.v1"
+    assert evidence["schema"] == "diffpes.radial-hermite-rejection.v1"
     assert ratio > threshold
     assert decision["accepted"] is False
     assert decision["selected_node_count"] is None
     assert decision["runtime"] == "reject-hermite-use-direct"
     assert (
-        decision["d13_status"]
-        == "not activated because no G13 resolution may ship"
+        decision["derivative_status"]
+        == "not activated because no accepted Hermite resolution may ship"
     )
     node_count: int
     for node_count in evidence["candidate_node_counts"]:
-        with pytest.raises(ValueError, match="failed the frozen G13"):
+        with pytest.raises(
+            ValueError, match="failed the frozen Hermite check"
+        ):
             make_final_state_spec(
                 radial_accelerator="hermite",
                 table_n_points=node_count,

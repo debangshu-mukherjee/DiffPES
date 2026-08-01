@@ -1,4 +1,4 @@
-"""Verify the composed Plan 06 D11 Coulomb assembly derivatives."""
+"""Verify the composed Coulomb assembly derivatives."""
 
 from __future__ import annotations
 

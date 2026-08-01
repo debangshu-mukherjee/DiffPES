@@ -131,7 +131,7 @@ Routine Listings
 :func:`mapping_artifact_resolver`
     Build a deterministic resolver from normalized in-memory values.
 :func:`register_handshake`
-    Register declarative requirements from one owning plan.
+    Register declarative requirements from one domain owner.
 :func:`register_builtin_models`
     Register built-in transformations and owner handshakes.
 :func:`register_check`

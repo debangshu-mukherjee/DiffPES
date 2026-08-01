@@ -1,4 +1,4 @@
-"""Validate the reproducible Plan 06 S1--S3 benchmark artifact.
+"""Validate the reproducible matrix-element scalability benchmark artifact.
 
 The tests check graph scaling, compiler memory, retained IR, and raw timing
 statistics against the committed literal-shape measurement.
@@ -17,9 +17,11 @@ from typing import Any
 import numpy as np
 
 ARTIFACT_DIRECTORY: Path = (
-    Path(__file__).parents[1] / "_reference_data" / "plan06_scalability"
+    Path(__file__).parents[1]
+    / "_reference_data"
+    / "matrix_element_scalability"
 )
-ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "plan06_s1_s3_cpu.json"
+ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 REPOSITORY_ROOT: Path = Path(__file__).parents[3]
 
 
@@ -49,7 +51,7 @@ def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
     return shapes
 
 
-class TestPlan06ScalabilityEvidence:
+class TestMatrixElementScalabilityEvidence:
     """Check structural, allocation, and raw-timing evidence."""
 
     def test_s1_sublinear_equations_and_compile_reuse(self) -> None:
@@ -62,7 +64,7 @@ class TestPlan06ScalabilityEvidence:
         It loads the JSON artifact and compares exact structural counters.
         """
         artifact: dict[str, Any] = _artifact()
-        assert artifact["schema"] == "diffpes.plan06.scalability.v2"
+        assert artifact["schema"] == "diffpes.matrix-element-scalability.v2"
         relative_path: str
         digest: str
         for relative_path, digest in artifact["source_sha256"].items():

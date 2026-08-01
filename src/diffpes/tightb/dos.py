@@ -27,7 +27,7 @@ import jax
 import jax.numpy as jnp
 import optimistix as optx
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from diffpes.simul import fermi_dirac
 from diffpes.types import (
@@ -151,11 +151,11 @@ def dos_gaussian(  # noqa: DOC502, DOC503 -- traced validation raises under JAX.
         k_weights,
         context="dos_gaussian",
     )
-    axis: Float[Array, " n_e"] = jnp.asarray(
+    axis: Float64[Array, " n_e"] = jnp.asarray(
         energy_axis,
         dtype=jnp.float64,
     )
-    width: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
+    width: Float64[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
     if axis.ndim != 1:
         raise ValueError("dos_gaussian: energy_axis must be one-dimensional")
     if axis.shape[0] < MINIMUM_AXIS_POINTS:

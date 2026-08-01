@@ -2,7 +2,7 @@ r"""Construct atomic spin--orbit coupling in the real-cubic basis.
 
 Extended Summary
 ----------------
-This module implements the Plan 04 atomic spin--orbit term
+This module implements the atomic spin--orbit term
 :math:`\lambda\,\mathbf L\cdot\mathbf S`. It constructs orbital
 angular-momentum matrices in the complex-harmonic basis. Their axes run from
 :math:`m=-l` through :math:`m=+l`. The implementation applies the package

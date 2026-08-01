@@ -1,4 +1,4 @@
-"""Piecewise-linear candidate for the Plan 07 KK algorithm spike."""
+"""Piecewise-linear candidate for the Kramers--Kronig algorithm study."""
 
 import jax
 import jax.numpy as jnp

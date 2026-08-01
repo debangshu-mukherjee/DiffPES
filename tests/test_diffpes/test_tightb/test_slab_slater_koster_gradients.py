@@ -1,6 +1,6 @@
-"""Certify Plan-05 slab gradients from fundamental Slater--Koster values.
+"""Certify slab gradients from fundamental Slater--Koster values.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from collections.abc import Callable
@@ -286,14 +286,14 @@ def _soc_sk_gate() -> tuple[
     return active, combined_loss, group_loss, imaginary_norm
 
 
-class TestPlan05FundamentalSKGradients:
-    """Certify D1 from independent SK integrals rather than derived hoppings."""
+class TestFundamentalSlaterKosterGradients:
+    """Certify slab gradients from independent SK integrals rather than derived hoppings."""
 
     @pytest.mark.rss_limit_mb(1536)
     def test_graphene_sk_parameter_gradient_gate(self) -> None:
         """Match fwd/rev/FD and retain nonzero graphene pp-pi sensitivity.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -315,7 +315,7 @@ class TestPlan05FundamentalSKGradients:
     def test_complete_shell_soc_sk_parameter_gradient_gate(self) -> None:
         """Match every pp SK row through a generic-complex SOC slab.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

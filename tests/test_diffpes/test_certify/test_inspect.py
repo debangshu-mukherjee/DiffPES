@@ -91,18 +91,16 @@ class TestExplainClaim:
         -----
         The test compares the result with explicit numerical or structural assertions.
         """
-        explanation: Any
-        explanation = explain_claim(
-            sample_certificate(), "claim.output.finite"
-        )
+        rationale: Any
+        rationale = explain_claim(sample_certificate(), "claim.output.finite")
 
-        assert "Status: passed" in explanation
-        assert "Margin: 0.5" in explanation
-        assert "reference-spectrum" in explanation
-        assert "method: org.diffpes.method.reference" in explanation
-        assert "lineage independence: qualified" in explanation
-        assert "generators: reference.generator" in explanation
-        assert "tolerance: shape=(2,), values=[1.e-08, 1.e-08]" in explanation
+        assert "Status: passed" in rationale
+        assert "Margin: 0.5" in rationale
+        assert "reference-spectrum" in rationale
+        assert "method: org.diffpes.method.reference" in rationale
+        assert "lineage independence: qualified" in rationale
+        assert "generators: reference.generator" in rationale
+        assert "tolerance: shape=(2,), values=[1.e-08, 1.e-08]" in rationale
 
     def test_explain_claim_rejects_missing_id(self) -> None:
         """Verify explain claim rejects missing id.

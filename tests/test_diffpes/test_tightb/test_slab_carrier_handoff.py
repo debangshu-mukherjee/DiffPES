@@ -1,6 +1,6 @@
-"""Verify Plan-05 slab carriers across every owned legacy consumer.
+"""Verify slab metadata carriers across every owned legacy consumer.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from pathlib import Path
@@ -61,8 +61,8 @@ def _bulk_chain() -> TBModel:
     )
 
 
-class TestPlan05SlabCarrierHandoff:
-    """Certify G8/WP5.6 across persistence and projection consumers."""
+class TestSlabCarrierHandoff:
+    """Certify slab metadata across persistence and projection consumers."""
 
     @pytest.mark.rss_limit_mb(640)
     def test_depths_survive_consumers_and_plot_accepts_slab_views(
@@ -71,7 +71,7 @@ class TestPlan05SlabCarrierHandoff:
     ) -> None:
         """Preserve depths in consumers and plot slab-sized legacy views.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -114,7 +114,7 @@ class TestPlan05SlabCarrierHandoff:
         assert jnp.allclose(selected_weights, 1.0, rtol=1e-12, atol=1e-12)
         assert jnp.array_equal(bands.depths, expected_depths)
 
-        path: Path = tmp_path / "plan05_slab_bands.h5"
+        path: Path = tmp_path / "slab_bands.h5"
         save_to_h5(path, bands=bands)
         restored: DiagonalizedBands = load_from_h5(path, "bands")
         assert restored.depths is not None

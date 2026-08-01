@@ -33,7 +33,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Integer, jaxtyped
+from jaxtyping import Array, Float, Float64, Integer, jaxtyped
 
 
 def _normalization(l: int, m: int) -> float:
@@ -180,8 +180,8 @@ def _associated_legendre_plm(
         p_prev2: Float[Array, " ..."]
         p_prev1: Float[Array, " ..."]
         p_prev2, p_prev1 = state
-        idx_f: Float[Array, ""] = jnp.asarray(idx, dtype=jnp.float64)
-        m_f: Float[Array, ""] = jnp.asarray(m, dtype=jnp.float64)
+        idx_f: Float64[Array, ""] = jnp.asarray(idx, dtype=jnp.float64)
+        m_f: Float64[Array, ""] = jnp.asarray(m, dtype=jnp.float64)
         p_curr: Float[Array, " ..."] = (
             (2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2
         ) / (idx_f - m_f)

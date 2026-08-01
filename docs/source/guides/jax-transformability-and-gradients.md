@@ -109,7 +109,7 @@ sub-floor groups. Always carry that mask downstream.
 
 These quantities are band-group matrix-element weights. They are not
 expected detector counts. Exposure, background, detector response, and
-counting statistics enter in Plan 08.
+counting statistics are outside the current detector-independent model.
 
 ## Differentiability Boundaries
 

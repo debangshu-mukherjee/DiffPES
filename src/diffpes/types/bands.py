@@ -40,7 +40,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Union
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 from .constants import N_ORBITALS, N_SPIN_COMPONENTS
@@ -64,13 +64,13 @@ class BandStructure(eqx.Module):
 
     Attributes
     ----------
-    eigenvalues : Float[Array, "K B"]
+    eigenvalues : Float64[Array, "K B"]
         Band energies in eV for K k-points and B bands.
-    kpoints : Float[Array, "K 3"]
+    kpoints : Float64[Array, "K 3"]
         k-point coordinates in reciprocal space.
-    kpoint_weights : Float[Array, " K"]
+    kpoint_weights : Float64[Array, " K"]
         Integration weights for each k-point.
-    fermi_energy : Float[Array, " "]
+    fermi_energy : Float64[Array, " "]
         Fermi level energy in eV.
 
     Notes
@@ -80,10 +80,10 @@ class BandStructure(eqx.Module):
     fields are differentiable leaves and no static metadata is present.
     """
 
-    eigenvalues: Float[Array, "K B"]
-    kpoints: Float[Array, "K 3"]
-    kpoint_weights: Float[Array, " K"]
-    fermi_energy: Float[Array, " "]
+    eigenvalues: Float64[Array, "K B"]
+    kpoints: Float64[Array, "K 3"]
+    kpoint_weights: Float64[Array, " K"]
+    fermi_energy: Float64[Array, " "]
 
 
 class OrbitalProjection(eqx.Module):
@@ -98,17 +98,17 @@ class OrbitalProjection(eqx.Module):
 
     Attributes
     ----------
-    projections : Float[Array, "K B A 9"]
+    projections : Float64[Array, "K B A 9"]
         Orbital projection weights.
-    spin : Optional[Float[Array, "K B A 6"]]
+    spin : Optional[Float64[Array, "K B A 6"]]
         Optional spin projections.
-    oam : Optional[Float[Array, "K B A 3"]]
+    oam : Optional[Float64[Array, "K B A 3"]]
         Optional orbital-angular-momentum projections.
     """
 
-    projections: Float[Array, "K B A 9"]
-    spin: Optional[Float[Array, "K B A 6"]]
-    oam: Optional[Float[Array, "K B A 3"]]
+    projections: Float64[Array, "K B A 9"]
+    spin: Optional[Float64[Array, "K B A 6"]]
+    oam: Optional[Float64[Array, "K B A 3"]]
 
 
 class SpinOrbitalProjection(eqx.Module):
@@ -122,17 +122,17 @@ class SpinOrbitalProjection(eqx.Module):
 
     Attributes
     ----------
-    projections : Float[Array, "K B A 9"]
+    projections : Float64[Array, "K B A 9"]
         Orbital projection weights.
-    spin : Float[Array, "K B A 6"]
+    spin : Float64[Array, "K B A 6"]
         Mandatory spin projections.
-    oam : Optional[Float[Array, "K B A 3"]]
+    oam : Optional[Float64[Array, "K B A 3"]]
         Optional orbital-angular-momentum projections.
     """
 
-    projections: Float[Array, "K B A 9"]
-    spin: Float[Array, "K B A 6"]
-    oam: Optional[Float[Array, "K B A 3"]]
+    projections: Float64[Array, "K B A 9"]
+    spin: Float64[Array, "K B A 6"]
+    oam: Optional[Float64[Array, "K B A 3"]]
 
 
 @jaxtyped(typechecker=beartype)
@@ -226,10 +226,10 @@ def make_spin_orbital_projection(  # noqa: DOC503
     SpinOrbitalProjection : The PyTree class constructed by this
         factory.
     """
-    proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
+    proj_arr: Float64[Array, "K B A 9"] = jnp.asarray(
         projections, dtype=jnp.float64
     )
-    spin_arr: Float[Array, "K B A 6"] = jnp.asarray(spin, dtype=jnp.float64)
+    spin_arr: Float64[Array, "K B A 6"] = jnp.asarray(spin, dtype=jnp.float64)
     oam_arr: Optional[Float[Array, "K B A 3"]] = None
     if oam is not None:
         oam_arr = jnp.asarray(oam, dtype=jnp.float64)
@@ -297,20 +297,20 @@ class SpinBandStructure(eqx.Module):
 
     Attributes
     ----------
-    eigenvalues_up : Float[Array, "K B"]
+    eigenvalues_up : Float64[Array, "K B"]
         Spin-up (majority) band energies in eV for K k-points and
         B bands. JAX-traced (differentiable).
-    eigenvalues_down : Float[Array, "K B"]
+    eigenvalues_down : Float64[Array, "K B"]
         Spin-down (minority) band energies in eV for K k-points
         and B bands. JAX-traced (differentiable).
-    kpoints : Float[Array, "K 3"]
+    kpoints : Float64[Array, "K 3"]
         k-point coordinates in reciprocal (fractional) space, shared
         by both spin channels. JAX-traced (differentiable).
-    kpoint_weights : Float[Array, " K"]
+    kpoint_weights : Float64[Array, " K"]
         Integration weights for each k-point, used for Brillouin-zone
         averaging. Uniform weights (all ones) are the norm for band
         structure paths. JAX-traced (differentiable).
-    fermi_energy : Float[Array, " "]
+    fermi_energy : Float64[Array, " "]
         Fermi level energy in eV. A 0-D scalar array.
         JAX-traced (differentiable).
 
@@ -327,11 +327,11 @@ class SpinBandStructure(eqx.Module):
         float64 casting.
     """
 
-    eigenvalues_up: Float[Array, "K B"]
-    eigenvalues_down: Float[Array, "K B"]
-    kpoints: Float[Array, "K 3"]
-    kpoint_weights: Float[Array, " K"]
-    fermi_energy: Float[Array, " "]
+    eigenvalues_up: Float64[Array, "K B"]
+    eigenvalues_down: Float64[Array, "K B"]
+    kpoints: Float64[Array, "K 3"]
+    kpoint_weights: Float64[Array, " K"]
+    fermi_energy: Float64[Array, " "]
 
 
 @jaxtyped(typechecker=beartype)
@@ -429,19 +429,21 @@ def make_spin_band_structure(  # noqa: DOC503
     make_band_structure : Factory for single-spin-channel data.
     SpinBandStructure : The PyTree class constructed by this factory.
     """
-    up_arr: Float[Array, "K B"] = jnp.asarray(
+    up_arr: Float64[Array, "K B"] = jnp.asarray(
         eigenvalues_up, dtype=jnp.float64
     )
-    down_arr: Float[Array, "K B"] = jnp.asarray(
+    down_arr: Float64[Array, "K B"] = jnp.asarray(
         eigenvalues_down, dtype=jnp.float64
     )
-    kpts_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
+    kpts_arr: Float64[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
     nkpts: int = up_arr.shape[0]
     if kpoint_weights is None:
-        weights_arr: Float[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
+        weights_arr: Float64[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
     else:
         weights_arr = jnp.asarray(kpoint_weights, dtype=jnp.float64)
-    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    fermi_arr: Float64[Array, " "] = jnp.asarray(
+        fermi_energy, dtype=jnp.float64
+    )
 
     if up_arr.shape != down_arr.shape:
         raise ValueError(
@@ -518,9 +520,9 @@ class ArpesSpectrum(eqx.Module):
 
     Attributes
     ----------
-    intensity : Float[Array, "K E"]
+    intensity : Float64[Array, "K E"]
         Photoemission intensity for K k-points and E energies.
-    energy_axis : Float[Array, " E"]
+    energy_axis : Float64[Array, " E"]
         Energy axis values in eV.
 
     Notes
@@ -530,8 +532,8 @@ class ArpesSpectrum(eqx.Module):
     are differentiable leaves.
     """
 
-    intensity: Float[Array, "K E"]
-    energy_axis: Float[Array, " E"]
+    intensity: Float64[Array, "K E"]
+    energy_axis: Float64[Array, " E"]
 
 
 @jaxtyped(typechecker=beartype)
@@ -619,16 +621,20 @@ def make_band_structure(  # noqa: DOC503
     uses ``eqx.error_if`` and raises ``EquinoxRuntimeError`` for non-finite
     arrays or negative weights.
     """
-    eigenvalues_arr: Float[Array, "K B"] = jnp.asarray(
+    eigenvalues_arr: Float64[Array, "K B"] = jnp.asarray(
         eigenvalues, dtype=jnp.float64
     )
-    kpoints_arr: Float[Array, "K 3"] = jnp.asarray(kpoints, dtype=jnp.float64)
+    kpoints_arr: Float64[Array, "K 3"] = jnp.asarray(
+        kpoints, dtype=jnp.float64
+    )
     nkpts: int = eigenvalues_arr.shape[0]
     if kpoint_weights is None:
-        weights_arr: Float[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
+        weights_arr: Float64[Array, " K"] = jnp.ones(nkpts, dtype=jnp.float64)
     else:
         weights_arr = jnp.asarray(kpoint_weights, dtype=jnp.float64)
-    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    fermi_arr: Float64[Array, " "] = jnp.asarray(
+        fermi_energy, dtype=jnp.float64
+    )
 
     if kpoints_arr.shape[0] != nkpts:
         raise ValueError(
@@ -753,7 +759,7 @@ def make_orbital_projection(  # noqa: DOC503
     Traced validation uses ``eqx.error_if`` and raises
     ``EquinoxRuntimeError`` for non-finite arrays or negative projections.
     """
-    proj_arr: Float[Array, "K B A 9"] = jnp.asarray(
+    proj_arr: Float64[Array, "K B A 9"] = jnp.asarray(
         projections, dtype=jnp.float64
     )
     spin_arr: Optional[Float[Array, "K B A 6"]] = None
@@ -880,10 +886,10 @@ def make_arpes_spectrum(  # noqa: DOC503
     ``eqx.error_if`` and raises ``EquinoxRuntimeError`` for non-finite
     intensity or an energy axis that is not strictly increasing.
     """
-    intensity_arr: Float[Array, "K E"] = jnp.asarray(
+    intensity_arr: Float64[Array, "K E"] = jnp.asarray(
         intensity, dtype=jnp.float64
     )
-    energy_arr: Float[Array, " E"] = jnp.asarray(
+    energy_arr: Float64[Array, " E"] = jnp.asarray(
         energy_axis, dtype=jnp.float64
     )
 

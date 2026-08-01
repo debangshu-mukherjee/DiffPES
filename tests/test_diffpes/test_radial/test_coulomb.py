@@ -28,7 +28,7 @@ from diffpes.types import FinalStateSpec, make_final_state_spec
 
 
 def _reference() -> dict[str, Shaped[NDArray, "..."]]:
-    """Load the frozen 80-digit-generated G11/D11 artifact."""
+    """Load the frozen 80-digit Coulomb value and derivative artifact."""
     path: Path = (
         Path(__file__).with_name("data") / "coulomb_mpmath_80digit.npz"
     )
@@ -103,7 +103,7 @@ class TestCoulombFg:
         manifest: dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
-        assert manifest["schema"] == "diffpes.plan06.coulomb-reference.v2"
+        assert manifest["schema"] == "diffpes.coulomb-mpmath-reference.v2"
         assert manifest["reference_engine"]["decimal_digits"] == 80
         assert manifest["dense_value_residual_product"] == {
             "eta_count": 25,

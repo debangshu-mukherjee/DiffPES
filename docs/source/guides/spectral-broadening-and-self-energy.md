@@ -75,7 +75,7 @@ broadening conceptually separate.
 
 `band_group_weight_sensitivity` returns derivatives of the matrix-element
 weights before spectral, exposure, background, or detector factors. Expected
-detector counts begin in Plan 08.
+detector counts are not yet supported.
 
 ## Numerical Guidance
 

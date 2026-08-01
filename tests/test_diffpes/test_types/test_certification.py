@@ -1878,8 +1878,8 @@ class TestMakeRegistrationHandshake:
         The test compares the static owner and model reference fields.
         """
         factory: Any = getattr(diffpes.types, "make_registration_handshake")
-        result: Any = factory("plan-03", model_refs=("model@1.0.0",))
-        assert result.owner_id == "plan-03"
+        result: Any = factory("kinematics", model_refs=("model@1.0.0",))
+        assert result.owner_id == "kinematics"
         assert result.model_refs == ("model@1.0.0",)
 
 
@@ -1901,7 +1901,7 @@ class TestMakeHandshakeReport:
         The test checks both the Boolean leaf and static identity tuple.
         """
         factory: Any = getattr(diffpes.types, "make_handshake_report")
-        result: Any = factory("plan-03", False, ("evidence-03",))
+        result: Any = factory("kinematics", False, ("evidence-03",))
         assert not bool(result.complete)
         assert result.missing_ids == ("evidence-03",)
 

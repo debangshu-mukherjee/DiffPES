@@ -1,4 +1,4 @@
-"""Generate the independent Plan-07 G2/D1 Voigt evidence artifacts.
+"""Generate independent SciPy Voigt value and derivative evidence artifacts.
 
 The generator uses only NumPy and SciPy for numerical truth.  In particular,
 it does not import DiffPES or evaluate either production target.  The novice
@@ -190,7 +190,7 @@ NOVICE_SIGMA: float = 0.04
 NOVICE_GAMMA: float = 0.1
 NOVICE_TEMPERATURE: float = 15.0
 KB_EV_PER_K: float = 8.617333e-5
-HISTORICAL_PLAN02_SHA256: str = (
+HISTORICAL_PSEUDO_VOIGT_SHA256: str = (
     "7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f"
 )
 
@@ -336,11 +336,11 @@ def _one_sided_payload() -> dict[str, np.ndarray]:
         raise RuntimeError("one-sided endpoint differences are not decreasing")
     if not np.all((ratios[0] >= 15.5) & (ratios[0] <= 16.5)):
         raise RuntimeError(
-            "sigma-to-zero convergence rate is outside its gate"
+            "sigma-to-zero convergence rate is outside its bound"
         )
     if not np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1)):
         raise RuntimeError(
-            "gamma-to-zero convergence rate is outside its gate"
+            "gamma-to-zero convergence rate is outside its bound"
         )
     return {
         "onesided_differences": differences,
@@ -410,9 +410,9 @@ def _normalization_payload() -> dict[str, np.ndarray]:
     if np.any(maximum_z[:6] > 1.0e8):
         raise RuntimeError("normalization nodes leave the Faddeeva envelope")
     if np.any(np.abs(masses - 1.0) > 2.0e-10):
-        raise RuntimeError("normalization mass leaves its absolute gate")
+        raise RuntimeError("normalization mass leaves its absolute bound")
     if np.any(np.abs(masses[:, 1] - masses[:, 0]) > 2.0e-10):
-        raise RuntimeError("normalization order delta leaves its gate")
+        raise RuntimeError("normalization order delta leaves its bound")
     return {
         "normalization_masses": masses,
         "normalization_maximum_z": maximum_z,
@@ -565,9 +565,13 @@ def _d1_payload() -> dict[str, np.ndarray]:
     spread: np.ndarray = np.ptp(finite_difference, axis=1)
     tolerance: np.ndarray = 2.0e-10 + 1.0e-6 * np.abs(contracted)
     if np.any(np.abs(median - contracted) > tolerance):
-        raise RuntimeError("D1 five-point median leaves the analytic gate")
+        raise RuntimeError(
+            "five-point derivative median leaves the analytic bound"
+        )
     if np.any(spread > tolerance):
-        raise RuntimeError("D1 five-point spread leaves the analytic gate")
+        raise RuntimeError(
+            "five-point derivative spread leaves the analytic bound"
+        )
     if np.any(np.abs(contracted) <= 1.0e-4):
         raise RuntimeError("D1 contracted coordinate lacks sensitivity")
     return {
@@ -637,31 +641,29 @@ def main() -> None:
     root: Path = Path(__file__).resolve().parents[2]
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
     data_directory.mkdir(parents=True, exist_ok=True)
-    reference_path: Path = data_directory / "plan07_voigt_scipy_reference.npz"
-    novice_path: Path = data_directory / "novice_toy_plan07_true_voigt.npz"
-    historical_path: Path = (
-        data_directory / "novice_toy_plan02_pseudo_voigt.npz"
-    )
-    manifest_path: Path = data_directory / "plan07_voigt_manifest.json"
+    reference_path: Path = data_directory / "voigt_scipy_reference.npz"
+    novice_path: Path = data_directory / "novice_toy_true_voigt.npz"
+    historical_path: Path = data_directory / "novice_toy_pseudo_voigt.npz"
+    manifest_path: Path = data_directory / "voigt_scipy_manifest.json"
 
     reference_payload: dict[str, np.ndarray] = _reference_payload()
     novice_payload: dict[str, np.ndarray] = _novice_payload()
     _write_deterministic_npz(reference_path, reference_payload)
     _write_deterministic_npz(novice_path, novice_payload)
-    if _sha256(historical_path) != HISTORICAL_PLAN02_SHA256:
-        raise RuntimeError("historical Plan-02 archive digest changed")
+    if _sha256(historical_path) != HISTORICAL_PSEUDO_VOIGT_SHA256:
+        raise RuntimeError("historical pseudo-Voigt archive digest changed")
 
     generator_path: Path = Path(__file__).resolve()
     manifest: dict[str, Any] = {
         "archives": {
-            "historical_plan02": {
+            "historical_pseudo_voigt": {
                 "classification": (
                     "superseded pseudo-Voigt evidence; not a compatibility shim"
                 ),
                 "filename": historical_path.name,
                 "sha256": _sha256(historical_path),
             },
-            "novice_plan07": {
+            "novice_true_voigt": {
                 "filename": novice_path.name,
                 "sha256": _sha256(novice_path),
             },
@@ -684,9 +686,9 @@ def main() -> None:
             "python": platform.python_version(),
             "scipy": scipy.__version__,
         },
-        "gates": ["07.G2", "07.D1"],
+        "gates": ["voigt-scipy-reference", "spectral-broadening-gradient"],
         "generator": (
-            "tests/_reference_tools/generate_plan07_voigt_reference.py"
+            "tests/_reference_tools/generate_voigt_scipy_reference.py"
         ),
         "generator_sha256": _sha256(generator_path),
         "normalization": {
@@ -708,8 +710,8 @@ def main() -> None:
             "name": "scipy.special",
             "value_function": "voigt_profile",
         },
-        "schema": "diffpes.plan07.voigt-reference.v1",
-        "stage": "preregistered-before-WP7.2-production-edit",
+        "schema": "diffpes.voigt-scipy-reference.v1",
+        "stage": "preregistered-before-true-voigt-production-edit",
         "value_bounds": {
             "endpoint": "5e-15/nonzero_width + 1e-12*abs(reference)",
             "positive": ("2e-15/(sigma*sqrt(2*pi)) + 1e-10*abs(reference)"),

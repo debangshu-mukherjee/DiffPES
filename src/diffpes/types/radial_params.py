@@ -48,7 +48,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 _ARRAY_MATRIX_NDIM: int = 2
 _MIN_COMPACT_GRID_POINTS: int = 3
@@ -155,7 +155,7 @@ def _slater_norm_squared(
     effective_principal: float,
 ) -> Float[Array, ""]:
     """Return the analytic radial norm of one contracted STO row."""
-    gamma_value: Float[Array, ""] = jnp.asarray(
+    gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
         dtype=jnp.float64,
     )
@@ -417,17 +417,17 @@ class RadialSpec(eqx.Module):
 
     Attributes
     ----------
-    zeta_shell : Float[Array, "n_shell n_contraction"]
+    zeta_shell : Float64[Array, "n_shell n_contraction"]
         Slater exponents in inverse Bohr.
-    coefficients_shell : Float[Array, "n_shell n_contraction"]
+    coefficients_shell : Float64[Array, "n_shell n_contraction"]
         Real contraction coefficients.
-    effective_charge_shell : Float[Array, "n_shell"]
+    effective_charge_shell : Float64[Array, "n_shell"]
         Hydrogenic effective charges in elementary-charge units.
-    r_grid : Optional[Float[Array, "n_r"]]
+    r_grid : Optional[Float64[Array, "n_r"]]
         Uniform compact-support grid for ``mode="grid"``.
-    grid_values_shell : Optional[Float[Array, "n_shell n_r"]]
+    grid_values_shell : Optional[Float64[Array, "n_shell n_r"]]
         Sampled compact-support radial rows.
-    fixed_integrals_shell : Optional[Float[Array, "n_shell 2"]]
+    fixed_integrals_shell : Optional[Float64[Array, "n_shell 2"]]
         Real phase-free fixed radial integrals for the ``l-1`` and ``l+1``
         channels.
     radial_shell_index : tuple[int, ...]
@@ -447,12 +447,12 @@ class RadialSpec(eqx.Module):
     rows at construction and excludes radial phases.
     """
 
-    zeta_shell: Float[Array, "n_shell n_contraction"]
-    coefficients_shell: Float[Array, "n_shell n_contraction"]
-    effective_charge_shell: Float[Array, " n_shell"]
-    r_grid: Optional[Float[Array, " n_r"]]
-    grid_values_shell: Optional[Float[Array, "n_shell n_r"]]
-    fixed_integrals_shell: Optional[Float[Array, "n_shell 2"]]
+    zeta_shell: Float64[Array, "n_shell n_contraction"]
+    coefficients_shell: Float64[Array, "n_shell n_contraction"]
+    effective_charge_shell: Float64[Array, " n_shell"]
+    r_grid: Optional[Float64[Array, " n_r"]]
+    grid_values_shell: Optional[Float64[Array, "n_shell n_r"]]
+    fixed_integrals_shell: Optional[Float64[Array, "n_shell 2"]]
     radial_shell_index: tuple[int, ...] = eqx.field(static=True)
     basis: OrbitalBasis = eqx.field(static=True)
     mode: str = eqx.field(static=True)
@@ -492,9 +492,9 @@ class MatrixElementParams(eqx.Module):
 
     Attributes
     ----------
-    sigma_shell : Float[Array, "n_shell"]
+    sigma_shell : Float64[Array, "n_shell"]
         Real shell amplitude scales.
-    phase_shift_angles_shell : Float[Array, " n_valid_phase"]
+    phase_shift_angles_shell : Float64[Array, " n_valid_phase"]
         Final-state phase angles for exactly the physical channels.
     phase_channel_keys : tuple[tuple[int, int], ...]
         Compact ``(radial_shell, l_prime)`` coordinate keys (**static**).
@@ -504,8 +504,8 @@ class MatrixElementParams(eqx.Module):
         Orbital metadata (**static**).
     """
 
-    sigma_shell: Float[Array, " n_shell"]
-    phase_shift_angles_shell: Float[Array, " n_valid_phase"]
+    sigma_shell: Float64[Array, " n_shell"]
+    phase_shift_angles_shell: Float64[Array, " n_valid_phase"]
     phase_channel_keys: tuple[tuple[int, int], ...] = eqx.field(static=True)
     radial_shell_index: tuple[int, ...] = eqx.field(static=True)
     basis: OrbitalBasis = eqx.field(static=True)
@@ -642,7 +642,7 @@ class FinalStateSpec(eqx.Module):
 
     Attributes
     ----------
-    effective_charge : Float[Array, ""]
+    effective_charge : Float64[Array, ""]
         Coulomb effective charge in elementary-charge units.
     mode : str
         ``"plane_wave"`` or ``"coulomb"`` (**static**).
@@ -653,7 +653,7 @@ class FinalStateSpec(eqx.Module):
         Registered Hermite table size (**static**).
     """
 
-    effective_charge: Float[Array, ""]
+    effective_charge: Float64[Array, ""]
     mode: str = eqx.field(static=True)
     radial_accelerator: str = eqx.field(static=True)
     table_n_points: int = eqx.field(static=True)
@@ -718,7 +718,7 @@ class SlaterKosterParams(eqx.Module):
 
     Attributes
     ----------
-    values : Float[Array, " n_sk"]
+    values : Float64[Array, " n_sk"]
         Fundamental two-center hopping integrals in eV. These values remain
         differentiable JAX leaves.
     keys : tuple[str, ...]
@@ -736,7 +736,7 @@ class SlaterKosterParams(eqx.Module):
     make_slater_koster_params : Validating factory for this carrier.
     """
 
-    values: Float[Array, " n_sk"]
+    values: Float64[Array, " n_sk"]
     keys: tuple[str, ...] = eqx.field(static=True)
 
     def __check_init__(self) -> None:
@@ -953,7 +953,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         raise ValueError(message)
 
     if zeta_shell is None:
-        zeta_array: Float[Array, "n_shell n_contraction"] = jnp.ones(
+        zeta_array: Float64[Array, "n_shell n_contraction"] = jnp.ones(
             (n_shells, 1),
             dtype=jnp.float64,
         )
@@ -969,7 +969,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             dtype=jnp.float64,
         )
     if effective_charge_shell is None:
-        charge_array: Float[Array, " n_shell"] = jnp.ones(
+        charge_array: Float64[Array, " n_shell"] = jnp.ones(
             (n_shells,),
             dtype=jnp.float64,
         )
@@ -1134,7 +1134,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         ):
             message = "hydrogenic mode is certified only through n=7"
             raise ValueError(message)
-        principal_array: Float[Array, " n_shell"] = jnp.asarray(
+        principal_array: Float64[Array, " n_shell"] = jnp.asarray(
             tuple(basis.n[index] for index in representatives),
             dtype=jnp.float64,
         )
@@ -1208,7 +1208,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         basis,
         radial_shell_index,
     )
-    sigma_array: Float[Array, " n_shell"] = (
+    sigma_array: Float64[Array, " n_shell"] = (
         jnp.ones((n_shells,), dtype=jnp.float64)
         if sigma_shell is None
         else jnp.asarray(sigma_shell, dtype=jnp.float64)
@@ -1219,7 +1219,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
             radial_shell_index,
         )
     )
-    phase_array: Float[Array, " n_valid_phase"] = (
+    phase_array: Float64[Array, " n_valid_phase"] = (
         jnp.zeros((len(phase_channel_keys),), dtype=jnp.float64)
         if phase_shift_angles_shell is None
         else jnp.asarray(phase_shift_angles_shell, dtype=jnp.float64)
@@ -1376,7 +1376,7 @@ def make_final_state_spec(  # noqa: DOC503
     if mode == "coulomb" and radial_accelerator != "direct":
         message = "coulomb final states require direct radial evaluation"
         raise ValueError(message)
-    charge: Float[Array, ""] = jnp.asarray(
+    charge: Float64[Array, ""] = jnp.asarray(
         effective_charge,
         dtype=jnp.float64,
     )
@@ -1443,7 +1443,7 @@ def make_slater_koster_params(  # noqa: DOC502, DOC503
     --------
     SlaterKosterParams : Carrier constructed by this factory.
     """
-    value_array: Float[Array, " n_sk"] = jnp.asarray(
+    value_array: Float64[Array, " n_sk"] = jnp.asarray(
         values,
         dtype=jnp.float64,
     )

@@ -24,7 +24,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, TextIO, Union
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -84,7 +84,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
     2. **Allocate and populate the total-DOS table**::
 
-           data: Float[NDArray, "E C"] = np.zeros(
+           data: Float64[NDArray, "E C"] = np.zeros(
                (nedos, ncols), dtype=np.float64
            )
 
@@ -139,7 +139,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
         first_line: str = fid.readline()
         first_vals: list[float] = [float(x) for x in first_line.split()]
         ncols: int = len(first_vals)
-        data: Float[NDArray, "E C"] = np.zeros(
+        data: Float64[NDArray, "E C"] = np.zeros(
             (nedos, ncols), dtype=np.float64
         )
         data[0, :] = first_vals
@@ -149,10 +149,10 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
         dos: DensityOfStates | FullDensityOfStates
         if return_mode == "legacy":
-            energy: Float[Array, " E"] = jnp.asarray(
+            energy: Float64[Array, " E"] = jnp.asarray(
                 data[:, 0], dtype=jnp.float64
             )
-            total_dos: Float[Array, " E"] = jnp.asarray(
+            total_dos: Float64[Array, " E"] = jnp.asarray(
                 data[:, 1], dtype=jnp.float64
             )
             dos = make_density_of_states(
@@ -163,15 +163,15 @@ def read_doscar(  # noqa: PLR0912, PLR0915
             return dos
 
         is_spin: bool = ncols == SPIN_COLS
-        energy_arr: Float[Array, " E"] = jnp.asarray(
+        energy_arr: Float64[Array, " E"] = jnp.asarray(
             data[:, 0], dtype=jnp.float64
         )
-        dos_up_arr: Float[Array, " E"] = jnp.asarray(
+        dos_up_arr: Float64[Array, " E"] = jnp.asarray(
             data[:, 1], dtype=jnp.float64
         )
-        dos_down_arr: Optional[Float[Array, " E"]] = None
-        int_up_arr: Float[Array, " E"]
-        int_down_arr: Optional[Float[Array, " E"]] = None
+        dos_down_arr: Optional[Float64[Array, " E"]] = None
+        int_up_arr: Float64[Array, " E"]
+        int_down_arr: Optional[Float64[Array, " E"]] = None
 
         if is_spin:
             dos_down_arr = jnp.asarray(data[:, 2], dtype=jnp.float64)
@@ -180,8 +180,8 @@ def read_doscar(  # noqa: PLR0912, PLR0915
         else:
             int_up_arr = jnp.asarray(data[:, 2], dtype=jnp.float64)
 
-        pdos_arr: Optional[Float[Array, "A E C"]] = None
-        pdos_blocks: list[Float[NDArray, "E C"]] = []
+        pdos_arr: Optional[Float64[Array, "A E C"]] = None
+        pdos_blocks: list[Float64[NDArray, "E C"]] = []
         for _atom in range(natoms):
             line: str = fid.readline()
             if not line or not line.strip():
@@ -195,7 +195,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
                     float(x) for x in pdos_ncols_check.split()
                 ]
                 pdos_ncols: int = len(pdos_first)
-                atom_data: Float[NDArray, "E C"] = np.zeros(
+                atom_data: Float64[NDArray, "E C"] = np.zeros(
                     (nedos, pdos_ncols), dtype=np.float64
                 )
                 atom_data[0, :] = pdos_first

@@ -1,4 +1,4 @@
-"""Certify Plan 06 G3 against a frozen exact SymPy real-Gaunt table.
+"""Certify real-Gaunt coefficients against a frozen exact SymPy table.
 
 The tests compare every dense physical coordinate and preserve the offline
 generator version and authority metadata.
@@ -17,11 +17,11 @@ from diffpes.maths.gaunt import gaunt_lookup
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
     / "_reference_data"
-    / "plan06_real_gaunt_sympy_reference.csv"
+    / "real_gaunt_sympy_reference.csv"
 )
 
 
-class TestPlan06SympyGauntReference:
+class TestSympyGauntReference:
     """Compare the complete production domain with independent exact values."""
 
     def test_dense_table_matches_exact_sympy_authority(self) -> None:

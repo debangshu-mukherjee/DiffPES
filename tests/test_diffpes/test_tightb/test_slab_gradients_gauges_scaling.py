@@ -1,6 +1,6 @@
-"""Certify Plan-05 differentiation, gauge, and slab-scale execution gates.
+"""Certify slab differentiation, gauge invariance, and scale bounds.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from collections.abc import Callable
@@ -192,7 +192,7 @@ def _spectral_loss(parameters: Array, topology: SlabTopology) -> Array:
 
 
 def _group_trace_loss(parameters: Array, topology: SlabTopology) -> Array:
-    """Return the isolated fixed-group component of the D1 loss."""
+    """Return the isolated fixed-group component of the depth-gradient loss."""
     slab: TBModel
     slab, _ = rebuild_slab(_complex_soc_bulk(parameters), topology)
     k_x: Array = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
@@ -378,14 +378,14 @@ def _collect_shapes(value: object, shapes: list[tuple[int, ...]]) -> None:
             _collect_shapes(item, shapes)
 
 
-class TestPlan05Differentiability:
-    """Certify D1 and D4 with finite differences and nonzero tripwires."""
+class TestSlabDifferentiability:
+    """Certify depth and structural gradients with finite differences and nonzero tripwires."""
 
     @pytest.mark.rss_limit_mb(1536)
     def test_generic_complex_soc_slab_gradient_gate(self) -> None:
         """Match fwd/rev/FD for every active hopping and SOC coordinate.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -415,9 +415,9 @@ class TestPlan05Differentiability:
         self,
         observable: str,
     ) -> None:
-        """Match D2 fwd/rev/FD for spacing, rotation, and slab depths.
+        """Match forward, reverse, and finite-difference slab rebuild gradients.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -465,9 +465,9 @@ class TestPlan05Differentiability:
         )
 
     def test_group_trace_probe_depth_gradient_and_small_guard(self) -> None:
-        """Match D4 FD evidence and keep the 1e-8-A probe finite.
+        """Match structural finite-difference evidence and keep the 1e-8-A probe finite.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -511,8 +511,8 @@ class TestPlan05Differentiability:
         assert jnp.isfinite(small_gradient)
 
 
-class TestPlan05GaugeInvariance:
-    """Certify D5 under random phases and complete-group unitaries."""
+class TestSlabGaugeInvariance:
+    """Certify gauge invariance under random phases and complete-group unitaries."""
 
     @pytest.mark.parametrize("seed", (7, 19, 43))
     def test_random_phases_and_u2_preserve_complete_trace(
@@ -521,7 +521,7 @@ class TestPlan05GaugeInvariance:
     ) -> None:
         """Verify per-vector changes preserve an isolated U(2) sum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -587,7 +587,7 @@ class TestPlan05GaugeInvariance:
     def test_random_u3_preserves_full_trace(self, seed: int) -> None:
         """Preserve the complete U(3) trace while rejecting a partial group.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -627,14 +627,14 @@ class TestPlan05GaugeInvariance:
         )
 
 
-class TestPlan05SlabScaling:
-    """Certify S1/S2 using bounded execution and static-shape evidence."""
+class TestSlabScaling:
+    """Certify bounded execution and static-shape evidence."""
 
     @pytest.mark.rss_limit_mb(1024)
     def test_chunked_values_and_remat_grad_match_nonchunked(self) -> None:
         """Match values and gradients on a generated three-layer slab.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -679,7 +679,7 @@ class TestPlan05SlabScaling:
     def test_jaxpr_has_no_full_k_hamiltonian(self) -> None:
         """Keep the dense Hamiltonian live axis bounded by the chunk size.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -709,7 +709,7 @@ class TestPlan05SlabScaling:
     ) -> None:
         """Reuse one padded shape and retrace exactly once for a new design.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -802,7 +802,7 @@ class TestPlan05SlabScaling:
     def test_rejects_invalid_chunk_contract(self, chunk_size: int) -> None:
         """Reject nonpositive or non-dividing static chunk sizes.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

@@ -1,4 +1,4 @@
-"""Rejected opposite-parity Maclaurin KK control for the Plan 07 spike.
+"""Rejected opposite-parity Maclaurin control for the Kramers--Kronig study.
 
 This module deliberately reproduces the path rejected by the 2026-07-29
 amendment.  It first transforms point samples at the core-grid nodes and then

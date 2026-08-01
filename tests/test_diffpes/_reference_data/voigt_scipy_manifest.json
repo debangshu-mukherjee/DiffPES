@@ -1,16 +1,16 @@
 {
   "archives": {
-    "historical_plan02": {
+    "historical_pseudo_voigt": {
       "classification": "superseded pseudo-Voigt evidence; not a compatibility shim",
-      "filename": "novice_toy_plan02_pseudo_voigt.npz",
+      "filename": "novice_toy_pseudo_voigt.npz",
       "sha256": "7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f"
     },
-    "novice_plan07": {
-      "filename": "novice_toy_plan07_true_voigt.npz",
+    "novice_true_voigt": {
+      "filename": "novice_toy_true_voigt.npz",
       "sha256": "ca410005c45faa46ca9e9a7bc949e7954fafdaf494b391bec8cd30bddac50440"
     },
     "voigt_reference": {
-      "filename": "plan07_voigt_scipy_reference.npz",
+      "filename": "voigt_scipy_reference.npz",
       "sha256": "43b1b38836fb2cabf683423a8315b7bf2ca2c11a03cab5ec31a4ede7471c29d0"
     }
   },
@@ -34,11 +34,11 @@
     "scipy": "1.17.1"
   },
   "gates": [
-    "07.G2",
-    "07.D1"
+    "voigt-scipy-reference",
+    "spectral-broadening-gradient"
   ],
-  "generator": "tests/_reference_tools/generate_plan07_voigt_reference.py",
-  "generator_sha256": "cf5b8927dac24c42a0cec6ed5a95171b78c981110bae06d8c940c8ee399f27b1",
+  "generator": "tests/_reference_tools/generate_voigt_scipy_reference.py",
+  "generator_sha256": "4a7a2493b5b1e8aec351ac53a0366a25f76df213eadd48aa9432d99e0892b84f",
   "normalization": {
     "absolute_mass_bound": 2e-10,
     "map": "E=c+s*tan(pi*u/2)",
@@ -59,8 +59,8 @@
     "name": "scipy.special",
     "value_function": "voigt_profile"
   },
-  "schema": "diffpes.plan07.voigt-reference.v1",
-  "stage": "preregistered-before-WP7.2-production-edit",
+  "schema": "diffpes.voigt-scipy-reference.v1",
+  "stage": "preregistered-before-true-voigt-production-edit",
   "value_bounds": {
     "endpoint": "5e-15/nonzero_width + 1e-12*abs(reference)",
     "positive": "2e-15/(sigma*sqrt(2*pi)) + 1e-10*abs(reference)"

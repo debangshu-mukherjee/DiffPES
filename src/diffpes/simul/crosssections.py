@@ -34,7 +34,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Bool, Float, Int, jaxtyped
+from jaxtyping import Array, Bool, Float64, Int16, Int32, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import OrbitalBasis, ScalarFloat
@@ -42,10 +42,10 @@ from diffpes.types import OrbitalBasis, ScalarFloat
 
 @cache
 def _load_data() -> tuple[
-    Int[NDArray, " n_row_plus_one"],
-    Float[NDArray, " n_packed"],
-    Float[NDArray, " n_packed"],
-    Float[NDArray, " n_packed"],
+    Int32[NDArray, " n_row_plus_one"],
+    Float64[NDArray, " n_packed"],
+    Float64[NDArray, " n_packed"],
+    Float64[NDArray, " n_packed"],
     dict[tuple[int, int, int], int],
 ]:
     """Load and cache the immutable packed table arrays."""
@@ -55,21 +55,21 @@ def _load_data() -> tuple[
     )
     archive: np.lib.npyio.NpzFile
     with np.load(data_resource) as archive:
-        keys: Int[NDArray, "n_row 3"] = np.asarray(
+        keys: Int16[NDArray, "n_row 3"] = np.asarray(
             archive["keys"], dtype=np.int16
         )
-        offsets: Int[NDArray, " n_row_plus_one"] = np.asarray(
+        offsets: Int32[NDArray, " n_row_plus_one"] = np.asarray(
             archive["offsets"], dtype=np.int32
         )
-        energy_nodes: Float[NDArray, " n_packed"] = np.asarray(
+        energy_nodes: Float64[NDArray, " n_packed"] = np.asarray(
             archive["photon_energy_ev"],
             dtype=np.float64,
         )
-        sigma_nodes: Float[NDArray, " n_packed"] = np.asarray(
+        sigma_nodes: Float64[NDArray, " n_packed"] = np.asarray(
             archive["sigma_megabarn"],
             dtype=np.float64,
         )
-        log_slopes: Float[NDArray, " n_packed"] = np.asarray(
+        log_slopes: Float64[NDArray, " n_packed"] = np.asarray(
             archive["log_slopes"],
             dtype=np.float64,
         )
@@ -78,10 +78,10 @@ def _load_data() -> tuple[
         for index, key in enumerate(keys)
     }
     loaded: tuple[
-        Int[NDArray, " n_row_plus_one"],
-        Float[NDArray, " n_packed"],
-        Float[NDArray, " n_packed"],
-        Float[NDArray, " n_packed"],
+        Int32[NDArray, " n_row_plus_one"],
+        Float64[NDArray, " n_packed"],
+        Float64[NDArray, " n_packed"],
+        Float64[NDArray, " n_packed"],
         dict[tuple[int, int, int], int],
     ] = (
         offsets,
@@ -104,7 +104,7 @@ def _table_slice(
         principal_quantum_number,
         angular_momentum,
     )
-    offsets: Int[NDArray, " n_row_plus_one"]
+    offsets: Int32[NDArray, " n_row_plus_one"]
     key_to_row: dict[tuple[int, int, int], int]
     offsets, _, _, _, key_to_row = _load_data()
     if key not in key_to_row:
@@ -127,9 +127,9 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
     n: int,
     l: int,  # noqa: E741
 ) -> tuple[
-    Float[NDArray, " node"],
-    Float[NDArray, " node"],
-    Float[NDArray, " node"],
+    Float64[NDArray, " node"],
+    Float64[NDArray, " node"],
+    Float64[NDArray, " node"],
 ]:
     """Return one raw Yeh--Lindau subshell row.
 
@@ -157,11 +157,11 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
 
     Returns
     -------
-    photon_energy_ev : Float[NDArray, " node"]
+    photon_energy_ev : Float64[NDArray, " node"]
         Published photon-energy nodes in eV.
-    sigma_megabarn : Float[NDArray, " node"]
+    sigma_megabarn : Float64[NDArray, " node"]
         Published cross sections in megabarn, preserving missing values.
-    log_slopes : Float[NDArray, " node"]
+    log_slopes : Float64[NDArray, " node"]
         Precomputed PCHIP derivatives of ``log(sigma)`` with respect to
         ``log(photon_energy)``. Unsupported nodes contain ``NaN``.
 
@@ -171,19 +171,19 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
         If the element/subshell key is not included in the manifest.
     """
     table_slice: slice = _table_slice(atomic_number, n, l)
-    energy_nodes: Float[NDArray, " n_packed"]
-    sigma_nodes: Float[NDArray, " n_packed"]
-    slope_nodes: Float[NDArray, " n_packed"]
+    energy_nodes: Float64[NDArray, " n_packed"]
+    sigma_nodes: Float64[NDArray, " n_packed"]
+    slope_nodes: Float64[NDArray, " n_packed"]
     _, energy_nodes, sigma_nodes, slope_nodes, _ = _load_data()
-    photon_energy_ev: Float[NDArray, " node"] = energy_nodes[
+    photon_energy_ev: Float64[NDArray, " node"] = energy_nodes[
         table_slice
     ].copy()
-    sigma_megabarn: Float[NDArray, " node"] = sigma_nodes[table_slice].copy()
-    log_slopes: Float[NDArray, " node"] = slope_nodes[table_slice].copy()
+    sigma_megabarn: Float64[NDArray, " node"] = sigma_nodes[table_slice].copy()
+    log_slopes: Float64[NDArray, " node"] = slope_nodes[table_slice].copy()
     table: tuple[
-        Float[NDArray, " node"],
-        Float[NDArray, " node"],
-        Float[NDArray, " node"],
+        Float64[NDArray, " node"],
+        Float64[NDArray, " node"],
+        Float64[NDArray, " node"],
     ] = (
         photon_energy_ev,
         sigma_megabarn,
@@ -193,19 +193,19 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
 
 
 def _interval_index(
-    photon_energy_ev: Float[Array, ""],
-    energy_nodes: Float[Array, " node"],
-    sigma_nodes: Float[Array, " node"],
-    slope_nodes: Float[Array, " node"],
-) -> tuple[Int[Array, ""], Float[Array, ""]]:
+    photon_energy_ev: Float64[Array, ""],
+    energy_nodes: Float64[Array, " node"],
+    sigma_nodes: Float64[Array, " node"],
+    slope_nodes: Float64[Array, " node"],
+) -> tuple[Int32[Array, ""], Float64[Array, ""]]:
     """Select a positive interval, including either exact endpoint."""
     count: int = energy_nodes.shape[0]
-    right_index: Int[Array, ""] = jnp.clip(
+    right_index: Int32[Array, ""] = jnp.clip(
         jnp.searchsorted(energy_nodes, photon_energy_ev, side="right") - 1,
         0,
         count - 2,
     )
-    left_index: Int[Array, ""] = jnp.clip(right_index - 1, 0, count - 2)
+    left_index: Int32[Array, ""] = jnp.clip(right_index - 1, 0, count - 2)
 
     def interval_valid(index: Array) -> Bool[Array, ""]:
         is_valid: Bool[Array, ""] = (
@@ -222,18 +222,18 @@ def _interval_index(
 
     right_valid: Bool[Array, ""] = interval_valid(right_index)
     left_valid: Bool[Array, ""] = interval_valid(left_index)
-    selected_index: Int[Array, ""] = jnp.where(
+    selected_index: Int32[Array, ""] = jnp.where(
         right_valid,
         right_index,
         left_index,
     )
     valid: Bool[Array, ""] = right_valid | left_valid
-    checked_energy: Float[Array, ""] = eqx.error_if(
+    checked_energy: Float64[Array, ""] = eqx.error_if(
         photon_energy_ev,
         ~valid,
         "photon energy lies outside the positive Yeh--Lindau intervals",
     )
-    selected: tuple[Int[Array, ""], Float[Array, ""]] = (
+    selected: tuple[Int32[Array, ""], Float64[Array, ""]] = (
         selected_index,
         checked_energy,
     )
@@ -246,7 +246,7 @@ def yeh_lindau_cross_section(  # noqa: DOC502
     atomic_number: int,
     n: int,
     l: int,  # noqa: E741
-) -> Float[Array, ""]:
+) -> Float64[Array, ""]:
     """Interpolate an atomic subshell photoionization cross section.
 
     The interpolation is a monotone PCHIP-type cubic in
@@ -273,7 +273,7 @@ def yeh_lindau_cross_section(  # noqa: DOC502
 
     Returns
     -------
-    sigma_megabarn : Float[Array, ""]
+    sigma_megabarn : Float64[Array, ""]
         Interpolated subshell cross section in megabarn.
 
     Raises
@@ -283,46 +283,46 @@ def yeh_lindau_cross_section(  # noqa: DOC502
         interval.
     """
     table_slice: slice = _table_slice(atomic_number, n, l)
-    energy_data: Float[NDArray, " n_packed"]
-    sigma_data: Float[NDArray, " n_packed"]
-    slope_data: Float[NDArray, " n_packed"]
+    energy_data: Float64[NDArray, " n_packed"]
+    sigma_data: Float64[NDArray, " n_packed"]
+    slope_data: Float64[NDArray, " n_packed"]
     _, energy_data, sigma_data, slope_data, _ = _load_data()
-    energy_nodes: Float[Array, " node"] = jnp.asarray(
+    energy_nodes: Float64[Array, " node"] = jnp.asarray(
         energy_data[table_slice],
         dtype=jnp.float64,
     )
-    sigma_nodes: Float[Array, " node"] = jnp.asarray(
+    sigma_nodes: Float64[Array, " node"] = jnp.asarray(
         sigma_data[table_slice],
         dtype=jnp.float64,
     )
-    slope_nodes: Float[Array, " node"] = jnp.asarray(
+    slope_nodes: Float64[Array, " node"] = jnp.asarray(
         slope_data[table_slice],
         dtype=jnp.float64,
     )
-    energy: Float[Array, ""] = jnp.asarray(
+    energy: Float64[Array, ""] = jnp.asarray(
         photon_energy_ev,
         dtype=jnp.float64,
     )
-    interval_index: Int[Array, ""]
-    checked_energy: Float[Array, ""]
+    interval_index: Int32[Array, ""]
+    checked_energy: Float64[Array, ""]
     interval_index, checked_energy = _interval_index(
         energy,
         energy_nodes,
         sigma_nodes,
         slope_nodes,
     )
-    x_value: Float[Array, ""] = jnp.log(checked_energy)
-    x_left: Float[Array, ""] = jnp.log(energy_nodes[interval_index])
-    x_right: Float[Array, ""] = jnp.log(energy_nodes[interval_index + 1])
-    width: Float[Array, ""] = x_right - x_left
-    fraction: Float[Array, ""] = (x_value - x_left) / width
-    fraction_squared: Float[Array, ""] = fraction * fraction
-    fraction_cubed: Float[Array, ""] = fraction_squared * fraction
-    value_left: Float[Array, ""] = jnp.log(sigma_nodes[interval_index])
-    value_right: Float[Array, ""] = jnp.log(sigma_nodes[interval_index + 1])
-    slope_left: Float[Array, ""] = slope_nodes[interval_index]
-    slope_right: Float[Array, ""] = slope_nodes[interval_index + 1]
-    log_sigma: Float[Array, ""] = (
+    x_value: Float64[Array, ""] = jnp.log(checked_energy)
+    x_left: Float64[Array, ""] = jnp.log(energy_nodes[interval_index])
+    x_right: Float64[Array, ""] = jnp.log(energy_nodes[interval_index + 1])
+    width: Float64[Array, ""] = x_right - x_left
+    fraction: Float64[Array, ""] = (x_value - x_left) / width
+    fraction_squared: Float64[Array, ""] = fraction * fraction
+    fraction_cubed: Float64[Array, ""] = fraction_squared * fraction
+    value_left: Float64[Array, ""] = jnp.log(sigma_nodes[interval_index])
+    value_right: Float64[Array, ""] = jnp.log(sigma_nodes[interval_index + 1])
+    slope_left: Float64[Array, ""] = slope_nodes[interval_index]
+    slope_right: Float64[Array, ""] = slope_nodes[interval_index + 1]
+    log_sigma: Float64[Array, ""] = (
         (2.0 * fraction_cubed - 3.0 * fraction_squared + 1.0) * value_left
         + (fraction_cubed - 2.0 * fraction_squared + fraction)
         * width
@@ -330,7 +330,7 @@ def yeh_lindau_cross_section(  # noqa: DOC502
         + (-2.0 * fraction_cubed + 3.0 * fraction_squared) * value_right
         + (fraction_cubed - fraction_squared) * width * slope_right
     )
-    sigma_megabarn: Float[Array, ""] = jnp.exp(log_sigma)
+    sigma_megabarn: Float64[Array, ""] = jnp.exp(log_sigma)
     return sigma_megabarn
 
 
@@ -339,7 +339,7 @@ def yeh_lindau_orbital_weights(
     photon_energy_ev: ScalarFloat,
     basis: OrbitalBasis,
     atomic_numbers: tuple[int, ...],
-) -> Float[Array, " n_orb"]:
+) -> Float64[Array, " n_orb"]:
     """Return Yeh--Lindau weights for every orbital in a basis.
 
     The static basis supplies each element and subshell identity.
@@ -363,7 +363,7 @@ def yeh_lindau_orbital_weights(
 
     Returns
     -------
-    weights : Float[Array, " n_orb"]
+    weights : Float64[Array, " n_orb"]
         Per-orbital cross sections in megabarn.
 
     Raises
@@ -377,7 +377,7 @@ def yeh_lindau_orbital_weights(
     ):
         message: str = "atomic_numbers does not cover every basis atom index"
         raise ValueError(message)
-    values: tuple[Float[Array, ""], ...] = tuple(
+    values: tuple[Float64[Array, ""], ...] = tuple(
         yeh_lindau_cross_section(
             photon_energy_ev,
             atomic_numbers[atom_index],
@@ -391,7 +391,7 @@ def yeh_lindau_orbital_weights(
             strict=True,
         )
     )
-    weights: Float[Array, " n_orb"] = jnp.stack(values)
+    weights: Float64[Array, " n_orb"] = jnp.stack(values)
     return weights
 
 

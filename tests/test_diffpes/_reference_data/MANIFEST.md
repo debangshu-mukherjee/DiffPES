@@ -2,7 +2,7 @@
 
 > These files pin deterministic behavior unless an entry explicitly
 > classifies an independent physics truth.
-> The tight-binding cases were repinned for Plan 04's basis-position
+> The tight-binding cases were repinned for the basis-position
 > gauge and carrier-native orbital bases.
 > Regenerate only with a stated physics or migration
 > justification.
@@ -18,15 +18,15 @@
 
 ## Factory calls
 
-- `novice_toy_plan07_true_voigt`: fixed seed-`20260713` carriers assembled
+- `novice_toy_true_voigt`: fixed seed-`20260713` carriers assembled
   manually with SciPy `voigt_profile` and the analytic Fermi function; neither
   `voigt` nor `simulate_novice` is called by the generator.
-- `plan04_chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
-  outputs for the independently C-gated graphene, square-lattice Rashba, and
+- `chinook_tightb_reference`: offline Chinook 0.1.1 compatibility
+  outputs for the independently C-classified graphene, square-lattice Rashba, and
   atomic t2g+SOC models. The generator and isolated environment freeze live
   outside the DiffPES repository under
-  `diffpes-plans/verification/tightb/`; pytest reads only this inert JSON.
-- `plan04_wannier90_wse2_reference`: independent NumPy parsing, Fourier
+  external `verification/tightb/` tooling; pytest reads only this inert JSON.
+- `wannier90_wse2_reference`: independent NumPy parsing, Fourier
   assembly, and eigensolution of the publicly distributed dynamics-w90
   `data/WSe2_soc/wse2_soc_11bnd_hr.dat` at Γ and reduced-coordinate
   X = (1/2, 0, 0). The exact normative input is stored losslessly compressed;
@@ -34,21 +34,21 @@
 
 ## Artifacts
 
-### Plan-07 Voigt evidence
+### Voigt evidence
 
-- Classification: Plan-07 gates 07.G2 and 07.D1, independent SciPy/analytic
-  physics truth frozen before and retained after the WP7.2 production edit
+- Classification: `voigt-scipy-reference` and `spectral-broadening-gradient`, independent SciPy/analytic
+  physics truth frozen before and retained after the true-Voigt production edit
 - Generator:
-  `tests/_reference_tools/generate_plan07_voigt_reference.py`
+  `tests/_reference_tools/generate_voigt_scipy_reference.py`
 - Generator SHA-256:
-  `cf5b8927dac24c42a0cec6ed5a95171b78c981110bae06d8c940c8ee399f27b1`
+  `4a7a2493b5b1e8aec351ac53a0366a25f76df213eadd48aa9432d99e0892b84f`
 - Generator boundary: NumPy/SciPy only; it imports no DiffPES or JAX module
   and calls neither `voigt` nor `simulate_novice`
-- Provenance manifest: `plan07_voigt_manifest.json`
+- Provenance manifest: `voigt_scipy_manifest.json`
 - Provenance-manifest SHA-256:
-  `25d73f8b6283b7d81447ae059c0598c8f01ac5a3f6441ee3819153285496125b`
+  `17280f3dbbf6c3b8c5fa653b6de0b4a0922a9236857422ea18dd0ed2468db8ea`
 
-#### `plan07_voigt_scipy_reference.npz`
+#### `voigt_scipy_reference.npz`
 
 - SHA-256:
   `43b1b38836fb2cabf683423a8315b7bf2ca2c11a03cab5ec31a4ede7471c29d0`
@@ -61,11 +61,11 @@
 - Archive contract: 40 named arrays, all `float64`, deterministic ZIP
   metadata, and pickle disabled
 
-#### `novice_toy_plan07_true_voigt.npz`
+#### `novice_toy_true_voigt.npz`
 
 - SHA-256:
   `ca410005c45faa46ca9e9a7bc949e7954fafdaf494b391bec8cd30bddac50440`
-- Classification: active Plan-07 true-Voigt novice behavioral reference,
+- Classification: active true-Voigt novice behavioral reference,
   preregistered strict-red against the superseded TCH production path
 - Truth: manual seed-20260713 fixture assembly with SciPy
   `voigt_profile` and an overflow-safe analytic Fermi function
@@ -73,18 +73,18 @@
   - `leaf_000_intensity`: shape `(8, 512)`, dtype `float64`
   - `leaf_001_energy_axis`: shape `(512,)`, dtype `float64`
 
-#### `novice_toy_plan02_pseudo_voigt.npz`
+#### `novice_toy_pseudo_voigt.npz`
 
 - SHA-256:
   `7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f`
-- Classification: superseded Plan-02 pseudo-Voigt historical evidence,
+- Classification: superseded pseudo-Voigt historical evidence,
   retained for provenance only; it is not a compatibility shim
-- Byte-for-byte archive of the pre-WP7.2 `novice_toy.npz`; repository-floor
-  replay now consumes `novice_toy_plan07_true_voigt.npz`
+- Byte-for-byte archive of the earlier pseudo-Voigt `novice_toy.npz`; repository-floor
+  replay now consumes `novice_toy_true_voigt.npz`
 
-### `plan04_chinook_tightb_reference.json`
+### `chinook_tightb_reference.json`
 
-- Classification: Plan 04 gate 04.G6, K-type behavioral compatibility only
+- Classification: `chinook-tightbinding-parity`, K-type behavioral compatibility only
 - Chinook commit: `24913de8cc5b8c162f7c1b4acc64bd1b54dd548b`
 - Isolated-environment SHA-256:
   `6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531`
@@ -95,9 +95,9 @@
   - square-lattice Rashba eigenvalues: shape `(5, 2)`, eV
   - atomic t2g+SOC eigenvalues: shape `(3, 6)`, eV
 
-### `plan04_wse2_soc_11bnd_hr.dat.xz`
+### `wannier90_wse2_soc_11bnd_hr.dat.xz`
 
-- Classification: Plan 04 gate 04.G7, publicly distributed normative-format
+- Classification: `wannier90-wse2-parity`, publicly distributed normative-format
   input
 - Upstream repository:
   `https://github.com/michaelschueler/dynamics-w90`
@@ -113,12 +113,12 @@
 - Compressed SHA-256:
   `756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4`
 
-### `plan04_wannier90_wse2_reference.json`
+### `wannier90_wse2_reference.json`
 
-- Classification: Plan 04 gate 04.G7, K-type published-input companion
-  benchmark; normative-format and analytic gates remain authoritative
+- Classification: `wannier90-wse2-parity`, K-type published-input companion
+  benchmark; normative-format and analytic checks remain authoritative
 - Generator:
-  `diffpes-plans/verification/tightb/gen_wannier90_wse2_reference.py`
+  external `verification/tightb/gen_wannier90_wse2_reference.py` tooling
 - Generator SHA-256:
   `9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8`
 - Artifact SHA-256:
@@ -127,10 +127,11 @@
   - Γ eigenvalues: shape `(22,)`, eV
   - X = `(0.5, 0.0, 0.0)` eigenvalues: shape `(22,)`, eV
 
-### `plan06_chinook/`
+### `chinook_matrix_element_parity/`
 
-- Classification: Plan 06 gates 06.G6 and 06.G7, K-type behavioral
-  compatibility; the analytic C gates remain authoritative
+- Classification: `chinook-pointwise-matrix-element-parity` and
+  `chinook-polarization-intensity-parity`, K-type behavioral compatibility;
+  the analytic C checks remain authoritative
 - Chinook commit:
   `24913de8cc5b8c162f7c1b4acc64bd1b54dd548b`
 - Isolated-environment SHA-256:
@@ -138,22 +139,22 @@
 - Archive SHA-256:
   `9e857413fce56a3d4af45e88b040a0b85d9af0b445f240f53cb7b1de19365cb1`
 - Model-specification SHA-256:
-  `8c2b00c99242b539e694620bc744fb89eb7898a2402ad3f684263e4e2a50827e`
+  `c1e6679986e8812313f4c75b9b28daa67e82c69c5707a104d4d744e69bf9c439`
 - Pytest reconstructs current public-API amplitudes on all frozen points; it
   does not trust the saved DiffPES replay or import Chinook.
 
-### `plan06_g12_reference.npz`
+### `local_nonlocal_gauge_reference.npz`
 
-- Classification: Plan 06 gate 06.G12 independent generic-complex and
+- Classification: independent generic-complex and
   local/nonlocal length-versus-momentum gauge evidence
 - Artifact SHA-256:
   `e136dfd8214cd4e1e83d11b1d20d87a8597c66e61f54636b949d3c159fc579f0`
 - The tracked code-tree copy is byte-equal to
-  `diffpes-plans/verification/matrixel_gauge/g12_reference.npz`.
+  external `verification/matrixel_gauge/g12_reference.npz` tooling.
 
-### `plan06_yeh_lindau_authority/`
+### `yeh_lindau_authority/`
 
-- Classification: Plan 06 gate 06.G5 authority metadata for the dated
+- Classification: authority metadata for the dated Yeh--Lindau cross-sections
   Figshare-as-numerical-authority amendment
 - Figshare v3 metadata SHA-256:
   `c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026a7bda44`

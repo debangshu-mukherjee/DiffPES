@@ -438,7 +438,7 @@ class TestRegressionReferences(chex.TestCase):
             15.0,
         )
         reference_path: Path = (
-            reference_directory / "novice_toy_plan07_true_voigt.npz"
+            reference_directory / "novice_toy_true_voigt.npz"
         )
         archive: Any
         with np.load(reference_path, allow_pickle=False) as archive:
@@ -467,7 +467,7 @@ class TestRegressionReferences(chex.TestCase):
         chex.assert_equal(actual_dtypes, (jnp.float64,))
 
         artifact_name: str
-        for artifact_name in ("novice_toy_plan07_true_voigt",):
+        for artifact_name in ("novice_toy_true_voigt",):
             artifact_path: Path = reference_directory / f"{artifact_name}.npz"
             digest: str = hashlib.sha256(
                 artifact_path.read_bytes()
@@ -546,7 +546,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test rejects direct imports and literal dynamic imports through
         ``importlib.import_module``, ``__import__``, or
         ``pytest.importorskip``. Offline generators belong in the separate
-        planning-repository verification area; DiffPES consumes only their
+        external verification area; DiffPES consumes only their
         immutable artifacts.
 
         Notes
@@ -1666,13 +1666,13 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test inspects annotation positions only, which excludes ``isinstance``
         checks. It reports ``np.ndarray``, bare ``NDArray``, and NumPy's own
         ``NDArray[...]`` parameterization across production and the complete test
-        tree. Two SHA-256-pinned Plan-07 generators are exempt because an edit
-        would break their committed manifest digests.
+        tree. Two SHA-256-pinned reference generators receive exemptions because
+        edits break their committed manifest digests.
         """
         exempt: frozenset[str] = frozenset(
             (
-                "generate_plan07_voigt_reference.py",
-                "generate_plan07_faddeeva_reference.py",
+                "generate_voigt_scipy_reference.py",
+                "generate_faddeeva_mpmath_reference.py",
             )
         )
         violations: list[str] = []

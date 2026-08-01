@@ -1,6 +1,6 @@
-"""Certify Plan-05 exact gathers and the Wannier-operator slab seam.
+"""Certify exact gathers and the Wannier-operator slab seam.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from __future__ import annotations
@@ -228,7 +228,7 @@ def _graphene_model() -> TBModel:
 
 
 class TestExactLongRangeGather:
-    """Certify the complete G10 Hamiltonian and hr-sidecar bookkeeping."""
+    """Certify complete-shell operator propagation and hr-sidecar bookkeeping."""
 
     @pytest.mark.parametrize(
         ("n_layers", "maximum_range"),
@@ -241,7 +241,7 @@ class TestExactLongRangeGather:
     ) -> None:
         """Match an independent integer enumeration for 6--20 layers.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -312,7 +312,7 @@ class TestExactLongRangeGather:
     ) -> None:
         """Verify remapping replaces already-applied WS weights.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -366,7 +366,7 @@ class TestExactLongRangeGather:
     def test_rejects_unpaired_operator_cell_grid(self) -> None:
         """Reject a sidecar that omits a Hamiltonian translation cell.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -400,7 +400,7 @@ class TestCompleteShellOperatorPropagation:
     ) -> None:
         """Match D O D-dagger and Cartesian rotation for every slab block.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -513,7 +513,7 @@ class TestCompleteShellOperatorPropagation:
     ) -> None:
         """Apply r-prime = r + delta and recover the covariant slab law.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -599,12 +599,12 @@ class TestCompleteShellOperatorPropagation:
 
 
 class TestZigzagEdgeSurfaceLocalization:
-    """Validate the Plan-05 G9 C component on the N=30 zero-mode group."""
+    """Validate chinook-surface-state-parity on the N=30 zero-mode group."""
 
     def test_zero_mode_group_is_exactly_edge_localized(self) -> None:
         """Use a complete degenerate trace and both-edge probability.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

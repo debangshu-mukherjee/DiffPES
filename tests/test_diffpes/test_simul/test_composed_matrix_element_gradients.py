@@ -1,8 +1,8 @@
-"""Certify the Plan 06 D1--D8 composed differentiability gates.
+"""Certify composed matrix-element differentiability across all seams.
 
 Extended Summary
 ----------------
-The tests apply the shared Plan-01 forward/reverse and central-finite-
+The tests apply the shared forward/reverse and central-finite-
 difference harness to generic-complex matrix-element compositions. Analytic
 JVPs separately pin holomorphic centre phases and complete-group covariance.
 """
@@ -195,19 +195,19 @@ def _intensity(
     return intensity
 
 
-class TestPlan06D1D2:
+class TestRadialAndChannelGradients:
     """Certify composed radial and photon-energy derivative gates."""
 
     @pytest.mark.rss_limit_mb(1024)
     def test_d1_slater_exponents_and_coefficients(self) -> None:
-        """Match D1 autodiff for normalized multi-zeta intensity.
+        """Match autodiff for normalized multi-zeta intensity.
 
         The composition includes radial quadrature, orbital assembly, generic
         complex projection, late polarization, and the final intensity.
 
         Notes
         -----
-        Apply both Plan-01 modes and its central-FD census to every coordinate.
+        Apply both AD modes and the central-FD census to every coordinate.
         """
         basis: OrbitalBasis = _basis()
         bands: DiagonalizedBands = _bands(basis)
@@ -256,7 +256,7 @@ class TestPlan06D1D2:
 
     @pytest.mark.rss_limit_mb(768)
     def test_d2_photon_energy_to_explicit_vacuum_momentum(self) -> None:
-        """Match D2 through energy conservation and vacuum momentum.
+        """Match derivatives through energy conservation and vacuum momentum.
 
         The inner potential remains absent from the fixed-vacuum assembly
         path while photon energy changes its explicit final momentum.
@@ -341,11 +341,11 @@ class TestPlan06D1D2:
         chex.assert_trees_all_equal(zero, jnp.asarray(0.0))
 
 
-class TestPlan06D3D6:
+class TestProjectionAndPolarizationGradients:
     """Certify optical, centre, attenuation, and phase derivatives."""
 
     def test_d3_complex_polarization_real_view_and_azimuth(self) -> None:
-        """Match D3 on generic complex optical coordinates.
+        """Match derivatives on generic complex optical coordinates.
 
         Four stacked real quadratures construct the transverse laboratory
         vector, and a fifth coordinate rotates the sample before contraction.
@@ -379,7 +379,7 @@ class TestPlan06D3D6:
         assert_nonzero_grad(loss, initial, elementwise=True)
 
     def test_d4_fractional_centres_and_lattice(self) -> None:
-        """Match D4 through explicit and atom-fallback centre maps.
+        """Match derivatives through explicit and atom-fallback centre maps.
 
         Both carrier routes apply one fractional-to-Cartesian lattice product
         before the coherent centre phase.
@@ -495,7 +495,7 @@ class TestPlan06D3D6:
         )
 
     def test_d5_nonzero_depth_attenuation(self) -> None:
-        """Match D5 mean-free-path sensitivity at positive depths.
+        """Match mean-free-path sensitivity at positive depths.
 
         The fixture has several distinct nonzero depths, so attenuation must
         contribute a useful physical derivative.
@@ -518,7 +518,7 @@ class TestPlan06D3D6:
         assert_nonzero_grad(loss, initial, elementwise=True)
 
     def test_d6_compact_physical_phase_coordinates(self) -> None:
-        """Match D6 for every compact physical channel phase.
+        """Match derivatives for every compact physical channel phase.
 
         Generic radial values, centres, eigenvectors, and polarization expose
         phase sensitivities without padded or invalid channel coordinates.
@@ -541,11 +541,11 @@ class TestPlan06D3D6:
         assert_nonzero_grad(loss, initial, elementwise=True)
 
 
-class TestPlan06D7D8:
+class TestIntensityAndGroupWeightGradients:
     """Certify holomorphic centre phases and complex band derivatives."""
 
     def test_d7_holomorphic_centre_phase(self) -> None:
-        """Match D7 with analytic, JVP, FD, and high-precision truths.
+        """Match intensity derivatives with analytic, JVP, FD, and high-precision truths.
 
         A non-real baseline forbids a subtract-free imaginary-step shortcut
         and exercises the actual production centre-phase sub-block.
@@ -627,7 +627,7 @@ class TestPlan06D7D8:
         )
 
     def test_d8_generic_eigenvectors_and_group_directions(self) -> None:
-        """Match D8 raw-band derivatives and complete-group JVPs.
+        """Match raw-band derivatives and complete-group JVPs.
 
         The nondegenerate input populates both complex quadratures. Separate
         U(2) and U(3) tangent directions rotate complete degenerate groups.

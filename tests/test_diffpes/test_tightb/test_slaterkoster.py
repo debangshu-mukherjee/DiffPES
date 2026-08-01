@@ -192,7 +192,7 @@ class TestSkBlock:
         Notes
         -----
         Compare every entry of all six canonical shell-pair blocks at the
-        Plan-04 G3 tolerance.
+        slater-koster-analytic-tolerance.
         """
         generator: np.random.Generator = np.random.default_rng(93281)
         raw: Float[NDArray, "n_direction 3"] = generator.normal(

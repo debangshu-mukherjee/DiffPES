@@ -251,8 +251,8 @@ convention = "numpy"
     "E741",
     "PLC0415",
 ]
-# Plan 12 removes these legacy suppressions after traced validation and test
-# documentation have been migrated without changing physics behavior.
+# Remove these legacy suppressions after traced validation and test
+# documentation migrate without changing physics behavior.
 "src/diffpes/types/*.py" = ["PLW0108"]
 "src/diffpes/types/geometry.py" = ["PLR2004", "PLW0108"]
 # Physics modules: standard physics variable names (H=Hamiltonian,

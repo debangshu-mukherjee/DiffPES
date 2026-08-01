@@ -49,7 +49,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
 
 HOPPING_LIST_COMPLEX_FIELDS: int = 7
 HOPPING_LIST_REAL_FIELDS: int = 6
@@ -150,11 +150,11 @@ class WannierOperatorData(eqx.Module):
 
     Attributes
     ----------
-    position_matrices : Optional[Complex[Array, "n_R n_orb n_orb 3"]]
+    position_matrices : Optional[Complex128[Array, "n_R n_orb n_orb 3"]]
         Real-space position-operator matrices in Angstrom with trailing
         Cartesian axis ``(x, y, z)``. ``hr.dat`` has no such block and stores
         ``None``.
-    centres_cart : Float[Array, "n_orb 3"]
+    centres_cart : Float64[Array, "n_orb 3"]
         Wannier centres in Cartesian Angstrom.
     cells : tuple[tuple[int, int, int], ...]
         Exact serialized lattice translations (**static** -- changing them
@@ -180,8 +180,8 @@ class WannierOperatorData(eqx.Module):
     make_wannier_operator_data : Validating carrier factory.
     """
 
-    position_matrices: Optional[Complex[Array, "n_R n_orb n_orb 3"]]
-    centres_cart: Float[Array, "n_orb 3"]
+    position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]]
+    centres_cart: Float64[Array, "n_orb 3"]
     cells: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
     degeneracies: tuple[int, ...] = eqx.field(static=True)
     spin_layout: str = eqx.field(static=True)
@@ -248,7 +248,7 @@ def make_wannier_operator_data(  # noqa: DOC502
     ``hr`` requires absent position matrices; ``tb`` requires them. The
     factory casts centres to float64 and position matrices to complex128.
     """
-    centre_array: Float[Array, "n_orb 3"] = jnp.asarray(
+    centre_array: Float64[Array, "n_orb 3"] = jnp.asarray(
         centres_cart,
         dtype=jnp.float64,
     )

@@ -8,7 +8,7 @@ determines the Lorentzian component of the spectral linewidth
 and is critical for modelling correlated materials where
 quasiparticle lifetimes vary strongly with energy.
 
-The function temporarily supports the five Plan-07 carrier models:
+The function supports five carrier models:
 
 - **constant**: Uniform broadening at all energies.
 - **polynomial**: Polynomial expansion in energy, for example Fermi-liquid

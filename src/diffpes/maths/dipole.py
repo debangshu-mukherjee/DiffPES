@@ -45,7 +45,7 @@ import math
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import L_MAX, OrbitalBasis
@@ -195,8 +195,8 @@ def polarization_real_to_cart(
 def channel_tables(
     basis: OrbitalBasis,
 ) -> tuple[
-    Float[Array, "n_orb 2 3 n_y"],
-    Float[Array, "n_orb 2 3 n_y"],
+    Float64[Array, "n_orb 2 3 n_y"],
+    Float64[Array, "n_orb 2 3 n_y"],
 ]:
     r"""Build padded real-harmonic dipole channel tables.
 
@@ -220,9 +220,9 @@ def channel_tables(
 
     Returns
     -------
-    coupling_coeffs : Float[Array, "n_orb 2 3 n_y"]
+    coupling_coeffs : Float64[Array, "n_orb 2 3 n_y"]
         Real-basis Gaunt coefficients.
-    channel_valid : Float[Array, "n_orb 2 3 n_y"]
+    channel_valid : Float64[Array, "n_orb 2 3 n_y"]
         Zero/one mask for allowed partial-wave blocks and static padding.
 
     Raises
@@ -240,14 +240,14 @@ def channel_tables(
     n_orbitals: int = len(basis.l)
     n_final_harmonics: int = (L_MAX + 2) ** 2
     final_m_offset: int = L_MAX + 1
-    coupling_numpy: Float[NDArray, "n_orb 2 3 n_y"] = np.zeros(
+    coupling_numpy: Float64[NDArray, "n_orb 2 3 n_y"] = np.zeros(
         (n_orbitals, 2, 3, n_final_harmonics),
         dtype=np.float64,
     )
-    valid_numpy: Float[NDArray, "n_orb 2 3 n_y"] = np.zeros_like(
+    valid_numpy: Float64[NDArray, "n_orb 2 3 n_y"] = np.zeros_like(
         coupling_numpy
     )
-    gaunt_numpy: Float[NDArray, "..."] = np.asarray(GAUNT_TABLE)
+    gaunt_numpy: Float64[NDArray, "..."] = np.asarray(GAUNT_TABLE)
     orbital_index: int
     l_initial: int
     m_initial: int
@@ -288,13 +288,13 @@ def channel_tables(
                         q_index,
                         harmonic_index,
                     ] = 1.0
-    coupling_coeffs: Float[Array, "n_orb 2 3 n_y"] = jnp.asarray(
+    coupling_coeffs: Float64[Array, "n_orb 2 3 n_y"] = jnp.asarray(
         coupling_numpy
     )
-    channel_valid: Float[Array, "n_orb 2 3 n_y"] = jnp.asarray(valid_numpy)
+    channel_valid: Float64[Array, "n_orb 2 3 n_y"] = jnp.asarray(valid_numpy)
     tables: tuple[
-        Float[Array, "n_orb 2 3 n_y"],
-        Float[Array, "n_orb 2 3 n_y"],
+        Float64[Array, "n_orb 2 3 n_y"],
+        Float64[Array, "n_orb 2 3 n_y"],
     ] = (coupling_coeffs, channel_valid)
     return tables
 

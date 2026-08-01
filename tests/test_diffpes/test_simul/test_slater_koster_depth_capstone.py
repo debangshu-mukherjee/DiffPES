@@ -1,4 +1,4 @@
-"""Certify the Plan 06 D10 Slater--Koster depth capstone.
+"""Certify end-to-end Slater--Koster depth sensitivity.
 
 Extended Summary
 ----------------
@@ -104,7 +104,7 @@ def _bulk_context() -> tuple[
 
 
 def _capstone() -> Capstone:
-    """Build the frozen-topology D10 loss and registered group callback."""
+    """Build the frozen-topology loss and registered group callback."""
     geometry: CrystalGeometry
     basis: OrbitalBasis
     sk_params: SlaterKosterParams
@@ -194,7 +194,7 @@ def _capstone() -> Capstone:
         """Return amplitudes after scaling only the slab depth carrier."""
         bands: DiagonalizedBands = bands_for(candidate)
         if bands.depths is None:
-            message: str = "D10 requires the Plan-05a depth carrier"
+            message: str = "depth sensitivity requires the slab depth carrier"
             raise AssertionError(message)
         scaled_bands: DiagonalizedBands = eqx.tree_at(
             lambda carrier: carrier.depths,
@@ -279,12 +279,12 @@ def _capstone() -> Capstone:
     return capstone
 
 
-class TestPlan06D10:
+class TestSlaterKosterDepthGradient:
     """Certify the SK-to-depth-to-group-weight derivative capstone."""
 
     @pytest.mark.rss_limit_mb(1800)
     def test_sk_parameter_reaches_complete_group_weight(self) -> None:
-        """Match D10 in both AD modes and retain nonzero sensitivity.
+        """Match both AD modes and retain nonzero sensitivity.
 
         The lower two bands form one exact degenerate doublet isolated from
         the upper doublet. Depth asymmetry makes its coherent weight sensitive
@@ -292,7 +292,7 @@ class TestPlan06D10:
 
         Notes
         -----
-        Run the Plan-01 stiff FD ladder and compare the registered group helper.
+        Run the stiff finite-difference ladder and compare the registered group helper.
         """
         active: Float[Array, " 1"]
         loss: Callable[[Float[Array, " 1"]], Float[Array, ""]]

@@ -24,7 +24,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, TextIO, Union
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -151,13 +151,13 @@ def read_eigenval(  # noqa: PLR0915
         _nelect: int = meta[0]
         nkpoints: int = meta[1]
         nbands: int = meta[2]
-        kpoints: Float[NDArray, "K 4"] = np.zeros(
+        kpoints: Float64[NDArray, "K 4"] = np.zeros(
             (nkpoints, 4), dtype=np.float64
         )
-        eigenvalues_up: Float[NDArray, "K B"] = np.zeros(
+        eigenvalues_up: Float64[NDArray, "K B"] = np.zeros(
             (nkpoints, nbands), dtype=np.float64
         )
-        eigenvalues_down: Optional[Float[NDArray, "K B"]] = None
+        eigenvalues_down: Optional[Float64[NDArray, "K B"]] = None
         if ispin == ISPIN_SPIN_POLARIZED:
             eigenvalues_down = np.zeros((nkpoints, nbands), dtype=np.float64)
         for k in range(nkpoints):

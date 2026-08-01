@@ -1,18 +1,18 @@
-r"""Validate Plan 04 tight-binding differentiation and scalability gates.
+r"""Validate tight-binding differentiation and scalability properties.
 
 Extended Summary
 ----------------
-This module supplies bounded CI evidence for gates 04.D4 and 04.S1--S3. It
+This module supplies bounded CI evidence for holomorphic-phase-gradient, hamiltonian-compile-bounded, diagonalization-shapes-bounded, and eigvalsh-reverse-mode-bounded. It
 checks hopping-count-independent Bloch JAXPRs and one trace per static shape.
 It also runs bounded diagonalization and reverse-mode cases. Shape analysis
 derives the production memory floor without large allocations.
 
 Notes
 -----
-The production S2 Hamiltonian output has shape ``(10000, 64, 64)`` and
+The production Hamiltonian scaling output has shape ``(10000, 64, 64)`` and
 therefore contains 625 MiB of complex128 data. Tests use
 :func:`jax.eval_shape` for that case and execute smaller arrays in CI to avoid
-an intentional out-of-memory hazard. S3 compares compiler temporary memory
+an intentional out-of-memory hazard. The reverse-mode check compares compiler temporary memory
 across two batch sizes. This comparison detects superlinear reverse-tape
 growth without fragile timing limits.
 """
@@ -235,7 +235,7 @@ def _memory_analysis(executable: Any) -> Any:
 
 @pytest.fixture(scope="module")
 def hopping_sweep_models() -> tuple[TBModel, ...]:
-    """Build the four exact S1 hopping-shape cases once per module."""
+    """Build the four exact hopping-shape cases once per module."""
     models: tuple[TBModel, ...] = tuple(
         _make_hopping_count_model(n_hoppings) for n_hoppings in _HOPPING_SWEEP
     )
@@ -243,7 +243,7 @@ def hopping_sweep_models() -> tuple[TBModel, ...]:
 
 
 class TestBlochAssemblyScalability:
-    """Validate the no-unroll and compile-count requirements of 04.S1."""
+    """Validate the no-unroll and compile-count requirements of hamiltonian-compile-bounded."""
 
     def test_jaxpr_op_count_is_constant_across_hopping_sweep(
         self,
@@ -323,7 +323,7 @@ class TestBlochAssemblyScalability:
 
 
 class TestBatchScalability:
-    """Validate static shapes and bounded execution for 04.S2."""
+    """Validate static shapes and bounded execution for diagonalization-shapes-bounded."""
 
     def test_production_shapes_and_memory_are_derived_without_allocation(
         self,
@@ -335,7 +335,7 @@ class TestBatchScalability:
         Notes
         -----
         ``jax.eval_shape`` traces the exact production dimensions but creates
-        no 625 MiB Hamiltonian buffer. The persistent S2 batch outputs total
+        no 625 MiB Hamiltonian buffer. The persistent batch outputs total
         less than 630 MiB: 625 MiB of complex Hamiltonians plus 4.883 MiB of
         float64 eigenvalues. The full-diagonalization production carrier is
         65 MiB for eigenvalues and eigenvectors.
@@ -412,7 +412,7 @@ class TestBatchScalability:
         assert diagonalize_bytes == 65 * _MIB
 
     def test_ci_sized_batch_and_full_diagonalization_execute(self) -> None:
-        """Execute shape-faithful S2 proxies and record compiled output bytes.
+        """Execute shape-faithful proxies and record compiled output bytes.
 
         The case runs batched assembly and both eigensystem paths.
 
@@ -492,7 +492,7 @@ class TestBatchScalability:
 
 
 class TestEigenvalueReverseScalability:
-    """Validate the bounded reverse-mode eigvalsh path of 04.S3."""
+    """Validate the bounded reverse-mode eigvalsh path of eigvalsh-reverse-mode-bounded."""
 
     def test_reverse_mode_executes_with_linear_batch_memory(self) -> None:
         """Reject a superlinear tape while matching an analytic gradient.
@@ -590,7 +590,7 @@ class TestEigenvalueReverseScalability:
 
 
 class TestBlochPhaseDifferentiability:
-    """Validate the holomorphic phase sub-block required by 04.D4."""
+    """Validate the holomorphic phase sub-block required by holomorphic-phase-gradient."""
 
     def test_phase_direction_matches_complex_step_at_machine_precision(
         self,

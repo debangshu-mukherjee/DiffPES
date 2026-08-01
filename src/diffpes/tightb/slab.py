@@ -1695,7 +1695,7 @@ def rebuild_slab(
     """Construct a slab from frozen topology using only JAX geometry.
 
     The function contains no host conversion of a traced model leaf. It is
-    therefore the differentiable Plan-05 D2 seam. Call
+    therefore the differentiable slab-rebuild seam. Call
     :func:`freeze_slab_topology` once at a representative geometry, then pass
     compatible continuously perturbed models here.
 

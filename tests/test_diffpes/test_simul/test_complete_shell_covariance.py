@@ -1,4 +1,4 @@
-"""Certify Plan 06 complete-shell covariance and named radial gauges.
+"""Certify complete-shell covariance and named radial gauges.
 
 Extended Summary
 ----------------

@@ -1,6 +1,6 @@
 """Mirror the public slab API onto symbol-owned test classes.
 
-The specialized Plan-05 suites hold the physics fixtures; these aliases keep
+The specialized slab suites hold the physics fixtures; these aliases keep
 the repository's one-public-symbol/one-test-class navigation contract exact.
 """
 

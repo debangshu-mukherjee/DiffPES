@@ -1,4 +1,4 @@
-"""Certify the Plan-07 true-Voigt implementation against frozen evidence.
+"""Certify the true-Voigt implementation against frozen SciPy evidence.
 
 The module freezes artifact and analytic checks before production changes.
 Production assertions exercise the same immutable SciPy and analytic truths.
@@ -33,27 +33,23 @@ from tests._factories import (
 _REFERENCE_DIRECTORY: Path = (
     Path(__file__).resolve().parents[1] / "_reference_data"
 )
-_REFERENCE_PATH: Path = (
-    _REFERENCE_DIRECTORY / "plan07_voigt_scipy_reference.npz"
-)
-_MANIFEST_PATH: Path = _REFERENCE_DIRECTORY / "plan07_voigt_manifest.json"
-_NOVICE_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy_plan07_true_voigt.npz"
-_HISTORICAL_PATH: Path = (
-    _REFERENCE_DIRECTORY / "novice_toy_plan02_pseudo_voigt.npz"
-)
-_RETIRED_PLAN02_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy.npz"
+_REFERENCE_PATH: Path = _REFERENCE_DIRECTORY / "voigt_scipy_reference.npz"
+_MANIFEST_PATH: Path = _REFERENCE_DIRECTORY / "voigt_scipy_manifest.json"
+_NOVICE_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy_true_voigt.npz"
+_HISTORICAL_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy_pseudo_voigt.npz"
+_RETIRED_PSEUDO_VOIGT_PATH: Path = _REFERENCE_DIRECTORY / "novice_toy.npz"
 _GENERATOR_PATH: Path = (
     Path(__file__).resolve().parents[2]
     / "_reference_tools"
-    / "generate_plan07_voigt_reference.py"
+    / "generate_voigt_scipy_reference.py"
 )
 _CENTER: float = 0.137
 _POSITIVE_RTL: float = 1.0e-10
-_POSITIVE_G1_FLOOR: float = 2.0e-15
+_POSITIVE_REFERENCE_FLOOR: float = 2.0e-15
 _ENDPOINT_RTL: float = 1.0e-12
 _ENDPOINT_FLOOR: float = 5.0e-15
-_D1_RTL: float = 1.0e-6
-_D1_ATL: float = 2.0e-10
+_DERIVATIVE_RTL: float = 1.0e-6
+_DERIVATIVE_ATL: float = 2.0e-10
 
 
 def _load_npz(path: Path) -> dict[str, Float[NDArray, "..."]]:
@@ -72,8 +68,8 @@ def _positive_bound(
     reference: Float[NDArray, "..."],
     sigma: float,
 ) -> Float[NDArray, "..."]:
-    """Return the preregistered G1-propagated positive-width bound."""
-    return _POSITIVE_RTL * np.abs(reference) + _POSITIVE_G1_FLOOR / (
+    """Return the registered Faddeeva-reference positive-width bound."""
+    return _POSITIVE_RTL * np.abs(reference) + _POSITIVE_REFERENCE_FLOOR / (
         sigma * np.sqrt(2.0 * np.pi)
     )
 
@@ -108,7 +104,7 @@ def _stable_fermi(
     return occupation
 
 
-class TestPlan07VoigtEvidence:
+class TestVoigtScipyEvidence:
     """Validate the frozen independent artifacts before production editing."""
 
     def test_generator_boundary_and_manifest_are_frozen(self) -> None:
@@ -142,17 +138,15 @@ class TestPlan07VoigtEvidence:
         manifest: dict[str, Any] = json.loads(
             _MANIFEST_PATH.read_text(encoding="utf-8")
         )
-        assert manifest["schema"] == "diffpes.plan07.voigt-reference.v1"
-        assert manifest["stage"] == (
-            "preregistered-before-WP7.2-production-edit"
-        )
+        assert manifest["schema"] == "diffpes.voigt-scipy-reference.v1"
+        assert manifest["stage"] == ("frozen-before-production-edit")
         assert manifest["generator_sha256"] == _sha256(_GENERATOR_PATH)
         archive_key: str
         archive_path: Path
         for archive_key, archive_path in (
             ("voigt_reference", _REFERENCE_PATH),
-            ("novice_plan07", _NOVICE_PATH),
-            ("historical_plan02", _HISTORICAL_PATH),
+            ("novice_true_voigt", _NOVICE_PATH),
+            ("historical_pseudo_voigt", _HISTORICAL_PATH),
         ):
             assert manifest["archives"][archive_key]["sha256"] == _sha256(
                 archive_path
@@ -160,13 +154,13 @@ class TestPlan07VoigtEvidence:
             arrays: dict[str, Float[NDArray, "..."]] = _load_npz(archive_path)
             assert arrays
             assert all(array.dtype == np.float64 for array in arrays.values())
-        assert not _RETIRED_PLAN02_PATH.exists()
-        assert manifest["archives"]["historical_plan02"]["classification"] == (
-            "superseded pseudo-Voigt evidence; not a compatibility shim"
-        )
+        assert not _RETIRED_PSEUDO_VOIGT_PATH.exists()
+        assert manifest["archives"]["historical_pseudo_voigt"][
+            "classification"
+        ] == ("superseded pseudo-Voigt evidence; not a compatibility shim")
 
     def test_positive_reference_table_replays_scipy(self) -> None:
-        """Recompute all 360 positive-width values and their G1 coordinates.
+        """Recompute all 360 positive-width values and Faddeeva coordinates.
 
         Extended Summary
         ----------------
@@ -390,13 +384,15 @@ class TestPlan07VoigtEvidence:
         reference: dict[str, Float[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        probes: Float[NDArray, "n_probe 3"] = reference["d1_probes"]
-        energies: Float[NDArray, "n_probe n_q_d1"] = reference["d1_energies"]
+        probes: Float[NDArray, "n_probe 3"] = reference["derivative_probes"]
+        energies: Float[NDArray, "n_probe n_q_derivative"] = reference[
+            "derivative_energies"
+        ]
         desired_values: Float[NDArray, "n_probe n_q_d1"] = reference[
-            "d1_point_values"
+            "derivative_point_values"
         ]
         desired_derivatives: Float[NDArray, "n_probe n_q_d1 3"] = reference[
-            "d1_point_derivatives"
+            "derivative_point_derivatives"
         ]
         actual_values: Float[NDArray, "n_probe n_q_d1"] = np.empty_like(
             desired_values
@@ -439,20 +435,22 @@ class TestPlan07VoigtEvidence:
         np.testing.assert_array_equal(actual_derivatives, desired_derivatives)
 
         contracted: Float[NDArray, "n_probe 3"] = reference[
-            "d1_analytic_contracted"
+            "derivative_analytic_contracted"
         ]
         estimates: Float[NDArray, "n_probe n_step 3"] = reference[
-            "d1_fd_estimates"
+            "derivative_fd_estimates"
         ]
         median: Float[NDArray, "n_probe 3"] = np.median(estimates, axis=1)
         spread: Float[NDArray, "n_probe 3"] = np.ptp(estimates, axis=1)
         np.testing.assert_allclose(
             median,
             contracted,
-            rtol=_D1_RTL,
-            atol=_D1_ATL,
+            rtol=_DERIVATIVE_RTL,
+            atol=_DERIVATIVE_ATL,
         )
-        assert np.all(spread <= _D1_ATL + _D1_RTL * np.abs(contracted))
+        assert np.all(
+            spread <= _DERIVATIVE_ATL + _DERIVATIVE_RTL * np.abs(contracted)
+        )
         assert np.all(np.abs(contracted) > 1.0e-4)
 
     def test_novice_artifact_is_manual_scipy_truth(self) -> None:
@@ -501,11 +499,11 @@ class TestPlan07VoigtEvidence:
         )
 
 
-class TestPlan07VoigtProduction:
-    """Certify production against the preregistered G2/D1 witnesses."""
+class TestVoigtProduction:
+    """Certify production against the SciPy and derivative witnesses."""
 
     def test_positive_width_table_matches_true_voigt(self) -> None:
-        """Match all positive production rows under the G1-derived bound.
+        """Match all positive production rows under the reference-derived bound.
 
         Extended Summary
         ----------------
@@ -639,7 +637,7 @@ class TestPlan07VoigtProduction:
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
     def test_scaled_full_line_production_mass_is_unity(self) -> None:
-        """Require both quadrature orders and their delta to meet G2.
+        """Require both quadrature orders and their delta to meet the SciPy reference.
 
         Extended Summary
         ----------------
@@ -689,7 +687,7 @@ class TestPlan07VoigtProduction:
         assert np.max(np.abs(masses[:, 1] - masses[:, 0])) <= 2.0e-10
 
     def test_shared_envelope_passes_and_rejects_complete_arrays(self) -> None:
-        """Enforce the closed G1 envelope eagerly and under JIT.
+        """Enforce the closed Faddeeva envelope eagerly and under JIT.
 
         Extended Summary
         ----------------
@@ -839,7 +837,7 @@ class TestPlan07VoigtProduction:
             )
 
     def test_d1_jacfwd_jacrev_and_check_grads_match_truth(self) -> None:
-        """Match all positive D1 probes in dimensionless coordinates.
+        """Match all positive derivative probes in dimensionless coordinates.
 
         Extended Summary
         ----------------
@@ -855,15 +853,15 @@ class TestPlan07VoigtProduction:
         reference: dict[str, Float[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        weights: Array = jnp.asarray(reference["d1_weights"])
+        weights: Array = jnp.asarray(reference["derivative_weights"])
         zero: Float[Array, "3"] = jnp.zeros(3, dtype=jnp.float64)
         probe: Float[NDArray, " 3"]
         energy: Float[NDArray, " n_q_d1"]
         desired: Float[NDArray, " 3"]
         for probe, energy, desired in zip(
-            reference["d1_probes"],
-            reference["d1_energies"],
-            reference["d1_analytic_contracted"],
+            reference["derivative_probes"],
+            reference["derivative_energies"],
+            reference["derivative_analytic_contracted"],
             strict=True,
         ):
             center: float
@@ -887,14 +885,14 @@ class TestPlan07VoigtProduction:
             np.testing.assert_allclose(
                 np.asarray(forward),
                 desired,
-                rtol=_D1_RTL,
-                atol=_D1_ATL,
+                rtol=_DERIVATIVE_RTL,
+                atol=_DERIVATIVE_ATL,
             )
             np.testing.assert_allclose(
                 np.asarray(reverse),
                 desired,
-                rtol=_D1_RTL,
-                atol=_D1_ATL,
+                rtol=_DERIVATIVE_RTL,
+                atol=_DERIVATIVE_ATL,
             )
             test_util.check_grads(
                 loss,
@@ -902,8 +900,8 @@ class TestPlan07VoigtProduction:
                 order=1,
                 modes=("fwd", "rev"),
                 eps=2.0**-14,
-                rtol=_D1_RTL,
-                atol=_D1_ATL,
+                rtol=_DERIVATIVE_RTL,
+                atol=_DERIVATIVE_ATL,
             )
 
     @pytest.mark.big_mem
@@ -914,7 +912,7 @@ class TestPlan07VoigtProduction:
         Extended Summary
         ----------------
         The test verifies the complete production novice path reproduces the
-        manually assembled Plan-07 artifact.
+        manually assembled true-Voigt artifact.
 
         Notes
         -----

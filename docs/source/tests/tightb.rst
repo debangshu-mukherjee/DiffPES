@@ -33,42 +33,42 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_operators
+.. automodule:: tests.test_diffpes.test_tightb.test_surface_layer_operators
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_carrier_handoff
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_carrier_handoff
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_chinook_compatibility
+.. automodule:: tests.test_diffpes.test_tightb.test_chinook_slab_compatibility
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_differentiability_scaling
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_gradients_gauges_scaling
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_g10_operator_seam
+.. automodule:: tests.test_diffpes.test_tightb.test_wannier_operator_slab_seam
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_slab
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_extrusion
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_physics_gates
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_physics_invariants
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_tightb.test_plan05_sk_differentiability
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_slater_koster_gradients
    :members:
    :undoc-members:
    :show-inheritance:

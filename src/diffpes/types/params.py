@@ -20,7 +20,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarFloat, ScalarNumeric
 
@@ -37,13 +37,13 @@ class SimulationParams(eqx.Module):
 
     Attributes
     ----------
-    energy_min : Float[Array, " "]
+    energy_min : Float64[Array, " "]
         Lower bound of the energy window in eV.
-    energy_max : Float[Array, " "]
+    energy_max : Float64[Array, " "]
         Upper bound of the energy window in eV.
-    sigma : Float[Array, " "]
+    sigma : Float64[Array, " "]
         Gaussian instrumental broadening width in eV.
-    gamma : Float[Array, " "]
+    gamma : Float64[Array, " "]
         Lorentzian lifetime broadening half-width in eV.
     fidelity : int
         Number of energy samples. This field is static and changing it
@@ -57,10 +57,10 @@ class SimulationParams(eqx.Module):
         Validated factory for this carrier.
     """
 
-    energy_min: Float[Array, " "]
-    energy_max: Float[Array, " "]
-    sigma: Float[Array, " "]
-    gamma: Float[Array, " "]
+    energy_min: Float64[Array, " "]
+    energy_max: Float64[Array, " "]
+    sigma: Float64[Array, " "]
+    gamma: Float64[Array, " "]
     fidelity: int = eqx.field(static=True)
 
 
@@ -114,19 +114,19 @@ def make_simulation_params(  # noqa: DOC503
         message: str = "make_simulation_params: fidelity must be at least 2"
         raise ValueError(message)
 
-    minimum: Float[Array, " "] = jnp.asarray(
+    minimum: Float64[Array, " "] = jnp.asarray(
         energy_min,
         dtype=jnp.float64,
     )
-    maximum: Float[Array, " "] = jnp.asarray(
+    maximum: Float64[Array, " "] = jnp.asarray(
         energy_max,
         dtype=jnp.float64,
     )
-    gaussian_width: Float[Array, " "] = jnp.asarray(
+    gaussian_width: Float64[Array, " "] = jnp.asarray(
         sigma,
         dtype=jnp.float64,
     )
-    lorentzian_width: Float[Array, " "] = jnp.asarray(
+    lorentzian_width: Float64[Array, " "] = jnp.asarray(
         gamma,
         dtype=jnp.float64,
     )
@@ -222,11 +222,11 @@ def make_expanded_simulation_params(  # noqa: DOC503
     temperature and photon energy at the consuming physics boundary or use
     :class:`~diffpes.types.ExperimentGeometry`.
     """
-    bands: Float[Array, "K B"] = jnp.asarray(
+    bands: Float64[Array, "K B"] = jnp.asarray(
         eigenbands,
         dtype=jnp.float64,
     )
-    padding: Float[Array, " "] = jnp.asarray(
+    padding: Float64[Array, " "] = jnp.asarray(
         energy_padding,
         dtype=jnp.float64,
     )

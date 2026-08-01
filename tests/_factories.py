@@ -12,7 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, PRNGKeyArray, jaxtyped
+from jaxtyping import Array, Complex128, Float64, PRNGKeyArray, jaxtyped
 
 from diffpes.tightb import (
     diagonalize_tb,
@@ -71,8 +71,10 @@ def make_1d_chain_model(t: ScalarFloat = -1.0) -> TBModel:
         m=(0,),
         labels=("s",),
     )
-    hopping_value: Complex[Array, ""] = jnp.asarray(t, dtype=jnp.complex128)
-    hopping: Complex[Array, " 2"] = jnp.stack((hopping_value, hopping_value))
+    hopping_value: Complex128[Array, ""] = jnp.asarray(t, dtype=jnp.complex128)
+    hopping: Complex128[Array, " 2"] = jnp.stack(
+        (hopping_value, hopping_value)
+    )
     model: TBModel = make_tb_model(
         hopping_amplitudes=hopping,
         onsite_energies=jnp.zeros((1,), dtype=jnp.float64),
@@ -101,7 +103,7 @@ def make_graphene_model(t: ScalarFloat = -2.7) -> TBModel:
         Validated two-orbital honeycomb model in the basis-position gauge.
     """
     lattice_constant: float = 2.46
-    lattice: Float[Array, "3 3"] = jnp.asarray(
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
         [
             [lattice_constant, 0.0, 0.0],
             [
@@ -128,8 +130,8 @@ def make_graphene_model(t: ScalarFloat = -2.7) -> TBModel:
         m=(0, 0),
         labels=("A_pz", "B_pz"),
     )
-    hopping_value: Complex[Array, ""] = jnp.asarray(t, dtype=jnp.complex128)
-    hopping: Complex[Array, " 6"] = jnp.stack((hopping_value,) * 6)
+    hopping_value: Complex128[Array, ""] = jnp.asarray(t, dtype=jnp.complex128)
+    hopping: Complex128[Array, " 6"] = jnp.stack((hopping_value,) * 6)
     model: TBModel = make_tb_model(
         hopping_amplitudes=hopping,
         onsite_energies=jnp.zeros((2,), dtype=jnp.float64),
@@ -182,15 +184,15 @@ def make_rashba_model(
         spin=(-1, 1),
         labels=("s_down", "s_up"),
     )
-    hopping_value: Complex[Array, ""] = jnp.asarray(
+    hopping_value: Complex128[Array, ""] = jnp.asarray(
         hopping,
         dtype=jnp.complex128,
     )
-    rashba_value: Complex[Array, ""] = jnp.asarray(
+    rashba_value: Complex128[Array, ""] = jnp.asarray(
         rashba,
         dtype=jnp.complex128,
     )
-    amplitudes: list[Complex[Array, ""]] = []
+    amplitudes: list[Complex128[Array, ""]] = []
     pairs: list[tuple[int, int]] = []
     cells: list[tuple[int, int, int]] = []
     cell: tuple[int, int, int]
@@ -206,13 +208,13 @@ def make_rashba_model(
             amplitudes.append(hopping_value)
             pairs.append((spin, spin))
             cells.append(cell)
-    forward_amplitudes: tuple[Complex[Array, ""], ...] = (
+    forward_amplitudes: tuple[Complex128[Array, ""], ...] = (
         -0.5 * rashba_value,
         0.5 * rashba_value,
         -0.5j * rashba_value,
         0.5j * rashba_value,
     )
-    amplitude: Complex[Array, ""]
+    amplitude: Complex128[Array, ""]
     for cell, amplitude in zip(
         nearest_cells,
         forward_amplitudes,
@@ -298,13 +300,13 @@ def toy_band_structure(
 
     The factory samples eigenvalues in [-2.5, 0.25] eV, safely below
     ``E_F + 0.5`` eV. This intentionally avoids the known upper-state
-    ``fermi_dirac`` gradient defect until plan 02 repairs it. The supplied key
+    ``fermi_dirac`` gradient defect in upper states. The supplied key
     is the entire seed policy and is never mutated.
     """
     energy_key: PRNGKeyArray
     kpoint_key: PRNGKeyArray
     energy_key, kpoint_key = jax.random.split(key)
-    eigenvalues: Float[Array, "n_k n_bands"] = jax.random.uniform(
+    eigenvalues: Float64[Array, "n_k n_bands"] = jax.random.uniform(
         energy_key,
         (n_k, n_bands),
         minval=-2.5,
@@ -312,7 +314,7 @@ def toy_band_structure(
         dtype=jnp.float64,
     )
     eigenvalues = jnp.sort(eigenvalues, axis=-1)
-    kpoints: Float[Array, "n_k 3"] = jax.random.uniform(
+    kpoints: Float64[Array, "n_k 3"] = jax.random.uniform(
         kpoint_key,
         (n_k, 3),
         minval=-0.5,
@@ -342,17 +344,17 @@ def toy_orbital_projection(
     supplied key, then normalized over atom and orbital axes for each state.
     Spin and orbital-angular-momentum fields remain absent.
     """
-    raw: Float[Array, "n_k n_bands n_atoms 9"] = jax.random.uniform(
+    raw: Float64[Array, "n_k n_bands n_atoms 9"] = jax.random.uniform(
         key,
         (n_k, n_bands, n_atoms, 9),
         minval=0.1,
         maxval=1.0,
         dtype=jnp.float64,
     )
-    normalization: Float[Array, "n_k n_bands 1 1"] = jnp.sum(
+    normalization: Float64[Array, "n_k n_bands 1 1"] = jnp.sum(
         raw, axis=(-2, -1), keepdims=True
     )
-    projections: Float[Array, "n_k n_bands n_atoms 9"] = raw / normalization
+    projections: Float64[Array, "n_k n_bands n_atoms 9"] = raw / normalization
     orbital_projection: OrbitalProjection = make_orbital_projection(
         projections
     )
@@ -390,10 +392,10 @@ def toy_graphene_diagonalized(
     The factory uses no random seed.
     """
     model: TBModel = make_graphene_model()
-    path_coordinate: Float[Array, " n_k"] = jnp.linspace(
+    path_coordinate: Float64[Array, " n_k"] = jnp.linspace(
         0.0, 1.0, n_k, dtype=jnp.float64
     )
-    kpoints: Float[Array, "n_k 3"] = path_coordinate[:, None] * jnp.array(
+    kpoints: Float64[Array, "n_k 3"] = path_coordinate[:, None] * jnp.array(
         [1.0 / 3.0, 1.0 / 3.0, 0.0], dtype=jnp.float64
     )
     bands: DiagonalizedBands = diagonalize_tb(model, kpoints)
@@ -412,8 +414,10 @@ def toy_chain_diagonalized(
     path from -1/2 to 1/2 along kx. The factory uses no random seed.
     """
     model: TBModel = make_1d_chain_model()
-    kx: Float[Array, " n_k"] = jnp.linspace(-0.5, 0.5, n_k, dtype=jnp.float64)
-    kpoints: Float[Array, "n_k 3"] = jnp.stack(
+    kx: Float64[Array, " n_k"] = jnp.linspace(
+        -0.5, 0.5, n_k, dtype=jnp.float64
+    )
+    kpoints: Float64[Array, "n_k 3"] = jnp.stack(
         (kx, jnp.zeros_like(kx), jnp.zeros_like(kx)), axis=-1
     )
     bands: DiagonalizedBands = diagonalize_tb(model, kpoints)

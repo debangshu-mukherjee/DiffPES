@@ -1,4 +1,4 @@
-"""Compare Plan 04 bands with frozen offline Chinook artifacts.
+"""Compare tight-binding bands with frozen offline Chinook artifacts.
 
 These K-type tests establish behavioral compatibility only after the
 Slater--Koster, Hamiltonian, and spin--orbit C gates have independently
@@ -25,7 +25,7 @@ from tests._factories import (
 _ARTIFACT_PATH: Path = (
     Path(__file__).parents[1]
     / "_reference_data"
-    / "plan04_chinook_tightb_reference.json"
+    / "chinook_tightb_reference.json"
 )
 _ARTIFACT_SHA256: str = (
     "db52d72562f2efb49d25f9ce2b9affefed1af6f6fac927d1e20f9bb96f1510dc"
@@ -40,22 +40,22 @@ def _reference() -> dict[str, Any]:
     digest: str = hashlib.sha256(encoded).hexdigest()
     if digest != _ARTIFACT_SHA256:
         message: str = (
-            "Plan 04 Chinook artifact checksum differs from its pinned digest"
+            "Chinook artifact checksum differs from its pinned digest"
         )
         raise ValueError(message)
     payload: dict[str, Any] = json.loads(encoded)
     if (
-        payload["metadata"]["gate"] != "04.G6"
+        payload["metadata"]["gate"] != "chinook-tightbinding-parity"
         or payload["metadata"]["classification"]
         != "K-type behavioral compatibility"
     ):
-        message = "Plan 04 Chinook artifact metadata is invalid"
+        message = "Chinook artifact metadata is invalid"
         raise ValueError(message)
     return payload
 
 
 class TestChinookCompatibility:
-    """Resolve the three-model Plan 04 K-type compatibility battery."""
+    """Resolve the three-model Chinook K-type compatibility battery."""
 
     def test_graphene_bands_agree_after_the_c_gates(self) -> None:
         """Match frozen Chinook nearest-neighbor graphene eigenvalues.

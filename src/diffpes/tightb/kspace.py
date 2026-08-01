@@ -36,7 +36,7 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, Bool, Complex, Float, Int, jaxtyped
+from jaxtyping import Array, Bool, Complex, Float, Float64, Int, jaxtyped
 
 from diffpes.maths import safe_norm
 from diffpes.simul import kz_from_inner_potential_at_fermi
@@ -604,12 +604,14 @@ def build_arpes_kmesh(
     lab_x, lab_y = jnp.meshgrid(
         kx_axis_inv_ang, ky_axis_inv_ang, indexing="xy"
     )
-    azimuth: Float[Array, ""] = jnp.asarray(sample_azimuth, dtype=jnp.float64)
+    azimuth: Float64[Array, ""] = jnp.asarray(
+        sample_azimuth, dtype=jnp.float64
+    )
     cosine: Float[Array, ""] = jnp.cos(azimuth)
     sine: Float[Array, ""] = jnp.sin(azimuth)
     sample_x: Float[Array, "n_ky n_kx"] = cosine * lab_x + sine * lab_y
     sample_y: Float[Array, "n_ky n_kx"] = -sine * lab_x + cosine * lab_y
-    kz_array: Float[Array, ""] = jnp.asarray(kz_inv_ang, dtype=jnp.float64)
+    kz_array: Float64[Array, ""] = jnp.asarray(kz_inv_ang, dtype=jnp.float64)
     sample_z: Float[Array, "n_ky n_kx"] = jnp.broadcast_to(
         kz_array, sample_x.shape
     )
@@ -740,7 +742,9 @@ def build_kmesh_hv_at_fermi(  # noqa: DOC502, PLR2004
     lab_y: Float[Array, "n_hv n_kpar"] = jnp.broadcast_to(
         kpar_axis_inv_ang[None, :] * checked_direction[1], real_kz_rows.shape
     )
-    azimuth: Float[Array, ""] = jnp.asarray(sample_azimuth, dtype=jnp.float64)
+    azimuth: Float64[Array, ""] = jnp.asarray(
+        sample_azimuth, dtype=jnp.float64
+    )
     cosine: Float[Array, ""] = jnp.cos(azimuth)
     sine: Float[Array, ""] = jnp.sin(azimuth)
     sample_x: Float[Array, "n_hv n_kpar"] = cosine * lab_x + sine * lab_y

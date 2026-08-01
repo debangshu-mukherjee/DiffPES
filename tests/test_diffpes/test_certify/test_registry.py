@@ -426,7 +426,7 @@ class TestRegisterHandshake:
         -----
         The test uses an empty requirement set and a unique owner suffix.
         """
-        owner_id: str = f"plan-test-{len(list_handshakes())}"
+        owner_id: str = f"registration-test-{len(list_handshakes())}"
         handshake: Any = make_registration_handshake(owner_id)
         register_handshake(handshake)
         assert handshake in list_handshakes()
@@ -487,23 +487,25 @@ class TestValidateHandshake:
         )
         register_model(spec, lambda value: value)
         handshake: Any = make_registration_handshake(
-            owner_id=f"plan-{suffix}",
+            owner_id=f"registration-{suffix}",
             model_refs=(f"{spec.model_id}@{spec.model_version}",),
             convention_refs=(
                 f"{convention.convention_id}@{convention.version}",
             ),
-            evidence_ids=("evidence-plan",),
+            evidence_ids=("evidence-registration",),
         )
         missing: Any = validate_handshake(handshake)
         complete: Any = validate_handshake(
             handshake,
-            evidence_ids=("evidence-plan",),
+            evidence_ids=("evidence-registration",),
         )
-        assert missing.missing_ids == ("evidence-plan",)
+        assert missing.missing_ids == ("evidence-registration",)
         assert bool(complete.complete)
 
-    def test_plan03_handshake_is_green_with_declared_evidence(self) -> None:
-        """Verify the built-in Plan 03 handshake with exact evidence IDs.
+    def test_kinematics_handshake_is_green_with_declared_evidence(
+        self,
+    ) -> None:
+        """Verify the built-in kinematics handshake with exact evidence IDs.
 
         The registered transformation contracts and supplied evidence must suffice.
 
@@ -517,7 +519,7 @@ class TestValidateHandshake:
         handshake: Any = next(
             item
             for item in list_handshakes()
-            if item.owner_id == "org.diffpes.plan.03"
+            if item.owner_id == "org.diffpes.kspace"
         )
         expected_refs: tuple[str, ...] = (
             "org.diffpes.transform.kspace.fractional_cartesian@1.0.0",
@@ -545,19 +547,19 @@ class TestValidateHandshake:
         )
         assert bool(report.complete), report.missing_ids
 
-    def test_plan04_handshake_is_idempotent_and_green_with_declared_evidence(
+    def test_tight_binding_handshake_is_idempotent_and_green_with_declared_evidence(
         self,
     ) -> None:
-        """Validate Plan 04 contracts and all declared gate evidence.
+        """Validate tight-binding contracts and all declared evidence.
 
-        Plan 04 registers transformation semantics without inventing a new
+        The tight-binding registration records transformation semantics without inventing a new
         executable model identity. Repeated built-in registration must leave
         the complete process-local registry unchanged.
 
         Notes
         -----
         Resolve the packaged declaration by owner instead of list position.
-        Require evidence for every G, D, and S gate. Validate exactly that
+        Require evidence for every declared verification category. Validate exactly that
         evidence.
         """
         register_builtin_models()
@@ -571,12 +573,12 @@ class TestValidateHandshake:
         declaration: dict[str, Any] = next(
             item
             for item in manifest["handshakes"]
-            if item["owner_id"] == "org.diffpes.plan.04"
+            if item["owner_id"] == "org.diffpes.tightb"
         )
         handshake: Any = next(
             item
             for item in list_handshakes()
-            if item.owner_id == "org.diffpes.plan.04"
+            if item.owner_id == "org.diffpes.tightb"
         )
         expected_refs: tuple[str, ...] = (
             "org.diffpes.transform.tightb.bloch_basis_position@1.0.0",
@@ -590,19 +592,18 @@ class TestValidateHandshake:
         assert declaration["model_refs"] == []
 
         evidence_ids: tuple[str, ...] = tuple(declaration["evidence_ids"])
-        gate: int
-        for gate in range(1, 10):
-            assert any(f".g{gate}." in item for item in evidence_ids)
-        for gate in range(1, 6):
-            assert any(f".d{gate}." in item for item in evidence_ids)
-        for gate in range(1, 4):
-            assert any(f".s{gate}." in item for item in evidence_ids)
+        assert len(evidence_ids) == 17
+        assert len(set(evidence_ids)) == 17
+        assert all(
+            item.startswith("org.diffpes.evidence.tightb.")
+            for item in evidence_ids
+        )
         assert (
-            "org.diffpes.evidence.04.g6.chinook_k_compatibility_resolved"
+            "org.diffpes.evidence.tightb.chinook_k_compatibility_resolved"
             in evidence_ids
         )
         assert (
-            "org.diffpes.evidence.04.g7.wannier90_normative_ingestion"
+            "org.diffpes.evidence.tightb.wannier90_normative_ingestion"
             in evidence_ids
         )
 
@@ -644,16 +645,16 @@ class TestValidateHandshake:
         assert bool(report.complete), report.missing_ids
         assert report.missing_ids == ()
         assert {item.owner_id for item in list_handshakes()} >= {
-            "org.diffpes.plan.03",
-            "org.diffpes.plan.04",
+            "org.diffpes.kspace",
+            "org.diffpes.tightb",
         }
 
-    def test_plan05_split_handshakes_are_complete_and_acyclic(self) -> None:
+    def test_slab_split_handshakes_are_complete_and_acyclic(self) -> None:
         """Validate the separate carrier and full-slab lifecycle records.
 
-        Plan 05a must certify only the depth-carrier release. Plan 05b
-        enumerates every retained G, D, and S exit gate. It must not acquire
-        Plan 06 amplitude, intensity, or matrix-element dependencies.
+        The carrier registration must certify only the depth-carrier release. The slab
+        registration enumerates every retained verification requirement. It must not acquire
+        amplitude, intensity, or matrix-element dependencies.
 
         Notes
         -----
@@ -668,39 +669,39 @@ class TestValidateHandshake:
         handshakes: dict[str, Any] = {
             item.owner_id: item for item in list_handshakes()
         }
-        carrier_owner: str = "org.diffpes.plan.05a"
-        slab_owner: str = "org.diffpes.plan.05b"
+        carrier_owner: str = "org.diffpes.slab"
+        slab_owner: str = "org.diffpes.surface"
         assert {carrier_owner, slab_owner} <= declarations.keys()
         assert {carrier_owner, slab_owner} <= handshakes.keys()
 
         carrier_evidence: tuple[str, ...] = (
-            "org.diffpes.evidence.05a.g1.depth_carrier_persistence",
-            "org.diffpes.evidence.05a.d1.depth_identity_jacobian",
+            "org.diffpes.evidence.slab.depth_carrier_persistence",
+            "org.diffpes.evidence.slab.depth_identity_jacobian",
         )
         carrier_refs: tuple[str, ...] = (
             "org.diffpes.transform.tightb.depth_carrier@1.0.0",
         )
         slab_evidence: tuple[str, ...] = (
-            "org.diffpes.evidence.05.g1.finite_chain",
-            "org.diffpes.evidence.05.g2.rotation_covariance",
-            "org.diffpes.evidence.05.g3.graphene_edges",
-            "org.diffpes.evidence.05.g4.chinook_slab",
-            "org.diffpes.evidence.05.g5.primitive_depths",
-            "org.diffpes.evidence.05.g6.inversion_covariance",
-            "org.diffpes.evidence.05.g7.open_surface",
-            "org.diffpes.evidence.05.g8.depth_handoff",
-            "org.diffpes.evidence.05.g9.surface_projection",
-            "org.diffpes.evidence.05.g10.exact_operator_gather",
-            "org.diffpes.evidence.05.g11.incomplete_shell_rejection",
-            "org.diffpes.evidence.05.g12.fixed_group_gauge",
-            "org.diffpes.evidence.05.g13.unfolded_graph",
-            "org.diffpes.evidence.05.g14.acyclic_lifecycle",
-            "org.diffpes.evidence.05.d1.bulk_parameter_gradients",
-            "org.diffpes.evidence.05.d2.lattice_depth_gradients",
-            "org.diffpes.evidence.05.d4.probe_depth_gradients",
-            "org.diffpes.evidence.05.d5.random_group_gauges",
-            "org.diffpes.evidence.05.s1.chunked_memory",
-            "org.diffpes.evidence.05.s2.compile_count",
+            "org.diffpes.evidence.surface.finite_chain",
+            "org.diffpes.evidence.surface.rotation_covariance",
+            "org.diffpes.evidence.surface.graphene_edges",
+            "org.diffpes.evidence.surface.chinook_slab",
+            "org.diffpes.evidence.surface.primitive_depths",
+            "org.diffpes.evidence.surface.inversion_covariance",
+            "org.diffpes.evidence.surface.open_surface",
+            "org.diffpes.evidence.surface.depth_handoff",
+            "org.diffpes.evidence.surface.surface_projection",
+            "org.diffpes.evidence.surface.exact_operator_gather",
+            "org.diffpes.evidence.surface.incomplete_shell_rejection",
+            "org.diffpes.evidence.surface.fixed_group_gauge",
+            "org.diffpes.evidence.surface.unfolded_graph",
+            "org.diffpes.evidence.surface.acyclic_lifecycle",
+            "org.diffpes.evidence.surface.bulk_parameter_gradients",
+            "org.diffpes.evidence.surface.lattice_depth_gradients",
+            "org.diffpes.evidence.surface.probe_depth_gradients",
+            "org.diffpes.evidence.surface.random_group_gauges",
+            "org.diffpes.evidence.surface.chunked_memory",
+            "org.diffpes.evidence.surface.compile_count",
         )
         slab_refs: tuple[str, ...] = (
             "org.diffpes.transform.tightb.slab_surface@1.0.0",
@@ -741,21 +742,11 @@ class TestValidateHandshake:
             assert bool(report.complete), report.missing_ids
             assert report.missing_ids == ()
 
-        assert (
-            tuple(
-                item
-                for item in slab_evidence
-                if any(f".g{gate}." in item for gate in range(1, 15))
-            )
-            == slab_evidence[:14]
-        )
-        assert {
-            item.split(".evidence.05.", maxsplit=1)[1].split(".", maxsplit=1)[
-                0
-            ]
-            for item in slab_evidence[14:]
-        } == {"d1", "d2", "d4", "d5", "s1", "s2"}
-        plan05_identifiers: tuple[str, ...] = tuple(
+        assert len(slab_evidence[:14]) == 14
+        assert len(set(slab_evidence[:14])) == 14
+        assert len(slab_evidence[14:]) == 6
+        assert len(set(slab_evidence[14:])) == 6
+        slab_identifiers: tuple[str, ...] = tuple(
             identifier
             for owner in (carrier_owner, slab_owner)
             for identifier in (
@@ -766,14 +757,16 @@ class TestValidateHandshake:
             )
         )
         assert not any(
-            ".06" in identifier for identifier in plan05_identifiers
+            ".matrixel" in identifier for identifier in slab_identifiers
         )
         assert not any(
             forbidden in identifier
-            for identifier in plan05_identifiers
+            for identifier in slab_identifiers
             for forbidden in ("amplitude", "matrix_element")
         )
-        assert "org.diffpes.evidence.05.g14.acyclic_lifecycle" in slab_evidence
+        assert (
+            "org.diffpes.evidence.surface.acyclic_lifecycle" in slab_evidence
+        )
 
         depth_carrier: Any = get_transformation(
             "org.diffpes.transform.tightb.depth_carrier",
@@ -805,10 +798,12 @@ class TestRegistryManifest:
     :see: :func:`~diffpes.certify.registry_manifest`
     """
 
-    def test_manifest_has_plan06_handshake_and_no_retired_model(self) -> None:
+    def test_manifest_has_matrix_element_handshake_and_no_retired_model(
+        self,
+    ) -> None:
         """Read the schema and current owner handshakes from package resources.
 
-        The manifest omits the stale radial model and declares Plan 06 explicitly.
+        The manifest omits the stale radial model and declares matrix-element ownership explicitly.
 
         Notes
         -----
@@ -821,20 +816,26 @@ class TestRegistryManifest:
             item["owner_id"] for item in manifest["handshakes"]
         )
         assert owners == tuple(sorted(owners))
-        assert "org.diffpes.plan.06" in owners
-        plan06: dict[str, Any] = next(
+        assert "org.diffpes.matrixel" in owners
+        matrix_element: dict[str, Any] = next(
             item
             for item in manifest["handshakes"]
-            if item["owner_id"] == "org.diffpes.plan.06"
+            if item["owner_id"] == "org.diffpes.matrixel"
         )
-        assert len(plan06["evidence_ids"]) == 41
-        assert "org.diffpes.evidence.06.g18" in plan06["evidence_ids"]
+        assert len(matrix_element["evidence_ids"]) == 41
         assert (
-            "org.diffpes.evidence.06.d13.not_applicable.g13_rejected"
-            in plan06["evidence_ids"]
+            "org.diffpes.evidence.matrixel.orbital_position_vacuum_momentum"
+            in matrix_element["evidence_ids"]
         )
-        assert "org.diffpes.evidence.06.d13" not in plan06["evidence_ids"]
-        assert "org.diffpes.evidence.06.s3" in plan06["evidence_ids"]
+        assert (
+            "org.diffpes.evidence.matrixel.hermite_acceleration_not_applicable"
+            in matrix_element["evidence_ids"]
+        )
+        assert len(set(matrix_element["evidence_ids"])) == 41
+        assert (
+            "org.diffpes.evidence.matrixel.late_polarization_performance"
+            in matrix_element["evidence_ids"]
+        )
 
 
 class TestRenderModelCard:

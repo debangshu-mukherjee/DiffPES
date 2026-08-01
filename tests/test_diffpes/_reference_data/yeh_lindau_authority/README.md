@@ -1,4 +1,4 @@
-# Plan 06 Yeh–Lindau authority metadata
+# Yeh–Lindau authority metadata
 
 These inert snapshots support the dated G5 authority amendment. They were
 downloaded on 2026-07-28 from:
@@ -14,9 +14,9 @@ available.
 
 SHA-256:
 
-- `plan06_figshare_12389750_v3.json`:
+- `figshare_12389750_v3.json`:
   `c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026a7bda44`
-- `plan06_regoutz_cross_sections.html`:
+- `regoutz_cross_sections.html`:
   `2e4c3cc0dbb73cecced5d8608fa44286ac444636e8d9142f4bbe4b042d236703`
 
 These snapshots make the metadata claims reproducible; they do not create an

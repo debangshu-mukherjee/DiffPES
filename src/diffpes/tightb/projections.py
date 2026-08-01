@@ -26,7 +26,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Float, Float64, jaxtyped
 
 from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
 
@@ -311,7 +311,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
         n_orbitals,
         context="expectation_path",
     )
-    tolerance: Float[Array, ""] = jnp.asarray(degen_tol, dtype=jnp.float64)
+    tolerance: Float64[Array, ""] = jnp.asarray(degen_tol, dtype=jnp.float64)
     tolerance = eqx.error_if(
         tolerance,
         ~jnp.isfinite(tolerance) | (tolerance <= 0.0),
@@ -333,7 +333,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
         connected = connected | (
             connected[:, :, pivot, None] & connected[:, None, pivot, :]
         )
-    mask: Float[Array, "n_k n_bands n_bands"] = connected.astype(jnp.float64)
+    mask: Float64[Array, "n_k n_bands n_bands"] = connected.astype(jnp.float64)
     numerator: Float[Array, "n_k n_bands"] = jnp.einsum(
         "kij,kj->ki",
         mask,

@@ -43,7 +43,7 @@
     "name": "mpmath",
     "version": "1.4.1"
   },
-  "schema": "diffpes.plan06.coulomb-reference.v2",
+  "schema": "diffpes.coulomb-reference.v2",
   "source_revision": "baa0eff2db9deee42eceb46bc8905a804034dc50",
   "sparse_value_derivative_product": {
     "etas": [

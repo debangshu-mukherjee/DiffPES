@@ -26,7 +26,7 @@ import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Union
 from jax.core import Tracer
-from jaxtyping import Array, Float, Int, jaxtyped
+from jaxtyping import Array, Float, Float64, Int, Int32, jaxtyped
 
 from .aliases import ScalarFloat
 
@@ -59,16 +59,16 @@ class KPathInfo(eqx.Module):
         segment).
     segments : Int[Array, " "]
         Number of line segments in line mode.
-    kpoints : Optional[Float[Array, "K 3"]]
+    kpoints : Optional[Float64[Array, "K 3"]]
         Mode-specific k-points:
         line mode -> segment endpoints (segments + 1),
         explicit mode -> listed k-points,
         automatic mode -> None.
-    weights : Optional[Float[Array, " K"]]
+    weights : Optional[Float64[Array, " K"]]
         Explicit-mode per-k-point weights (None otherwise).
     grid : Optional[Int[Array, " 3"]]
         Automatic-mode Monkhorst-Pack/Gamma grid (None otherwise).
-    shift : Optional[Float[Array, " 3"]]
+    shift : Optional[Float64[Array, " 3"]]
         Automatic-mode grid shift (None otherwise).
     mode : str
         KPOINTS file mode (Automatic, Line-mode, Explicit; **static** -- a
@@ -102,10 +102,10 @@ class KPathInfo(eqx.Module):
     label_indices: Int[Array, " L"]
     points_per_segment: Int[Array, " "]
     segments: Int[Array, " "]
-    kpoints: Optional[Float[Array, "K 3"]]
-    weights: Optional[Float[Array, " K"]]
+    kpoints: Optional[Float64[Array, "K 3"]]
+    weights: Optional[Float64[Array, " K"]]
     grid: Optional[Int[Array, " 3"]]
-    shift: Optional[Float[Array, " 3"]]
+    shift: Optional[Float64[Array, " 3"]]
     mode: str = eqx.field(static=True)
     labels: tuple[str, ...] = eqx.field(static=True)
     comment: str = eqx.field(static=True)
@@ -123,9 +123,9 @@ class KPath(eqx.Module):
 
     Attributes
     ----------
-    kpoints : Float[Array, "n_k 3"]
+    kpoints : Float64[Array, "n_k 3"]
         Fractional k-points.
-    kz : Optional[Float[Array, ""]]
+    kz : Optional[Float64[Array, ""]]
         Fixed Cartesian out-of-plane momentum in 1/Angstrom. ``None`` means
         that the path has no separate fixed value.
     labels : tuple[str, ...]
@@ -144,8 +144,8 @@ class KPath(eqx.Module):
     make_kpath : Create a validated path through fractional k-space.
     """
 
-    kpoints: Float[Array, "n_k 3"]
-    kz: Optional[Float[Array, ""]]
+    kpoints: Float64[Array, "n_k 3"]
+    kz: Optional[Float64[Array, ""]]
     labels: tuple[str, ...] = eqx.field(static=True)
     label_indices: tuple[int, ...] = eqx.field(static=True)
     n_per_segment: int = eqx.field(static=True)
@@ -162,12 +162,12 @@ class KGrid(eqx.Module):
 
     Attributes
     ----------
-    kpoints : Float[Array, "n_k 3"]
+    kpoints : Float64[Array, "n_k 3"]
         Flattened fractional k-points.
-    kz : Optional[Float[Array, ""]]
+    kz : Optional[Float64[Array, ""]]
         Fixed Cartesian out-of-plane momentum in 1/Angstrom. ``None`` marks a
         grid with varying or unspecified out-of-plane momentum.
-    photon_energy_axis_ev : Optional[Float[Array, " n_rows"]]
+    photon_energy_axis_ev : Optional[Float64[Array, " n_rows"]]
         Photon energy for each raster row in eV. ``None`` marks a grid without
         a photon-energy axis.
     mesh_shape : tuple[int, int]
@@ -179,9 +179,9 @@ class KGrid(eqx.Module):
     make_kgrid : Create a validated fixed-shape k-space raster.
     """
 
-    kpoints: Float[Array, "n_k 3"]
-    kz: Optional[Float[Array, ""]]
-    photon_energy_axis_ev: Optional[Float[Array, " n_rows"]]
+    kpoints: Float64[Array, "n_k 3"]
+    kz: Optional[Float64[Array, ""]]
+    photon_energy_axis_ev: Optional[Float64[Array, " n_rows"]]
     mesh_shape: tuple[int, int] = eqx.field(static=True)
 
 
@@ -317,10 +317,14 @@ def make_kpath_info(  # noqa: DOC503, PLR0913
         msg: str = "make_kpath_info: labels and label_indices must agree"
         raise ValueError(msg)
 
-    nkpts_arr: Int[Array, " "] = jnp.asarray(num_kpoints, dtype=jnp.int32)
-    indices_arr: Int[Array, " L"] = jnp.asarray(label_indices, dtype=jnp.int32)
-    pps_arr: Int[Array, " "] = jnp.asarray(points_per_segment, dtype=jnp.int32)
-    segments_arr: Int[Array, " "] = jnp.asarray(segments, dtype=jnp.int32)
+    nkpts_arr: Int32[Array, " "] = jnp.asarray(num_kpoints, dtype=jnp.int32)
+    indices_arr: Int32[Array, " L"] = jnp.asarray(
+        label_indices, dtype=jnp.int32
+    )
+    pps_arr: Int32[Array, " "] = jnp.asarray(
+        points_per_segment, dtype=jnp.int32
+    )
+    segments_arr: Int32[Array, " "] = jnp.asarray(segments, dtype=jnp.int32)
     if (
         mode == "Line-mode"
         and not isinstance(segments_arr, Tracer)
@@ -479,7 +483,7 @@ def make_kpath(  # noqa: DOC503
         message = "label_indices must be strictly increasing"
         raise ValueError(message)
 
-    kpoints_array: Float[Array, "n_k 3"] = jnp.asarray(
+    kpoints_array: Float64[Array, "n_k 3"] = jnp.asarray(
         kpoints, dtype=jnp.float64
     )
     checked_kpoints: Float[Array, "n_k 3"] = eqx.error_if(
@@ -581,7 +585,7 @@ def make_kgrid(  # noqa: DOC503
         message = "photon_energy_axis_ev length must equal n_rows"
         raise ValueError(message)
 
-    kpoints_array: Float[Array, "n_k 3"] = jnp.asarray(
+    kpoints_array: Float64[Array, "n_k 3"] = jnp.asarray(
         kpoints, dtype=jnp.float64
     )
     checked_kpoints: Float[Array, "n_k 3"] = eqx.error_if(

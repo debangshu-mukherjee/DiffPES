@@ -1,8 +1,8 @@
 {
-  "schema": "diffpes.plan06.parity-model.v1",
-  "gates": ["06.G6", "06.G7"],
+  "schema": "diffpes.chinook-matrix-element-model.v1",
+  "gates": ["chinook-pointwise-matrix-element-parity", "chinook-polarization-intensity-parity"],
   "graphene": {
-    "model_id": "RM-1-plan06-matrixel",
+    "model_id": "RM-1-chinook-matrixel",
     "lattice_constant_angstrom": 2.46,
     "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
     "positions_fractional": [[0.0, 0.0, 0.0], [0.3333333333333333, 0.3333333333333333, 0.0]],
@@ -18,7 +18,7 @@
     "map_points_per_axis": 31
   },
   "p_orbital_polarization": {
-    "model_id": "plan06-single-2pz-fixed-radial",
+    "model_id": "chinook-single-2pz-fixed-radial",
     "position_cartesian_angstrom": [0.0, 0.0, 0.0],
     "initial_momentum_cartesian_inverse_angstrom": [0.35, 0.22, 0.0],
     "radial_integral_phase_free": {"lprime_0": 1.0, "lprime_2": 1.0},

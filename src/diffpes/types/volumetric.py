@@ -33,7 +33,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, Int, jaxtyped
+from jaxtyping import Array, Float, Float64, Int, Int32, jaxtyped
 
 
 class VolumetricData(eqx.Module):
@@ -55,19 +55,19 @@ class VolumetricData(eqx.Module):
 
     Attributes
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows, in Angstroms. Defines
         the unit cell geometry for interpreting grid coordinates.
         JAX-traced (differentiable).
-    coords : Float[Array, "N 3"]
+    coords : Float64[Array, "N 3"]
         Fractional atomic coordinates for all N atoms in the cell.
         JAX-traced (differentiable).
-    charge : Float[Array, "Nx Ny Nz"]
+    charge : Float64[Array, "Nx Ny Nz"]
         Charge density on the 3-D real-space grid, in units of
         electrons per unit cell volume (VASP convention). Nx, Ny, Nz
         are the grid dimensions along the three lattice directions.
         JAX-traced (differentiable).
-    magnetization : Optional[Float[Array, "Nx Ny Nz"]]
+    magnetization : Optional[Float64[Array, "Nx Ny Nz"]]
         Scalar magnetization density (spin-up minus spin-down), or
         ``None`` for non-spin-polarized calculations (ISPIN=1).
         Same units and grid as ``charge``. JAX-traced when present.
@@ -97,10 +97,10 @@ class VolumetricData(eqx.Module):
         float64 casting.
     """
 
-    lattice: Float[Array, "3 3"]
-    coords: Float[Array, "N 3"]
-    charge: Float[Array, "Nx Ny Nz"]
-    magnetization: Optional[Float[Array, "Nx Ny Nz"]]
+    lattice: Float64[Array, "3 3"]
+    coords: Float64[Array, "N 3"]
+    charge: Float64[Array, "Nx Ny Nz"]
+    magnetization: Optional[Float64[Array, "Nx Ny Nz"]]
     atom_counts: Int[Array, " S"]
     grid_shape: tuple[int, int, int] = eqx.field(static=True)
     symbols: tuple[str, ...] = eqx.field(static=True)
@@ -207,16 +207,18 @@ def make_volumetric_data(  # noqa: DOC503
     make_soc_volumetric_data : Factory for the SOC variant with
         vector magnetization.
     """
-    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
-    coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+    lattice_arr: Float64[Array, "3 3"] = jnp.asarray(
+        lattice, dtype=jnp.float64
+    )
+    coords_arr: Float64[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr: Float64[Array, "Nx Ny Nz"] = jnp.asarray(
         charge, dtype=jnp.float64
     )
     mag_arr: Optional[Float[Array, "Nx Ny Nz"]] = None
     if magnetization is not None:
         mag_arr = jnp.asarray(magnetization, dtype=jnp.float64)
     if atom_counts is None:
-        counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
+        counts_arr: Int32[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
     if charge_arr.shape != grid_shape:
@@ -278,21 +280,21 @@ class SOCVolumetricData(eqx.Module):
 
     Attributes
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows, in Angstroms.
         JAX-traced (differentiable).
-    coords : Float[Array, "N 3"]
+    coords : Float64[Array, "N 3"]
         Fractional atomic coordinates for all N atoms.
         JAX-traced (differentiable).
-    charge : Float[Array, "Nx Ny Nz"]
+    charge : Float64[Array, "Nx Ny Nz"]
         Total charge density on the 3-D grid (electrons per unit
         cell volume). JAX-traced (differentiable).
-    magnetization : Float[Array, "Nx Ny Nz"]
+    magnetization : Float64[Array, "Nx Ny Nz"]
         Scalar magnetization density, specifically the mz component.
         Provided for backward compatibility with code that expects
         ISPIN=2-style scalar magnetization. JAX-traced
         (differentiable).
-    magnetization_vector : Float[Array, "Nx Ny Nz 3"]
+    magnetization_vector : Float64[Array, "Nx Ny Nz 3"]
         Full vector magnetization ``(mx, my, mz)`` at each grid
         point. The last axis indexes the three Cartesian components.
         JAX-traced (differentiable).
@@ -322,11 +324,11 @@ class SOCVolumetricData(eqx.Module):
         float64 casting.
     """
 
-    lattice: Float[Array, "3 3"]
-    coords: Float[Array, "N 3"]
-    charge: Float[Array, "Nx Ny Nz"]
-    magnetization: Float[Array, "Nx Ny Nz"]
-    magnetization_vector: Float[Array, "Nx Ny Nz 3"]
+    lattice: Float64[Array, "3 3"]
+    coords: Float64[Array, "N 3"]
+    charge: Float64[Array, "Nx Ny Nz"]
+    magnetization: Float64[Array, "Nx Ny Nz"]
+    magnetization_vector: Float64[Array, "Nx Ny Nz 3"]
     atom_counts: Int[Array, " S"]
     grid_shape: tuple[int, int, int] = eqx.field(static=True)
     symbols: tuple[str, ...] = eqx.field(static=True)
@@ -440,19 +442,19 @@ def make_soc_volumetric_data(  # noqa: DOC503
     make_volumetric_data : Factory for the non-SOC variant.
     """
     if atom_counts is None:
-        counts_arr: Int[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
+        counts_arr: Int32[Array, " S"] = jnp.zeros(0, dtype=jnp.int32)
     else:
         counts_arr = jnp.asarray(atom_counts, dtype=jnp.int32)
-    soc_lattice_arr: Float[Array, "3 3"] = jnp.asarray(
+    soc_lattice_arr: Float64[Array, "3 3"] = jnp.asarray(
         lattice, dtype=jnp.float64
     )
-    soc_charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+    soc_charge_arr: Float64[Array, "Nx Ny Nz"] = jnp.asarray(
         charge, dtype=jnp.float64
     )
-    soc_mag_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+    soc_mag_arr: Float64[Array, "Nx Ny Nz"] = jnp.asarray(
         magnetization, dtype=jnp.float64
     )
-    soc_mag_vector_arr: Float[Array, "Nx Ny Nz 3"] = jnp.asarray(
+    soc_mag_vector_arr: Float64[Array, "Nx Ny Nz 3"] = jnp.asarray(
         magnetization_vector, dtype=jnp.float64
     )
     if soc_charge_arr.shape != grid_shape:

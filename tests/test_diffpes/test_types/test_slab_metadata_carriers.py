@@ -1,6 +1,6 @@
-"""Validate the Plan-05a depth and surface metadata carriers.
+"""Validate the slab depth and surface metadata carriers.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from collections.abc import Callable
@@ -99,7 +99,7 @@ class TestDepthCarrier:
     def test_none_remains_bulk(self) -> None:
         """Preserve the absent carrier through native diagonalization.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -117,7 +117,7 @@ class TestDepthCarrier:
     def test_rejects_invalid_depths_eager_and_jitted(self) -> None:
         """Reject negative, nonfinite, and wrong-length depth arrays.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -172,9 +172,9 @@ class TestDepthCarrier:
         self,
         n_orbitals: int,
     ) -> None:
-        """Verify 05a·D1 for frozen and generic registered directions.
+        """Verify frozen and generic registered slab directions.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -227,7 +227,7 @@ class TestDepthCarrier:
     def test_model_rebuilders_preserve_or_duplicate_depths(self) -> None:
         """Prevent optimizer and spin builders from silently dropping depths.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -256,7 +256,7 @@ class TestSurfaceCell:
     def test_constructs_and_is_a_pytree(self) -> None:
         """Preserve surface leaves and static coefficients on reconstruction.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -275,7 +275,7 @@ class TestSurfaceCell:
     def test_rejects_nonorthogonal_rotation_eager_and_jitted(self) -> None:
         """Keep the rotation check active under compilation.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -302,7 +302,7 @@ class TestSurfaceCell:
     def test_rejects_nonprimitive_stacking_coefficients(self) -> None:
         """Require exact unit stacking advance along the Miller normal.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -332,7 +332,7 @@ class TestSlabSpec:
     def test_factory_validates_species_and_provenance(self) -> None:
         """Store valid static provenance and reject unknown terminations.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -366,13 +366,13 @@ class TestSlabSpec:
                 layer_of_slab_atom=(0, 1),
             )
 
-    def test_hdf5_round_trip_preserves_plan05a_carriers(
+    def test_hdf5_round_trip_preserves_slab_metadata_carriers(
         self,
         tmp_path: Path,
     ) -> None:
         """Persist depth leaves, surface arrays, and slab static metadata.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -395,7 +395,7 @@ class TestSlabSpec:
             bulk_atom_of_slab_atom=(0, 0),
             layer_of_slab_atom=(0, 1),
         )
-        path: Path = tmp_path / "plan05a.h5"
+        path: Path = tmp_path / "slab_metadata.h5"
 
         save_to_h5(path, model=model, bands=bands, slab_spec=slab_spec)
         restored: dict[str, eqx.Module] = load_from_h5(path)
@@ -410,7 +410,7 @@ class TestSlabSpec:
     ) -> None:
         """Verify legacy missing depths map to the bulk sentinel.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

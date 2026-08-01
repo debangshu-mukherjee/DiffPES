@@ -21,7 +21,7 @@ Routine Listings
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Union
-from jaxtyping import Array, Float, Int, jaxtyped
+from jaxtyping import Array, Float, Int32, jaxtyped
 
 from diffpes.types import (
     D_ORBITAL_SLICE,
@@ -88,7 +88,7 @@ def select_atoms(
     advanced indexing always produces a copy. The pure function works inside
     code that ``jax.jit`` compiles.
     """
-    idx: Int[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
+    idx: Int32[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
     proj_sub: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
     spin_sub: Optional[Float[Array, "K B N 9"]] = None
     if orb.spin is not None:
@@ -162,7 +162,7 @@ def aggregate_atoms(
     the reduction manually.
     """
     if atom_indices is not None:
-        idx: Int[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
+        idx: Int32[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
         proj: Float[Array, "K B N 9"] = orb.projections[:, :, idx, :]
     else:
         proj = orb.projections

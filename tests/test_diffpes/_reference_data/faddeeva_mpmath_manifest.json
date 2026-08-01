@@ -1,5 +1,5 @@
 {
-  "archive": "plan07_faddeeva_100digit_reference.npz",
+  "archive": "faddeeva_mpmath_100digit_reference.npz",
   "archive_sha256": "05cf92701a103af7f7cadd6865398ba49154e6ad9c0294376e59e0e8da29fd89",
   "componentwise_value_bound": {
     "absolute": 2e-15,
@@ -28,11 +28,11 @@
     "1e8j"
   ],
   "gates": [
-    "07.G1",
-    "07.D1"
+    "faddeeva-mpmath-reference",
+    "spectral-broadening-gradient"
   ],
-  "generator": "tests/_reference_tools/generate_plan07_faddeeva_reference.py",
-  "generator_sha256": "d47eda4acd44dcc80b08be4a546fcdb8cb7ac14c8645a27976006f50defeaaec",
+  "generator": "tests/_reference_tools/generate_faddeeva_mpmath_reference.py",
+  "generator_sha256": "4e2f8e6fbef5513639c1a3f21fb1adf3a59dcf4c86f97c83c6c28a80744782fd",
   "grid": {
     "angles": "linspace(0,pi,33)",
     "radii": "{0} union 10**linspace(-12,8,161)"
@@ -42,7 +42,7 @@
     "formula": "exp(-z*z)*erfc(-1j*z)",
     "name": "mpmath"
   },
-  "schema": "diffpes.plan07.faddeeva-reference.v1",
+  "schema": "diffpes.faddeeva-mpmath-reference.v1",
   "seams": [],
   "selected_algorithm": {
     "name": "Weideman rational approximation",

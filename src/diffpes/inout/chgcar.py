@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Optional, TextIO, Tuple
-from jaxtyping import Array, Float, Int, jaxtyped
+from jaxtyping import Array, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -68,7 +68,7 @@ def read_chgcar(
 
     2. **Normalize the charge grid by the cell volume**::
 
-           charge_grid: Float[NDArray, "Nx Ny Nz"] = (
+           charge_grid: Float64[NDArray, "Nx Ny Nz"] = (
                charge_vals.reshape(grid_shape, order="F") / volume
            )
 
@@ -107,8 +107,8 @@ def read_chgcar(
 
     path: Path = Path(filename)
     with path.open("r") as fid:
-        lattice: Float[NDArray, "3 3"]
-        coords: Float[NDArray, "N 3"]
+        lattice: Float64[NDArray, "3 3"]
+        coords: Float64[NDArray, "N 3"]
         symbols: tuple[str, ...]
         atom_counts: list[int]
         lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
@@ -134,18 +134,18 @@ def read_chgcar(
         raise ValueError(msg)
 
     ngrid: int = int(np.prod(np.asarray(grid_shape, dtype=np.int64)))
-    charge_vals: Float[NDArray, " ngrid"]
+    charge_vals: Float64[NDArray, " ngrid"]
     end_idx: int
     charge_vals, end_idx = _parse_float_block(
         rest_lines,
         first_grid_idx + 1,
         ngrid,
     )
-    charge_grid: Float[NDArray, "Nx Ny Nz"] = (
+    charge_grid: Float64[NDArray, "Nx Ny Nz"] = (
         charge_vals.reshape(grid_shape, order="F") / volume
     )
 
-    mag_grids: list[Float[NDArray, "Nx Ny Nz"]] = []
+    mag_grids: list[Float64[NDArray, "Nx Ny Nz"]] = []
     scan_idx: int = end_idx
     while len(mag_grids) < N_SOC_MAG_BLOCKS:
         next_idx: Optional[int]
@@ -154,7 +154,7 @@ def read_chgcar(
         if next_idx is None:
             break
         ngrid_mag: int = int(np.prod(np.asarray(next_shape, dtype=np.int64)))
-        mag_vals: Float[NDArray, " ngrid"]
+        mag_vals: Float64[NDArray, " ngrid"]
         mag_vals, scan_idx = _parse_float_block(
             rest_lines,
             next_idx + 1,
@@ -162,16 +162,20 @@ def read_chgcar(
         )
         mag_grids.append(mag_vals.reshape(next_shape, order="F") / volume)
 
-    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
-    coords_arr: Float[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
-    charge_arr: Float[Array, "Nx Ny Nz"] = jnp.asarray(
+    lattice_arr: Float64[Array, "3 3"] = jnp.asarray(
+        lattice, dtype=jnp.float64
+    )
+    coords_arr: Float64[Array, "N 3"] = jnp.asarray(coords, dtype=jnp.float64)
+    charge_arr: Float64[Array, "Nx Ny Nz"] = jnp.asarray(
         charge_grid, dtype=jnp.float64
     )
-    counts_arr: Int[Array, " S"] = jnp.asarray(atom_counts, dtype=jnp.int32)
+    counts_arr: Int32[Array, " S"] = jnp.asarray(atom_counts, dtype=jnp.int32)
 
     volumetric: VolumetricData | SOCVolumetricData
     if len(mag_grids) == N_SOC_MAG_BLOCKS:
-        mag_vector: Float[NDArray, "Nx Ny Nz 3"] = np.stack(mag_grids, axis=-1)
+        mag_vector: Float64[NDArray, "Nx Ny Nz 3"] = np.stack(
+            mag_grids, axis=-1
+        )
         volumetric = make_soc_volumetric_data(
             lattice=lattice_arr,
             coords=coords_arr,
@@ -204,8 +208,8 @@ def read_chgcar(
 def _read_poscar_header(
     fid: TextIO,
 ) -> Tuple[
-    Float[NDArray, "3 3"],
-    Float[NDArray, "N 3"],
+    Float64[NDArray, "3 3"],
+    Float64[NDArray, "N 3"],
     tuple[str, ...],
     list[int],
 ]:
@@ -245,9 +249,9 @@ def _read_poscar_header(
 
     Returns
     -------
-    lattice : Float[NDArray, "3 3"]
+    lattice : Float64[NDArray, "3 3"]
         Scaled lattice vectors, shape ``(3, 3)``.
-    coords : Float[NDArray, "N 3"]
+    coords : Float64[NDArray, "N 3"]
         Fractional atomic coordinates, shape ``(natoms, 3)``.
     symbols : tuple[str, ...]
         Element symbols (empty tuple for VASP-4 style files).
@@ -266,7 +270,7 @@ def _read_poscar_header(
     _comment: str = fid.readline().strip()
     scale: float = float(fid.readline().strip())
 
-    lattice: Float[NDArray, "3 3"] = np.zeros(
+    lattice: Float64[NDArray, "3 3"] = np.zeros(
         (LATTICE_ROWS, XYZ_COMPONENTS),
         dtype=np.float64,
     )
@@ -291,7 +295,7 @@ def _read_poscar_header(
         coord_line = fid.readline().strip()
     cartesian: bool = bool(coord_line) and coord_line[0].lower() in ("c", "k")
 
-    coords: Float[NDArray, "N 3"] = np.zeros(
+    coords: Float64[NDArray, "N 3"] = np.zeros(
         (natoms, XYZ_COMPONENTS), dtype=np.float64
     )
     for atom_idx in range(natoms):
@@ -306,8 +310,8 @@ def _read_poscar_header(
         coords = np.linalg.solve(lattice.T, coords.T).T
 
     header_data: Tuple[
-        Float[NDArray, "3 3"],
-        Float[NDArray, "N 3"],
+        Float64[NDArray, "3 3"],
+        Float64[NDArray, "N 3"],
         tuple[str, ...],
         list[int],
     ] = (lattice, coords, symbols, atom_counts)
@@ -385,7 +389,7 @@ def _parse_float_block(
     lines: list[str],
     start_idx: int,
     nvals: int,
-) -> Tuple[Float[NDArray, " nvals"], int]:
+) -> Tuple[Float64[NDArray, " nvals"], int]:
     """Parse ``nvals`` whitespace-separated floats starting at ``start_idx``.
 
     Extended Summary
@@ -419,7 +423,7 @@ def _parse_float_block(
 
     Returns
     -------
-    value_arr : Float[NDArray, " nvals"]
+    value_arr : Float64[NDArray, " nvals"]
         1D array of shape ``(nvals,)`` with dtype ``float64``.
     end_idx : int
         Index of the first line *after* the last consumed line,
@@ -459,8 +463,10 @@ def _parse_float_block(
     if len(values) != nvals:
         msg: str = "Unexpected end of CHGCAR data block."
         raise ValueError(msg)
-    value_arr: Float[NDArray, " nvals"] = np.asarray(values, dtype=np.float64)
-    parsed_block: Tuple[Float[NDArray, " nvalues"], int] = (value_arr, idx)
+    value_arr: Float64[NDArray, " nvals"] = np.asarray(
+        values, dtype=np.float64
+    )
+    parsed_block: Tuple[Float64[NDArray, " nvalues"], int] = (value_arr, idx)
     return parsed_block
 
 

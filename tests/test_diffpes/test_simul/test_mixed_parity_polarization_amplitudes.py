@@ -1,4 +1,4 @@
-"""Certify Plan 06 mixed-parity and polarization-basis amplitudes.
+"""Certify mixed-parity and polarization-basis amplitudes.
 
 Extended Summary
 ----------------
@@ -14,7 +14,7 @@ import math
 import chex
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Complex, Float
+from jaxtyping import Array, Complex, Float
 from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
@@ -187,7 +187,7 @@ def _single_orbital_channels(
     order: int,
     direction_cart: Float[NDArray, " 3"],
     radial_channels: Complex[NDArray, " 2"],
-) -> tuple[Complex[jnp.ndarray, " 3"], OrbitalBasis]:
+) -> tuple[Complex[Array, " 3"], OrbitalBasis]:
     """Evaluate one production real-orbital transition row."""
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,),
@@ -196,11 +196,11 @@ def _single_orbital_channels(
         m=(order,),
     )
     params: MatrixElementParams = make_matrix_element_params(basis, (0,))
-    direction: Float[jnp.ndarray, "1 3"] = jnp.asarray(
+    direction: Float[Array, "1 3"] = jnp.asarray(
         direction_cart[None, :],
         dtype=jnp.float64,
     )
-    channels: Complex[jnp.ndarray, "1 1 1 3"] = orbital_transition_channels(
+    channels: Complex[Array, "1 1 1 3"] = orbital_transition_channels(
         jnp.zeros((1, 3), dtype=jnp.float64),
         direction,
         jnp.zeros((1, 3), dtype=jnp.float64),
@@ -214,11 +214,11 @@ def _single_orbital_channels(
 
 
 def _complex_metric(
-    first: Complex[jnp.ndarray, " 3"],
-    second: Complex[jnp.ndarray, " 3"],
-) -> Complex[jnp.ndarray, ""]:
+    first: Complex[Array, " 3"],
+    second: Complex[Array, " 3"],
+) -> Complex[Array, ""]:
     """Return the rank-one metric contraction of two spherical vectors."""
-    result: Complex[jnp.ndarray, ""] = (
+    result: Complex[Array, ""] = (
         -first[0] * second[2] + first[1] * second[1] - first[2] * second[0]
     )
     return result
@@ -248,7 +248,7 @@ def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
     order: int
     for degree in range(L_MAX + 1):
         for order in range(-degree, degree + 1):
-            transition: Complex[jnp.ndarray, " 3"]
+            transition: Complex[Array, " 3"]
             transition, _ = _single_orbital_channels(
                 degree,
                 order,
@@ -277,7 +277,7 @@ def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
             )
 
 
-def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
+def test_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
     """Pin the complete s+p amplitude and reject three phase false controls.
 
     Generic and helicity polarizations expose the relative partial-wave phase
@@ -332,19 +332,17 @@ def test_g8_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         polarization: Complex[NDArray, " 3"],
     ) -> complex:
         """Return the coherent two-orbital production amplitude."""
-        transition: Complex[jnp.ndarray, "1 1 2 3"] = (
-            orbital_transition_channels(
-                jnp.zeros((1, 3)),
-                jnp.asarray(direction[None, :]),
-                jnp.zeros((2, 3)),
-                jnp.zeros((2,)),
-                jnp.asarray(radial_values[None, :, :]),
-                params,
-                jnp.asarray(9.0),
-                basis,
-            )
+        transition: Complex[Array, "1 1 2 3"] = orbital_transition_channels(
+            jnp.zeros((1, 3)),
+            jnp.asarray(direction[None, :]),
+            jnp.zeros((2, 3)),
+            jnp.zeros((2,)),
+            jnp.asarray(radial_values[None, :, :]),
+            params,
+            jnp.asarray(9.0),
+            basis,
         )
-        polarized: Complex[jnp.ndarray, " 2"] = contract_polarization(
+        polarized: Complex[Array, " 2"] = contract_polarization(
             transition[0, 0],
             jnp.asarray(polarization),
         )
@@ -405,16 +403,14 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
     """
     direction: Float[NDArray, " 3"] = np.asarray((-0.32, 0.58, 0.75))
     radial: Complex[NDArray, " 2"] = np.asarray((0.38 + 0.22j, -0.29 + 0.47j))
-    transition: Complex[jnp.ndarray, " 3"]
+    transition: Complex[Array, " 3"]
     transition, _ = _single_orbital_channels(2, -1, direction, radial)
-    dipole_cart: Complex[jnp.ndarray, " 3"] = polarization_real_to_cart(
-        transition
-    )
-    dipole_complex: Complex[jnp.ndarray, " 3"] = polarization_cart_to_complex(
+    dipole_cart: Complex[Array, " 3"] = polarization_real_to_cart(transition)
+    dipole_complex: Complex[Array, " 3"] = polarization_cart_to_complex(
         dipole_cart
     )
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    polarizations: tuple[Complex[jnp.ndarray, " 3"], ...] = (
+    polarizations: tuple[Complex[Array, " 3"], ...] = (
         jnp.asarray((1.0, 0.0, 0.0), dtype=jnp.complex128),
         jnp.asarray((0.0, 1.0, 0.0), dtype=jnp.complex128),
         jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128),
@@ -425,17 +421,17 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
         inverse_sqrt_two * jnp.asarray((1.0, 1j, 0.0), dtype=jnp.complex128),
         inverse_sqrt_two * jnp.asarray((1.0, -1j, 0.0), dtype=jnp.complex128),
     )
-    polarization: Complex[jnp.ndarray, " 3"]
+    polarization: Complex[Array, " 3"]
     for polarization in polarizations:
-        cartesian: Complex[jnp.ndarray, ""] = jnp.dot(
+        cartesian: Complex[Array, ""] = jnp.dot(
             polarization,
             dipole_cart,
         )
-        real: Complex[jnp.ndarray, ""] = jnp.dot(
+        real: Complex[Array, ""] = jnp.dot(
             polarization_cart_to_real(polarization),
             transition,
         )
-        complex_value: Complex[jnp.ndarray, ""] = _complex_metric(
+        complex_value: Complex[Array, ""] = _complex_metric(
             polarization_cart_to_complex(polarization),
             dipole_complex,
         )
@@ -452,12 +448,12 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
             atol=1.0e-14,
         )
 
-    generic: Complex[jnp.ndarray, " 3"] = polarizations[3]
-    correct: Complex[jnp.ndarray, ""] = _complex_metric(
+    generic: Complex[Array, " 3"] = polarizations[3]
+    correct: Complex[Array, ""] = _complex_metric(
         polarization_cart_to_complex(generic),
         dipole_complex,
     )
-    planted_wrong: Complex[jnp.ndarray, ""] = _complex_metric(
+    planted_wrong: Complex[Array, ""] = _complex_metric(
         polarization_cart_to_real(generic),
         dipole_complex,
     )
@@ -487,11 +483,11 @@ def test_g8_g14_complete_p_shell_single_pz_projection() -> None:
         basis,
         (0, 0, 0),
     )
-    direction: Float[jnp.ndarray, "1 3"] = jnp.asarray(((0.35, -0.44, 0.83),))
-    radial: Complex[jnp.ndarray, "1 3 2"] = jnp.asarray(
+    direction: Float[Array, "1 3"] = jnp.asarray(((0.35, -0.44, 0.83),))
+    radial: Complex[Array, "1 3 2"] = jnp.asarray(
         [[[0.37 + 0.12j, -0.28 + 0.41j]] * 3]
     )
-    transition: Complex[jnp.ndarray, "1 1 3 3"] = orbital_transition_channels(
+    transition: Complex[Array, "1 1 3 3"] = orbital_transition_channels(
         jnp.zeros((1, 3)),
         direction,
         jnp.zeros((3, 3)),
@@ -502,22 +498,22 @@ def test_g8_g14_complete_p_shell_single_pz_projection() -> None:
         basis,
     )
     pz_coefficient: complex = 0.6 + 0.8j
-    eigenvectors: Complex[jnp.ndarray, "1 1 3"] = jnp.asarray(
+    eigenvectors: Complex[Array, "1 1 3"] = jnp.asarray(
         (((0.0, pz_coefficient, 0.0),),),
         dtype=jnp.complex128,
     )
-    projected: Complex[jnp.ndarray, " 3"] = project_band_channels(
+    projected: Complex[Array, " 3"] = project_band_channels(
         transition,
         eigenvectors,
     )[0, 0, 0]
-    expected: Complex[jnp.ndarray, " 3"] = pz_coefficient * transition[0, 0, 1]
+    expected: Complex[Array, " 3"] = pz_coefficient * transition[0, 0, 1]
     chex.assert_trees_all_close(
         projected,
         expected,
         rtol=0.0,
         atol=0.0,
     )
-    planted_unweighted: Complex[jnp.ndarray, " 3"] = pz_coefficient * jnp.sum(
+    planted_unweighted: Complex[Array, " 3"] = pz_coefficient * jnp.sum(
         transition[0, 0], axis=0
     )
     assert not bool(
@@ -529,22 +525,20 @@ def test_g8_g14_complete_p_shell_single_pz_projection() -> None:
         )
     )
 
-    polarization: Complex[jnp.ndarray, " 3"] = jnp.asarray(
+    polarization: Complex[Array, " 3"] = jnp.asarray(
         (0.31 + 0.2j, -0.17 + 0.43j, 0.56 - 0.09j),
         dtype=jnp.complex128,
     )
-    dipole_cart: Complex[jnp.ndarray, " 3"] = polarization_real_to_cart(
-        projected
-    )
-    cartesian: Complex[jnp.ndarray, ""] = jnp.dot(
+    dipole_cart: Complex[Array, " 3"] = polarization_real_to_cart(projected)
+    cartesian: Complex[Array, ""] = jnp.dot(
         polarization,
         dipole_cart,
     )
-    real: Complex[jnp.ndarray, ""] = jnp.dot(
+    real: Complex[Array, ""] = jnp.dot(
         polarization_cart_to_real(polarization),
         projected,
     )
-    complex_value: Complex[jnp.ndarray, ""] = _complex_metric(
+    complex_value: Complex[Array, ""] = _complex_metric(
         polarization_cart_to_complex(polarization),
         polarization_cart_to_complex(dipole_cart),
     )

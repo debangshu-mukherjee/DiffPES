@@ -33,7 +33,7 @@ from functools import cache
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import GAUNT_IMAG_TOL, L_MAX
@@ -375,7 +375,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 @jaxtyped(typechecker=beartype)
 def build_gaunt_table(
     l_max: int = 4,
-) -> Float[Array, "L_src M_src 3 L_dst M_dst"]:
+) -> Float64[Array, "L_src M_src 3 L_dst M_dst"]:
     r"""Build the dipole Gaunt coefficient lookup table.
 
     The function computes each nonzero real Gaunt coefficient through
@@ -408,7 +408,7 @@ def build_gaunt_table(
     --------------------
     1. **Allocate the dense coefficient table**::
 
-           table: Float[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
+           table: Float64[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
                (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
                dtype=np.float64,
            )
@@ -417,7 +417,7 @@ def build_gaunt_table(
 
     2. **Convert the completed table to JAX**::
 
-           gaunt_table: Float[
+           gaunt_table: Float64[
                Array, "L_src M_src 3 L_dst M_dst"
            ] = jnp.asarray(table, dtype=jnp.float64)
 
@@ -430,7 +430,7 @@ def build_gaunt_table(
 
     Returns
     -------
-    gaunt_table : Float[Array, "..."]
+    gaunt_table : Float64[Array, "..."]
         Dense array of Gaunt coefficients.
         Shape: ``(l_max+1, 2*l_max+1, 3, l_max+2, 2*(l_max+1)+1)``.
 
@@ -452,7 +452,7 @@ def build_gaunt_table(
     l_dst_dim: int = l_max + 2
     m_dst_dim: int = 2 * (l_max + 1) + 1
 
-    table: Float[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
+    table: Float64[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
         (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
         dtype=np.float64,
     )
@@ -473,13 +473,13 @@ def build_gaunt_table(
                             mp + l_max + 1,
                         ] = val
 
-    gaunt_table: Float[Array, "L_src M_src 3 L_dst M_dst"] = jnp.asarray(
+    gaunt_table: Float64[Array, "L_src M_src 3 L_dst M_dst"] = jnp.asarray(
         table, dtype=jnp.float64
     )
     return gaunt_table
 
 
-GAUNT_TABLE: Float[Array, "..."] = build_gaunt_table(l_max=L_MAX)
+GAUNT_TABLE: Float64[Array, "..."] = build_gaunt_table(l_max=L_MAX)
 """Module-level precomputed Gaunt coefficient table for l_max=4."""
 
 

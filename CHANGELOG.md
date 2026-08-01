@@ -9,11 +9,11 @@ and the project uses calendar versioning.
 
 ### Removed
 
-- Plan 07 removes the public `diffpes.types.N_TAYLOR` implementation detail.
+- The public `diffpes.types.N_TAYLOR` implementation detail is removed.
   `diffpes.utils.faddeeva` now uses a certified fixed-order rational method.
-- Plan 07 removes the Thompson--Cox--Hastings pseudo-Voigt approximation and
+- The Thompson--Cox--Hastings pseudo-Voigt approximation is removed with
   its empirical mixing constants without retaining a compatibility shim.
-- Plan 03 KG-E removes `diffpes.types.PolarizationConfig`,
+- The kinematics and geometry update removes `diffpes.types.PolarizationConfig`,
   `diffpes.types.make_polarization_config`, and
   `diffpes.simul.build_efield`. Construct explicit complex Cartesian fields
   with `diffpes.simul.polarization_from_angles` and store experiment geometry
@@ -23,7 +23,7 @@ and the project uses calendar versioning.
   `ExperimentGeometry.photon_energy_ev` own those experiment properties.
   The retained incoherent spectrum functions accept the scalars explicitly
   at their physics boundaries.
-- Plan 06 removes the obsolete coherent prototype
+- The obsolete coherent prototype is removed:
   `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
   matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.
 - The heuristic polarization symbols
@@ -52,13 +52,15 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Certification owners and evidence identifiers now use scientific domain names.
+  This breaking identity re-issue invalidates records that use the former identifiers.
 - Every NumPy array annotation now carries a jaxtyping dtype and shape, in the
   form `Float[NDArray, "m n p"]`. The source imports `NDArray` from
   `numpy.typing`. The previous `from numpy import ndarray as NDArray` alias and
   its `# noqa: N812` suppression are removed. A bare `np.ndarray` annotation and
   a bare `NDArray` annotation are now defects. `CONTRIBUTING.md` states the rule,
   and `tests/test_repo_floor.py` enforces it across the source and the test tree.
-- Plan 07 renames `SelfEnergyConfig` to `SelfEnergyModel` and renames
+- `SelfEnergyConfig` is renamed to `SelfEnergyModel`, and
   `make_self_energy_config` to `make_self_energy_model`. The mode value
   `"polynomial"` becomes `"poly"`, and `"tabulated"` becomes `"grid"`.
   The carrier gains `kk_domain_rel_fermi_ev`, `tail_coefficients`,
@@ -95,7 +97,7 @@ and the project uses calendar versioning.
 - Tight-binding models and diagonalized bands now carry optional differentiable
   per-orbital surface depths in Angstrom. Native diagonalization and HDF5
   persistence preserve the carrier exactly; ``None`` retains bulk semantics.
-- Plan 04 completes the native tight-binding core. Bloch assembly now uses
+- The native tight-binding core is complete. Bloch assembly now uses
   exact integer hopping cells and the basis-position gauge, with complex
   hoppings, traced onsite/SOC parameters, atom-resolved geometry, and a
   degeneracy-regularized eigensystem. This migration intentionally repins the
@@ -106,7 +108,7 @@ and the project uses calendar versioning.
   instead of being silently collapsed into one position.
 - The real-harmonic convention now fixes positive ``m=1`` to ``+p_x`` and
   keeps Gaunt transformations consistent with that sign.
-- `CrystalGeometry` now follows the roadmap field contract. It uses
+- `CrystalGeometry` now follows the field contract. It uses
   `lattice`, `reciprocal`, `positions`, and static per-atom `species`.
   `read_poscar` expands VASP species counts at the parser boundary.
 - The package merges `orbital_constants` and `vasp_constants` into
@@ -122,9 +124,8 @@ and the project uses calendar versioning.
   They do not import a file inside that subpackage. The update fixes the deep
   `diffpes.inout` imports in `simul/workflow.py`.
 
-- Plan 01 scopes the pre-commit Ruff hooks to source, tests, and project
-  metadata. The continuous integration workflow now supports manual gate
-  verification.
+- The pre-commit Ruff hooks cover source, tests, and project metadata.
+  The continuous integration workflow now supports manual verification.
 - Every registered carrier now uses a types-owned `equinox.Module` instead of
   a `NamedTuple`. All carrier factories now belong to `diffpes.types`.
   HDF5 serialization now introspects array fields. It also handles nested
@@ -146,37 +147,37 @@ and the project uses calendar versioning.
 
 ### Added
 
-- Plan 06 adds shell-shared `RadialSpec`, `MatrixElementParams`,
+- The package adds shell-shared `RadialSpec`, `MatrixElementParams`,
   `RadialQuadratureSpec`, and `FinalStateSpec` carriers. New radial APIs cover
   Slater screening, normalized Slater/hydrogenic/grid/fixed rows, hardened
   spherical Bessel functions, certified direct quadrature, and regular
   Coulomb final states. The optional Hermite accelerator rejects because its
-  frozen refinement gate does not certify any selectable default.
-- Plan 06 adds coherent transition-channel assembly with explicit Wannier
+  frozen refinement evidence does not certify any selectable default.
+- Coherent transition-channel assembly now has explicit Wannier
   centres, vacuum final momentum, and outgoing-spin rows. Escape-depth
   attenuation precedes late Cartesian polarization and one final incoherent
-  spin reduction. The plan also adds stacked-real parameter packing, named phase and
-  radial-scale gauge tangents, and complete isolated band-group
-  sensitivities with dark-point log masks.
-- Plan 06 adds authenticated Yeh--Lindau element/subshell cross sections from
+  spin reduction. The update also adds stacked-real parameter packing and named
+  phase and radial-scale gauge tangents. Complete isolated band-group
+  sensitivities include dark-point log masks.
+- Authenticated Yeh--Lindau element/subshell cross sections now come from
   the exact Figshare v3 workbook. The package preserves table gaps and zeros,
   uses log--log PCHIP interpolation, rejects extrapolation, and ships source
   provenance with the generated data.
-- Plan 06 adds independent Coulomb, length--momentum gauge, Chinook
+- Independent Coulomb, length--momentum gauge, Chinook
   dark-corridor/polarization, radial-profile, dense-resolvent, and scalability
-  evidence. The certification registry now exposes the complete Plan 06
-  G1--G18, D1--D13, and S1--S3 handshake.
-- Plan 05 adds exact primitive Miller-index surface cells and complete-shell
+  evidence are added. The certification registry exposes the complete radial,
+  matrix-element, differentiation, and scalability handshake.
+- The package adds exact primitive Miller-index surface cells and complete-shell
   Cartesian/orbital rotations. It also adds finite depth-tagged slabs, exact
   bulk-to-slab hopping propagation, and open-normal adjacency validation.
   ``SurfaceCell`` and ``SlabSpec`` record the static construction provenance.
 - Surface probability operators now provide raw off-degeneracy band weights
   and complement-isolated fixed-group traces. A separate slab seam propagates
   explicit Wannier centres and position-operator matrices without silently
-  discarding Plan 04 metadata.
-- Plan 03 adds `ExperimentGeometry`, generated `KPath`, and fixed-shape
+  discarding tight-binding metadata.
+- The package adds `ExperimentGeometry`, generated `KPath`, and fixed-shape
   `KGrid` carriers. Their factories keep numerical geometry inside JAX.
-- Plan 04 adds independently derived s/p/d Slater--Koster construction and
+- The package adds independently derived s/p/d Slater--Koster construction and
   neighbor-shell discovery. It adds spin doubling and atomic L·S coupling.
   Fixed-group observables, fat bands, Gaussian DOS, Fermi levels, and
   flat-real inversion views complete the layer.
@@ -214,7 +215,7 @@ and the project uses calendar versioning.
   documentation. Domain-separated SHA-256 supplies scientific content
   identities; the certificate document's separate CRC32 detects transport
   corruption only. Neither provides authenticity or physical assurance.
-- A tag-gated, uv-native PyPI Trusted Publishing workflow now tests wheels and
+- A release-tag-triggered, uv-native PyPI Trusted Publishing workflow now tests wheels and
   source distributions.
 - Equinox, Optimistix, Lineax, and Optax now form the differentiable software
   stack. They provide types, nonlinear solvers, linear solvers, and optimizers.
@@ -252,7 +253,7 @@ and the project uses calendar versioning.
 
 ### Fixed
 
-- Plan 03 evidence now exercises reciprocal identities with generated
+- Kinematics and geometry evidence now exercises reciprocal identities with generated
   lattices. It covers the full photon-energy raster memory target.
   Complex polarization checks include phase, gradient, and
   machine-precision complex-step evidence.

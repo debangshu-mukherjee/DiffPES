@@ -1,4 +1,4 @@
-"""Test the Plan-07 ``SelfEnergyModel`` carrier contract.
+"""Test the spectral ``SelfEnergyModel`` carrier contract.
 
 The tests cover the carrier structure, factory validation, causality, and
 differentiation requirements.
@@ -31,7 +31,7 @@ def _softplus(x: jax.Array) -> jax.Array:
 def _imaginary_part(
     model: SelfEnergyModel, omega_rel_fermi_ev: jax.Array
 ) -> jax.Array:
-    """Evaluate the independently stated WP7.3 imaginary-part identities."""
+    """Evaluate the independently stated self-energy imaginary-part identities."""
     raw: jax.Array = model.coefficients
     if model.mode == "constant":
         return -jnp.broadcast_to(_softplus(raw[0]), omega_rel_fermi_ev.shape)
@@ -252,7 +252,7 @@ class TestSelfEnergyModel:
 
         Notes
         -----
-        This test is the anti-clipping tripwire of WP7.3. Clipping enforces
+        This test is the self-energy anti-clipping tripwire. Clipping enforces
         negativity by zeroing the gradient and the Fisher row at the bound.
         Softplus is strictly monotone. Thus, each coordinate must retain a nonzero
         derivative somewhere on the grid.

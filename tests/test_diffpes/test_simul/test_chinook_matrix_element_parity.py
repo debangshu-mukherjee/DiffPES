@@ -1,4 +1,4 @@
-"""Replay Plan 06 G6 and G7 against inert pinned Chinook numbers.
+"""Replay matrix-element and polarization parity against pinned Chinook data.
 
 Extended Summary
 ----------------
@@ -32,7 +32,9 @@ from diffpes.types import (
 )
 
 _REFERENCE_DIRECTORY = (
-    Path(__file__).parents[1] / "_reference_data" / "plan06_chinook"
+    Path(__file__).parents[1]
+    / "_reference_data"
+    / "chinook_matrix_element_parity"
 )
 _RTOL = 1.0e-6
 _ATOL = 1.0e-12
@@ -158,7 +160,7 @@ def _dark_ring_angles(
     return result
 
 
-def test_g6_graphene_pointwise_map_and_valley_orientation() -> None:
+def test_graphene_pointwise_map_and_valley_orientation() -> None:
     """Validate the frozen graphene map and its opposite-valley orientation.
 
     The test checks amplitudes, intensities, and darkest annular directions.
@@ -216,7 +218,7 @@ def test_g6_graphene_pointwise_map_and_valley_orientation() -> None:
     np.testing.assert_array_equal(measured_angles, expected_angles)
 
 
-def test_g7_polarization_intensities_and_ratios() -> None:
+def test_polarization_intensities_and_ratios() -> None:
     """Validate s, p, and both helicity rows against the frozen reference.
 
     The test compares absolute intensities and p-normalized ratios.
@@ -279,7 +281,10 @@ def test_chinook_artifact_provenance_and_digest() -> None:
     environment_sha256: str = hashlib.sha256(
         environment_path.read_bytes()
     ).hexdigest()
-    assert manifest["gates"] == ["06.G6", "06.G7"]
+    assert manifest["requirements"] == [
+        "chinook-pointwise-matrix-element-parity",
+        "chinook-polarization-intensity-parity",
+    ]
     assert manifest["classification"] == "K-type behavioral compatibility"
     assert manifest["chinook_commit"] == (
         "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b"

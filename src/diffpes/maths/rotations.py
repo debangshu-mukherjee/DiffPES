@@ -44,7 +44,7 @@ import math
 
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Complex128, Float, jaxtyped
 
 from diffpes.types import L_MAX, ScalarFloat
 
@@ -219,7 +219,7 @@ def wigner_d(  # noqa: DOC502 -- validation is shared in _validate_l.
 @jaxtyped(typechecker=beartype)
 def real_harmonic_unitary(  # noqa: DOC502 -- validation is shared in _validate_l.
     l: int,
-) -> Complex[Array, "m1 m2"]:
+) -> Complex128[Array, "m1 m2"]:
     r"""Construct the complex-to-real harmonic basis-function unitary.
 
     The returned matrix obeys
@@ -238,7 +238,7 @@ def real_harmonic_unitary(  # noqa: DOC502 -- validation is shared in _validate_
 
     Returns
     -------
-    unitary : Complex[Array, "m1 m2"]
+    unitary : Complex128[Array, "m1 m2"]
         Complex unitary with shape ``(2*l + 1, 2*l + 1)``.
 
     Raises
@@ -257,7 +257,7 @@ def real_harmonic_unitary(  # noqa: DOC502 -- validation is shared in _validate_
     """
     _validate_l(l)
     size: int = 2 * l + 1
-    unitary: Complex[Array, "m1 m2"] = jnp.zeros(
+    unitary: Complex128[Array, "m1 m2"] = jnp.zeros(
         (size, size),
         dtype=jnp.complex128,
     )

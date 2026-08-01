@@ -1,4 +1,4 @@
-"""Generate the frozen independent SymPy authority for Plan 06 G3.
+"""Generate the frozen independent SymPy authority for real-Gaunt coefficients.
 
 Run this offline with SymPy 1.14 or newer. Package tests consume only the
 resulting CSV and therefore do not import SymPy at collection or runtime.
@@ -22,7 +22,7 @@ def generate(output: Path, l_max: int = 4) -> None:
         message: str = (
             "SymPy is an offline generator dependency; run with "
             "`uv run --with 'sympy>=1.14' "
-            "tests/_reference_tools/generate_plan06_gaunt_sympy_reference.py`"
+            "tests/_reference_tools/generate_real_gaunt_sympy_reference.py`"
         )
         raise RuntimeError(message) from error
     real_gaunt: Any = wigner.real_gaunt
@@ -78,8 +78,7 @@ def main() -> None:
         "--output",
         type=Path,
         default=Path(
-            "tests/test_diffpes/_reference_data/"
-            "plan06_real_gaunt_sympy_reference.csv"
+            "tests/test_diffpes/_reference_data/real_gaunt_sympy_reference.csv"
         ),
     )
     parser.add_argument("--l-max", type=int, default=4)

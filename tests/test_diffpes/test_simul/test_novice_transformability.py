@@ -1,4 +1,4 @@
-"""Exercise Plan 02 cross-cutting differentiability and scalability gates.
+"""Exercise novice-chain differentiability and scalability properties.
 
 Extended Summary
 ----------------
@@ -120,7 +120,7 @@ class TestNoviceCarrierGradients:
 
 
 class TestNoviceScalability:
-    """Validate Plan 02 JIT-cache and batched-leaf scalability floors.
+    """Validate JIT-cache and batched-leaf scalability floors.
 
     :see: :func:`diffpes.simul.simulate_novice`
     """

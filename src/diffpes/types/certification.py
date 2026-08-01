@@ -143,7 +143,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Any, Callable, Optional
-from jaxtyping import Array, Bool, Float, Int, PyTree, jaxtyped
+from jaxtyping import Array, Bool, Float64, Int, PyTree, jaxtyped
 
 from .contracts import TransformationContract
 
@@ -262,19 +262,19 @@ class DomainResult(eqx.Module):
     predicate_id : str
         Predicate id (**static** -- a compile-time constant; changing
         it triggers retracing).
-    measured : Float[Array, ""]
+    measured : Float64[Array, ""]
         Measured retained as a differentiable JAX leaf in the declared
         physical units.
-    reference : Float[Array, ""]
+    reference : Float64[Array, ""]
         Reference retained as a differentiable JAX leaf in the declared
         physical units.
-    residual : Float[Array, ""]
+    residual : Float64[Array, ""]
         Residual retained as a differentiable JAX leaf in the declared
         physical units.
-    tolerance : Float[Array, ""]
+    tolerance : Float64[Array, ""]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
-    margin : Float[Array, ""]
+    margin : Float64[Array, ""]
         Margin retained as a differentiable JAX leaf in the declared
         physical units.
     passed : Bool[Array, ""]
@@ -292,11 +292,11 @@ class DomainResult(eqx.Module):
     """
 
     predicate_id: str = eqx.field(static=True)
-    measured: Float[Array, ""]
-    reference: Float[Array, ""]
-    residual: Float[Array, ""]
-    tolerance: Float[Array, ""]
-    margin: Float[Array, ""]
+    measured: Float64[Array, ""]
+    reference: Float64[Array, ""]
+    residual: Float64[Array, ""]
+    tolerance: Float64[Array, ""]
+    margin: Float64[Array, ""]
     passed: Bool[Array, ""]
     checked: Bool[Array, ""]
     in_domain: Bool[Array, ""]
@@ -654,16 +654,16 @@ class EvidenceRef(eqx.Module):
         Named computational and derivation ancestry.
     human_attestation_refs : tuple[str, ...]
         Separate human-review references. These never establish independence.
-    measured : Float[Array, " n_measure"]
+    measured : Float64[Array, " n_measure"]
         Measured retained as a differentiable JAX leaf in the declared
         physical units.
-    reference : Float[Array, " n_measure"]
+    reference : Float64[Array, " n_measure"]
         Reference retained as a differentiable JAX leaf in the declared
         physical units.
-    residual : Float[Array, " n_measure"]
+    residual : Float64[Array, " n_measure"]
         Residual retained as a differentiable JAX leaf in the declared
         physical units.
-    tolerance : Float[Array, " n_measure"]
+    tolerance : Float64[Array, " n_measure"]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
     """
@@ -673,10 +673,10 @@ class EvidenceRef(eqx.Module):
     source_type: str = eqx.field(static=True)
     lineage: EvidenceLineage
     human_attestation_refs: tuple[str, ...] = eqx.field(static=True)
-    measured: Float[Array, " n_measure"]
-    reference: Float[Array, " n_measure"]
-    residual: Float[Array, " n_measure"]
-    tolerance: Float[Array, " n_measure"]
+    measured: Float64[Array, " n_measure"]
+    reference: Float64[Array, " n_measure"]
+    residual: Float64[Array, " n_measure"]
+    tolerance: Float64[Array, " n_measure"]
 
 
 class CertificationClaim(eqx.Module):
@@ -701,16 +701,16 @@ class CertificationClaim(eqx.Module):
     evidence_ids : tuple[str, ...]
         Evidence ids (**static** -- a compile-time constant; changing
         it triggers retracing).
-    measured : Float[Array, " n_measure"]
+    measured : Float64[Array, " n_measure"]
         Measured retained as a differentiable JAX leaf in the declared
         physical units.
-    reference : Float[Array, " n_measure"]
+    reference : Float64[Array, " n_measure"]
         Reference retained as a differentiable JAX leaf in the declared
         physical units.
-    residual : Float[Array, " n_measure"]
+    residual : Float64[Array, " n_measure"]
         Residual retained as a differentiable JAX leaf in the declared
         physical units.
-    tolerance : Float[Array, " n_measure"]
+    tolerance : Float64[Array, " n_measure"]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
     passed : Bool[Array, ""]
@@ -722,7 +722,7 @@ class CertificationClaim(eqx.Module):
     in_domain : Bool[Array, ""]
         In domain retained as a differentiable JAX leaf in the declared
         physical units.
-    margin : Float[Array, ""]
+    margin : Float64[Array, ""]
         Margin retained as a differentiable JAX leaf in the declared
         physical units.
     severity_code : Int[Array, ""]
@@ -734,14 +734,14 @@ class CertificationClaim(eqx.Module):
     subject_id: str = eqx.field(static=True)
     predicate_id: str = eqx.field(static=True)
     evidence_ids: tuple[str, ...] = eqx.field(static=True)
-    measured: Float[Array, " n_measure"]
-    reference: Float[Array, " n_measure"]
-    residual: Float[Array, " n_measure"]
-    tolerance: Float[Array, " n_measure"]
+    measured: Float64[Array, " n_measure"]
+    reference: Float64[Array, " n_measure"]
+    residual: Float64[Array, " n_measure"]
+    tolerance: Float64[Array, " n_measure"]
     passed: Bool[Array, ""]
     checked: Bool[Array, ""]
     in_domain: Bool[Array, ""]
-    margin: Float[Array, ""]
+    margin: Float64[Array, ""]
     severity_code: Int[Array, ""]
 
 
@@ -764,28 +764,28 @@ class DerivativeEvidence(eqx.Module):
     method : str
         Method (**static** -- a compile-time constant; changing it
         triggers retracing).
-    scales : Float[Array, " n_input"]
+    scales : Float64[Array, " n_input"]
         Scales retained as a differentiable JAX leaf in the declared
         physical units.
-    jvp_probes : Float[Array, "n_probe n_output"]
+    jvp_probes : Float64[Array, "n_probe n_output"]
         Jvp probes retained as a differentiable JAX leaf in the
         declared physical units.
-    vjp_probes : Float[Array, "n_probe n_input"]
+    vjp_probes : Float64[Array, "n_probe n_input"]
         Vjp probes retained as a differentiable JAX leaf in the
         declared physical units.
-    reference_derivatives : Float[Array, "n_probe n_deriv"]
+    reference_derivatives : Float64[Array, "n_probe n_deriv"]
         Reference derivatives retained as a differentiable JAX leaf in
         the declared physical units.
-    derivative_residuals : Float[Array, "n_probe n_deriv"]
+    derivative_residuals : Float64[Array, "n_probe n_deriv"]
         Derivative residuals retained as a differentiable JAX leaf in
         the declared physical units.
-    singular_values : Float[Array, " n_sv"]
+    singular_values : Float64[Array, " n_sv"]
         Singular values retained as a differentiable JAX leaf in the
         declared physical units.
     effective_rank : Int[Array, ""]
         Effective rank retained as a differentiable JAX leaf in the
         declared physical units.
-    condition_estimate : Float[Array, ""]
+    condition_estimate : Float64[Array, ""]
         Condition estimate retained as a differentiable JAX leaf in the
         declared physical units. Zero means that there is no active information
         direction.
@@ -800,14 +800,14 @@ class DerivativeEvidence(eqx.Module):
     input_paths: tuple[str, ...] = eqx.field(static=True)
     output_projection_ids: tuple[str, ...] = eqx.field(static=True)
     method: str = eqx.field(static=True)
-    scales: Float[Array, " n_input"]
-    jvp_probes: Float[Array, "n_probe n_output"]
-    vjp_probes: Float[Array, "n_probe n_input"]
-    reference_derivatives: Float[Array, "n_probe n_deriv"]
-    derivative_residuals: Float[Array, "n_probe n_deriv"]
-    singular_values: Float[Array, " n_sv"]
+    scales: Float64[Array, " n_input"]
+    jvp_probes: Float64[Array, "n_probe n_output"]
+    vjp_probes: Float64[Array, "n_probe n_input"]
+    reference_derivatives: Float64[Array, "n_probe n_deriv"]
+    derivative_residuals: Float64[Array, "n_probe n_deriv"]
+    singular_values: Float64[Array, " n_sv"]
     effective_rank: Int[Array, ""]
-    condition_estimate: Float[Array, ""]
+    condition_estimate: Float64[Array, ""]
     finite: Bool[Array, ""]
     fd_correct: Bool[Array, ""]
 
@@ -862,13 +862,13 @@ class SensitivityMap(eqx.Module):
     output_projection_ids : tuple[str, ...]
         Output projection ids (**static** -- a compile-time constant;
         changing it triggers retracing).
-    scales : Float[Array, " n_input"]
+    scales : Float64[Array, " n_input"]
         Scales retained as a differentiable JAX leaf in the declared
         physical units.
-    sensitivities : Float[Array, "n_output n_input"]
+    sensitivities : Float64[Array, "n_output n_input"]
         Sensitivities retained as a differentiable JAX leaf in the
         declared physical units.
-    threshold : Float[Array, ""]
+    threshold : Float64[Array, ""]
         Threshold retained as a differentiable JAX leaf in the declared
         physical units.
     active : Bool[Array, "n_output n_input"]
@@ -878,9 +878,9 @@ class SensitivityMap(eqx.Module):
 
     input_paths: tuple[str, ...] = eqx.field(static=True)
     output_projection_ids: tuple[str, ...] = eqx.field(static=True)
-    scales: Float[Array, " n_input"]
-    sensitivities: Float[Array, "n_output n_input"]
-    threshold: Float[Array, ""]
+    scales: Float64[Array, " n_input"]
+    sensitivities: Float64[Array, "n_output n_input"]
+    threshold: Float64[Array, ""]
     active: Bool[Array, "n_output n_input"]
 
 
@@ -897,30 +897,30 @@ class InformationSpectrum(eqx.Module):
     input_paths : tuple[str, ...]
         Input paths (**static** -- a compile-time constant; changing it
         triggers retracing).
-    singular_values : Float[Array, " n_sv"]
+    singular_values : Float64[Array, " n_sv"]
         Singular values retained as a differentiable JAX leaf in the
         declared physical units.
-    right_singular_vectors : Float[Array, "n_sv n_input"]
+    right_singular_vectors : Float64[Array, "n_sv n_input"]
         Right singular vectors retained as a differentiable JAX leaf in
         the declared physical units.
     effective_rank : Int[Array, ""]
         Effective rank retained as a differentiable JAX leaf in the
         declared physical units.
-    condition_estimate : Float[Array, ""]
+    condition_estimate : Float64[Array, ""]
         Condition estimate retained as a differentiable JAX leaf in the
         declared physical units. Zero means that there is no active information
         direction.
-    threshold : Float[Array, ""]
+    threshold : Float64[Array, ""]
         Threshold retained as a differentiable JAX leaf in the declared
         physical units.
     """
 
     input_paths: tuple[str, ...] = eqx.field(static=True)
-    singular_values: Float[Array, " n_sv"]
-    right_singular_vectors: Float[Array, "n_sv n_input"]
+    singular_values: Float64[Array, " n_sv"]
+    right_singular_vectors: Float64[Array, "n_sv n_input"]
     effective_rank: Int[Array, ""]
-    condition_estimate: Float[Array, ""]
-    threshold: Float[Array, ""]
+    condition_estimate: Float64[Array, ""]
+    threshold: Float64[Array, ""]
 
 
 class ExecutionManifest(eqx.Module):
@@ -1195,7 +1195,7 @@ class EvidenceReport(eqx.Module):
     passed : Bool[Array, ""]
         Passed retained as a differentiable JAX leaf in the declared
         physical units.
-    residual_norm : Float[Array, ""]
+    residual_norm : Float64[Array, ""]
         Residual norm retained as a differentiable JAX leaf in the
         declared physical units.
     """
@@ -1204,7 +1204,7 @@ class EvidenceReport(eqx.Module):
     resolved: Bool[Array, ""]
     compatible: Bool[Array, ""]
     passed: Bool[Array, ""]
-    residual_norm: Float[Array, ""]
+    residual_norm: Float64[Array, ""]
 
 
 class VerificationReport(eqx.Module):
@@ -1260,13 +1260,13 @@ class ReproductionReport(eqx.Module):
     reproduced : Bool[Array, ""]
         Reproduced retained as a differentiable JAX leaf in the
         declared physical units.
-    max_abs_error : Float[Array, ""]
+    max_abs_error : Float64[Array, ""]
         Max abs error retained as a differentiable JAX leaf in the
         declared physical units.
-    max_rel_error : Float[Array, ""]
+    max_rel_error : Float64[Array, ""]
         Max rel error retained as a differentiable JAX leaf in the
         declared physical units.
-    tolerance : Float[Array, ""]
+    tolerance : Float64[Array, ""]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
     """
@@ -1274,9 +1274,9 @@ class ReproductionReport(eqx.Module):
     execution_id: str = eqx.field(static=True)
     result_checksum: str = eqx.field(static=True)
     reproduced: Bool[Array, ""]
-    max_abs_error: Float[Array, ""]
-    max_rel_error: Float[Array, ""]
-    tolerance: Float[Array, ""]
+    max_abs_error: Float64[Array, ""]
+    max_rel_error: Float64[Array, ""]
+    tolerance: Float64[Array, ""]
 
 
 class WaiverRecord(eqx.Module):

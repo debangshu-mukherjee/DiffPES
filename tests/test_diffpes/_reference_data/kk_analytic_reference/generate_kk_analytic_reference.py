@@ -1,4 +1,4 @@
-"""Generate the independent Plan 07 analytic KK reference artifact.
+"""Generate the independent analytic Kramers--Kronig reference artifact.
 
 The generator evaluates closed forms with mpmath and checks their signs by
 direct high-precision principal-value integration. It imports no DiffPES code.
@@ -206,7 +206,7 @@ def main() -> None:
     _write_deterministic_npz(archive_path, arrays)
     archive_sha256: str = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     manifest: dict[str, object] = {
-        "schema": "diffpes.plan07.kk-analytic-reference.v1",
+        "schema": "diffpes.kk-analytic-reference.v1",
         "archive": archive_path.name,
         "archive_sha256": archive_sha256,
         "generator": Path(__file__).name,

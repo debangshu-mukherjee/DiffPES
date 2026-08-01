@@ -31,7 +31,7 @@ It excludes calibrated fixed-radial ratios and invalid s-shell lower phases.
 Named unit tangents expose the overall phase gauge and each normalized
 Slater-contraction scale gauge.  Complete isolated band-group weights answer
 which matrix-element coordinates the sampled k coverage can determine.
-Plans 07 and 08 add spectral and detector-count semantics.
+Spectral and detector-count semantics are outside this module.
 
 Routine Listings
 ----------------
@@ -1394,7 +1394,7 @@ def assemble_orbital_transition_channels(  # noqa: DOC503
     k_f_cart : Float[Array, "n_k 3"]
         Explicit vacuum final momentum in sample inverse Angstrom.
     emission_valid : Bool[Array, "n_k"]
-        Explicit Plan-03 emission validity mask.
+        Explicit emission validity mask from vacuum kinematics.
 
     Returns
     -------

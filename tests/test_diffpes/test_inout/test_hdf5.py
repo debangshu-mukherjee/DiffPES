@@ -40,7 +40,7 @@ from diffpes.types import (
 
 
 class TestSelfEnergyModel(chex.TestCase):
-    """Round-trip the renamed Plan-07 self-energy carrier.
+    """Round-trip the renamed self-energy carrier.
 
     :see: :class:`~diffpes.types.SelfEnergyModel`
     """

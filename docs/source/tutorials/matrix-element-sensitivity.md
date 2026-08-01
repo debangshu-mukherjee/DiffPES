@@ -148,6 +148,6 @@ assert jnp.allclose(log_lit[0, :, 0], expected)
 For a degenerate multiplet, pass the entire multiplet as one tuple. A partial
 group is basis-gauge dependent and is rejected before differentiation.
 
-Expected detector counts begin in Plan 08. Until then, the names `weights`,
+Expected detector counts are not yet supported. The names `weights`,
 `dweights`, and `log_derivative` should retain their literal matrix-element
 meaning.

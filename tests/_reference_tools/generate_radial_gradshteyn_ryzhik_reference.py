@@ -1,4 +1,4 @@
-"""Generate independent Plan 06 G2 radial-transform references.
+"""Generate independent G&R 6.621.3 radial-transform references.
 
 The generator evaluates Gradshteyn--Ryzhik 6.621.3 with 80 working decimal
 digits and writes 50-digit normalized STO and hydrogenic dipole integrals.
@@ -217,7 +217,7 @@ def main() -> None:
         type=Path,
         default=Path(
             "tests/test_diffpes/_reference_data/"
-            "plan06_radial_gr66213_reference.csv"
+            "radial_gradshteyn_ryzhik_66213_reference.csv"
         ),
     )
     arguments: argparse.Namespace = parser.parse_args()

@@ -580,7 +580,7 @@ class TestFirstBzMask:
             "python": "3.11.13",
         }
 
-        chex.assert_equal(reference["gate"], "03.G5")
+        chex.assert_equal(reference["gate"], "kmesh-reduction-reference")
         key: str
         expected_value: str
         for key, expected_value in expected_metadata.items():

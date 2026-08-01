@@ -1,6 +1,6 @@
-"""Validate the classical physics gates for Plan 05 slabs.
+"""Validate the classical physics invariants for tight-binding slabs.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 from __future__ import annotations
@@ -284,12 +284,12 @@ def _oblique_long_range_model() -> TBModel:
 
 
 class TestGrapheneAnalyticGate:
-    """Verify the full 05.G3 Nakada nanoribbon gate."""
+    """Verify the full graphene-zigzag-dispersion Nakada nanoribbon check."""
 
     def test_zigzag_zero_mode_and_finite_width_bound(self) -> None:
         """Resolve the N=30 flat edge band including the exact pi limit.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -331,7 +331,7 @@ class TestGrapheneAnalyticGate:
     def test_armchair_k_zero_levels(self, n_lines: int) -> None:
         """Match Eq. (9) and its N=3m+2 metallicity criterion.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -367,12 +367,12 @@ class TestGrapheneAnalyticGate:
 
 
 class TestDepthAndInversionGates:
-    """Verify the 05.G5 and 05.G6 geometry symmetries."""
+    """Verify slab-depth-translation-invariance and slab-inversion-symmetry."""
 
     def test_fcc_111_primitive_depths(self) -> None:
         """Match FCC(111) d-spacing and reject a doubled Miller normal.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -463,7 +463,7 @@ class TestDepthAndInversionGates:
     def test_explicit_inversion_bijection_and_planted_failures(self) -> None:
         """Verify covariance and reject incomplete inversion proxies.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -555,12 +555,12 @@ class TestDepthAndInversionGates:
 
 
 class TestOpenNormalAdversaries:
-    """Verify the exact 05.G7 and 05.G13 open-boundary invariants."""
+    """Verify open-surface-no-wraparound and open-boundary-adjacency-invariant."""
 
     def test_positive_vacuum_spectral_plateau(self) -> None:
         """Keep a certified slab spectrum invariant under added vacuum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -610,7 +610,7 @@ class TestOpenNormalAdversaries:
     def test_mixed_image_and_ordinary_path_is_rejected(self) -> None:
         """Reject an image edge hidden inside a two-step surface path.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

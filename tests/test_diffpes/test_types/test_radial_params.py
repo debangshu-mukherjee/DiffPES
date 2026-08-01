@@ -622,16 +622,22 @@ class TestMakeFinalStateSpec(chex.TestCase):
             effective_charge=jnp.asarray(0.1),
             match="require zero effective charge",
         )
-        with pytest.raises(ValueError, match="failed the frozen G13"):
+        with pytest.raises(
+            ValueError, match="failed the frozen radial accelerator"
+        ):
             make_final_state_spec(radial_accelerator="hermite")
-        with pytest.raises(ValueError, match="failed the frozen G13"):
+        with pytest.raises(
+            ValueError, match="failed the frozen radial accelerator"
+        ):
             FinalStateSpec(
                 effective_charge=jnp.asarray(0.0),
                 mode="plane_wave",
                 radial_accelerator="hermite",
                 table_n_points=1025,
             )
-        with pytest.raises(ValueError, match="failed the frozen G13"):
+        with pytest.raises(
+            ValueError, match="failed the frozen radial accelerator"
+        ):
             make_final_state_spec(
                 mode="coulomb",
                 effective_charge=1.0,

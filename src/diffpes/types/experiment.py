@@ -25,7 +25,7 @@ defined by the incidence angles.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex, Complex128, Float, Float64, jaxtyped
 
 from .aliases import ScalarFloat
 
@@ -44,30 +44,30 @@ class ExperimentGeometry(eqx.Module):
 
     Attributes
     ----------
-    photon_energy_ev : Float[Array, ""]
+    photon_energy_ev : Float64[Array, ""]
         Photon energy in eV.
-    polarization : Complex[Array, "3"]
+    polarization : Complex128[Array, "3"]
         Unit polarization vector in the laboratory frame, transverse to the
         photon direction declared by ``incidence_theta`` and
         ``incidence_phi``.
-    incidence_theta : Float[Array, ""]
+    incidence_theta : Float64[Array, ""]
         Incidence angle from the surface normal in radians.
-    incidence_phi : Float[Array, ""]
+    incidence_phi : Float64[Array, ""]
         Azimuthal incidence angle in radians.
-    sample_azimuth : Float[Array, ""]
+    sample_azimuth : Float64[Array, ""]
         Sample rotation about the surface normal in radians.
-    work_function_ev : Float[Array, ""]
+    work_function_ev : Float64[Array, ""]
         Work function in eV.
-    inner_potential_ev : Float[Array, ""]
+    inner_potential_ev : Float64[Array, ""]
         Inner potential in eV.
-    temperature_k : Float[Array, ""]
+    temperature_k : Float64[Array, ""]
         Strictly positive sample temperature in kelvin.
-    energy_resolution_ev : Float[Array, ""]
+    energy_resolution_ev : Float64[Array, ""]
         Full width at half maximum of the energy resolution in eV.
-    momentum_resolution_inv_ang : Float[Array, ""]
+    momentum_resolution_inv_ang : Float64[Array, ""]
         Full width at half maximum of the momentum resolution in
         1/Angstrom.
-    mean_free_path_ang : Float[Array, ""]
+    mean_free_path_ang : Float64[Array, ""]
         Mean free path of the photoelectron in Angstrom.
     slit : str
         Detector slit orientation. This field is **static**. A change causes
@@ -92,17 +92,17 @@ class ExperimentGeometry(eqx.Module):
         experiment.
     """
 
-    photon_energy_ev: Float[Array, ""]
-    polarization: Complex[Array, "3"]
-    incidence_theta: Float[Array, ""]
-    incidence_phi: Float[Array, ""]
-    sample_azimuth: Float[Array, ""]
-    work_function_ev: Float[Array, ""]
-    inner_potential_ev: Float[Array, ""]
-    temperature_k: Float[Array, ""]
-    energy_resolution_ev: Float[Array, ""]
-    momentum_resolution_inv_ang: Float[Array, ""]
-    mean_free_path_ang: Float[Array, ""]
+    photon_energy_ev: Float64[Array, ""]
+    polarization: Complex128[Array, "3"]
+    incidence_theta: Float64[Array, ""]
+    incidence_phi: Float64[Array, ""]
+    sample_azimuth: Float64[Array, ""]
+    work_function_ev: Float64[Array, ""]
+    inner_potential_ev: Float64[Array, ""]
+    temperature_k: Float64[Array, ""]
+    energy_resolution_ev: Float64[Array, ""]
+    momentum_resolution_inv_ang: Float64[Array, ""]
+    mean_free_path_ang: Float64[Array, ""]
     slit: str = eqx.field(static=True)
 
 
@@ -214,31 +214,33 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913
         message: str = "slit must be 'H' or 'V'"
         raise ValueError(message)
 
-    photon_energy: Float[Array, ""] = jnp.asarray(
+    photon_energy: Float64[Array, ""] = jnp.asarray(
         photon_energy_ev, dtype=jnp.float64
     )
-    polarization_array: Complex[Array, "3"] = jnp.asarray(
+    polarization_array: Complex128[Array, "3"] = jnp.asarray(
         polarization, dtype=jnp.complex128
     )
-    theta: Float[Array, ""] = jnp.asarray(incidence_theta, dtype=jnp.float64)
-    phi: Float[Array, ""] = jnp.asarray(incidence_phi, dtype=jnp.float64)
-    azimuth: Float[Array, ""] = jnp.asarray(sample_azimuth, dtype=jnp.float64)
-    work_function: Float[Array, ""] = jnp.asarray(
+    theta: Float64[Array, ""] = jnp.asarray(incidence_theta, dtype=jnp.float64)
+    phi: Float64[Array, ""] = jnp.asarray(incidence_phi, dtype=jnp.float64)
+    azimuth: Float64[Array, ""] = jnp.asarray(
+        sample_azimuth, dtype=jnp.float64
+    )
+    work_function: Float64[Array, ""] = jnp.asarray(
         work_function_ev, dtype=jnp.float64
     )
-    inner_potential: Float[Array, ""] = jnp.asarray(
+    inner_potential: Float64[Array, ""] = jnp.asarray(
         inner_potential_ev, dtype=jnp.float64
     )
-    temperature: Float[Array, ""] = jnp.asarray(
+    temperature: Float64[Array, ""] = jnp.asarray(
         temperature_k, dtype=jnp.float64
     )
-    energy_resolution: Float[Array, ""] = jnp.asarray(
+    energy_resolution: Float64[Array, ""] = jnp.asarray(
         energy_resolution_ev, dtype=jnp.float64
     )
-    momentum_resolution: Float[Array, ""] = jnp.asarray(
+    momentum_resolution: Float64[Array, ""] = jnp.asarray(
         momentum_resolution_inv_ang, dtype=jnp.float64
     )
-    mean_free_path: Float[Array, ""] = jnp.asarray(
+    mean_free_path: Float64[Array, ""] = jnp.asarray(
         mean_free_path_ang, dtype=jnp.float64
     )
 

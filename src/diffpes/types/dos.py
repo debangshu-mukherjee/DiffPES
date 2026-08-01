@@ -26,7 +26,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 
@@ -47,11 +47,11 @@ class DensityOfStates(eqx.Module):
 
     Attributes
     ----------
-    energy : Float[Array, " E"]
+    energy : Float64[Array, " E"]
         Energy axis in eV.
-    total_dos : Float[Array, " E"]
+    total_dos : Float64[Array, " E"]
         Total density of states.
-    fermi_energy : Float[Array, " "]
+    fermi_energy : Float64[Array, " "]
         Fermi level energy in eV.
 
     Notes
@@ -65,9 +65,9 @@ class DensityOfStates(eqx.Module):
         float64 casting.
     """
 
-    energy: Float[Array, " E"]
-    total_dos: Float[Array, " E"]
-    fermi_energy: Float[Array, " "]
+    energy: Float64[Array, " E"]
+    total_dos: Float64[Array, " E"]
+    fermi_energy: Float64[Array, " "]
 
 
 @jaxtyped(typechecker=beartype)
@@ -147,9 +147,11 @@ def make_density_of_states(  # noqa: DOC503
     --------
     DensityOfStates : The PyTree class constructed by this factory.
     """
-    energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
-    dos_arr: Float[Array, " E"] = jnp.asarray(total_dos, dtype=jnp.float64)
-    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    energy_arr: Float64[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
+    dos_arr: Float64[Array, " E"] = jnp.asarray(total_dos, dtype=jnp.float64)
+    fermi_arr: Float64[Array, " "] = jnp.asarray(
+        fermi_energy, dtype=jnp.float64
+    )
 
     if energy_arr.shape[0] != dos_arr.shape[0]:
         raise ValueError(
@@ -198,30 +200,30 @@ class FullDensityOfStates(eqx.Module):
 
     Attributes
     ----------
-    energy : Float[Array, " E"]
+    energy : Float64[Array, " E"]
         Energy axis in eV, shared by all DOS channels.
         JAX-traced (differentiable).
-    total_dos_up : Float[Array, " E"]
+    total_dos_up : Float64[Array, " E"]
         Total DOS for spin-up channel (or the only channel if
         ISPIN=1). Units are states/eV. JAX-traced (differentiable).
-    total_dos_down : Optional[Float[Array, " E"]]
+    total_dos_down : Optional[Float64[Array, " E"]]
         Total DOS for spin-down channel, or ``None`` if the
         calculation is non-spin-polarized (ISPIN=1). Units are
         states/eV. JAX-traced when present.
-    integrated_dos_up : Float[Array, " E"]
+    integrated_dos_up : Float64[Array, " E"]
         Integrated (cumulative) DOS for spin-up channel. The value
         at the Fermi energy gives the number of electrons for this
         spin channel. JAX-traced (differentiable).
-    integrated_dos_down : Optional[Float[Array, " E"]]
+    integrated_dos_down : Optional[Float64[Array, " E"]]
         Integrated DOS for spin-down channel, or ``None`` if
         ISPIN=1. JAX-traced when present.
-    pdos : Optional[Float[Array, "A E C"]]
+    pdos : Optional[Float64[Array, "A E C"]]
         Per-atom site-projected DOS. A specifies the atom count. E specifies
         the energy-point count. C specifies the orbital-column count, which
         depends on the VASP LORBIT setting.
         ``None`` if no PDOS blocks are present in the DOSCAR file.
         JAX-traced when present.
-    fermi_energy : Float[Array, " "]
+    fermi_energy : Float64[Array, " "]
         Fermi level energy in eV. A 0-D scalar array.
         JAX-traced (differentiable).
     natoms : int
@@ -247,13 +249,13 @@ class FullDensityOfStates(eqx.Module):
         and float64 casting.
     """
 
-    energy: Float[Array, " E"]
-    total_dos_up: Float[Array, " E"]
-    total_dos_down: Optional[Float[Array, " E"]]
-    integrated_dos_up: Float[Array, " E"]
-    integrated_dos_down: Optional[Float[Array, " E"]]
-    pdos: Optional[Float[Array, "A E C"]]
-    fermi_energy: Float[Array, " "]
+    energy: Float64[Array, " E"]
+    total_dos_up: Float64[Array, " E"]
+    total_dos_down: Optional[Float64[Array, " E"]]
+    integrated_dos_up: Float64[Array, " E"]
+    integrated_dos_down: Optional[Float64[Array, " E"]]
+    pdos: Optional[Float64[Array, "A E C"]]
+    fermi_energy: Float64[Array, " "]
     natoms: int = eqx.field(static=True)
 
 
@@ -365,12 +367,14 @@ def make_full_density_of_states(  # noqa: DOC503
     FullDensityOfStates : The PyTree class constructed by this
         factory.
     """
-    energy_arr: Float[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
-    up_arr: Float[Array, " E"] = jnp.asarray(total_dos_up, dtype=jnp.float64)
-    int_up_arr: Float[Array, " E"] = jnp.asarray(
+    energy_arr: Float64[Array, " E"] = jnp.asarray(energy, dtype=jnp.float64)
+    up_arr: Float64[Array, " E"] = jnp.asarray(total_dos_up, dtype=jnp.float64)
+    int_up_arr: Float64[Array, " E"] = jnp.asarray(
         integrated_dos_up, dtype=jnp.float64
     )
-    fermi_arr: Float[Array, " "] = jnp.asarray(fermi_energy, dtype=jnp.float64)
+    fermi_arr: Float64[Array, " "] = jnp.asarray(
+        fermi_energy, dtype=jnp.float64
+    )
     down_arr: Optional[Float[Array, " E"]] = None
     if total_dos_down is not None:
         down_arr = jnp.asarray(total_dos_down, dtype=jnp.float64)

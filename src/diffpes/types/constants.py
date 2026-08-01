@@ -166,7 +166,7 @@ from types import MappingProxyType
 
 import jax.numpy as jnp
 from beartype.typing import Final
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float64
 
 ATTR_AUX: Final[str] = "_aux_data_json"
 ATTR_NONE: Final[str] = "_none_fields"
@@ -224,10 +224,10 @@ KNOWN_CHANNELS: Final[frozenset[str]] = frozenset(
 )
 MATRIX_NDIM: Final[int] = 2
 MAX_SK_ANGULAR_MOMENTUM: Final[int] = 2
-M_D: Float[Array, " 5"] = jnp.array(
+M_D: Float64[Array, " 5"] = jnp.array(
     [-2.0, -1.0, 0.0, 1.0, 2.0], dtype=jnp.float64
 )
-M_P: Float[Array, " 3"] = jnp.array([1.0, 0.0, -1.0], dtype=jnp.float64)
+M_P: Float64[Array, " 3"] = jnp.array([1.0, 0.0, -1.0], dtype=jnp.float64)
 ME_EV: Final[float] = 510998.95
 MIN_SUM: Final[float] = 1e-30
 MIN_BOND_DISTANCE: Final[float] = 1e-12

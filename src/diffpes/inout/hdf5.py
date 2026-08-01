@@ -23,8 +23,8 @@ It encodes ``eqx.field(static=True)`` values as tuple-preserving JSON.
 Consequently, tight-binding carriers preserve nested crystal geometry as
 recursive numerical children and their orbital basis as static metadata
 without carrier-specific serialization rules.
-Files predating Plan 05a load absent tight-binding ``depths`` datasets as the
-bulk sentinel ``None``.
+Files predating tight-binding depth metadata load absent ``depths`` datasets
+as the bulk sentinel ``None``.
 """
 
 import json
@@ -162,7 +162,7 @@ def _decode_static(value: Any) -> Any:  # noqa: ANN401
 def _decode_aux_data(type_name: str, value: Any) -> Any:  # noqa: ANN401
     """Decode current static metadata and supported legacy HDF5 aux data.
 
-    Plan 02's pre-migration codec wrote plain JSON lists for tuple-valued
+    The pre-migration codec wrote plain JSON lists for tuple-valued
     metadata. Current files use explicit tuple tags. The three conversions
     below retain read compatibility with those pinned files without restoring
     a per-carrier write registry.

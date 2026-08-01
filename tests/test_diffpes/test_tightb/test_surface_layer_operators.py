@@ -1,6 +1,6 @@
-"""Validate Plan-05 surface and layer-resolved tight-binding operators.
+"""Validate surface and layer-resolved tight-binding operators.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 import chex
@@ -75,7 +75,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_probability_law_uses_intensity_escape_length(self) -> None:
         """Match exp(-depth/lambda), including the top-surface value.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -93,7 +93,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_rejects_invalid_escape_length(self) -> None:
         """Reject nonpositive and non-finite physical escape lengths.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -107,7 +107,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_rejects_invalid_depths(self) -> None:
         """Reject negative and non-finite depths under eager evaluation.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -121,7 +121,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_gradients_match_analytic_probability_derivatives(self) -> None:
         """Differentiate through escape length and scaled depth tags.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -164,7 +164,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_small_length_guard_has_finite_value_and_gradient(self) -> None:
         """Prevent the inactive exponential derivative from producing NaN.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -185,7 +185,7 @@ class TestSurfaceProjector(chex.TestCase):
     def test_variants_and_vmap_match_probability_law(self) -> None:
         """Preserve batched values under eager and compiled execution.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -213,7 +213,7 @@ class TestLayerResolvedWeights(chex.TestCase):
     def test_finite_chain_matches_standing_wave_truth(self) -> None:
         """Recover the geometric-weighted analytic sin-squared sum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -254,7 +254,7 @@ class TestLayerResolvedWeights(chex.TestCase):
     def test_absent_depth_carrier_is_rejected(self) -> None:
         """Keep bulk bands outside the layer-resolved operator API.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -273,7 +273,7 @@ class TestLayerResolvedWeights(chex.TestCase):
     def test_variants_match_vmap_over_single_k(self) -> None:
         """Match eager and compiled contraction to explicit vmap-over-k.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -316,9 +316,9 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     """
 
     def test_u2_mixing_changes_individuals_but_preserves_trace(self) -> None:
-        """Pin the unequal-weight Hadamard counterexample from gate 05.G12.
+        """Pin the unequal-weight Hadamard counterexample from layer-group-trace-basis-invariance.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -392,7 +392,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     ) -> None:
         """Reject a boundary cut whose apparent trace changes 0.5 to 0.75.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -444,7 +444,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     def test_unisolated_complement_and_overlaps_are_rejected(self) -> None:
         """Enforce both runtime spectral and static partition contracts.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -467,7 +467,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     def test_pinned_gap_boundaries_have_declared_inclusivity(self) -> None:
         """Accept the minimum isolation and reject the degeneracy boundary.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -499,7 +499,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     def test_malformed_fixed_groups_are_rejected(self) -> None:
         """Reject empty, duplicated, and out-of-range static declarations.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -519,7 +519,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     def test_variants_and_gradient_match_analytic_truth(self) -> None:
         """Differentiate a valid U2 trace under eager and compiled execution.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

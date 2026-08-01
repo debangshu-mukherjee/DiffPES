@@ -47,7 +47,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any
-from jaxtyping import Shaped, UInt, jaxtyped
+from jaxtyping import Shaped, UInt8, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -1086,7 +1086,7 @@ def load_certificate_h5(
         if "canonical_json" not in group:
             msg: str = "HDF5 certificate record has no canonical_json dataset"
             raise ValueError(msg)
-        stored: UInt[NDArray, " n_byte"] = np.asarray(
+        stored: UInt8[NDArray, " n_byte"] = np.asarray(
             group["canonical_json"][()]
         )
         if stored.dtype != np.dtype(np.uint8) or stored.ndim != 1:

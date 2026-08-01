@@ -1,4 +1,4 @@
-"""Exercise the published-input companion benchmark for Plan 04 gate G7.
+"""Exercise the published-input companion benchmark for Wannier90 WSe2 parity.
 
 The test authenticates a compressed WSe2 Wannier input and frozen eigenvalues.
 """
@@ -26,10 +26,8 @@ from diffpes.types import (
 )
 
 _REFERENCE_DIRECTORY = Path(__file__).parents[1] / "_reference_data"
-_COMPRESSED_INPUT = _REFERENCE_DIRECTORY / "plan04_wse2_soc_11bnd_hr.dat.xz"
-_FROZEN_REFERENCE = (
-    _REFERENCE_DIRECTORY / "plan04_wannier90_wse2_reference.json"
-)
+_COMPRESSED_INPUT = _REFERENCE_DIRECTORY / "wannier90_wse2_soc_11bnd_hr.dat.xz"
+_FROZEN_REFERENCE = _REFERENCE_DIRECTORY / "wannier90_wse2_reference.json"
 _COMPRESSED_SHA256 = (
     "756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4"
 )
@@ -85,7 +83,7 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     hr_path.write_bytes(source)
 
     reference: dict[str, Any] = json.loads(reference_payload)
-    assert reference["metadata"]["gate"] == "04.G7"
+    assert reference["metadata"]["gate"] == "wannier90-wse2-parity"
     assert reference["metadata"]["source_sha256"] == _SOURCE_SHA256
     n_wannier: int = int(reference["num_wann"])
     geometry: CrystalGeometry

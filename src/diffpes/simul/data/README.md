@@ -29,9 +29,9 @@ and Prof. Lindau's agreement to make the dataset available. The primary paper
 DOI and volume-wide pages 1–155 provide the bibliographic locator. The
 workbook metadata does not supply a cell-by-cell paper page/table map, so this
 package makes no independent-PDF-transcription claim. This scope is explicit
-in the manifest and in the Plan-06 G5 evidence amendment. Frozen Figshare API
-metadata and project-page snapshots under
-`tests/test_diffpes/_reference_data/plan06_yeh_lindau_authority/` bind these
+in the manifest and in the evidence amendment for source provenance. Frozen
+Figshare API metadata and project-page snapshots under
+`tests/test_diffpes/_reference_data/yeh_lindau_authority/` bind these
 authority claims by SHA-256.
 
 When using these data, cite both the original Yeh–Lindau paper and the

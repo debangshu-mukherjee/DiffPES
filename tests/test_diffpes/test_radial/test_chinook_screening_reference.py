@@ -1,4 +1,4 @@
-"""Certify the Chinook sample portion of Plan 06 G4 from inert data.
+"""Certify radial screening against inert Chinook sample data.
 
 The tests check rounded screening values and authenticate the frozen external
 source metadata without importing Chinook.
@@ -15,11 +15,11 @@ from diffpes.radial.screening import slater_zeff
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
     / "_reference_data"
-    / "plan06_chinook_screening_reference.json"
+    / "chinook_screening_reference.json"
 )
 
 
-class TestPlan06ChinookScreeningReference:
+class TestChinookScreeningReference:
     """Compare Slater screening with the authenticated frozen sample."""
 
     def test_sample_is_bit_equal_after_pinned_rounding(self) -> None:
@@ -34,7 +34,7 @@ class TestPlan06ChinookScreeningReference:
         artifact: dict[str, Any] = json.loads(
             REFERENCE_PATH.read_text(encoding="utf-8")
         )
-        assert artifact["gate"] == "06.G4"
+        assert artifact["requirement"] == "chinook-screening-reference"
         digits: int = int(artifact["round_digits"])
         samples: list[dict[str, Any]] = artifact["samples"]
         assert len(samples) == 6

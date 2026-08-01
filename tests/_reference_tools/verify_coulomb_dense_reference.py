@@ -1,4 +1,4 @@
-"""Verify one Plan-06 Coulomb order on the frozen dense G11 domain."""
+"""Verify one Coulomb order on the frozen dense mpmath-reference domain."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Float
+from jaxtyping import Float64
 from numpy.typing import NDArray
 from scipy.special import loggamma
 
@@ -32,17 +32,17 @@ def main() -> None:  # noqa: PLR0915
         / "coulomb_mpmath_80digit.npz"
     )
     with np.load(path) as archive:
-        dense_etas: Float[NDArray, " n_eta"] = archive["dense_etas"]
-        dense_rhos: Float[NDArray, " n_rho"] = archive["dense_rhos"]
-        reference_regular: Float[NDArray, "n_eta n_rho"] = archive["dense_f"][
-            order
-        ]
-        reference_irregular: Float[NDArray, "n_eta n_rho"] = archive[
+        dense_etas: Float64[NDArray, " n_eta"] = archive["dense_etas"]
+        dense_rhos: Float64[NDArray, " n_rho"] = archive["dense_rhos"]
+        reference_regular: Float64[NDArray, "n_eta n_rho"] = archive[
+            "dense_f"
+        ][order]
+        reference_irregular: Float64[NDArray, "n_eta n_rho"] = archive[
             "dense_g"
         ][order]
 
-    eta_grid_numpy: Float[NDArray, "n_eta n_rho"]
-    rho_grid_numpy: Float[NDArray, "n_eta n_rho"]
+    eta_grid_numpy: Float64[NDArray, "n_eta n_rho"]
+    rho_grid_numpy: Float64[NDArray, "n_eta n_rho"]
     eta_grid_numpy, rho_grid_numpy = np.meshgrid(
         dense_etas,
         dense_rhos,
@@ -156,16 +156,16 @@ def main() -> None:  # noqa: PLR0915
     )
 
     origin_rho: float = float(dense_rhos[0])
-    normalization: Float[NDArray, " n_eta"] = np.exp(
+    normalization: Float64[NDArray, " n_eta"] = np.exp(
         order * np.log(2.0)
         - np.pi * dense_etas / 2.0
         + np.real(loggamma(order + 1 + 1j * dense_etas))
         - loggamma(2 * order + 2)
     )
-    regular_origin_ratio: Float[NDArray, " n_eta"] = np.asarray(
+    regular_origin_ratio: Float64[NDArray, " n_eta"] = np.asarray(
         actual[0, :, 0]
     ) / (normalization * origin_rho ** (order + 1))
-    irregular_origin_ratio: Float[NDArray, " n_eta"] = (
+    irregular_origin_ratio: Float64[NDArray, " n_eta"] = (
         np.asarray(actual[1, :, 0])
         * (2 * order + 1)
         * normalization

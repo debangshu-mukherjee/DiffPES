@@ -1,4 +1,4 @@
-"""Shared numerical scaffolding for the Plan-07 preproduction KK spike.
+"""Shared numerical scaffolding for the preproduction KK candidate study.
 
 This module is test tooling, not WP7.4 production code.  It contains analytic
 fixtures, independently checks the committed reference archive, and implements
@@ -27,7 +27,7 @@ REFERENCE_DIRECTORY = (
     Path(__file__).parents[1]
     / "test_diffpes"
     / "_reference_data"
-    / "plan07_kk"
+    / "kk_analytic_reference"
 )
 
 
@@ -282,7 +282,7 @@ def write_sweep_report(
     )
 
     columns = list(dict.fromkeys(key for row in rows for key in row))
-    lines = ["# Plan-07 KK preproduction sweep", ""]
+    lines = ["# KK preproduction candidate sweep", ""]
     if not columns:
         lines.append("No sweep rows were recorded.")
     else:

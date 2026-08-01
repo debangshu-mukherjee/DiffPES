@@ -33,7 +33,7 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_simul.test_plan02_gates
+.. automodule:: tests.test_diffpes.test_simul.test_novice_transformability
    :members:
    :undoc-members:
    :show-inheritance:

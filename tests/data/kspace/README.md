@@ -1,11 +1,11 @@
-# Plan 03 Chinook k-space verification
+# Chinook k-space verification
 
-These offline references close the Chinook portions of Plan 03 gates 03.G3,
-03.G4, and 03.G5. DiffPES tests consume only the immutable JSON files and do
+These offline references verify `kz-kinematics-reference`,
+`tilted-polarization-reference`, and `kmesh-reduction-reference`. DiffPES tests consume only the immutable JSON files and do
 not install, import, or execute Chinook.
 
 The authoritative generator is maintained outside the DiffPES source and test
-trees under `diffpes-plans/verification/kspace/`. It runs manually in a
+trees in the external verification repository under `verification/kspace/`. It runs manually in a
 dedicated pinned environment. Only generated data, hashes, and provenance cross
 into this directory; no Chinook-importing Python belongs under `tests/`.
 

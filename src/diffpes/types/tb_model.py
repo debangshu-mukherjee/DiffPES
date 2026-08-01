@@ -41,7 +41,15 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional
-from jaxtyping import Array, Complex, Float, Int, jaxtyped
+from jaxtyping import (
+    Array,
+    Complex,
+    Complex128,
+    Float,
+    Float64,
+    Int32,
+    jaxtyped,
+)
 
 from .aliases import ScalarNumeric
 from .geometry import CrystalGeometry
@@ -503,23 +511,23 @@ class DiagonalizedBands(eqx.Module):
 
     Attributes
     ----------
-    eigenvalues : Float[Array, "n_k n_bands"]
+    eigenvalues : Float64[Array, "n_k n_bands"]
         Band energies in eV.
-    eigenvectors : Complex[Array, "n_k n_bands n_orb"]
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
         Complex orbital coefficients in the basis-position gauge.
-    kpoints : Float[Array, "n_k 3"]
+    kpoints : Float64[Array, "n_k 3"]
         Fractional reciprocal-space coordinates.
-    fermi_energy : Float[Array, ""]
+    fermi_energy : Float64[Array, ""]
         Fermi energy in eV.
     geometry : CrystalGeometry
         Crystal geometry. Its numerical fields are differentiable children.
     basis : OrbitalBasis
         Orbital and atom metadata (**static** -- changing it triggers
         retracing).
-    orbital_positions : Optional[Float[Array, "n_orb 3"]]
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]]
         Explicit fractional orbital centres associated with the
         basis-position-gauge coefficients. ``None`` ties centres to atoms.
-    depths : Optional[Float[Array, "n_orb"]]
+    depths : Optional[Float64[Array, "n_orb"]]
         Orbital depths in Angstrom below the top surface. ``None`` denotes a
         bulk model. Native tight-binding diagonalization propagates this
         differentiable leaf without transformation.
@@ -536,14 +544,14 @@ class DiagonalizedBands(eqx.Module):
     make_diagonalized_bands : Validating carrier factory.
     """
 
-    eigenvalues: Float[Array, "n_k n_bands"]
-    eigenvectors: Complex[Array, "n_k n_bands n_orb"]
-    kpoints: Float[Array, "n_k 3"]
-    fermi_energy: Float[Array, ""]
+    eigenvalues: Float64[Array, "n_k n_bands"]
+    eigenvectors: Complex128[Array, "n_k n_bands n_orb"]
+    kpoints: Float64[Array, "n_k 3"]
+    fermi_energy: Float64[Array, ""]
     geometry: CrystalGeometry
     basis: OrbitalBasis = eqx.field(static=True)
-    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
-    depths: Optional[Float[Array, " n_orb"]] = None
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None
+    depths: Optional[Float64[Array, " n_orb"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static eigensystem invariants again."""
@@ -574,12 +582,12 @@ class TBModel(eqx.Module):
 
     Attributes
     ----------
-    hopping_amplitudes : Complex[Array, "n_hop"]
+    hopping_amplitudes : Complex128[Array, "n_hop"]
         Complex hopping amplitudes in eV. These differentiable values support
         spin-orbit and other intrinsically complex couplings.
-    onsite_energies : Float[Array, "n_orb"]
+    onsite_energies : Float64[Array, "n_orb"]
         Onsite orbital energies in eV.
-    soc_lambdas : Float[Array, "n_shells"]
+    soc_lambdas : Float64[Array, "n_shells"]
         Atomic spin-orbit couplings in eV, one per ``(atom, n, l)`` shell.
     geometry : CrystalGeometry
         Differentiable lattice and fractional atomic positions.
@@ -600,11 +608,11 @@ class TBModel(eqx.Module):
     spinor : bool
         Whether the basis carries explicit spin channels (**static** --
         changing it triggers retracing).
-    orbital_positions : Optional[Float[Array, "n_orb 3"]]
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]]
         Explicit fractional orbital or Wannier centres. ``None`` ties every
         orbital centre to its assigned atomic position. Explicit centres are
         differentiable independently of the atomic geometry.
-    depths : Optional[Float[Array, "n_orb"]]
+    depths : Optional[Float64[Array, "n_orb"]]
         Orbital depths in Angstrom below the top surface. Values are finite
         and nonnegative up to the numerical boundary tolerance. ``None``
         denotes a bulk model.
@@ -622,17 +630,17 @@ class TBModel(eqx.Module):
     make_tb_model : Validating carrier factory.
     """
 
-    hopping_amplitudes: Complex[Array, " n_hop"]
-    onsite_energies: Float[Array, " n_orb"]
-    soc_lambdas: Float[Array, " n_shells"]
+    hopping_amplitudes: Complex128[Array, " n_hop"]
+    onsite_energies: Float64[Array, " n_orb"]
+    soc_lambdas: Float64[Array, " n_shells"]
     geometry: CrystalGeometry
     basis: OrbitalBasis = eqx.field(static=True)
     hopping_pairs: tuple[tuple[int, int], ...] = eqx.field(static=True)
     hopping_cells: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
     shell_index: tuple[int, ...] = eqx.field(static=True)
     spinor: bool = eqx.field(static=True)
-    orbital_positions: Optional[Float[Array, "n_orb 3"]] = None
-    depths: Optional[Float[Array, " n_orb"]] = None
+    orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None
+    depths: Optional[Float64[Array, " n_orb"]] = None
 
     def __check_init__(self) -> None:
         """Validate the static tight-binding invariants again."""
@@ -688,13 +696,13 @@ class SurfaceCell(eqx.Module):
 
     Attributes
     ----------
-    in_plane_vectors : Float[Array, "2 3"]
+    in_plane_vectors : Float64[Array, "2 3"]
         Cartesian in-plane vectors in Angstrom, as rows.
-    stacking_vector : Float[Array, "3"]
+    stacking_vector : Float64[Array, "3"]
         Cartesian stacking vector in Angstrom.
-    rotation : Float[Array, "3 3"]
+    rotation : Float64[Array, "3 3"]
         Active Cartesian rotation from bulk to surface frame.
-    interlayer_spacing_ang : Float[Array, ""]
+    interlayer_spacing_ang : Float64[Array, ""]
         Positive interlayer spacing in Angstrom.
     miller : tuple[int, int, int]
         GCD-reduced Miller tuple (**static** -- changing it triggers
@@ -710,10 +718,10 @@ class SurfaceCell(eqx.Module):
     are orthogonal to ``miller``, and ``miller · stacking_coeffs == 1``.
     """
 
-    in_plane_vectors: Float[Array, "2 3"]
-    stacking_vector: Float[Array, " 3"]
-    rotation: Float[Array, "3 3"]
-    interlayer_spacing_ang: Float[Array, ""]
+    in_plane_vectors: Float64[Array, "2 3"]
+    stacking_vector: Float64[Array, " 3"]
+    rotation: Float64[Array, "3 3"]
+    interlayer_spacing_ang: Float64[Array, ""]
     miller: tuple[int, int, int] = eqx.field(static=True)
     in_plane_coeffs: tuple[
         tuple[int, int, int],
@@ -900,19 +908,19 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
     DiagonalizedBands : Carrier constructed by this factory.
     make_tb_model : Construct the model diagonalized by native TB producers.
     """
-    eigenvalue_array: Float[Array, "n_k n_bands"] = jnp.asarray(
+    eigenvalue_array: Float64[Array, "n_k n_bands"] = jnp.asarray(
         eigenvalues,
         dtype=jnp.float64,
     )
-    eigenvector_array: Complex[Array, "n_k n_bands n_orb"] = jnp.asarray(
+    eigenvector_array: Complex128[Array, "n_k n_bands n_orb"] = jnp.asarray(
         eigenvectors,
         dtype=jnp.complex128,
     )
-    kpoint_array: Float[Array, "n_k 3"] = jnp.asarray(
+    kpoint_array: Float64[Array, "n_k 3"] = jnp.asarray(
         kpoints,
         dtype=jnp.float64,
     )
-    fermi_array: Float[Array, ""] = jnp.asarray(
+    fermi_array: Float64[Array, ""] = jnp.asarray(
         fermi_energy,
         dtype=jnp.float64,
     )
@@ -1077,15 +1085,15 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
     TBModel : Carrier constructed by this factory.
     make_diagonalized_bands : Construct the downstream eigensystem carrier.
     """
-    hopping_array: Complex[Array, " n_hop"] = jnp.asarray(
+    hopping_array: Complex128[Array, " n_hop"] = jnp.asarray(
         hopping_amplitudes,
         dtype=jnp.complex128,
     )
-    onsite_array: Float[Array, " n_orb"] = jnp.asarray(
+    onsite_array: Float64[Array, " n_orb"] = jnp.asarray(
         onsite_energies,
         dtype=jnp.float64,
     )
-    soc_array: Float[Array, " n_shells"] = jnp.asarray(
+    soc_array: Float64[Array, " n_shells"] = jnp.asarray(
         soc_lambdas,
         dtype=jnp.float64,
     )
@@ -1144,7 +1152,7 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
             jnp.any(depth_array < -_DEPTH_TOLERANCE_ANG),
             "make_tb_model: depths must be nonnegative",
         )
-    closure_indices: Int[Array, " n_hop"] = jnp.asarray(
+    closure_indices: Int32[Array, " n_hop"] = jnp.asarray(
         closure,
         dtype=jnp.int32,
     )
@@ -1234,19 +1242,19 @@ def make_surface_cell(  # noqa: DOC502, DOC503
     Exact Miller coefficients remain static metadata while Cartesian vectors,
     rotation, and spacing remain differentiable leaves.
     """
-    in_plane_array: Float[Array, "2 3"] = jnp.asarray(
+    in_plane_array: Float64[Array, "2 3"] = jnp.asarray(
         in_plane_vectors,
         dtype=jnp.float64,
     )
-    stacking_array: Float[Array, " 3"] = jnp.asarray(
+    stacking_array: Float64[Array, " 3"] = jnp.asarray(
         stacking_vector,
         dtype=jnp.float64,
     )
-    rotation_array: Float[Array, "3 3"] = jnp.asarray(
+    rotation_array: Float64[Array, "3 3"] = jnp.asarray(
         rotation,
         dtype=jnp.float64,
     )
-    spacing_array: Float[Array, ""] = jnp.asarray(
+    spacing_array: Float64[Array, ""] = jnp.asarray(
         interlayer_spacing_ang,
         dtype=jnp.float64,
     )
@@ -1275,7 +1283,7 @@ def make_surface_cell(  # noqa: DOC502, DOC503
         ~jnp.all(jnp.isfinite(rotation_array)),
         "make_surface_cell: rotation must be finite",
     )
-    orthogonality_error: Float[Array, ""] = jnp.linalg.norm(
+    orthogonality_error: Float64[Array, ""] = jnp.linalg.norm(
         rotation_array.T @ rotation_array
         - jnp.eye(_CELL_COMPONENTS, dtype=jnp.float64)
     )

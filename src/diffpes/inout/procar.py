@@ -24,7 +24,7 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Literal, Optional, TextIO, Union
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -163,42 +163,44 @@ def read_procar(
     is_soc: bool = nblocks == SOC_BLOCKS
 
     if return_mode == "legacy" or (not is_spin_polarized and not is_soc):
-        proj_arr: Float[Array, " K B A 9"] = jnp.asarray(
+        proj_arr: Float64[Array, " K B A 9"] = jnp.asarray(
             blocks[0]["projections"], dtype=jnp.float64
         )
         projection_result: Union[OrbitalProjection, SpinOrbitalProjection] = (
             make_orbital_projection(projections=proj_arr)
         )
     elif is_spin_polarized:
-        proj_up: Float[NDArray, "K B A O"] = blocks[0]["projections"]
-        proj_down: Float[NDArray, "K B A O"] = blocks[1]["projections"]
-        avg: Float[NDArray, "K B A O"] = (proj_up + proj_down) / 2.0
+        proj_up: Float64[NDArray, "K B A O"] = blocks[0]["projections"]
+        proj_down: Float64[NDArray, "K B A O"] = blocks[1]["projections"]
+        avg: Float64[NDArray, "K B A O"] = (proj_up + proj_down) / 2.0
         proj_arr = jnp.asarray(avg, dtype=jnp.float64)
-        spin_data: Float[NDArray, "K B A 6"] = np.zeros(
+        spin_data: Float64[NDArray, "K B A 6"] = np.zeros(
             (nkpts, nbands, natoms, N_SPIN_COMPONENTS), dtype=np.float64
         )
-        sz_diff: Float[NDArray, "K B A"] = np.sum(proj_up - proj_down, axis=-1)
+        sz_diff: Float64[NDArray, "K B A"] = np.sum(
+            proj_up - proj_down, axis=-1
+        )
         spin_data[:, :, :, 4] = np.maximum(sz_diff, 0.0)
         spin_data[:, :, :, 5] = np.maximum(-sz_diff, 0.0)
-        spin_arr: Float[Array, " K B A 6"] = jnp.asarray(
+        spin_arr: Float64[Array, " K B A 6"] = jnp.asarray(
             spin_data, dtype=jnp.float64
         )
         projection_result = make_spin_orbital_projection(
             projections=proj_arr, spin=spin_arr
         )
     else:
-        proj_total: Float[NDArray, "K B A O"] = blocks[0]["projections"]
-        proj_sx: Float[NDArray, "K B A O"] = blocks[1]["projections"]
-        proj_sy: Float[NDArray, "K B A O"] = blocks[2]["projections"]
-        proj_sz: Float[NDArray, "K B A O"] = blocks[3]["projections"]
+        proj_total: Float64[NDArray, "K B A O"] = blocks[0]["projections"]
+        proj_sx: Float64[NDArray, "K B A O"] = blocks[1]["projections"]
+        proj_sy: Float64[NDArray, "K B A O"] = blocks[2]["projections"]
+        proj_sz: Float64[NDArray, "K B A O"] = blocks[3]["projections"]
         proj_arr = jnp.asarray(proj_total, dtype=jnp.float64)
 
         spin_data = np.zeros(
             (nkpts, nbands, natoms, N_SPIN_COMPONENTS), dtype=np.float64
         )
-        sx_sum: Float[NDArray, "K B A"] = np.sum(proj_sx, axis=-1)
-        sy_sum: Float[NDArray, "K B A"] = np.sum(proj_sy, axis=-1)
-        sz_sum: Float[NDArray, "K B A"] = np.sum(proj_sz, axis=-1)
+        sx_sum: Float64[NDArray, "K B A"] = np.sum(proj_sx, axis=-1)
+        sy_sum: Float64[NDArray, "K B A"] = np.sum(proj_sy, axis=-1)
+        sz_sum: Float64[NDArray, "K B A"] = np.sum(proj_sz, axis=-1)
         spin_data[:, :, :, 0] = np.maximum(sx_sum, 0.0)
         spin_data[:, :, :, 1] = np.maximum(-sx_sum, 0.0)
         spin_data[:, :, :, 2] = np.maximum(sy_sum, 0.0)
@@ -263,7 +265,7 @@ def _parse_procar_blocks(
         * ``'nkpts'`` (int): number of k-points.
         * ``'nbands'`` (int): number of bands.
         * ``'natoms'`` (int): number of atoms (ions).
-        * ``'projections'`` (``Float[NDArray, "nkpts nbands natoms 9"]``):
+        * ``'projections'`` (``Float64[NDArray, "nkpts nbands natoms 9"]``):
           orbital projections with dtype ``float64``.
 
     Notes
@@ -289,7 +291,7 @@ def _parse_procar_blocks(
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
-        projections: Float[NDArray, "K B A O"] = np.zeros(
+        projections: Float64[NDArray, "K B A O"] = np.zeros(
             (nkpts, nbands, natoms, N_ORBITALS), dtype=np.float64
         )
         i += 1

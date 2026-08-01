@@ -32,7 +32,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex128, Float, Float64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -54,9 +54,9 @@ def _validate_l_prime(l_prime: int) -> None:
         raise ValueError(message)
 
 
-def _partial_wave_phase(l_prime: int) -> Complex[Array, ""]:
+def _partial_wave_phase(l_prime: int) -> Complex128[Array, ""]:
     """Return the single canonical partial-wave phase."""
-    phase: Complex[Array, ""] = jnp.asarray(
+    phase: Complex128[Array, ""] = jnp.asarray(
         (1j) ** l_prime,
         dtype=jnp.complex128,
     )
@@ -64,19 +64,21 @@ def _partial_wave_phase(l_prime: int) -> Complex[Array, ""]:
 
 
 def _weighted_real_integral(
-    k_bohr_inv: Float[Array, " ..."],
-    r_bohr: Float[Array, " n_r"],
-    weights_bohr: Float[Array, " n_r"],
-    radial_values: Float[Array, " n_r"],
+    k_bohr_inv: Float64[Array, " ..."],
+    r_bohr: Float64[Array, " n_r"],
+    weights_bohr: Float64[Array, " n_r"],
+    radial_values: Float64[Array, " n_r"],
     l_prime: int,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     """Compute one real radial contraction with fixed quadrature weights."""
-    kr: Float[Array, "... n_r"] = jnp.expand_dims(k_bohr_inv, axis=-1) * r_bohr
-    bessel_values: Float[Array, "... n_r"] = spherical_bessel_jl(l_prime, kr)
-    radial_measure: Float[Array, " n_r"] = (
+    kr: Float64[Array, "... n_r"] = (
+        jnp.expand_dims(k_bohr_inv, axis=-1) * r_bohr
+    )
+    bessel_values: Float64[Array, "... n_r"] = spherical_bessel_jl(l_prime, kr)
+    radial_measure: Float64[Array, " n_r"] = (
         weights_bohr * radial_values * r_bohr**3
     )
-    integral: Float[Array, " ..."] = jnp.sum(
+    integral: Float64[Array, " ..."] = jnp.sum(
         bessel_values * radial_measure,
         axis=-1,
     )
@@ -84,17 +86,17 @@ def _weighted_real_integral(
 
 
 def _simpson_weights(
-    r_bohr: Float[Array, " n_r"],
-) -> Float[Array, " n_r"]:
+    r_bohr: Float64[Array, " n_r"],
+) -> Float64[Array, " n_r"]:
     """Return composite Simpson weights for a validated uniform grid."""
     n_points: int = r_bohr.shape[0]
-    spacing: Float[Array, ""] = r_bohr[1] - r_bohr[0]
-    coefficients: Float[Array, " n_r"] = jnp.ones(
+    spacing: Float64[Array, ""] = r_bohr[1] - r_bohr[0]
+    coefficients: Float64[Array, " n_r"] = jnp.ones(
         (n_points,), dtype=jnp.float64
     )
     coefficients = coefficients.at[1:-1:2].set(4.0)
     coefficients = coefficients.at[2:-1:2].set(2.0)
-    weights: Float[Array, " n_r"] = (spacing / 3.0) * coefficients
+    weights: Float64[Array, " n_r"] = (spacing / 3.0) * coefficients
     return weights
 
 
@@ -102,7 +104,7 @@ def _simpson_weights(
 def gauss_legendre_nodes(
     n_nodes: int,
     r_max_bohr: float,
-) -> tuple[Float[Array, " n_r"], Float[Array, " n_r"]]:
+) -> tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]]:
     """Construct Gauss--Legendre nodes and weights on ``[0, r_max_bohr]``.
 
     Host-side setup maps canonical nodes onto the requested finite interval.
@@ -118,9 +120,9 @@ def gauss_legendre_nodes(
 
     Returns
     -------
-    r_bohr : Float[Array, " n_r"]
+    r_bohr : Float64[Array, " n_r"]
         Ascending quadrature nodes in Bohr.
-    weights_bohr : Float[Array, " n_r"]
+    weights_bohr : Float64[Array, " n_r"]
         Positive quadrature weights in Bohr.
 
     Raises
@@ -139,15 +141,15 @@ def gauss_legendre_nodes(
     if not np.isfinite(r_max_bohr) or r_max_bohr <= 0.0:
         message = "r_max_bohr must be finite and positive"
         raise ValueError(message)
-    canonical_pair: tuple[Float[NDArray, " n_r"], Float[NDArray, " n_r"]] = (
-        np.polynomial.legendre.leggauss(n_nodes)
-    )
-    canonical_nodes: Float[NDArray, " n_r"] = canonical_pair[0]
-    canonical_weights: Float[NDArray, " n_r"] = canonical_pair[1]
+    canonical_pair: tuple[
+        Float64[NDArray, " n_r"], Float64[NDArray, " n_r"]
+    ] = np.polynomial.legendre.leggauss(n_nodes)
+    canonical_nodes: Float64[NDArray, " n_r"] = canonical_pair[0]
+    canonical_weights: Float64[NDArray, " n_r"] = canonical_pair[1]
     scale: float = 0.5 * r_max_bohr
-    shifted_nodes: Float[NDArray, " n_r"] = scale * (canonical_nodes + 1.0)
-    shifted_weights: Float[NDArray, " n_r"] = scale * canonical_weights
-    quadrature: tuple[Float[Array, " n_r"], Float[Array, " n_r"]] = (
+    shifted_nodes: Float64[NDArray, " n_r"] = scale * (canonical_nodes + 1.0)
+    shifted_weights: Float64[NDArray, " n_r"] = scale * canonical_weights
+    quadrature: tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]] = (
         jnp.asarray(shifted_nodes, dtype=jnp.float64),
         jnp.asarray(shifted_weights, dtype=jnp.float64),
     )
@@ -157,7 +159,7 @@ def gauss_legendre_nodes(
 @jaxtyped(typechecker=beartype)
 def momentum_inv_ang_to_bohr_inv(
     momentum_inv_ang: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     """Convert momentum from inverse Angstrom to inverse Bohr.
 
     The conversion applies the exact project-wide Bohr-radius seam once.
@@ -175,10 +177,10 @@ def momentum_inv_ang_to_bohr_inv(
 
     Returns
     -------
-    momentum_bohr_inv : Float[Array, " ..."]
+    momentum_bohr_inv : Float64[Array, " ..."]
         Momentum multiplied by ``0.529177210903`` in inverse Bohr.
     """
-    momentum_bohr_inv: Float[Array, " ..."] = (
+    momentum_bohr_inv: Float64[Array, " ..."] = (
         jnp.asarray(momentum_inv_ang, dtype=jnp.float64) * BOHR_TO_ANGSTROM
     )
     return momentum_bohr_inv
@@ -191,7 +193,7 @@ def radial_integral(
     weights_bohr: Float[Array, " n_r"],
     radial_values: Float[Array, " n_r"],
     l_prime: int,
-) -> Complex[Array, " ..."]:
+) -> Complex128[Array, " ..."]:
     r"""Evaluate a weighted :math:`R(r)r^3j_{l'}(kr)` radial integral.
 
     The contraction accepts fixed nodes, weights, and normalized radial values.
@@ -213,8 +215,8 @@ def radial_integral(
 
     Returns
     -------
-    values : Complex[Array, " ..."]
-        Complex channel integrals with the leading momentum shape.
+    values : Complex128[Array, " ..."]
+        Complex128 channel integrals with the leading momentum shape.
 
     Raises
     ------
@@ -238,12 +240,14 @@ def radial_integral(
             "radial nodes, weights, and values must be equal vectors"
         )
         raise ValueError(message)
-    k_array: Float[Array, " ..."] = jnp.asarray(k_bohr_inv, dtype=jnp.float64)
-    r_array: Float[Array, " n_r"] = jnp.asarray(r_bohr, dtype=jnp.float64)
-    weight_array: Float[Array, " n_r"] = jnp.asarray(
+    k_array: Float64[Array, " ..."] = jnp.asarray(
+        k_bohr_inv, dtype=jnp.float64
+    )
+    r_array: Float64[Array, " n_r"] = jnp.asarray(r_bohr, dtype=jnp.float64)
+    weight_array: Float64[Array, " n_r"] = jnp.asarray(
         weights_bohr, dtype=jnp.float64
     )
-    radial_array: Float[Array, " n_r"] = jnp.asarray(
+    radial_array: Float64[Array, " n_r"] = jnp.asarray(
         radial_values, dtype=jnp.float64
     )
     r_array = eqx.error_if(
@@ -263,14 +267,14 @@ def radial_integral(
         ~jnp.all(jnp.isfinite(radial_array)),
         "radial values must be finite",
     )
-    real_integral: Float[Array, " ..."] = _weighted_real_integral(
+    real_integral: Float64[Array, " ..."] = _weighted_real_integral(
         k_array,
         r_array,
         weight_array,
         radial_array,
         l_prime,
     )
-    values: Complex[Array, " ..."] = _partial_wave_phase(
+    values: Complex128[Array, " ..."] = _partial_wave_phase(
         l_prime
     ) * real_integral.astype(jnp.complex128)
     return values
@@ -282,7 +286,7 @@ def radial_integral_simpson(
     r_bohr: Float[Array, " n_r"],
     radial_values: Float[Array, " n_r"],
     l_prime: int,
-) -> Complex[Array, " ..."]:
+) -> Complex128[Array, " ..."]:
     """Evaluate a radial integral by composite Simpson quadrature.
 
     The routine constructs deterministic weights for an odd uniform grid.
@@ -302,8 +306,8 @@ def radial_integral_simpson(
 
     Returns
     -------
-    values : Complex[Array, " ..."]
-        Complex channel integrals with the leading momentum shape.
+    values : Complex128[Array, " ..."]
+        Complex128 channel integrals with the leading momentum shape.
 
     Raises
     ------
@@ -332,8 +336,8 @@ def radial_integral_simpson(
             "Simpson quadrature requires an odd point count of at least 3"
         )
         raise ValueError(message)
-    r_array: Float[Array, " n_r"] = jnp.asarray(r_bohr, dtype=jnp.float64)
-    spacings: Float[Array, " n_interval"] = jnp.diff(r_array)
+    r_array: Float64[Array, " n_r"] = jnp.asarray(r_bohr, dtype=jnp.float64)
+    spacings: Float64[Array, " n_interval"] = jnp.diff(r_array)
     r_array = eqx.error_if(
         r_array,
         ~jnp.all(jnp.isfinite(r_array))
@@ -341,8 +345,8 @@ def radial_integral_simpson(
         | ~jnp.allclose(spacings, spacings[0], rtol=1.0e-12, atol=0.0),
         "Simpson radial grid must be finite, ascending, and uniform",
     )
-    weights: Float[Array, " n_r"] = _simpson_weights(r_array)
-    values: Complex[Array, " ..."] = radial_integral(
+    weights: Float64[Array, " n_r"] = _simpson_weights(r_array)
+    values: Complex128[Array, " ..."] = radial_integral(
         k_bohr_inv,
         r_array,
         weights,
@@ -358,7 +362,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
     k_bohr_inv: Float[Array, " ..."],
     quadrature: RadialQuadratureSpec,
     final_state: FinalStateSpec,
-) -> Complex[Array, "... n_orb 2"]:
+) -> Complex128[Array, "... n_orb 2"]:
     """Assemble direct final-state radial channels for every orbital.
 
     The routine evaluates each shell once and gathers the results onto
@@ -379,7 +383,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
 
     Returns
     -------
-    values : Complex[Array, "... n_orb 2"]
+    values : Complex128[Array, "... n_orb 2"]
         Channels in static order ``(l-1, l+1)``. The nonexistent lower
         channel of an s shell is exactly zero.
 
@@ -414,7 +418,9 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         message = "Slater n_star leaves the certified radial envelope"
         raise ValueError(message)
 
-    momentum: Float[Array, " ..."] = jnp.asarray(k_bohr_inv, dtype=jnp.float64)
+    momentum: Float64[Array, " ..."] = jnp.asarray(
+        k_bohr_inv, dtype=jnp.float64
+    )
     momentum = eqx.error_if(
         momentum,
         ~jnp.all(jnp.isfinite(momentum))
@@ -439,12 +445,12 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         if spec.fixed_integrals_shell is None:
             message = "fixed mode requires fixed integral calibration rows"
             raise ValueError(message)
-        fixed_integrals: Float[Array, "n_shell 2"] = eqx.error_if(
+        fixed_integrals: Float64[Array, "n_shell 2"] = eqx.error_if(
             spec.fixed_integrals_shell,
             ~jnp.all(jnp.isfinite(spec.fixed_integrals_shell)),
             "fixed integral calibration rows must remain finite",
         )
-        fixed_norms: Float[Array, " n_shell"] = jnp.linalg.norm(
+        fixed_norms: Float64[Array, " n_shell"] = jnp.linalg.norm(
             fixed_integrals,
             axis=-1,
         )
@@ -454,7 +460,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
             "fixed integral calibration rows must have positive norm",
         )
         fixed_integrals = fixed_integrals / fixed_norms[:, None]
-        fixed_shell_rows: list[Complex[Array, " 2"]] = []
+        fixed_shell_rows: list[Complex128[Array, " 2"]] = []
         shell: int
         orbital: int
         for shell, orbital in enumerate(representatives):
@@ -468,30 +474,30 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                         "must be zero"
                     ),
                 )
-            lower: Complex[Array, ""] = (
+            lower: Complex128[Array, ""] = (
                 jnp.asarray(0.0 + 0.0j, dtype=jnp.complex128)
                 if angular == 0
                 else _partial_wave_phase(angular - 1)
                 * fixed_integrals[shell, 0]
             )
-            upper: Complex[Array, ""] = (
+            upper: Complex128[Array, ""] = (
                 _partial_wave_phase(angular + 1) * fixed_integrals[shell, 1]
             )
             fixed_shell_rows.append(jnp.stack((lower, upper)))
-        fixed_shell_values: Complex[Array, "n_shell 2"] = jnp.stack(
+        fixed_shell_values: Complex128[Array, "n_shell 2"] = jnp.stack(
             fixed_shell_rows
         )
-        orbital_values: Complex[Array, "n_orb 2"] = fixed_shell_values[
+        orbital_values: Complex128[Array, "n_orb 2"] = fixed_shell_values[
             shell_indices
         ]
-        broadcast_values: Complex[Array, "... n_orb 2"] = jnp.broadcast_to(
+        broadcast_values: Complex128[Array, "... n_orb 2"] = jnp.broadcast_to(
             orbital_values,
             momentum.shape + orbital_values.shape,
         )
         return broadcast_values
 
-    radial_grid: Float[Array, " n_r"]
-    radial_weights: Float[Array, " n_r"]
+    radial_grid: Float64[Array, " n_r"]
+    radial_weights: Float64[Array, " n_r"]
     if spec.mode == "grid":
         if spec.r_grid is None or spec.grid_values_shell is None:
             message = "grid mode requires compact-support sampled rows"
@@ -503,7 +509,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         if spec.r_grid.shape[0] % 2 == 0:
             message = "grid mode requires an odd Simpson point count"
             raise ValueError(message)
-        grid_spacings: Float[Array, " n_interval"] = jnp.diff(spec.r_grid)
+        grid_spacings: Float64[Array, " n_interval"] = jnp.diff(spec.r_grid)
         radial_grid = eqx.error_if(
             spec.r_grid,
             ~jnp.all(jnp.isfinite(spec.r_grid))
@@ -525,19 +531,19 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
             quadrature.r_max_bohr,
         )
 
-    orbital_radial_rows: Float[Array, "n_orb n_r"] = evaluate_radial(
+    orbital_radial_rows: Float64[Array, "n_orb n_r"] = evaluate_radial(
         spec,
         radial_grid,
     )
 
-    shell_values: list[Complex[Array, "... 2"]] = []
+    shell_values: list[Complex128[Array, "... 2"]] = []
     orbital: int
     for orbital in representatives:
         angular = spec.basis.l[orbital]
-        radial_row: Float[Array, " n_r"] = orbital_radial_rows[orbital]
+        radial_row: Float64[Array, " n_r"] = orbital_radial_rows[orbital]
 
         if final_state.mode == "plane_wave":
-            lower_values: Complex[Array, " ..."] = (
+            lower_values: Complex128[Array, " ..."] = (
                 jnp.zeros_like(momentum, dtype=jnp.complex128)
                 if angular == 0
                 else radial_integral(
@@ -548,7 +554,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                     angular - 1,
                 )
             )
-            upper_values: Complex[Array, " ..."] = radial_integral(
+            upper_values: Complex128[Array, " ..."] = radial_integral(
                 momentum,
                 radial_grid,
                 radial_weights,
@@ -556,7 +562,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                 angular + 1,
             )
         else:
-            radial_measure: Float[Array, " n_r"] = (
+            radial_measure: Float64[Array, " n_r"] = (
                 radial_weights * radial_row * radial_grid**3
             )
             if angular == 0:
@@ -565,7 +571,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                     dtype=jnp.complex128,
                 )
             else:
-                lower_final: Complex[Array, "... n_r"] = final_state_radial(
+                lower_final: Complex128[Array, "... n_r"] = final_state_radial(
                     angular - 1,
                     momentum,
                     radial_grid,
@@ -575,7 +581,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                     lower_final * radial_measure,
                     axis=-1,
                 )
-            upper_final: Complex[Array, "... n_r"] = final_state_radial(
+            upper_final: Complex128[Array, "... n_r"] = final_state_radial(
                 angular + 1,
                 momentum,
                 radial_grid,
@@ -586,10 +592,10 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
                 axis=-1,
             )
         shell_values.append(jnp.stack((lower_values, upper_values), axis=-1))
-    stacked_shell_values: Complex[Array, "... n_shell 2"] = jnp.stack(
+    stacked_shell_values: Complex128[Array, "... n_shell 2"] = jnp.stack(
         shell_values, axis=-2
     )
-    values: Complex[Array, "... n_orb 2"] = stacked_shell_values[
+    values: Complex128[Array, "... n_orb 2"] = stacked_shell_values[
         ..., shell_indices, :
     ]
     return values

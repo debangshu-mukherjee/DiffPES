@@ -225,13 +225,11 @@ class TestYehLindauCrossSectionTable:
         authority_directory: Path = (
             Path(__file__).resolve().parents[1]
             / "_reference_data"
-            / "plan06_yeh_lindau_authority"
+            / "yeh_lindau_authority"
         )
-        figshare_path: Path = (
-            authority_directory / "plan06_figshare_12389750_v3.json"
-        )
+        figshare_path: Path = authority_directory / "figshare_12389750_v3.json"
         project_path: Path = (
-            authority_directory / "plan06_regoutz_cross_sections.html"
+            authority_directory / "regoutz_cross_sections.html"
         )
         assert (
             hashlib.sha256(figshare_path.read_bytes()).hexdigest()

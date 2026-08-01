@@ -25,7 +25,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex, Float, jaxtyped
+from jaxtyping import Array, Complex128, Float, Float64, jaxtyped
 
 from diffpes.types import KB_EV_PER_K, ScalarFloat
 from diffpes.utils import faddeeva
@@ -36,7 +36,7 @@ def gaussian(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     energy_range: Float[Array, " E"],
     center: ScalarFloat,
     sigma: ScalarFloat,
-) -> Float[Array, " E"]:
+) -> Float64[Array, " E"]:
     """Compute normalized Gaussian broadening profile.
 
     Evaluates a Gaussian lineshape centered at ``center`` with standard
@@ -83,7 +83,7 @@ def gaussian(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     Returns
     -------
-    profile : Float[Array, " E"]
+    profile : Float64[Array, " E"]
         Normalized Gaussian profile values.
 
     Raises
@@ -97,15 +97,15 @@ def gaussian(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     therefore validates the physical width rather than fabricating a finite
     profile through a guarded elementary operation.
     """
-    sigma_array: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
-    checked_sigma: Float[Array, ""] = eqx.error_if(
+    sigma_array: Float64[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
+    checked_sigma: Float64[Array, ""] = eqx.error_if(
         sigma_array,
         ~jnp.isfinite(sigma_array) | (sigma_array <= 0.0),
         "sigma must be finite and strictly positive",
     )
     diff: Float[Array, " E"] = energy_range - center
-    norm_factor: Float[Array, " "] = jnp.sqrt(2.0 * jnp.pi) * checked_sigma
-    profile: Float[Array, " E"] = (
+    norm_factor: Float64[Array, " "] = jnp.sqrt(2.0 * jnp.pi) * checked_sigma
+    profile: Float64[Array, " E"] = (
         jnp.exp(-(diff**2) / (2.0 * checked_sigma**2)) / norm_factor
     )
     return profile
@@ -117,7 +117,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     center: ScalarFloat,
     sigma: ScalarFloat,
     gamma: ScalarFloat,
-) -> Float[Array, " E"]:
+) -> Float64[Array, " E"]:
     r"""Compute a normalized Voigt profile through the Faddeeva function.
 
     The function combines a Gaussian instrument width with a Lorentzian
@@ -151,7 +151,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     Returns
     -------
-    profile : Float[Array, " E"]
+    profile : Float64[Array, " E"]
         Normalized Voigt profile values.
 
     Raises
@@ -175,29 +175,29 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     .. [2] Weideman, J. A. C., "Computation of the Complex Error Function",
        SIAM J. Numer. Anal. 31, 1497-1518 (1994).
     """
-    energy_array: Float[Array, " E"] = jnp.asarray(
+    energy_array: Float64[Array, " E"] = jnp.asarray(
         energy_range,
         dtype=jnp.float64,
     )
-    center_array: Float[Array, ""] = jnp.asarray(center, dtype=jnp.float64)
-    sigma_array: Float[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
-    gamma_array: Float[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
-    checked_energy: Float[Array, " E"] = eqx.error_if(
+    center_array: Float64[Array, ""] = jnp.asarray(center, dtype=jnp.float64)
+    sigma_array: Float64[Array, ""] = jnp.asarray(sigma, dtype=jnp.float64)
+    gamma_array: Float64[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
+    checked_energy: Float64[Array, " E"] = eqx.error_if(
         energy_array,
         ~jnp.all(jnp.isfinite(energy_array)),
         "energy_range must be finite",
     )
-    checked_center: Float[Array, ""] = eqx.error_if(
+    checked_center: Float64[Array, ""] = eqx.error_if(
         center_array,
         ~jnp.isfinite(center_array),
         "center must be finite",
     )
-    checked_sigma: Float[Array, ""] = eqx.error_if(
+    checked_sigma: Float64[Array, ""] = eqx.error_if(
         sigma_array,
         ~jnp.isfinite(sigma_array) | (sigma_array < 0.0),
         "sigma must be finite and nonnegative",
     )
-    checked_gamma: Float[Array, ""] = eqx.error_if(
+    checked_gamma: Float64[Array, ""] = eqx.error_if(
         gamma_array,
         ~jnp.isfinite(gamma_array) | (gamma_array < 0.0),
         "gamma must be finite and nonnegative",
@@ -209,22 +209,22 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     )
     maximum_absolute_value: float = 1.0e8
     interior: Array = (checked_sigma > 0.0) & (checked_gamma > 0.0)
-    safe_sigma: Float[Array, ""] = jnp.where(
+    safe_sigma: Float64[Array, ""] = jnp.where(
         checked_sigma > 0.0,
         checked_sigma,
         jnp.float64(1.0),
     )
-    safe_gamma: Float[Array, ""] = jnp.where(
+    safe_gamma: Float64[Array, ""] = jnp.where(
         checked_gamma > 0.0,
         checked_gamma,
         jnp.float64(1.0),
     )
-    displacement: Float[Array, " E"] = checked_energy - checked_center
-    candidate_z: Complex[Array, " E"] = (displacement + 1j * checked_gamma) / (
-        safe_sigma * jnp.sqrt(jnp.float64(2.0))
-    )
-    inactive_z: Complex[Array, " E"] = jnp.zeros_like(candidate_z)
-    safe_z: Complex[Array, " E"] = jnp.where(
+    displacement: Float64[Array, " E"] = checked_energy - checked_center
+    candidate_z: Complex128[Array, " E"] = (
+        displacement + 1j * checked_gamma
+    ) / (safe_sigma * jnp.sqrt(jnp.float64(2.0)))
+    inactive_z: Complex128[Array, " E"] = jnp.zeros_like(candidate_z)
+    safe_z: Complex128[Array, " E"] = jnp.where(
         interior,
         candidate_z,
         inactive_z,
@@ -233,29 +233,29 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
         ~jnp.isfinite(candidate_z)
         | (jnp.abs(candidate_z) > maximum_absolute_value)
     )
-    bounded_z: Complex[Array, " E"] = jnp.where(
+    bounded_z: Complex128[Array, " E"] = jnp.where(
         invalid_z,
         inactive_z,
         safe_z,
     )
-    checked_z: Complex[Array, " E"] = eqx.error_if(
+    checked_z: Complex128[Array, " E"] = eqx.error_if(
         bounded_z,
         invalid_z,
         "positive-width arguments must remain inside the Faddeeva envelope "
         "with finite abs(z) <= 1e8",
     )
-    interior_profile: Float[Array, " E"] = jnp.real(faddeeva(checked_z)) / (
+    interior_profile: Float64[Array, " E"] = jnp.real(faddeeva(checked_z)) / (
         safe_sigma * jnp.sqrt(2.0 * jnp.pi)
     )
-    gaussian_profile: Float[Array, " E"] = gaussian(
+    gaussian_profile: Float64[Array, " E"] = gaussian(
         checked_energy,
         checked_center,
         safe_sigma,
     )
-    cauchy_profile: Float[Array, " E"] = safe_gamma / (
+    cauchy_profile: Float64[Array, " E"] = safe_gamma / (
         jnp.pi * (displacement**2 + safe_gamma**2)
     )
-    profile: Float[Array, " E"] = jnp.where(
+    profile: Float64[Array, " E"] = jnp.where(
         checked_sigma == 0.0,
         cauchy_profile,
         jnp.where(
@@ -272,7 +272,7 @@ def fermi_dirac(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     energy: ScalarFloat,
     fermi_energy: ScalarFloat,
     temperature: ScalarFloat,
-) -> Float[Array, " "]:
+) -> Float64[Array, " "]:
     """Compute Fermi-Dirac distribution value.
 
     Evaluates the Fermi-Dirac thermal occupation function at a given
@@ -320,7 +320,7 @@ def fermi_dirac(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     Returns
     -------
-    occupation : Float[Array, " "]
+    occupation : Float64[Array, " "]
         Fermi-Dirac occupation (0 to 1).
 
     Raises
@@ -339,23 +339,23 @@ def fermi_dirac(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     A separate static zero-temperature model must define that limit and its
     derivative policy.
     """
-    temperature_array: Float[Array, ""] = jnp.asarray(
+    temperature_array: Float64[Array, ""] = jnp.asarray(
         temperature,
         dtype=jnp.float64,
     )
-    checked_temperature: Float[Array, ""] = eqx.error_if(
+    checked_temperature: Float64[Array, ""] = eqx.error_if(
         temperature_array,
         ~jnp.isfinite(temperature_array) | (temperature_array <= 0.0),
         "temperature must be finite and strictly positive",
     )
-    kt: Float[Array, " "] = (
+    kt: Float64[Array, " "] = (
         jnp.asarray(KB_EV_PER_K, dtype=jnp.float64) * checked_temperature
     )
-    exponent: Float[Array, " "] = (
+    exponent: Float64[Array, " "] = (
         jnp.asarray(energy, dtype=jnp.float64)
         - jnp.asarray(fermi_energy, dtype=jnp.float64)
     ) / kt
-    occupation: Float[Array, " "] = jax.nn.sigmoid(-exponent)
+    occupation: Float64[Array, " "] = jax.nn.sigmoid(-exponent)
     return occupation
 
 

@@ -52,7 +52,7 @@
       "g_ev2": 0.2
     }
   },
-  "generator": "generate_plan07_kk_reference.py",
+  "generator": "generate_kk_analytic_reference.py",
   "grid": {
     "count": 1001,
     "start_ev": -1.0,
@@ -60,5 +60,5 @@
     "subtraction_point_ev": 0.0
   },
   "production_imports": [],
-  "schema": "diffpes.plan07.kk-analytic-reference.v1"
+  "schema": "diffpes.kk-analytic-reference.v1"
 }

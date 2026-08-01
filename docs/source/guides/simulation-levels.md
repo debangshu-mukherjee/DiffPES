@@ -75,7 +75,7 @@ the matrix element consumes the explicit physical vacuum vector.
   matter.
 
 Expected detector counts are outside these tiers and primitives. Exposure,
-background, detector response, and counting statistics enter in Plan 08.
+background, detector response, and counting statistics are not yet supported.
 
 See [Matrix Elements and Polarization](matrix-elements-and-polarization.md)
 for the amplitude convention and

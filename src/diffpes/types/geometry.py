@@ -23,7 +23,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Union
-from jaxtyping import Array, Float, jaxtyped
+from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
 
@@ -48,11 +48,11 @@ class CrystalGeometry(eqx.Module):
 
     Attributes
     ----------
-    lattice : Float[Array, "3 3"]
+    lattice : Float64[Array, "3 3"]
         Real-space lattice vectors as rows (angstroms).
-    reciprocal : Float[Array, "3 3"]
+    reciprocal : Float64[Array, "3 3"]
         Reciprocal lattice vectors as rows (1/angstroms).
-    positions : Float[Array, "N 3"]
+    positions : Float64[Array, "N 3"]
         Fractional atomic positions.
     species : tuple[str, ...]
         Per-atom species symbols (**static** -- compile-time constants;
@@ -72,9 +72,9 @@ class CrystalGeometry(eqx.Module):
         casting, and automatic reciprocal lattice computation.
     """
 
-    lattice: Float[Array, "3 3"]
-    reciprocal: Float[Array, "3 3"]
-    positions: Float[Array, "N 3"]
+    lattice: Float64[Array, "3 3"]
+    reciprocal: Float64[Array, "3 3"]
+    positions: Float64[Array, "N 3"]
     species: tuple[str, ...] = eqx.field(static=True)
 
 
@@ -213,8 +213,10 @@ def make_crystal_geometry(  # noqa: DOC503
     _compute_reciprocal_lattice : Cross-product formula used to
         derive the reciprocal lattice.
     """
-    lattice_arr: Float[Array, "3 3"] = jnp.asarray(lattice, dtype=jnp.float64)
-    positions_arr: Float[Array, "N 3"] = jnp.asarray(
+    lattice_arr: Float64[Array, "3 3"] = jnp.asarray(
+        lattice, dtype=jnp.float64
+    )
+    positions_arr: Float64[Array, "N 3"] = jnp.asarray(
         positions,
         dtype=jnp.float64,
     )

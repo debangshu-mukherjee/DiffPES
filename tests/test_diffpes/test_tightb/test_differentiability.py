@@ -1,4 +1,4 @@
-r"""Validate Plan 04 tight-binding differentiation and eigensystem evidence.
+r"""Validate tight-binding differentiation and eigensystem evidence.
 
 The tests close the parameter-class matrix not already covered by the
 all-channel Slater--Koster gate in
@@ -268,7 +268,7 @@ class TestD1GenericK:
 
         A small exchange/crystal-field pattern lifts the atomic Kramers
         pairs. This gives the physical individual ``dE_n/dlambda`` case. The
-        unmodified t2g fixture instead belongs to the invariant D2 gate.
+        unmodified t2g fixture instead belongs to the invariant SOC check.
 
         Notes
         -----

@@ -21,7 +21,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Float, Integer, jaxtyped
+from jaxtyping import Array, Float, Float64, Integer, jaxtyped
 
 from diffpes.types import RadialSpec, ScalarFloat
 
@@ -29,8 +29,8 @@ from diffpes.types import RadialSpec, ScalarFloat
 def _associated_laguerre(
     order: int,
     alpha: int | ScalarFloat,
-    x: Float[Array, " ..."],
-) -> Float[Array, " ..."]:
+    x: Float64[Array, " ..."],
+) -> Float64[Array, " ..."]:
     r"""Evaluate associated Laguerre polynomial.
 
     The function computes :math:`L_n^\alpha(x)`.
@@ -75,12 +75,12 @@ def _associated_laguerre(
     alpha : int | ScalarFloat
         Generalization parameter (alpha >= 0). For hydrogenic
         wavefunctions, alpha = 2*l + 1.
-    x : Float[Array, " ..."]
+    x : Float64[Array, " ..."]
         Evaluation points.
 
     Returns
     -------
-    values : Float[Array, " ..."]
+    values : Float64[Array, " ..."]
         :math:`L_n^\alpha(x)` evaluated element-wise.
 
     Raises
@@ -95,50 +95,52 @@ def _associated_laguerre(
         msg: str = "alpha must be non-negative"
         raise ValueError(msg)
 
-    x_arr: Float[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
-    laguerre_zero: Float[Array, " ..."] = jnp.ones_like(x_arr)
+    x_arr: Float64[Array, " ..."] = jnp.asarray(x, dtype=jnp.float64)
+    laguerre_zero: Float64[Array, " ..."] = jnp.ones_like(x_arr)
     if order == 0:
         return laguerre_zero
 
-    alpha_arr: Float[Array, " "] = jnp.asarray(alpha, dtype=jnp.float64)
-    laguerre_one: Float[Array, " ..."] = 1.0 + alpha_arr - x_arr
+    alpha_arr: Float64[Array, " "] = jnp.asarray(alpha, dtype=jnp.float64)
+    laguerre_one: Float64[Array, " ..."] = 1.0 + alpha_arr - x_arr
     if order == 1:
         return laguerre_one
 
     def _recurrence_step(
         current_order: Integer[Array, ""],
-        state: tuple[Float[Array, " ..."], Float[Array, " ..."]],
-    ) -> tuple[Float[Array, " ..."], Float[Array, " ..."]]:
-        laguerre_prev_prev: Float[Array, " ..."]
-        laguerre_prev: Float[Array, " ..."]
+        state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        laguerre_prev_prev: Float64[Array, " ..."]
+        laguerre_prev: Float64[Array, " ..."]
         laguerre_prev_prev, laguerre_prev = state
-        order_arr: Float[Array, " "] = jnp.asarray(
+        order_arr: Float64[Array, " "] = jnp.asarray(
             current_order, dtype=jnp.float64
         )
-        prefactor: Float[Array, " ..."] = (
+        prefactor: Float64[Array, " ..."] = (
             2.0 * order_arr - 1.0 + alpha_arr - x_arr
         ) / order_arr
-        correction: Float[Array, " ..."] = (
+        correction: Float64[Array, " ..."] = (
             (order_arr - 1.0 + alpha_arr) / order_arr
         ) * laguerre_prev_prev
-        laguerre_curr: Float[Array, " ..."] = (
+        laguerre_curr: Float64[Array, " ..."] = (
             prefactor * laguerre_prev - correction
         )
-        recurrence_state: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
+        recurrence_state: tuple[
+            Float64[Array, " ..."], Float64[Array, " ..."]
+        ] = (
             laguerre_prev,
             laguerre_curr,
         )
         return recurrence_state
 
-    recurrence_result: tuple[Float[Array, " ..."], Float[Array, " ..."]] = (
-        jax.lax.fori_loop(
-            2,
-            order + 1,
-            _recurrence_step,
-            (laguerre_zero, laguerre_one),
-        )
+    recurrence_result: tuple[
+        Float64[Array, " ..."], Float64[Array, " ..."]
+    ] = jax.lax.fori_loop(
+        2,
+        order + 1,
+        _recurrence_step,
+        (laguerre_zero, laguerre_one),
     )
-    laguerre_final: Float[Array, " ..."] = recurrence_result[1]
+    laguerre_final: Float64[Array, " ..."] = recurrence_result[1]
     return laguerre_final
 
 
@@ -147,7 +149,7 @@ def slater_radial(
     r: Float[Array, " ..."],
     n: int,
     zeta: ScalarFloat,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     r"""Evaluate normalized Slater-type radial function.
 
     The function computes the Slater-type orbital (STO) radial function:
@@ -202,7 +204,7 @@ def slater_radial(
 
     Returns
     -------
-    values : Float[Array, " ..."]
+    values : Float64[Array, " ..."]
         Normalized radial function
         ``R(r) = N r^(n-1) exp(-zeta * r)``.
 
@@ -221,15 +223,15 @@ def slater_radial(
         msg: str = "n must be >= 1"
         raise ValueError(msg)
 
-    r_arr: Float[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)
-    zeta_arr: Float[Array, " "] = jnp.asarray(zeta, dtype=jnp.float64)
-    factorial_term: Float[Array, " "] = jnp.asarray(
+    r_arr: Float64[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)
+    zeta_arr: Float64[Array, " "] = jnp.asarray(zeta, dtype=jnp.float64)
+    factorial_term: Float64[Array, " "] = jnp.asarray(
         math.factorial(2 * n), dtype=jnp.float64
     )
-    norm: Float[Array, " "] = ((2.0 * zeta_arr) ** (n + 0.5)) / jnp.sqrt(
+    norm: Float64[Array, " "] = ((2.0 * zeta_arr) ** (n + 0.5)) / jnp.sqrt(
         factorial_term
     )
-    values: Float[Array, " ..."] = (
+    values: Float64[Array, " ..."] = (
         norm * (r_arr ** (n - 1)) * jnp.exp(-zeta_arr * r_arr)
     )
     return values
@@ -241,7 +243,7 @@ def hydrogenic_radial(
     n: int,
     angular_momentum: int,
     z_eff: ScalarFloat,
-) -> Float[Array, " ..."]:
+) -> Float64[Array, " ..."]:
     r"""Evaluate normalized hydrogenic radial function.
 
     The function computes the exact radial wavefunction for a hydrogenic atom.
@@ -302,7 +304,7 @@ def hydrogenic_radial(
 
     Returns
     -------
-    values : Float[Array, " ..."]
+    values : Float64[Array, " ..."]
         ``R_{n,l}(r)`` for hydrogenic orbitals.
 
     Raises
@@ -325,45 +327,45 @@ def hydrogenic_radial(
         msg: str = "angular_momentum must satisfy 0 <= angular_momentum < n"
         raise ValueError(msg)
 
-    r_arr: Float[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)
-    z_arr: Float[Array, " "] = jnp.asarray(z_eff, dtype=jnp.float64)
+    r_arr: Float64[Array, " ..."] = jnp.asarray(r, dtype=jnp.float64)
+    z_arr: Float64[Array, " "] = jnp.asarray(z_eff, dtype=jnp.float64)
     n_float: float = float(n)
-    rho: Float[Array, " ..."] = 2.0 * z_arr * r_arr / n_float
+    rho: Float64[Array, " ..."] = 2.0 * z_arr * r_arr / n_float
 
     laguerre_order: int = n - angular_momentum - 1
     laguerre_alpha: int = 2 * angular_momentum + 1
-    laguerre_values: Float[Array, " ..."] = _associated_laguerre(
+    laguerre_values: Float64[Array, " ..."] = _associated_laguerre(
         laguerre_order, laguerre_alpha, rho
     )
 
     factorial_ratio: float = math.factorial(laguerre_order) / (
         2.0 * n_float * math.factorial(n + angular_momentum)
     )
-    prefactor: Float[Array, " "] = ((2.0 * z_arr) / n_float) ** 1.5
-    norm: Float[Array, " "] = prefactor * jnp.sqrt(
+    prefactor: Float64[Array, " "] = ((2.0 * z_arr) / n_float) ** 1.5
+    norm: Float64[Array, " "] = prefactor * jnp.sqrt(
         jnp.asarray(factorial_ratio, dtype=jnp.float64)
     )
-    values: Float[Array, " ..."] = (
+    values: Float64[Array, " ..."] = (
         norm * jnp.exp(-0.5 * rho) * (rho**angular_momentum) * laguerre_values
     )
     return values
 
 
 def _contracted_slater_row(
-    r: Float[Array, " n_r"],
+    r: Float64[Array, " n_r"],
     effective_principal: float,
-    zeta_row: Float[Array, " n_contraction"],
-    coefficient_row: Float[Array, " n_contraction"],
-) -> Float[Array, " n_r"]:
+    zeta_row: Float64[Array, " n_contraction"],
+    coefficient_row: Float64[Array, " n_contraction"],
+) -> Float64[Array, " n_r"]:
     """Evaluate and analytically normalize one contracted Slater row."""
-    gamma_value: Float[Array, ""] = jnp.asarray(
+    gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
         dtype=jnp.float64,
     )
-    primitive_norms: Float[Array, " n_contraction"] = (
+    primitive_norms: Float64[Array, " n_contraction"] = (
         (2.0 * zeta_row) ** (effective_principal + 0.5)
     ) / jnp.sqrt(gamma_value)
-    radial_power: Float[Array, " n_r"] = jnp.where(
+    radial_power: Float64[Array, " n_r"] = jnp.where(
         r == 0.0,
         jnp.asarray(
             1.0 if effective_principal == 1.0 else 0.0,
@@ -371,12 +373,12 @@ def _contracted_slater_row(
         ),
         r ** (effective_principal - 1.0),
     )
-    primitive_rows: Float[Array, "n_contraction n_r"] = (
+    primitive_rows: Float64[Array, "n_contraction n_r"] = (
         primitive_norms[:, None]
         * radial_power[None, :]
         * jnp.exp(-zeta_row[:, None] * r[None, :])
     )
-    overlap: Float[Array, "n_contraction n_contraction"] = (
+    overlap: Float64[Array, "n_contraction n_contraction"] = (
         primitive_norms[:, None]
         * primitive_norms[None, :]
         * gamma_value
@@ -385,13 +387,13 @@ def _contracted_slater_row(
             ** (2.0 * effective_principal + 1.0)
         )
     )
-    norm_squared: Float[Array, ""] = jnp.einsum(
+    norm_squared: Float64[Array, ""] = jnp.einsum(
         "i,ij,j->",
         coefficient_row,
         overlap,
         coefficient_row,
     )
-    checked_coefficients: Float[Array, " n_contraction"] = eqx.error_if(
+    checked_coefficients: Float64[Array, " n_contraction"] = eqx.error_if(
         coefficient_row,
         ~jnp.isfinite(norm_squared)
         | (norm_squared <= 0.0)
@@ -403,7 +405,7 @@ def _contracted_slater_row(
             "and coefficient condition at most 32"
         ),
     )
-    values: Float[Array, " n_r"] = (
+    values: Float64[Array, " n_r"] = (
         checked_coefficients @ primitive_rows
     ) / jnp.sqrt(norm_squared)
     return values
@@ -413,7 +415,7 @@ def _contracted_slater_row(
 def evaluate_radial(  # noqa: DOC503
     spec: RadialSpec,
     r: Float[Array, " n_r"],
-) -> Float[Array, "n_orb n_r"]:
+) -> Float64[Array, "n_orb n_r"]:
     """Evaluate normalized shell-shared radial rows on their declared grid.
 
     Slater contractions use their analytic overlap matrix. Hydrogenic rows
@@ -432,7 +434,7 @@ def evaluate_radial(  # noqa: DOC503
 
     Returns
     -------
-    values : Float[Array, "n_orb n_r"]
+    values : Float64[Array, "n_orb n_r"]
         Normalized radial row gathered onto every orbital.
 
     Raises
@@ -448,7 +450,7 @@ def evaluate_radial(  # noqa: DOC503
     The active Slater and hydrogenic decay parameters must remain in
     ``[0.5, 4]`` after any traced PyTree update.
     """
-    radial_grid: Float[Array, " n_r"] = jnp.asarray(r, dtype=jnp.float64)
+    radial_grid: Float64[Array, " n_r"] = jnp.asarray(r, dtype=jnp.float64)
     if radial_grid.ndim != 1:
         message: str = "r must be a one-dimensional radial grid"
         raise ValueError(message)
@@ -465,23 +467,23 @@ def evaluate_radial(  # noqa: DOC503
         spec.radial_shell_index.index(shell_index)
         for shell_index in range(n_shells)
     )
-    shell_rows: Float[Array, "n_shell n_r"]
+    shell_rows: Float64[Array, "n_shell n_r"]
     if spec.mode == "slater":
-        checked_zeta: Float[Array, "n_shell n_contraction"] = eqx.error_if(
+        checked_zeta: Float64[Array, "n_shell n_contraction"] = eqx.error_if(
             spec.zeta_shell,
             ~jnp.all(jnp.isfinite(spec.zeta_shell))
             | jnp.any(spec.zeta_shell < 0.5)  # noqa: PLR2004
             | jnp.any(spec.zeta_shell > 4.0),  # noqa: PLR2004
             "slater zeta_shell leaves the certified tail envelope",
         )
-        checked_coefficients: Float[Array, "n_shell n_contraction"] = (
+        checked_coefficients: Float64[Array, "n_shell n_contraction"] = (
             eqx.error_if(
                 spec.coefficients_shell,
                 ~jnp.all(jnp.isfinite(spec.coefficients_shell)),
                 "coefficients_shell must be finite",
             )
         )
-        slater_rows: list[Float[Array, " n_r"]] = []
+        slater_rows: list[Float64[Array, " n_r"]] = []
         shell_index: int
         for shell_index in range(n_shells):
             slater_rows.append(
@@ -494,14 +496,14 @@ def evaluate_radial(  # noqa: DOC503
             )
         shell_rows = jnp.stack(slater_rows, axis=0)
     elif spec.mode == "hydrogenic":
-        principal_array: Float[Array, " n_shell"] = jnp.asarray(
+        principal_array: Float64[Array, " n_shell"] = jnp.asarray(
             tuple(
                 spec.basis.n[representatives[shell_index]]
                 for shell_index in range(n_shells)
             ),
             dtype=jnp.float64,
         )
-        checked_charge: Float[Array, " n_shell"] = eqx.error_if(
+        checked_charge: Float64[Array, " n_shell"] = eqx.error_if(
             spec.effective_charge_shell,
             ~jnp.all(jnp.isfinite(spec.effective_charge_shell))
             | jnp.any(
@@ -512,7 +514,7 @@ def evaluate_radial(  # noqa: DOC503
             ),
             "hydrogenic effective charge leaves the certified tail envelope",
         )
-        hydrogenic_rows: list[Float[Array, " n_r"]] = []
+        hydrogenic_rows: list[Float64[Array, " n_r"]] = []
         for shell_index in range(n_shells):
             orbital_index: int = representatives[shell_index]
             hydrogenic_rows.append(
@@ -531,18 +533,18 @@ def evaluate_radial(  # noqa: DOC503
         if radial_grid.shape != spec.r_grid.shape:
             message = "grid mode evaluates only on its stored grid"
             raise ValueError(message)
-        checked_grid: Float[Array, " n_r"] = eqx.error_if(
+        checked_grid: Float64[Array, " n_r"] = eqx.error_if(
             spec.r_grid,
             ~jnp.all(radial_grid == spec.r_grid),
             "grid mode performs no interpolation",
         )
-        checked_values: Float[Array, "n_shell n_r"] = eqx.error_if(
+        checked_values: Float64[Array, "n_shell n_r"] = eqx.error_if(
             spec.grid_values_shell,
             ~jnp.all(jnp.isfinite(spec.grid_values_shell))
             | ~jnp.all(spec.grid_values_shell[:, -1] == 0.0),
             "grid rows must remain finite and compact-supported",
         )
-        grid_norms: Float[Array, " n_shell"] = jnp.trapezoid(
+        grid_norms: Float64[Array, " n_shell"] = jnp.trapezoid(
             checked_values**2 * checked_grid[None, :] ** 2,
             x=checked_grid,
             axis=-1,
@@ -557,7 +559,7 @@ def evaluate_radial(  # noqa: DOC503
         spec.radial_shell_index,
         dtype=jnp.int32,
     )
-    values: Float[Array, "n_orb n_r"] = shell_rows[gather_indices]
+    values: Float64[Array, "n_orb n_r"] = shell_rows[gather_indices]
     return values
 
 

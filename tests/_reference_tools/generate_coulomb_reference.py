@@ -1,5 +1,5 @@
 # ruff: noqa: B023
-"""Generate the frozen Plan-06 G11/D11 Coulomb reference artifacts.
+"""Generate frozen Coulomb value and assembly-derivative reference artifacts.
 
 The script is an offline evidence generator. It records the installed mpmath
 version and evaluates every frozen value at 80 decimal digits. The dense
@@ -23,7 +23,7 @@ from typing import Any
 
 import mpmath as mp
 import numpy as np
-from jaxtyping import Float, Shaped
+from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
 ORDERS: tuple[int, ...] = tuple(range(5))
@@ -78,7 +78,11 @@ def coulomb_rows(
 
 def dense_value_rows(
     order: int,
-) -> tuple[int, Float[NDArray, "n_eta n_rho"], Float[NDArray, "n_eta n_rho"]]:
+) -> tuple[
+    int,
+    Float64[NDArray, "n_eta n_rho"],
+    Float64[NDArray, "n_eta n_rho"],
+]:
     """Evaluate dense F and G values for one independent static order."""
     mp.mp.dps = REFERENCE_DPS
     regular = np.empty((len(DENSE_ETAS), len(DENSE_RHOS)), dtype=np.float64)
@@ -158,7 +162,7 @@ def main() -> None:
     """Write dense and sparse 80-digit references plus their provenance."""
     mp.mp.dps = REFERENCE_DPS
     shape: tuple[int, int, int] = (len(ORDERS), len(ETAS), len(RHOS))
-    values: dict[str, Float[NDArray, "n_order n_eta n_rho"]] = {
+    values: dict[str, Float64[NDArray, "n_order n_eta n_rho"]] = {
         name: np.empty(shape, dtype=np.float64)
         for name in (
             "f",
@@ -173,10 +177,10 @@ def main() -> None:
             "d_dg_drho_deta",
         )
     }
-    phase: Float[NDArray, "n_order n_eta"] = np.empty(
+    phase: Float64[NDArray, "n_order n_eta"] = np.empty(
         (len(ORDERS), len(ETAS)), dtype=np.float64
     )
-    phase_eta: Float[NDArray, "n_order n_eta"] = np.empty_like(phase)
+    phase_eta: Float64[NDArray, "n_order n_eta"] = np.empty_like(phase)
     eta_step: mp.mpf = mp.mpf("1e-20")
 
     for order_index, order in enumerate(ORDERS):
@@ -244,7 +248,9 @@ def main() -> None:
     dense_irregular = np.empty_like(dense_regular)
     with ProcessPoolExecutor(max_workers=len(ORDERS)) as executor:
         dense_rows: tuple[
-            int, Float[NDArray, "n_eta n_rho"], Float[NDArray, "n_eta n_rho"]
+            int,
+            Float64[NDArray, "n_eta n_rho"],
+            Float64[NDArray, "n_eta n_rho"],
         ]
         for dense_rows in executor.map(dense_value_rows, ORDERS):
             order, regular_row, irregular_row = dense_rows
@@ -276,8 +282,8 @@ def main() -> None:
         target_directory / "coulomb_mpmath_80digit.manifest.json"
     )
     manifest: dict[str, Any] = {
-        "schema": "diffpes.plan06.coulomb-reference.v2",
-        "gates": ["06.G11", "06.D11"],
+        "schema": "diffpes.coulomb-mpmath-reference.v2",
+        "gates": ["coulomb-mpmath-reference", "coulomb-assembly-gradient"],
         "source_revision": _git_head(root),
         "generator": generator_path.relative_to(root).as_posix(),
         "generator_sha256": _sha256(generator_path),

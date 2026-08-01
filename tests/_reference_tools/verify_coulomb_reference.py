@@ -1,4 +1,4 @@
-"""Verify one frozen Plan-06 Coulomb order in an isolated process."""
+"""Verify one frozen Coulomb order in an isolated process."""
 
 import json
 import sys

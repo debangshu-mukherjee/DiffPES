@@ -93,7 +93,7 @@ class TestSlaterZeff:
     ) -> None:
         """Match representative s, p, and d screening calculations.
 
-        The cases include the four worked values preregistered by Plan 06.
+        The cases include the four registered worked values.
 
         Notes
         -----

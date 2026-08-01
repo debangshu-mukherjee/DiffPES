@@ -106,9 +106,9 @@ diffpes generates model cards directly from the registered model specification.
 The registry validator detects a missing entry or changed model card.
 
 Owner handshakes name required model, transformation, convention, and evidence
-IDs. Plan 03 registers four semantic transformation contracts through this
-interface. The Plan 03 handshake becomes complete only when the caller supplies
-all six declared evidence IDs.
+IDs. The kinematics and geometry layer registers four semantic transformation
+contracts through this interface. Its handshake becomes complete only when the
+caller supplies all six declared evidence IDs.
 
 ## Inspection
 

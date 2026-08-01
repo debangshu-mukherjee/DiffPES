@@ -1,4 +1,4 @@
-"""Measure reproducible Plan 06 S1--S3 matrix-element scalability evidence.
+"""Measure reproducible matrix-element scalability evidence.
 
 The harness keeps all large numerical arrays as dynamic JAX arguments. It
 records raw synchronized timings, compiler memory analysis, recursive JAXPR
@@ -391,7 +391,7 @@ def _compile(function: Any, *arguments: object) -> tuple[Any, float]:
 
 
 def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
-    """Extract the Plan-05 compiler-live allocation authority."""
+    """Extract the compiler-live allocation authority for slab diagonalization."""
     analysis: Any = compiled.memory_analysis()
     required: tuple[str, ...] = (
         "argument_size_in_bytes",
@@ -554,8 +554,8 @@ def _s2(
         f"{scalar_hlo}\n\nEIGHT-ENERGY REDUCED SCAN\n{scan_hlo}\n"
     )
     artifact_directory.mkdir(parents=True, exist_ok=True)
-    jaxpr_path: Path = artifact_directory / "plan06_s2_jaxpr.txt.gz"
-    hlo_path: Path = artifact_directory / "plan06_s2_hlo.txt.gz"
+    jaxpr_path: Path = artifact_directory / "channel_scan_jaxpr.txt.gz"
+    hlo_path: Path = artifact_directory / "channel_scan_hlo.txt.gz"
     jaxpr_path.write_bytes(
         gzip.compress(jaxpr_text.encode(), compresslevel=9, mtime=0)
     )
@@ -788,12 +788,14 @@ def _s3(fixture: Fixture) -> dict[str, object]:
 
 
 def main() -> None:
-    """Run all literal gates and write JSON plus retained compressed IR."""
+    """Run all scalability checks and write JSON plus retained compressed IR."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--artifact-directory",
         type=Path,
-        default=Path("tests/test_diffpes/_reference_data/plan06_scalability"),
+        default=Path(
+            "tests/test_diffpes/_reference_data/matrix_element_scalability"
+        ),
     )
     arguments: argparse.Namespace = parser.parse_args()
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
@@ -830,8 +832,12 @@ def main() -> None:
         for path in bound_source_paths
     }
     artifact: dict[str, object] = {
-        "schema": "diffpes.plan06.scalability.v2",
-        "gates": ["06.S1", "06.S2", "06.S3"],
+        "schema": "diffpes.matrix-element-scalability.v2",
+        "gates": [
+            "matrix-element-forward-scaling",
+            "matrix-element-compiled-graph-scaling",
+            "matrix-element-gradient-scaling",
+        ],
         "device": str(jax.devices()[0]),
         "cpu": platform.processor(),
         "platform": platform.platform(),
@@ -846,7 +852,7 @@ def main() -> None:
         "s2": s2,
         "s3": s3,
     }
-    output_path: Path = arguments.artifact_directory / "plan06_s1_s3_cpu.json"
+    output_path: Path = arguments.artifact_directory / "cpu_benchmark.json"
     output_path.write_text(
         json.dumps(artifact, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

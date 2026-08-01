@@ -1,4 +1,4 @@
-"""Generate the frozen Plan-07 G1/D1 Faddeeva reference artifact.
+"""Generate the frozen mpmath Faddeeva value and derivative reference artifact.
 
 The script evaluates the preregistered upper-half-plane grid at 100 decimal
 digits. It rounds values only after forming the Faddeeva ODE derivative in
@@ -121,9 +121,9 @@ def main() -> None:
     root: Path = Path(__file__).resolve().parents[2]
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
     archive_path: Path = (
-        data_directory / "plan07_faddeeva_100digit_reference.npz"
+        data_directory / "faddeeva_mpmath_100digit_reference.npz"
     )
-    manifest_path: Path = data_directory / "plan07_faddeeva_manifest.json"
+    manifest_path: Path = data_directory / "faddeeva_mpmath_manifest.json"
     _write_deterministic_npz(
         archive_path,
         {
@@ -160,9 +160,9 @@ def main() -> None:
             "1e8",
             "1e8j",
         ],
-        "gates": ["07.G1", "07.D1"],
+        "gates": ["faddeeva-mpmath-reference", "spectral-broadening-gradient"],
         "generator": "tests/_reference_tools/"
-        "generate_plan07_faddeeva_reference.py",
+        "generate_faddeeva_mpmath_reference.py",
         "generator_sha256": _sha256(generator_path),
         "grid": {
             "angles": "linspace(0,pi,33)",
@@ -181,7 +181,7 @@ def main() -> None:
             "selection_max_derivative_budget_ratio": 4.5632e-4,
             "selection_max_value_budget_ratio": 2.2956e-2,
         },
-        "schema": "diffpes.plan07.faddeeva-reference.v1",
+        "schema": "diffpes.faddeeva-mpmath-reference.v1",
         "seams": [],
         "stage": "algorithm-selected-before-production-edit",
     }

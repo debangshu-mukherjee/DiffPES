@@ -4,9 +4,9 @@
   "dtype_policy": "JAX x64",
   "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
   "gates": [
-    "06.S1",
-    "06.S2",
-    "06.S3"
+    "matrix-element-forward-scaling",
+    "matrix-element-compiled-graph-scaling",
+    "matrix-element-gradient-scaling"
   ],
   "host_setup_seconds": 1.6716803880408406,
   "jax_version": "0.9.0.1",
@@ -60,9 +60,9 @@
     "gradient_shape": [
       18
     ],
-    "hlo_gzip": "plan06_s2_hlo.txt.gz",
+    "hlo_gzip": "channel_scan_hlo.txt.gz",
     "hlo_gzip_sha256": "5d88a8905baf6415d23d25a2a5d20807cbf0f2ead9141ad1e4feeca2da976a3e",
-    "jaxpr_gzip": "plan06_s2_jaxpr.txt.gz",
+    "jaxpr_gzip": "channel_scan_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
       "authoritative_maximum_live_allocation_bytes": 48171392,
@@ -172,10 +172,10 @@
     "synchronized": true,
     "warmups": 2
   },
-  "schema": "diffpes.plan06.scalability.v2",
+  "schema": "diffpes.matrix-element-scalability.v2",
   "source_sha256": {
-    "tests/_reference_tools/measure_plan06_scaling.py": "496f666919217143d2ac3983856076eb4ebd6422497d2f32514e2317034cef87",
-    "src/diffpes/simul/matrixel.py": "d8cbd48db8959422edd4545885e4b31a6d6ed44d596b35e06c73ca9a1e99a509",
+    "tests/_reference_tools/measure_matrix_element_scaling.py": "9797b02d3da82bacf3412373455dd448277294708a45220196855d8334f8dd36",
+    "src/diffpes/simul/matrixel.py": "125e5c3145442decdead0ef50fa91d22214ccd39cc6107f3fbdddcd9c31824b4",
     "src/diffpes/types/radial_params.py": "055d6aa2286e2299b253cb9056dc8b14e0ee65fbde93df0e604f70fb54b3632b"
   }
 }

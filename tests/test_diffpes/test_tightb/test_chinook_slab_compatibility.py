@@ -1,6 +1,6 @@
-"""Compare Plan 05 slabs with frozen offline Chinook artifacts.
+"""Compare tight-binding slabs with frozen offline Chinook artifacts.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 import hashlib
@@ -32,7 +32,7 @@ from diffpes.types import (
 _ARTIFACT_PATH: Path = (
     Path(__file__).parents[1]
     / "_reference_data"
-    / "plan05_chinook_slab_reference.json"
+    / "chinook_slab_reference.json"
 )
 _ARTIFACT_SHA256: str = (
     "40df3ab04842bb3033b79827360179b5c9af717b4527d00ee0127dcf8158532d"
@@ -47,16 +47,17 @@ def _reference() -> dict[str, Any]:
     digest: str = hashlib.sha256(encoded).hexdigest()
     if digest != _ARTIFACT_SHA256:
         message: str = (
-            "Plan 05 Chinook artifact checksum differs from its pinned digest"
+            "Chinook slab artifact checksum differs from its pinned digest"
         )
         raise ValueError(message)
     payload: dict[str, Any] = json.loads(encoded)
     metadata: dict[str, Any] = payload["metadata"]
     if (
-        metadata["gates"] != ["05.G4", "05.G9"]
+        metadata["gates"]
+        != ["chinook-slab-band-parity", "chinook-surface-state-parity"]
         or metadata["classification"] != "K-type behavioral compatibility"
     ):
-        message = "Plan 05 Chinook artifact metadata is invalid"
+        message = "Chinook slab artifact metadata is invalid"
         raise ValueError(message)
     return payload
 
@@ -156,13 +157,13 @@ def _gauss_reduced_metric(
     return reduced @ reduced.T
 
 
-class TestPlan05ChinookCompatibility:
-    """Resolve Plan 05 G4/G9 behavioral compatibility."""
+class TestChinookSlabCompatibility:
+    """Resolve Chinook slab band and surface-state compatibility."""
 
     def test_surface_cell_is_unimodularly_equivalent(self) -> None:
         """Match Chinook surface area and the reduced in-plane metric.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -203,7 +204,7 @@ class TestPlan05ChinookCompatibility:
     def test_slab_spectrum_agrees_after_the_c_gates(self) -> None:
         """Match the frozen nondegenerate Chinook slab spectrum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -242,7 +243,7 @@ class TestPlan05ChinookCompatibility:
     def test_surface_projection_agrees_off_degeneracy(self) -> None:
         """Match Chinook's depth law and per-band surface expectations.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

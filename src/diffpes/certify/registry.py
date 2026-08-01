@@ -21,7 +21,7 @@ Routine Listings
 :func:`register_transformation`
     Register an exact transformation contract once.
 :func:`register_handshake`
-    Register declarative requirements from one owning plan.
+    Register declarative requirements from one domain owner.
 :func:`get_transformation`
     Resolve an exact registered transformation contract.
 :func:`list_models`
@@ -479,7 +479,7 @@ def list_transformations() -> tuple[TransformationContract, ...]:
 
 @jaxtyped(typechecker=beartype)
 def register_handshake(handshake: RegistrationHandshake) -> None:
-    """Register declarative requirements from one owning plan.
+    """Register declarative requirements from one domain owner.
 
     The registry stores requirements before or after the owner registers them.
 
@@ -569,7 +569,7 @@ def validate_handshake(
     Parameters
     ----------
     handshake : RegistrationHandshake
-        Declarative requirements supplied by the owning plan.
+        Declarative requirements supplied by the domain owner.
     evidence_ids : tuple[str, ...]
         Available evidence record IDs. Default is an empty tuple.
 

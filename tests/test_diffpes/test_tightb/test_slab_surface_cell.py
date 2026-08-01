@@ -1,6 +1,6 @@
 """Validate exact surface cells and whole-model orbital rotations.
 
-The tests exercise Plan-05 numerical and structural contracts.
+The tests exercise slab numerical and structural contracts.
 """
 
 import math
@@ -147,7 +147,7 @@ class TestFindSurfaceCell:
     ) -> None:
         """Match cubic interplanar spacing and exact integer identities.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -188,7 +188,7 @@ class TestFindSurfaceCell:
     def test_hexagonal_001_preserves_basal_metric(self) -> None:
         """Keep a primitive basal cell for a hexagonal (001) surface.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -223,7 +223,7 @@ class TestFindSurfaceCell:
     ) -> None:
         """Reject zero and nonprimitive integer Miller tuples.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -242,7 +242,7 @@ class TestRotateTbModel:
     def test_generic_complex_spectrum_is_invariant(self) -> None:
         """Preserve sorted energies after full translation-block conjugation.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -269,7 +269,7 @@ class TestRotateTbModel:
     def test_complete_d_shell_soc_spectrum_is_invariant(self) -> None:
         """Rotate orbital and spin frames together without changing L dot S.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -309,7 +309,7 @@ class TestRotateTbModel:
     def test_incomplete_shell_identity_is_exact_noop(self) -> None:
         """Allow only the exact identity path for an incomplete p shell.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -352,7 +352,7 @@ class TestFreezeSlabTopology:
     def test_natural_fine_preserves_requested_minimum_span(self) -> None:
         """Expand before trimming so the post-fine slab keeps its minimum.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -380,7 +380,7 @@ class TestRebuildSlab(chex.TestCase):
     def test_depth_gradient_uses_frozen_topology(self) -> None:
         """Match the analytic layer-depth derivative through rebuild_slab.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -416,7 +416,7 @@ class TestRebuildSlab(chex.TestCase):
     def test_variants_preserve_frozen_topology_values(self) -> None:
         """Match slab depths under eager and compiled continuous rebuilding.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----
@@ -447,7 +447,7 @@ class TestRebuildSlab(chex.TestCase):
     def test_vmap_preserves_frozen_topology_shape(self) -> None:
         """Batch continuous lattice scales without reselecting topology.
 
-        Exercise this Plan-05 condition with fixed fixtures.
+        Exercise this slab condition with fixed fixtures.
 
         Notes
         -----

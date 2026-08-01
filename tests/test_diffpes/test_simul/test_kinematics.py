@@ -130,7 +130,7 @@ class TestFinalStateKInvAng(chex.TestCase):
     def test_values_and_shape_match_free_electron_formula(self) -> None:
         """Match the free-electron momentum formula and preserve shape.
 
-        The expected values use the Plan 03 CODATA-derived prefactor. The
+        The expected values use the CODATA-derived prefactor. The
         function must return one float64 momentum for each energy.
 
         Notes
@@ -609,7 +609,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
 
         Notes
         -----
-        Read the committed offline artifact for Plan 03 gate 03.G3. Vmap the
+        Read the committed offline artifact for the kz kinematics reference. Vmap the
         production function across its rows and compare both formulations at
         the artifact tolerance.
         """
@@ -621,7 +621,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         )
         document: dict[str, Any] = json.loads(reference_path.read_text())
         records: list[dict[str, float]] = document["records"]
-        self.assertEqual(document["gate"], "03.G3")
+        self.assertEqual(document["requirement"], "kz-kinematics-reference")
         self.assertEqual(
             document["metadata"]["chinook_commit"],
             "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
@@ -1076,7 +1076,7 @@ class TestDetectorAnglesToKpar(chex.TestCase):
     def test_matches_closed_form_rotation(self) -> None:
         """Match the closed-form detector rotation for both slits.
 
-        The expected components follow the Plan 03 matrix products. The test
+        The expected components follow the registered matrix products. The test
         also verifies static-slit JIT compilation.
 
         Notes
