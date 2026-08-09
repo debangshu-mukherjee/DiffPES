@@ -27,16 +27,18 @@ Both spectrum tiers multiply the band profile by the finite-temperature
 
 ## Self-Energy
 
-`evaluate_self_energy` evaluates the imaginary self-energy from a
-`SelfEnergyModel`. Supported static models and their parameters are
-documented in the API reference. The output can define an
-energy-dependent linewidth for a caller-built spectral function.
+`evaluate_self_energy` evaluates the complex retarded self-energy from a
+`SelfEnergyModel`. The real part comes from the certified once-subtracted
+Kramers--Kronig operator for the numerical modes. The imaginary part
+evaluates the causal, strictly negative model profile. Take `-sigma.imag`
+for a positive Lorentzian linewidth.
 
 Use `"constant"` for uniform broadening and `"poly"` for a polynomial model.
 Use `"grid"` for interpolation on relative-energy nodes. The
 `"fermi_liquid"` and `"bosonic_kink"` modes provide the other supported
 energy-dependent models. Construct each carrier with
-`make_self_energy_model`.
+`make_self_energy_model`. Numerical modes require every query inside the
+trusted interval of the declared domain.
 
 Self-energy and broadening do not create orbital coherence. If an input
 consists only of projection probabilities, applying a more elaborate

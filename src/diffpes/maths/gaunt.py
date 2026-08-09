@@ -40,7 +40,7 @@ from diffpes.types import GAUNT_IMAG_TOL, L_MAX
 
 
 def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
-    r"""Evaluate Wigner 3-j symbol using the Racah formula.
+    r"""PRIVATE: Evaluate Wigner 3-j symbol using the Racah formula.
 
     Extended Summary
     ----------------
@@ -162,7 +162,7 @@ def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
 def _complex_gaunt(
     l1: int, m1: int, l2: int, m2: int, l3: int, m3: int
 ) -> float:
-    r"""Compute an unstarred complex Gaunt integral.
+    r"""PRIVATE: Compute an unstarred complex Gaunt integral.
 
     Extended Summary
     ----------------
@@ -224,7 +224,7 @@ def _complex_gaunt(
 
 
 def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
-    r"""Compute a Gaunt coefficient for real harmonics and a dipole operator.
+    r"""PRIVATE: Compute a Gaunt coefficient for real harmonics and a dipole.
 
     Extended Summary
     ----------------
@@ -313,7 +313,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     sqrt2: float = math.sqrt(2.0)
 
     def _real_to_complex_coeffs(ll: int, mm: int) -> list[tuple[complex, int]]:
-        r"""Return real-to-complex expansion coefficients.
+        r"""PRIVATE: Return real-to-complex expansion coefficients.
 
         The helper computes the unitary transformation coefficients
         :math:`U_{m,\mu}` such that

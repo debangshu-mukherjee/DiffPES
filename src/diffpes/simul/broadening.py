@@ -122,7 +122,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
 
     The function combines a Gaussian instrument width with a Lorentzian
     lifetime width. It follows the standard Faddeeva definition [1]_ and the
-    certified Weideman primal from WP7.1 [2]_.
+    certified order-40 Weideman rational primal [2]_.
 
     :see: :class:`~.test_broadening.TestVoigt`
 

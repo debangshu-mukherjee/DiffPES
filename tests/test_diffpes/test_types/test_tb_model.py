@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from absl.testing import parameterized
+from beartype.typing import Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -28,7 +29,24 @@ from tests._assertions import assert_rejects
 
 
 def _geometry(n_atoms: int = 1) -> CrystalGeometry:
-    """Create a simple right-handed test geometry."""
+    """PRIVATE: Create a simple right-handed test geometry.
+
+    Parameters
+    ----------
+    n_atoms : int, optional
+        Number of species-``X`` atoms, all at the origin. Default 1.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Identity cubic lattice in Angstrom with ``n_atoms`` coincident
+        atoms.
+
+    Notes
+    -----
+    The identity lattice keeps the cell volume positive, so factory
+    validation of handedness passes without further data.
+    """
     positions: jax.Array = jnp.zeros((n_atoms, 3), dtype=jnp.float64)
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
@@ -39,10 +57,30 @@ def _geometry(n_atoms: int = 1) -> CrystalGeometry:
 
 
 def _basis(
-    atom_indices: tuple[int, ...] = (0,),
-    spin: tuple[int, ...] = (),
+    atom_indices: Tuple[int, ...] = (0,),
+    spin: Tuple[int, ...] = (),
 ) -> OrbitalBasis:
-    """Create one valid s orbital for every supplied atom index."""
+    """PRIVATE: Create one valid s orbital for every supplied atom index.
+
+    Parameters
+    ----------
+    atom_indices : Tuple[int, ...], optional
+        Atom index of each orbital. Default ``(0,)``.
+    spin : Tuple[int, ...], optional
+        Spin channel of each orbital, empty for a spinless basis.
+        Default ``()``.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Basis with one (n=1, l=0, m=0) orbital per supplied atom
+        index.
+
+    Notes
+    -----
+    Repeats the s quantum numbers so callers control only the atom
+    assignment and the optional spin channel.
+    """
     n_orbitals: int = len(atom_indices)
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=atom_indices,
@@ -55,7 +93,21 @@ def _basis(
 
 
 def _model_arguments() -> dict[str, object]:
-    """Return a minimal complex Hermitian-closed model argument mapping."""
+    """PRIVATE: Return a minimal complex Hermitian-closed model argument mapping.
+
+    Returns
+    -------
+    arguments : dict[str, object]
+        Keyword arguments for ``make_tb_model``: one orbital, one
+        0.25 eV onsite energy, and one complex-conjugate hopping pair
+        on opposite ``(+/-1, 0, 0)`` cells.
+
+    Notes
+    -----
+    The two amplitudes ``1 + 2j`` and ``1 - 2j`` close the Hermitian
+    pairing, so tests can mutate single entries to break exactly one
+    validation rule at a time.
+    """
     arguments: dict[str, object] = {
         "hopping_amplitudes": jnp.array(
             [1.0 + 2.0j, 1.0 - 2.0j],
@@ -584,11 +636,11 @@ class TestMakeTBModel(chex.TestCase):
             forward_values + [value.conjugate() for value in forward_values],
             dtype=jnp.complex128,
         )
-        hopping_cells: tuple[tuple[int, int, int], ...] = tuple(
+        hopping_cells: Tuple[Tuple[int, int, int], ...] = tuple(
             [(cell, 0, 0) for cell in cells]
             + [(-cell, 0, 0) for cell in cells]
         )
-        hopping_pairs: tuple[tuple[int, int], ...] = ((0, 0),) * (
+        hopping_pairs: Tuple[Tuple[int, int], ...] = ((0, 0),) * (
             2 * n_hoppings
         )
         arguments: dict[str, object] = _model_arguments()

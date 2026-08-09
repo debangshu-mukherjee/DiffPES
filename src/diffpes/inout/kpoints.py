@@ -193,7 +193,7 @@ def _parse_explicit_kpoints(
     lines: list[str],
     num_kpoints: int,
 ) -> tuple[list[list[float]], list[float]]:
-    """Parse explicit-mode k-point coordinates and optional weights.
+    """PRIVATE: Parse explicit-mode k-point coordinates and optional weights.
 
     Extended Summary
     ----------------
@@ -263,7 +263,8 @@ def _parse_explicit_kpoints(
 
 
 def _looks_like_kpoint_line(line: str) -> bool:
-    """Return ``True`` when the first three tokens are parseable floats.
+    """PRIVATE: Return ``True`` when the first three tokens are parseable
+    floats.
 
     Extended Summary
     ----------------
@@ -300,7 +301,7 @@ def _looks_like_kpoint_line(line: str) -> bool:
 
 
 def _parse_grid(line: str) -> list[int]:
-    """Parse automatic-mode grid line into three integers.
+    """PRIVATE: Parse automatic-mode grid line into three integers.
 
     Extended Summary
     ----------------
@@ -336,7 +337,7 @@ def _parse_grid(line: str) -> list[int]:
 
 
 def _parse_shift(line: str) -> list[float]:
-    """Parse automatic-mode shift line into three floats.
+    """PRIVATE: Parse automatic-mode shift line into three floats.
 
     Extended Summary
     ----------------
@@ -369,7 +370,8 @@ def _parse_shift(line: str) -> list[float]:
 
 
 def _extract_coords(line: str) -> list[float]:
-    """Extract first three float tokens from a KPOINTS coordinate line.
+    """PRIVATE: Extract first three float tokens from a KPOINTS coordinate
+    line.
 
     Extended Summary
     ----------------
@@ -405,7 +407,7 @@ def _extract_coords(line: str) -> list[float]:
 
 
 def _extract_label(line: str) -> str:
-    r"""Extract symmetry label from a KPOINTS line.
+    r"""PRIVATE: Extract symmetry label from a KPOINTS line.
 
     The helper parses one coordinate line from a VASP KPOINTS file. It tries to
     read the symmetry label after the three fractional coordinates.

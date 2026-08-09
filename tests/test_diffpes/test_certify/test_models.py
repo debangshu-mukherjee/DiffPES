@@ -3,6 +3,8 @@
 The test checks idempotent eager registration after radial-model retirement.
 """
 
+from beartype.typing import Tuple
+
 from diffpes.certify import (
     list_handshakes,
     list_transformations,
@@ -27,15 +29,15 @@ class TestRegisterBuiltinModels:
         """
         register_builtin_models()
         register_builtin_models()
-        registered_transformations: tuple[TransformationContract, ...] = (
+        registered_transformations: Tuple[TransformationContract, ...] = (
             list_transformations()
         )
-        transformations: tuple[tuple[str, str], ...] = tuple(
+        transformations: Tuple[Tuple[str, str], ...] = tuple(
             (item.transformation_id, item.transformation_version)
             for item in registered_transformations
         )
-        handshakes: tuple[RegistrationHandshake, ...] = list_handshakes()
-        owner_ids: tuple[str, ...] = tuple(
+        handshakes: Tuple[RegistrationHandshake, ...] = list_handshakes()
+        owner_ids: Tuple[str, ...] = tuple(
             item.owner_id for item in handshakes
         )
         assert len(transformations) == len(set(transformations))

@@ -34,7 +34,24 @@ from diffpes.types import (
 
 
 def _geometry(lattice: Array | None = None) -> CrystalGeometry:
-    """Build a one-site primitive geometry."""
+    """PRIVATE: Build a one-site primitive geometry.
+
+    Parameters
+    ----------
+    lattice : Array | None
+        Lattice vectors in Angstrom as rows; ``None`` selects the unit
+        cubic cell.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        One-site species-X geometry over the resolved lattice.
+
+    Notes
+    -----
+    The single origin site keeps the surface-cell tests focused on the
+    lattice, which is the only quantity the Miller-index search uses.
+    """
     resolved_lattice: Array = (
         jnp.eye(3, dtype=jnp.float64) if lattice is None else lattice
     )
@@ -47,7 +64,22 @@ def _geometry(lattice: Array | None = None) -> CrystalGeometry:
 
 
 def _complete_p_model() -> TBModel:
-    """Build a generic complex complete-shell model."""
+    """PRIVATE: Build a generic complex complete-shell model.
+
+    Returns
+    -------
+    model : TBModel
+        One-atom complete-p model in an oblique cell whose dense
+        three-by-three complex forward block in eV sits on cell
+        ``(1, 0, 0)`` with its conjugate transpose on ``(-1, 0, 0)``.
+
+    Notes
+    -----
+    The complete ``m = -1, 0, 1`` shell transforms irreducibly under
+    rotations, so whole-model rotation tests can compare the rotated
+    Hamiltonian against the conjugated original without truncation
+    error. The generic complex entries leave no accidental symmetry.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0),
         n=(2, 2, 2),
@@ -100,7 +132,27 @@ def _complete_p_model() -> TBModel:
 
 
 def _z_chain_model(lattice_scale: Array | float) -> TBModel:
-    """Build a one-orbital chain with a differentiable z spacing."""
+    """PRIVATE: Build a one-orbital chain with a differentiable z spacing.
+
+    Parameters
+    ----------
+    lattice_scale : Array | float
+        Third lattice constant in Angstrom; a traced array keeps slab
+        construction differentiable through the layer spacing.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital chain with a Hermitian ``-0.7`` eV hopping pair
+        along z inside a cell of unit x and y constants and scaled z
+        constant.
+
+    Notes
+    -----
+    Building the diagonal lattice with ``jnp.stack`` keeps the traced
+    scale connected, so gradients of slab quantities with respect to
+    the interlayer distance stay defined.
+    """
     scale: Array = jnp.asarray(lattice_scale, dtype=jnp.float64)
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.diag(jnp.stack((jnp.ones_like(scale),) * 2 + (scale,))),

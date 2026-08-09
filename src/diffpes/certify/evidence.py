@@ -22,7 +22,7 @@ Routine Listings
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array, Float, PyTree, jaxtyped
 
 from diffpes.types import (
@@ -45,7 +45,24 @@ from .dependencies import (
 
 
 def _as_vector(value: Array) -> Array:
-    """Flatten a numerical value to a one-dimensional JAX array."""
+    """PRIVATE: Flatten a numerical value to a one-dimensional JAX
+    array.
+
+    Parameters
+    ----------
+    value : Array
+        Scalar or array value in its declared physical units.
+
+    Returns
+    -------
+    vector : Array
+        One-dimensional ``float64`` view of ``value``.
+
+    Notes
+    -----
+    Ravels after a cast to ``float64`` so evidence comparisons run in
+    one dtype and one flat coordinate layout.
+    """
     vector: Array = jnp.ravel(jnp.asarray(value, dtype=jnp.float64))
     return vector
 
@@ -60,7 +77,7 @@ def evaluate_evidence(
     *,
     source_type: str = "external_reference",
     lineage: EvidenceLineage | None = None,
-    human_attestation_refs: tuple[str, ...] = (),
+    human_attestation_refs: Tuple[str, ...] = (),
 ) -> EvidenceRef:
     """Compare measured values with an external numerical reference.
 
@@ -87,7 +104,7 @@ def evaluate_evidence(
     lineage : EvidenceLineage | None, optional
         Named implementation, generator, artifact, derivation, conflict, and
         relationship ancestry. Omission is explicitly incomplete lineage.
-    human_attestation_refs : tuple[str, ...]
+    human_attestation_refs : Tuple[str, ...]
         Separate human-review references. They never establish independence.
 
     Returns
@@ -137,7 +154,7 @@ def evaluate_claim(
     reference: Array,
     tolerance: Array,
     *,
-    evidence_ids: tuple[str, ...] = (),
+    evidence_ids: Tuple[str, ...] = (),
     checked: bool = True,
     in_domain: bool = True,
     severity_code: int = 1,
@@ -164,7 +181,7 @@ def evaluate_claim(
         Reference values in the same units.
     tolerance : Array
         Nonnegative component tolerances in the same units.
-    evidence_ids : tuple[str, ...]
+    evidence_ids : Tuple[str, ...]
         Supporting evidence identifiers (**static** -- changing them retraces).
     checked : bool
         Whether evaluation occurred (**static** -- changing it retraces).
@@ -289,7 +306,27 @@ def evaluate_domain(
 
 
 def _perturb(inputs: PyTree, direction: PyTree, step: Array) -> PyTree:
-    """Add one scaled tangent PyTree to an input PyTree."""
+    """PRIVATE: Add one scaled tangent PyTree to an input PyTree.
+
+    Parameters
+    ----------
+    inputs : PyTree
+        Numerical inputs at the evaluation point.
+    direction : PyTree
+        Tangent with the same structure as ``inputs``.
+    step : Array
+        Scalar step size in the units of each perturbed leaf.
+
+    Returns
+    -------
+    perturbed : PyTree
+        Leafwise ``value + step * tangent``.
+
+    Notes
+    -----
+    Supplies the shifted evaluation points for the central-difference
+    reference derivatives.
+    """
     perturbed: PyTree = jax.tree.map(
         lambda value, tangent: value + step * tangent,
         inputs,
@@ -308,12 +345,13 @@ def _derivative_evidence_from_linearization(  # noqa: PLR0913
     pullback: Callable[[Array], PyTree],
     spectrum: InformationSpectrum,
     *,
-    input_paths: tuple[str, ...],
-    output_projection_ids: tuple[str, ...],
+    input_paths: Tuple[str, ...],
+    output_projection_ids: Tuple[str, ...],
     scales: Float[Array, " n_probe"],
     step: float = 6e-6,
 ) -> DerivativeEvidence:
-    """Build derivative evidence from one retained JAX linearization.
+    """PRIVATE: Build derivative evidence from one retained JAX
+    linearization.
 
     The function reuses supplied JVP, transpose, and spectrum results. Batched
     central differences remain an independent numerical reference.
@@ -334,9 +372,9 @@ def _derivative_evidence_from_linearization(  # noqa: PLR0913
         Retained transpose linear map.
     spectrum : InformationSpectrum
         Information spectrum from the same retained linearization.
-    input_paths : tuple[str, ...]
+    input_paths : Tuple[str, ...]
         Stable input-coordinate names (**static**).
-    output_projection_ids : tuple[str, ...]
+    output_projection_ids : Tuple[str, ...]
         Stable output-projection names (**static**).
     scales : Float[Array, " n_probe"]
         Positive physical scale for each tangent probe.
@@ -414,8 +452,8 @@ def derivative_evidence(
     directions: PyTree,
     cotangents: Float[Array, "n_cotangent n_output"],
     *,
-    input_paths: tuple[str, ...],
-    output_projection_ids: tuple[str, ...],
+    input_paths: Tuple[str, ...],
+    output_projection_ids: Tuple[str, ...],
     scales: Float[Array, " n_probe"],
     step: float = 6e-6,
     spectrum_rank: int = 8,
@@ -448,9 +486,9 @@ def derivative_evidence(
         Tangent probes with one leading probe axis on each numerical leaf.
     cotangents : Float[Array, "n_cotangent n_output"]
         Output-space probes in the units reciprocal to the forward output.
-    input_paths : tuple[str, ...]
+    input_paths : Tuple[str, ...]
         Stable names for the probed input coordinates (**static**).
-    output_projection_ids : tuple[str, ...]
+    output_projection_ids : Tuple[str, ...]
         Stable names for the output projections (**static**).
     scales : Float[Array, " n_probe"]
         Positive physical scale for each tangent probe.
@@ -469,13 +507,13 @@ def derivative_evidence(
     JVP, VJP, residual, and spectrum leaves remain differentiable. The function
     derives Boolean evidence fields after it retains the continuous values.
     """
-    linearized: tuple[Array, Callable[[PyTree], Array]] = jax.linearize(
+    linearized: Tuple[Array, Callable[[PyTree], Array]] = jax.linearize(
         forward_fn,
         inputs,
     )
     output: Array = linearized[0]
     pushforward: Callable[[PyTree], Array] = linearized[1]
-    transposed: Callable[[Array], tuple[PyTree]] = jax.linear_transpose(
+    transposed: Callable[[Array], Tuple[PyTree]] = jax.linear_transpose(
         pushforward,
         inputs,
     )
@@ -493,7 +531,7 @@ def derivative_evidence(
         flattened: Array = _ravel_real_pytree(response)[0]
         return flattened
 
-    flat_transposed: Callable[[Array], tuple[Array]] = jax.linear_transpose(
+    flat_transposed: Callable[[Array], Tuple[Array]] = jax.linear_transpose(
         flat_pushforward,
         flat_inputs,
     )

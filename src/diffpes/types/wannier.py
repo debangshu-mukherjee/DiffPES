@@ -48,7 +48,7 @@ the exact serialization context.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 HOPPING_LIST_COMPLEX_FIELDS: int = 7
@@ -68,8 +68,8 @@ _CELL_COMPONENTS: int = 3
 _POSITION_COMPONENTS: int = 3
 _CENTRE_NDIM: int = 2
 _POSITION_NDIM: int = 4
-_SOURCE_FORMATS: tuple[str, ...] = ("hr", "tb")
-_SPIN_LAYOUTS: tuple[str, ...] = (
+_SOURCE_FORMATS: Tuple[str, ...] = ("hr", "tb")
+_SPIN_LAYOUTS: Tuple[str, ...] = (
     "block_down_up",
     "interleaved_up_down",
 )
@@ -78,12 +78,49 @@ _SPIN_LAYOUTS: tuple[str, ...] = (
 def _validate_wannier_operator_structure(  # noqa: PLR0912
     position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]],
     centres_cart: Float64[Array, "n_orb 3"],
-    cells: tuple[tuple[int, int, int], ...],
-    degeneracies: tuple[int, ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+    degeneracies: Tuple[int, ...],
     spin_layout: str,
     source_format: str,
 ) -> None:
-    """Validate static axes and serialization metadata."""
+    """PRIVATE: Validate static axes and serialization metadata.
+
+    Implementation Logic
+    --------------------
+    Check plain Python metadata with exact ``type`` comparisons and the
+    array axes through ``ndim`` and ``shape``. ``hr`` data must store
+    ``None`` position matrices, and ``tb`` data must store one
+    ``(n_orb, n_orb, 3)`` block per cell.
+
+    Parameters
+    ----------
+    position_matrices : Optional[Complex128[Array, "n_R n_orb n_orb 3"]]
+        Real-space position-operator matrices in Angstrom, or ``None``
+        for ``hr`` operator data.
+    centres_cart : Float64[Array, "n_orb 3"]
+        Wannier centres in Cartesian Angstrom.
+    cells : Tuple[Tuple[int, int, int], ...]
+        Exact integer lattice translations.
+    degeneracies : Tuple[int, ...]
+        Wigner--Seitz degeneracy weights, one per cell.
+    spin_layout : str
+        Spinor orbital-ordering label.
+    source_format : str
+        Source serialization format, ``"hr"`` or ``"tb"``.
+
+    Raises
+    ------
+    ValueError
+        If ``centres_cart`` is not ``(n_orb, 3)``; if ``cells`` or
+        ``degeneracies`` is not a tuple; if ``cells`` is empty, contains
+        an entry that is not an exact integer triple, contains
+        duplicates, or disagrees with ``degeneracies`` on length; if a
+        degeneracy is not a positive integer; if ``spin_layout`` or
+        ``source_format`` is not a known label; or if the presence of
+        ``position_matrices`` contradicts ``source_format`` or its shape
+        is not ``(len(cells), n_orb, n_orb, 3)``. This is the static
+        construction-time contract.
+    """
     if (
         centres_cart.ndim != _CENTRE_NDIM
         or centres_cart.shape[1] != _POSITION_COMPONENTS
@@ -156,10 +193,10 @@ class WannierOperatorData(eqx.Module):
         ``None``.
     centres_cart : Float64[Array, "n_orb 3"]
         Wannier centres in Cartesian Angstrom.
-    cells : tuple[tuple[int, int, int], ...]
+    cells : Tuple[Tuple[int, int, int], ...]
         Exact serialized lattice translations (**static** -- changing them
         triggers retracing).
-    degeneracies : tuple[int, ...]
+    degeneracies : Tuple[int, ...]
         Wigner--Seitz degeneracy weight for each cell (**static** -- changing
         them triggers retracing).
     spin_layout : str
@@ -182,8 +219,8 @@ class WannierOperatorData(eqx.Module):
 
     position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]]
     centres_cart: Float64[Array, "n_orb 3"]
-    cells: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
-    degeneracies: tuple[int, ...] = eqx.field(static=True)
+    cells: Tuple[Tuple[int, int, int], ...] = eqx.field(static=True)
+    degeneracies: Tuple[int, ...] = eqx.field(static=True)
     spin_layout: str = eqx.field(static=True)
     source_format: str = eqx.field(static=True)
 
@@ -203,8 +240,8 @@ class WannierOperatorData(eqx.Module):
 def make_wannier_operator_data(  # noqa: DOC502
     position_matrices: Optional[Complex128[Array, "n_R n_orb n_orb 3"]],
     centres_cart: Float64[Array, "n_orb 3"],
-    cells: tuple[tuple[int, int, int], ...],
-    degeneracies: tuple[int, ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+    degeneracies: Tuple[int, ...],
     spin_layout: str,
     source_format: str,
 ) -> WannierOperatorData:
@@ -222,9 +259,9 @@ def make_wannier_operator_data(  # noqa: DOC502
         an ``hr.dat`` source.
     centres_cart : Float64[Array, "n_orb 3"]
         Explicit Cartesian Wannier centres in Angstrom.
-    cells : tuple[tuple[int, int, int], ...]
+    cells : Tuple[Tuple[int, int, int], ...]
         Exact integer translations in serialized order.
-    degeneracies : tuple[int, ...]
+    degeneracies : Tuple[int, ...]
         Positive Wigner--Seitz weights in the same order as ``cells``.
     spin_layout : str
         Serialized spin ordering.

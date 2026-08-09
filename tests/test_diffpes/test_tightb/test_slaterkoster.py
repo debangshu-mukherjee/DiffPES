@@ -49,7 +49,22 @@ _ALL_SK_KEYS: tuple[str, ...] = (
 
 
 def _reference_d_tensors() -> Float64[Array, "5 3 3"]:
-    """Return the normalized Table-I d-orbital Cartesian tensors."""
+    """PRIVATE: Return the normalized Table-I d-orbital Cartesian tensors.
+
+    Returns
+    -------
+    tensors : Float64[Array, "5 3 3"]
+        Symmetric traceless rank-two tensors for the real d orbitals in
+        the fixed order xy, yz, z2, xz, x2-y2, each normalized to unit
+        Frobenius norm.
+
+    Notes
+    -----
+    The off-diagonal tensors carry ``1/sqrt(2)`` entries and the z2
+    tensor carries ``diag(-1, -1, 2)/sqrt(6)``. Contracting these
+    tensors with direction cosines reproduces the Slater--Koster
+    Table-I d polynomials independently of the production kernel.
+    """
     inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
     inverse_sqrt_six: float = 1.0 / np.sqrt(6.0)
     tensors: Float64[Array, "5 3 3"] = jnp.asarray(
@@ -89,7 +104,37 @@ def _table_i_blocks(
     direction: Float64[Array, " 3"],
     values: Float64[Array, " 10"],
 ) -> dict[tuple[int, int], Float64[Array, "m1 m2"]]:
-    """Evaluate the direction-cosine polynomials for all ten channels."""
+    """PRIVATE: Evaluate the direction-cosine polynomials for all ten
+    channels.
+
+    Parameters
+    ----------
+    direction : Float64[Array, " 3"]
+        Unit bond direction cosines.
+    values : Float64[Array, " 10"]
+        The ten fundamental SK integrals in eV in the order ss_sigma,
+        sp_sigma, sd_sigma, pp_sigma, pp_pi, pd_sigma, pd_pi, dd_sigma,
+        dd_pi, dd_delta.
+
+    Returns
+    -------
+    blocks : dict[tuple[int, int], Float64[Array, "m1 m2"]]
+        Hopping blocks in eV for the six canonical shell pairs keyed by
+        ``(l1, l2)`` with ``l1 <= l2``.
+
+    Notes
+    -----
+    Builds each block from tensor identities instead of the tabulated
+    entry-by-entry formulas. The p vector comes from projecting the
+    direction onto the real p axes. The d sigma vector is
+    ``sqrt(3/2)`` times the double tensor contraction with the
+    direction. The d pi projector is twice the difference of the
+    tensor-vector Gram matrix and the tensor-direction dyad. The dd
+    block follows from the sigma, pi, and delta projector
+    decomposition. Agreement with :func:`sk_block` on random
+    directions therefore checks the production polynomials against an
+    algebraically independent construction.
+    """
     p_axes: Float64[Array, "3 3"] = jnp.asarray(
         ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),
         dtype=jnp.float64,
@@ -144,7 +189,20 @@ def _table_i_blocks(
 
 
 def _graphene_geometry() -> CrystalGeometry:
-    """Construct the two-atom honeycomb geometry used by the shell gate."""
+    """PRIVATE: Construct the two-atom honeycomb geometry for the shell gate.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Hexagonal two-carbon cell with lattice constant 2.46 Angstrom,
+        a 10 Angstrom vacuum axis, and the B atom at fractional
+        ``(1/3, 1/3, 0)``.
+
+    Notes
+    -----
+    The neighbor-shell tests count hand-enumerable honeycomb
+    coordination shells on this fixed geometry.
+    """
     lattice_constant: float = 2.46
     lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
@@ -170,7 +228,21 @@ def _graphene_geometry() -> CrystalGeometry:
 
 
 def _compact_spd_basis() -> OrbitalBasis:
-    """Construct generic s, px, and dxy orbitals on each of two atoms."""
+    """PRIVATE: Construct generic s, px, and dxy orbitals on each of two
+    atoms.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Six-orbital basis with quantum numbers ``(l, m)`` equal to
+        ``(0, 0)``, ``(1, 1)``, and ``(2, -2)`` on each atom.
+
+    Notes
+    -----
+    One orbital from each angular-momentum sector activates every
+    inter-shell SK channel pair without a complete shell, which keeps
+    the model-builder tests compact.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         (0, 0, 0, 1, 1, 1),
         (1, 2, 3, 1, 2, 3),

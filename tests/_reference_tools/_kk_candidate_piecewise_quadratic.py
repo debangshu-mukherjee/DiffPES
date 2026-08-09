@@ -1,7 +1,7 @@
-"""Candidate B: cell-integrated piecewise-quadratic core PV transform.
+"""Cell-integrated piecewise-quadratic core PV transform.
 
-This is a preproduction algorithm-spike implementation.  It deliberately contains no
-mode dispatch, tail treatment, or production carrier types.
+This is a preproduction operator-selection implementation.  It deliberately
+contains no mode dispatch, tail treatment, or production carrier types.
 """
 
 from __future__ import annotations

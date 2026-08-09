@@ -32,7 +32,31 @@ def _bands(
     eigenvectors: Array,
     depths: Array | None,
 ) -> DiagonalizedBands:
-    """Attach a minimal geometry and depth carrier to an eigensystem."""
+    """PRIVATE: Attach a minimal geometry and depth carrier to an
+    eigensystem.
+
+    Parameters
+    ----------
+    eigenvalues : Array
+        Band energies in eV, cast to float64.
+    eigenvectors : Array
+        Band-major eigenvector rows, cast to complex128.
+    depths : Array | None
+        Optional per-orbital depths below the surface in Angstrom.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Carrier with the supplied eigensystem and depths, zero
+        k-points, and a one-site placeholder geometry with an all-s
+        basis.
+
+    Notes
+    -----
+    Passing ``depths=None`` builds a bulk-style carrier, so tests can
+    check the depth-requiring operators in both acceptance and
+    rejection directions.
+    """
     n_orbitals: int = eigenvectors.shape[-1]
     return make_diagonalized_bands(
         eigenvalues=jnp.asarray(eigenvalues, dtype=jnp.float64),
@@ -58,7 +82,29 @@ def _weighted_identity_bands(
     weights: Array,
     eigenvalues: Array,
 ) -> DiagonalizedBands:
-    """Build canonical eigenvectors from declared surface weights."""
+    """PRIVATE: Build canonical eigenvectors from declared surface weights.
+
+    Parameters
+    ----------
+    weights : Array
+        Intended per-band surface probabilities in ``(0, 1]``.
+    eigenvalues : Array
+        Band energies in eV for the single k-point.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        One-k-point carrier whose identity eigenvectors localize band
+        ``n`` on orbital ``n`` and whose depths equal
+        ``-log(weights)``.
+
+    Notes
+    -----
+    With unit escape length the surface projector value on orbital
+    ``n`` is ``exp(-depth_n)``. The constructed depths therefore make
+    the expected surface weight of each band exactly the declared
+    input.
+    """
     depths: Array = -jnp.log(weights)
     vectors: Array = jnp.eye(weights.shape[0], dtype=jnp.complex128)[
         None, :, :

@@ -24,13 +24,13 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Union
+from beartype.typing import Optional, Tuple, Union
 from jax.core import Tracer
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from .aliases import ScalarFloat
 
-_KPATH_MODES: tuple[str, ...] = ("Automatic", "Line-mode", "Explicit")
+_KPATH_MODES: Tuple[str, ...] = ("Automatic", "Line-mode", "Explicit")
 
 
 class KPathInfo(eqx.Module):
@@ -73,7 +73,7 @@ class KPathInfo(eqx.Module):
     mode : str
         KPOINTS file mode (Automatic, Line-mode, Explicit; **static** -- a
         compile-time constant; changing it triggers retracing).
-    labels : tuple[str, ...]
+    labels : Tuple[str, ...]
         Symmetry point labels (e.g., Gamma, M, K; **static** -- compile-time
         constants; changing them triggers retracing).
     comment : str
@@ -107,7 +107,7 @@ class KPathInfo(eqx.Module):
     grid: Optional[Int32[Array, " 3"]]
     shift: Optional[Float64[Array, " 3"]]
     mode: str = eqx.field(static=True)
-    labels: tuple[str, ...] = eqx.field(static=True)
+    labels: Tuple[str, ...] = eqx.field(static=True)
     comment: str = eqx.field(static=True)
     coordinate_mode: str = eqx.field(static=True)
 
@@ -128,10 +128,10 @@ class KPath(eqx.Module):
     kz : Optional[Float64[Array, ""]]
         Fixed Cartesian out-of-plane momentum in 1/Angstrom. ``None`` means
         that the path has no separate fixed value.
-    labels : tuple[str, ...]
+    labels : Tuple[str, ...]
         Labels for the path anchors. This field is **static**. A change causes
         JAX to retrace the receiving function.
-    label_indices : tuple[int, ...]
+    label_indices : Tuple[int, ...]
         Indices for the labels. This field is **static**. A change causes JAX
         to retrace the receiving function.
     n_per_segment : int
@@ -146,8 +146,8 @@ class KPath(eqx.Module):
 
     kpoints: Float64[Array, "n_k 3"]
     kz: Optional[Float64[Array, ""]]
-    labels: tuple[str, ...] = eqx.field(static=True)
-    label_indices: tuple[int, ...] = eqx.field(static=True)
+    labels: Tuple[str, ...] = eqx.field(static=True)
+    label_indices: Tuple[int, ...] = eqx.field(static=True)
     n_per_segment: int = eqx.field(static=True)
 
 
@@ -170,7 +170,7 @@ class KGrid(eqx.Module):
     photon_energy_axis_ev : Optional[Float64[Array, " n_rows"]]
         Photon energy for each raster row in eV. ``None`` marks a grid without
         a photon-energy axis.
-    mesh_shape : tuple[int, int]
+    mesh_shape : Tuple[int, int]
         Raster shape as ``(n_rows, n_cols)``. This field is **static**. A
         change causes JAX to retrace the receiving function.
 
@@ -182,7 +182,7 @@ class KGrid(eqx.Module):
     kpoints: Float64[Array, "n_k 3"]
     kz: Optional[Float64[Array, ""]]
     photon_energy_axis_ev: Optional[Float64[Array, " n_rows"]]
-    mesh_shape: tuple[int, int] = eqx.field(static=True)
+    mesh_shape: Tuple[int, int] = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
@@ -196,7 +196,7 @@ def make_kpath_info(  # noqa: DOC503, PLR0913
     grid: Optional[Union[Int32[Array, " 3"], "list[int]"]] = None,
     shift: Optional[Float64[Array, " 3"]] = None,
     mode: str = "Line-mode",
-    labels: tuple[str, ...] = (),
+    labels: Tuple[str, ...] = (),
     comment: str = "",
     coordinate_mode: str = "",
 ) -> KPathInfo:
@@ -270,7 +270,7 @@ def make_kpath_info(  # noqa: DOC503, PLR0913
     mode : str, optional
         KPOINTS file mode (**static** -- a compile-time constant; changing it
         triggers retracing). Default is ``"Line-mode"``.
-    labels : tuple[str, ...], optional
+    labels : Tuple[str, ...], optional
         Symmetry point labels (**static** -- compile-time constants; changing
         them triggers retracing). Default is empty tuple.
     comment : str, optional
@@ -399,8 +399,8 @@ def make_kpath_info(  # noqa: DOC503, PLR0913
 @jaxtyped(typechecker=beartype)
 def make_kpath(  # noqa: DOC503
     kpoints: Float64[Array, "n_k 3"],
-    labels: tuple[str, ...] = (),
-    label_indices: tuple[int, ...] = (),
+    labels: Tuple[str, ...] = (),
+    label_indices: Tuple[int, ...] = (),
     n_per_segment: int = 1,
     kz: Optional[ScalarFloat] = None,
 ) -> KPath:
@@ -435,10 +435,10 @@ def make_kpath(  # noqa: DOC503
     ----------
     kpoints : Float64[Array, "n_k 3"]
         Fractional k-points.
-    labels : tuple[str, ...], optional
+    labels : Tuple[str, ...], optional
         Labels for the path anchors. This value is **static**. A change causes
         retracing. Default is an empty tuple.
-    label_indices : tuple[int, ...], optional
+    label_indices : Tuple[int, ...], optional
         Indices for the labels. This value is **static**. A change causes
         retracing. Default is an empty tuple.
     n_per_segment : int, optional
@@ -510,7 +510,7 @@ def make_kpath(  # noqa: DOC503
 @jaxtyped(typechecker=beartype)
 def make_kgrid(  # noqa: DOC503
     kpoints: Float64[Array, "n_k 3"],
-    mesh_shape: tuple[int, int],
+    mesh_shape: Tuple[int, int],
     kz: Optional[ScalarFloat] = None,
     photon_energy_axis_ev: Optional[Float64[Array, " n_rows"]] = None,
 ) -> KGrid:
@@ -545,7 +545,7 @@ def make_kgrid(  # noqa: DOC503
     ----------
     kpoints : Float64[Array, "n_k 3"]
         Flattened fractional k-points.
-    mesh_shape : tuple[int, int]
+    mesh_shape : Tuple[int, int]
         Raster shape as ``(n_rows, n_cols)``. This value is **static**. A
         change causes retracing.
     kz : Optional[ScalarFloat], optional

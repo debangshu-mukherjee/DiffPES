@@ -1,0 +1,183 @@
+{
+  "archives": {
+    "self_energy_models_reference": {
+      "filename": "self_energy_models_reference.npz",
+      "sha256": "59a115c16cbcbd57e7b70ec290380d224d2f2f73c5b6682afbcec047a4fe2830"
+    }
+  },
+  "causality": {
+    "convention": "retarded, Sigma'' <= 0 on the whole grid",
+    "fl_ceiling_ev": -0.02,
+    "kink_ceiling_ev": -0.017191662142140993
+  },
+  "conventions": {
+    "energy_axis": "relative E-EF in eV",
+    "kk_transform": "Sigma'(w) = (1/pi) PV int Sigma''_dyn(x)/(x-w) dx; the constant -Gamma0 baseline is subtracted before the transform and contributes zero real part",
+    "raw_coordinates": "raw = softplus_inverse(p) = p + log(-expm1(-p)), bounded to the closed interval [-30, 30]"
+  },
+  "derivatives": {
+    "column_floor": 0.001,
+    "coordinates": "dimensionless q_p = p / p_fixture",
+    "crosscheck": {
+      "fl_max_abs_error": 2.220446049250313e-16,
+      "kink_max_abs_error": 7.105427357601002e-15,
+      "tolerance": "1e-10 + 1e-10*|analytic|"
+    },
+    "method": "complex-step (relative step 1e-30) on real-form responses, certified against hand-derived analytic rows",
+    "nonzero_floor": 1e-12,
+    "structural_zeros": [
+      "dSigma'/dGamma0 == 0 for both fixtures (baseline is imaginary-only and KK-subtracted)"
+    ]
+  },
+  "environment": {
+    "numpy": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "python": "3.13.6",
+    "scipy": "1.17.1"
+  },
+  "fixtures": {
+    "bosonic_kink": {
+      "coefficient_order": [
+        "gamma0",
+        "g",
+        "omega0",
+        "width"
+      ],
+      "first_moment": {
+        "frequencies_ev": [
+          25.0,
+          50.0,
+          100.0,
+          200.0,
+          400.0
+        ],
+        "identity": "w*Sigma'(w) -> 2*g**2 as w -> inf",
+        "limit_ev2": 0.24499999999999997,
+        "ratio_bounds": [
+          3.9,
+          4.1
+        ]
+      },
+      "formula": "Sigma(w) = -i*Gamma0 + g**2*(1/(w-Omega0+i*width) + 1/(w+Omega0+i*width))",
+      "parameters_physical": {
+        "g_ev": 0.35,
+        "gamma0_ev": 0.015,
+        "omega0_ev": 0.07,
+        "width_ev": 0.02
+      },
+      "parameters_raw": [
+        -4.192195702897505,
+        -0.8697231582271622,
+        -2.6240558786022685,
+        -3.9020063388170345
+      ],
+      "spot_check": {
+        "achieved_max_abs_residual": 1.1102230246251565e-15,
+        "budget": 1e-10,
+        "frequencies_ev": [
+          -0.3,
+          -0.2,
+          -0.14,
+          -0.1,
+          -0.085,
+          -0.07,
+          -0.055,
+          -0.04,
+          -0.02,
+          -0.005,
+          0.0,
+          0.005,
+          0.02,
+          0.04,
+          0.055,
+          0.07,
+          0.085,
+          0.1,
+          0.14,
+          0.2,
+          0.3
+        ]
+      },
+      "tail_mode": "analytic"
+    },
+    "fermi_liquid": {
+      "coefficient_order": [
+        "gamma0",
+        "beta",
+        "omega_c"
+      ],
+      "formula": "Sigma''(w) = -Gamma0 - beta*w**2/(1+(w/Omega_c)**4); Sigma'(w)-Sigma'(0) = (sqrt(2)/2)*beta*Omega_c**3*w*(w**2-Omega_c**2)/(w**4+Omega_c**4)",
+      "kk_domain_ev": [
+        -8.0,
+        8.0
+      ],
+      "parameters_physical": {
+        "beta_per_ev": 0.5,
+        "gamma0_ev": 0.02,
+        "omega_c_ev": 0.8
+      },
+      "parameters_raw": [
+        -3.9020063388170345,
+        -0.43275212956718856,
+        0.2033823208110247
+      ],
+      "quadrature_truth": {
+        "achieved_max_abs_error": 1.1796119636642288e-16,
+        "budget": 1e-12,
+        "certified_by": "exact residue closed form of the rational dynamic remainder"
+      },
+      "tail_mode": "power2"
+    }
+  },
+  "generator": "tests/_reference_tools/generate_self_energy_models_reference.py",
+  "generator_sha256": "3530d7c120edfed2cfe7c57c96b9105076c9fca83ef9c905665b14a8a9789ecf",
+  "grids": {
+    "eval_grid": {
+      "half_width_ev": 1.5,
+      "points": 2001,
+      "spacing": "uniform, shared by both fixtures"
+    },
+    "probe_frequencies_ev": {
+      "bosonic_kink": [
+        -0.21,
+        -0.13,
+        -0.09,
+        -0.075,
+        -0.05,
+        -0.015,
+        0.025,
+        0.06,
+        0.08,
+        0.12,
+        0.2
+      ],
+      "fermi_liquid": [
+        -1.35,
+        -1.05,
+        -0.85,
+        -0.55,
+        -0.25,
+        0.05,
+        0.35,
+        0.65,
+        0.95,
+        1.15,
+        1.35
+      ]
+    }
+  },
+  "quadrature": {
+    "cauchy_core": "scipy.integrate.quad weight='cauchy' (QAWC)",
+    "epsabs": 1e-13,
+    "epsrel": 1e-12,
+    "kink_cauchy_half_width_ev": 0.5,
+    "limit": 800,
+    "tails": "QAGI on the true infinite tails of the dynamic remainder"
+  },
+  "requirements": [
+    "causal-self-energy-analytic-truth",
+    "self-energy-parameter-derivative-truth"
+  ],
+  "schema": "diffpes.self-energy-models-reference.v1",
+  "stage": "frozen-truth-before-self-energy-production-edit"
+}

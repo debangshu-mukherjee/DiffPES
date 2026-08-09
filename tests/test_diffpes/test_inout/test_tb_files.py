@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Complex, Complex128, Float64
 from numpy.typing import NDArray
 
@@ -33,9 +34,23 @@ from diffpes.types import (
 
 def _write_degeneracies(
     lines: list[str],
-    degeneracies: tuple[int, ...],
+    degeneracies: Tuple[int, ...],
 ) -> None:
-    """Append normative groups of at most fifteen degeneracies."""
+    """PRIVATE: Append normative groups of at most fifteen degeneracies.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Output text lines of the fixture. The function mutates this
+        list in place.
+    degeneracies : Tuple[int, ...]
+        Wigner-Seitz degeneracy of each cell.
+
+    Notes
+    -----
+    Appends one space-joined line per group of fifteen values, which
+    is the normative Wannier90 layout for the degeneracy block.
+    """
     start: int
     for start in range(0, len(degeneracies), 15):
         lines.append(
@@ -43,9 +58,27 @@ def _write_degeneracies(
         )
 
 
-def _pair_order(n_orbitals: int) -> tuple[tuple[int, int], ...]:
-    """Return a deliberately non-writer-loop matrix-index order."""
-    pairs: list[tuple[int, int]] = [
+def _pair_order(n_orbitals: int) -> Tuple[Tuple[int, int], ...]:
+    """PRIVATE: Return a deliberately non-writer-loop matrix-index order.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of orbitals per cell block.
+
+    Returns
+    -------
+    order : Tuple[Tuple[int, int], ...]
+        All zero-based ``(row, column)`` pairs in reversed row-major
+        order.
+
+    Notes
+    -----
+    Reverses the natural double-loop order so the readers cannot pass
+    by relying on the record order the Wannier90 writer happens to
+    emit.
+    """
+    pairs: list[Tuple[int, int]] = [
         (first, second)
         for first in range(n_orbitals)
         for second in range(n_orbitals)
@@ -55,11 +88,33 @@ def _pair_order(n_orbitals: int) -> tuple[tuple[int, int], ...]:
 
 def _write_hr_fixture(
     path: Path,
-    cells: tuple[tuple[int, int, int], ...],
-    degeneracies: tuple[int, ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+    degeneracies: Tuple[int, ...],
     matrices: Complex128[NDArray, "n_cell n_orb n_orb"],
 ) -> None:
-    """Write independently assembled normative ``hr.dat`` text."""
+    """PRIVATE: Write independently assembled normative ``hr.dat`` text.
+
+    Parameters
+    ----------
+    path : Path
+        Destination path of the fixture file.
+    cells : Tuple[Tuple[int, int, int], ...]
+        Integer lattice cell offsets, one per matrix.
+    degeneracies : Tuple[int, ...]
+        Wigner-Seitz degeneracy of each cell.
+    matrices : Complex128[NDArray, "n_cell n_orb n_orb"]
+        Target hopping matrices in eV that a reader must recover after
+        it divides by the degeneracies.
+
+    Notes
+    -----
+    Writes the comment line, the orbital count, the cell count, and
+    the degeneracy block. Each matrix entry then becomes one record
+    with one-based orbital indices and 17-significant-digit real and
+    imaginary parts. Stores each matrix multiplied by its degeneracy
+    and emits the records in the reversed pair order from
+    ``_pair_order``.
+    """
     n_orbitals: int = matrices.shape[1]
     lines: list[str] = [
         "hand-built neutral hr fixture",
@@ -67,9 +122,9 @@ def _write_hr_fixture(
         str(len(cells)),
     ]
     _write_degeneracies(lines, degeneracies)
-    order: tuple[tuple[int, int], ...] = _pair_order(n_orbitals)
+    order: Tuple[Tuple[int, int], ...] = _pair_order(n_orbitals)
     cell_index: int
-    cell: tuple[int, int, int]
+    cell: Tuple[int, int, int]
     for cell_index, cell in enumerate(cells):
         raw_matrix: Complex128[NDArray, "n_orb n_orb"] = (
             matrices[cell_index] * degeneracies[cell_index]
@@ -89,12 +144,39 @@ def _write_hr_fixture(
 def _write_tb_fixture(
     path: Path,
     lattice: Float64[NDArray, "3 3"],
-    cells: tuple[tuple[int, int, int], ...],
-    degeneracies: tuple[int, ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+    degeneracies: Tuple[int, ...],
     hamiltonians: Complex128[NDArray, "n_cell n_orb n_orb"],
     positions: Complex128[NDArray, "n_cell n_orb n_orb 3"],
 ) -> None:
-    """Write independently assembled normative ``tb.dat`` text."""
+    """PRIVATE: Write independently assembled normative ``tb.dat`` text.
+
+    Parameters
+    ----------
+    path : Path
+        Destination path of the fixture file.
+    lattice : Float64[NDArray, "3 3"]
+        Row lattice vectors in Angstrom.
+    cells : Tuple[Tuple[int, int, int], ...]
+        Integer lattice cell offsets, one per block.
+    degeneracies : Tuple[int, ...]
+        Wigner-Seitz degeneracy of each cell.
+    hamiltonians : Complex128[NDArray, "n_cell n_orb n_orb"]
+        Target Hamiltonian blocks in eV that a reader must recover
+        after it divides by the degeneracies.
+    positions : Complex128[NDArray, "n_cell n_orb n_orb 3"]
+        Target position-operator blocks in Angstrom, also stored with
+        the degeneracy factor applied.
+
+    Notes
+    -----
+    Writes the comment line, the lattice rows, the counts, and the
+    degeneracy block. Blank-line-separated Hamiltonian blocks follow
+    in cell order, then position-operator blocks in reversed cell
+    order. Every record uses one-based orbital indices, the reversed
+    pair order from ``_pair_order``, and 17-significant-digit
+    components.
+    """
     n_orbitals: int = hamiltonians.shape[1]
     lines: list[str] = ["hand-built neutral tb fixture"]
     lines.extend(
@@ -102,9 +184,9 @@ def _write_tb_fixture(
     )
     lines.extend((str(n_orbitals), str(len(cells))))
     _write_degeneracies(lines, degeneracies)
-    order: tuple[tuple[int, int], ...] = _pair_order(n_orbitals)
+    order: Tuple[Tuple[int, int], ...] = _pair_order(n_orbitals)
     cell_index: int
-    cell: tuple[int, int, int]
+    cell: Tuple[int, int, int]
     first: int
     second: int
     for cell_index, cell in enumerate(cells):
@@ -119,7 +201,7 @@ def _write_tb_fixture(
                 f"{first + 1} {second + 1} {value.real:.17g} {value.imag:.17g}"
             )
     for cell_index in reversed(range(len(cells))):
-        cell: tuple[int, int, int] = cells[cell_index]
+        cell: Tuple[int, int, int] = cells[cell_index]
         lines.append("")
         lines.append(f"{cell[0]} {cell[1]} {cell[2]}")
         raw_matrix = positions[cell_index] * degeneracies[cell_index]
@@ -134,8 +216,22 @@ def _write_tb_fixture(
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _two_orbital_context() -> tuple[CrystalGeometry, OrbitalBasis]:
-    """Build a two-site context for Cartesian hopping-list tests."""
+def _two_orbital_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
+    """PRIVATE: Build a two-site context for Cartesian hopping-list tests.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Identity cubic lattice in Angstrom with atoms X at the origin
+        and Y at fractional position (0.25, 0, 0).
+    basis : OrbitalBasis
+        One s orbital on each atom, labeled ``X_s`` and ``Y_s``.
+
+    Notes
+    -----
+    Keeps the geometry minimal so Cartesian bond vectors map to cell
+    offsets by inspection.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.asarray(
@@ -154,8 +250,22 @@ def _two_orbital_context() -> tuple[CrystalGeometry, OrbitalBasis]:
     return geometry, basis
 
 
-def _chain_context() -> tuple[CrystalGeometry, OrbitalBasis]:
-    """Build the one-orbital context used by the analytic hr gate."""
+def _chain_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
+    """PRIVATE: Build the one-orbital context used by the analytic hr gate.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Identity cubic lattice in Angstrom with one atom X at the
+        origin.
+    basis : OrbitalBasis
+        A single s orbital on the one atom.
+
+    Notes
+    -----
+    Matches the one-dimensional chain whose Bloch band is the analytic
+    cosine dispersion used as the acceptance gate.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -172,7 +282,20 @@ def _chain_context() -> tuple[CrystalGeometry, OrbitalBasis]:
 
 
 def _spin_basis() -> OrbitalBasis:
-    """Build the native down-block then up-block two-orbital basis."""
+    """PRIVATE: Build the native down-block then up-block two-orbital basis.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Four s orbitals on two atoms in native block order: the down
+        pair ``(X_s_dn, Y_s_dn)`` first, then the up pair
+        ``(X_s_up, Y_s_up)``.
+
+    Notes
+    -----
+    Encodes the spin block layout the readers must produce after they
+    undo the interleaved serialization of spinor Wannier90 files.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 1, 0, 1),
         n=(1, 1, 1, 1),
@@ -187,8 +310,27 @@ def _spin_basis() -> OrbitalBasis:
 def _serialize_interleaved(
     native: Complex[NDArray, "n_cell n_orb n_orb ..."],
 ) -> Complex[NDArray, "n_cell n_orb n_orb ..."]:
-    """Convert native block-down/up matrices into interleaved up/down order."""
-    serialized_to_native: tuple[int, ...] = (2, 0, 3, 1)
+    """PRIVATE: Convert native block-down/up matrices into interleaved up/down order.
+
+    Parameters
+    ----------
+    native : Complex[NDArray, "n_cell n_orb n_orb ..."]
+        Matrices in the native block order: down orbitals first, then
+        up orbitals.
+
+    Returns
+    -------
+    serialized : Complex[NDArray, "n_cell n_orb n_orb ..."]
+        Matrices in the interleaved per-atom up/down order that the
+        spinor Wannier90 files serialize.
+
+    Notes
+    -----
+    Applies the serialized-to-native index map ``(2, 0, 3, 1)`` with
+    ``np.take`` on both orbital axes, which leaves trailing component
+    axes untouched.
+    """
+    serialized_to_native: Tuple[int, ...] = (2, 0, 3, 1)
     serialized: Complex[NDArray, "n_cell n_orb n_orb ..."] = np.take(
         native, serialized_to_native, axis=1
     )
@@ -349,12 +491,12 @@ class TestReadWannier90Hr:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         geometry, basis = _chain_context()
-        cells: tuple[tuple[int, int, int], ...] = (
+        cells: Tuple[Tuple[int, int, int], ...] = (
             (-1, 0, 0),
             (0, 0, 0),
             (1, 0, 0),
         )
-        degeneracies: tuple[int, ...] = (2, 1, 2)
+        degeneracies: Tuple[int, ...] = (2, 1, 2)
         hopping: float = -0.6
         onsite: float = 0.4
         matrices: Complex128[NDArray, "n_cell n_orb n_orb"] = np.asarray(
@@ -442,7 +584,7 @@ class TestReadWannier90Hr:
         geometry: CrystalGeometry
         basis: OrbitalBasis
         geometry, basis = _chain_context()
-        cells: tuple[tuple[int, int, int], ...] = (
+        cells: Tuple[Tuple[int, int, int], ...] = (
             (-1, 0, 0),
             (0, 0, 0),
             (1, 0, 0),
@@ -529,12 +671,12 @@ class TestReadWannier90Tb:
         lattice: Float64[NDArray, "3 3"] = np.diag([2.0, 3.0, 4.0]).astype(
             np.float64
         )
-        cells: tuple[tuple[int, int, int], ...] = (
+        cells: Tuple[Tuple[int, int, int], ...] = (
             (-1, 0, 0),
             (0, 0, 0),
             (1, 0, 0),
         )
-        degeneracies: tuple[int, ...] = (2, 1, 2)
+        degeneracies: Tuple[int, ...] = (2, 1, 2)
         onsite: Float64[NDArray, " n_orb"] = np.asarray([-0.2, 0.3, -0.2, 0.3])
         hopping: Float64[NDArray, " n_orb"] = np.asarray(
             [-0.5, -0.25, -0.5, -0.25]
@@ -701,7 +843,7 @@ class TestReadWannier90Tb:
             m=(0,),
         )
         lattice: Float64[NDArray, "3 3"] = np.eye(3)
-        cells: tuple[tuple[int, int, int], ...] = ((0, 0, 0),)
+        cells: Tuple[Tuple[int, int, int], ...] = ((0, 0, 0),)
         hamiltonians: Complex128[NDArray, "n_cell n_orb n_orb"] = np.asarray(
             [[[0.2 + 0.0j]]]
         )

@@ -15,6 +15,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
@@ -55,7 +56,7 @@ from diffpes.types import (
 )
 from tests._gradients import gradient_gate
 
-type Capstone = tuple[
+type Capstone = Tuple[
     Float64[Array, " 1"],
     Callable[[Float64[Array, " 1"]], Float64[Array, ""]],
     Callable[
@@ -71,13 +72,30 @@ type Capstone = tuple[
 ]
 
 
-def _bulk_context() -> tuple[
+def _bulk_context() -> Tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
     Float64[Array, " 2"],
 ]:
-    """Build a depth-asymmetric two-site s-orbital SK context."""
+    """PRIVATE: Build a depth-asymmetric two-site s-orbital SK context.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Tetragonal cell in Angstrom with two sites split along z.
+    basis : OrbitalBasis
+        One 1s orbital on each site.
+    sk_params : SlaterKosterParams
+        Single fundamental X-Y ss_sigma integral of -1.1 eV.
+    onsite : Float64[Array, " 2"]
+        Distinct onsite energies in eV that break site symmetry.
+
+    Notes
+    -----
+    The 0.35 fractional z offset of the second site makes the slab
+    depths asymmetric after cleaving.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         jnp.diag(jnp.asarray([3.0, 3.0, 4.0])),
         jnp.asarray([[0.0, 0.0, 0.0], [0.0, 0.0, 0.35]]),
@@ -94,7 +112,7 @@ def _bulk_context() -> tuple[
         ("X-Y:ss_sigma",),
     )
     onsite: Float64[Array, " 2"] = jnp.asarray([0.2, -0.35])
-    context: tuple[
+    context: Tuple[
         CrystalGeometry,
         OrbitalBasis,
         SlaterKosterParams,
@@ -104,7 +122,25 @@ def _bulk_context() -> tuple[
 
 
 def _capstone() -> Capstone:
-    """Build the frozen-topology loss and registered group callback."""
+    """PRIVATE: Build the frozen-topology loss and registered group callback.
+
+    Returns
+    -------
+    capstone : Capstone
+        Active ss_sigma parameter slice, scalar group-weight loss,
+        band-amplitude callback, explicit depth-scale loss, baseline
+        diagonalized bands, and the registered experiment geometry.
+
+    Implementation Logic
+    --------------------
+    Freezes the (0, 0, 1) slab topology from the direct bulk model and
+    closes over a parameter view that maps the single active ss_sigma
+    value back into the full vector. The closures rebuild and
+    diagonalize the slab, scale the depth carrier, assemble
+    fixed-integral matrix-element channels, project them onto bands,
+    contract the p-polarized experiment, and sum the two lowest band
+    intensities into the isolated group weight.
+    """
     geometry: CrystalGeometry
     basis: OrbitalBasis
     sk_params: SlaterKosterParams
@@ -140,7 +176,7 @@ def _capstone() -> Capstone:
     baseline_slab: TBModel
     baseline_slab, _ = rebuild_slab(baseline_bulk, topology)
     n_orbitals: int = len(baseline_slab.basis.n)
-    shell_map: tuple[int, ...] = tuple(range(n_orbitals))
+    shell_map: Tuple[int, ...] = tuple(range(n_orbitals))
     radial: RadialSpec = make_radial_spec(
         baseline_slab.basis,
         shell_map,

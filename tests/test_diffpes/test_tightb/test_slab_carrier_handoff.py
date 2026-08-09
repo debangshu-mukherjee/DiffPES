@@ -36,7 +36,21 @@ from diffpes.types import (
 
 
 def _bulk_chain() -> TBModel:
-    """Build a one-orbital bulk chain normal to the requested surface."""
+    """PRIVATE: Build a one-orbital bulk chain normal to the requested surface.
+
+    Returns
+    -------
+    model : TBModel
+        One-atom cubic-cell model with a Hermitian conjugate hopping
+        pair of ``-0.8`` eV along ``(0, 0, +/-1)`` and zero onsite
+        energy.
+
+    Notes
+    -----
+    The chain disperses only along z, the (001) extrusion direction.
+    The resulting slab carries a clean layer structure for the depth
+    and persistence handoff checks.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),

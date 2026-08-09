@@ -26,7 +26,26 @@ from diffpes.types import (
 
 
 def _artifact(value: Any, artifact_id: str = "input") -> Any:
-    """Build an artifact reference for one normalized value."""
+    """PRIVATE: Build an artifact reference for one normalized value.
+
+    Parameters
+    ----------
+    value : Any
+        Normalized pytree value that sets the content checksum.
+    artifact_id : str
+        Artifact identity for the reference.
+
+    Returns
+    -------
+    reference : Any
+        Normalized-input artifact reference with a content checksum, a
+        placeholder semantic checksum, and no byte checksum or locator.
+
+    Notes
+    -----
+    Computes the content checksum from the value in the
+    normalized-content record kind.
+    """
     reference: Any = make_artifact_ref(
         artifact_id=artifact_id,
         media_type="application/x-diffpes-array",

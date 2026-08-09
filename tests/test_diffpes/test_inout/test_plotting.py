@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import matplotlib
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
 import diffpes
@@ -49,9 +49,30 @@ from diffpes.types import (
 
 
 def _unvalidated_kpath(
-    label_indices: list[int], labels: tuple[str, ...]
+    label_indices: list[int], labels: Tuple[str, ...]
 ) -> KPathInfo:
-    """Build malformed legacy k-path metadata for plotting edge tests."""
+    """PRIVATE: Build malformed legacy k-path metadata for plotting edge tests.
+
+    Parameters
+    ----------
+    label_indices : list[int]
+        Positions of the high-symmetry labels along the 60-point path.
+    labels : Tuple[str, ...]
+        High-symmetry point labels to attach, possibly mismatched with
+        ``label_indices`` on purpose.
+
+    Returns
+    -------
+    kpath : KPathInfo
+        Line-mode metadata carrier with zero ``points_per_segment``,
+        zero ``segments``, and no k-point or weight arrays.
+
+    Notes
+    -----
+    Calls the ``KPathInfo`` constructor directly instead of the
+    validated factory, so plotting tests can exercise inputs that the
+    factory rejects.
+    """
     kpath: KPathInfo = KPathInfo(
         num_kpoints=jnp.asarray(60, dtype=jnp.int32),
         label_indices=jnp.asarray(label_indices, dtype=jnp.int32),
@@ -71,7 +92,7 @@ def _unvalidated_kpath(
 
 @jaxtyped(typechecker=beartype)
 def _make_spectrum(nk: int = 20, ne: int = 120) -> ArpesSpectrum:
-    """Build a minimal ArpesSpectrum for plotting tests.
+    """PRIVATE: Build a minimal ArpesSpectrum for plotting tests.
 
     Creates a valid ArpesSpectrum with intensity shape (nk, ne) and
     energy_axis length ne, so that plot functions receive consistent
@@ -373,8 +394,31 @@ def _make_band_and_projection(
     nk: int = 12,
     nb: int = 3,
     na: int = 2,
-) -> tuple[BandStructure, OrbitalProjection]:
-    """Build minimal band/projection inputs for band-scatter tests."""
+) -> Tuple[BandStructure, OrbitalProjection]:
+    """PRIVATE: Build minimal band/projection inputs for band-scatter tests.
+
+    Parameters
+    ----------
+    nk : int, optional
+        Number of k-points along the linear path. Default 12.
+    nb : int, optional
+        Number of bands. Default 3.
+    na : int, optional
+        Number of atoms in the projection. Default 2.
+
+    Returns
+    -------
+    result : Tuple[BandStructure, OrbitalProjection]
+        A band structure with ``fermi_energy=0.15`` eV on a straight
+        k-path, plus an orbital projection of shape
+        ``(nk, nb, na, 9)``. The projection carries p-orbital weight
+        and a spin array whose dominant channel flips at ``nk // 2``.
+
+    Notes
+    -----
+    Uses evenly spaced eigenvalues in eV between -1.2 and 0.8 so the
+    scatter presets have deterministic colors and marker sizes.
+    """
     eigen: Float64[Array, "nk nb"] = jnp.linspace(
         -1.2, 0.8, nk * nb, dtype=jnp.float64
     ).reshape(nk, nb)
@@ -402,7 +446,7 @@ def _make_band_and_projection(
         projections=projections,
         spin=spin,
     )
-    result: tuple[BandStructure, OrbitalProjection] = (
+    result: Tuple[BandStructure, OrbitalProjection] = (
         bands,
         orbital_projection,
     )
@@ -429,7 +473,7 @@ class TestListBandScatterPresets(chex.TestCase):
         The test calls the listing function once and checks representative public names
         in the returned immutable tuple.
         """
-        presets: tuple[str, ...]
+        presets: Tuple[str, ...]
 
         presets = list_band_scatter_presets()
         assert "p" in presets
@@ -452,7 +496,7 @@ class TestPlotBandScatterPreset(chex.TestCase):
         Notes
         -----
         The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        presets: tuple[str, ...]
+        presets: Tuple[str, ...]
 
         presets = list_band_scatter_presets()
         assert "p" in presets
@@ -631,7 +675,27 @@ class TestPlotBandScatterEdgeCases(chex.TestCase):
     """
 
     def _make_bands_1d(self, nk=4, nb=2):
-        """Build BandStructure with 1D eigenvalues (bypassing factory)."""
+        """PRIVATE: Build BandStructure with 1D eigenvalues (bypassing factory).
+
+        Parameters
+        ----------
+        nk : int, optional
+            Number of k-points. Default 4.
+        nb : int, optional
+            Number of bands. Default 2.
+
+        Returns
+        -------
+        malformed_bands : BandStructure
+            Carrier whose ``eigenvalues`` leaf is a flat length
+            ``nk * nb`` array instead of the required (K, B) matrix.
+
+        Notes
+        -----
+        Builds a valid carrier through the factory, then swaps the
+        ``eigenvalues`` leaf with ``eqx.tree_at`` so the malformed
+        rank reaches the plotting code without factory validation.
+        """
         valid_bands: BandStructure = make_band_structure(
             eigenvalues=jnp.zeros((nk, nb), dtype=jnp.float64),
             kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
@@ -646,7 +710,30 @@ class TestPlotBandScatterEdgeCases(chex.TestCase):
         return malformed_bands
 
     def _make_orb_with_spin_and_oam(self, nk=4, nb=2, na=1):
-        """Build OrbitalProjection with spin and OAM attached."""
+        """PRIVATE: Build OrbitalProjection with spin and OAM attached.
+
+        Parameters
+        ----------
+        nk : int, optional
+            Number of k-points. Default 4.
+        nb : int, optional
+            Number of bands. Default 2.
+        na : int, optional
+            Number of atoms. Default 1.
+
+        Returns
+        -------
+        orbital_projection : OrbitalProjection
+            Carrier with uniform orbital weights of shape
+            ``(nk, nb, na, 9)``. The spin array has weight in
+            channels 0 and 4; the OAM array is uniform with shape
+            ``(nk, nb, na, 3)``.
+
+        Notes
+        -----
+        Passes all three arrays through the public factory so spin and
+        OAM selections in the scatter presets have data to read.
+        """
         proj: Array
         spin: Array
         oam: Array

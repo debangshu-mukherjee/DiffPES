@@ -15,6 +15,7 @@ Routine Listings
 
 import equinox as eqx
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
 
@@ -29,16 +30,16 @@ class CertificateDiff(eqx.Module):
 
     Attributes
     ----------
-    scientific : tuple[str, ...]
+    scientific : Tuple[str, ...]
         Differing scientific fields (**static** -- compile-time constants;
         changing them triggers retracing).
-    numerical : tuple[str, ...]
+    numerical : Tuple[str, ...]
         Differing numerical-evidence fields (**static** -- compile-time
         constants; changing them triggers retracing).
-    environment : tuple[str, ...]
+    environment : Tuple[str, ...]
         Differing execution-environment fields (**static** -- compile-time
         constants; changing them triggers retracing).
-    audit : tuple[str, ...]
+    audit : Tuple[str, ...]
         Differing audit fields (**static** -- compile-time constants; changing
         them triggers retracing).
 
@@ -53,10 +54,10 @@ class CertificateDiff(eqx.Module):
         record.
     """
 
-    scientific: tuple[str, ...] = eqx.field(static=True)
-    numerical: tuple[str, ...] = eqx.field(static=True)
-    environment: tuple[str, ...] = eqx.field(static=True)
-    audit: tuple[str, ...] = eqx.field(static=True)
+    scientific: Tuple[str, ...] = eqx.field(static=True)
+    numerical: Tuple[str, ...] = eqx.field(static=True)
+    environment: Tuple[str, ...] = eqx.field(static=True)
+    audit: Tuple[str, ...] = eqx.field(static=True)
 
     @property
     @jaxtyped(typechecker=beartype)
@@ -92,7 +93,7 @@ class CertificateDiff(eqx.Module):
             return summary
         parts: list[str] = []
         label: str
-        values: tuple[str, ...]
+        values: Tuple[str, ...]
         for label, values in (
             ("scientific", self.scientific),
             ("numerical", self.numerical),
@@ -105,8 +106,32 @@ class CertificateDiff(eqx.Module):
         return summary  # noqa: RET504 -- assign-before-return is required.
 
 
-def _difference_names(value: tuple[str, ...], name: str) -> tuple[str, ...]:
-    """Validate one immutable sequence of differing field names."""
+def _difference_names(value: Tuple[str, ...], name: str) -> Tuple[str, ...]:
+    """PRIVATE: Validate one immutable sequence of differing field names.
+
+    Parameters
+    ----------
+    value : Tuple[str, ...]
+        Candidate tuple of differing certificate field names.
+    name : str
+        Category name used in the static error message.
+
+    Returns
+    -------
+    value : Tuple[str, ...]
+        The validated input tuple, unchanged.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not a tuple, or if any entry is not a nonempty
+        string. This is the static construction-time contract.
+
+    Notes
+    -----
+    Check the container type first and then every entry. Return the same
+    tuple so the factory can bind the result directly.
+    """
     if not isinstance(value, tuple) or any(
         not isinstance(item, str) or not item for item in value
     ):
@@ -118,10 +143,10 @@ def _difference_names(value: tuple[str, ...], name: str) -> tuple[str, ...]:
 @jaxtyped(typechecker=beartype)
 def make_certificate_diff(  # noqa: DOC502
     *,
-    scientific: tuple[str, ...] = (),
-    numerical: tuple[str, ...] = (),
-    environment: tuple[str, ...] = (),
-    audit: tuple[str, ...] = (),
+    scientific: Tuple[str, ...] = (),
+    numerical: Tuple[str, ...] = (),
+    environment: Tuple[str, ...] = (),
+    audit: Tuple[str, ...] = (),
 ) -> CertificateDiff:
     """Construct a validated certificate-difference record.
 
@@ -144,16 +169,16 @@ def make_certificate_diff(  # noqa: DOC502
 
     Parameters
     ----------
-    scientific : tuple[str, ...]
+    scientific : Tuple[str, ...]
         Differing scientific fields (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty.
-    numerical : tuple[str, ...]
+    numerical : Tuple[str, ...]
         Differing numerical fields (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty.
-    environment : tuple[str, ...]
+    environment : Tuple[str, ...]
         Differing environment fields (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty.
-    audit : tuple[str, ...]
+    audit : Tuple[str, ...]
         Differing audit fields (**static** -- compile-time constants; changing
         them triggers retracing). Default is empty.
 

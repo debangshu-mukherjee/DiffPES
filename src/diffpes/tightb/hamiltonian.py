@@ -40,7 +40,27 @@ from .soc import soc_matrix
 
 
 def _reverse_hopping_indices(model: TBModel) -> Int32[Array, " n_hop"]:
-    """Derive the reverse-entry permutation from exact static metadata."""
+    """PRIVATE: Derive the reverse-entry permutation from static metadata.
+
+    Parameters
+    ----------
+    model : TBModel
+        Validated tight-binding model with exact integer hopping
+        metadata.
+
+    Returns
+    -------
+    indices : Int32[Array, " n_hop"]
+        Position of the reversed record ``(j, i, -R)`` for every hopping
+        record ``(i, j, R)``.
+
+    Notes
+    -----
+    A Python dictionary over the static ``hopping_pairs`` and
+    ``hopping_cells`` tuples resolves every reversed record exactly, so
+    the permutation stays fixed at trace time. The model factory
+    guarantees that each reverse partner exists.
+    """
     records: tuple[tuple[int, int, tuple[int, int, int]], ...] = tuple(
         (pair[0], pair[1], cell)
         for pair, cell in zip(
@@ -63,7 +83,27 @@ def _reverse_hopping_indices(model: TBModel) -> Int32[Array, " n_hop"]:
 def _validated_hopping_amplitudes(
     model: TBModel,
 ) -> Complex128[Array, " n_hop"]:
-    """Validate traced hopping invariants again."""
+    """PRIVATE: Validate traced hopping invariants again.
+
+    Parameters
+    ----------
+    model : TBModel
+        Validated tight-binding model; differentiable updates may have
+        changed its amplitudes after construction.
+
+    Returns
+    -------
+    amplitudes : Complex128[Array, " n_hop"]
+        The model hopping amplitudes in eV with runtime checks threaded.
+
+    Notes
+    -----
+    :func:`equinox.error_if` guards raise ``EquinoxRuntimeError`` when an
+    amplitude is non-finite or when any entry deviates from the conjugate
+    of its reverse partner by more than ``EPS``. The recheck runs at
+    evaluation time so differentiable parameter updates cannot bypass the
+    Hermitian-closure invariant certified by the model factory.
+    """
     amplitudes: Complex128[Array, " n_hop"] = eqx.error_if(
         model.hopping_amplitudes,
         ~jnp.all(jnp.isfinite(model.hopping_amplitudes)),
@@ -86,7 +126,36 @@ def _assemble_bloch_hamiltonian(
     k: Float64[Array, " 3"],
     amplitudes: Complex128[Array, " n_hop"],
 ) -> Complex128[Array, "n_orb n_orb"]:
-    """Assemble one Hamiltonian from already validated amplitudes."""
+    r"""PRIVATE: Assemble one Hamiltonian from already validated amplitudes.
+
+    Parameters
+    ----------
+    model : TBModel
+        Validated tight-binding model providing static connectivity,
+        geometry, onsite energies, and SOC metadata.
+    k : Float64[Array, " 3"]
+        Fractional reciprocal-space k-point.
+    amplitudes : Complex128[Array, " n_hop"]
+        Hermitian-closure-checked hopping amplitudes in eV.
+
+    Returns
+    -------
+    hamiltonian : Complex128[Array, "n_orb n_orb"]
+        Complex Hermitian Bloch Hamiltonian in eV.
+
+    Notes
+    -----
+    The basis-position gauge phase of record ``(i, j, R)`` is
+    :math:`\exp[2\pi i k\cdot(R+\tau_j-\tau_i)]`. Explicit
+    ``model.orbital_positions`` supply each :math:`\tau` when present;
+    otherwise ``basis.atom_indices`` selects atomic positions from the
+    geometry. One flattened scatter-add accumulates all phased hoppings,
+    the onsite energies fill the diagonal, and a spinor model adds the
+    shell-resolved atomic SOC matrix exactly once. Chained
+    :func:`equinox.error_if` guards reject non-finite orbital positions,
+    nonzero SOC couplings without spin doubling, and a non-finite or
+    non-Hermitian assembled matrix.
+    """
     n_orbitals: int = model.onsite_energies.shape[0]
     if model.orbital_positions is None:
         atom_indices: Int32[Array, " n_orb"] = jnp.asarray(

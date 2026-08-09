@@ -35,7 +35,19 @@ from tests._gradients import gradient_gate
 
 
 def _one_atom_geometry() -> CrystalGeometry:
-    """Build a one-atom orthogonal-cell geometry."""
+    """PRIVATE: Build a one-atom orthogonal-cell geometry.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Unit-cubic-cell geometry in Angstrom with one species-X atom at
+        the origin.
+
+    Notes
+    -----
+    Atomic spin--orbit coupling acts on-site, so one atom in a unit
+    cell is the smallest carrier the SOC fixtures need.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -48,7 +60,29 @@ def _make_atomic_shell_model(
     angular_momentum: int,
     coupling: float,
 ) -> TBModel:
-    """Build a spin-doubled isolated complete shell."""
+    """PRIVATE: Build a spin-doubled isolated complete shell.
+
+    Parameters
+    ----------
+    angular_momentum : int
+        Orbital angular momentum ``l`` of the complete shell.
+    coupling : float
+        Atomic spin--orbit coupling strength in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Spin-doubled model of one isolated ``2l + 1``-orbital shell
+        with zero onsite energies and no hoppings.
+
+    Notes
+    -----
+    Without hoppings the Hamiltonian is exactly ``lambda L.S``, whose
+    spectrum splits into the two atomic multiplets ``j = l + 1/2`` and
+    ``j = l - 1/2`` with the closed eigenvalues ``lambda*l/2`` and
+    ``-lambda*(l + 1)/2``. The multiplet tests compare against these
+    degeneracies and energies.
+    """
     magnetic_numbers: tuple[int, ...] = tuple(
         range(-angular_momentum, angular_momentum + 1)
     )
@@ -75,7 +109,29 @@ def _make_atomic_shell_model(
 
 
 def _make_dispersive_p_model(coupling: float = 0.37) -> TBModel:
-    """Build an inversion- and time-reversal-symmetric p-shell model."""
+    """PRIVATE: Build an inversion- and time-reversal-symmetric p-shell
+    model.
+
+    Parameters
+    ----------
+    coupling : float
+        Atomic spin--orbit coupling strength in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Spin-doubled one-atom p-shell model with orbital-diagonal
+        conjugate hopping pairs ``(-0.7, -1.1, -1.6)`` eV along x,
+        onsite energies ``(0.2, -0.1, 0.4)`` eV, and the given SOC
+        strength.
+
+    Notes
+    -----
+    Real orbital-diagonal hoppings on ``(+/-1, 0, 0)`` preserve both
+    inversion and time reversal. Every band of this dispersive model
+    must therefore stay two-fold Kramers degenerate at each k-point.
+    The degeneracy tests certify this property.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0),
         n=(2, 2, 2),

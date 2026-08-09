@@ -1,0 +1,351 @@
+{
+  "schema": "diffpes.chinook-spectral-reference.v1",
+  "requirement": "chinook-spectral-parity",
+  "classification": "K-type behavioral compatibility",
+  "comparison": {
+    "comparison_array": "intensity_raw",
+    "quantity": "I(k, omega_rel)",
+    "rtol": 1e-06,
+    "policy": "pytest compares I(k, omega_rel) using artifact data only, after the independent correctness evidence passes; agreement establishes compatibility, never correctness"
+  },
+  "chinook_repository": "https://github.com/qmlab-ubc-ca/chinook",
+  "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "chinook_distribution_version": "1.1.3",
+  "chinook_distribution": "chinook @ git+https://github.com/qmlab-ubc-ca/chinook@24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "chinook_snapshot_archive": {
+    "source": "https://github.com/qmlab-ubc-ca/chinook/archive/24913de8cc5b8c162f7c1b4acc64bd1b54dd548b.tar.gz",
+    "sha256": "2cf3c830236af5c6311949cf8a655467fd7d10e75e191250e3bac4e37a00e01b",
+    "package_content_sha256": "e2a12678f55c74317dc7309d2a565794fecfdafaea9ab5d57d5c4a73b4aa4b94",
+    "package_content_hash_rule": "sha256 of the sorted per-file sha256sum listing of every *.py and *.txt file under the chinook/ package directory (paths relative to that directory, __pycache__ excluded); identical for the snapshot tarball, the installed pinned distribution, and the local read-only snapshot"
+  },
+  "environment": {
+    "environment_sha256": "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531",
+    "python_version": "3.11.13",
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.11.4",
+    "matplotlib_version": "3.8.4",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "numpy_build_configuration": "{\n  \"Compilers\": {\n    \"c\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"10.2.1\",\n      \"commands\": \"cc\",\n      \"args\": \"-fno-strict-aliasing\",\n      \"linker args\": \"-Wl,--strip-debug, -fno-strict-aliasing\"\n    },\n    \"cython\": {\n      \"name\": \"cython\",\n      \"linker\": \"cython\",\n      \"version\": \"3.0.8\",\n      \"commands\": \"cython\"\n    },\n    \"c++\": {\n      \"name\": \"gcc\",\n      \"linker\": \"ld.bfd\",\n      \"version\": \"10.2.1\",\n      \"commands\": \"c++\",\n      \"linker args\": \"-Wl,--strip-debug\"\n    }\n  },\n  \"Machine Information\": {\n    \"host\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    },\n    \"build\": {\n      \"cpu\": \"x86_64\",\n      \"family\": \"x86_64\",\n      \"endian\": \"little\",\n      \"system\": \"linux\"\n    }\n  },\n  \"Build Dependencies\": {\n    \"blas\": {\n      \"name\": \"openblas64\",\n      \"found\": true,\n      \"version\": \"0.3.23.dev\",\n      \"detection method\": \"pkgconfig\",\n      \"include directory\": \"/usr/local/include\",\n      \"lib directory\": \"/usr/local/lib\",\n      \"openblas configuration\": \"USE_64BITINT=1 DYNAMIC_ARCH=1 DYNAMIC_OLDER= NO_CBLAS= NO_LAPACK= NO_LAPACKE= NO_AFFINITY=1 USE_OPENMP= HASWELL MAX_THREADS=2\",\n      \"pc file directory\": \"/usr/local/lib/pkgconfig\"\n    },\n    \"lapack\": {\n      \"name\": \"dep140213194937296\",\n      \"found\": true,\n      \"version\": \"1.26.4\",\n      \"detection method\": \"internal\",\n      \"include directory\": \"unknown\",\n      \"lib directory\": \"unknown\",\n      \"openblas configuration\": \"unknown\",\n      \"pc file directory\": \"unknown\"\n    }\n  },\n  \"Python Information\": {\n    \"path\": \"/opt/python/cp311-cp311/bin/python\",\n    \"version\": \"3.11\"\n  },\n  \"SIMD Extensions\": {\n    \"baseline\": [\n      \"SSE\",\n      \"SSE2\",\n      \"SSE3\"\n    ],\n    \"found\": [\n      \"SSSE3\",\n      \"SSE41\",\n      \"POPCNT\",\n      \"SSE42\",\n      \"AVX\",\n      \"F16C\",\n      \"FMA3\",\n      \"AVX2\",\n      \"AVX512F\",\n      \"AVX512CD\",\n      \"AVX512_SKX\"\n    ],\n    \"not found\": [\n      \"AVX512_KNL\",\n      \"AVX512_KNM\",\n      \"AVX512_CLX\",\n      \"AVX512_CNL\",\n      \"AVX512_ICL\"\n    ]\n  }\n}\n",
+    "note": "identical environment identity (same freeze hash) as the committed slab and matrix-element Chinook artifacts"
+  },
+  "offline_generation": {
+    "runner": "diffpes-plans/verification/spectral_chinook_crosscheck/run_chinook_spectral.py",
+    "runner_generator_field": "run_chinook_spectral.py",
+    "raw_archive": "chinook_spectral_raw.npz",
+    "raw_archive_sha256": "47d15ec2db3dbc60068c914756280db8c7053822e438bb8b42ec6ac4002076b1",
+    "model_specification_sha256": "4f15ea732076e459dad67a8f6380c0e62a681ae12d7cc19bfa5b42ed92e29754",
+    "policy": "generated manually in the isolated pinned environment outside the DiffPES repository; DiffPES production code, pytest, and CI never import or invoke Chinook, this runner, or this assembler's offline inputs",
+    "model_specification": {
+      "schema": "diffpes.chinook-spectral-model.v1",
+      "model_id": "RM-1-spectral",
+      "graphene": {
+        "lattice_constant_angstrom": 2.46,
+        "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
+        "positions_fractional": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.0
+          ]
+        ],
+        "species": [
+          "C",
+          "C"
+        ],
+        "orbitals": [
+          "2p_z",
+          "2p_z"
+        ],
+        "onsite_ev": 0.0,
+        "nearest_neighbor_hopping_ev": -2.7
+      },
+      "experiment": {
+        "photon_energy_ev": 21.2,
+        "work_function_ev": 4.5,
+        "mean_free_path_angstrom": 10.0,
+        "temperature_k": 4.2,
+        "polarization_cartesian": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "self_energy": {
+          "mode": "constant",
+          "gamma_ev": 0.02,
+          "sigma_ev": "-i*0.02",
+          "eta_floor_ev": 5e-05,
+          "eta_floor_origin": "hard-coded -0.00005j in ARPES_lib.experiment.spectral"
+        },
+        "radial_mode": "fixed",
+        "radial_values_after_i_power": {
+          "lprime_0": 1.0,
+          "lprime_2": -1.0
+        },
+        "spin": "spinless"
+      },
+      "axes": {
+        "valley_centre": "(2*pi/a)*(1/sqrt(3),1/3,0)",
+        "map_half_width_inverse_angstrom": 0.18,
+        "map_points_per_axis": 31,
+        "kz_inverse_angstrom": 0.0,
+        "omega_rel_ev": [
+          -2.5,
+          0.2,
+          261
+        ],
+        "omega_meaning": "relative energy E - E_F; graphene at half filling puts E_F = 0 exactly (Dirac point), so Chinook's cube energy axis is the program-wide omega_rel axis",
+        "resolution": {
+          "E_ev": 0.02,
+          "k_inverse_angstrom": 0.01
+        }
+      },
+      "state_selection": "Chinook datacube retains eigenstates with binding energy in [E0 - 5*dE_bin, E1 + 5*dE_bin], dE_bin = (E1 - E0)/n_omega; the retained states are serialized in pks_state",
+      "comparison_array": "intensity_raw, the pre-resolution spectral cube; the Gaussian-filtered cube is stored as informative data only"
+    }
+  },
+  "assembler": {
+    "script": "tests/_reference_tools/generate_chinook_spectral_reference.py",
+    "script_sha256": "0236bb1206d65581c05af21b017890c4508e2351105632fe9cf150db5197c0cc",
+    "boundary": "imports NumPy only; consumes the offline raw archive and re-freezes it after full parameter revalidation"
+  },
+  "diffpes_baseline_commit": "551f7fca10dde5adbd856a526b63c6e77ad8f1d3",
+  "model_and_axis_parameters": {
+    "model_id": "RM-1-spectral",
+    "protocol_model": "chinook-parity protocol section 2.2 graphene p_z two-site reference model (RM-1)",
+    "lattice_constant_angstrom": 2.46,
+    "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
+    "positions_fractional": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.0
+      ]
+    ],
+    "species": [
+      "C",
+      "C"
+    ],
+    "orbitals": [
+      "2p_z",
+      "2p_z"
+    ],
+    "onsite_ev": 0.0,
+    "nearest_neighbor_hopping_ev": -2.7,
+    "spin": "spinless",
+    "photon_energy_ev": 21.2,
+    "work_function_ev": 4.5,
+    "mean_free_path_angstrom": 10.0,
+    "temperature_k": 4.2,
+    "polarization_cartesian": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "self_energy": {
+      "mode": "constant",
+      "sigma_ev": "-i*0.02",
+      "gamma_ev": 0.02,
+      "eta_floor_ev": 5e-05,
+      "eta_floor_origin": "Chinook ARPES_lib.experiment.spectral hard-codes -0.00005j in the resolvent denominator (protocol declared difference D-3)"
+    },
+    "radial_mode": "fixed; p-to-s and p-to-d values (1, -1) after the i**lprime phase, matching the committed Chinook matrix-element parity artifact",
+    "valley_centre": "(2*pi/a)*(1/sqrt(3), 1/3, 0)",
+    "map_half_width_inverse_angstrom": 0.18,
+    "map_points_per_axis": 31,
+    "kz_inverse_angstrom": 0.0,
+    "omega_rel_axis_ev": [
+      -2.5,
+      0.2,
+      261
+    ],
+    "omega_meaning": "relative energy E - E_F; the half-filled graphene toy puts E_F = 0 exactly, so Chinook's cube energy axis is the program-wide omega_rel axis and the Fermi factor midpoint sits at omega_rel = 0",
+    "resolution_recorded_not_applied": {
+      "E_ev": 0.02,
+      "k_inverse_angstrom": 0.01,
+      "note": "the comparison array intensity_raw is Chinook's pre-resolution cube; the Gaussian-filtered cube is stored as informative data only and is outside the registered spectral comparison"
+    },
+    "state_selection": "Chinook datacube retains eigenstates with energy in [E0 - 5*dE_bin, E1 + 5*dE_bin], dE_bin = (E1 - E0)/n_omega = 2.7/261 eV; excluded states contribute no Lorentzian tail. The retained states are serialized in pks_state as (flat_state_index, ky_index, kx_index, energy_ev)",
+    "intensity_semantics": "I[ky, kx, :] = sum_states M_factor * Im(-1 / (pi * (omega - eps - (-i*Gamma - i*eta)))) * f_FD(omega, 0, T); axis order (ky, kx, omega_rel)"
+  },
+  "archive": "chinook_spectral_reference.npz",
+  "archive_sha256": "5a6163b2566e09de2974873eea1bf6062782b3af41e3225fa1fe26eca2859c56",
+  "arrays": {
+    "kx_axis_inverse_angstrom": {
+      "shape": [
+        31
+      ],
+      "dtype": "float64"
+    },
+    "ky_axis_inverse_angstrom": {
+      "shape": [
+        31
+      ],
+      "dtype": "float64"
+    },
+    "omega_rel_ev": {
+      "shape": [
+        261
+      ],
+      "dtype": "float64"
+    },
+    "valley_centre_inverse_angstrom": {
+      "shape": [
+        3
+      ],
+      "dtype": "float64"
+    },
+    "intensity_raw": {
+      "shape": [
+        31,
+        31,
+        261
+      ],
+      "dtype": "float64"
+    },
+    "intensity_resolution_broadened": {
+      "shape": [
+        31,
+        31,
+        261
+      ],
+      "dtype": "float64"
+    },
+    "fermi_distribution": {
+      "shape": [
+        261
+      ],
+      "dtype": "float64"
+    },
+    "m_factor_state": {
+      "shape": [
+        1004
+      ],
+      "dtype": "float64"
+    },
+    "pks_state": {
+      "shape": [
+        1004,
+        4
+      ],
+      "dtype": "float64"
+    },
+    "kpoints_cartesian_inverse_angstrom": {
+      "shape": [
+        961,
+        3
+      ],
+      "dtype": "float64"
+    },
+    "band_energies_k_band_ev": {
+      "shape": [
+        961,
+        2
+      ],
+      "dtype": "float64"
+    },
+    "hamiltonians_k_orb_orb_ev": {
+      "shape": [
+        961,
+        2,
+        2
+      ],
+      "dtype": "complex128"
+    },
+    "graphene_lattice_angstrom": {
+      "shape": [
+        3,
+        3
+      ],
+      "dtype": "float64"
+    },
+    "graphene_positions_cartesian_angstrom": {
+      "shape": [
+        2,
+        3
+      ],
+      "dtype": "float64"
+    },
+    "graphene_hopping_records": {
+      "shape": [
+        5,
+        6
+      ],
+      "dtype": "float64"
+    },
+    "forensic_omega_rel_ev": {
+      "shape": [
+        261
+      ],
+      "dtype": "float64"
+    },
+    "forensic_negative_retarded_input": {
+      "shape": [
+        261
+      ],
+      "dtype": "float64"
+    },
+    "forensic_rejected_sigma": {
+      "shape": [
+        261
+      ],
+      "dtype": "complex128"
+    },
+    "forensic_accepted_sigma": {
+      "shape": [
+        261
+      ],
+      "dtype": "complex128"
+    },
+    "forensic_negative_coefficient_sigma": {
+      "shape": [
+        261
+      ],
+      "dtype": "complex128"
+    },
+    "forensic_positive_coefficient_sigma": {
+      "shape": [
+        261
+      ],
+      "dtype": "complex128"
+    }
+  },
+  "state_count": 1004,
+  "forensic_self_energy_sign_convention": {
+    "name": "self-energy-sign-convention-divergence",
+    "non_gating": true,
+    "acceptance_tolerance": null,
+    "classification": "documented expected divergence; forensic evidence only (chinook-parity protocol section 9 triage doctrine)",
+    "diffpes_convention": "retarded self-energy with Sigma''(omega) <= 0 everywhere; KK real part from the verified causal-pair/KK operator",
+    "chinook_behavior": "ARPES_lib.gen_SE_KK requires the magnitude |Sigma''| as input: its single-signed validation passes only when every sample is positive, after which it flips the sign internally.  A callable already returning the negative retarded Sigma'' is declared invalid and silently replaced by the constant -0.01j.  Polynomial-coefficient input cannot express a negative Sigma'' at all: coefficients pass through abs(), so an all-negative coefficient list with nonzero max is silently rectified, while one whose max is -0.0 is misclassified as imaginary-valued input, zeroed by np.imag, and crashes with an IndexError",
+    "evidence_arrays": [
+      "forensic_omega_rel_ev",
+      "forensic_negative_retarded_input",
+      "forensic_rejected_sigma",
+      "forensic_accepted_sigma",
+      "forensic_negative_coefficient_sigma",
+      "forensic_positive_coefficient_sigma"
+    ],
+    "captured_behavior": {
+      "rejected_stdout": "WARNING: Invalid definition of imaginary part of self energy--values must all be single-signed. Returning constant -0.01j as Self-energy.\n",
+      "accepted_stdout": "",
+      "rejected_equals_constant_fallback": "True",
+      "zero_max_negative_coefficient_stdout": "Input WARNING: Pass arguments for imaginary part of self-energy as real values. Passing imaginary part as the functional arguments\n",
+      "zero_max_negative_coefficient_crash": "IndexError: index 0 is out of bounds for axis 0 with size 0",
+      "negative_coefficient_stdout": "",
+      "negative_coefficients_coerced_to_positive": "True"
+    },
+    "disposition": "convention divergence documented, not emulated; DiffPES production and the registered spectral comparison are unaffected and no reference-code sign behavior enters production"
+  },
+  "policy": "Immutable frozen K-type comparator artifact. Chinook is a behavioral comparison target, never a correctness oracle; independent analytic and invariant evidence adjudicates correctness."
+}

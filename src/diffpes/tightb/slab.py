@@ -77,7 +77,28 @@ from diffpes.types import (
 
 
 def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
-    """Return nonnegative gcd and signed Bezout coefficients."""
+    """PRIVATE: Return nonnegative gcd and signed Bezout coefficients.
+
+    Parameters
+    ----------
+    first : int
+        First integer, any sign.
+    second : int
+        Second integer, any sign.
+
+    Returns
+    -------
+    result : tuple[int, int, int]
+        Values ``(g, x, y)`` with nonnegative ``g = gcd(first, second)``
+        and exactly ``x * first + y * second == g``.
+
+    Notes
+    -----
+    The iterative extended Euclidean algorithm runs on absolute values;
+    a final sign flip moves the coefficients back to the signed inputs.
+    All arithmetic is exact Python integer arithmetic, so the Bezout
+    identity holds without rounding.
+    """
     old_remainder: int = abs(first)
     remainder: int = abs(second)
     old_coefficient: int = 1
@@ -106,7 +127,24 @@ def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
 
 
 def _determinant_3x3(matrix: Int64[NDArray, "3 3"]) -> int:
-    """Evaluate a three-dimensional integer determinant exactly."""
+    """PRIVATE: Evaluate a three-dimensional integer determinant exactly.
+
+    Parameters
+    ----------
+    matrix : Int64[NDArray, "3 3"]
+        Integer matrix.
+
+    Returns
+    -------
+    determinant : int
+        Exact determinant value.
+
+    Notes
+    -----
+    Cofactor expansion on Python integers avoids floating-point rounding
+    and int64 overflow, so unimodularity checks on surface frames are
+    exact.
+    """
     a: int = int(matrix[0, 0])
     b: int = int(matrix[0, 1])
     c: int = int(matrix[0, 2])
@@ -125,7 +163,33 @@ def _determinant_3x3(matrix: Int64[NDArray, "3 3"]) -> int:
 def _primitive_integer_frame(
     miller: tuple[int, int, int],
 ) -> tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]:
-    """Construct an oriented integer kernel basis and unit-advance vector."""
+    """PRIVATE: Construct an oriented integer kernel basis and unit advance.
+
+    Parameters
+    ----------
+    miller : tuple[int, int, int]
+        Primitive (gcd-reduced) Miller indices.
+
+    Returns
+    -------
+    result : tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]
+        Two integer lattice vectors spanning the Miller plane and one
+        stacking vector that advances exactly one plane.
+
+    Raises
+    ------
+    ValueError
+        If the indices are not gcd-reduced or the assembled frame is not
+        unimodular.
+
+    Notes
+    -----
+    Nested extended-gcd calls give exact Bezout coefficients: both
+    kernel rows satisfy ``row . miller == 0`` and the stacking vector
+    satisfies ``stacking . miller == 1``. The stacked frame must have
+    determinant ``+-1``. A negative determinant flips the second kernel
+    row so the frame is right handed.
+    """
     first: int
     second: int
     third: int
@@ -194,7 +258,33 @@ def _gauss_reduce(
     kernel: Int64[NDArray, "2 3"],
     lattice: Float64[NDArray, "3 3"],
 ) -> Int64[NDArray, "2 3"]:
-    """Compute an exact reduced basis in the Cartesian lattice metric."""
+    """PRIVATE: Compute an exact reduced basis in the Cartesian metric.
+
+    Parameters
+    ----------
+    kernel : Int64[NDArray, "2 3"]
+        Integer basis of the surface plane.
+    lattice : Float64[NDArray, "3 3"]
+        Concrete bulk lattice rows in angstroms.
+
+    Returns
+    -------
+    reduced : Int64[NDArray, "2 3"]
+        Lagrange--Gauss-reduced integer basis of the same plane.
+
+    Raises
+    ------
+    RuntimeError
+        If the reduction does not converge within 256 sweeps.
+
+    Notes
+    -----
+    Each sweep works on the Cartesian images of the integer rows. It
+    swaps the rows when the second is shorter, negates one row to keep
+    the orientation, and subtracts the nearest-integer projection
+    multiple. The row operations stay integer, so the reduced rows span
+    exactly the original plane lattice.
+    """
     reduced: Int64[NDArray, "2 3"] = kernel.copy()
     for _ in range(256):
         vectors: Float64[NDArray, "2 3"] = reduced @ lattice
@@ -221,7 +311,33 @@ def _closest_stacking_vector(
     kernel: Int64[NDArray, "2 3"],
     lattice: Float64[NDArray, "3 3"],
 ) -> Int64[NDArray, " 3"]:
-    """Compute the closest unit-advance vector to the plane normal."""
+    """PRIVATE: Compute the closest unit-advance vector to the plane normal.
+
+    Parameters
+    ----------
+    stacking : Int64[NDArray, " 3"]
+        Any integer vector advancing exactly one Miller plane.
+    kernel : Int64[NDArray, "2 3"]
+        Reduced integer basis of the plane.
+    lattice : Float64[NDArray, "3 3"]
+        Concrete bulk lattice rows in angstroms.
+
+    Returns
+    -------
+    closest : Int64[NDArray, " 3"]
+        Unit-advance vector of minimum Cartesian length, with ties
+        broken by the smallest coefficient pair.
+
+    Notes
+    -----
+    Adding in-plane kernel vectors never changes the plane advance, so
+    the task is a two-dimensional closest-vector search. A Gram
+    least-squares solve seeds the search. An enumeration box certifies
+    completeness: its radius derives from the seed norm and the smallest
+    in-plane singular value, so no closer pair exists outside it.
+    Shortening the in-plane component aligns the stacking vector as
+    closely as possible with the surface normal.
+    """
     in_plane: Float64[NDArray, "2 3"] = kernel @ lattice
     seed: Float64[NDArray, " 3"] = stacking @ lattice
     gram: Float64[NDArray, "2 2"] = in_plane @ in_plane.T
@@ -277,7 +393,29 @@ def _closest_stacking_vector(
 def _validate_miller(
     miller: tuple[int, int, int],
 ) -> tuple[int, int, int]:
-    """Validate a static primitive Miller tuple."""
+    """PRIVATE: Validate a static primitive Miller tuple.
+
+    Parameters
+    ----------
+    miller : tuple[int, int, int]
+        Candidate Miller indices.
+
+    Returns
+    -------
+    miller : tuple[int, int, int]
+        The unchanged, validated tuple.
+
+    Raises
+    ------
+    ValueError
+        If the value is not a tuple of three integers, equals
+        ``(0, 0, 0)``, or is not gcd-reduced.
+
+    Notes
+    -----
+    Exact integer gcd arithmetic performs the primitivity check on the
+    static host value before any surface construction.
+    """
     if (
         type(miller) is not tuple
         or len(miller) != 3  # noqa: PLR2004
@@ -301,7 +439,30 @@ def _validate_miller(
 def _surface_rotation(
     reciprocal_normal: Float64[Array, " 3"],
 ) -> Float64[Array, "3 3"]:
-    """Construct the guarded active rotation from a normal to positive z."""
+    """PRIVATE: Construct the guarded active rotation from a normal to +z.
+
+    Parameters
+    ----------
+    reciprocal_normal : Float64[Array, " 3"]
+        Reciprocal-lattice surface normal in 1/Angstrom, any nonzero
+        scale.
+
+    Returns
+    -------
+    rotation : Float64[Array, "3 3"]
+        Proper rotation that maps the unit normal onto ``(0, 0, 1)``.
+
+    Notes
+    -----
+    The generic branch is Rodrigues' formula built from the skew matrix
+    of ``normal x z``: ``I + K + K @ K / (1 + cos)``. ``jnp.where``
+    guards the antipode. Within ``1e-12`` of ``normal = -z`` the
+    selection sanitizes the denominator and picks the fixed pi rotation
+    about x, ``diag(1, -1, -1)``, so no singular branch runs.
+    :func:`diffpes.maths.safe_norm` normalizes the input
+    under its registered boundary convention. At ``normal = +z`` the
+    formula reduces exactly to the identity.
+    """
     normal_norm: Float64[Array, ""] = safe_norm(reciprocal_normal)
     normal: Float64[Array, " 3"] = reciprocal_normal / normal_norm
     z_axis: Float64[Array, " 3"] = jnp.asarray(
@@ -351,7 +512,34 @@ def _assemble_surface_cell(
     ],
     stacking_coeffs: tuple[int, int, int],
 ) -> SurfaceCell:
-    """Assemble continuous surface geometry from frozen integer topology."""
+    """PRIVATE: Assemble continuous surface geometry from frozen topology.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Differentiable bulk geometry.
+    miller : tuple[int, int, int]
+        Static primitive Miller indices.
+    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+        Frozen integer coefficients of the two in-plane vectors.
+    stacking_coeffs : tuple[int, int, int]
+        Frozen integer coefficients of the one-plane stacking vector.
+
+    Returns
+    -------
+    surface_cell : SurfaceCell
+        Rotated surface-frame vectors, interplanar spacing in Angstrom,
+        and the frozen integer provenance.
+
+    Notes
+    -----
+    The traced stage multiplies the frozen integer coefficients into the
+    differentiable lattice and computes the reciprocal normal
+    ``miller @ reciprocal``. It rotates all three vectors into the
+    surface frame and derives the interplanar spacing ``2 * pi / |G|``.
+    Within one frozen integer choice every output is differentiable in
+    the bulk geometry.
+    """
     coefficient_array: Float64[Array, "3 3"] = jnp.asarray(
         (*in_plane_coeffs, stacking_coeffs),
         dtype=jnp.float64,
@@ -458,7 +646,25 @@ def find_surface_cell(  # noqa: DOC502
 def _shell_groups(
     model: TBModel,
 ) -> dict[tuple[int, int, int, int], list[int]]:
-    """Compute orbital groups by site, principal shell, l, and spin."""
+    """PRIVATE: Compute orbital groups by site, principal shell, l, and spin.
+
+    Parameters
+    ----------
+    model : TBModel
+        Model that supplies the static basis metadata.
+
+    Returns
+    -------
+    groups : dict[tuple[int, int, int, int], list[int]]
+        Map from ``(atom, n, l, spin)`` to the basis positions of that
+        shell's orbitals.
+
+    Notes
+    -----
+    A spinless model uses the placeholder spin ``0`` for every orbital,
+    so each spatial shell forms one group. The groups are the units on
+    which Wigner rotation blocks act.
+    """
     groups: dict[tuple[int, int, int, int], list[int]] = {}
     orbital: int
     atom: int
@@ -489,7 +695,27 @@ def _missing_magnetic_numbers(
     tuple[int, int, int, int],
     tuple[int, ...],
 ]:
-    """Return missing m values for every incomplete registered shell."""
+    """PRIVATE: Return missing m values for every incomplete shell.
+
+    Parameters
+    ----------
+    model : TBModel
+        Model carrying the registered shells to audit.
+
+    Returns
+    -------
+    missing : dict[tuple[int, int, int, int], tuple[int, ...]]
+        Map from every incomplete ``(atom, n, l, spin)`` shell to its
+        absent magnetic numbers. Complete shells do not appear.
+
+    Notes
+    -----
+    A shell is incomplete when an ``m`` value from ``-l..+l`` is absent,
+    an ``m`` value repeats, or the orbital count differs from
+    ``2*l + 1``. A duplicated shell can report an empty absent tuple, so
+    callers must test dictionary membership, not tuple truth. Only
+    complete shells support a covariant Wigner rotation.
+    """
     missing: dict[tuple[int, int, int, int], tuple[int, ...]] = {}
     key: tuple[int, int, int, int]
     indices: list[int]
@@ -507,7 +733,29 @@ def _missing_magnetic_numbers(
 def _rotation_euler_zyz(
     rotation: Float64[Array, "3 3"],
 ) -> tuple[Float64[Array, ""], Float64[Array, ""], Float64[Array, ""]]:
-    """Convert one active Cartesian rotation to guarded z-y-z angles."""
+    """PRIVATE: Convert one active Cartesian rotation to guarded z-y-z angles.
+
+    Parameters
+    ----------
+    rotation : Float64[Array, "3 3"]
+        Proper active rotation matrix.
+
+    Returns
+    -------
+    result : tuple
+        Euler angles ``(alpha, beta, gamma)`` in radians for the z-y-z
+        convention, each a scalar array.
+
+    Notes
+    -----
+    ``beta`` comes from :func:`diffpes.maths.safe_arccos` of the lower
+    right element. Away from the poles, generic ``arctan2`` expressions
+    read the third row and column. Within ``1e-12`` of
+    ``sin(beta) = 0`` the two z rotations degenerate. The guarded branch
+    assigns the whole in-plane angle to ``alpha`` from the upper block
+    and sets ``gamma`` to zero. The sign branch follows the pole. All
+    selections use ``jnp.where``, so the angles stay traced.
+    """
     beta: Float64[Array, ""] = safe_arccos(rotation[2, 2])
     sine_beta: Float64[Array, ""] = jnp.sin(beta)
     generic_alpha: Float64[Array, ""] = safe_arctan2(
@@ -555,7 +803,31 @@ def _real_wigner(
     beta: Float64[Array, ""],
     gamma: Float64[Array, ""],
 ) -> Complex128[Array, "m1 m2"]:
-    """Convert the complex Wigner representation to real harmonics."""
+    """PRIVATE: Convert the complex Wigner representation to real harmonics.
+
+    Parameters
+    ----------
+    angular : int
+        Static shell angular momentum.
+    alpha : Float64[Array, ""]
+        First z-y-z Euler angle in radians.
+    beta : Float64[Array, ""]
+        Second z-y-z Euler angle in radians.
+    gamma : Float64[Array, ""]
+        Third z-y-z Euler angle in radians.
+
+    Returns
+    -------
+    real_matrix : Complex128[Array, "m1 m2"]
+        Wigner rotation of the shell in the package real-harmonic basis.
+
+    Notes
+    -----
+    The transform is the package operator convention
+    ``U.conj() @ D @ U.T``, with :func:`diffpes.maths.wigner_d`
+    supplying the complex-harmonic matrix and
+    :func:`diffpes.maths.real_harmonic_unitary` supplying ``U``.
+    """
     complex_matrix: Complex128[Array, "m1 m2"] = wigner_d(
         angular,
         alpha,
@@ -574,7 +846,30 @@ def _spin_half_wigner(
     beta: Float64[Array, ""],
     gamma: Float64[Array, ""],
 ) -> Complex128[Array, "2 2"]:
-    """Construct the spin-half Wigner matrix in (-1, +1) order."""
+    """PRIVATE: Construct the spin-half Wigner matrix in (-1, +1) order.
+
+    Parameters
+    ----------
+    alpha : Float64[Array, ""]
+        First z-y-z Euler angle in radians.
+    beta : Float64[Array, ""]
+        Second z-y-z Euler angle in radians.
+    gamma : Float64[Array, ""]
+        Third z-y-z Euler angle in radians.
+
+    Returns
+    -------
+    matrix : Complex128[Array, "2 2"]
+        Spinor rotation with rows and columns ordered as spin down then
+        spin up.
+
+    Notes
+    -----
+    The small-d factor uses ``cos(beta/2)`` and ``sin(beta/2)``. The
+    phases ``exp(-i m alpha)`` and ``exp(-i m gamma)`` multiply from the
+    left and right with ``m = (-1/2, +1/2)``. The down--up ordering
+    matches the package C8 spin storage convention.
+    """
     cosine: Float64[Array, ""] = jnp.cos(0.5 * beta)
     sine: Float64[Array, ""] = jnp.sin(0.5 * beta)
     small: Float64[Array, "2 2"] = jnp.stack(
@@ -599,7 +894,30 @@ def _orbital_rotation(
     model: TBModel,
     rotation: Float64[Array, "3 3"],
 ) -> Complex128[Array, "n_orb n_orb"]:
-    """Assemble the block-diagonal orbital and spin representation."""
+    """PRIVATE: Assemble the block-diagonal orbital and spin representation.
+
+    Parameters
+    ----------
+    model : TBModel
+        Model whose static basis metadata defines the shell blocks.
+    rotation : Float64[Array, "3 3"]
+        Proper active Cartesian rotation.
+
+    Returns
+    -------
+    representation : Complex128[Array, "n_orb n_orb"]
+        Unitary rotation representation in the model basis order.
+
+    Notes
+    -----
+    Guarded z-y-z Euler angles feed one real-harmonic Wigner matrix per
+    distinct ``l`` and, for a spinor model, one spin-half matrix. Every
+    entry couples two orbitals of the same ``(atom, n, l)`` shell. It
+    multiplies the angular factor at their magnetic numbers by the
+    spin-half factor at their spin labels; a spinless model uses a unit
+    spin factor. Orbitals of different shells never mix, so the matrix
+    is block diagonal over complete shells in any basis order.
+    """
     alpha: Float64[Array, ""]
     beta: Float64[Array, ""]
     gamma: Float64[Array, ""]
@@ -650,7 +968,28 @@ def _orbital_rotation(
 def _translation_blocks(
     model: TBModel,
 ) -> tuple[tuple[tuple[int, int, int], ...], Complex128[Array, "n_r n_o n_o"]]:
-    """Materialize translation blocks, including diagonal onsite terms."""
+    """PRIVATE: Materialize translation blocks with diagonal onsite terms.
+
+    Parameters
+    ----------
+    model : TBModel
+        Model supplying the sparse hopping records to densify.
+
+    Returns
+    -------
+    result : tuple
+        Sorted static cell tuples and one dense complex block per cell.
+        Each block holds the hoppings in eV scattered by pair; the
+        zero-cell block also carries the onsite energies on its
+        diagonal.
+
+    Notes
+    -----
+    The zero cell is always present even without home-cell hoppings, so
+    the onsite diagonal has a destination. Dense blocks let one unitary
+    conjugation rotate arbitrary onsite and hopping structure without
+    assuming shell degeneracy.
+    """
     zero_cell: tuple[int, int, int] = (0, 0, 0)
     cells: tuple[tuple[int, int, int], ...] = tuple(
         sorted(set(model.hopping_cells) | {zero_cell})
@@ -828,7 +1167,29 @@ def rotate_tb_model(  # noqa: DOC503
 def _surface_integer_matrix(
     surface_cell: SurfaceCell,
 ) -> Int64[NDArray, "3 3"]:
-    """Return the exact row-wise bulk-to-surface integer frame."""
+    """PRIVATE: Return the exact row-wise bulk-to-surface integer frame.
+
+    Parameters
+    ----------
+    surface_cell : SurfaceCell
+        Surface cell carrying frozen integer coefficients.
+
+    Returns
+    -------
+    coefficients : Int64[NDArray, "3 3"]
+        Rows holding the two in-plane vectors and the stacking vector in
+        bulk fractional coordinates.
+
+    Raises
+    ------
+    ValueError
+        If the exact integer determinant is not one.
+
+    Notes
+    -----
+    Determinant ``+1`` certifies an oriented unimodular frame, so bulk
+    and surface integer coordinates stay exactly interconvertible.
+    """
     coefficients: Int64[NDArray, "3 3"] = np.asarray(
         (
             surface_cell.in_plane_coeffs[0],
@@ -850,7 +1211,30 @@ def _surface_integer_matrix(
 def _inverse_integer_matrix(
     coefficients: Int64[NDArray, "3 3"],
 ) -> Int64[NDArray, "3 3"]:
-    """Compute a unimodular inverse and verify exact integer recovery."""
+    """PRIVATE: Compute a unimodular inverse and verify exact recovery.
+
+    Parameters
+    ----------
+    coefficients : Int64[NDArray, "3 3"]
+        Integer frame with determinant one.
+
+    Returns
+    -------
+    inverse : Int64[NDArray, "3 3"]
+        Exact integer inverse of the frame.
+
+    Raises
+    ------
+    ValueError
+        If the determinant is not one or the product with the candidate
+        inverse is not exactly the identity.
+
+    Notes
+    -----
+    For a determinant-one matrix the inverse equals the adjugate, so
+    every entry is an exact integer cofactor. The final multiplication
+    check guards against silent integer overflow in the ``int64`` cast.
+    """
     determinant: int = _determinant_3x3(coefficients)
     if determinant != 1:
         message: str = "surface integer frame must have determinant one"
@@ -883,7 +1267,29 @@ def _base_surface_coordinates(
     geometry: CrystalGeometry,
     inverse_coefficients: Int64[NDArray, "3 3"],
 ) -> tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]:
-    """Compute atom representatives and integer surface-cell shifts."""
+    """PRIVATE: Compute atom representatives and integer surface-cell shifts.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Concrete bulk geometry.
+    inverse_coefficients : Int64[NDArray, "3 3"]
+        Exact inverse of the bulk-to-surface integer frame.
+
+    Returns
+    -------
+    result : tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]
+        Surface fractional representatives in ``[0, 1)`` and the exact
+        integer shifts removed from every atom.
+
+    Notes
+    -----
+    Multiplying bulk fractional positions by the inverse frame gives
+    surface fractional coordinates. A ``floor`` with a ``1e-10`` guard
+    extracts the integer surface-cell part. Coordinates within the same
+    tolerance of one snap back to zero, so atoms on the upper boundary
+    join the home cell deterministically.
+    """
     surface_coordinates: Float64[NDArray, "n_atom 3"] = (
         np.asarray(geometry.positions, dtype=np.float64) @ inverse_coefficients
     )
@@ -907,7 +1313,46 @@ def _natural_atom_copies(
     thickness_ang: float,
     fine: tuple[float, float],
 ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]:
-    """Select the smallest post-fine natural stack meeting the minimum span."""
+    """PRIVATE: Select the smallest natural stack meeting the minimum span.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Concrete bulk geometry supplying species labels.
+    base_coordinates : Float64[NDArray, "n_atom 3"]
+        Surface fractional atom representatives in ``[0, 1)``.
+    surface_vectors : Float64[NDArray, "3 3"]
+        Concrete surface-frame vectors in angstroms.
+    n_layers : int
+        Starting number of stacked one-plane layers.
+    thickness_ang : float
+        Minimum retained material span in Angstrom.
+    fine : tuple[float, float]
+        Inward ``(top, bottom)`` cut shifts in Angstrom.
+
+    Returns
+    -------
+    result : tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]
+        Bulk atom index and normalized layer of every retained copy, and
+        the resolved ``(top, bottom)`` termination species.
+
+    Raises
+    ------
+    ValueError
+        If no expanded stack keeps the requested span after the fine
+        cuts.
+
+    Notes
+    -----
+    The search grows the layer count from ``n_layers`` upward. For each
+    candidate count it keeps every atom copy whose Cartesian height lies
+    between the fine-shifted bottom and top cuts, with a ``1e-10``
+    tolerance. The search accepts the first count whose kept span
+    reaches ``thickness_ang``. Kept copies sort by layer then atom, and
+    layers renumber densely from zero. The extreme-height atoms name the
+    termination; a species-free geometry reports the placeholder
+    ``"X"``.
+    """
     spacing: float = abs(float(surface_vectors[2, 2]))
     base_heights: Float64[NDArray, " n_atom"] = (
         base_coordinates @ surface_vectors[:, 2]
@@ -989,7 +1434,45 @@ def _terminated_atom_copies(  # noqa: PLR0913
     termination: tuple[str, str],
     fine: tuple[float, float],
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Compute a post-fine stack with requested endpoint species."""
+    """PRIVATE: Compute a post-fine stack with requested endpoint species.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Concrete bulk geometry; must declare species.
+    base_coordinates : Float64[NDArray, "n_atom 3"]
+        Surface fractional atom representatives in ``[0, 1)``.
+    surface_vectors : Float64[NDArray, "3 3"]
+        Concrete surface-frame vectors in angstroms.
+    n_layers : int
+        Starting number of stacked one-plane layers.
+    thickness_ang : float
+        Minimum retained material span in Angstrom.
+    termination : tuple[str, str]
+        Requested ``(top, bottom)`` species.
+    fine : tuple[float, float]
+        Inward ``(top, bottom)`` cut shifts in Angstrom.
+
+    Returns
+    -------
+    result : tuple[tuple[int, ...], tuple[int, ...]]
+        Bulk atom index and normalized layer of every retained copy.
+
+    Raises
+    ------
+    ValueError
+        If the geometry declares no species, or no expanded stack
+        provides both requested endpoint species with the minimum span.
+
+    Notes
+    -----
+    For each candidate layer count the search collects fine-cut atom
+    copies. It takes the lowest copy of the bottom species and the
+    highest copy of the top species. It keeps every copy between them
+    when their separation reaches ``thickness_ang``. The layer count
+    grows until this succeeds. Kept copies sort by layer then atom and
+    layers renumber densely from zero.
+    """
     if not geometry.species:
         message: str = "explicit termination requires geometry species"
         raise ValueError(message)
@@ -1078,7 +1561,28 @@ def _orbital_copy_metadata(
     tuple[int, ...],
     tuple[int, ...],
 ]:
-    """Compute each slab orbital's bulk, atom, and layer mapping."""
+    """PRIVATE: Compute each slab orbital's bulk, atom, and layer mapping.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Bulk orbital basis.
+    bulk_atom_of_slab_atom : tuple[int, ...]
+        Frozen bulk atom index of every slab atom.
+    layer_of_slab_atom : tuple[int, ...]
+        Frozen layer of every slab atom.
+
+    Returns
+    -------
+    result : tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]
+        Bulk orbital, slab atom index, and layer for every slab orbital.
+
+    Notes
+    -----
+    The walk visits slab atoms in frozen order and copies each bulk
+    atom's orbitals in bulk basis order. The slab orbital ordering is
+    therefore deterministic and reproducible from the topology alone.
+    """
     orbitals_by_atom: dict[int, list[int]] = {}
     bulk_orbital: int
     for bulk_orbital, atom in enumerate(basis.atom_indices):
@@ -1119,7 +1623,31 @@ def _slab_basis(
     slab_atom_indices: tuple[int, ...],
     slab_layers: tuple[int, ...],
 ) -> OrbitalBasis:
-    """Create static orbital metadata for one frozen slab topology."""
+    """PRIVATE: Create static orbital metadata for one frozen slab topology.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Bulk orbital basis.
+    slab_to_bulk : tuple[int, ...]
+        Bulk orbital behind every slab orbital.
+    slab_atom_indices : tuple[int, ...]
+        Slab atom index of every slab orbital.
+    slab_layers : tuple[int, ...]
+        Layer of every slab orbital.
+
+    Returns
+    -------
+    slab_basis : OrbitalBasis
+        Validated slab basis with layer-tagged labels.
+
+    Notes
+    -----
+    Quantum numbers and spin gather from the bulk basis. Labels append
+    ``@L<layer>`` to the bulk label, with the fallback ``orb<index>``
+    for an unlabeled bulk basis, so every layer copy keeps a distinct
+    name.
+    """
     labels: tuple[str, ...] = tuple(
         f"{basis.labels[bulk] if basis.labels else f'orb{bulk}'}@L{layer}"
         for bulk, layer in zip(slab_to_bulk, slab_layers, strict=True)
@@ -1143,7 +1671,30 @@ def _slab_shell_metadata(
     slab_to_bulk: tuple[int, ...],
     slab_atom_indices: tuple[int, ...],
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Create SOC shell IDs and their bulk-shell gather."""
+    """PRIVATE: Create SOC shell IDs and their bulk-shell gather.
+
+    Parameters
+    ----------
+    model : TBModel
+        Bulk model carrying the original shell map.
+    slab_to_bulk : tuple[int, ...]
+        Bulk orbital behind every slab orbital.
+    slab_atom_indices : tuple[int, ...]
+        Slab atom index of every slab orbital.
+
+    Returns
+    -------
+    result : tuple[tuple[int, ...], tuple[int, ...]]
+        Contiguous slab shell ID per orbital, with ``-1`` preserved for
+        excluded orbitals, and the bulk shell behind every new ID.
+
+    Notes
+    -----
+    Every ``(slab atom, bulk shell)`` combination receives one fresh
+    contiguous ID in first-appearance order. The gather tuple lets the
+    rebuild index bulk ``soc_lambdas``, so each atom copy keeps its bulk
+    coupling strength.
+    """
     shell_lookup: dict[tuple[int, int], int] = {}
     slab_shells: list[int] = []
     bulk_shell_gather: list[int] = []
@@ -1178,7 +1729,27 @@ def _orbital_lookup(
     tuple[int, ...],
     dict[tuple[int, int], int],
 ]:
-    """Create deterministic slab-orbital lookup metadata."""
+    """PRIVATE: Create deterministic slab-orbital lookup metadata.
+
+    Parameters
+    ----------
+    model : TBModel
+        Bulk model that provides the orbital basis to replicate.
+    spec : SlabSpec
+        Slab provenance carrying frozen atom and layer choices.
+
+    Returns
+    -------
+    result : tuple
+        Bulk orbital, slab atom index, and layer per slab orbital, plus
+        a ``(bulk orbital, layer)`` to slab-orbital dictionary.
+
+    Notes
+    -----
+    The dictionary inverts the deterministic copy order from
+    ``_orbital_copy_metadata``, so hopping propagation resolves a target
+    orbital copy in constant time.
+    """
     slab_to_bulk: tuple[int, ...]
     slab_atom_indices: tuple[int, ...]
     slab_layers: tuple[int, ...]
@@ -1212,7 +1783,34 @@ def _propagate_hoppings_with_shifts(
     tuple[tuple[int, int, int], ...],
     tuple[int, ...],
 ]:
-    """Propagate exact bulk hoppings through one frozen slab topology."""
+    """PRIVATE: Propagate exact bulk hoppings through one frozen topology.
+
+    Parameters
+    ----------
+    rotated_bulk : TBModel
+        Surface-frame bulk model supplying the hoppings to replicate.
+    spec : SlabSpec
+        Slab provenance carrying the frozen surface cell and copies.
+    atom_shifts : Int64[NDArray, "n_atom 3"]
+        Exact integer surface-cell shifts of the bulk atoms.
+
+    Returns
+    -------
+    result : tuple
+        Gathered slab hopping amplitudes in eV, slab orbital pairs, and
+        exact in-plane slab cells with a zero normal component. The last
+        member gives the bulk hopping index behind every slab record.
+
+    Notes
+    -----
+    Every bulk hopping cell transforms into surface coordinates through
+    the exact inverse integer frame. The mapping keeps a record only
+    when the target layer exists in the slab. Bonds leaving the finite
+    stack therefore drop out, and the retained graph stays open along
+    the normal by construction. Amplitudes come from one differentiable
+    gather into the bulk amplitudes, so slab hoppings keep bulk
+    parameter derivatives.
+    """
     coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
@@ -1304,7 +1902,28 @@ def _propagate_hoppings(
     tuple[tuple[int, int, int], ...],
     tuple[int, ...],
 ]:
-    """Propagate hoppings after eagerly selecting atom representatives."""
+    """PRIVATE: Propagate hoppings after eagerly selecting representatives.
+
+    Parameters
+    ----------
+    rotated_bulk : TBModel
+        Surface-frame bulk model supplying the hoppings to replicate.
+    spec : SlabSpec
+        Slab provenance carrying the frozen surface cell and copies.
+
+    Returns
+    -------
+    result : tuple
+        Gathered slab amplitudes in eV, slab orbital pairs, exact
+        in-plane slab cells, and the bulk hopping index per record.
+
+    Notes
+    -----
+    The wrapper derives the integer atom shifts from the concrete
+    geometry with ``_base_surface_coordinates`` and then delegates to
+    ``_propagate_hoppings_with_shifts``. Rebuilds that already carry
+    frozen shifts call the latter directly and skip this host step.
+    """
     coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
@@ -1453,7 +2072,50 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
     Float64[Array, " n_orb"],
     Float64[Array, "n_orb 3"] | None,
 ]:
-    """Assemble differentiable slab positions, centres, and depth tags."""
+    """PRIVATE: Assemble differentiable slab positions, centres, and depths.
+
+    Parameters
+    ----------
+    rotated_bulk : TBModel
+        Surface-frame bulk model.
+    surface_cell : SurfaceCell
+        Differentiable surface-frame vectors and spacing.
+    inverse_coefficients : Int64[NDArray, "3 3"]
+        Exact inverse of the bulk-to-surface integer frame.
+    atom_shifts : Int64[NDArray, "n_atom 3"]
+        Frozen integer surface-cell shifts of the bulk atoms.
+    bulk_atoms : tuple[int, ...]
+        Frozen bulk atom index of every slab atom.
+    atom_layers : tuple[int, ...]
+        Frozen layer of every slab atom.
+    slab_to_bulk : tuple[int, ...]
+        Bulk orbital behind every slab orbital.
+    slab_atom_indices : tuple[int, ...]
+        Slab atom index of every slab orbital.
+    n_layers : int
+        Frozen number of stacked one-plane layers.
+    vacuum_ang : float
+        Static vacuum padding in Angstrom.
+
+    Returns
+    -------
+    result : tuple
+        Validated slab geometry, per-orbital depths below the top
+        surface in Angstrom, and slab fractional orbital centres or
+        ``None`` when the bulk declares no explicit centres.
+
+    Notes
+    -----
+    Frozen integers only index and shift; every coordinate operation
+    runs on traced arrays, so positions, centres, and depths stay
+    differentiable within the topology. The assembly lifts the stack so
+    its lowest atom sits at zero height. The slab cell closes with
+    ``n_layers`` interlayer spacings plus the vacuum, and in-plane
+    fractional coordinates wrap modulo one. Explicit bulk orbital
+    centres propagate with per-orbital integer shifts; otherwise orbital
+    depths inherit their atom heights. Depth runs from the topmost
+    centre downward.
+    """
     inverse_array: Float64[Array, "3 3"] = jnp.asarray(
         inverse_coefficients,
         dtype=jnp.float64,
@@ -1957,7 +2619,39 @@ def _slab_operator_centres(
     operator_data: WannierOperatorData,
     spec: SlabSpec,
 ) -> Float64[Array, "n_orb_slab 3"]:
-    """Convert explicit Wannier centres into the slab cell."""
+    """PRIVATE: Convert explicit Wannier centres into the slab cell.
+
+    Parameters
+    ----------
+    bulk_model : TBModel
+        Bulk model whose basis orders the centres.
+    operator_data : WannierOperatorData
+        Bulk Wannier centres and optional position matrices.
+    spec : SlabSpec
+        Slab provenance carrying the frozen surface cell and copies.
+
+    Returns
+    -------
+    shifted_centres : Float64[Array, "n_orb_slab 3"]
+        Cartesian slab centres in angstroms, lifted by the same bottom
+        offset as the slab atoms.
+
+    Raises
+    ------
+    ValueError
+        If a nonidentity rotation meets matrix-free data whose shells do
+        not share one centre.
+
+    Notes
+    -----
+    Matrix-free (hr) data rotates the centres directly; that is
+    covariant only when every shell shares one centre, which the guard
+    enforces. Full (tb) data instead conjugates the position matrices
+    with the orbital representation and rotates their Cartesian
+    component. The real zero-cell diagonal then supplies the rotated
+    centres. The frozen integer shifts and layers translate every
+    orbital copy into place through the surface vectors.
+    """
     coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
@@ -2081,7 +2775,32 @@ def _propagated_operator_cells(
     operator_data: WannierOperatorData,
     spec: SlabSpec,
 ) -> tuple[tuple[int, int, int], ...]:
-    """Compute an operator cell grid for the exact slab topology."""
+    """PRIVATE: Compute an operator cell grid for the exact slab topology.
+
+    Parameters
+    ----------
+    bulk_model : TBModel
+        Bulk model providing atom and orbital metadata.
+    operator_data : WannierOperatorData
+        Bulk operator data supplying the cell grid to propagate.
+    spec : SlabSpec
+        Slab provenance carrying the frozen surface cell and copies.
+
+    Returns
+    -------
+    result : tuple[tuple[int, int, int], ...]
+        Sorted in-plane slab cells, all with a zero normal component,
+        reachable from any retained orbital copy.
+
+    Notes
+    -----
+    The walk repeats the exact hopping-propagation bookkeeping on the
+    operator cell grid. Every bulk cell transforms through the inverse
+    integer frame from every slab source orbital. The walk records a
+    slab cell whenever the target orbital copy exists. Matrix-free
+    sidecars use this grid because they carry no per-cell matrices to
+    scatter.
+    """
     coefficients: Int64[NDArray, "3 3"] = _surface_integer_matrix(
         spec.surface_cell
     )
@@ -2154,7 +2873,40 @@ def _propagate_position_matrices(  # noqa: PLR0915
     Complex128[Array, "n_R n_orb n_orb 3"],
     tuple[tuple[int, int, int], ...],
 ]:
-    """Propagate real-space position matrices with exact cell bookkeeping."""
+    """PRIVATE: Propagate real-space position matrices with exact bookkeeping.
+
+    Parameters
+    ----------
+    bulk_model : TBModel
+        Bulk model providing atom and orbital metadata.
+    operator_data : WannierOperatorData
+        Bulk operator data; must carry position matrices.
+    spec : SlabSpec
+        Slab provenance carrying the frozen surface cell and copies.
+    slab_centres_cart : Float64[Array, "n_orb_slab 3"]
+        Cartesian slab centres in angstroms for the diagonal reset.
+
+    Returns
+    -------
+    result : tuple
+        Dense slab position matrices per exact in-plane cell, in
+        angstroms, and the sorted cell tuple.
+
+    Raises
+    ------
+    ValueError
+        If the sidecar has no position matrices, or a nonidentity
+        rotation meets an incomplete shell.
+
+    Notes
+    -----
+    The orbital representation conjugates the bulk matrices and the
+    surface rotation rotates their Cartesian component. The exact
+    hopping-propagation bookkeeping then scatters every surviving
+    element into its slab cell. A final pass retranslates the zero-cell
+    diagonal so its real part equals the supplied slab centres. This
+    matches the shift and bottom lift of the slab geometry.
+    """
     if operator_data.position_matrices is None:
         message: str = "position-matrix propagation requires tb data"
         raise ValueError(message)

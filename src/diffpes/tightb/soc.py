@@ -50,7 +50,23 @@ from diffpes.types import (
 
 
 def _validate_angular_momentum(l: int) -> None:
-    """Validate one static angular-momentum quantum number."""
+    """PRIVATE: Validate one static angular-momentum quantum number.
+
+    Parameters
+    ----------
+    l : int
+        Candidate static orbital angular momentum.
+
+    Raises
+    ------
+    ValueError
+        If ``l`` is not an integer inside ``[0, L_MAX]``.
+
+    Notes
+    -----
+    The check reads the static Python value before any table
+    construction, so ``l`` participates in the JAX trace signature.
+    """
     if type(l) is not int or l < 0 or l > L_MAX:
         message: str = f"l={l} must satisfy 0 <= l <= {L_MAX}"
         raise ValueError(message)
@@ -61,7 +77,36 @@ def _validate_soc_structure(
     shell_index: tuple[int, ...],
     soc_lambdas: Float64[Array, " n_shells"],
 ) -> None:
-    """Validate static shell membership for SOC matrix construction."""
+    """PRIVATE: Validate static shell membership for SOC construction.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital basis whose metadata defines the shell groups.
+    shell_index : tuple[int, ...]
+        Candidate orbital-to-shell IDs with ``-1`` for excluded orbitals.
+    soc_lambdas : Float64[Array, " n_shells"]
+        Shell coupling energies in eV; the check reads only the static
+        shape.
+
+    Raises
+    ------
+    ValueError
+        If ``shell_index`` is not a tuple with one integer ``>= -1`` per
+        orbital, or ``soc_lambdas`` is not one-dimensional with length
+        ``max(shell_index) + 1``. Also raised when nonnegative IDs are
+        not contiguous from zero or an active shell lacks an explicit
+        spinor basis. Also raised when a shell spans more than one
+        ``(atom, n, l)`` group or its two spin sectors do not carry
+        matching unique ``m`` values.
+
+    Notes
+    -----
+    Every check reads static Python metadata, so an invalid shell
+    declaration fails before tracing. Matching spin sectors guarantee
+    that the canonical ``soc_shell_block`` rows and columns exist for
+    every listed orbital.
+    """
     n_orbitals: int = len(basis.n)
     if type(shell_index) is not tuple:
         message: str = "shell_index must be a tuple"
@@ -143,7 +188,32 @@ def _shell_maps(
     shell_index: tuple[int, ...],
     shell: int,
 ) -> tuple[tuple[int, ...], tuple[int, ...], int]:
-    """Return global and canonical full-shell indices for one SOC shell."""
+    """PRIVATE: Resolve one SOC shell to global and canonical block indices.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Validated spinor basis with real-harmonic metadata.
+    shell_index : tuple[int, ...]
+        Static orbital-to-shell IDs.
+    shell : int
+        Nonnegative shell ID to resolve.
+
+    Returns
+    -------
+    result : tuple[tuple[int, ...], tuple[int, ...], int]
+        Global basis positions of the shell orbitals, their matching
+        rows in the canonical down--up full-shell block, and the shell
+        angular momentum.
+
+    Notes
+    -----
+    The canonical block from ``soc_shell_block`` orders each spin sector
+    as ``m = -l..+l`` with down before up. The local index is therefore
+    ``m + l`` plus an offset of ``2*l + 1`` for spin up. Projected
+    subsets such as ``t2g`` select only their own rows, so both index
+    tuples can be shorter than the full shell.
+    """
     global_indices: tuple[int, ...] = tuple(
         orbital
         for orbital, candidate in enumerate(shell_index)

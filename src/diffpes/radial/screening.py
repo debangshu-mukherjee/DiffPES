@@ -21,7 +21,26 @@ from jaxtyping import jaxtyped
 
 
 def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
-    """Return the Madelung sequence with ground-state exceptions."""
+    """PRIVATE: Return the Madelung sequence with ground-state exceptions.
+
+    Parameters
+    ----------
+    atomic_number : int
+        Validated atomic number from 1 through 103.
+
+    Returns
+    -------
+    configuration : dict[tuple[int, int], int]
+        Occupancy for each occupied ``(n, l)`` subshell.
+
+    Implementation Logic
+    --------------------
+    Fills a static nineteen-subshell Madelung table from 1s through 7p
+    until no electrons remain.  A static exception map then overrides
+    the anomalous neutral ground states: chromium, copper, the 4d and
+    5d anomalies, and the lanthanide and actinide rows.  An override
+    occupancy of zero removes the subshell.
+    """
     orbitals: tuple[tuple[int, int, int], ...] = (
         (1, 0, 2),
         (2, 0, 2),

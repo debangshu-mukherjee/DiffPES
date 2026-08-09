@@ -1,6 +1,7 @@
 {
   "archive_sha256": "f9497541f1410cb9e71bb6e80853270439fb30fca697f796983430a3af541028",
   "data_license": "CC BY 4.0",
+  "digitisation_doi": "10.6084/m9.figshare.12389750.v3",
   "digitisation_method": {
     "input_format": "XLSX workbook",
     "interpolation_preparation": "split contiguous positive runs and compute PCHIP slopes in log(sigma_megabarn) versus log(photon_energy_ev)",
@@ -8,7 +9,6 @@
     "row_scope": "the first 16 photon-energy rows from each element sheet",
     "subshell_mapping": "sheet atomic number plus workbook ns/np/nd/nf headers"
   },
-  "digitisation_doi": "10.6084/m9.figshare.12389750.v3",
   "digitisation_replay_spot_checks": [
     {
       "atomic_number": 6,
@@ -44,18 +44,9 @@
     }
   ],
   "generator": "tests/_reference_tools/generate_yeh_lindau_data.py",
-  "generator_sha256": "66cff97119b1a001d7f6bd62c3a4225671d1172becac88539a8415badd1d0db7",
+  "generator_sha256": "27dd8ec4969aef430ee030086fa3998b0122e4eff60f32c38ae40eca2a8c94ce",
   "interpolation": "PCHIP in log(sigma_megabarn) versus log(photon_energy_ev)",
   "paper_doi": "10.1016/0092-640X(85)90016-6",
-  "reference_authority": {
-    "authentication": "Figshare DOI, immutable file ID and SHA-256; the publisher DOI binds the cited primary paper",
-    "figshare_metadata_sha256": "c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026a7bda44",
-    "numerical_authority": "versioned Regoutz-group Figshare workbook manually mined from the Yeh-Lindau tabulated data",
-    "project_url": "https://regoutzgroup.org/research/cross-sections/",
-    "project_page_sha256": "2e4c3cc0dbb73cecced5d8608fa44286ac444636e8d9142f4bbe4b042d236703",
-    "review": "Regoutz-group internal peer review; the project page records Prof. Lindau's agreement to make the dataset available",
-    "scope": "tabulated cross-section values only; no claim of an independent cell-by-cell transcription from a paper PDF"
-  },
   "primary_source_locator": {
     "independent_primary_spot_check_status": "not claimed; executable spot checks replay the authenticated versioned workbook",
     "independent_primary_spot_checks": [],
@@ -64,6 +55,15 @@
     "table_identifier_status": "not published in the authenticated workbook metadata; cell-level authority is the versioned Figshare dataset",
     "table_identifiers": null,
     "volume": 32
+  },
+  "reference_authority": {
+    "authentication": "Figshare DOI, immutable file ID and SHA-256; the publisher DOI binds the cited primary paper",
+    "figshare_metadata_sha256": "c908a3c855ffe98dabd4660fa4d3c17849ac0b9563c26c7bde0197026a7bda44",
+    "numerical_authority": "versioned Regoutz-group Figshare workbook manually mined from the Yeh-Lindau tabulated data",
+    "project_page_sha256": "2e4c3cc0dbb73cecced5d8608fa44286ac444636e8d9142f4bbe4b042d236703",
+    "project_url": "https://regoutzgroup.org/research/cross-sections/",
+    "review": "Regoutz-group internal peer review; the project page records Prof. Lindau's agreement to make the dataset available",
+    "scope": "tabulated cross-section values only; no claim of an independent cell-by-cell transcription from a paper PDF"
   },
   "source_file_id": "22867790",
   "source_filename": "Excel_Yeh_Lindau_1985_PICS.xlsx",

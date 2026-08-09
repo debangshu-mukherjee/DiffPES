@@ -13,7 +13,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Bool, Complex128, Float64
@@ -246,7 +246,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         self.assertFalse(bool(energy_valid))
         self.assertFalse(bool(momentum_valid))
 
-        operation: Callable[..., tuple[Array, Array]]
+        operation: Callable[..., Tuple[Array, Array]]
         compiled: bool
         for compiled in (False, True):
             operation = kz_from_inner_potential
@@ -294,7 +294,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         Evaluate one forbidden point twice and differentiate its real sentinel
         with respect to signed energy.
         """
-        eager: tuple[Complex128[Array, ""], Bool[Array, ""]] = (
+        eager: Tuple[Complex128[Array, ""], Bool[Array, ""]] = (
             kz_from_inner_potential(
                 4.0,
                 4.5,
@@ -303,7 +303,7 @@ class TestKzFromInnerPotential(chex.TestCase):
                 jnp.array(0.0),
             )
         )
-        compiled: tuple[Complex128[Array, ""], Bool[Array, ""]] = jax.jit(
+        compiled: Tuple[Complex128[Array, ""], Bool[Array, ""]] = jax.jit(
             kz_from_inner_potential
         )(
             4.0,
@@ -343,7 +343,7 @@ class TestKzFromInnerPotential(chex.TestCase):
         Evaluate eager and compiled paths, then differentiate the rejected
         sentinel away from the aperture boundary.
         """
-        operation: Callable[..., tuple[Array, Array]]
+        operation: Callable[..., Tuple[Array, Array]]
         compiled: bool
         for compiled in (False, True):
             operation = kz_from_inner_potential
@@ -548,7 +548,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         Use horizontal-slit angles ``(theta, 0)``. Compare the composed result
         with ``C*sqrt(Ekin*cos(theta)^2+V0)`` at ``rtol=1e-10``.
         """
-        cases: tuple[tuple[float, float, float, float], ...] = (
+        cases: Tuple[Tuple[float, float, float, float], ...] = (
             (21.2, 4.0, 8.0, 0.0),
             (50.0, 4.5, 12.0, 0.17),
             (100.0, 4.0, 15.0, -0.31),
@@ -773,7 +773,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
         k_parallel: Float64[Array, " 12"] = jnp.linspace(0.1, 1.2, 12)
 
         def loss(
-            parameters: tuple[
+            parameters: Tuple[
                 Float64[Array, " 12"],
                 Float64[Array, " 12"],
                 Float64[Array, " 12"],
@@ -964,8 +964,8 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
 
         def one_row(
             photon: Float64[Array, ""],
-        ) -> tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]]:
-            row: tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]] = (
+        ) -> Tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]]:
+            row: Tuple[Complex128[Array, " 65536"], Bool[Array, " 65536"]] = (
                 kz_from_inner_potential_at_fermi(
                     photon,
                     4.5,
@@ -1141,7 +1141,7 @@ class TestDetectorAnglesToKpar(chex.TestCase):
             with self.subTest(slit=slit):
 
                 def loss(
-                    parameters: tuple[
+                    parameters: Tuple[
                         Float64[Array, ""],
                         Float64[Array, ""],
                         Float64[Array, ""],
@@ -1235,7 +1235,7 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         Exercise both slits and all three invalid cases under eager and
         compiled execution.
         """
-        invalid_cases: tuple[tuple[float, float, float], ...] = (
+        invalid_cases: Tuple[Tuple[float, float, float], ...] = (
             (0.0, 0.0, 0.0),
             (jnp.pi / 2.0, 0.0, 30.0),
             (0.0, -jnp.pi / 2.0, 30.0),
@@ -1420,7 +1420,7 @@ class TestKparToDetectorAngles(chex.TestCase):
                         )
                     )
                 )
-                inverse: Callable[..., tuple[Array, Array]] = jax.jit(
+                inverse: Callable[..., Tuple[Array, Array]] = jax.jit(
                     jax.vmap(
                         lambda k_parallel, energy: kpar_to_detector_angles(
                             k_parallel,
@@ -1458,7 +1458,7 @@ class TestKparToDetectorAngles(chex.TestCase):
             with self.subTest(slit=slit):
 
                 def loss(
-                    parameters: tuple[
+                    parameters: Tuple[
                         Float64[Array, "2"],
                         Float64[Array, ""],
                     ],
@@ -1492,8 +1492,8 @@ class TestKparToDetectorAngles(chex.TestCase):
         momentum: Float64[Array, ""] = final_state_k_inv_ang(jnp.array(30.0))[
             0
         ]
-        invalid_cases: tuple[
-            tuple[Float64[Array, "2"], Float64[Array, ""]], ...
+        invalid_cases: Tuple[
+            Tuple[Float64[Array, "2"], Float64[Array, ""]], ...
         ] = (
             (jnp.zeros(2), jnp.array(0.0)),
             (jnp.array([momentum, 0.0]), jnp.array(30.0)),
@@ -1505,7 +1505,7 @@ class TestKparToDetectorAngles(chex.TestCase):
         compiled: bool
         slit: str
         for compiled in (False, True):
-            operation: Callable[..., tuple[Array, Array]] = (
+            operation: Callable[..., Tuple[Array, Array]] = (
                 kpar_to_detector_angles
             )
             if compiled:

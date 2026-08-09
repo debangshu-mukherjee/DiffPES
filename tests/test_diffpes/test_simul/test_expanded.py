@@ -7,6 +7,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 
 import diffpes
 from diffpes.simul import (
@@ -17,15 +18,40 @@ from diffpes.simul import (
 from diffpes.types import make_orbital_basis
 
 
-def _arrays() -> tuple[jax.Array, jax.Array]:
-    """Return compact band and projection arrays."""
+def _arrays() -> Tuple[jax.Array, jax.Array]:
+    """PRIVATE: Return compact band and projection arrays.
+
+    Returns
+    -------
+    eigenvalues : jax.Array
+        Band energies in eV for two k-points and two bands.
+    projections : jax.Array
+        Constant 0.1 orbital projections of shape (2, 2, 1, 9).
+
+    Notes
+    -----
+    Fixes two dispersing bands and one uniform projection weight over
+    nine orbitals.
+    """
     eigenvalues: jax.Array = jnp.asarray([[-0.4, 0.1], [-0.2, 0.3]])
     projections: jax.Array = jnp.full((2, 2, 1, 9), 0.1)
     return eigenvalues, projections
 
 
 def _basis() -> diffpes.types.OrbitalBasis:
-    """Return atom-major Cu subshell metadata."""
+    """PRIVATE: Return atom-major Cu subshell metadata.
+
+    Returns
+    -------
+    basis : diffpes.types.OrbitalBasis
+        One-atom basis with the n=3 s, p, and d subshells in atom-major
+        order.
+
+    Notes
+    -----
+    Lists nine orbitals for atom 0: one s, three p, and five d with
+    ascending m in each subshell.
+    """
     basis: diffpes.types.OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * 9,
         n=(3,) * 9,

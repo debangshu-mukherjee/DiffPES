@@ -64,7 +64,27 @@ from diffpes.types import (
 
 
 def _validate_angular_momentum(l: int, name: str) -> None:  # noqa: E741
-    """Validate one static Slater--Koster shell angular momentum."""
+    """PRIVATE: Validate one static Slater--Koster shell angular momentum.
+
+    Parameters
+    ----------
+    l : int
+        Candidate static shell angular momentum.
+    name : str
+        Argument name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``l`` is not an integer from zero through
+        ``MAX_SK_ANGULAR_MOMENTUM``.
+
+    Notes
+    -----
+    The check reads the static Python value, so an unsupported shell
+    fails before any block construction. The implemented two-center
+    kernel covers s, p, and d shells only.
+    """
     if type(l) is not int or not 0 <= l <= MAX_SK_ANGULAR_MOMENTUM:
         message: str = (
             f"{name} must be an integer from 0 through "
@@ -76,7 +96,32 @@ def _validate_angular_momentum(l: int, name: str) -> None:  # noqa: E741
 def _rotation_z_to_direction(
     direction: Float64[Array, " 3"],
 ) -> Float64[Array, "3 3"]:
-    """Construct a proper rotation taking positive z onto ``direction``."""
+    """PRIVATE: Construct a proper rotation taking positive z onto the bond.
+
+    Parameters
+    ----------
+    direction : Float64[Array, " 3"]
+        Cartesian unit vector along the bond.
+
+    Returns
+    -------
+    rotation : Float64[Array, "3 3"]
+        Proper rotation matrix that maps ``(0, 0, 1)`` onto
+        ``direction``.
+
+    Notes
+    -----
+    Two smooth Rodrigues charts cover the bond sphere. The north chart
+    rotates ``+z`` directly onto the direction and is singular only at
+    the south pole. The south chart composes a half turn about x with a
+    rotation from ``-z`` and is singular only at the north pole.
+    ``jnp.where`` selects the chart by the sign of the z component and
+    sanitizes the unused denominator. The value and the transverse
+    position gradients therefore stay finite at both poles. The charts
+    differ by a residual rotation about the bond axis. The axial
+    degeneracy of the pi and delta channels makes the composed
+    Slater--Koster block independent of that residual gauge.
+    """
     dtype: jnp.dtype = direction.dtype
     identity: Float64[Array, "3 3"] = jnp.eye(
         CARTESIAN_COMPONENTS,
@@ -139,7 +184,25 @@ def _rotation_z_to_direction(
 
 
 def _p_axes(dtype: jnp.dtype) -> Float64[Array, "3 3"]:
-    """Return Cartesian unit vectors in real-harmonic p-shell order."""
+    """PRIVATE: Return Cartesian unit vectors in real-harmonic p-shell order.
+
+    Parameters
+    ----------
+    dtype : jnp.dtype
+        Floating dtype for the returned constant.
+
+    Returns
+    -------
+    axes : Float64[Array, "3 3"]
+        Rows ``(y, z, x)`` matching the package p-orbital order
+        ``(p_y, p_z, p_x)``.
+
+    Notes
+    -----
+    The rows are the change of basis between the Cartesian vector
+    representation and the real p orbitals. A Cartesian rotation ``R``
+    therefore acts on the shell as ``axes @ R @ axes.T``.
+    """
     axes: Float64[Array, "3 3"] = jnp.asarray(
         (
             (0.0, 1.0, 0.0),
@@ -152,7 +215,27 @@ def _p_axes(dtype: jnp.dtype) -> Float64[Array, "3 3"]:
 
 
 def _d_tensors(dtype: jnp.dtype) -> Float64[Array, "5 3 3"]:
-    """Return orthonormal traceless tensors in real d-shell order."""
+    """PRIVATE: Return orthonormal traceless tensors in real d-shell order.
+
+    Parameters
+    ----------
+    dtype : jnp.dtype
+        Floating dtype for the returned constant.
+
+    Returns
+    -------
+    tensors : Float64[Array, "5 3 3"]
+        Symmetric traceless tensors for the package d-orbital order
+        ``(d_xy, d_yz, d_z2, d_xz, d_x2-y2)``, orthonormal under the
+        Frobenius inner product.
+
+    Notes
+    -----
+    The ``1/sqrt(2)`` and ``1/sqrt(6)`` factors normalize every tensor
+    to unit Frobenius norm. A Cartesian rotation acts on the d shell
+    through the congruence ``R T R.T`` of each tensor followed by
+    projection back onto this basis.
+    """
     inverse_sqrt_two: float = 1.0 / np.sqrt(2.0)
     inverse_sqrt_six: float = 1.0 / np.sqrt(6.0)
     tensors: Float64[Array, "5 3 3"] = jnp.asarray(
@@ -192,7 +275,29 @@ def _orbital_rotation(
     l: int,  # noqa: E741
     rotation: Float64[Array, "3 3"],
 ) -> Float64[Array, "m1 m2"]:
-    """Represent a Cartesian rotation in a real s, p, or d shell."""
+    """PRIVATE: Represent a Cartesian rotation in a real s, p, or d shell.
+
+    Parameters
+    ----------
+    l : int
+        Static shell angular momentum: ``0``, ``1``, or ``2``.
+    rotation : Float64[Array, "3 3"]
+        Proper Cartesian rotation matrix.
+
+    Returns
+    -------
+    representation : Float64[Array, "m1 m2"]
+        Orthogonal ``(2*l + 1)``-dimensional representation of the
+        rotation in the package real-harmonic order.
+
+    Notes
+    -----
+    The s shell returns the trivial one-by-one identity. The p shell
+    conjugates the rotation with the real-harmonic axis rows. The d
+    shell rotates every orthonormal traceless tensor by congruence and
+    projects the result back onto the tensor basis. Rotating vector and
+    tensor representations avoids differentiating singular Euler angles.
+    """
     if l == 0:
         scalar: Float64[Array, "1 1"] = jnp.ones(
             (1, 1),
@@ -328,7 +433,29 @@ def _candidate_topology(
     tuple[tuple[int, int], ...],
     tuple[tuple[int, int, int], ...],
 ]:
-    """Build one canonical representative of every undirected bond."""
+    """PRIVATE: Build one canonical representative of every undirected bond.
+
+    Parameters
+    ----------
+    n_atoms : int
+        Number of atoms in the home cell.
+    supercell_radius : int
+        Inclusive integer search radius along every lattice direction.
+
+    Returns
+    -------
+    topology : tuple
+        Canonical ordered atom pairs and their exact integer cell
+        translations, as two parallel static tuples.
+
+    Notes
+    -----
+    The loop enumerates every atom pair in every cell of the
+    ``(2*radius + 1)**3`` cube and skips the self-bond in the home cell.
+    It keeps a record only when the record precedes its reverse
+    ``(j, i, -R)`` lexicographically. Every undirected bond therefore
+    appears exactly once.
+    """
     atom_pairs: list[tuple[int, int]] = []
     cells: list[tuple[int, int, int]] = []
     cell_x: int
@@ -372,16 +499,38 @@ def _certified_supercell_radius(
     geometry: CrystalGeometry,
     cutoff: float,
 ) -> int:
-    r"""Return a complete integer-translation search radius.
+    r"""PRIVATE: Return a complete integer-translation search radius.
 
-    If ``A`` stores lattice vectors as rows, a retained displacement obeys
-    ``||(n + delta) A|| <= cutoff``. Therefore
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Concrete crystal lattice and fractional atom positions.
+    cutoff : float
+        Positive inclusive Cartesian distance cutoff in angstroms.
+
+    Returns
+    -------
+    radius : int
+        Cube radius that contains every integer translation able to
+        carry a retained bond.
+
+    Raises
+    ------
+    ValueError
+        If the lattice is singular or non-finite, or the derived bound
+        is not finite.
+
+    Notes
+    -----
+    If ``A`` stores lattice vectors as rows, a retained displacement
+    obeys ``||(n + delta) A|| <= cutoff``. Therefore
 
     ``||n|| <= (cutoff + ||delta A||) / sigma_min(A)``.
 
-    Maximizing the second term over all basis pairs gives one cube radius that
-    contains every possible retained translation. The outward floating-point
-    rounding keeps the host certificate conservative.
+    Maximizing the second term over all basis pairs gives one cube
+    radius that contains every possible retained translation. The
+    outward floating-point rounding keeps the host certificate
+    conservative.
     """
     lattice: Float64[NDArray, "3 3"] = np.asarray(
         geometry.lattice, dtype=np.float64
@@ -426,7 +575,30 @@ def _displacements_and_distances(
     atom_pairs: tuple[tuple[int, int], ...],
     cells: tuple[tuple[int, int, int], ...],
 ) -> tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]:
-    """Derive differentiable fractional bonds and Cartesian distances."""
+    """PRIVATE: Derive differentiable fractional bonds and Cartesian lengths.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Crystal lattice and fractional atom positions.
+    atom_pairs : tuple[tuple[int, int], ...]
+        Static ordered atom pairs.
+    cells : tuple[tuple[int, int, int], ...]
+        Exact integer cell translations for every pair.
+
+    Returns
+    -------
+    result : tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]
+        Fractional displacements ``R + tau_j - tau_i`` and their
+        Cartesian lengths in angstroms.
+
+    Notes
+    -----
+    The static tuples only index; the arithmetic runs on the traced
+    geometry, so displacements and distances carry position and lattice
+    derivatives. An empty pair list returns empty arrays of the correct
+    shape and dtype.
+    """
     if not atom_pairs:
         empty_displacements: Float64[Array, "0 3"] = jnp.zeros(
             (0, CARTESIAN_COMPONENTS),
@@ -469,7 +641,23 @@ def _displacements_and_distances(
 
 
 def _geometry_is_traced(geometry: CrystalGeometry) -> bool:
-    """Return whether topology-defining geometry values are JAX tracers."""
+    """PRIVATE: Detect JAX tracers in the topology-defining geometry.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Geometry whose lattice and positions the check inspects.
+
+    Returns
+    -------
+    traced : bool
+        ``True`` when the positions or the lattice is a JAX tracer.
+
+    Notes
+    -----
+    Host neighbor selection cannot run on tracers. Callers use this test
+    to reject traced geometry or to fall back to a concrete primal.
+    """
     traced: bool = isinstance(geometry.positions, core.Tracer) or isinstance(
         geometry.lattice, core.Tracer
     )
@@ -477,7 +665,28 @@ def _geometry_is_traced(geometry: CrystalGeometry) -> bool:
 
 
 def _concrete_primal(value: Array) -> Array | None:
-    """Recover the concrete primal carried by an eager AD tracer."""
+    """PRIVATE: Recover the concrete primal carried by an eager AD tracer.
+
+    Parameters
+    ----------
+    value : Array
+        Possibly traced array leaf.
+
+    Returns
+    -------
+    primal : Array | None
+        Concrete array after unwrapping every nested ``primal``
+        attribute. ``None`` signals that a tracer level carries no
+        primal or that the chain does not end in a concrete array.
+
+    Notes
+    -----
+    Eager forward- and reverse-mode AD tracers stack ``primal``
+    attributes; the loop unwraps them until a concrete
+    :class:`jax.Array` appears. Tracers made by :func:`jax.jit` carry no
+    ``primal`` attribute, so compiled tracing correctly reports no
+    concrete value.
+    """
     candidate: object = value
     while isinstance(candidate, core.Tracer):
         if not hasattr(candidate, "primal"):
@@ -494,7 +703,26 @@ def _concrete_primal(value: Array) -> Array | None:
 def _primal_geometry(
     geometry: CrystalGeometry,
 ) -> CrystalGeometry | None:
-    """Recover topology values from eager forward/reverse AD tracers."""
+    """PRIVATE: Recover topology values from eager forward/reverse tracers.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Geometry whose lattice or positions may be eager AD tracers.
+
+    Returns
+    -------
+    primal : CrystalGeometry | None
+        Copy of the geometry with concrete lattice and positions, or
+        ``None`` when either leaf has no concrete primal.
+
+    Notes
+    -----
+    :func:`equinox.tree_at` swaps both leaves at once and preserves all
+    other geometry metadata. Host neighbor certification then runs on
+    the concrete primal while derivatives keep flowing through the
+    original traced leaves.
+    """
     primal_lattice: Array | None = _concrete_primal(geometry.lattice)
     primal_positions: Array | None = _concrete_primal(geometry.positions)
     if primal_lattice is None or primal_positions is None:
@@ -638,7 +866,34 @@ def neighbor_shells(  # noqa: DOC502
 def _parse_parameter_keys(
     keys: tuple[str, ...],
 ) -> dict[tuple[str | None, int | None, str], int]:
-    """Parse and validate material, optional shell, and channel identifiers."""
+    """PRIVATE: Parse material, optional shell, and channel identifiers.
+
+    Parameters
+    ----------
+    keys : tuple[str, ...]
+        Static Slater--Koster parameter keys.
+
+    Returns
+    -------
+    parsed : dict[tuple[str | None, int | None, str], int]
+        Map from ``(species_pair, shell, channel)`` to the position of
+        the key in ``keys``. Generic entries store ``None`` for the
+        missing parts.
+
+    Raises
+    ------
+    ValueError
+        If a shell selector is not a positive decimal integer or a
+        species pair does not hold exactly two nonempty names. Also
+        raised when the key grammar is invalid or the channel is
+        unknown.
+
+    Notes
+    -----
+    Supported grammars are ``"<channel>"``, ``"<A>-<B>:<channel>"``, and
+    the one-based distance-shell form ``"<A>-<B>@<shell>:<channel>"``.
+    Channels must belong to the types-owned ``KNOWN_CHANNELS`` set.
+    """
     parsed: dict[tuple[str | None, int | None, str], int] = {}
     index: int
     key: str
@@ -679,7 +934,26 @@ def _species_pair(
     geometry: CrystalGeometry,
     atom_pair: tuple[int, int],
 ) -> tuple[str | None, str | None]:
-    """Return forward and reversed material-pair identifiers."""
+    """PRIVATE: Return forward and reversed material-pair identifiers.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Geometry that may carry species labels.
+    atom_pair : tuple[int, int]
+        Static ordered atom pair.
+
+    Returns
+    -------
+    pairs : tuple[str | None, str | None]
+        Strings ``"A-B"`` and ``"B-A"`` for the two atom species, or
+        ``(None, None)`` when the geometry declares no species.
+
+    Notes
+    -----
+    The function returns both orders because parameter lookup accepts a
+    key written for either direction of the same bond.
+    """
     if not geometry.species:
         empty_pairs: tuple[str | None, str | None] = (None, None)
         return empty_pairs
@@ -697,7 +971,31 @@ def _shell_numbers(
     atom_pairs: tuple[tuple[int, int], ...],
     distances: Float64[Array, " n_bond"],
 ) -> tuple[int, ...]:
-    """Create one-based distance-shell numbers within each species pair."""
+    """PRIVATE: Create one-based distance-shell numbers per species pair.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Geometry that may carry species labels.
+    atom_pairs : tuple[tuple[int, int], ...]
+        Static ordered atom pairs.
+    distances : Float64[Array, " n_bond"]
+        Cartesian bond lengths in angstroms.
+
+    Returns
+    -------
+    result : tuple[int, ...]
+        One-based distance-shell number for every bond.
+
+    Notes
+    -----
+    Bonds group by their unordered species pair; without species labels
+    one shared group applies. Within a group, sorted host distances
+    merge into shells when they agree within ``SHELL_RTOLERANCE`` and
+    ``SHELL_ATOLERANCE``, and each bond takes the first matching shell.
+    The result is static host metadata: it certifies the topology and
+    never enters tracing.
+    """
     host_distances: Float64[NDArray, " n_bond"] = np.asarray(distances)
     grouped: dict[tuple[str, str], list[float]] = {}
     pair_groups: list[tuple[str, str]] = []
@@ -770,7 +1068,33 @@ def _parameter_index(
     shell: int,
     channel: str,
 ) -> int | None:
-    """Resolve one integral with shell-specific-to-generic precedence."""
+    """PRIVATE: Resolve one integral with specific-to-generic precedence.
+
+    Parameters
+    ----------
+    lookup : dict[tuple[str | None, int | None, str], int]
+        Parsed key map from ``_parse_parameter_keys``.
+    forward_pair : str | None
+        Species pair ``"A-B"`` in bond order, or ``None``.
+    reverse_pair : str | None
+        Reversed species pair ``"B-A"``, or ``None``.
+    shell : int
+        One-based distance-shell number of the bond.
+    channel : str
+        Slater--Koster channel name such as ``"pp_pi"``.
+
+    Returns
+    -------
+    index : int | None
+        Position of the matched key, or ``None`` when no candidate
+        matches.
+
+    Notes
+    -----
+    The lookup tries candidates in a fixed order: forward pair with
+    shell, reverse pair with shell, then both pairs without shell. The
+    generic channel-only key comes last, and the first hit wins.
+    """
     candidates: Sequence[tuple[str | None, int | None, str]] = (
         (forward_pair, shell, channel),
         (reverse_pair, shell, channel),
@@ -795,7 +1119,35 @@ def _integral_vector(
     shell: int,
     channels: tuple[str, ...],
 ) -> tuple[Float64[Array, " n_m"], bool]:
-    """Collect sigma/pi/delta values, treating omitted channels as zero."""
+    """PRIVATE: Collect channel values, treating omitted channels as zero.
+
+    Parameters
+    ----------
+    sk_params : SlaterKosterParams
+        Differentiable fundamental integral values and static keys.
+    lookup : dict[tuple[str | None, int | None, str], int]
+        Parsed key map from ``_parse_parameter_keys``.
+    forward_pair : str | None
+        Species pair in bond order, or ``None``.
+    reverse_pair : str | None
+        Reversed species pair, or ``None``.
+    shell : int
+        One-based distance-shell number of the bond.
+    channels : tuple[str, ...]
+        Sigma, pi, and delta channel names for the angular pair.
+
+    Returns
+    -------
+    result : tuple[Float64[Array, " n_m"], bool]
+        Stacked integral vector in eV ordered as the channels, and a
+        flag that is ``True`` when at least one channel has a key.
+
+    Notes
+    -----
+    Omitted channels contribute exact zeros, so a sparse parameter set
+    stays valid. The flag lets the builder skip orbital pairs whose
+    every channel is absent instead of materializing zero hoppings.
+    """
     values: list[Float64[Array, ""]] = []
     found_any: bool = False
     channel: str
@@ -825,7 +1177,30 @@ def _freeze_neighbor_topology(
     tuple[tuple[int, int, int], ...],
     tuple[int, ...],
 ]:
-    """Certify and freeze atom pairs, exact cells, and distance shells."""
+    """PRIVATE: Certify and freeze atom pairs, cells, and distance shells.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Concrete geometry that defines the neighbor topology.
+    cutoff : float
+        Positive inclusive neighbor cutoff in angstroms.
+
+    Returns
+    -------
+    result : tuple
+        Canonical atom pairs, exact integer cells, and one-based
+        distance-shell numbers, as three parallel static tuples.
+
+    Notes
+    -----
+    :func:`neighbor_shells` performs the certified host search. Distance
+    evaluation for shell numbering runs under
+    :func:`jax.ensure_compile_time_eval`, so freezing works inside
+    traced callers while the shell metadata stays static. Rebuilding
+    closures reuse this frozen topology and never repeat discrete
+    neighbor selection.
+    """
     atom_pairs: tuple[tuple[int, int], ...]
     cells: tuple[tuple[int, int, int], ...]
     atom_pairs, cells, _, _ = neighbor_shells(geometry, cutoff)
@@ -862,7 +1237,48 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
     *,
     spinor: bool,
 ) -> TBModel:
-    """Assemble a model on one previously certified static topology."""
+    """PRIVATE: Assemble a model on one previously certified static topology.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Possibly traced geometry used for differentiable bond vectors.
+    basis : OrbitalBasis
+        Orbital metadata in package real-harmonic order.
+    sk_params : SlaterKosterParams
+        Differentiable fundamental two-center integrals in eV.
+    onsite_energies : Float64[Array, " n_orb"]
+        Onsite orbital energies in eV.
+    soc_lambdas : Float64[Array, " n_shells"]
+        Atomic spin--orbit strengths in eV.
+    shell_index : tuple[int, ...]
+        Orbital-to-SOC-shell map passed to the model factory.
+    atom_pairs : tuple[tuple[int, int], ...]
+        Certified canonical atom pairs.
+    cells : tuple[tuple[int, int, int], ...]
+        Certified exact integer cell translations.
+    shell_numbers : tuple[int, ...]
+        Certified one-based distance-shell numbers.
+    spinor : bool
+        Whether the basis carries explicit spin channels.
+
+    Returns
+    -------
+    model : TBModel
+        Validated model with explicit conjugate reverse hopping records.
+
+    Notes
+    -----
+    For every certified bond the builder evaluates one Slater--Koster
+    block per angular pair and reads the element addressed by the two
+    orbital magnetic numbers. Spinor bases keep hoppings spin diagonal.
+    The builder skips entirely any orbital pair whose channels have no
+    key. It emits every retained amplitude twice: the forward record and
+    the conjugated reverse record on the negated cell. The model
+    therefore reaches the factory exactly Hermitian-closed. Bond vectors
+    derive from the traced geometry, so amplitudes keep position and
+    lattice derivatives on the frozen topology.
+    """
     lookup: dict[tuple[str | None, int | None, str], int] = (
         _parse_parameter_keys(sk_params.keys)
     )

@@ -36,7 +36,27 @@ from diffpes.utils import unpack_complex
 def _materialized_model(
     reverse_residual: complex = 0.0j,
 ) -> TBModel:
-    """Construct one exact or tolerance-close complex chain model."""
+    """PRIVATE: Construct one exact or tolerance-close complex chain model.
+
+    Parameters
+    ----------
+    reverse_residual : complex
+        Deviation in eV added to the conjugate reverse hopping; zero
+        yields an exactly Hermitian pair.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital chain with a complex forward hopping
+        ``1.2 - 0.35j`` eV, its perturbed conjugate reverse partner,
+        and one home-cell self-reverse record of ``0.7`` eV.
+
+    Notes
+    -----
+    The parameter-view tests use ``reverse_residual`` to probe the
+    conjugate-pair matching tolerance. A zero residual must round-trip
+    bitwise. A small residual must follow the documented policy.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         jnp.diag(jnp.asarray((2.0, 5.0, 6.0), dtype=jnp.float64)),
         jnp.asarray(((0.13, 0.07, 0.19),), dtype=jnp.float64),
@@ -78,7 +98,25 @@ def _graphene_context() -> tuple[
     SlaterKosterParams,
     Float64[Array, " 2"],
 ]:
-    """Construct the minimal pz Slater--Koster graphene context."""
+    """PRIVATE: Construct the minimal pz Slater--Koster graphene context.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Hexagonal two-carbon cell with lattice constant 2.46 Angstrom.
+    basis : OrbitalBasis
+        Two-orbital pz basis on the A and B sublattices.
+    params : SlaterKosterParams
+        The single ``C-C:pp_pi`` integral of -2.7 eV.
+    onsite : Float64[Array, " 2"]
+        The two distinct onsite energies ``(0.11, -0.09)`` eV.
+
+    Notes
+    -----
+    This is the smallest SK-fundamental context: one hopping channel
+    and two onsite coordinates, so parameter-view round trips stay
+    hand-checkable.
+    """
     lattice_constant: float = 2.46
     geometry: CrystalGeometry = make_crystal_geometry(
         jnp.asarray(
@@ -123,7 +161,27 @@ def _sp_context() -> tuple[
     SlaterKosterParams,
     Float64[Array, " 2"],
 ]:
-    """Construct an oblique isolated s--px bond with lattice sensitivity."""
+    """PRIVATE: Construct an oblique isolated s--px bond with lattice
+    sensitivity.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        A 10 Angstrom cubic cell with two sites on an oblique bond.
+    basis : OrbitalBasis
+        One s orbital and one px orbital.
+    params : SlaterKosterParams
+        The single ``X-X:sp_sigma`` integral of 1.1 eV.
+    onsite : Float64[Array, " 2"]
+        Onsite energies ``(0.2, -0.1)`` eV.
+
+    Notes
+    -----
+    The bond direction has nonzero x, y, and z components. The
+    direction cosines, and with them the rebuilt hoppings, therefore
+    respond to lattice and position perturbations. This makes the
+    context suitable for optional-geometry-leaf gradient checks.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         10.0 * jnp.eye(3, dtype=jnp.float64),
         jnp.asarray(
@@ -151,7 +209,24 @@ def _sp_context() -> tuple[
 
 
 def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
-    """Compare all traced leaves bitwise and all static fields exactly."""
+    """PRIVATE: Compare all traced leaves bitwise and all static fields
+    exactly.
+
+    Parameters
+    ----------
+    actual : TBModel
+        Reconstructed model under test.
+    expected : TBModel
+        Source model that defines the required content.
+
+    Notes
+    -----
+    Flattens both models with ``jax.tree.leaves``, requires equal leaf
+    counts, and asserts exact array equality leaf by leaf. Then checks
+    the static basis, hopping pairs, hopping cells, shell index, spinor
+    flag, and species tuples directly. Bitwise equality certifies that
+    a parameter-view round trip is lossless, not merely close.
+    """
     actual_leaves: list[jax.Array] = jax.tree.leaves(actual)
     expected_leaves: list[jax.Array] = jax.tree.leaves(expected)
     assert len(actual_leaves) == len(expected_leaves)

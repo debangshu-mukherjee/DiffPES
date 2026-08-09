@@ -56,7 +56,22 @@ _FD_STEP_LADDERS: tuple[tuple[float, ...], ...] = (
 
 
 def _fixture() -> Fixture:
-    """Build a compact supported-radial full-assembly fixture."""
+    """PRIVATE: Build a compact supported-radial full-assembly fixture.
+
+    Returns
+    -------
+    fixture : Fixture
+        One-orbital, one-band, one-k fixture: diagonalized bands, a
+        compact grid-mode radial spec on ``[0, 8]`` Bohr with a smooth
+        doubly vanishing edge, matrix-element parameters, the default
+        quadrature spec, and a 30 eV x-polarized experiment geometry.
+
+    Notes
+    -----
+    The cubic lattice constant ``2 pi`` Angstrom makes reciprocal and
+    fractional coordinates coincide; the radial row forces an exact
+    zero at the support edge.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,),
         n=(1,),
@@ -119,7 +134,29 @@ def _intensity(
     parameters: Float64[Array, " 2"],
     fixture: Fixture,
 ) -> Float64[Array, ""]:
-    """Compose charge and photon energy through the complete assembly."""
+    """PRIVATE: Compose charge and photon energy through the assembly.
+
+    Parameters
+    ----------
+    parameters : Float64[Array, " 2"]
+        Effective charge (dimensionless) and photon energy in eV.
+    fixture : Fixture
+        Frozen assembly fixture from :func:`_fixture`.
+
+    Returns
+    -------
+    intensity : Float64[Array, ""]
+        Scalar matrix-element intensity for the single band and
+        k-point.
+
+    Implementation Logic
+    --------------------
+    The pipeline runs the full production route: kinematics from the
+    photon energy, the Coulomb final state at the effective charge,
+    orbital transition channels, band projection, polarization
+    contraction, and the intensity map.  Both inputs stay
+    differentiable end to end.
+    """
     effective_charge: Float64[Array, ""] = parameters[0]
     photon_energy: Float64[Array, ""] = parameters[1]
     bands: DiagonalizedBands
@@ -184,7 +221,30 @@ def _five_point_derivative(
     step: float,
     fixture: Fixture,
 ) -> Float64[Array, ""]:
-    """Evaluate one five-point central derivative."""
+    """PRIVATE: Evaluate one five-point central derivative.
+
+    Parameters
+    ----------
+    parameters : Float64[Array, " 2"]
+        Expansion point: effective charge and photon energy in eV.
+    coordinate : int
+        Perturbed coordinate index (0 or 1).
+    step : float
+        Positive stencil step in the coordinate's units.
+    fixture : Fixture
+        Frozen assembly fixture from :func:`_fixture`.
+
+    Returns
+    -------
+    derivative : Float64[Array, ""]
+        Central-difference derivative with truncation order
+        ``step**4``.
+
+    Notes
+    -----
+    The stencil is ``(-f(+2s) + 8 f(+s) - 8 f(-s) + f(-2s)) /
+    (12 s)`` along one coordinate of :func:`_intensity`.
+    """
     direction: Float64[Array, " 2"] = (
         jnp.zeros_like(parameters).at[coordinate].set(step)
     )

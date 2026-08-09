@@ -31,7 +31,19 @@ from tests._gradients import gradient_gate
 
 
 def _make_empty_model() -> TBModel:
-    """Build a two-orbital model with onsite energies and no hoppings."""
+    """PRIVATE: Build a two-orbital model with onsite energies and no hoppings.
+
+    Returns
+    -------
+    model : TBModel
+        Two-atom cubic-cell model with onsite energies ``(0.2, -0.1)``
+        eV, empty hopping records, and no spin--orbit coupling.
+
+    Notes
+    -----
+    An empty hopping list makes ``H(k)`` the constant diagonal of the
+    onsite energies, which pins the builder's zero-hopping branch.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.asarray(
@@ -60,7 +72,22 @@ def _make_empty_model() -> TBModel:
 
 
 def _make_gauge_probe_model() -> TBModel:
-    """Build two same-atom Wannier orbitals with distinct centres."""
+    """PRIVATE: Build two same-atom Wannier orbitals with distinct centres.
+
+    Returns
+    -------
+    model : TBModel
+        One-atom model with two s-like orbitals, one conjugate pair of
+        intracell hoppings ``0.7 + 0.4j`` eV, and explicit
+        ``orbital_positions`` that differ from the atom position.
+
+    Notes
+    -----
+    The distinct fractional orbital centres ``(0.1, 0, 0)`` and
+    ``(0.37, 0, 0)`` make the Bloch phase convention observable. Only a
+    builder that phases hoppings with orbital centres, not atom
+    positions, reproduces the registered gauge.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.asarray([[0.05, 0.0, 0.0]], dtype=jnp.float64),

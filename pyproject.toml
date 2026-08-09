@@ -260,7 +260,6 @@ convention = "numpy"
 "src/diffpes/tightb/*.py" = ["E741", "N803", "N806"]
 "src/diffpes/maths/*.py" = ["E741", "N803", "N806", "ARG001"]
 "src/diffpes/simul/forward.py" = ["E741", "N806"]
-"src/diffpes/simul/self_energy.py" = ["S101"]
 
 [tool.ty.environment]
 python-version = "3.12"

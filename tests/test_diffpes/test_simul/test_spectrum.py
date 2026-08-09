@@ -8,6 +8,7 @@ import importlib
 import chex
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array
 
 import diffpes
@@ -21,12 +22,28 @@ from diffpes.types import (
 )
 
 
-def _inputs() -> tuple[
+def _inputs() -> Tuple[
     diffpes.types.BandStructure,
     diffpes.types.OrbitalProjection,
     OrbitalBasis,
 ]:
-    """Build a one-atom Cu projection fixture."""
+    """PRIVATE: Build a one-atom Cu projection fixture.
+
+    Returns
+    -------
+    bands : diffpes.types.BandStructure
+        Two-k-point, two-band structure with energies in eV and the
+        Fermi level at 0 eV.
+    projection : diffpes.types.OrbitalProjection
+        Constant 0.1 projections of shape (2, 2, 1, 9).
+    basis : OrbitalBasis
+        One-atom basis with the n=3 s, p, and d subshells.
+
+    Notes
+    -----
+    Places both k-points at the zone center and keeps every projection
+    weight identical.
+    """
     eigenvalues: Array = jnp.asarray([[-0.4, 0.1], [-0.2, 0.3]])
     bands: diffpes.types.BandStructure = make_band_structure(
         eigenvalues=eigenvalues,

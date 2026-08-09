@@ -18,7 +18,24 @@ from diffpes.types import make_certification_claim, make_waiver_record
 
 
 def _waiver(expires_at_utc: str = "2026-07-22T00:00:00Z") -> Any:
-    """Build one research-policy waiver with explicit UTC limits."""
+    """PRIVATE: Build one research-policy waiver with explicit UTC limits.
+
+    Parameters
+    ----------
+    expires_at_utc : str
+        Exclusive expiry time of the waiver in UTC.
+
+    Returns
+    -------
+    waiver : Any
+        Waiver record for the finite-output claim, issued at
+        2026-07-20T00:00:00Z under the research policy.
+
+    Notes
+    -----
+    Fixes the waiver identity, the policy identity, the author, and the
+    reason; only the expiry time varies.
+    """
     waiver: Any = make_waiver_record(
         waiver_id="waiver-test",
         policy_id="org.diffpes.policy.research.v1",

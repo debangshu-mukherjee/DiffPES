@@ -29,6 +29,36 @@ def _record(
     destroys: Any = (),
     invalidates: Any = (),
 ) -> Any:
+    """PRIVATE: Build one transformation record for provenance tests.
+
+    Parameters
+    ----------
+    transformation_id : Any
+        Stable transformation identity.
+    parents : Any
+        Parent artifact identities.
+    outputs : Any
+        Output artifact identities.
+    preserves : Any
+        Information keys the transformation preserves.
+    introduces : Any
+        Information keys the transformation introduces.
+    destroys : Any
+        Information keys the transformation destroys.
+    invalidates : Any
+        Claim identities the transformation invalidates.
+
+    Returns
+    -------
+    record : Any
+        Transformation record at version 1.0.0 with the parameters
+        checksum fixed to ``none``.
+
+    Notes
+    -----
+    Forwards each argument to the transformation-record constructor and
+    fixes the version and the parameters checksum.
+    """
     return make_transformation_record(
         transformation_id=transformation_id,
         transformation_version="1.0.0",

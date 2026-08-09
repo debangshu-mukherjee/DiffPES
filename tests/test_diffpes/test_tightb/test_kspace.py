@@ -39,7 +39,7 @@ from tests._gradients import assert_grad_matches_fd, gradient_gate
 
 @jaxtyped(typechecker=beartype)
 def _make_geometry(lattice: Float64[Array, "3 3"]) -> CrystalGeometry:
-    """Create a one-site geometry for a specified lattice.
+    """PRIVATE: Create a one-site geometry for a specified lattice.
 
     Parameters
     ----------

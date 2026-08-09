@@ -98,7 +98,18 @@ from diffpes.types import (
 
 
 def _module_factories() -> dict[type[Any], Callable[..., Any]]:
-    """Return types-owned carrier factories supported by the codec."""
+    """PRIVATE: Return types-owned carrier factories for the codec.
+
+    Returns
+    -------
+    factories : dict[type[Any], Callable[..., Any]]
+        Concrete carrier types mapped to their validating factories.
+
+    Notes
+    -----
+    The codec reconstructs every certification carrier through its
+    types-owned factory, so loading repeats the validation contract.
+    """
     factories: dict[type[Any], Callable[..., Any]] = {
         ArtifactRef: make_artifact_ref,
         CertificationClaim: make_certification_claim,
@@ -123,7 +134,18 @@ def _module_factories() -> dict[type[Any], Callable[..., Any]]:
 
 
 def _module_types() -> dict[str, type[Any]]:
-    """Return persisted carrier names mapped to their concrete types."""
+    """PRIVATE: Return persisted carrier names mapped to concrete types.
+
+    Returns
+    -------
+    module_types : dict[str, type[Any]]
+        Persisted class names mapped to their carrier types.
+
+    Notes
+    -----
+    The mapping derives from the factory table, so both directions of
+    the codec share one carrier inventory.
+    """
     module_types: dict[str, type[Any]] = {
         module_type.__name__: module_type
         for module_type in _module_factories()
@@ -132,13 +154,55 @@ def _module_types() -> dict[str, type[Any]]:
 
 
 def _normalize_text(value: str) -> str:
-    """Return NFC-normalized certificate text."""
+    """PRIVATE: Return NFC-normalized certificate text.
+
+    Parameters
+    ----------
+    value : str
+        Raw text from a certificate field or JSON key.
+
+    Returns
+    -------
+    normalized : str
+        Unicode NFC normalization of the input.
+
+    Notes
+    -----
+    One shared normalization keeps byte-level JSON output stable for
+    equal text written in different Unicode compositions.
+    """
     normalized: str = unicodedata.normalize("NFC", value)
     return normalized
 
 
 def _normalize_json_value(value: Any) -> Any:
-    """Normalize an extension value and reject non-JSON/nonfinite data."""
+    """PRIVATE: Normalize an extension value and reject non-JSON/nonfinite
+    data.
+
+    Implementation Logic
+    --------------------
+    Recurses structurally.  ``None``, booleans, and integers pass
+    through.  Floats must be finite.  Strings normalize to NFC.  Lists
+    recurse elementwise.  Mappings normalize each string key, reject
+    post-normalization key collisions, and recurse into the values.
+    Every other type raises.
+
+    Parameters
+    ----------
+    value : Any
+        Candidate JSON value of any nesting depth.
+
+    Returns
+    -------
+    normalized_value : Any
+        Equivalent value with every string NFC normalized.
+
+    Raises
+    ------
+    ValueError
+        If a float is not finite, an object key is not a string, two
+        keys collide after normalization, or a type is not JSON.
+    """
     key: Any
     item: Any
     if value is None or isinstance(value, bool | int):
@@ -176,7 +240,26 @@ def _normalize_json_value(value: Any) -> Any:
 
 
 def _json_bytes(value: Mapping[str, Any], *, newline: bool) -> bytes:
-    """Encode a normalized mapping as deterministic UTF-8 JSON."""
+    """PRIVATE: Encode a normalized mapping as deterministic UTF-8 JSON.
+
+    Parameters
+    ----------
+    value : Mapping[str, Any]
+        JSON-ready mapping to serialize.
+    newline : bool
+        Append one trailing newline byte when true.
+
+    Returns
+    -------
+    encoded : bytes
+        Canonical UTF-8 JSON bytes.
+
+    Notes
+    -----
+    Normalizes the value first, then serializes with sorted keys,
+    compact separators, non-ASCII passthrough, and ``allow_nan``
+    disabled.  Equal documents therefore produce identical bytes.
+    """
     normalized: Any = _normalize_json_value(value)
     encoded: bytes = json.dumps(
         normalized,
@@ -191,7 +274,26 @@ def _json_bytes(value: Mapping[str, Any], *, newline: bool) -> bytes:
 
 
 def _storage_checksum(document: Mapping[str, Any]) -> str:
-    """Return the non-security CRC32 of a document without its checksum."""
+    """PRIVATE: Return the non-security CRC32 of a document without its
+    checksum.
+
+    Parameters
+    ----------
+    document : Mapping[str, Any]
+        Certificate document, with or without its checksum field.
+
+    Returns
+    -------
+    checksum : str
+        Formatted ``crc32:certificate-json-v1:<8 hex digits>`` value.
+
+    Notes
+    -----
+    Drops the ``consistency_checksum`` field, serializes the rest with
+    :func:`_json_bytes`, and applies :func:`zlib.crc32`.  The checksum
+    detects accidental storage corruption only; it is not an
+    authentication or certification mechanism.
+    """
     payload: dict[str, Any] = dict(document)
     payload.pop("consistency_checksum", None)
     value: int = zlib.crc32(_json_bytes(payload, newline=False))
@@ -200,7 +302,27 @@ def _storage_checksum(document: Mapping[str, Any]) -> str:
 
 
 def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
-    """Return canonical scientific fields without audit-only identities."""
+    """PRIVATE: Return canonical scientific fields without audit-only
+    identities.
+
+    Parameters
+    ----------
+    document : Mapping[str, Any]
+        Complete encoded certificate document.
+
+    Returns
+    -------
+    payload : dict[str, Any]
+        Document copy restricted to the identity-relevant fields.
+
+    Notes
+    -----
+    Keeps ``format``, ``schema_version``, ``certificate``, and
+    ``extensions``.  A JSON round trip deep-copies the certificate
+    node.  The copy then drops the ``certificate_checksum``
+    self-reference and the audit-only manifest fields
+    ``execution_id`` and ``started_at_utc``.
+    """
     payload: dict[str, Any] = {
         "format": document["format"],
         "schema_version": document["schema_version"],
@@ -216,7 +338,26 @@ def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _document_identity(document: Mapping[str, Any]) -> str:
-    """Return the domain-separated SHA-256 certificate identity."""
+    """PRIVATE: Return the domain-separated SHA-256 certificate identity.
+
+    Parameters
+    ----------
+    document : Mapping[str, Any]
+        Complete encoded certificate document.
+
+    Returns
+    -------
+    identity : str
+        Formatted ``sha256:1:certificate:<hex digest>`` identity.
+
+    Notes
+    -----
+    Hashes a fixed NUL-separated domain prefix and then the canonical
+    JSON bytes of :func:`_identity_payload`.  The prefix keeps
+    certificate identities in a preimage domain disjoint from other
+    project checksums.  The digest provides content addressing, not
+    authentication.
+    """
     payload: bytes = _json_bytes(_identity_payload(document), newline=False)
     digest: Any = hashlib.sha256()
     digest.update(
@@ -231,7 +372,32 @@ def _document_identity(document: Mapping[str, Any]) -> str:
 
 
 def _encode_array(value: object) -> dict[str, Any]:
-    """Encode one concrete numerical leaf without decimal conversion."""
+    """PRIVATE: Encode one concrete numerical leaf without decimal
+    conversion.
+
+    Implementation Logic
+    --------------------
+    Converts to a little-endian C-order NumPy array and base64-encodes
+    the raw buffer.  The record therefore stores the exact binary
+    values; no decimal text conversion can lose precision.
+
+    Parameters
+    ----------
+    value : object
+        Concrete array-like numerical leaf.
+
+    Returns
+    -------
+    result : dict[str, Any]
+        Array record with ``kind``, ``dtype``, ``shape``,
+        ``byte_order``, ``order``, ``encoding``, and base64 ``data``.
+
+    Raises
+    ------
+    ValueError
+        If the input is not a concrete array, the dtype kind lies
+        outside the supported set, or an entry is not finite.
+    """
     exc: Exception
     try:
         array: Shaped[NDArray, "..."] = np.asarray(value)
@@ -268,7 +434,25 @@ def _encode_array(value: object) -> dict[str, Any]:
 
 
 def _is_array(value: object) -> bool:
-    """Return whether a value exposes a concrete numerical array protocol."""
+    """PRIVATE: Return whether a value exposes a concrete numerical array
+    protocol.
+
+    Parameters
+    ----------
+    value : object
+        Candidate certificate field value.
+
+    Returns
+    -------
+    is_array : bool
+        True for NumPy arrays and scalars, and for objects with
+        ``__array__``, ``dtype``, and ``shape`` attributes.
+
+    Notes
+    -----
+    The attribute test also accepts concrete JAX arrays, so numerical
+    leaves route into the lossless array codec.
+    """
     if isinstance(value, np.ndarray | np.generic):
         is_array: bool = True
         return is_array
@@ -282,7 +466,38 @@ def _encode_value(  # noqa: PLR0911
     *,
     root: bool = False,
 ) -> Any:
-    """Encode one supported carrier field into the transparent schema."""
+    """PRIVATE: Encode one supported carrier field into the transparent
+    schema.
+
+    Parameters
+    ----------
+    value : object
+        Carrier field value of any supported type.
+    root : bool, optional
+        True only for the top-level certificate.  The root encoding
+        skips the ``extensions_json`` field.  Default is false.
+
+    Returns
+    -------
+    encoded : Any
+        JSON-ready scalar or tagged record.
+
+    Raises
+    ------
+    ValueError
+        If a float is not finite, a mapping key is not a string, or
+        the type is not in the supported set.
+
+    Notes
+    -----
+    Recurses structurally.  ``None``, booleans, and integers pass
+    through; floats must be finite; strings normalize to NFC.  Arrays
+    encode through :func:`_encode_array`.  Tuples, lists, and mappings
+    become ``kind``-tagged records.  A whitelisted dataclass carrier
+    becomes a ``module`` record with its encoded fields; the root
+    certificate omits ``extensions_json`` because the document stores
+    extensions separately.
+    """
     field: Any
     if value is None or isinstance(value, bool | int):
         encoded: Any = value
@@ -340,7 +555,30 @@ def _encode_value(  # noqa: PLR0911
 
 
 def _parse_extensions(certificate: ForwardCertificate) -> dict[str, Any]:
-    """Parse and normalize the certificate extension object."""
+    """PRIVATE: Parse and normalize the certificate extension object.
+
+    Parameters
+    ----------
+    certificate : ForwardCertificate
+        Carrier whose ``extensions_json`` string holds the extension
+        object.
+
+    Returns
+    -------
+    normalized : dict[str, Any]
+        NFC-normalized extension mapping.
+
+    Raises
+    ------
+    ValueError
+        If the string is not valid JSON or does not encode an object.
+
+    Notes
+    -----
+    Parses with the duplicate-key and constant-rejecting hooks, so
+    ``NaN`` tokens and repeated keys fail, then applies
+    :func:`_normalize_json_value`.
+    """
     exc: json.JSONDecodeError | TypeError
     try:
         value: Any = json.loads(
@@ -451,7 +689,25 @@ def finalize_certificate(
 
 
 def _certificate_document(certificate: ForwardCertificate) -> dict[str, Any]:
-    """Build the complete portable document for one certificate."""
+    """PRIVATE: Build the complete portable document for one certificate.
+
+    Parameters
+    ----------
+    certificate : ForwardCertificate
+        Concrete certificate at the persistence boundary.
+
+    Returns
+    -------
+    document : dict[str, Any]
+        Mapping with ``format``, ``schema_version``, the encoded
+        ``certificate``, ``extensions``, and the storage checksum.
+
+    Notes
+    -----
+    Finalizes the certificate first, so the stored record carries its
+    canonical identity.  The schema helpers raise ``ValueError`` for
+    an unsupported schema version or unsupported field values.
+    """
     finalized: ForwardCertificate = finalize_certificate(certificate)
     schema_version: str = finalized.manifest.schema_version
     _parse_schema_version(schema_version)
@@ -466,13 +722,50 @@ def _certificate_document(certificate: ForwardCertificate) -> dict[str, Any]:
 
 
 def _reject_json_constant(value: str) -> None:
-    """Reject JSON's non-standard NaN and Infinity tokens."""
+    """PRIVATE: Reject JSON's non-standard NaN and Infinity tokens.
+
+    Parameters
+    ----------
+    value : str
+        Constant token the JSON parser encountered, such as ``"NaN"``.
+
+    Raises
+    ------
+    ValueError
+        Always; the certificate grammar has no nonfinite constants.
+
+    Notes
+    -----
+    Installed as the ``parse_constant`` hook, so the parser calls this
+    function only for ``NaN``, ``Infinity``, and ``-Infinity``.
+    """
     msg: str = f"certificate JSON contains invalid constant {value!r}"
     raise ValueError(msg)
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    """Build a JSON object while rejecting duplicate names."""
+    """PRIVATE: Build a JSON object while rejecting duplicate names.
+
+    Parameters
+    ----------
+    pairs : list[tuple[str, Any]]
+        Key-value pairs of one JSON object in document order.
+
+    Returns
+    -------
+    result : dict[str, Any]
+        Mapping with every pair inserted exactly once.
+
+    Raises
+    ------
+    ValueError
+        If a key repeats within one object.
+
+    Notes
+    -----
+    Installed as the ``object_pairs_hook``, so a duplicated key fails
+    the parse instead of silently keeping the last value.
+    """
     key: Any
     value: Any
     result: dict[str, Any] = {}
@@ -485,7 +778,35 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _read_document(data: bytes) -> dict[str, Any]:
-    """Parse, structurally validate, and checksum one JSON document."""
+    """PRIVATE: Parse, structurally validate, and checksum one JSON
+    document.
+
+    Implementation Logic
+    --------------------
+    Decodes UTF-8 JSON with the duplicate-key and constant-rejecting
+    hooks.  The document must be an object with every required key,
+    the supported ``format`` value, and a valid schema version.
+    Unknown top-level keys fail for a minor version at or below the
+    reader's version.  The stored consistency checksum must match a
+    recomputation, and ``extensions`` must be an object.  The result
+    passes through :func:`_normalize_json_value` once.
+
+    Parameters
+    ----------
+    data : bytes
+        Raw JSON document bytes.
+
+    Returns
+    -------
+    normalized : dict[str, Any]
+        Validated, normalized document mapping.
+
+    Raises
+    ------
+    ValueError
+        If decoding, structure, format, schema, unknown-key, checksum,
+        or extension validation fails.
+    """
     exc: UnicodeDecodeError | json.JSONDecodeError
     try:
         decoded: Any = json.loads(
@@ -529,7 +850,31 @@ def _read_document(data: bytes) -> dict[str, Any]:
 
 
 def _parse_schema_version(value: object) -> tuple[int, int]:
-    """Parse a schema version and reject unsupported major versions."""
+    """PRIVATE: Parse a schema version and reject unsupported major
+    versions.
+
+    Parameters
+    ----------
+    value : object
+        Candidate schema version value from a document or manifest.
+
+    Returns
+    -------
+    parsed : tuple[int, int]
+        Pair of the major and minor version numbers.
+
+    Raises
+    ------
+    ValueError
+        If the value is not a string, does not match the schema
+        pattern, or names a different major version.
+
+    Notes
+    -----
+    A missing minor component parses as zero.  The reader accepts only
+    its own major version; minor versions gate unknown-field handling
+    elsewhere.
+    """
     if not isinstance(value, str):
         msg: str = "certificate schema_version must be a string"
         raise ValueError(msg)
@@ -551,7 +896,34 @@ def _parse_schema_version(value: object) -> tuple[int, int]:
 
 
 def _decode_array(node: Mapping[str, Any]) -> Any:
-    """Decode and validate one losslessly represented numerical leaf."""
+    """PRIVATE: Decode and validate one losslessly represented numerical
+    leaf.
+
+    Implementation Logic
+    --------------------
+    Requires the exact seven-field record shape, little-endian C-order
+    base64 storage, a supported non-big-endian dtype, and a shape list
+    of nonnegative integers.  Decodes the base64 payload with strict
+    validation, checks the byte length against dtype and shape, and
+    rejects nonfinite float or complex data.  The buffer copy becomes
+    a JAX array.
+
+    Parameters
+    ----------
+    node : Mapping[str, Any]
+        Array record produced by :func:`_encode_array`.
+
+    Returns
+    -------
+    result : Any
+        Reconstructed JAX array with the recorded dtype and shape.
+
+    Raises
+    ------
+    ValueError
+        If any field, dtype, shape, encoding, byte length, or
+        finiteness check fails.
+    """
     exc: TypeError | binascii.Error | ValueError
     required: frozenset[str] = frozenset(
         {"kind", "dtype", "shape", "byte_order", "order", "encoding", "data"}
@@ -614,7 +986,39 @@ def _decode_value(
     extensions: dict[str, Any],
     path: str,
 ) -> Any:
-    """Decode one schema node through the registered carrier factories."""
+    """PRIVATE: Decode one schema node through the registered carrier
+    factories.
+
+    Parameters
+    ----------
+    node : Any
+        Encoded scalar or ``kind``-tagged record.
+    schema_minor : int
+        Minor schema version of the document.
+    extensions : dict[str, Any]
+        Mutable extension mapping that collects unknown fields.
+    path : str
+        Dotted location for diagnostics.
+
+    Returns
+    -------
+    decoded : Any
+        Reconstructed scalar, array, tuple, list, mapping, or carrier.
+
+    Raises
+    ------
+    ValueError
+        If a node is not a scalar or object, a record shape is
+        invalid, or the ``kind`` tag is unknown.
+
+    Notes
+    -----
+    Scalars pass through.  Objects dispatch on their ``kind`` tag.
+    ``array`` records decode losslessly.  ``tuple`` and ``list``
+    records recurse with indexed paths.  ``mapping`` records recurse
+    with dotted paths.  ``module`` records go to
+    :func:`_decode_module`.
+    """
     if node is None or isinstance(node, bool | int | float | str):
         decoded: Any = node
         return decoded  # noqa: RET504
@@ -675,7 +1079,29 @@ def _record_unknown_fields(
     path: str,
     values: dict[str, Any],
 ) -> None:
-    """Retain fields introduced by a newer compatible minor schema."""
+    """PRIVATE: Retain fields introduced by a newer compatible minor schema.
+
+    Parameters
+    ----------
+    extensions : dict[str, Any]
+        Mutable extension mapping for the certificate under
+        reconstruction.
+    path : str
+        Dotted module location that owns the unknown fields.
+    values : dict[str, Any]
+        Encoded unknown fields at that location.
+
+    Raises
+    ------
+    ValueError
+        If the reserved extension key already holds a non-object.
+
+    Notes
+    -----
+    Stores the values under the reserved
+    ``org.diffpes.persistence.unknown_module_fields`` key, so a
+    round trip through an older reader preserves newer-minor data.
+    """
     key: str = "org.diffpes.persistence.unknown_module_fields"
     existing: Any = extensions.setdefault(key, {})
     if not isinstance(existing, dict):
@@ -691,7 +1117,43 @@ def _decode_module(
     extensions: dict[str, Any],
     path: str,
 ) -> Any:
-    """Decode one whitelisted Equinox carrier via its validation factory."""
+    """PRIVATE: Decode one whitelisted Equinox carrier via its validation
+    factory.
+
+    Implementation Logic
+    --------------------
+    Requires the exact ``kind``, ``type``, ``fields`` record shape and
+    a whitelisted type name.  Missing declared fields fail.  Unknown
+    fields fail for a minor version at or below the reader's version;
+    a newer minor retains them through
+    :func:`_record_unknown_fields`.  Expected fields decode
+    recursively.  A ``ForwardCertificate`` root also receives its
+    ``extensions_json`` string, re-serialized from the collected
+    extensions.  The types-owned factory rebuilds the carrier, so the
+    load repeats the full validation contract.
+
+    Parameters
+    ----------
+    node : Mapping[str, Any]
+        Encoded ``module`` record.
+    schema_minor : int
+        Minor schema version of the document.
+    extensions : dict[str, Any]
+        Mutable extension mapping that collects unknown fields.
+    path : str
+        Dotted location for diagnostics.
+
+    Returns
+    -------
+    result : Any
+        Validated carrier instance.
+
+    Raises
+    ------
+    ValueError
+        If the record shape, type name, or field inventory is invalid,
+        or the factory rejects the decoded values.
+    """
     exc: TypeError | ValueError
     if node.keys() != {"kind", "type", "fields"}:
         msg: str = f"invalid module record at {path}"
@@ -755,7 +1217,34 @@ def _decode_module(
 
 
 def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
-    """Construct a validated certificate from a parsed document."""
+    """PRIVATE: Construct a validated certificate from a parsed document.
+
+    Implementation Logic
+    --------------------
+    Reads the stored canonical identity from the certificate node.
+    For a minor version at or below the reader's version, the identity
+    must match a recomputation.  Extra top-level
+    document fields go into the extensions under a reserved key.  The
+    node then decodes through :func:`_decode_value`; the root must be
+    a ``ForwardCertificate`` whose manifest schema version equals the
+    document's.
+
+    Parameters
+    ----------
+    document : dict[str, Any]
+        Validated document from :func:`_read_document`.
+
+    Returns
+    -------
+    decoded : ForwardCertificate
+        Reconstructed and revalidated certificate.
+
+    Raises
+    ------
+    ValueError
+        If the identity is absent or mismatched, decoding fails, the
+        root is not a certificate, or the schema versions disagree.
+    """
     parsed_schema: tuple[int, int] = _parse_schema_version(
         document["schema_version"]
     )
@@ -800,7 +1289,29 @@ def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
 
 
 def _atomic_write(path: Path, data: bytes) -> None:
-    """Write bytes through a same-directory temporary and atomic replace."""
+    """PRIVATE: Write bytes through a same-directory temporary and atomic
+    replace.
+
+    Parameters
+    ----------
+    path : Path
+        Destination file path; its parent directory must exist.
+    data : bytes
+        Exact bytes to publish.
+
+    Raises
+    ------
+    BaseException
+        If temporary creation, writing, syncing, or replacement fails;
+        the handler removes the temporary file first.
+
+    Notes
+    -----
+    Writes into a ``mkstemp`` file in the destination directory,
+    flushes and fsyncs it, and publishes with :func:`os.replace`.  The
+    same-directory temporary keeps the replace atomic on one
+    filesystem, so readers never observe a partial record.
+    """
     stream: Any
     path.parent.mkdir(parents=False, exist_ok=True)
     temporary_record: tuple[int, str] = tempfile.mkstemp(
@@ -905,7 +1416,24 @@ def load_certificate_json(path: str | Path) -> ForwardCertificate:
 
 
 def _validate_h5_name(name: str) -> None:
-    """Reject ambiguous or path-like HDF5 certificate names."""
+    """PRIVATE: Reject ambiguous or path-like HDF5 certificate names.
+
+    Parameters
+    ----------
+    name : str
+        Requested certificate entry name.
+
+    Raises
+    ------
+    ValueError
+        If the name is empty, ``"."``, ``".."``, or contains a slash
+        or NUL character.
+
+    Notes
+    -----
+    The name must stay one plain group component, so a caller cannot
+    address groups outside the certificate index.
+    """
     if not name or name in {".", ".."} or "/" in name or "\x00" in name:
         msg: str = "HDF5 certificate name must be one nonblank group component"
         raise ValueError(msg)
@@ -917,7 +1445,29 @@ def _write_h5_record(
     data: bytes,
     certificate: ForwardCertificate,
 ) -> None:
-    """Write one exact JSON record and its convenience index attributes."""
+    """PRIVATE: Write one exact JSON record and its convenience index
+    attributes.
+
+    Parameters
+    ----------
+    path : Path
+        HDF5 container to open in append mode.
+    name : str
+        Validated certificate entry name.
+    data : bytes
+        Canonical JSON bytes of the certificate document.
+    certificate : ForwardCertificate
+        Finalized certificate that supplies the index attributes.
+
+    Notes
+    -----
+    Revalidates ``data`` through :func:`_read_document` first.  The
+    entry replaces any same-named group under the certificate index
+    group and stores the exact bytes as one compressed,
+    checksummed ``uint8`` dataset.  Convenience attributes copy the
+    format, schema version, model identity, policy, execution ID, and
+    storage checksum for quick inspection.
+    """
     file: Any
     document: dict[str, Any] = _read_document(data)
     with h5py.File(path, "a") as file:

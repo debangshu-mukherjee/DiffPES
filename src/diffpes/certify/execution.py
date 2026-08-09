@@ -26,7 +26,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Optional
+from beartype.typing import Any, Optional, Tuple
 from jax import core
 from jax.experimental import checkify
 from jaxtyping import Array, Float, PyTree, jaxtyped
@@ -75,8 +75,28 @@ from .resolvers import verify_evidence
 from .waivers import require_active_waivers
 
 
-def _path_names(tree: PyTree) -> tuple[str, ...]:
-    """Return stable real-coordinate paths for numerical input leaves."""
+def _path_names(tree: PyTree) -> Tuple[str, ...]:
+    """PRIVATE: Return stable real-coordinate paths for numerical input
+    leaves.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Numerical input PyTree.
+
+    Returns
+    -------
+    result : Tuple[str, ...]
+        One key-path name per real leaf. A complex leaf contributes two
+        names with ``.real`` and ``.imag`` suffixes. A bare root leaf
+        gets the name ``"$"``.
+
+    Notes
+    -----
+    The name count equals the probe count of :func:`_probe_directions`,
+    which also counts a complex leaf twice. The names label probe rows
+    in the certification kernel.
+    """
     path: Any
     leaf: Any
     flattened: Any = jax.tree_util.tree_flatten_with_path(tree)
@@ -88,13 +108,29 @@ def _path_names(tree: PyTree) -> tuple[str, ...]:
             paths.extend((f"{name}.real", f"{name}.imag"))
         else:
             paths.append(name)
-    result: tuple[str, ...] = tuple(paths)
+    result: Tuple[str, ...] = tuple(paths)
     return result
 
 
 @cache
 def _checked_kernel() -> Any:
-    """Return the compiled kernel with functional hard-domain checks."""
+    """PRIVATE: Return the compiled kernel with functional hard-domain
+    checks.
+
+    Returns
+    -------
+    compiled : Any
+        :func:`_certify_kernel` wrapped by :func:`checkify.checkify` and
+        :func:`equinox.filter_jit`. Calls return a structured error and
+        the certified result.
+
+    Notes
+    -----
+    The :func:`functools.cache` decorator builds the transformed kernel
+    once per process, so repeated certifications reuse one JIT cache.
+    Checkify turns hard-domain failures into a functional error value
+    instead of a Python exception inside compiled code.
+    """
     transformed: Any = checkify.checkify(_certify_kernel)
     compiled: Any = eqx.filter_jit(transformed)
     return compiled
@@ -107,8 +143,38 @@ def _certify_forward_checked(
     directions: Optional[PyTree],
     scales: Optional[Float[Array, " n_probe"]],
     spectrum_rank: int,
-) -> tuple[Any, CertifiedResult]:
-    """Resolve eager records and run one structured checked kernel."""
+) -> Tuple[Any, CertifiedResult]:
+    """PRIVATE: Resolve eager records and run one structured checked
+    kernel.
+
+    Implementation Logic
+    --------------------
+    Resolves the registered executor from the model identity and
+    version, fills in default probe directions
+    (:func:`_probe_directions`) and unit scales when the caller supplies
+    none, resolves the registered domain-check callables, and reuses the
+    cached structural dependency analysis. It then calls the cached
+    checkified JIT kernel with these static selections.
+
+    Parameters
+    ----------
+    context : CertificationContext
+        Prepared model, policy, evidence, and domain-check selections.
+    inputs : PyTree
+        Numerical model inputs in the declared physical units.
+    directions : Optional[PyTree]
+        Batched tangent probes, or ``None`` for one probe per real input
+        coordinate.
+    scales : Optional[Float[Array, " n_probe"]]
+        Positive physical probe scales, or ``None`` for unit scales.
+    spectrum_rank : int
+        Requested information-spectrum rank (**static**).
+
+    Returns
+    -------
+    checked : Tuple[Any, CertifiedResult]
+        Structured checkify error and complete certified result.
+    """
     registered: RegisteredModel = get_model(
         context.model.model_id,
         context.model.model_version,
@@ -122,16 +188,16 @@ def _certify_forward_checked(
         if scales is None
         else jnp.asarray(scales, dtype=jnp.float64)
     )
-    domain_checks: tuple[CheckFunction, ...] = tuple(
+    domain_checks: Tuple[CheckFunction, ...] = tuple(
         get_check(check_id) for check_id in context.check_ids
     )
-    structural_evaluation: tuple[PyTree, Array] = _dependency_structure(
+    structural_evaluation: Tuple[PyTree, Array] = _dependency_structure(
         context.model.model_id,
         registered.executor,
         inputs,
     )
     structural: Array = structural_evaluation[1]
-    checked: tuple[Any, CertifiedResult] = _checked_kernel()(
+    checked: Tuple[Any, CertifiedResult] = _checked_kernel()(
         registered.executor,
         context,
         inputs,
@@ -145,9 +211,29 @@ def _certify_forward_checked(
 
 
 def _probe_directions(inputs: PyTree) -> PyTree:
-    """Construct one all-ones directional probe per input leaf."""
+    """PRIVATE: Construct one all-ones directional probe per input leaf.
+
+    Parameters
+    ----------
+    inputs : PyTree
+        Numerical input PyTree that fixes the probe structure.
+
+    Returns
+    -------
+    directions : PyTree
+        PyTree with the structure of ``inputs`` and a leading probe axis
+        on every leaf. Probe ``i`` is all ones on its own leaf and zero
+        elsewhere. A complex leaf receives a second probe of ``1j``
+        times ones, so its real and imaginary responses separate.
+
+    Notes
+    -----
+    The probe count equals the path count of :func:`_path_names`. The
+    probes are the default tangent batch for derivative evidence and
+    sensitivity maps.
+    """
     array: Any
-    flattened: tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
+    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
     leaves: list[Any] = flattened[0]
     treedef: Any = flattened[1]
     arrays: list[Array] = [jnp.asarray(leaf) for leaf in leaves]
@@ -157,7 +243,7 @@ def _probe_directions(inputs: PyTree) -> PyTree:
     batched: list[Array] = []
     selected: int = 0
     for array in arrays:
-        shape: tuple[int, ...] = (n_leaves, *array.shape)
+        shape: Tuple[int, ...] = (n_leaves, *array.shape)
         probe: Array = jnp.zeros(shape, dtype=array.dtype)
         probe = probe.at[selected].set(jnp.ones_like(array))
         selected += 1
@@ -176,13 +262,13 @@ def prepare_certification(  # noqa: PLR0913
     manifest: ExecutionManifest,
     *,
     policy_id: str = "org.diffpes.policy.research.v1",
-    artifacts: tuple[ArtifactRef, ...] = (),
-    transformations: tuple[TransformationRecord, ...] = (),
-    evidence: tuple[EvidenceRef, ...] = (),
-    attestations: tuple[HumanAttestationRef, ...] = (),
-    check_ids: tuple[str, ...] = (),
-    input_checksums: tuple[str, ...] = (),
-    waivers: tuple[WaiverRecord, ...] = (),
+    artifacts: Tuple[ArtifactRef, ...] = (),
+    transformations: Tuple[TransformationRecord, ...] = (),
+    evidence: Tuple[EvidenceRef, ...] = (),
+    attestations: Tuple[HumanAttestationRef, ...] = (),
+    check_ids: Tuple[str, ...] = (),
+    input_checksums: Tuple[str, ...] = (),
+    waivers: Tuple[WaiverRecord, ...] = (),
 ) -> CertificationContext:
     """Resolve static scientific records before compiled execution.
 
@@ -211,19 +297,19 @@ def prepare_certification(  # noqa: PLR0913
         Prepared execution identity and numerical environment.
     policy_id : str
         Certification policy identity (**static** -- changing it retraces).
-    artifacts : tuple[ArtifactRef, ...]
+    artifacts : Tuple[ArtifactRef, ...]
         Input and derived artifact references.
-    transformations : tuple[TransformationRecord, ...]
+    transformations : Tuple[TransformationRecord, ...]
         Ordered information-flow records.
-    evidence : tuple[EvidenceRef, ...]
+    evidence : Tuple[EvidenceRef, ...]
         Numerical evidence with named lineage.
-    attestations : tuple[HumanAttestationRef, ...]
+    attestations : Tuple[HumanAttestationRef, ...]
         Human reviews kept separate from computational evidence.
-    check_ids : tuple[str, ...]
+    check_ids : Tuple[str, ...]
         Domain checks to run (**static** -- changing them retraces).
-    input_checksums : tuple[str, ...]
+    input_checksums : Tuple[str, ...]
         Bookkeeping identities for inputs (**static** -- a change retraces).
-    waivers : tuple[WaiverRecord, ...]
+    waivers : Tuple[WaiverRecord, ...]
         Policy-waiver records. Default is an empty tuple.
 
     Returns
@@ -237,7 +323,7 @@ def prepare_certification(  # noqa: PLR0913
         If a waiver does not match the selected policy or active UTC interval.
     """
     registered: RegisteredModel = get_model(model_id, model_version)
-    mismatched_waivers: tuple[str, ...] = tuple(
+    mismatched_waivers: Tuple[str, ...] = tuple(
         waiver.waiver_id for waiver in waivers if waiver.policy_id != policy_id
     )
     if mismatched_waivers:
@@ -267,9 +353,31 @@ def prepare_certification(  # noqa: PLR0913
 
 
 def _evidence_claims(
-    model_id: str, evidence: tuple[EvidenceRef, ...]
-) -> tuple[CertificationClaim, ...]:
-    """Convert registered numerical evidence into verification claims."""
+    model_id: str, evidence: Tuple[EvidenceRef, ...]
+) -> Tuple[CertificationClaim, ...]:
+    """PRIVATE: Convert registered numerical evidence into verification
+    claims.
+
+    Parameters
+    ----------
+    model_id : str
+        Permanent model identity that becomes the claim subject.
+    evidence : Tuple[EvidenceRef, ...]
+        Registered numerical evidence records.
+
+    Returns
+    -------
+    result : Tuple[CertificationClaim, ...]
+        One claim per evidence record, in input order.
+
+    Notes
+    -----
+    Each claim reuses the evidence measured, reference, and tolerance
+    arrays through :func:`evaluate_claim` under the predicate
+    ``verification.external_reference``. The claim identifier prefixes
+    the evidence identifier with ``claim.`` and names the single source
+    evidence record.
+    """
     item: Any
     claims: list[CertificationClaim] = []
     for item in evidence:
@@ -283,7 +391,7 @@ def _evidence_claims(
             evidence_ids=(item.evidence_id,),
         )
         claims.append(claim)
-    result: tuple[CertificationClaim, ...] = tuple(claims)
+    result: Tuple[CertificationClaim, ...] = tuple(claims)
     return result
 
 
@@ -293,13 +401,58 @@ def _certify_kernel(  # noqa: PLR0915
     inputs: PyTree,
     directions: PyTree,
     scales: Float[Array, " n_probe"],
-    domain_checks: tuple[CheckFunction, ...],
+    domain_checks: Tuple[CheckFunction, ...],
     structural: Array,
     *,
     spectrum_rank: int,
 ) -> CertifiedResult:
-    """Run the pure compiled certification computation."""
-    linearized: tuple[PyTree, Any] = jax.linearize(executor, inputs)
+    """PRIVATE: Run the pure compiled certification computation.
+
+    Implementation Logic
+    --------------------
+    Linearizes the executor once with :func:`jax.linearize` and derives
+    every product from that retained linearization: the information
+    spectrum, the derivative evidence against batched central
+    differences, the traced dependency map over the supplied structural
+    matrix, and the sensitivity map. Runs each registered domain check
+    and records a :func:`checkify.check` failure when a hard check
+    (severity code 2 or higher) does not pass. Builds the claim set:
+    identity, output finiteness, JVP-versus-central-difference
+    agreement, one claim per domain check, and one claim per external
+    evidence record. Evaluates the certification policy over these
+    claims and assembles the forward certificate and certified result.
+
+    Parameters
+    ----------
+    executor : Any
+        Registered pure forward callable.
+    context : CertificationContext
+        Prepared static model, policy, evidence, and waiver selections.
+    inputs : PyTree
+        Numerical model inputs in the declared physical units.
+    directions : PyTree
+        Batched tangent probes with a leading probe axis.
+    scales : Float[Array, " n_probe"]
+        Positive physical scale for each probe.
+    domain_checks : Tuple[CheckFunction, ...]
+        Resolved pure domain predicates.
+    structural : Array
+        Precomputed Boolean output-by-input structural matrix.
+    spectrum_rank : int
+        Requested information-spectrum rank (**static**).
+
+    Returns
+    -------
+    result : CertifiedResult
+        Forward value paired with the complete forward certificate.
+
+    Notes
+    -----
+    The function is pure and traceable. Hard-domain failures surface
+    through the surrounding :func:`checkify.checkify` transformation,
+    not through Python exceptions.
+    """
+    linearized: Tuple[PyTree, Any] = jax.linearize(executor, inputs)
     value: PyTree = linearized[0]
     tree_pushforward: Any = linearized[1]
 
@@ -310,13 +463,13 @@ def _certify_kernel(  # noqa: PLR0915
 
     flat_value: Array = _ravel_real_pytree(value)[0]
     output_size: int = flat_value.size
-    input_paths: tuple[str, ...] = _path_names(inputs)
+    input_paths: Tuple[str, ...] = _path_names(inputs)
     n_probes: int = len(input_paths)
     cotangent_indices: Array = jnp.arange(n_probes) % output_size
     cotangents: Array = jnp.eye(output_size, dtype=jnp.float64)[
         cotangent_indices
     ]
-    output_ids: tuple[str, ...] = tuple(
+    output_ids: Tuple[str, ...] = tuple(
         f"output[{index}]" for index in range(output_size)
     )
     transposed: Any = jax.linear_transpose(vector_pushforward, inputs)
@@ -383,7 +536,7 @@ def _certify_kernel(  # noqa: PLR0915
         scales,
         vector_pushforward,
     )
-    domains: tuple[DomainResult, ...] = tuple(
+    domains: Tuple[DomainResult, ...] = tuple(
         check_fn(inputs) for check_fn in domain_checks
     )
     domain: DomainResult
@@ -396,7 +549,7 @@ def _certify_kernel(  # noqa: PLR0915
             hard_passed,
             f"hard domain check failed: {domain.predicate_id}",
         )
-    domain_claims: tuple[CertificationClaim, ...] = tuple(
+    domain_claims: Tuple[CertificationClaim, ...] = tuple(
         make_certification_claim(
             claim_id=f"claim.{domain.predicate_id}",
             subject_id=context.model.model_id,
@@ -445,10 +598,10 @@ def _certify_kernel(  # noqa: PLR0915
         reference=jnp.zeros(1),
         tolerance=jnp.asarray([derivative_tolerance]),
     )
-    external_claims: tuple[CertificationClaim, ...] = _evidence_claims(
+    external_claims: Tuple[CertificationClaim, ...] = _evidence_claims(
         context.model.model_id, context.evidence
     )
-    claims: tuple[CertificationClaim, ...] = (
+    claims: Tuple[CertificationClaim, ...] = (
         identity_claim,
         output_claim,
         derivative_claim,
@@ -555,7 +708,7 @@ def certify_forward_checked(
     directions: Optional[PyTree] = None,
     scales: Optional[Float[Array, " n_probe"]] = None,
     spectrum_rank: int = 8,
-) -> tuple[Any, CertifiedResult]:
+) -> Tuple[Any, CertifiedResult]:
     """Execute certification and return structured hard-domain errors.
 
     The function returns a ``checkify.Error`` with the certified result. The
@@ -578,7 +731,7 @@ def certify_forward_checked(
 
     Returns
     -------
-    checked : tuple[Any, CertifiedResult]
+    checked : Tuple[Any, CertifiedResult]
         Structured checkify error and complete certified result.
 
     Notes
@@ -586,7 +739,7 @@ def certify_forward_checked(
     The structured error remains compatible with JIT and VMAP. Call
     ``error.throw()`` only at an eager boundary.
     """
-    checked: tuple[Any, CertifiedResult] = _certify_forward_checked(
+    checked: Tuple[Any, CertifiedResult] = _certify_forward_checked(
         context,
         inputs,
         directions=directions,
@@ -600,14 +753,39 @@ def _claim_is_consistent(
     claim: CertificationClaim,
     domains: dict[str, DomainResult],
 ) -> bool:
-    """Return whether one claim agrees with its continuous evidence."""
+    """PRIVATE: Return whether one claim agrees with its continuous
+    evidence.
+
+    Implementation Logic
+    --------------------
+    For a ``domain.`` claim, looks up the recorded domain result by
+    predicate identity and requires exact array equality of the
+    measured, reference, residual, tolerance, margin, passed, checked,
+    in-domain, and severity leaves; a missing domain result fails. For
+    every other claim, recomputes the residual, the minimum signed
+    margin, and the pass Boolean from the retained measured, reference,
+    tolerance, checked, and in-domain leaves, and requires exact
+    equality with the recorded values.
+
+    Parameters
+    ----------
+    claim : CertificationClaim
+        Recorded claim under verification.
+    domains : dict[str, DomainResult]
+        Recorded domain results keyed by predicate identity.
+
+    Returns
+    -------
+    consistent : bool
+        ``True`` when every recorded leaf matches its recomputation.
+    """
     if claim.predicate_id.startswith("domain."):
         domain_id: str = claim.predicate_id.removeprefix("domain.")
         domain: DomainResult | None = domains.get(domain_id)
         if domain is None:
             consistent: bool = False
             return consistent
-        comparisons: tuple[tuple[Any, Any], ...] = (
+        comparisons: Tuple[Tuple[Any, Any], ...] = (
             (claim.measured, jnp.atleast_1d(domain.measured)),
             (claim.reference, jnp.atleast_1d(domain.reference)),
             (claim.residual, jnp.atleast_1d(domain.residual)),
@@ -646,7 +824,31 @@ def _external_claim_matches_evidence(
     claim: CertificationClaim,
     evidence_by_id: dict[str, EvidenceRef],
 ) -> bool:
-    """Return whether an external claim mirrors its attached evidence."""
+    """PRIVATE: Return whether an external claim mirrors its attached
+    evidence.
+
+    Parameters
+    ----------
+    claim : CertificationClaim
+        Recorded claim under verification.
+    evidence_by_id : dict[str, EvidenceRef]
+        Certificate evidence records keyed by evidence identity.
+
+    Returns
+    -------
+    consistent : bool
+        ``True`` for any claim outside the
+        ``verification.external_reference`` predicate. For an external
+        claim, ``True`` only when the claim names exactly one evidence
+        record that exists and whose measured, reference, residual, and
+        tolerance arrays equal the claim arrays.
+
+    Notes
+    -----
+    The exact array-equality requirement stops a certificate from
+    reporting an external verification that its own evidence does not
+    support.
+    """
     if claim.predicate_id != "verification.external_reference":
         consistent: bool = True
         return consistent  # noqa: RET504
@@ -657,7 +859,7 @@ def _external_claim_matches_evidence(
     if evidence is None:
         consistent = False
         return consistent  # noqa: RET504
-    comparisons: tuple[tuple[Any, Any], ...] = (
+    comparisons: Tuple[Tuple[Any, Any], ...] = (
         (claim.measured, evidence.measured),
         (claim.reference, evidence.reference),
         (claim.residual, evidence.residual),
@@ -738,7 +940,7 @@ def verify_certificate(
         )
         for evidence in certificate.evidence
     )
-    evidence_reports: tuple[EvidenceReport, ...] = ()
+    evidence_reports: Tuple[EvidenceReport, ...] = ()
     if resolver is not None:
         evidence_reports = tuple(
             verify_evidence(item, certificate.artifacts, resolver)

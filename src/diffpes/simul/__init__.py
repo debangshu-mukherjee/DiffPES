@@ -25,8 +25,8 @@ The following list describes the submodules:
     Compute photon polarization and explicit frame transformations.
 - :mod:`resolution`
     Apply momentum resolution broadening to ARPES simulations.
-- :mod:`self_energy`
-    Evaluate energy-dependent self-energy for ARPES simulations.
+- :mod:`spectral`
+    Evaluate the complex retarded self-energy through the certified KK map.
 - :mod:`spectrum`
     Simulate deliberately incoherent ARPES projection spectra.
 - :mod:`workflow`
@@ -47,7 +47,7 @@ Routine Listings
 :func:`compute_oam`
     Compute orbital angular momentum z-component.
 :func:`evaluate_self_energy`
-    Evaluate the imaginary self-energy :math:`\Gamma(E)`.
+    Evaluate the complex retarded self-energy for one causal model.
 :func:`emission_angles`
     Convert Cartesian momentum to emission angles.
 :func:`fermi_dirac`
@@ -189,7 +189,7 @@ from .polarization import (
     sample_azimuth_rotation,
 )
 from .resolution import apply_momentum_broadening
-from .self_energy import evaluate_self_energy
+from .spectral import evaluate_self_energy
 from .spectrum import (
     simulate_basic,
     simulate_novice,

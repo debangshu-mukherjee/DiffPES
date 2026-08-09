@@ -265,7 +265,12 @@ def prepare_projection(
 def _kpath_distances(
     kpoints: Float64[Array, "K 3"],
 ) -> Float64[Array, " K"]:
-    """Compute cumulative k-path distances from k-point coordinates."""
+    """PRIVATE: Compute cumulative k-path distances from k-point coordinates.
+
+    Notes
+    -----
+    The distances accumulate segment norms along the path.
+    """
     dk_vecs: Float64[Array, "Km1 3"] = jnp.diff(kpoints, axis=0)
     dk_norms: Float64[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)
     distances: Float64[Array, " K"] = jnp.concatenate(

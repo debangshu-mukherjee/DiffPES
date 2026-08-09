@@ -5,6 +5,7 @@ validity consistency without invoking the higher-level propagation engine.
 """
 
 import pytest
+from beartype.typing import Tuple
 
 from diffpes.types import (
     InformationState,
@@ -142,7 +143,7 @@ class TestMakeInformationState:
     def test_rejects_invalid_state(
         self,
         node_id: str,
-        active_semantics: tuple[str, ...],
+        active_semantics: Tuple[str, ...],
         message: str,
     ) -> None:
         """Reject an invalid node identity or duplicated semantic label.

@@ -13,7 +13,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import mpmath as mp
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array, Float64
 from scipy import stats
 
@@ -30,7 +30,26 @@ from tests._gradients import assert_grad_matches_fd
 def _fermi_value_and_gradients(
     theta: Float64[Array, "3"],
 ) -> Float64[Array, "4"]:
-    """Evaluate Fermi occupation and its three parameter derivatives."""
+    """PRIVATE: Evaluate Fermi occupation and its three parameter derivatives.
+
+    Parameters
+    ----------
+    theta : Float64[Array, "3"]
+        Packed energy in eV, Fermi level in eV, and temperature in
+        Kelvin.
+
+    Returns
+    -------
+    result : Float64[Array, "4"]
+        Occupation value followed by its gradient in the three packed
+        parameters.
+
+    Notes
+    -----
+    Wraps the public Fermi-Dirac function in a scalar closure over the
+    packed parameters and concatenates the value with the jax.grad of
+    the closure.
+    """
 
     def occupation(parameters: Float64[Array, "3"]) -> Float64[Array, ""]:
         value: Float64[Array, ""] = fermi_dirac(
@@ -49,7 +68,24 @@ def _fermi_value_and_gradients(
 def _gaussian_parameter_loss(
     parameters: Float64[Array, "2"],
 ) -> Float64[Array, ""]:
-    """Reduce a Gaussian profile without symmetry cancellation."""
+    """PRIVATE: Reduce a Gaussian profile without symmetry cancellation.
+
+    Parameters
+    ----------
+    parameters : Float64[Array, "2"]
+        Packed center in eV and standard deviation in eV.
+
+    Returns
+    -------
+    loss : Float64[Array, ""]
+        Weighted sum of the profile on a fixed asymmetric energy grid.
+
+    Notes
+    -----
+    Evaluates the public Gaussian on 19 energies from -1.1 eV to 1.6 eV
+    and contracts with linearly increasing weights, so both parameter
+    gradients stay nonzero.
+    """
     energy_axis: Float64[Array, "19"] = jnp.linspace(-1.1, 1.6, 19)
     weights: Float64[Array, "19"] = jnp.linspace(0.6, 1.3, 19)
     profile: Float64[Array, "19"] = gaussian(
@@ -414,7 +450,7 @@ class TestVoigt(chex.TestCase):
         message: str
 
         energy_axis: Float64[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
-        invalid_widths: tuple[tuple[float, float, str], ...] = (
+        invalid_widths: Tuple[Tuple[float, float, str], ...] = (
             (-0.1, 0.2, "sigma must be finite and nonnegative"),
             (0.1, -0.2, "gamma must be finite and nonnegative"),
             (float("nan"), 0.2, "sigma must be finite and nonnegative"),
@@ -476,7 +512,7 @@ class TestFermiDirac(chex.TestCase):
         message for every case.
         """
         invalid_temperature: float
-        invalid_temperatures: tuple[float, ...] = (
+        invalid_temperatures: Tuple[float, ...] = (
             0.0,
             -1.0,
             jnp.inf,
@@ -627,7 +663,7 @@ class TestFermiDirac(chex.TestCase):
         occupation_high_precision: Array
         var_fn: Callable[..., Any]
 
-        x_values: tuple[float, ...] = (
+        x_values: Tuple[float, ...] = (
             0.0,
             1.0,
             -1.0,
@@ -638,7 +674,7 @@ class TestFermiDirac(chex.TestCase):
             700.0,
             -700.0,
         )
-        temperatures: tuple[float, ...] = (5.0, 15.0, 300.0)
+        temperatures: Tuple[float, ...] = (5.0, 15.0, 300.0)
         parameters: list[list[float]] = []
         expected_rows: list[list[float]] = []
         with mp.workdps(50):

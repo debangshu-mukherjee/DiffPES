@@ -26,6 +26,7 @@ from collections.abc import Sequence
 
 import equinox as eqx
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
 from .certification import TransformationRecord
@@ -44,13 +45,13 @@ class InformationState(eqx.Module):
     node_id : str
         Artifact or result identifier (**static** -- a compile-time constant;
         changing it triggers retracing).
-    active_semantics : tuple[str, ...]
+    active_semantics : Tuple[str, ...]
         Available scientific semantics (**static** -- compile-time constants;
         changing them triggers retracing).
-    destroyed_information : tuple[str, ...]
+    destroyed_information : Tuple[str, ...]
         Information lost before this node (**static** -- compile-time
         constants; changing them triggers retracing).
-    invalidated_claims : tuple[str, ...]
+    invalidated_claims : Tuple[str, ...]
         Claims invalidated before this node (**static** -- compile-time
         constants; changing them triggers retracing).
 
@@ -66,9 +67,9 @@ class InformationState(eqx.Module):
     """
 
     node_id: str = eqx.field(static=True)
-    active_semantics: tuple[str, ...] = eqx.field(static=True)
-    destroyed_information: tuple[str, ...] = eqx.field(static=True)
-    invalidated_claims: tuple[str, ...] = eqx.field(static=True)
+    active_semantics: Tuple[str, ...] = eqx.field(static=True)
+    destroyed_information: Tuple[str, ...] = eqx.field(static=True)
+    invalidated_claims: Tuple[str, ...] = eqx.field(static=True)
 
 
 class ProvenanceGraph(eqx.Module):
@@ -81,20 +82,20 @@ class ProvenanceGraph(eqx.Module):
 
     Attributes
     ----------
-    records : tuple[TransformationRecord, ...]
+    records : Tuple[TransformationRecord, ...]
         Transformation records in graph order.
-    external_inputs : tuple[str, ...]
+    external_inputs : Tuple[str, ...]
         External root identifiers (**static** -- compile-time constants;
         changing them triggers retracing).
-    initial_semantics : tuple[tuple[str, tuple[str, ...]], ...]
+    initial_semantics : Tuple[Tuple[str, Tuple[str, ...]], ...]
         Initial semantics per external root (**static** -- compile-time
         constants; changing them triggers retracing).
-    topological_order : tuple[str, ...]
+    topological_order : Tuple[str, ...]
         Validated node order (**static** -- compile-time constants; changing
         them triggers retracing).
-    information : tuple[InformationState, ...]
+    information : Tuple[InformationState, ...]
         Propagated semantic state for graph nodes.
-    validation_errors : tuple[str, ...]
+    validation_errors : Tuple[str, ...]
         Structural or semantic validation errors (**static** -- compile-time
         constants; changing them triggers retracing).
     graph_checksum : str
@@ -112,14 +113,14 @@ class ProvenanceGraph(eqx.Module):
         carrier.
     """
 
-    records: tuple[TransformationRecord, ...]
-    external_inputs: tuple[str, ...] = eqx.field(static=True)
-    initial_semantics: tuple[tuple[str, tuple[str, ...]], ...] = eqx.field(
+    records: Tuple[TransformationRecord, ...]
+    external_inputs: Tuple[str, ...] = eqx.field(static=True)
+    initial_semantics: Tuple[Tuple[str, Tuple[str, ...]], ...] = eqx.field(
         static=True
     )
-    topological_order: tuple[str, ...] = eqx.field(static=True)
-    information: tuple[InformationState, ...]
-    validation_errors: tuple[str, ...] = eqx.field(static=True)
+    topological_order: Tuple[str, ...] = eqx.field(static=True)
+    information: Tuple[InformationState, ...]
+    validation_errors: Tuple[str, ...] = eqx.field(static=True)
     graph_checksum: str = eqx.field(static=True)
 
 
@@ -136,19 +137,19 @@ class ProvenanceReport(eqx.Module):
     valid : bool
         Whether validation succeeded (**static** -- a compile-time constant;
         changing it triggers retracing).
-    errors : tuple[str, ...]
+    errors : Tuple[str, ...]
         Validation failures (**static** -- compile-time constants; changing
         them triggers retracing).
-    roots : tuple[str, ...]
+    roots : Tuple[str, ...]
         Root node identifiers (**static** -- compile-time constants; changing
         them triggers retracing).
-    terminal_outputs : tuple[str, ...]
+    terminal_outputs : Tuple[str, ...]
         Terminal output identifiers (**static** -- compile-time constants;
         changing them triggers retracing).
-    orphaned_inputs : tuple[str, ...]
+    orphaned_inputs : Tuple[str, ...]
         Unconsumed external input identifiers (**static** -- compile-time
         constants; changing them triggers retracing).
-    topological_order : tuple[str, ...]
+    topological_order : Tuple[str, ...]
         Validated node order (**static** -- compile-time constants; changing
         them triggers retracing).
     graph_checksum : str
@@ -167,16 +168,40 @@ class ProvenanceReport(eqx.Module):
     """
 
     valid: bool = eqx.field(static=True)
-    errors: tuple[str, ...] = eqx.field(static=True)
-    roots: tuple[str, ...] = eqx.field(static=True)
-    terminal_outputs: tuple[str, ...] = eqx.field(static=True)
-    orphaned_inputs: tuple[str, ...] = eqx.field(static=True)
-    topological_order: tuple[str, ...] = eqx.field(static=True)
+    errors: Tuple[str, ...] = eqx.field(static=True)
+    roots: Tuple[str, ...] = eqx.field(static=True)
+    terminal_outputs: Tuple[str, ...] = eqx.field(static=True)
+    orphaned_inputs: Tuple[str, ...] = eqx.field(static=True)
+    topological_order: Tuple[str, ...] = eqx.field(static=True)
     graph_checksum: str = eqx.field(static=True)
 
 
 def _require_text(value: str, name: str) -> str:
-    """Require one nonblank string."""
+    """PRIVATE: Require one nonblank string.
+
+    Parameters
+    ----------
+    value : str
+        Candidate text value.
+    name : str
+        Field name used in the static error message.
+
+    Returns
+    -------
+    value : str
+        The validated input string, unchanged.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not a ``str`` or contains only whitespace. This
+        is the static construction-time contract.
+
+    Notes
+    -----
+    Apply ``isinstance`` and ``str.strip`` so that wrong types fail
+    together with whitespace-only text.
+    """
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a nonblank string")
     return value
@@ -187,9 +212,38 @@ def _text_tuple(
     name: str,
     *,
     unique: bool = True,
-) -> tuple[str, ...]:
-    """Validate and freeze one string sequence."""
-    result: tuple[str, ...] = tuple(
+) -> Tuple[str, ...]:
+    """PRIVATE: Validate and freeze one string sequence.
+
+    Implementation Logic
+    --------------------
+    Validate every entry through ``_require_text`` while freezing the
+    sequence into a tuple. Then compare the set size against the tuple
+    length when ``unique`` is true.
+
+    Parameters
+    ----------
+    values : Sequence[str]
+        Candidate sequence of text entries.
+    name : str
+        Field name used in the static error messages.
+    unique : bool
+        Whether duplicate entries are rejected. Default is True.
+
+    Returns
+    -------
+    result : Tuple[str, ...]
+        The validated entries frozen into a tuple in input order.
+
+    Raises
+    ------
+    ValueError
+        If duplicates are present while ``unique`` is true.
+        ``_require_text`` also raises ``ValueError`` for an entry that
+        is not a nonblank string. This is the static construction-time
+        contract.
+    """
+    result: Tuple[str, ...] = tuple(
         _require_text(value, name) for value in values
     )
     if unique and len(result) != len(set(result)):
@@ -200,9 +254,9 @@ def _text_tuple(
 @jaxtyped(typechecker=beartype)
 def make_information_state(  # noqa: DOC502
     node_id: str,
-    active_semantics: tuple[str, ...] = (),
-    destroyed_information: tuple[str, ...] = (),
-    invalidated_claims: tuple[str, ...] = (),
+    active_semantics: Tuple[str, ...] = (),
+    destroyed_information: Tuple[str, ...] = (),
+    invalidated_claims: Tuple[str, ...] = (),
 ) -> InformationState:
     """Create a validated semantic-information state for one graph node.
 
@@ -233,13 +287,13 @@ def make_information_state(  # noqa: DOC502
     node_id : str
         Artifact or result identifier (**static** -- a compile-time constant;
         changing it triggers retracing).
-    active_semantics : tuple[str, ...]
+    active_semantics : Tuple[str, ...]
         Available semantics (**static** -- compile-time constants; changing
         them triggers retracing). Default is empty.
-    destroyed_information : tuple[str, ...]
+    destroyed_information : Tuple[str, ...]
         Lost information labels (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty.
-    invalidated_claims : tuple[str, ...]
+    invalidated_claims : Tuple[str, ...]
         Invalidated claim identifiers (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty.
 
@@ -277,12 +331,12 @@ def make_information_state(  # noqa: DOC502
 
 @jaxtyped(typechecker=beartype)
 def make_provenance_graph(  # noqa: PLR0913
-    records: tuple[TransformationRecord, ...],
-    external_inputs: tuple[str, ...],
-    initial_semantics: tuple[tuple[str, tuple[str, ...]], ...],
-    topological_order: tuple[str, ...],
-    information: tuple[InformationState, ...],
-    validation_errors: tuple[str, ...],
+    records: Tuple[TransformationRecord, ...],
+    external_inputs: Tuple[str, ...],
+    initial_semantics: Tuple[Tuple[str, Tuple[str, ...]], ...],
+    topological_order: Tuple[str, ...],
+    information: Tuple[InformationState, ...],
+    validation_errors: Tuple[str, ...],
     graph_checksum: str,
 ) -> ProvenanceGraph:
     """Create a validated immutable provenance graph carrier.
@@ -318,20 +372,20 @@ def make_provenance_graph(  # noqa: PLR0913
 
     Parameters
     ----------
-    records : tuple[TransformationRecord, ...]
+    records : Tuple[TransformationRecord, ...]
         Transformation records in graph order.
-    external_inputs : tuple[str, ...]
+    external_inputs : Tuple[str, ...]
         External root identifiers (**static** -- compile-time constants;
         changing them triggers retracing).
-    initial_semantics : tuple[tuple[str, tuple[str, ...]], ...]
+    initial_semantics : Tuple[Tuple[str, Tuple[str, ...]], ...]
         Initial semantics for every root (**static** -- compile-time constants;
         changing them triggers retracing).
-    topological_order : tuple[str, ...]
+    topological_order : Tuple[str, ...]
         Validated node order (**static** -- compile-time constants; changing
         them triggers retracing).
-    information : tuple[InformationState, ...]
+    information : Tuple[InformationState, ...]
         Propagated semantic states for graph nodes.
-    validation_errors : tuple[str, ...]
+    validation_errors : Tuple[str, ...]
         Graph validation errors (**static** -- compile-time constants;
         changing them triggers retracing).
     graph_checksum : str
@@ -356,18 +410,18 @@ def make_provenance_graph(  # noqa: PLR0913
     Graph validation uses only static identities and carrier structure; it does
     not inspect or reduce physical model arrays.
     """
-    frozen_records: tuple[TransformationRecord, ...] = tuple(records)
+    frozen_records: Tuple[TransformationRecord, ...] = tuple(records)
     if any(not isinstance(record, TransformationRecord) for record in records):
         raise TypeError("records must contain TransformationRecord instances")
-    inputs: tuple[str, ...] = _text_tuple(external_inputs, "external_inputs")
-    semantic_pairs: tuple[tuple[str, tuple[str, ...]], ...] = tuple(
+    inputs: Tuple[str, ...] = _text_tuple(external_inputs, "external_inputs")
+    semantic_pairs: Tuple[Tuple[str, Tuple[str, ...]], ...] = tuple(
         (
             _require_text(node_id, "initial_semantics node_id"),
             _text_tuple(semantics, "initial_semantics values"),
         )
         for node_id, semantics in initial_semantics
     )
-    semantic_nodes: tuple[str, ...] = tuple(
+    semantic_nodes: Tuple[str, ...] = tuple(
         node_id for node_id, _ in semantic_pairs
     )
     if len(semantic_nodes) != len(set(semantic_nodes)):
@@ -376,10 +430,10 @@ def make_provenance_graph(  # noqa: PLR0913
         raise ValueError(
             "initial_semantics must describe every external input"
         )
-    states: tuple[InformationState, ...] = tuple(information)
+    states: Tuple[InformationState, ...] = tuple(information)
     if any(not isinstance(state, InformationState) for state in states):
         raise TypeError("information must contain InformationState instances")
-    state_ids: tuple[str, ...] = tuple(state.node_id for state in states)
+    state_ids: Tuple[str, ...] = tuple(state.node_id for state in states)
     if len(state_ids) != len(set(state_ids)):
         raise ValueError("information node IDs must be unique")
     graph: ProvenanceGraph = ProvenanceGraph(
@@ -404,11 +458,11 @@ def make_provenance_graph(  # noqa: PLR0913
 @jaxtyped(typechecker=beartype)
 def make_provenance_report(
     valid: bool,
-    errors: tuple[str, ...],
-    roots: tuple[str, ...],
-    terminal_outputs: tuple[str, ...],
-    orphaned_inputs: tuple[str, ...],
-    topological_order: tuple[str, ...],
+    errors: Tuple[str, ...],
+    roots: Tuple[str, ...],
+    terminal_outputs: Tuple[str, ...],
+    orphaned_inputs: Tuple[str, ...],
+    topological_order: Tuple[str, ...],
     graph_checksum: str,
 ) -> ProvenanceReport:
     """Create a validated structural and semantic provenance report.
@@ -441,19 +495,19 @@ def make_provenance_report(
     valid : bool
         Whether graph validation succeeded (**static** -- a compile-time
         constant; changing it triggers retracing).
-    errors : tuple[str, ...]
+    errors : Tuple[str, ...]
         Validation failures (**static** -- compile-time constants; changing
         them triggers retracing).
-    roots : tuple[str, ...]
+    roots : Tuple[str, ...]
         Root identifiers (**static** -- compile-time constants; changing them
         triggers retracing).
-    terminal_outputs : tuple[str, ...]
+    terminal_outputs : Tuple[str, ...]
         Terminal output identifiers (**static** -- compile-time constants;
         changing them triggers retracing).
-    orphaned_inputs : tuple[str, ...]
+    orphaned_inputs : Tuple[str, ...]
         Unconsumed input identifiers (**static** -- compile-time constants;
         changing them triggers retracing).
-    topological_order : tuple[str, ...]
+    topological_order : Tuple[str, ...]
         Validated node order (**static** -- compile-time constants; changing
         them triggers retracing).
     graph_checksum : str
@@ -475,7 +529,7 @@ def make_provenance_report(
     -----
     Report construction is static and introduces no differentiable leaves.
     """
-    normalized_errors: tuple[str, ...] = _text_tuple(
+    normalized_errors: Tuple[str, ...] = _text_tuple(
         errors,
         "errors",
         unique=False,

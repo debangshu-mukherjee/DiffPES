@@ -40,7 +40,26 @@ from .soc import soc_matrix
 
 
 def _validate_spin_pairs(basis: OrbitalBasis) -> None:
-    """Require one down and one up state for every spatial orbital."""
+    """PRIVATE: Require one down and one up state for every spatial orbital.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Candidate spinor basis.
+
+    Raises
+    ------
+    ValueError
+        If the basis has no explicit spin labels or any spatial orbital
+        lacks exactly one ``-1`` and one ``+1`` spin state.
+
+    Notes
+    -----
+    Static metadata groups the orbitals by their ``(atom, n, l, m)`` key
+    and checks that every group holds exactly the spin pair ``[-1, 1]``.
+    The check runs in Python before tracing, so spin partners may sit at
+    arbitrary, non-contiguous basis positions.
+    """
     n_orbitals: int = len(basis.n)
     if len(basis.spin) != n_orbitals:
         message: str = "spin_operator requires an explicit spinor basis"
@@ -67,7 +86,26 @@ def _validate_orbital_selection(
     basis: OrbitalBasis,
     orbital_select: tuple[int, ...],
 ) -> None:
-    """Validate one static orbital selection."""
+    """PRIVATE: Validate one static orbital selection.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Model basis that defines the valid index range.
+    orbital_select : tuple[int, ...]
+        Candidate static orbital indices.
+
+    Raises
+    ------
+    ValueError
+        If the selection is not a tuple, is empty, holds a non-integer,
+        indexes outside ``[0, n_orbitals)``, or repeats an index.
+
+    Notes
+    -----
+    All checks run on static Python values before tracing, so the
+    validated selection participates in the JAX trace signature.
+    """
     if type(orbital_select) is not tuple:
         message: str = "orbital_select must be a tuple"
         raise ValueError(message)
@@ -90,7 +128,30 @@ def _validate_fixed_groups(
     fixed_groups: tuple[tuple[int, ...], ...],
     n_bands: int,
 ) -> None:
-    """Validate static, disjoint registered band groups."""
+    """PRIVATE: Validate static, disjoint registered band groups.
+
+    Parameters
+    ----------
+    fixed_groups : tuple[tuple[int, ...], ...]
+        Candidate static band-index groups.
+    n_bands : int
+        Number of bands that bounds every index.
+
+    Raises
+    ------
+    ValueError
+        If the container or a member is not a tuple, a group is empty,
+        or an index is not an integer. Also raised when an index lies
+        outside ``[0, n_bands)`` or repeats within a group, or when two
+        groups overlap.
+
+    Notes
+    -----
+    The walk accumulates already selected indices in a set, so any
+    duplicate across groups fails the disjointness requirement. Static
+    validation fixes registered group membership before any traced
+    degeneracy certification can run.
+    """
     if type(fixed_groups) is not tuple:
         message: str = "fixed_groups must be a tuple"
         raise ValueError(message)
@@ -126,7 +187,27 @@ def _surface_weighted_expectations(
     eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
     projector_diagonal: Float64[Array, " n_orb"],
 ) -> Float64[Array, "n_k n_bands"]:
-    """Compute band probabilities for a diagonal surface operator."""
+    r"""PRIVATE: Compute band probabilities for a diagonal surface operator.
+
+    Parameters
+    ----------
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
+        Band-major complex orbital coefficients.
+    projector_diagonal : Float64[Array, " n_orb"]
+        Dimensionless diagonal surface probability weights.
+
+    Returns
+    -------
+    expectations : Float64[Array, "n_k n_bands"]
+        Values :math:`\sum_o |c_{kbo}|^2 w_o` for every k-point and band.
+
+    Notes
+    -----
+    The einsum contraction never materializes an ``(n_orb, n_orb)``
+    operator. Individual band values are basis dependent inside a
+    degenerate subspace; gauge-invariant consumers sum them over a
+    certified fixed group.
+    """
     orbital_probabilities: Float64[Array, "n_k n_bands n_orb"] = (
         jnp.abs(eigenvectors) ** 2
     )

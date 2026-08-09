@@ -48,7 +48,21 @@ _TERMINATION_TRACE_COUNT: int = 3
 
 
 def _bulk_model() -> TBModel:
-    """Build a dense four-orbital bulk model for real slab extrusion."""
+    """PRIVATE: Build a dense four-orbital bulk model for slab extrusion.
+
+    Returns
+    -------
+    model : TBModel
+        Single-site orthorhombic model with four s-like orbitals,
+        dense complex 4x4 hopping blocks along all six first-neighbor
+        cells, and fixed onsite energies in eV.
+
+    Notes
+    -----
+    Deterministic sine/cosine seeds fill the three directed blocks;
+    conjugate transposes close the Hermitian partners, so the Bloch
+    Hamiltonian stays Hermitian at every k.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.diag(jnp.asarray((2.2, 2.5, 1.3))),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -105,7 +119,31 @@ def _slab_model(
     *,
     spinor: bool = False,
 ) -> tuple[TBModel, SlabSpec]:
-    """Extrude one actual four-orbital-per-layer slab design."""
+    """PRIVATE: Extrude one actual four-orbital-per-layer slab design.
+
+    Parameters
+    ----------
+    n_layers : int
+        Target layer count of the (001) slab.
+    spinor : bool
+        Whether to spin-double the bulk before extrusion.
+
+    Returns
+    -------
+    slab : tuple[TBModel, SlabSpec]
+        Extruded slab model and its specification.
+
+    Raises
+    ------
+    RuntimeError
+        If the extrusion yields an unexpected orbital count.
+
+    Notes
+    -----
+    The thickness ``(n_layers - 1) * 1.3`` Angstrom matches the bulk
+    c-axis spacing, so ``gen_slab`` produces exactly ``n_layers``
+    layers with 8 Angstrom of vacuum.
+    """
     bulk: TBModel = _bulk_model()
     if spinor:
         bulk = spin_double_model(bulk)
@@ -126,7 +164,19 @@ def _slab_model(
 
 
 def _termination_bulk_model() -> TBModel:
-    """Build the same four-orbital Hamiltonian on an alternating X/Y basis."""
+    """PRIVATE: Build the same Hamiltonian on an alternating X/Y basis.
+
+    Returns
+    -------
+    model : TBModel
+        The :func:`_bulk_model` couplings on a two-species cell with
+        two orbitals per atom.
+
+    Notes
+    -----
+    Species alternation along c makes the two (001) terminations
+    distinguishable, which the retracing measurement needs.
+    """
     reference: TBModel = _bulk_model()
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=reference.geometry.lattice,
@@ -159,7 +209,25 @@ def _termination_slab(
     thickness_ang: float,
     termination: tuple[str, str],
 ) -> tuple[TBModel, SlabSpec]:
-    """Extrude one actual alternating-species termination design."""
+    """PRIVATE: Extrude one actual alternating-species termination design.
+
+    Parameters
+    ----------
+    thickness_ang : float
+        Slab thickness in Angstrom.
+    termination : tuple[str, str]
+        Requested bottom and top species.
+
+    Returns
+    -------
+    slab : tuple[TBModel, SlabSpec]
+        Extruded slab model and its specification.
+
+    Notes
+    -----
+    The call fixes the (001) direction and 8 Angstrom of vacuum and
+    forwards the termination request to ``gen_slab``.
+    """
     return gen_slab(
         _termination_bulk_model(),
         miller=(0, 0, 1),
@@ -170,7 +238,24 @@ def _termination_slab(
 
 
 def _kpoints(n_kpoints: int) -> jax.Array:
-    """Build one generic padded path."""
+    """PRIVATE: Build one generic padded path.
+
+    Parameters
+    ----------
+    n_kpoints : int
+        Number of path points.
+
+    Returns
+    -------
+    kpoints : jax.Array
+        ``(n_kpoints, 3)`` fractional coordinates on a slanted
+        in-plane line with zero third component.
+
+    Notes
+    -----
+    The incommensurate slope keeps the path free of symmetry
+    coincidences, so no eigenvalue degeneracy is accidental.
+    """
     k_x = jnp.linspace(-0.47, 0.43, n_kpoints)
     return jnp.stack(
         (k_x, 0.17 * k_x + 0.03, jnp.zeros_like(k_x)),
@@ -179,7 +264,24 @@ def _kpoints(n_kpoints: int) -> jax.Array:
 
 
 def _statistics_dict(statistics: Any) -> dict[str, int]:
-    """Normalize the backend's compiler-memory record."""
+    """PRIVATE: Normalize the backend's compiler-memory record.
+
+    Parameters
+    ----------
+    statistics : Any
+        Backend ``memory_analysis`` record.
+
+    Returns
+    -------
+    memory : dict[str, int]
+        The eight argument/output/alias/temp byte counters, with
+        absent or ``None`` fields as zero.
+
+    Notes
+    -----
+    ``getattr`` with a zero default absorbs backend differences in
+    which counters exist.
+    """
     fields: tuple[str, ...] = (
         "argument_size_in_bytes",
         "output_size_in_bytes",
@@ -194,12 +296,45 @@ def _statistics_dict(statistics: Any) -> dict[str, int]:
 
 
 def _maximum_rss_bytes() -> int:
-    """Return Linux maximum resident-set size in bytes."""
+    """PRIVATE: Return Linux maximum resident-set size in bytes.
+
+    Returns
+    -------
+    rss_bytes : int
+        Process high-water RSS in bytes.
+
+    Notes
+    -----
+    Linux reports ``ru_maxrss`` in KiB, so the value scales by 1024.
+    """
     return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
 
 
 def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> dict:
-    """Compare rematerialized and ordinary band-loss derivatives."""
+    """PRIVATE: Compare rematerialized and ordinary band-loss derivatives.
+
+    Parameters
+    ----------
+    n_layers : int
+        Layer count of the bounded gradient slab.
+    n_kpoints : int
+        Number of path k-points.
+    chunk_size : int
+        Chunk length of the rematerialized path.
+
+    Returns
+    -------
+    record : dict
+        Both scalar gradients, their relative error, the nonzero
+        witness, and the 1e-12 relative-tolerance verdict.
+
+    Implementation Logic
+    --------------------
+    A scalar loss sums a smooth function of the bands of a globally
+    scaled model.  ``jax.grad`` with respect to the scale runs once
+    through ``eigvalsh_bands_chunked`` and once through the ordinary
+    path; both must agree to 1e-12 relative on a nonzero gradient.
+    """
     model, _ = _slab_model(n_layers)
     n_orbitals: int = model.onsite_energies.shape[0]
     kpoints: jax.Array = _kpoints(n_kpoints)
@@ -244,7 +379,29 @@ def _compile_count(
     kpoints: jax.Array,
     chunk_size: int,
 ) -> dict:
-    """Count traces across padded lengths and actual slab-design changes."""
+    """PRIVATE: Count traces across padded lengths and design changes.
+
+    Parameters
+    ----------
+    kpoints : jax.Array
+        Full padded k-point path.
+    chunk_size : int
+        Chunk length of the rematerialized path.
+
+    Returns
+    -------
+    record : dict
+        The three design descriptions, the padded lengths, the trace
+        count after each stage, and the pass verdict.
+
+    Implementation Logic
+    --------------------
+    A counting wrapper under ``eqx.filter_jit`` runs three padded
+    active lengths on one fixed design (one trace expected, since the
+    mask changes only data), then a thickness change and a
+    termination change (one new trace each, since both change the
+    design structure).
+    """
     trace_count: list[int] = [0]
 
     def counted(

@@ -6,7 +6,7 @@ scientific identity in the supported certification regime.
 
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.certify import (
     achieved_levels,
@@ -23,8 +23,32 @@ def _claim(
     predicate: Any,
     passed: Any = True,
     *,
-    evidence_ids: tuple[str, ...] = (),
+    evidence_ids: Tuple[str, ...] = (),
 ) -> Any:
+    """PRIVATE: Evaluate one certification claim with a chosen outcome.
+
+    Parameters
+    ----------
+    name : Any
+        Claim identity string.
+    predicate : Any
+        Stable predicate identity string for the claim.
+    passed : Any
+        Desired outcome; True selects a measured vector that meets the
+        zero tolerance.
+    evidence_ids : Tuple[str, ...]
+        Evidence identities attached to the claim.
+
+    Returns
+    -------
+    claim : Any
+        Evaluated claim record on the subject ``subject.test``.
+
+    Notes
+    -----
+    A passing claim measures zeros against the zero reference; a failing
+    claim measures ones, which exceeds the zero tolerance.
+    """
     measured: Any
     measured = jnp.zeros(1) if passed else jnp.ones(1)
     return evaluate_claim(
@@ -130,16 +154,16 @@ class TestEvidenceIsIndependent:
         The test checks both derivation and publication-policy outcomes.
         """
         target: str = "tests.target"
-        relationships: tuple[str, ...] = (
+        relationships: Tuple[str, ...] = (
             "resolves-node:reference.impl",
             "resolves-node:reference.generator",
             "resolves-node:reference.derivation",
             "independent-derivation:reference.derivation",
         )
-        conflicts: tuple[str, ...] = ()
-        generators: tuple[str, ...] = ("reference.generator",)
-        derivations: tuple[str, ...] = ("reference.derivation",)
-        attestations: tuple[str, ...] = ()
+        conflicts: Tuple[str, ...] = ()
+        generators: Tuple[str, ...] = ("reference.generator",)
+        derivations: Tuple[str, ...] = ("reference.derivation",)
+        attestations: Tuple[str, ...] = ()
         if case == "wrapper":
             relationships = (
                 "resolves-node:reference.impl",
@@ -184,7 +208,7 @@ class TestEvidenceIsIndependent:
             lineage=lineage,
             human_attestation_refs=attestations,
         )
-        claims: tuple[Any, ...] = tuple(
+        claims: Tuple[Any, ...] = tuple(
             _claim(
                 f"claim-{index}",
                 predicate,
@@ -312,7 +336,7 @@ class TestEvidenceIsIndependent:
                 ),
             ),
         )
-        claims: tuple[Any, ...] = tuple(
+        claims: Tuple[Any, ...] = tuple(
             _claim(f"claim-{index}", predicate)
             for index, predicate in enumerate(
                 (
@@ -370,7 +394,7 @@ class TestEvidenceIsIndependent:
                 ),
             ),
         )
-        claims: tuple[Any, ...] = tuple(
+        claims: Tuple[Any, ...] = tuple(
             _claim(
                 f"claim-{index}",
                 predicate,

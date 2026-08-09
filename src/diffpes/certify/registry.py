@@ -58,7 +58,7 @@ from functools import cache
 from importlib import resources
 
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -88,32 +88,80 @@ class _RegistryState:
     """Store mutable process-local state behind immutable public snapshots."""
 
     def __init__(self) -> None:
-        self.models: tuple[RegisteredModel, ...] = ()
-        self.transformations: tuple[RegisteredTransformation, ...] = ()
-        self.handshakes: tuple[RegistrationHandshake, ...] = ()
+        self.models: Tuple[RegisteredModel, ...] = ()
+        self.transformations: Tuple[RegisteredTransformation, ...] = ()
+        self.handshakes: Tuple[RegistrationHandshake, ...] = ()
         self.frozen = False
         self.lock = threading.RLock()
 
 
 @cache
 def _registry_state() -> _RegistryState:
-    """Return the lazily initialized process-local registry state."""
+    """PRIVATE: Return the lazily initialized process-local registry
+    state.
+
+    Returns
+    -------
+    state : _RegistryState
+        The single mutable holder of registered models,
+        transformations, handshakes, the frozen flag, and their
+        reentrant lock.
+
+    Notes
+    -----
+    The :func:`functools.cache` decorator makes the state object a
+    process-local singleton. All registration, lookup, and snapshot
+    functions synchronize on its lock.
+    """
     state: _RegistryState = _RegistryState()
     return state
 
 
-def _model_key(entry: RegisteredModel) -> tuple[str, str]:
-    """Return a sortable exact scientific model identity."""
-    key: tuple[str, str] = (entry.spec.model_id, entry.spec.model_version)
+def _model_key(entry: RegisteredModel) -> Tuple[str, str]:
+    """PRIVATE: Return a sortable exact scientific model identity.
+
+    Parameters
+    ----------
+    entry : RegisteredModel
+        Registered model entry.
+
+    Returns
+    -------
+    key : Tuple[str, str]
+        The ``(model_id, model_version)`` pair of the entry's spec.
+
+    Notes
+    -----
+    The key sorts and deduplicates registry entries, so registration
+    order cannot alter listings or the registry checksum.
+    """
+    key: Tuple[str, str] = (entry.spec.model_id, entry.spec.model_version)
     return key
 
 
 def _transformation_key(
     entry: RegisteredTransformation,
-) -> tuple[str, str]:
-    """Return a sortable exact transformation identity."""
+) -> Tuple[str, str]:
+    """PRIVATE: Return a sortable exact transformation identity.
+
+    Parameters
+    ----------
+    entry : RegisteredTransformation
+        Registered transformation entry.
+
+    Returns
+    -------
+    key : Tuple[str, str]
+        The ``(transformation_id, transformation_version)`` pair of the
+        entry's contract.
+
+    Notes
+    -----
+    The key sorts and deduplicates contract entries, so registration
+    order cannot alter listings or the registry checksum.
+    """
     contract: TransformationContract = entry.contract
-    key: tuple[str, str] = (
+    key: Tuple[str, str] = (
         contract.transformation_id,
         contract.transformation_version,
     )
@@ -121,13 +169,52 @@ def _transformation_key(
 
 
 def _handshake_key(entry: RegistrationHandshake) -> str:
-    """Return the stable owner key for a registration handshake."""
+    """PRIVATE: Return the stable owner key for a registration
+    handshake.
+
+    Parameters
+    ----------
+    entry : RegistrationHandshake
+        Declarative owner handshake.
+
+    Returns
+    -------
+    key : str
+        The handshake ``owner_id``.
+
+    Notes
+    -----
+    One owner registers at most one handshake, so the owner identity
+    alone sorts and deduplicates handshake entries.
+    """
     key: str = entry.owner_id
     return key
 
 
 def _validate_model_spec(spec: ForwardModelSpec) -> None:
-    """Validate the registry-facing identity fields of a model spec."""
+    """PRIVATE: Validate the registry-facing identity fields of a model
+    spec.
+
+    Parameters
+    ----------
+    spec : ForwardModelSpec
+        Candidate model specification.
+
+    Raises
+    ------
+    ValueError
+        If ``model_id`` or ``observable_id`` does not match the
+        lowercase reverse-DNS identifier pattern, if ``model_version``
+        is not a semantic version, or if ``implementation_ref`` is
+        blank.
+
+    Notes
+    -----
+    Checks only the stable identity fields against
+    ``CERTIFICATION_IDENTIFIER_PATTERN`` and
+    ``CERTIFICATION_SEMVER_PATTERN``. It makes no claim about the
+    executor's scientific behavior.
+    """
     if CERTIFICATION_IDENTIFIER_PATTERN.fullmatch(spec.model_id) is None:
         msg: str = "model_id must be a lowercase reverse-DNS-like ID"
         raise ValueError(msg)
@@ -143,7 +230,20 @@ def _validate_model_spec(spec: ForwardModelSpec) -> None:
 
 
 def _ensure_open() -> None:
-    """Reject mutation once an application has frozen registration."""
+    """PRIVATE: Reject mutation once an application has frozen
+    registration.
+
+    Raises
+    ------
+    ValueError
+        If :func:`freeze_registry` has already frozen the registry.
+
+    Notes
+    -----
+    Every registration function calls this check while it holds the
+    registry lock, so freezing and a concurrent registration cannot
+    interleave.
+    """
     if _registry_state().frozen:
         msg: str = "the certification registry is frozen"
         raise ValueError(msg)
@@ -196,7 +296,7 @@ def register_model(
         executor=executor,
         registration_checksum=checksum,
     )
-    key: tuple[str, str] = _model_key(entry)
+    key: Tuple[str, str] = _model_key(entry)
     state: _RegistryState = _registry_state()
     with state.lock:
         _ensure_open()
@@ -242,7 +342,7 @@ def register_transformation(contract: TransformationContract) -> None:
         If the contract is invalid or duplicated. The function also raises
         when the registry no longer accepts changes.
     """
-    errors: tuple[str, ...] = validate_contract(contract)
+    errors: Tuple[str, ...] = validate_contract(contract)
     if errors:
         msg: str = "; ".join(errors)
         raise ValueError(msg)
@@ -254,7 +354,7 @@ def register_transformation(contract: TransformationContract) -> None:
         contract=contract,
         registration_checksum=checksum,
     )
-    key: tuple[str, str] = _transformation_key(entry)
+    key: Tuple[str, str] = _transformation_key(entry)
     state: _RegistryState = _registry_state()
     with state.lock:
         _ensure_open()
@@ -310,7 +410,7 @@ def get_model(model_id: str, model_version: str) -> RegisteredModel:
         If the exact ID and semantic version are absent.
     """
     entry: Any
-    key: tuple[str, str] = (model_id, model_version)
+    key: Tuple[str, str] = (model_id, model_version)
     state: _RegistryState = _registry_state()
     with state.lock:
         for entry in state.models:
@@ -365,7 +465,7 @@ def get_transformation(
         If the exact ID and semantic version are absent.
     """
     entry: Any
-    key: tuple[str, str] = (transformation_id, transformation_version)
+    key: Tuple[str, str] = (transformation_id, transformation_version)
     state: _RegistryState = _registry_state()
     with state.lock:
         for entry in state.transformations:
@@ -380,7 +480,7 @@ def get_transformation(
 
 
 @jaxtyped(typechecker=beartype)
-def list_models() -> tuple[ForwardModelSpec, ...]:
+def list_models() -> Tuple[ForwardModelSpec, ...]:
     """Return model specifications in deterministic identity order.
 
     The process-local registry uses exact scientific identities and
@@ -402,19 +502,19 @@ def list_models() -> tuple[ForwardModelSpec, ...]:
 
     Returns
     -------
-    models : tuple[ForwardModelSpec, ...]
+    models : Tuple[ForwardModelSpec, ...]
         Immutable sorted model specifications without executor callables.
     """
     state: _RegistryState = _registry_state()
     with state.lock:
-        models: tuple[ForwardModelSpec, ...] = tuple(
+        models: Tuple[ForwardModelSpec, ...] = tuple(
             entry.spec for entry in state.models
         )
     return models
 
 
 @jaxtyped(typechecker=beartype)
-def list_registered_models() -> tuple[RegisteredModel, ...]:
+def list_registered_models() -> Tuple[RegisteredModel, ...]:
     """Return an immutable deterministic snapshot including executors.
 
     The process-local registry uses exact scientific identities and
@@ -434,17 +534,17 @@ def list_registered_models() -> tuple[RegisteredModel, ...]:
 
     Returns
     -------
-    models : tuple[RegisteredModel, ...]
+    models : Tuple[RegisteredModel, ...]
         Immutable sorted model bindings including static executor callables.
     """
     state: _RegistryState = _registry_state()
     with state.lock:
-        models: tuple[RegisteredModel, ...] = state.models
+        models: Tuple[RegisteredModel, ...] = state.models
     return models
 
 
 @jaxtyped(typechecker=beartype)
-def list_transformations() -> tuple[TransformationContract, ...]:
+def list_transformations() -> Tuple[TransformationContract, ...]:
     """Return transformation contracts in deterministic identity order.
 
     The process-local registry uses exact scientific identities and
@@ -466,12 +566,12 @@ def list_transformations() -> tuple[TransformationContract, ...]:
 
     Returns
     -------
-    transformations : tuple[TransformationContract, ...]
+    transformations : Tuple[TransformationContract, ...]
         Immutable sorted semantic and information-loss contracts.
     """
     state: _RegistryState = _registry_state()
     with state.lock:
-        transformations: tuple[TransformationContract, ...] = tuple(
+        transformations: Tuple[TransformationContract, ...] = tuple(
             entry.contract for entry in state.transformations
         )
     return transformations
@@ -519,7 +619,7 @@ def register_handshake(handshake: RegistrationHandshake) -> None:
 
 
 @jaxtyped(typechecker=beartype)
-def list_handshakes() -> tuple[RegistrationHandshake, ...]:
+def list_handshakes() -> Tuple[RegistrationHandshake, ...]:
     """Return owner handshakes in deterministic identity order.
 
     The process-local registry returns one immutable tuple.
@@ -528,7 +628,7 @@ def list_handshakes() -> tuple[RegistrationHandshake, ...]:
 
     Returns
     -------
-    handshakes : tuple[RegistrationHandshake, ...]
+    handshakes : Tuple[RegistrationHandshake, ...]
         Immutable sorted handshake declarations.
 
     Notes
@@ -537,7 +637,7 @@ def list_handshakes() -> tuple[RegistrationHandshake, ...]:
     """
     state: _RegistryState = _registry_state()
     with state.lock:
-        handshakes: tuple[RegistrationHandshake, ...] = state.handshakes
+        handshakes: Tuple[RegistrationHandshake, ...] = state.handshakes
     return handshakes
 
 
@@ -545,7 +645,7 @@ def list_handshakes() -> tuple[RegistrationHandshake, ...]:
 def validate_handshake(
     handshake: RegistrationHandshake,
     *,
-    evidence_ids: tuple[str, ...] = (),
+    evidence_ids: Tuple[str, ...] = (),
 ) -> HandshakeReport:
     """Validate one owner handshake against available records.
 
@@ -570,7 +670,7 @@ def validate_handshake(
     ----------
     handshake : RegistrationHandshake
         Declarative requirements supplied by the domain owner.
-    evidence_ids : tuple[str, ...]
+    evidence_ids : Tuple[str, ...]
         Available evidence record IDs. Default is an empty tuple.
 
     Returns
@@ -590,13 +690,13 @@ def validate_handshake(
         for model in list_models()
         for item in model.conventions
     }
-    available_groups: tuple[tuple[tuple[str, ...], set[str]], ...] = (
+    available_groups: Tuple[Tuple[Tuple[str, ...], set[str]], ...] = (
         (handshake.model_refs, model_refs),
         (handshake.transformation_refs, transformation_refs),
         (handshake.convention_refs, convention_refs),
         (handshake.evidence_ids, set(evidence_ids)),
     )
-    missing: tuple[str, ...] = tuple(
+    missing: Tuple[str, ...] = tuple(
         sorted(
             reference
             for required, available in available_groups
@@ -741,7 +841,7 @@ def packaged_model_card(model_id: str, model_version: str) -> str:
 
 
 @jaxtyped(typechecker=beartype)
-def validate_registry_manifest() -> tuple[str, ...]:
+def validate_registry_manifest() -> Tuple[str, ...]:
     """Compare the packaged registry manifest with live entries.
 
     The comparison detects missing entries and generated model-card drift.
@@ -758,15 +858,15 @@ def validate_registry_manifest() -> tuple[str, ...]:
 
     Returns
     -------
-    errors : tuple[str, ...]
+    errors : Tuple[str, ...]
         Sorted missing-entry and generated-card drift messages.
     """
     manifest: dict[str, Any] = registry_manifest()
     errors: list[str] = []
-    models: dict[tuple[str, str], ForwardModelSpec] = {
+    models: dict[Tuple[str, str], ForwardModelSpec] = {
         (item.model_id, item.model_version): item for item in list_models()
     }
-    transformations: set[tuple[str, str]] = {
+    transformations: set[Tuple[str, str]] = {
         (item.transformation_id, item.transformation_version)
         for item in list_transformations()
     }
@@ -775,7 +875,7 @@ def validate_registry_manifest() -> tuple[str, ...]:
     }
     entry: Any
     for entry in manifest.get("models", ()):
-        key: tuple[str, str] = (entry["model_id"], entry["model_version"])
+        key: Tuple[str, str] = (entry["model_id"], entry["model_version"])
         if key not in models:
             errors.append(f"missing packaged model: {key[0]}@{key[1]}")
             continue
@@ -806,16 +906,37 @@ def validate_registry_manifest() -> tuple[str, ...]:
             errors.append(f"missing packaged handshake: {owner_id}")
         elif actual != expected:
             errors.append(f"packaged handshake drift: {owner_id}")
-    result: tuple[str, ...] = tuple(sorted(errors))
+    result: Tuple[str, ...] = tuple(sorted(errors))
     return result
 
 
 def _registry_checksum(
-    models: tuple[RegisteredModel, ...],
-    transformations: tuple[RegisteredTransformation, ...],
+    models: Tuple[RegisteredModel, ...],
+    transformations: Tuple[RegisteredTransformation, ...],
 ) -> str:
-    """Identify sorted entry contents without serializing callables."""
-    payload: tuple[tuple[tuple[str, str, str], ...], ...] = (
+    """PRIVATE: Identify sorted entry contents without serializing
+    callables.
+
+    Parameters
+    ----------
+    models : Tuple[RegisteredModel, ...]
+        Registered models in sorted identity order.
+    transformations : Tuple[RegisteredTransformation, ...]
+        Registered transformation contracts in sorted identity order.
+
+    Returns
+    -------
+    checksum : str
+        Domain-separated ``registry`` record checksum over the entry
+        identities, versions, and registration checksums.
+
+    Notes
+    -----
+    Executors stay out of the payload; each model contributes its
+    registration checksum instead, which already identifies the spec.
+    The value is non-security bookkeeping for drift detection only.
+    """
+    payload: Tuple[Tuple[Tuple[str, str, str], ...], ...] = (
         tuple(
             (
                 entry.spec.model_id,
@@ -867,8 +988,8 @@ def registry_snapshot() -> RegistrySnapshot:
     """
     state: _RegistryState = _registry_state()
     with state.lock:
-        models: tuple[RegisteredModel, ...] = state.models
-        transformations: tuple[RegisteredTransformation, ...] = (
+        models: Tuple[RegisteredModel, ...] = state.models
+        transformations: Tuple[RegisteredTransformation, ...] = (
             state.transformations
         )
         checksum: str = _registry_checksum(models, transformations)
@@ -943,16 +1064,16 @@ def validate_registry() -> RegistryReport:
     entry: Any
     state: _RegistryState = _registry_state()
     with state.lock:
-        models: tuple[RegisteredModel, ...] = state.models
-        transformations: tuple[RegisteredTransformation, ...] = (
+        models: Tuple[RegisteredModel, ...] = state.models
+        transformations: Tuple[RegisteredTransformation, ...] = (
             state.transformations
         )
         frozen: bool = state.frozen
     errors: list[str] = []
-    model_keys: tuple[tuple[str, str], ...] = tuple(
+    model_keys: Tuple[Tuple[str, str], ...] = tuple(
         _model_key(entry) for entry in models
     )
-    transformation_keys: tuple[tuple[str, str], ...] = tuple(
+    transformation_keys: Tuple[Tuple[str, str], ...] = tuple(
         _transformation_key(entry) for entry in transformations
     )
     if model_keys != tuple(sorted(model_keys)):

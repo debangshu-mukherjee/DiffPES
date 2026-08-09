@@ -30,7 +30,19 @@ from tests._assertions import assert_rejects
 
 
 def _basis() -> OrbitalBasis:
-    """Create a two-orbital, two-atom spinless test basis."""
+    """PRIVATE: Create a two-orbital, two-atom spinless test basis.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        A 1s orbital on atom 0 and a 2pz orbital on atom 1, with no
+        spin channel.
+
+    Notes
+    -----
+    Uses the public factory so the radial-parameter carriers under
+    test receive a validated basis with two distinct (n, l) shells.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 1),
         n=(1, 2),
@@ -276,7 +288,19 @@ class TestMakeOrbitalBasis(chex.TestCase):
 
 
 def _complete_p_basis() -> OrbitalBasis:
-    """Create one complete real p shell."""
+    """PRIVATE: Create one complete real p shell.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Three n=2, l=1 orbitals on one atom with m = -1, 0, 1, labeled
+        ``py``, ``pz``, ``px``.
+
+    Notes
+    -----
+    Provides the single complete shell that the shell-resolved radial
+    and matrix-element carriers partition into one group.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0),
         n=(2, 2, 2),

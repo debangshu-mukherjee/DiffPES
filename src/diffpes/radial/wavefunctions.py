@@ -31,7 +31,7 @@ def _associated_laguerre(
     alpha: int | ScalarFloat,
     x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    r"""Evaluate associated Laguerre polynomial.
+    r"""PRIVATE: Evaluate associated Laguerre polynomial.
 
     The function computes :math:`L_n^\alpha(x)`.
 
@@ -109,6 +109,28 @@ def _associated_laguerre(
         current_order: Integer[Array, ""],
         state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
     ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        r"""PRIVATE: Apply one step of the Laguerre recurrence.
+
+        Parameters
+        ----------
+        current_order : Integer[Array, ""]
+            Order ``n`` of the polynomial this step produces.
+        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+            Pair :math:`(L_{n-2}^\alpha, L_{n-1}^\alpha)` of the two
+            preceding polynomials.
+
+        Returns
+        -------
+        recurrence_state : tuple of Float64[Array, " ..."]
+            Shifted pair :math:`(L_{n-1}^\alpha, L_n^\alpha)`.
+
+        Notes
+        -----
+        Casts the loop index to float64 and applies the three-term
+        recurrence
+        :math:`n L_n^\alpha = (2n-1+\alpha-x) L_{n-1}^\alpha
+        - (n-1+\alpha) L_{n-2}^\alpha`.
+        """
         laguerre_prev_prev: Float64[Array, " ..."]
         laguerre_prev: Float64[Array, " ..."]
         laguerre_prev_prev, laguerre_prev = state
@@ -357,7 +379,39 @@ def _contracted_slater_row(
     zeta_row: Float64[Array, " n_contraction"],
     coefficient_row: Float64[Array, " n_contraction"],
 ) -> Float64[Array, " n_r"]:
-    """Evaluate and analytically normalize one contracted Slater row."""
+    """PRIVATE: Evaluate and analytically normalize one contracted Slater row.
+
+    Parameters
+    ----------
+    r : Float64[Array, " n_r"]
+        Nonnegative radial nodes in Bohr.
+    effective_principal : float
+        Static Slater effective principal number ``n_star``.
+    zeta_row : Float64[Array, " n_contraction"]
+        Primitive Slater exponents in inverse Bohr.
+    coefficient_row : Float64[Array, " n_contraction"]
+        Dimensionless contraction coefficients.
+
+    Returns
+    -------
+    values : Float64[Array, " n_r"]
+        Normalized contracted radial values in inverse Bohr to the
+        power 3/2.
+
+    Implementation Logic
+    --------------------
+    Builds each primitive ``N_i * r**(n_star - 1) * exp(-zeta_i * r)``
+    with the analytic norm ``N_i = (2 zeta_i)**(n_star + 1/2) /
+    sqrt(Gamma(2 n_star + 1))``.  At ``r == 0`` the radial power
+    evaluates to one when ``n_star`` equals one and to zero otherwise.
+    The analytic primitive overlap matrix ``Gamma(2 n_star + 1) *
+    N_i N_j / (zeta_i + zeta_j)**(2 n_star + 1)`` gives the squared
+    contraction norm as a quadratic form.  The contracted row divides
+    by its square root once.  A traced
+    :func:`equinox.error_if` check rejects rows without a positive
+    finite norm and rows whose coefficient condition number
+    ``sum(abs(c)) / norm`` exceeds 32.
+    """
     gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
         dtype=jnp.float64,

@@ -272,10 +272,41 @@ def sample_certificate(
 
 
 def _read_json(path: Path) -> dict:
+    """PRIVATE: Load one certificate JSON document from disk.
+
+    Parameters
+    ----------
+    path : Path
+        Path of the JSON file to read.
+
+    Returns
+    -------
+    document : dict
+        Parsed top-level JSON object of the file.
+
+    Notes
+    -----
+    Reads the file as UTF-8 text and parses it with ``json.loads``.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _write_document(path: Path, document: dict) -> None:
+    """PRIVATE: Write one mutated certificate document back to disk.
+
+    Parameters
+    ----------
+    path : Path
+        Destination path of the JSON file.
+    document : dict
+        Certificate document, usually mutated by the calling test.
+
+    Notes
+    -----
+    Recomputes ``consistency_checksum`` with the storage checksum
+    helper so the mutated document stays internally consistent, then
+    writes the compact key-sorted JSON with one trailing newline.
+    """
     document: Any
     document["consistency_checksum"] = _storage_checksum(document)
     path.write_text(

@@ -26,7 +26,28 @@ from diffpes.types import (
 
 
 def _certificate(inputs: Any, expected: Any) -> Any:
-    """Build a small certificate with resolved input and result artifacts."""
+    """PRIVATE: Build a certificate with resolved input and result artifacts.
+
+    Parameters
+    ----------
+    inputs : Any
+        Normalized model input array for the certified run.
+    expected : Any
+        Result array that the result artifact must resolve to.
+
+    Returns
+    -------
+    result : Any
+        Forward certificate whose artifact tuple carries content
+        checksums for the inputs and the expected result.
+
+    Implementation Logic
+    --------------------
+    Registers a closed-form square model under a unique UUID-suffixed
+    identity, certifies one forward run at spectrum rank 1, and rebuilds
+    the certificate with two artifact references that carry
+    normalized-content checksums for the inputs and the expected value.
+    """
     suffix: str = uuid.uuid4().hex
     model_id: str = f"org.diffpes.model.reproduction_test.{suffix}"
     model: Any = make_forward_model_spec(

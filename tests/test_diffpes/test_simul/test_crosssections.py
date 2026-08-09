@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Bool, Float64, Int, Int32
 from numpy.typing import NDArray
 
@@ -269,10 +269,10 @@ class TestYehLindauCrossSection(chex.TestCase):
         -----
         Evaluate three photon energies for each registered subshell.
         """
-        expected: tuple[
-            tuple[
-                tuple[int, int, int],
-                tuple[float, float, float],
+        expected: Tuple[
+            Tuple[
+                Tuple[int, int, int],
+                Tuple[float, float, float],
             ],
             ...,
         ] = (
@@ -280,8 +280,8 @@ class TestYehLindauCrossSection(chex.TestCase):
             ((8, 2, 1), (10.67, 6.816, 2.064)),
             ((29, 3, 2), (7.553, 9.934, 8.712)),
         )
-        key: tuple[int, int, int]
-        values: tuple[float, float, float]
+        key: Tuple[int, int, int]
+        values: Tuple[float, float, float]
         for key, values in expected:
             function: Callable[[float], jax.Array] = self.variant(
                 lambda energy: yeh_lindau_cross_section(energy, *key)

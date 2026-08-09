@@ -16,6 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
@@ -59,7 +60,7 @@ from diffpes.types import (
 )
 from tests._gradients import assert_grad_matches_fd, gradient_gate
 
-type MatrixFixture = tuple[
+type MatrixFixture = Tuple[
     DiagonalizedBands,
     RadialSpec,
     MatrixElementParams,
@@ -70,10 +71,29 @@ type MatrixFixture = tuple[
 
 
 def _s_basis(
-    atom_indices: tuple[int, ...],
-    spin: tuple[int, ...] = (),
+    atom_indices: Tuple[int, ...],
+    spin: Tuple[int, ...] = (),
 ) -> OrbitalBasis:
-    """Return a real s-orbital basis for analytic fixtures."""
+    """PRIVATE: Return a real s-orbital basis for analytic fixtures.
+
+    Parameters
+    ----------
+    atom_indices : Tuple[int, ...]
+        Host atom index for each orbital.
+    spin : Tuple[int, ...]
+        Optional per-orbital spin labels; empty keeps the basis
+        spinless.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        One 1s orbital (n=1, l=0, m=0) per atom index.
+
+    Notes
+    -----
+    Repeats the same quantum numbers so only atom index and spin
+    distinguish the orbitals.
+    """
     n_orbitals: int = len(atom_indices)
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=atom_indices,
@@ -87,9 +107,27 @@ def _s_basis(
 
 def _matrix_params(
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
 ) -> MatrixElementParams:
-    """Return unit-scale, zero-phase shell parameters."""
+    """PRIVATE: Return unit-scale, zero-phase shell parameters.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital metadata for the fixture.
+    shell_index : Tuple[int, ...]
+        Shell assignment for each orbital.
+
+    Returns
+    -------
+    params : MatrixElementParams
+        Default parameter carrier from the public factory.
+
+    Notes
+    -----
+    Passes only the basis and the shell map so every optional scale and
+    phase keeps its default value.
+    """
     params: MatrixElementParams = make_matrix_element_params(
         basis,
         shell_index,
@@ -97,19 +135,35 @@ def _matrix_params(
     return params
 
 
-def _packing_fixture() -> tuple[
+def _packing_fixture() -> Tuple[
     RadialSpec,
     MatrixElementParams,
     Float64[Array, ""],
 ]:
-    """Return a two-shell Slater packing fixture."""
+    """PRIVATE: Return a two-shell Slater packing fixture.
+
+    Returns
+    -------
+    radial : RadialSpec
+        Two-term contracted Slater spec for the s and p shells.
+    params : MatrixElementParams
+        Carrier with distinct sigma scales and three branch phase-shift
+        angles.
+    mean_free_path : Float64[Array, ""]
+        Mean free path of 8.5 Angstrom.
+
+    Notes
+    -----
+    Builds the mixed 1s plus n=2 p basis with shell map (0, 1, 1, 1)
+    and generic zeta pairs and contraction coefficients.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0, 0),
         n=(1, 2, 2, 2),
         l=(0, 1, 1, 1),
         m=(0, -1, 0, 1),
     )
-    shell_index: tuple[int, ...] = (0, 1, 1, 1)
+    shell_index: Tuple[int, ...] = (0, 1, 1, 1)
     radial: RadialSpec = make_radial_spec(
         basis,
         shell_index,
@@ -123,7 +177,7 @@ def _packing_fixture() -> tuple[
         phase_shift_angles_shell=jnp.array([0.2, -0.4, 0.6]),
     )
     mean_free_path: Float64[Array, ""] = jnp.array(8.5)
-    fixture: tuple[
+    fixture: Tuple[
         RadialSpec,
         MatrixElementParams,
         Float64[Array, ""],
@@ -132,7 +186,24 @@ def _packing_fixture() -> tuple[
 
 
 def _isolated_group_bands(group_size: int) -> DiagonalizedBands:
-    """Return one isolated degenerate group and one complement band."""
+    """PRIVATE: Return one isolated degenerate group and one complement band.
+
+    Parameters
+    ----------
+    group_size : int
+        Number of degenerate bands in the zero-energy group.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Identity-eigenvector bands at one zone-center k-point with the
+        group at 0 eV and one complement band at 2 eV.
+
+    Notes
+    -----
+    The 2 eV gap isolates the degenerate group; every orbital is an s
+    orbital on the single atom.
+    """
     n_bands: int = group_size + 1
     basis: OrbitalBasis = _s_basis((0,) * n_bands)
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -158,7 +229,17 @@ def _isolated_group_bands(group_size: int) -> DiagonalizedBands:
 
 
 def _sensitivity_experiment() -> ExperimentGeometry:
-    """Return a transverse experiment carrier for sensitivity callbacks."""
+    """PRIVATE: Return a transverse experiment for sensitivity callbacks.
+
+    Returns
+    -------
+    experiment : ExperimentGeometry
+        Carrier with 21.2 eV photon energy and x-polarized light.
+
+    Notes
+    -----
+    Keeps every remaining geometry field at its factory default.
+    """
     experiment: ExperimentGeometry = make_experiment_geometry(
         21.2,
         jnp.array([1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j]),
@@ -173,7 +254,30 @@ def _simple_bands(
     orbital_positions: Float64[Array, "n_orb 3"] | None = None,
     depths: Float64[Array, " n_orb"] | None = None,
 ) -> DiagonalizedBands:
-    """Return a one-k-point carrier on a unit real-space lattice."""
+    """PRIVATE: Return a one-k-point carrier on a unit real-space lattice.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital metadata for the carrier.
+    atom_positions : Float64[Array, "n_atom 3"]
+        Fractional atom positions on the identity lattice.
+    orbital_positions : Float64[Array, "n_orb 3"] | None
+        Fractional orbital centres; None keeps the host atom sites.
+    depths : Float64[Array, " n_orb"] | None
+        Orbital depths in Angstrom; None drops the depth carrier.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Zero-energy identity-eigenvector bands at one zone-center
+        k-point.
+
+    Notes
+    -----
+    Assigns the species X to every atom on the identity lattice in
+    Angstrom.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         jnp.eye(3),
         atom_positions,
@@ -213,7 +317,7 @@ class TestPackMatrixelParams:
         radial, params, mean_free_path = _packing_fixture()
         flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
-        metadata: tuple[tuple[tuple[int, ...], bool], ...]
+        metadata: Tuple[Tuple[Tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
             radial,
             params,
@@ -289,7 +393,7 @@ class TestUnpackMatrixelParams:
         radial, params, mean_free_path = _packing_fixture()
         flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
-        metadata: tuple[tuple[tuple[int, ...], bool], ...]
+        metadata: Tuple[Tuple[Tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
             radial,
             params,
@@ -331,7 +435,7 @@ class TestMatrixElementPhaseGaugeDirection:
         radial, params, mean_free_path = _packing_fixture()
         flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
-        metadata: tuple[tuple[tuple[int, ...], bool], ...]
+        metadata: Tuple[Tuple[Tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
             radial,
             params,
@@ -440,7 +544,7 @@ class TestRadialCoefficientScaleGaugeDirections:
         radial, params, mean_free_path = _packing_fixture()
         flat: Float64[Array, " n_theta"]
         tree_definition: PyTreeDef
-        metadata: tuple[tuple[tuple[int, ...], bool], ...]
+        metadata: Tuple[Tuple[Tuple[int, ...], bool], ...]
         flat, tree_definition, metadata = pack_matrixel_params(
             radial,
             params,
@@ -505,7 +609,30 @@ class TestBandGroupWeightSensitivity:
         bands: DiagonalizedBands,
         experiment: ExperimentGeometry,
     ) -> Complex128[Array, "n_k n_bands 2"]:
-        """Build generic complex two-spin amplitudes from orbital rows."""
+        """PRIVATE: Build generic two-spin amplitudes from orbital rows.
+
+        Parameters
+        ----------
+        candidate : Float64[Array, " n_theta"]
+            Two real parameters that mix the base row and its
+            conjugate.
+        bands : DiagonalizedBands
+            Carrier whose eigenvectors project the orbital rows.
+        experiment : ExperimentGeometry
+            Unused registered argument; deleted immediately.
+
+        Returns
+        -------
+        amplitudes : Complex128[Array, "n_k n_bands 2"]
+            Per-band two-spin amplitudes.
+
+        Implementation Logic
+        --------------------
+        Forms a generic complex base vector from the 1-based orbital
+        index, builds two spin rows as parameter-dependent mixtures of
+        the base and its conjugate, and contracts the eigenvectors with
+        the rows through einsum kbo,os->kbs.
+        """
         del experiment
         n_orbitals: int = bands.eigenvectors.shape[-1]
         index: Float64[Array, " n_orb"] = jnp.arange(
@@ -545,7 +672,7 @@ class TestBandGroupWeightSensitivity:
         bands: DiagonalizedBands = _isolated_group_bands(group_size)
         experiment: ExperimentGeometry = _sensitivity_experiment()
         flat: Float64[Array, " 2"] = jnp.array([0.2, -0.15])
-        group: tuple[int, ...] = tuple(range(group_size))
+        group: Tuple[int, ...] = tuple(range(group_size))
         weights: Float64[Array, "1 1"]
         jacobian: Float64[Array, "2 1 1"]
         weights, jacobian = band_group_weight_sensitivity(
@@ -1230,7 +1357,7 @@ class TestOrbitalTransitionChannels:
         params: MatrixElementParams = _matrix_params(basis, (0, 1))
         depth: float = 4.5
         mean_free_path: Float64[Array, ""] = jnp.array(8.0)
-        common_arguments: tuple[Array, ...] = (
+        common_arguments: Tuple[Array, ...] = (
             jnp.zeros((1, 3)),
             jnp.array([[0.0, 0.0, 1.0]]),
             jnp.zeros((2, 3)),
@@ -1696,7 +1823,20 @@ class TestAssembleOrbitalTransitionChannels:
 
     @staticmethod
     def _fixture() -> MatrixFixture:
-        """Build one s-orbital zero-umklapp fixture."""
+        """PRIVATE: Build one s-orbital zero-umklapp fixture.
+
+        Returns
+        -------
+        fixture : MatrixFixture
+            Bands, radial spec, parameters, quadrature, final state,
+            and experiment for one s orbital.
+
+        Notes
+        -----
+        Uses fixed radial integrals (0, 1) on the two branches, the
+        21.2 eV x-polarized experiment, and one zone-center k-point so
+        the parallel momentum transfer stays zero.
+        """
         basis: OrbitalBasis = _s_basis((0,))
         bands: DiagonalizedBands = _simple_bands(
             basis,

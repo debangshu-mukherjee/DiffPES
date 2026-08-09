@@ -40,7 +40,12 @@ def _validate_projection_basis(
     projections: Float64[Array, "K B A nine"],
     basis: OrbitalBasis,
 ) -> None:
-    """Validate atom-major VASP projection and basis alignment."""
+    """PRIVATE: Validate atom-major VASP projection and basis alignment.
+
+    Notes
+    -----
+    The check compares atom-major shapes against the basis.
+    """
     atom_count: int = projections.shape[2]
     orbital_count: int = projections.shape[2] * projections.shape[3]
     if len(basis.n) != orbital_count:

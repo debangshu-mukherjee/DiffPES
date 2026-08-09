@@ -196,7 +196,23 @@ HISTORICAL_PSEUDO_VOIGT_SHA256: str = (
 
 
 def _array_bytes(array: np.ndarray) -> bytes:
-    """Serialize one array without pickle or filesystem metadata."""
+    """PRIVATE: Serialize one array without pickle or filesystem metadata.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        Array to serialize.
+
+    Returns
+    -------
+    payload : bytes
+        The exact ``.npy`` byte stream for the array.
+
+    Notes
+    -----
+    ``np.lib.format.write_array`` writes into an in-memory buffer with
+    pickle disabled, so equal arrays always produce equal bytes.
+    """
     output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
     return output.getvalue()
@@ -206,7 +222,21 @@ def _write_deterministic_npz(
     path: Path,
     arrays: dict[str, np.ndarray],
 ) -> None:
-    """Write a sorted float64 NPZ with fixed timestamps and permissions."""
+    """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
+
+    Parameters
+    ----------
+    path : Path
+        Destination NPZ path.
+    arrays : dict[str, np.ndarray]
+        Named arrays to store; each one casts to float64.
+
+    Notes
+    -----
+    Members enter in sorted name order with the fixed 1980-01-01 ZIP
+    timestamp, a fixed file mode, and DEFLATE level 9, so identical
+    arrays always produce byte-identical archives.
+    """
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -232,12 +262,47 @@ def _write_deterministic_npz(
 
 
 def _sha256(path: Path) -> str:
-    """Return the SHA-256 digest of one evidence file."""
+    """PRIVATE: Return the SHA-256 digest of one evidence file.
+
+    Parameters
+    ----------
+    path : Path
+        File to digest.
+
+    Returns
+    -------
+    digest : str
+        Lowercase hexadecimal SHA-256 of the file bytes.
+
+    Notes
+    -----
+    The function reads the complete file into memory before hashing;
+    every evidence file stays small enough for that.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _positive_payload() -> dict[str, np.ndarray]:
-    """Build the complete positive-width SciPy value table."""
+    """PRIVATE: Build the complete positive-width SciPy value table.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        The 36-row width grid in eV, scaled probe energies in eV,
+        ``voigt_profile`` values in 1/eV, and both Faddeeva argument
+        components.
+
+    Raises
+    ------
+    RuntimeError
+        If any Faddeeva argument magnitude leaves the 1e8 envelope.
+
+    Notes
+    -----
+    Rows pair every sigma with every gamma from the frozen width grid;
+    probe energies scale with the larger width so every row samples
+    the same dimensionless offsets.
+    """
     width_rows: np.ndarray = np.asarray(
         [(sigma, gamma) for sigma in WIDTHS for gamma in WIDTHS],
         dtype=np.float64,
@@ -267,7 +332,20 @@ def _positive_payload() -> dict[str, np.ndarray]:
 
 
 def _endpoint_payload() -> dict[str, np.ndarray]:
-    """Build the exact value-only Gaussian and Cauchy endpoint rows."""
+    """PRIVATE: Build the exact Gaussian and Cauchy endpoint rows.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        Endpoint width rows in eV, probe energies in eV, and the exact
+        closed-form values in 1/eV.
+
+    Notes
+    -----
+    Each anchor width contributes one pure-Gaussian row ``(anchor, 0)``
+    and one pure-Cauchy row ``(0, anchor)``; both closed forms come
+    from their textbook normalized expressions.
+    """
     width_rows: list[tuple[float, float]] = []
     energies: list[np.ndarray] = []
     values: list[np.ndarray] = []
@@ -290,7 +368,29 @@ def _endpoint_payload() -> dict[str, np.ndarray]:
 
 
 def _one_sided_payload() -> dict[str, np.ndarray]:
-    """Build positive rungs and registered endpoint-convergence rates."""
+    """PRIVATE: Build positive rungs and endpoint-convergence rates.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        One-sided width rows in eV, probe energies in eV, SciPy and
+        endpoint values in 1/eV, scaled differences, and the rung
+        ratios.
+
+    Raises
+    ------
+    RuntimeError
+        If the endpoint differences stop decreasing, if the
+        sigma-to-zero rate leaves ``[15.5, 16.5]``, or if the
+        gamma-to-zero rate leaves ``[3.9, 4.1]``.
+
+    Notes
+    -----
+    Direction 0 shrinks sigma toward the Cauchy endpoint at quadratic
+    order (epsilon quarters, differences shrink 16x); direction 1
+    shrinks gamma toward the Gaussian endpoint at first order
+    (differences shrink 4x).
+    """
     width_rows: list[tuple[float, float]] = []
     energies: list[np.ndarray] = []
     values: list[np.ndarray] = []
@@ -362,7 +462,30 @@ def _profile(
     sigma: float,
     gamma: float,
 ) -> np.ndarray:
-    """Evaluate a SciPy Voigt profile, including either analytic endpoint."""
+    """PRIVATE: Evaluate a SciPy Voigt profile with analytic endpoints.
+
+    Parameters
+    ----------
+    energy : np.ndarray
+        Probe energies in eV.
+    center : float
+        Line center in eV.
+    sigma : float
+        Gaussian width in eV; zero selects the pure Cauchy form.
+    gamma : float
+        Lorentzian HWHM in eV; zero selects the pure Gaussian form.
+
+    Returns
+    -------
+    values : np.ndarray
+        Profile values in 1/eV.
+
+    Notes
+    -----
+    ``scipy.special.voigt_profile`` handles both strictly positive
+    widths; the two zero-width branches switch to the exact normalized
+    Gaussian or Cauchy closed form.
+    """
     displacement: np.ndarray = energy - center
     if gamma == 0.0:
         return np.exp(-((displacement / sigma) ** 2) / 2.0) / (
@@ -374,7 +497,29 @@ def _profile(
 
 
 def _normalization_payload() -> dict[str, np.ndarray]:
-    """Evaluate the frozen scaled full-line quadrature battery."""
+    """PRIVATE: Evaluate the frozen scaled full-line quadrature battery.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        Quadrature masses per width row and order, the maximum
+        Faddeeva argument per positive row, the orders, scales in eV,
+        and the width rows in eV.
+
+    Raises
+    ------
+    RuntimeError
+        If a positive-width node leaves the 1e8 Faddeeva envelope, if
+        a mass leaves the 2e-10 unit bound, or if the 256-to-512 order
+        delta exceeds 2e-10.
+
+    Implementation Logic
+    --------------------
+    The map ``E = center + s tan(pi u / 2)`` with scale ``s = sigma +
+    gamma`` sends Gauss-Legendre nodes to the full line; the summed
+    products with the mapped profile and Jacobian give the mass, which
+    is analytically one for every row.
+    """
     masses: np.ndarray = np.empty(
         (NORMALIZATION_WIDTHS.shape[0], len(QUADRATURE_ORDERS)),
         dtype=np.float64,
@@ -429,7 +574,27 @@ def _normalization_payload() -> dict[str, np.ndarray]:
 
 
 def _envelope_payload() -> dict[str, np.ndarray]:
-    """Build the three closed-envelope pass/reject boundary rows."""
+    """PRIVATE: Build the three closed-envelope boundary rows.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        Envelope radii, the matching energy offsets in eV, the probe
+        energies in eV, the reconstructed radii, and the fixed width
+        pair in eV.
+
+    Raises
+    ------
+    RuntimeError
+        If a reconstructed radius drifts from its target beyond four
+        machine epsilons relative.
+
+    Notes
+    -----
+    For each target radius ``R`` the offset ``sqrt(2 (sigma R)^2 -
+    gamma^2)`` places the Faddeeva argument exactly on ``|z| = R``, so
+    the rows bracket the 1e8 pass/reject envelope from both sides.
+    """
     deltas: np.ndarray = np.sqrt(
         2.0 * (ENVELOPE_SIGMA * ENVELOPE_RADII) ** 2 - ENVELOPE_GAMMA**2
     )
@@ -468,7 +633,29 @@ def _d1_loss(
     probe: np.ndarray,
     energies: np.ndarray,
 ) -> float:
-    """Evaluate the dimensionless contracted SciPy D1 loss."""
+    """PRIVATE: Evaluate the dimensionless contracted SciPy D1 loss.
+
+    Parameters
+    ----------
+    parameters : np.ndarray
+        Dimensionless offsets: scaled center shift and relative sigma
+        and gamma perturbations.
+    probe : np.ndarray
+        Frozen ``(center, sigma, gamma)`` probe in eV.
+    energies : np.ndarray
+        Fixed probe energies in eV.
+
+    Returns
+    -------
+    loss : float
+        Dimensionless weighted profile contraction.
+
+    Notes
+    -----
+    The scale ``max(sigma, gamma)`` converts the center coordinate to
+    eV and makes the contraction dimensionless, so every finite
+    difference acts on comparable magnitudes.
+    """
     center: float
     sigma: float
     gamma: float
@@ -491,7 +678,30 @@ def _five_point_derivative(
     coordinate: int,
     step: float,
 ) -> float:
-    """Evaluate one symmetric five-point D1 derivative."""
+    """PRIVATE: Evaluate one symmetric five-point D1 derivative.
+
+    Parameters
+    ----------
+    probe : np.ndarray
+        Frozen ``(center, sigma, gamma)`` probe in eV.
+    energies : np.ndarray
+        Fixed probe energies in eV.
+    coordinate : int
+        Perturbed dimensionless coordinate index (0, 1, or 2).
+    step : float
+        Positive stencil step in the dimensionless coordinate.
+
+    Returns
+    -------
+    derivative : float
+        Central-difference derivative of the D1 loss with truncation
+        order ``step**4``.
+
+    Notes
+    -----
+    The stencil is ``(f(-2s) - 8 f(-s) + 8 f(s) - f(2s)) / (12 s)``
+    along one coordinate axis of :func:`_d1_loss`.
+    """
     delta: np.ndarray = np.zeros(3, dtype=np.float64)
     delta[coordinate] = step
     return (
@@ -503,7 +713,30 @@ def _five_point_derivative(
 
 
 def _d1_payload() -> dict[str, np.ndarray]:
-    """Build analytic point derivatives and contracted D1 truth."""
+    """PRIVATE: Build analytic point derivatives and contracted D1 truth.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        Probe energies in eV, point values in 1/eV, per-coordinate
+        point derivatives, the contracted analytic truth, and the
+        finite-difference estimates per step.
+
+    Raises
+    ------
+    RuntimeError
+        If the finite-difference median or spread leaves the analytic
+        bound, or if a contracted coordinate loses its 1e-4
+        sensitivity floor.
+
+    Implementation Logic
+    --------------------
+    ``wofz`` gives the Faddeeva value and the identity ``w' = -2 z w +
+    2i/sqrt(pi)`` gives its derivative; chain rules produce the exact
+    center, sigma, and gamma point derivatives, which contract with
+    the frozen weights.  Five-point differences at three steps certify
+    every contracted entry.
+    """
     energies: np.ndarray = np.empty((D1_PROBES.shape[0], D1_Q_VALUES.size))
     point_values: np.ndarray = np.empty_like(energies)
     point_derivatives: np.ndarray = np.empty(
@@ -588,7 +821,25 @@ def _d1_payload() -> dict[str, np.ndarray]:
 
 
 def _stable_fermi(energy: np.ndarray) -> np.ndarray:
-    """Evaluate the analytic Fermi function without overflow."""
+    """PRIVATE: Evaluate the analytic Fermi function without overflow.
+
+    Parameters
+    ----------
+    energy : np.ndarray
+        Energies relative to the chemical potential in eV.
+
+    Returns
+    -------
+    occupation : np.ndarray
+        Fermi-Dirac occupation in ``[0, 1]`` at the frozen 15 K novice
+        temperature.
+
+    Notes
+    -----
+    Positive exponents use the decaying form ``e^{-x}/(1+e^{-x})`` and
+    negative exponents use ``1/(1+e^{x})``, so no branch ever
+    exponentiates a large positive number.
+    """
     exponent: np.ndarray = energy / (KB_EV_PER_K * NOVICE_TEMPERATURE)
     occupation: np.ndarray = np.empty_like(exponent)
     positive: np.ndarray = exponent >= 0.0
@@ -599,7 +850,20 @@ def _stable_fermi(energy: np.ndarray) -> np.ndarray:
 
 
 def _novice_payload() -> dict[str, np.ndarray]:
-    """Manually assemble the fixed-seed true-Voigt novice spectrum."""
+    """PRIVATE: Assemble the fixed-seed true-Voigt novice spectrum.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        The ``(8, 512)`` intensity leaf in 1/eV and the 512-point
+        energy axis in eV.
+
+    Notes
+    -----
+    The frozen seed-20260713 eigenvalues and band weights combine with
+    the stable Fermi occupation and one ``voigt_profile`` per band;
+    the band axis sums out.  No production code runs here.
+    """
     energy_axis: np.ndarray = np.linspace(-3.0, 0.5, 512, dtype=np.float64)
     occupations: np.ndarray = _stable_fermi(NOVICE_EIGENVALUES)
     profiles: np.ndarray = special.voigt_profile(
@@ -618,7 +882,19 @@ def _novice_payload() -> dict[str, np.ndarray]:
 
 
 def _reference_payload() -> dict[str, np.ndarray]:
-    """Assemble every G2/D1 reference table into one float64 payload."""
+    """PRIVATE: Assemble every G2/D1 reference table into one payload.
+
+    Returns
+    -------
+    payload : dict[str, np.ndarray]
+        Frozen constants plus the positive, endpoint, one-sided,
+        normalization, envelope, and D1 payloads.
+
+    Notes
+    -----
+    Later payloads share no keys with earlier ones, so the update
+    sequence never overwrites an entry.
+    """
     payload: dict[str, np.ndarray] = {
         "anchors": ANCHORS,
         "center": np.asarray(CENTER, dtype=np.float64),

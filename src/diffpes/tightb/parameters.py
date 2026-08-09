@@ -57,7 +57,26 @@ from .slaterkoster import (
 
 
 def _reverse_indices(model: TBModel) -> tuple[int, ...]:
-    """Derive the exact reverse-hopping permutation."""
+    """PRIVATE: Derive the exact reverse-hopping permutation.
+
+    Parameters
+    ----------
+    model : TBModel
+        Materialized tight-binding model with static hopping metadata.
+
+    Returns
+    -------
+    reverse : tuple[int, ...]
+        Position of the reversed record ``(j, i, -R)`` for every hopping
+        record ``(i, j, R)``.
+
+    Notes
+    -----
+    A Python dictionary over the static ``hopping_pairs`` and
+    ``hopping_cells`` tuples resolves every partner exactly. The result
+    stays a static tuple, so the conjugate-pair packing layout never
+    enters tracing.
+    """
     records: tuple[tuple[int, int, tuple[int, int, int]], ...] = tuple(
         (pair[0], pair[1], cell)
         for pair, cell in zip(
@@ -80,7 +99,33 @@ def _require_exact_closure(
     model: TBModel,
     reverse_indices: tuple[int, ...],
 ) -> Complex128[NDArray, " n_hop"]:
-    """Require lossless rather than tolerance-projected Hermitian closure."""
+    """PRIVATE: Require lossless, not tolerance-projected, Hermitian closure.
+
+    Parameters
+    ----------
+    model : TBModel
+        Materialized tight-binding model to pack.
+    reverse_indices : tuple[int, ...]
+        Static reverse-hopping permutation from ``_reverse_indices``.
+
+    Returns
+    -------
+    host_amplitudes : Complex128[NDArray, " n_hop"]
+        Host NumPy copy of the hopping amplitudes in eV.
+
+    Raises
+    ------
+    ValueError
+        If any reversed amplitude is not exactly the complex conjugate
+        of its partner.
+
+    Notes
+    -----
+    The comparison uses exact ``numpy.array_equal`` equality on host
+    values. The function rejects tolerance-close input: packing one
+    representative per conjugate pair and conjugating on rebuild silently
+    projects such input onto exact closure.
+    """
     host_amplitudes: Complex128[NDArray, " n_hop"] = np.asarray(
         model.hopping_amplitudes
     )
@@ -101,7 +146,33 @@ def _checked_vector(
     expected_size: int,
     context: str,
 ) -> Float64[Array, " n_par"]:
-    """Normalize and validate one flat optimizer vector."""
+    """PRIVATE: Normalize and validate one flat optimizer vector.
+
+    Parameters
+    ----------
+    vector : Float64[Array, " n_par"]
+        Candidate optimizer coordinates.
+    expected_size : int
+        Required static length of the vector.
+    context : str
+        Caller name used in error messages.
+
+    Returns
+    -------
+    checked : Float64[Array, " n_par"]
+        Float64 vector with the finiteness check threaded through.
+
+    Raises
+    ------
+    ValueError
+        If the vector is not one-dimensional with the expected length.
+
+    Notes
+    -----
+    The static shape check runs before tracing. An
+    :func:`equinox.error_if` guard then raises ``EquinoxRuntimeError``
+    for any non-finite entry at runtime.
+    """
     array: Float64[Array, " n_par"] = jnp.asarray(
         vector,
         dtype=jnp.float64,

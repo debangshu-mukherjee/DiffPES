@@ -24,6 +24,7 @@ from collections.abc import Iterable, Sequence
 
 import equinox as eqx
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
 from .certification_constants import (
@@ -48,22 +49,22 @@ class TransformationContract(eqx.Module):
     transformation_version : str
         Semantic version (**static** -- a compile-time constant; changing it
         triggers retracing).
-    requires : tuple[str, ...]
+    requires : Tuple[str, ...]
         Semantics required on input (**static** -- compile-time constants;
         changing them triggers retracing).
-    produces : tuple[str, ...]
+    produces : Tuple[str, ...]
         Output semantics created by the transformation (**static** --
         compile-time constants; changing them triggers retracing).
-    preserves : tuple[str, ...]
+    preserves : Tuple[str, ...]
         Input semantics preserved exactly (**static** -- compile-time
         constants; changing them triggers retracing).
-    introduces : tuple[str, ...]
+    introduces : Tuple[str, ...]
         New semantics introduced on output (**static** -- compile-time
         constants; changing them triggers retracing).
-    destroys : tuple[str, ...]
+    destroys : Tuple[str, ...]
         Information made unavailable on output (**static** -- compile-time
         constants; changing them triggers retracing).
-    invalidates_claims : tuple[str, ...]
+    invalidates_claims : Tuple[str, ...]
         Claim identifiers invalidated by the transformation (**static** --
         compile-time constants; changing them triggers retracing).
     jax_pure : bool
@@ -83,12 +84,12 @@ class TransformationContract(eqx.Module):
 
     transformation_id: str = eqx.field(static=True)
     transformation_version: str = eqx.field(static=True)
-    requires: tuple[str, ...] = eqx.field(static=True)
-    produces: tuple[str, ...] = eqx.field(static=True)
-    preserves: tuple[str, ...] = eqx.field(static=True)
-    introduces: tuple[str, ...] = eqx.field(static=True)
-    destroys: tuple[str, ...] = eqx.field(static=True)
-    invalidates_claims: tuple[str, ...] = eqx.field(static=True)
+    requires: Tuple[str, ...] = eqx.field(static=True)
+    produces: Tuple[str, ...] = eqx.field(static=True)
+    preserves: Tuple[str, ...] = eqx.field(static=True)
+    introduces: Tuple[str, ...] = eqx.field(static=True)
+    destroys: Tuple[str, ...] = eqx.field(static=True)
+    invalidates_claims: Tuple[str, ...] = eqx.field(static=True)
     jax_pure: bool = eqx.field(static=True)
 
 
@@ -105,19 +106,19 @@ class CompositionReport(eqx.Module):
     valid : bool
         Whether composition succeeds (**static** -- a compile-time constant;
         changing it triggers retracing).
-    errors : tuple[str, ...]
+    errors : Tuple[str, ...]
         Composition failures (**static** -- compile-time constants; changing
         them triggers retracing).
-    available_semantics : tuple[str, ...]
+    available_semantics : Tuple[str, ...]
         Semantics available after composition (**static** -- compile-time
         constants; changing them triggers retracing).
-    destroyed_information : tuple[str, ...]
+    destroyed_information : Tuple[str, ...]
         Information destroyed along the path (**static** -- compile-time
         constants; changing them triggers retracing).
-    invalidated_claims : tuple[str, ...]
+    invalidated_claims : Tuple[str, ...]
         Claims invalidated along the path (**static** -- compile-time
         constants; changing them triggers retracing).
-    transformation_refs : tuple[str, ...]
+    transformation_refs : Tuple[str, ...]
         Ordered transformation references (**static** -- compile-time
         constants; changing them triggers retracing).
 
@@ -134,20 +135,45 @@ class CompositionReport(eqx.Module):
     """
 
     valid: bool = eqx.field(static=True)
-    errors: tuple[str, ...] = eqx.field(static=True)
-    available_semantics: tuple[str, ...] = eqx.field(static=True)
-    destroyed_information: tuple[str, ...] = eqx.field(static=True)
-    invalidated_claims: tuple[str, ...] = eqx.field(static=True)
-    transformation_refs: tuple[str, ...] = eqx.field(static=True)
+    errors: Tuple[str, ...] = eqx.field(static=True)
+    available_semantics: Tuple[str, ...] = eqx.field(static=True)
+    destroyed_information: Tuple[str, ...] = eqx.field(static=True)
+    invalidated_claims: Tuple[str, ...] = eqx.field(static=True)
+    transformation_refs: Tuple[str, ...] = eqx.field(static=True)
 
 
 def _normalize_terms(
     values: Iterable[str],
     *,
     field_name: str,
-) -> tuple[str, ...]:
-    """Normalize a semantic term sequence without hiding duplicates."""
-    normalized: tuple[str, ...] = tuple(values)
+) -> Tuple[str, ...]:
+    """PRIVATE: Normalize a semantic term sequence without hiding duplicates.
+
+    Implementation Logic
+    --------------------
+    Freeze ``values`` into a tuple first. Then reject non-string or blank
+    entries, and compare the set size against the tuple length so that
+    duplicates fail instead of being silently removed.
+
+    Parameters
+    ----------
+    values : Iterable[str]
+        Semantic term entries to freeze.
+    field_name : str
+        Field name used in the static error messages.
+
+    Returns
+    -------
+    normalized : Tuple[str, ...]
+        The input entries frozen into a tuple in their original order.
+
+    Raises
+    ------
+    ValueError
+        If an entry is not a nonblank string, or if the entries are not
+        unique. This is the static construction-time contract.
+    """
+    normalized: Tuple[str, ...] = tuple(values)
     if any(
         not isinstance(value, str) or not value.strip() for value in normalized
     ):
@@ -160,7 +186,29 @@ def _normalize_terms(
 
 
 def _validate_identity(transformation_id: str, version: str) -> None:
-    """Validate permanent identity and scientific semantic version."""
+    """PRIVATE: Validate permanent identity and scientific semantic version.
+
+    Implementation Logic
+    --------------------
+    Apply ``fullmatch`` with the shared certification identifier and
+    semantic-version patterns. Require at least one dot so that the
+    identifier keeps a namespace segment.
+
+    Parameters
+    ----------
+    transformation_id : str
+        Permanent lowercase reverse-DNS-like transformation identifier.
+    version : str
+        Semantic version string of the transformation.
+
+    Raises
+    ------
+    ValueError
+        If ``transformation_id`` does not match
+        ``CERTIFICATION_IDENTIFIER_PATTERN`` or contains no dot, or if
+        ``version`` does not match ``CERTIFICATION_SEMVER_PATTERN``. This
+        is the static construction-time contract.
+    """
     if (
         CERTIFICATION_IDENTIFIER_PATTERN.fullmatch(transformation_id) is None
         or "." not in transformation_id
@@ -263,27 +311,27 @@ def make_transformation_contract(
     control flow.
     """
     _validate_identity(transformation_id, transformation_version)
-    normalized_requires: tuple[str, ...] = _normalize_terms(
+    normalized_requires: Tuple[str, ...] = _normalize_terms(
         requires,
         field_name="requires",
     )
-    normalized_produces: tuple[str, ...] = _normalize_terms(
+    normalized_produces: Tuple[str, ...] = _normalize_terms(
         produces,
         field_name="produces",
     )
-    normalized_preserves: tuple[str, ...] = _normalize_terms(
+    normalized_preserves: Tuple[str, ...] = _normalize_terms(
         preserves,
         field_name="preserves",
     )
-    normalized_introduces: tuple[str, ...] = _normalize_terms(
+    normalized_introduces: Tuple[str, ...] = _normalize_terms(
         introduces,
         field_name="introduces",
     )
-    normalized_destroys: tuple[str, ...] = _normalize_terms(
+    normalized_destroys: Tuple[str, ...] = _normalize_terms(
         destroys,
         field_name="destroys",
     )
-    normalized_invalidates: tuple[str, ...] = _normalize_terms(
+    normalized_invalidates: Tuple[str, ...] = _normalize_terms(
         invalidates_claims,
         field_name="invalidates_claims",
     )
@@ -380,7 +428,7 @@ def make_composition_report(
     Validation is entirely static because the report contains no numerical
     JAX leaves.
     """
-    normalized_errors: tuple[str, ...] = _normalize_terms(
+    normalized_errors: Tuple[str, ...] = _normalize_terms(
         errors,
         field_name="errors",
     )

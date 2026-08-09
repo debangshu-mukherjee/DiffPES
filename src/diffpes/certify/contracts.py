@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -37,9 +37,33 @@ from diffpes.types import (
 )
 
 
-def _normalize_initial_semantics(values: Iterable[str]) -> tuple[str, ...]:
-    """Validate initial semantics without constructing a carrier."""
-    normalized: tuple[str, ...] = tuple(values)
+def _normalize_initial_semantics(values: Iterable[str]) -> Tuple[str, ...]:
+    """PRIVATE: Validate initial semantics without constructing a
+    carrier.
+
+    Parameters
+    ----------
+    values : Iterable[str]
+        Declared semantic properties that hold before the first
+        transformation.
+
+    Returns
+    -------
+    normalized : Tuple[str, ...]
+        The properties as a tuple in input order.
+
+    Raises
+    ------
+    ValueError
+        If an entry is not a nonblank string, or if entries repeat.
+
+    Notes
+    -----
+    Materializes the iterable once and checks each entry is a nonblank
+    string and that no entry repeats. The tuple then seeds the semantic
+    state of the composition walk.
+    """
+    normalized: Tuple[str, ...] = tuple(values)
     if any(
         not isinstance(value, str) or not value.strip() for value in normalized
     ):
@@ -52,7 +76,7 @@ def _normalize_initial_semantics(values: Iterable[str]) -> tuple[str, ...]:
 
 
 @jaxtyped(typechecker=beartype)
-def validate_contract(contract: TransformationContract) -> tuple[str, ...]:
+def validate_contract(contract: TransformationContract) -> Tuple[str, ...]:
     """Return structural errors for a raw or deserialized contract.
 
     The operation propagates declared semantics and information loss
@@ -77,7 +101,7 @@ def validate_contract(contract: TransformationContract) -> tuple[str, ...]:
 
     Returns
     -------
-    result : tuple[str, ...]
+    result : Tuple[str, ...]
         Deterministic structural error messages, empty when valid.
     """
     exc: ValueError | TypeError
@@ -96,7 +120,7 @@ def validate_contract(contract: TransformationContract) -> tuple[str, ...]:
         )
     except (ValueError, TypeError) as exc:
         errors.append(str(exc))
-    result: tuple[str, ...] = tuple(errors)
+    result: Tuple[str, ...] = tuple(errors)
     return result
 
 
@@ -138,7 +162,7 @@ def validate_composition(
     index: Any
     contract: Any
     error: Any
-    initial: tuple[str, ...] = _normalize_initial_semantics(initial_semantics)
+    initial: Tuple[str, ...] = _normalize_initial_semantics(initial_semantics)
     current: set[str] = set(initial)
     losses: set[str] = set()
     invalidated: set[str] = set()

@@ -79,7 +79,25 @@ class Fixture:
 
 
 def _recursive_equation_count(value: object) -> int:
-    """Count equations recursively through nested JAXPR parameters."""
+    """PRIVATE: Count equations recursively through nested JAXPRs.
+
+    Parameters
+    ----------
+    value : object
+        Closed JAXPR, JAXPR, container, or any other object.
+
+    Returns
+    -------
+    count : int
+        Total equation count including every nested sub-JAXPR.
+
+    Implementation Logic
+    --------------------
+    Closed JAXPRs unwrap to their JAXPR; a JAXPR contributes its own
+    equations plus a recursive walk over every equation parameter;
+    tuples, lists, and dictionaries recurse over their items; every
+    other object contributes zero.
+    """
     if isinstance(value, ClosedJaxpr):
         return _recursive_equation_count(value.jaxpr)
     if isinstance(value, Jaxpr):
@@ -96,7 +114,24 @@ def _recursive_equation_count(value: object) -> int:
 
 
 def _basis(n_orbitals: int) -> OrbitalBasis:
-    """Build independent complete s shells without rotational padding."""
+    """PRIVATE: Build independent complete s shells without padding.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of one-orbital atoms.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        One 1s orbital per atom, so every shell is already complete
+        and no rotational padding enters.
+
+    Notes
+    -----
+    Complete s shells keep the orbital count exactly equal to the
+    atom count at every benchmark size.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=tuple(range(n_orbitals)),
         n=(1,) * n_orbitals,
@@ -108,7 +143,29 @@ def _basis(n_orbitals: int) -> OrbitalBasis:
 
 
 def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
-    """Construct deterministic literal-shape dynamic benchmark arguments."""
+    """PRIVATE: Construct deterministic literal-shape benchmark inputs.
+
+    Parameters
+    ----------
+    n_k : int
+        Number of k-points.
+    n_orbitals : int
+        Number of orbitals.
+
+    Returns
+    -------
+    fixture : Fixture
+        Static basis plus dynamic arrays: smooth analytic momenta in
+        1/Angstrom, positions in Angstrom, depths in Angstrom, complex
+        radial values, matrix-element parameters, a 9 Angstrom mean
+        free path, identity eigenvectors, eight energy scales, and six
+        polarizations.
+
+    Notes
+    -----
+    Every array comes from closed-form expressions of the linspace
+    coordinates, so the fixture is bit-reproducible without a seed.
+    """
     basis: OrbitalBasis = _basis(n_orbitals)
     shell_index: tuple[int, ...] = tuple(range(n_orbitals))
     matrix_params: MatrixElementParams = make_matrix_element_params(
@@ -214,7 +271,25 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
 
 
 def _channel_function(basis: OrbitalBasis) -> Any:
-    """Return the scalar-energy channel primitive with dynamic arrays."""
+    """PRIVATE: Return the scalar-energy channel primitive.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Static orbital basis captured by the closure.
+
+    Returns
+    -------
+    channel : Any
+        Function of one ``DynamicInputs`` tuple that calls
+        ``orbital_transition_channels`` with every array argument
+        dynamic and only the basis static.
+
+    Notes
+    -----
+    Keeping arrays out of the closure means retracing happens only on
+    shape changes, which the S1 cache measurements rely on.
+    """
 
     def channel(dynamic: DynamicInputs) -> Complex128[Array, "n_k 1 n_orb 3"]:
         return orbital_transition_channels(
@@ -236,7 +311,29 @@ def _group_weights(
     eigenvectors: Complex128[Array, "n_k n_band n_orb"],
     polarization: Complex128[Array, " 3"],
 ) -> Float64[Array, "n_k n_group"]:
-    """Reduce one scalar-energy channel tensor to six complete groups."""
+    """PRIVATE: Reduce one channel tensor to six complete groups.
+
+    Parameters
+    ----------
+    channels : Complex128[Array, "n_k 1 n_orb 3"]
+        Scalar-energy orbital transition channels.
+    eigenvectors : Complex128[Array, "n_k n_band n_orb"]
+        Band eigenvectors per k-point.
+    polarization : Complex128[Array, " 3"]
+        One polarization vector.
+
+    Returns
+    -------
+    groups : Float64[Array, "n_k n_group"]
+        Six per-k group weights.
+
+    Implementation Logic
+    --------------------
+    Band projection and polarization contraction give per-band
+    amplitudes; ``|amplitude|^2`` sums over the energy axis and then
+    over equal-size band blocks into ``N_GROUPS`` groups, which keeps
+    the retained output far smaller than the channel tensor.
+    """
     band_channels: Complex128[Array, "n_k n_band 1 3"] = project_band_channels(
         channels,
         eigenvectors,
@@ -257,7 +354,27 @@ def _group_weights(
 
 
 def _scan_function(basis: OrbitalBasis) -> Any:
-    """Return the eight-energy reduced-output scan executable."""
+    """PRIVATE: Return the eight-energy reduced-output scan function.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Static orbital basis captured by the closure.
+
+    Returns
+    -------
+    scan_weights : Any
+        Function of the dynamic inputs, eigenvectors, energy scales,
+        and one polarization that scans over the energy axis and
+        stacks the reduced group weights.
+
+    Implementation Logic
+    --------------------
+    Each scan step rescales the out-of-plane final momentum and the
+    complex radial values for one energy, rebuilds the channels, and
+    reduces them immediately, so no ``(K, E, B)`` cube ever
+    materializes.
+    """
     channel = _channel_function(basis)
 
     def scan_weights(
@@ -300,7 +417,26 @@ def _scan_function(basis: OrbitalBasis) -> Any:
 
 
 def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
-    """Return one scalar-energy primitive plus its sigma gradient."""
+    """PRIVATE: Return one scalar-energy primitive plus sigma gradient.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Static orbital basis captured by the closure.
+
+    Returns
+    -------
+    scalar_with_gradient : Any
+        Function returning the reduced group weights and the
+        ``jax.grad`` of their sum with respect to the per-shell sigma
+        parameters.
+
+    Notes
+    -----
+    The loss swaps the sigma leaf with ``eqx.tree_at`` and reruns the
+    reduced pipeline, so the gradient flows through the complete
+    channel construction.
+    """
     channel = _channel_function(basis)
 
     def scalar_with_gradient(
@@ -342,7 +478,23 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
 
 
 def _checksum_fixture(fixture: Fixture) -> str:
-    """Hash all dynamic numerical leaves in deterministic tree order."""
+    """PRIVATE: Hash all dynamic numerical leaves in tree order.
+
+    Parameters
+    ----------
+    fixture : Fixture
+        Benchmark fixture whose dynamic leaves enter the digest.
+
+    Returns
+    -------
+    digest : str
+        SHA-256 over shape, dtype, and C-order bytes of every leaf.
+
+    Notes
+    -----
+    ``jax.tree.leaves`` fixes the traversal order, so the digest is
+    reproducible across runs and hosts with equal inputs.
+    """
     digest = hashlib.sha256()
     leaf: object
     for leaf in jax.tree.leaves(
@@ -361,7 +513,25 @@ def _checksum_fixture(fixture: Fixture) -> str:
 
 
 def _time_call(function: Any, *arguments: object) -> float:
-    """Time one synchronized compiled call."""
+    """PRIVATE: Time one synchronized compiled call.
+
+    Parameters
+    ----------
+    function : Any
+        Compiled callable.
+    *arguments : object
+        Positional arguments for the call.
+
+    Returns
+    -------
+    elapsed : float
+        Wall-clock seconds including ``jax.block_until_ready``.
+
+    Notes
+    -----
+    Blocking on the result charges asynchronous device work to the
+    measured interval.
+    """
     start: float = time.perf_counter()
     result: object = function(*arguments)
     jax.block_until_ready(result)
@@ -374,7 +544,28 @@ def _time_six(
     arguments: tuple[object, ...],
     pols: Array,
 ) -> float:
-    """Time six independently synchronized polarization calls."""
+    """PRIVATE: Time six independently synchronized polarization calls.
+
+    Parameters
+    ----------
+    function : Any
+        Compiled callable taking the shared arguments plus one
+        polarization.
+    arguments : tuple[object, ...]
+        Shared leading arguments.
+    pols : Array
+        Six polarization vectors.
+
+    Returns
+    -------
+    elapsed : float
+        Wall-clock seconds for all six calls, each one synchronized.
+
+    Notes
+    -----
+    Per-call blocking removes pipelining between polarizations, so
+    the comparison against one batched call stays fair.
+    """
     start: float = time.perf_counter()
     index: int
     for index in range(N_POLARIZATIONS):
@@ -385,7 +576,26 @@ def _time_six(
 
 
 def _compile(function: Any, *arguments: object) -> tuple[Any, float]:
-    """Lower and compile while recording compilation wall time."""
+    """PRIVATE: Lower and compile while recording compilation time.
+
+    Parameters
+    ----------
+    function : Any
+        Function to compile.
+    *arguments : object
+        Example arguments fixing the shapes.
+
+    Returns
+    -------
+    result : tuple[Any, float]
+        The compiled executable and the compilation wall-clock
+        seconds.
+
+    Notes
+    -----
+    ``jax.jit(...).lower(...).compile()`` performs the whole
+    ahead-of-time pipeline inside the timed interval.
+    """
     start: float = time.perf_counter()
     compiled: Any = jax.jit(function).lower(*arguments).compile()
     elapsed: float = time.perf_counter() - start
@@ -393,7 +603,25 @@ def _compile(function: Any, *arguments: object) -> tuple[Any, float]:
 
 
 def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
-    """Extract the compiler-live allocation authority for slab diagonalization."""
+    """PRIVATE: Extract the compiler-live allocation authority record.
+
+    Parameters
+    ----------
+    compiled : Any
+        Compiled executable with ``memory_analysis``.
+
+    Returns
+    -------
+    record : dict[str, int | bool | str]
+        The four byte counters, the derived live-allocation bytes,
+        the limit, and the verdict; or a residual record when the
+        backend reports no authority.
+
+    Notes
+    -----
+    Live bytes are ``arguments + outputs + temporaries - aliases``;
+    the verdict compares against the 2 GiB limit.
+    """
     analysis: Any = compiled.memory_analysis()
     required: tuple[str, ...] = (
         "argument_size_in_bytes",
@@ -429,7 +657,24 @@ def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
 
 
 def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
-    """Extract numeric array dimensions from retained JAXPR or HLO text."""
+    """PRIVATE: Extract numeric array dimensions from retained IR text.
+
+    Parameters
+    ----------
+    ir_text : str
+        Retained JAXPR or HLO text.
+
+    Returns
+    -------
+    shapes : set[tuple[int, ...]]
+        Every bracketed comma-separated integer list in the text.
+
+    Notes
+    -----
+    The regex over ``[digits, ...]`` groups deliberately overmatches
+    (any bracketed list counts); the forbidden-shape check only needs
+    the parsed set to be a superset of real array shapes.
+    """
     shapes: set[tuple[int, ...]] = set()
     match: re.Match[str]
     for match in re.finditer(r"\[([0-9,\s]+)\]", ir_text):
@@ -442,7 +687,22 @@ def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
 
 
 def _s1() -> dict[str, object]:
-    """Measure equation-count scaling and fixed-shape compile reuse."""
+    """PRIVATE: Measure equation-count scaling and compile reuse.
+
+    Returns
+    -------
+    record : dict[str, object]
+        Equation counts at 9, 18, and 36 orbitals, the count growth,
+        the jit cache sizes around data-only changes, the composed
+        polarization-sweep cache and trace counts, and the verdict.
+
+    Implementation Logic
+    --------------------
+    Recursive JAXPR equation counts must stay constant across orbital
+    counts (vectorized construction).  One data-only change must not
+    grow the jit cache, and six fixed-shape polarization sweeps must
+    trace exactly once.
+    """
     orbital_counts: tuple[int, ...] = (9, 18, 36)
     equation_counts: list[int] = []
     n_orbitals: int
@@ -518,7 +778,30 @@ def _s2(
     fixture: Fixture,
     artifact_directory: Path,
 ) -> tuple[dict[str, object], Any]:
-    """Compile the literal scan, retain IR, and record live allocation."""
+    """PRIVATE: Compile the literal scan and record IR and allocation.
+
+    Parameters
+    ----------
+    fixture : Fixture
+        Full-size literal-shape benchmark fixture.
+    artifact_directory : Path
+        Destination for the gzip-compressed retained IR.
+
+    Returns
+    -------
+    result : tuple[dict[str, object], Any]
+        The S2 record (shapes, equation counts, forbidden-shape scan,
+        IR digests, memory authority, verdict) and the compiled scan
+        executable.
+
+    Implementation Logic
+    --------------------
+    The routine retains address-sanitized JAXPR and optimized HLO for
+    both executables, writes them with ``mtime=0`` gzip so the bytes
+    stay deterministic, scans the concatenated text for any
+    ``(K, E, B)`` permutation, and records the compiler memory
+    authority for both programs.
+    """
     scan_function = _scan_function(fixture.basis)
     scan_arguments: tuple[object, ...] = (
         fixture.dynamic,
@@ -660,7 +943,28 @@ def _s2(
 
 
 def _s3(fixture: Fixture) -> dict[str, object]:
-    """Record synchronized seven-repetition late-polarization timings."""
+    """PRIVATE: Record synchronized seven-repetition timing evidence.
+
+    Parameters
+    ----------
+    fixture : Fixture
+        Full-size literal-shape benchmark fixture.
+
+    Returns
+    -------
+    record : dict[str, object]
+        Compilation times, the four raw seven-run timing series,
+        their medians, the contraction and pipeline ratios, and the
+        verdict.
+
+    Implementation Logic
+    --------------------
+    Four compiled programs compare one batched six-polarization
+    contraction against six sequential contractions, and one
+    late-reuse pipeline against six channel-rebuild pipelines.  Two
+    warmup rounds precede seven synchronized repetitions; medians
+    form both ratios.
+    """
     channel = _channel_function(fixture.basis)
 
     def batch_contract(

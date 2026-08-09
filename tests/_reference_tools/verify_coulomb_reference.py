@@ -33,7 +33,27 @@ def _mixed_budget_ratio(
     actual: jax.Array,
     reference: Float64[NDArray, "..."],
 ) -> float:
-    """Return the maximum D11 mixed-tolerance consumption."""
+    """PRIVATE: Return the maximum D11 mixed-tolerance consumption.
+
+    Parameters
+    ----------
+    actual : jax.Array
+        Production values under test.
+    reference : Float64[NDArray, "..."]
+        Frozen 80-digit mpmath truth of the same shape.
+
+    Returns
+    -------
+    ratio : float
+        Worst ``|actual - reference| / (1e-10 + 1e-7 |reference|)``
+        over all entries; one means the budget is exactly consumed.
+
+    Notes
+    -----
+    The mixed absolute-plus-relative denominator matches the
+    registered D11 acceptance rule, so the report stays comparable
+    across rows of very different magnitude.
+    """
     ratio: jax.Array = jnp.abs(actual - jnp.asarray(reference)) / (
         1.0e-10 + 1.0e-7 * jnp.abs(jnp.asarray(reference))
     )

@@ -8,7 +8,7 @@ import zlib
 
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.certify import (
     artifact_ref,
@@ -42,7 +42,7 @@ class TestParseChecksum:
         The test checks algorithm, record kind, and fixed-width SHA-256 text.
         """
         checksum: str = checksum_bytes(b"physics", record_kind="result")
-        parsed: tuple[str, str, str, str] = parse_checksum(checksum)
+        parsed: Tuple[str, str, str, str] = parse_checksum(checksum)
         assert parsed[0] == CHECKSUM_ALGORITHM
         assert parsed[2] == "result"
 

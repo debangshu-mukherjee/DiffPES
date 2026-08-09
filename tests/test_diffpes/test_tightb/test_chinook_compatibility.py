@@ -35,7 +35,27 @@ _COMPATIBILITY_ATOL: float = 2e-12
 
 
 def _reference() -> dict[str, Any]:
-    """Load and authenticate the inert numeric compatibility artifact."""
+    """PRIVATE: Load and authenticate the inert numeric compatibility artifact.
+
+    Returns
+    -------
+    payload : dict[str, Any]
+        Parsed JSON content of ``chinook_tightb_reference.json`` with
+        per-model k-points, eigenvalues in eV, and conventions.
+
+    Raises
+    ------
+    ValueError
+        If the SHA-256 digest differs from the pinned constant, or if
+        the artifact metadata does not declare the K-type
+        tight-binding-parity requirement.
+
+    Notes
+    -----
+    Reads the artifact bytes, checks them against ``_ARTIFACT_SHA256``,
+    and validates the recorded requirement and classification before any
+    numeric comparison uses the payload. Chinook itself never runs.
+    """
     encoded: bytes = _ARTIFACT_PATH.read_bytes()
     digest: str = hashlib.sha256(encoded).hexdigest()
     if digest != _ARTIFACT_SHA256:

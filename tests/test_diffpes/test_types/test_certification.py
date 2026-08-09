@@ -38,7 +38,24 @@ from tests._assertions import assert_rejects, assert_trees_close
 
 
 def _certificate() -> ForwardCertificate:
-    """Build one complete, small certificate for carrier tests."""
+    """PRIVATE: Build one complete, small certificate for carrier tests.
+
+    Returns
+    -------
+    certificate : ForwardCertificate
+        A fully populated certificate with one artifact, one
+        transformation, one evidence record, one attestation, one
+        claim, and one domain result. Every derivative, dependency,
+        sensitivity, information, and policy record is present.
+
+    Notes
+    -----
+    Builds each sub-record through its public factory with small
+    fixed toy values: two differentiable paths, length-two arrays,
+    and energies in eV. Assembles them with
+    ``make_forward_certificate``, so every carrier test starts from
+    one deterministic instance.
+    """
     convention: Any
     predicate: Any
     model: Any

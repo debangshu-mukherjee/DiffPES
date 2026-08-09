@@ -44,7 +44,23 @@ _DIGITISATION_REPLAY_SPOT_CHECKS: tuple[
 
 
 def _cell_column(reference: str) -> int:
-    """Return the zero-based column encoded by an XLSX cell reference."""
+    """PRIVATE: Return the zero-based column of an XLSX cell reference.
+
+    Parameters
+    ----------
+    reference : str
+        Cell reference such as ``"B12"``.
+
+    Returns
+    -------
+    column : int
+        Zero-based column index.
+
+    Notes
+    -----
+    The letters form a bijective base-26 number (``A``=1 through
+    ``Z``=26); the digits drop out and one subtracts to zero-based.
+    """
     letters = "".join(
         character for character in reference if character.isalpha()
     )
@@ -55,7 +71,23 @@ def _cell_column(reference: str) -> int:
 
 
 def _shared_strings(archive: zipfile.ZipFile) -> list[str]:
-    """Read the workbook shared-string table."""
+    """PRIVATE: Read the workbook shared-string table.
+
+    Parameters
+    ----------
+    archive : zipfile.ZipFile
+        Open XLSX container.
+
+    Returns
+    -------
+    strings : list[str]
+        Shared strings in table order.
+
+    Notes
+    -----
+    Each shared-string item concatenates the text of its ``t`` nodes,
+    which joins rich-text runs into one plain string.
+    """
     root = ET.fromstring(  # noqa: S314 - authenticated workbook input
         archive.read("xl/sharedStrings.xml")
     )
@@ -69,7 +101,26 @@ def _cell_value(
     cell: ET.Element,
     shared_strings: list[str],
 ) -> str | None:
-    """Return one cell value, resolving shared strings."""
+    """PRIVATE: Return one cell value with shared strings resolved.
+
+    Parameters
+    ----------
+    cell : ET.Element
+        Worksheet ``c`` cell element.
+    shared_strings : list[str]
+        Workbook shared-string table.
+
+    Returns
+    -------
+    value : str | None
+        The cell text, the resolved shared string for type ``s``
+        cells, or ``None`` for empty cells.
+
+    Notes
+    -----
+    Only the ``v`` child carries the stored value; a missing node or
+    missing text means the cell is blank.
+    """
     value_node = cell.find(f"{{{_MAIN_NS}}}v")
     if value_node is None or value_node.text is None:
         return None
@@ -83,7 +134,29 @@ def _pchip_slopes(
     x_values: Float64[NDArray, " n_node"],
     y_values: Float64[NDArray, " n_node"],
 ) -> Float64[NDArray, " n_node"]:
-    """Compute shape-preserving cubic Hermite derivatives."""
+    """PRIVATE: Compute shape-preserving cubic Hermite derivatives.
+
+    Parameters
+    ----------
+    x_values : Float64[NDArray, " n_node"]
+        Strictly increasing abscissas (log photon energy).
+    y_values : Float64[NDArray, " n_node"]
+        Ordinates at the abscissas (log cross section).
+
+    Returns
+    -------
+    slopes : Float64[NDArray, " n_node"]
+        PCHIP node derivatives.
+
+    Implementation Logic
+    --------------------
+    Two-node runs return the secant.  Interior nodes use the weighted
+    harmonic mean of the adjacent secants and become zero at local
+    extrema or sign changes, which is the Fritsch--Carlson
+    monotonicity rule.  The endpoint formula uses the non-centered
+    three-point stencil, clipped to zero on sign disagreement and to
+    three times the edge secant on overshoot.
+    """
     count = len(x_values)
     intervals = np.diff(x_values)
     secants = np.diff(y_values) / intervals
@@ -143,7 +216,31 @@ def _workbook_rows(
         Float64[NDArray, " n_node"],
     ]
 ]:
-    """Extract subshell rows, preserving missing and published zero entries."""
+    """PRIVATE: Extract subshell rows with missing and zero entries kept.
+
+    Parameters
+    ----------
+    source : Path
+        Authenticated Regoutz-group XLSX workbook.
+
+    Returns
+    -------
+    rows : list[tuple[tuple[int, int, int], Float64[NDArray, " n_node"], Float64[NDArray, " n_node"]]]
+        Sorted ``(Z, n, l)`` keys with photon energies in eV and cross
+        sections in megabarn; blank cells stay ``NaN``.
+
+    Raises
+    ------
+    ValueError
+        If the XLSX workbook carries no sheets element.
+
+    Implementation Logic
+    --------------------
+    Every element sheet after the first resolves through the workbook
+    relationships.  Header cells matching ``ns/np/nd/nf`` map columns
+    to ``(n, l)``; the first 16 data rows supply energies and values;
+    subshells with fewer than two positive finite values drop out.
+    """
     rows: list[
         tuple[
             tuple[int, int, int],

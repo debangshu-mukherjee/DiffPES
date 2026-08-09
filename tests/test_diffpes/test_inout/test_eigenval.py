@@ -187,7 +187,24 @@ class TestReadEigenval(chex.TestCase):
 
 
 def _write_tmpfile(content: str) -> str:
-    """Write content to a temporary file and return its path."""
+    """PRIVATE: Write content to a temporary EIGENVAL file.
+
+    Parameters
+    ----------
+    content : str
+        Full EIGENVAL text to write to the file.
+
+    Returns
+    -------
+    path : str
+        Filesystem path of the written temporary file.
+
+    Notes
+    -----
+    Creates a ``NamedTemporaryFile`` with the ``.EIGENVAL`` suffix and
+    ``delete=False`` so the file survives for the calling test. The
+    caller removes the file afterwards.
+    """
     fh: TextIO
 
     with tempfile.NamedTemporaryFile(
@@ -216,6 +233,18 @@ class TestReadEigenvalErrors(chex.TestCase):
     """
 
     def _cleanup(self, path: str) -> None:
+        """PRIVATE: Delete one temporary EIGENVAL file.
+
+        Parameters
+        ----------
+        path : str
+            Filesystem path of the temporary file to delete.
+
+        Notes
+        -----
+        Calls ``os.unlink`` on the path after the error assertion so
+        the temporary file does not accumulate between test runs.
+        """
         import os
 
         os.unlink(path)

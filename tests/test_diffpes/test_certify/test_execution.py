@@ -34,6 +34,24 @@ from diffpes.types import (
 
 
 def _context(executor: Any) -> CertificationContext:
+    """PRIVATE: Prepare a certification context for one fresh test model.
+
+    Parameters
+    ----------
+    executor : Any
+        Callable that the registry runs as the model forward pass.
+
+    Returns
+    -------
+    context : CertificationContext
+        Prepared context under the exploratory policy.
+
+    Implementation Logic
+    --------------------
+    Registers a forward-model spec with a unique UUID-suffixed identity,
+    builds a deterministic CPU float64 execution manifest, and prepares
+    the certification for model version 1.0.0.
+    """
     suffix: Any
     model_id: Any
     spec: Any

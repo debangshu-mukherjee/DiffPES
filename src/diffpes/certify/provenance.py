@@ -33,7 +33,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 import equinox as eqx
 from beartype import beartype
-from beartype.typing import Any, cast
+from beartype.typing import Any, Tuple, cast
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -52,22 +52,46 @@ from .checksums import checksum_pytree
 class _Analysis(eqx.Module):
     """Store complete internal analysis before construction or comparison."""
 
-    ordered_records: tuple[TransformationRecord, ...]
-    topological_order: tuple[str, ...] = eqx.field(static=True)
-    information: tuple[InformationState, ...]
-    errors: tuple[str, ...] = eqx.field(static=True)
-    roots: tuple[str, ...] = eqx.field(static=True)
-    terminal_outputs: tuple[str, ...] = eqx.field(static=True)
-    orphaned_inputs: tuple[str, ...] = eqx.field(static=True)
+    ordered_records: Tuple[TransformationRecord, ...]
+    topological_order: Tuple[str, ...] = eqx.field(static=True)
+    information: Tuple[InformationState, ...]
+    errors: Tuple[str, ...] = eqx.field(static=True)
+    roots: Tuple[str, ...] = eqx.field(static=True)
+    terminal_outputs: Tuple[str, ...] = eqx.field(static=True)
+    orphaned_inputs: Tuple[str, ...] = eqx.field(static=True)
 
 
 def _normalize_terms(
     values: Iterable[str],
     *,
     field_name: str,
-) -> tuple[str, ...]:
-    """Validate and deterministically order one identifier/property set."""
-    normalized: tuple[str, ...] = tuple(values)
+) -> Tuple[str, ...]:
+    """PRIVATE: Validate and deterministically order one
+    identifier/property set.
+
+    Parameters
+    ----------
+    values : Iterable[str]
+        Identifiers or semantic properties for one field.
+    field_name : str
+        Field label used in error messages.
+
+    Returns
+    -------
+    result : Tuple[str, ...]
+        The entries in sorted order.
+
+    Raises
+    ------
+    ValueError
+        If an entry is not a nonblank string, or if entries repeat.
+
+    Notes
+    -----
+    The sort removes input-order sensitivity, so equal sets produce
+    equal graph records and equal checksums.
+    """
+    normalized: Tuple[str, ...] = tuple(values)
     if any(
         not isinstance(value, str) or not value.strip() for value in normalized
     ):
@@ -76,16 +100,38 @@ def _normalize_terms(
     if len(set(normalized)) != len(normalized):
         msg: str = f"{field_name} entries must be unique"
         raise ValueError(msg)
-    result: tuple[str, ...] = tuple(sorted(normalized))
+    result: Tuple[str, ...] = tuple(sorted(normalized))
     return result
 
 
 def _normalize_external_inputs(
     external_inputs: Mapping[str, Iterable[str]] | Iterable[str],
-) -> tuple[tuple[str, ...], tuple[tuple[str, tuple[str, ...]], ...]]:
-    """Normalize external node identities and their input semantics."""
-    node_ids: tuple[str, ...]
-    semantic_pairs: tuple[tuple[str, tuple[str, ...]], ...]
+) -> Tuple[Tuple[str, ...], Tuple[Tuple[str, Tuple[str, ...]], ...]]:
+    """PRIVATE: Normalize external node identities and their input
+    semantics.
+
+    Parameters
+    ----------
+    external_inputs : Mapping[str, Iterable[str]] | Iterable[str]
+        External node identities, either as a mapping from node identity
+        to its initial semantic properties or as a bare identity
+        iterable.
+
+    Returns
+    -------
+    result : Tuple[Tuple[str, ...], Tuple[Tuple[str, Tuple[str, ...]], ...]]
+        Sorted external node identities and one ``(node_id, semantics)``
+        pair per node. Bare iterables yield empty semantics for every
+        node.
+
+    Notes
+    -----
+    Both the identities and each semantics set pass through
+    :func:`_normalize_terms`, so blank or repeated entries fail before
+    graph construction.
+    """
+    node_ids: Tuple[str, ...]
+    semantic_pairs: Tuple[Tuple[str, Tuple[str, ...]], ...]
     if isinstance(external_inputs, Mapping):
         input_mapping: Mapping[str, Iterable[str]] = cast(
             "Mapping[str, Iterable[str]]",
@@ -111,7 +157,7 @@ def _normalize_external_inputs(
             field_name="external_inputs",
         )
         semantic_pairs = tuple((node_id, ()) for node_id in node_ids)
-    result: tuple[tuple[str, ...], tuple[tuple[str, tuple[str, ...]], ...]] = (
+    result: Tuple[Tuple[str, ...], Tuple[Tuple[str, Tuple[str, ...]], ...]] = (
         node_ids,
         semantic_pairs,
     )
@@ -121,9 +167,30 @@ def _normalize_external_inputs(
 def _record_key(
     record: TransformationRecord,
     original_index: int,
-) -> tuple[str, str, tuple[str, ...], int]:
-    """Return a deterministic ordering key for one transformation execution."""
-    key: tuple[str, str, tuple[str, ...], int] = (
+) -> Tuple[str, str, Tuple[str, ...], int]:
+    """PRIVATE: Return a deterministic ordering key for one
+    transformation execution.
+
+    Parameters
+    ----------
+    record : TransformationRecord
+        Transformation execution record.
+    original_index : int
+        Position of the record in the caller-supplied sequence.
+
+    Returns
+    -------
+    key : Tuple[str, str, Tuple[str, ...], int]
+        Transformation identity, version, output identities, and the
+        original index, in comparison order.
+
+    Notes
+    -----
+    The key sorts ready records in the Kahn walk. The trailing original
+    index breaks ties between otherwise identical records, so the
+    topological order is total and deterministic.
+    """
+    key: Tuple[str, str, Tuple[str, ...], int] = (
         record.transformation_id,
         record.transformation_version,
         record.output_ids,
@@ -134,14 +201,39 @@ def _record_key(
 
 def _record_errors(  # noqa: PLR0912
     records: Sequence[TransformationRecord],
-    external_inputs: tuple[str, ...],
-) -> tuple[
+    external_inputs: Tuple[str, ...],
+) -> Tuple[
     list[str],
     dict[str, int],
     set[str],
-    tuple[str, ...],
+    Tuple[str, ...],
 ]:
-    """Collect local record and node-identity errors."""
+    """PRIVATE: Collect local record and node-identity errors.
+
+    Implementation Logic
+    --------------------
+    Walks the records once and reports: blank transformation identities
+    or versions, records without outputs, repeated parents or outputs,
+    a record that consumes its own output, contradictory declarations
+    (a term both retained and destroyed), blank outputs, and outputs
+    with more than one producer. It then reports external inputs that
+    internal records also produce, parents that no known node supplies,
+    and declared external inputs that no record consumes.
+
+    Parameters
+    ----------
+    records : Sequence[TransformationRecord]
+        Transformation execution records in caller order.
+    external_inputs : Tuple[str, ...]
+        Normalized external node identities.
+
+    Returns
+    -------
+    result : Tuple[list[str], dict[str, int], set[str], Tuple[str, ...]]
+        Deterministic error messages, the producer-record index per
+        output identity, the set of consumed node identities, and the
+        sorted orphaned external inputs.
+    """
     index: Any
     record: Any
     output_id: Any
@@ -204,14 +296,14 @@ def _record_errors(  # noqa: PLR0912
         if missing:
             details = ", ".join(sorted(missing))
             errors.append(f"record {index} has missing parents: {details}")
-    orphaned: tuple[str, ...] = (
+    orphaned: Tuple[str, ...] = (
         tuple(sorted(set(external_inputs) - consumed)) if records else ()
     )
     if orphaned:
         errors.append(
             "declared external inputs are not consumed: " + ", ".join(orphaned)
         )
-    result: tuple[list[str], dict[str, int], set[str], tuple[str, ...]] = (
+    result: Tuple[list[str], dict[str, int], set[str], Tuple[str, ...]] = (
         errors,
         producer,
         consumed,
@@ -223,8 +315,32 @@ def _record_errors(  # noqa: PLR0912
 def _topological_indices(
     records: Sequence[TransformationRecord],
     producer: Mapping[str, int],
-) -> tuple[tuple[int, ...], bool]:
-    """Return deterministic Kahn ordering and whether a cycle remains."""
+) -> Tuple[Tuple[int, ...], bool]:
+    """PRIVATE: Return deterministic Kahn ordering and whether a cycle
+    remains.
+
+    Implementation Logic
+    --------------------
+    Builds record-level dependency and child sets from the producer map,
+    then runs Kahn's algorithm with a heap ordered by
+    :func:`_record_key`, so equal-indegree records leave the queue in
+    one deterministic order. When some records never reach indegree
+    zero, a cycle exists; those records append at the end, sorted by the
+    same key, so callers still receive a total order.
+
+    Parameters
+    ----------
+    records : Sequence[TransformationRecord]
+        Transformation execution records in caller order.
+    producer : Mapping[str, int]
+        Producer-record index per output identity.
+
+    Returns
+    -------
+    result : Tuple[Tuple[int, ...], bool]
+        Record indices in deterministic topological order and the cycle
+        flag.
+    """
     record: Any
     parent_index: Any
     degree: Any
@@ -241,13 +357,13 @@ def _topological_indices(
         for parent_index in parents:
             children[parent_index].add(index)
     indegree: list[int] = [len(parents) for parents in dependencies]
-    ready: list[tuple[tuple[str, str, tuple[str, ...], int], int]] = []
+    ready: list[Tuple[Tuple[str, str, Tuple[str, ...], int], int]] = []
     for index, degree in enumerate(indegree):
         if degree == 0:
             heapq.heappush(ready, (_record_key(records[index], index), index))
     ordered: list[int] = []
     while ready:
-        ready_item: tuple[tuple[str, str, tuple[str, ...], int], int] = (
+        ready_item: Tuple[Tuple[str, str, Tuple[str, ...], int], int] = (
             heapq.heappop(ready)
         )
         index: int = ready_item[1]
@@ -266,18 +382,49 @@ def _topological_indices(
             key=lambda index: _record_key(records[index], index),
         )
         ordered.extend(remaining)
-    result: tuple[tuple[int, ...], bool] = (tuple(ordered), has_cycle)
+    result: Tuple[Tuple[int, ...], bool] = (tuple(ordered), has_cycle)
     return result
 
 
 def _propagate_information(
     ordered_indices: Sequence[int],
     records: Sequence[TransformationRecord],
-    initial_semantics: tuple[tuple[str, tuple[str, ...]], ...],
+    initial_semantics: Tuple[Tuple[str, Tuple[str, ...]], ...],
     *,
     has_cycle: bool,
-) -> tuple[InformationState, ...]:
-    """Propagate semantics only when the graph admits a complete ordering."""
+) -> Tuple[InformationState, ...]:
+    """PRIVATE: Propagate semantics only when the graph admits a
+    complete ordering.
+
+    Implementation Logic
+    --------------------
+    Seeds each external node with its declared initial semantics. On a
+    cyclic graph, returns only those seed states and propagates nothing.
+    Otherwise walks the records in topological order: a node inherits
+    the union of its parents' active semantics, losses, and invalidated
+    claims; an inherited property stays active only when the record
+    names it in ``preserves``; unpreserved and destroyed properties join
+    the losses; introduced properties join the active set; and the
+    record's ``invalidates_claims`` join the invalidations. Every output
+    of the record receives the same propagated state.
+
+    Parameters
+    ----------
+    ordered_indices : Sequence[int]
+        Record indices in topological order.
+    records : Sequence[TransformationRecord]
+        Transformation execution records in caller order.
+    initial_semantics : Tuple[Tuple[str, Tuple[str, ...]], ...]
+        Per external node, its initial semantic properties.
+    has_cycle : bool
+        Whether the topological ordering is incomplete.
+
+    Returns
+    -------
+    information : Tuple[InformationState, ...]
+        Propagated states sorted by node identity, or only the seed
+        states when the graph has a cycle.
+    """
     index: Any
     output_id: Any
     state: dict[str, InformationState] = {
@@ -290,13 +437,13 @@ def _propagate_information(
         for node_id, semantics in initial_semantics
     }
     if has_cycle:
-        information: tuple[InformationState, ...] = tuple(
+        information: Tuple[InformationState, ...] = tuple(
             state[node_id] for node_id, _ in initial_semantics
         )
         return information  # noqa: RET504
     for index in ordered_indices:
         record: TransformationRecord = records[index]
-        parent_states: tuple[InformationState, ...] = tuple(
+        parent_states: Tuple[InformationState, ...] = tuple(
             state[parent_id]
             for parent_id in record.parent_ids
             if parent_id in state
@@ -335,12 +482,44 @@ def _propagate_information(
 
 def _analyze(
     records: Sequence[TransformationRecord],
-    external_inputs: tuple[str, ...],
-    initial_semantics: tuple[tuple[str, tuple[str, ...]], ...],
+    external_inputs: Tuple[str, ...],
+    initial_semantics: Tuple[Tuple[str, Tuple[str, ...]], ...],
 ) -> _Analysis:
-    """Perform deterministic structural analysis and semantic propagation."""
-    record_analysis: tuple[
-        list[str], dict[str, int], set[str], tuple[str, ...]
+    """PRIVATE: Perform deterministic structural analysis and semantic
+    propagation.
+
+    Implementation Logic
+    --------------------
+    Collects local errors and the producer map with
+    :func:`_record_errors`, orders the records with
+    :func:`_topological_indices` (a cycle adds one explicit error), and
+    propagates information states with :func:`_propagate_information`.
+    Derives the roots (external inputs plus outputs of parentless
+    records) and the terminal outputs (outputs that no record consumes),
+    and stores everything in one immutable analysis carrier.
+
+    Parameters
+    ----------
+    records : Sequence[TransformationRecord]
+        Transformation execution records in caller order.
+    external_inputs : Tuple[str, ...]
+        Normalized external node identities.
+    initial_semantics : Tuple[Tuple[str, Tuple[str, ...]], ...]
+        Per external node, its initial semantic properties.
+
+    Returns
+    -------
+    analysis : _Analysis
+        Ordered records, topological output order, information states,
+        errors, roots, terminal outputs, and orphaned inputs.
+
+    Notes
+    -----
+    Both graph construction and independent validation call this one
+    analysis, so the two paths cannot disagree.
+    """
+    record_analysis: Tuple[
+        list[str], dict[str, int], set[str], Tuple[str, ...]
     ] = _record_errors(
         records,
         external_inputs,
@@ -348,31 +527,31 @@ def _analyze(
     errors: list[str] = record_analysis[0]
     producer: dict[str, int] = record_analysis[1]
     consumed: set[str] = record_analysis[2]
-    orphaned: tuple[str, ...] = record_analysis[3]
-    topology: tuple[tuple[int, ...], bool] = _topological_indices(
+    orphaned: Tuple[str, ...] = record_analysis[3]
+    topology: Tuple[Tuple[int, ...], bool] = _topological_indices(
         records,
         producer,
     )
-    ordered_indices: tuple[int, ...] = topology[0]
+    ordered_indices: Tuple[int, ...] = topology[0]
     has_cycle: bool = topology[1]
     if has_cycle:
         errors.append("provenance graph contains a cycle")
-    ordered_records: tuple[TransformationRecord, ...] = tuple(
+    ordered_records: Tuple[TransformationRecord, ...] = tuple(
         records[index] for index in ordered_indices
     )
-    output_order: tuple[str, ...] = tuple(
+    output_order: Tuple[str, ...] = tuple(
         output_id
         for record in ordered_records
         for output_id in record.output_ids
     )
-    information: tuple[InformationState, ...] = _propagate_information(
+    information: Tuple[InformationState, ...] = _propagate_information(
         ordered_indices,
         records,
         initial_semantics,
         has_cycle=has_cycle,
     )
     all_outputs: set[str] = set(producer)
-    roots: tuple[str, ...] = tuple(
+    roots: Tuple[str, ...] = tuple(
         sorted(
             set(external_inputs)
             | {
@@ -383,7 +562,7 @@ def _analyze(
             }
         )
     )
-    terminal_outputs: tuple[str, ...] = tuple(sorted(all_outputs - consumed))
+    terminal_outputs: Tuple[str, ...] = tuple(sorted(all_outputs - consumed))
     analysis: _Analysis = _Analysis(
         ordered_records=ordered_records,
         topological_order=output_order,
@@ -451,12 +630,12 @@ def build_provenance(
         If strict validation detects a cycle or an invalid node. This error
         also identifies an unused input or contradictory information.
     """
-    normalized_records: tuple[TransformationRecord, ...] = tuple(records)
-    normalized_inputs: tuple[
-        tuple[str, ...], tuple[tuple[str, tuple[str, ...]], ...]
+    normalized_records: Tuple[TransformationRecord, ...] = tuple(records)
+    normalized_inputs: Tuple[
+        Tuple[str, ...], Tuple[Tuple[str, Tuple[str, ...]], ...]
     ] = _normalize_external_inputs(external_inputs)
-    input_ids: tuple[str, ...] = normalized_inputs[0]
-    semantic_pairs: tuple[tuple[str, tuple[str, ...]], ...] = (
+    input_ids: Tuple[str, ...] = normalized_inputs[0]
+    semantic_pairs: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         normalized_inputs[1]
     )
     analysis: _Analysis = _analyze(
@@ -604,7 +783,7 @@ def effective_information(
 def invalidated_claims(
     graph: ProvenanceGraph,
     output_id: str,
-) -> tuple[str, ...]:
+) -> Tuple[str, ...]:
     """Return every claim invalidated at or upstream of one output.
 
     The operation propagates semantic state, information loss, and claim
@@ -634,10 +813,10 @@ def invalidated_claims(
 
     Returns
     -------
-    claims : tuple[str, ...]
+    claims : Tuple[str, ...]
         Sorted claim identifiers invalidated along the upstream lineage.
     """
-    claims: tuple[str, ...] = effective_information(
+    claims: Tuple[str, ...] = effective_information(
         graph,
         output_id,
     ).invalidated_claims
@@ -645,7 +824,7 @@ def invalidated_claims(
 
 
 @jaxtyped(typechecker=beartype)
-def lineage(graph: ProvenanceGraph, output_id: str) -> tuple[str, ...]:
+def lineage(graph: ProvenanceGraph, output_id: str) -> Tuple[str, ...]:
     """Return the transitive parent-node lineage of one output.
 
     The operation propagates semantic state, information loss, and claim
@@ -673,7 +852,7 @@ def lineage(graph: ProvenanceGraph, output_id: str) -> tuple[str, ...]:
 
     Returns
     -------
-    result : tuple[str, ...]
+    result : Tuple[str, ...]
         Sorted transitive ancestor identifiers.
 
     Raises
@@ -702,7 +881,7 @@ def lineage(graph: ProvenanceGraph, output_id: str) -> tuple[str, ...]:
             if parent_id not in ancestors:
                 ancestors.add(parent_id)
                 pending.append(parent_id)
-    result: tuple[str, ...] = tuple(sorted(ancestors))
+    result: Tuple[str, ...] = tuple(sorted(ancestors))
     return result
 
 

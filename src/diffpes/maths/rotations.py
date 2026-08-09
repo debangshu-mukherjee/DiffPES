@@ -52,7 +52,23 @@ from .safe import safe_arccos, safe_arctan2, safe_divide, safe_norm
 
 
 def _validate_l(l: int) -> None:
-    """Validate one static angular-momentum quantum number."""
+    """PRIVATE: Validate one static angular-momentum quantum number.
+
+    Parameters
+    ----------
+    l : int
+        Candidate static orbital angular momentum.
+
+    Raises
+    ------
+    ValueError
+        If ``l`` lies outside ``[0, L_MAX]``.
+
+    Notes
+    -----
+    The check reads the static Python value before any Wigner table
+    construction, so ``l`` participates in the JAX trace signature.
+    """
     if l < 0 or l > L_MAX:
         message: str = f"l={l} must satisfy 0 <= l <= {L_MAX}"
         raise ValueError(message)

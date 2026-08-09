@@ -10,6 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Complex128, Float64
 
@@ -127,7 +128,7 @@ class TestMakeExperimentGeometry:
     )
     @settings(max_examples=20, deadline=None)
     def test_normalizes_each_nonzero_complex_polarization(
-        self, components: tuple[float, float, float, float]
+        self, components: Tuple[float, float, float, float]
     ) -> None:
         """Normalize each accepted complex polarization to unit norm.
 

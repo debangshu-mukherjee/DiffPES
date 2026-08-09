@@ -48,7 +48,32 @@ def _transition_band_channels(
     positions_cartesian: Float64[NDArray, "n_orb 3"],
     coefficients_state: Complex128[NDArray, "n_state n_orb"],
 ) -> jax.Array:
-    """Build transition and band channels through public DiffPES APIs."""
+    """PRIVATE: Build transition and band channels through public DiffPES APIs.
+
+    Parameters
+    ----------
+    k_i_state : Float64[NDArray, "n_state 3"]
+        Initial crystal momenta in 1/Angstrom, one row per state.
+    k_f_state : Float64[NDArray, "n_state 3"]
+        Final photoelectron momenta in 1/Angstrom.
+    positions_cartesian : Float64[NDArray, "n_orb 3"]
+        Orbital positions in Angstrom.
+    coefficients_state : Complex128[NDArray, "n_state n_orb"]
+        Per-state orbital eigenvector coefficients.
+
+    Returns
+    -------
+    band_channels : jax.Array
+        Cartesian band transition channels for each state.
+
+    Implementation Logic
+    --------------------
+    Builds an all-p_z basis with one atom per orbital, pins both radial
+    branch integrals to (+1, -1) for every state and orbital, assembles
+    the orbital transition channels with zero depths and a 10 Angstrom
+    mean free path, and projects them with the supplied band
+    coefficients.
+    """
     n_states: int = len(k_i_state)
     n_orbitals: int = positions_cartesian.shape[0]
     basis: OrbitalBasis = make_orbital_basis(
@@ -86,7 +111,25 @@ def _polarized_amplitudes(
     band_channels: jax.Array,
     polarizations: Complex128[NDArray, "n_pol 3"],
 ) -> Complex128[NDArray, "n_state n_pol"]:
-    """Return public band amplitudes for each supplied polarization."""
+    """PRIVATE: Return public band amplitudes for each supplied polarization.
+
+    Parameters
+    ----------
+    band_channels : jax.Array
+        Cartesian band channels from the public projection.
+    polarizations : Complex128[NDArray, "n_pol 3"]
+        Cartesian complex polarization vectors, one row each.
+
+    Returns
+    -------
+    result : Complex128[NDArray, "n_state n_pol"]
+        Per-state amplitudes with one column per polarization.
+
+    Notes
+    -----
+    Contracts the channels with each polarization, extracts the single
+    spin and band amplitude per state, and stacks the columns.
+    """
     amplitudes: list[Complex128[NDArray, " n_state"]] = []
     polarization: Complex128[NDArray, " 3"]
     for polarization in polarizations:
@@ -107,7 +150,29 @@ def _canonical_cartesian_amplitudes(
     positions_cartesian: Float64[NDArray, "n_orb 3"],
     coefficients_state: Complex128[NDArray, "n_state n_orb"],
 ) -> Complex128[NDArray, "n_state 3"]:
-    """Evaluate Cartesian components through the public low-level assembly."""
+    """PRIVATE: Evaluate Cartesian components through the low-level assembly.
+
+    Parameters
+    ----------
+    k_i_state : Float64[NDArray, "n_state 3"]
+        Initial crystal momenta in 1/Angstrom, one row per state.
+    k_f_state : Float64[NDArray, "n_state 3"]
+        Final photoelectron momenta in 1/Angstrom.
+    positions_cartesian : Float64[NDArray, "n_orb 3"]
+        Orbital positions in Angstrom.
+    coefficients_state : Complex128[NDArray, "n_state n_orb"]
+        Per-state orbital eigenvector coefficients.
+
+    Returns
+    -------
+    result : Complex128[NDArray, "n_state 3"]
+        The x, y, and z channel amplitudes for each state.
+
+    Notes
+    -----
+    Builds the band channels and contracts them with the three
+    Cartesian unit polarizations from the identity matrix.
+    """
     band_channels: jax.Array = _transition_band_channels(
         k_i_state,
         k_f_state,
@@ -128,7 +193,34 @@ def _dark_ring_angles(
     valley_centres: Float64[NDArray, "n_valley 3"],
     intensities: Float64[NDArray, " n_state"],
 ) -> Float64[NDArray, " n_angle"]:
-    """Measure the darkest sampled annular angle for each valley and band."""
+    """PRIVATE: Measure the darkest annular angle for each valley and band.
+
+    Parameters
+    ----------
+    k_i_state : Float64[NDArray, "n_state 3"]
+        Sampled momenta in 1/Angstrom; only the in-plane part is used.
+    band_indices : Int64[NDArray, " n_state"]
+        Band label 0 or 1 for each state.
+    valley_indices : Int64[NDArray, " n_state"]
+        Valley label 0 or 1 for each state.
+    valley_centres : Float64[NDArray, "n_valley 3"]
+        Valley centre momenta in 1/Angstrom.
+    intensities : Float64[NDArray, " n_state"]
+        Photoemission intensities for the sampled states.
+
+    Returns
+    -------
+    result : Float64[NDArray, " n_angle"]
+        Polar angles in radians of the darkest annulus sample, ordered
+        by valley then band.
+
+    Implementation Logic
+    --------------------
+    For each valley and band pair, selects the matching states, forms
+    in-plane offsets from the valley centre, keeps samples within 0.018
+    1/Angstrom of the 0.12 1/Angstrom ring radius, and records the
+    atan2 angle of the minimum-intensity sample.
+    """
     angles: list[float] = []
     valley_index: int
     band_index: int

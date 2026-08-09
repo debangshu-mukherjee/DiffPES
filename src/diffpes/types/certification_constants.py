@@ -79,7 +79,7 @@ authorship, physical validity, or scientific evidence.
 import re
 from types import MappingProxyType
 
-from beartype.typing import Final
+from beartype.typing import Final, Tuple
 
 CANONICAL_JSON_VERSION: Final[str] = "1"
 CANONICAL_PYTREE_VERSION: Final[str] = "1"
@@ -112,7 +112,7 @@ TB_RADIAL_MODEL_ID: Final[str] = "org.diffpes.model.arpes.tb_radial"
 TB_RADIAL_MODEL_VERSION: Final[str] = "0.1.0"
 TB_RADIAL_INPUT_COUNT: Final[int] = 8
 
-CERTIFICATION_LEVEL_IDS: Final[tuple[str, ...]] = (
+CERTIFICATION_LEVEL_IDS: Final[Tuple[str, ...]] = (
     "identified",
     "validated",
     "differentiable",
@@ -138,17 +138,17 @@ CERTIFICATION_LINEAGE_RELATIONSHIPS: Final[frozenset[str]] = (
         "resolves-node",
     }
 )
-CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES: Final[tuple[str, ...]] = (
+CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES: Final[Tuple[str, ...]] = (
     "benchmark",
     "parity",
 )
-CERTIFICATION_POLICY_IDS: Final[tuple[str, ...]] = (
+CERTIFICATION_POLICY_IDS: Final[Tuple[str, ...]] = (
     "org.diffpes.policy.exploratory.v1",
     "org.diffpes.policy.research.v1",
     "org.diffpes.policy.publication.v1",
     "org.diffpes.policy.parity.v1",
 )
-CERTIFICATION_LEVEL_PREFIXES: Final[tuple[tuple[str, ...], ...]] = (
+CERTIFICATION_LEVEL_PREFIXES: Final[Tuple[Tuple[str, ...], ...]] = (
     ("identity", "semantic"),
     ("validation", "domain", "output"),
     ("derivative", "differentiability"),

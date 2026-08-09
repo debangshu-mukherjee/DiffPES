@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jax.test_util import check_grads
 from jaxtyping import Array, Complex128, Float64, Shaped, jaxtyped
 from numpy.typing import NDArray
@@ -32,7 +32,20 @@ from diffpes.utils import (
 
 
 def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
-    """Load the frozen arbitrary-precision Faddeeva value and derivative reference."""
+    """PRIVATE: Load the frozen arbitrary-precision Faddeeva value and derivative reference.
+
+    Returns
+    -------
+    result : dict[str, Shaped[NDArray, "..."]]
+        Every array member of the frozen 100-digit mpmath reference
+        archive, keyed by its stored name.
+
+    Notes
+    -----
+    Opens the committed ``.npz`` archive under ``_reference_data``
+    with ``allow_pickle=False`` and copies each member into a plain
+    dictionary before the file closes.
+    """
     path: Path = (
         Path(__file__).parents[1]
         / "_reference_data"
@@ -50,7 +63,7 @@ def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
 def _packed_norm_squared(
     packed: Float64[Array, " ... 2"],
 ) -> Float64[Array, ""]:
-    """Compute squared complex magnitude from packed real coordinates.
+    """PRIVATE: Compute squared complex magnitude from packed real coordinates.
 
     Parameters
     ----------
@@ -74,7 +87,7 @@ def _packed_norm_squared(
 
 @jaxtyped(typechecker=beartype)
 def _complex_abs_squared(z: Complex128[Array, ""]) -> Float64[Array, ""]:
-    """Compute squared magnitude for the Wirtinger convention test.
+    """PRIVATE: Compute squared magnitude for the Wirtinger convention test.
 
     Parameters
     ----------
@@ -220,13 +233,13 @@ class TestFaddeeva(chex.TestCase):
         It uses three relative steps and requires the finest two rungs to agree
         with the analytic rational derivative inside the D1 mixed budget.
         """
-        points: tuple[complex, ...] = (
+        points: Tuple[complex, ...] = (
             0.3 + 0.2j,
             3.0 + 1.0j,
             25.0 + 0.5j,
             1.0e4 + 100.0j,
         )
-        directions: tuple[complex, ...] = (1.0 + 0.0j, 0.6 + 0.8j)
+        directions: Tuple[complex, ...] = (1.0 + 0.0j, 0.6 + 0.8j)
         point: complex
         direction: complex
         exponent: int
@@ -264,7 +277,7 @@ class TestFaddeeva(chex.TestCase):
         It invokes JAX's independent randomized directional checker in both AD
         modes away from any physical-domain boundary.
         """
-        points: tuple[complex, ...] = (
+        points: Tuple[complex, ...] = (
             0.2 + 0.4j,
             2.3 + 0.7j,
             17.0 + 3.0j,
@@ -299,7 +312,7 @@ class TestFaddeeva(chex.TestCase):
         -----
         It requires the same physical-domain message from direct and JIT calls.
         """
-        arguments: tuple[complex, ...] = (
+        arguments: Tuple[complex, ...] = (
             np.nan + 0.0j,
             np.inf + 0.0j,
             1.0 - 1.0e-12j,

@@ -30,7 +30,32 @@ def _assert_rejection(
     kwargs: dict[str, Any],
     match: str,
 ) -> None:
-    """Assert one callable invocation raises the expected validation error."""
+    """PRIVATE: Assert one call raises the expected validation error.
+
+    Parameters
+    ----------
+    fn : Callable[..., Any]
+        Callable under test.
+    args : tuple[Any, ...]
+        Positional arguments for the call.
+    kwargs : dict[str, Any]
+        Keyword arguments for the call.
+    match : str
+        Regular expression the error message must match.
+
+    Raises
+    ------
+    AssertionError
+        If the call raises no ``ValueError`` or ``RuntimeError``, or
+        if the message fails the pattern.
+
+    Implementation Logic
+    --------------------
+    The helper invokes the callable, catches ``ValueError`` and
+    ``RuntimeError``, and searches the message with ``re.search``. A
+    missing exception or a non-matching message raises
+    ``AssertionError`` with the offending text.
+    """
     error: ValueError | RuntimeError
     try:
         fn(*args, **kwargs)

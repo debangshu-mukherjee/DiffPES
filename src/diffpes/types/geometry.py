@@ -22,7 +22,7 @@ trace Python strings. JAX stores all numerical fields as arrays.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Union
+from beartype.typing import Tuple, Union
 from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
@@ -54,7 +54,7 @@ class CrystalGeometry(eqx.Module):
         Reciprocal lattice vectors as rows (1/angstroms).
     positions : Float64[Array, "N 3"]
         Fractional atomic positions.
-    species : tuple[str, ...]
+    species : Tuple[str, ...]
         Per-atom species symbols (**static** -- compile-time constants;
         changing them triggers retracing). An empty tuple records unknown
         species.
@@ -75,13 +75,13 @@ class CrystalGeometry(eqx.Module):
     lattice: Float64[Array, "3 3"]
     reciprocal: Float64[Array, "3 3"]
     positions: Float64[Array, "N 3"]
-    species: tuple[str, ...] = eqx.field(static=True)
+    species: Tuple[str, ...] = eqx.field(static=True)
 
 
 def _compute_reciprocal_lattice(
     lattice: Float64[Array, "3 3"],
 ) -> Float64[Array, "3 3"]:
-    r"""Compute reciprocal lattice vectors from real-space lattice.
+    r"""PRIVATE: Compute reciprocal lattice vectors from real-space lattice.
 
     Derives the reciprocal lattice from the real-space lattice using
     the standard cross-product formula. The reciprocal lattice vectors
@@ -135,7 +135,7 @@ def _compute_reciprocal_lattice(
 def make_crystal_geometry(  # noqa: DOC503
     lattice: Union[Float64[Array, "3 3"], "list[list[ScalarNumeric]]"],
     positions: Float64[Array, "N 3"],
-    species: tuple[str, ...],
+    species: Tuple[str, ...],
 ) -> CrystalGeometry:
     """Create a validated CrystalGeometry instance.
 
@@ -179,7 +179,7 @@ def make_crystal_geometry(  # noqa: DOC503
         Real-space lattice vectors as rows (angstroms).
     positions : Float64[Array, "N 3"]
         Fractional atomic positions.
-    species : tuple[str, ...]
+    species : Tuple[str, ...]
         Per-atom species symbols (**static** -- compile-time constants;
         changing them triggers retracing). Use an empty tuple when the source
         does not identify species.

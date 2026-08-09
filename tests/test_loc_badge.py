@@ -13,7 +13,20 @@ import pytest
 
 
 def _load_loc_badge_module() -> ModuleType:
-    """Load the badge script without executing its command-line entry point."""
+    """PRIVATE: Load the badge script without executing its command-line entry point.
+
+    Returns
+    -------
+    module : ModuleType
+        Executed ``loc_badge`` module under the name
+        ``diffpes_loc_badge``.
+
+    Notes
+    -----
+    Builds an ``importlib`` spec for ``.github/badges/loc_badge.py``
+    and executes the module in place, which skips the
+    ``if __name__`` command-line entry point.
+    """
     root: Path = Path(__file__).resolve().parents[1]
     script: Path = root / ".github" / "badges" / "loc_badge.py"
     spec: ModuleSpec | None = importlib.util.spec_from_file_location(

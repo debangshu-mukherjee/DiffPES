@@ -76,7 +76,20 @@ from diffpes.types import (
 
 
 def _pytree_classes() -> tuple[type[eqx.Module], ...]:
-    """Return the complete carrier class set used by the codec."""
+    """PRIVATE: Return the complete carrier class set used by the codec.
+
+    Returns
+    -------
+    classes : tuple[type[eqx.Module], ...]
+        Every registered Equinox carrier class the HDF5 codec can
+        serialize.
+
+    Notes
+    -----
+    The module-level ``_PYTREE_REGISTRY`` maps each class name from
+    this tuple to its serialization metadata.  Registering a new
+    carrier means listing it here.
+    """
     classes: tuple[type[eqx.Module], ...] = (
         ArpesSpectrum,
         BandStructure,
@@ -110,7 +123,30 @@ def _pytree_classes() -> tuple[type[eqx.Module], ...]:
 
 
 def _encode_static(value: Any) -> Any:  # noqa: ANN401
-    """Encode nested static Equinox metadata without losing tuple types."""
+    """PRIVATE: Encode nested static Equinox metadata without losing tuple
+    types.
+
+    Parameters
+    ----------
+    value : Any
+        Static field value: a tuple, an Equinox dataclass module, a
+        list, a dict, a NumPy scalar, or a JSON-ready leaf.
+
+    Returns
+    -------
+    encoded : Any
+        JSON-serializable structure with tuples tagged as
+        ``{"__tuple__": [...]}`` and nested modules tagged as
+        ``{"__module__": <class name>, "fields": {...}}``.
+
+    Implementation Logic
+    --------------------
+    Recurses structurally.  A tuple maps to the tagged list form.  An
+    Equinox dataclass module maps to its class name plus encoded
+    fields.  Lists and dicts encode their items with string keys.
+    NumPy scalars convert to Python scalars with ``item()``.  Any
+    other value passes through unchanged.
+    """
     encoded: Any
     if isinstance(value, tuple):
         encoded = {"__tuple__": [_encode_static(item) for item in value]}
@@ -136,7 +172,28 @@ def _encode_static(value: Any) -> Any:  # noqa: ANN401
 
 
 def _decode_static(value: Any) -> Any:  # noqa: ANN401
-    """Decode tuple-preserving and nested-module static metadata."""
+    """PRIVATE: Decode tuple-preserving and nested-module static metadata.
+
+    Parameters
+    ----------
+    value : Any
+        Parsed JSON value that may contain the ``__tuple__`` and
+        ``__module__`` tags of :func:`_encode_static`.
+
+    Returns
+    -------
+    decoded : Any
+        Original static structure with tuples, nested carrier
+        instances, lists, dicts, and leaves restored.
+
+    Implementation Logic
+    --------------------
+    Recurses structurally and inverts every :func:`_encode_static`
+    tag.  A ``__tuple__`` dict becomes a tuple.  A ``__module__``
+    dict looks up its class in ``_PYTREE_REGISTRY`` and instantiates
+    it from the decoded fields.  Untagged lists and dicts decode
+    elementwise, and leaves pass through unchanged.
+    """
     decoded: Any
     if isinstance(value, dict) and "__tuple__" in value:
         decoded = tuple(_decode_static(item) for item in value["__tuple__"])
@@ -160,12 +217,35 @@ def _decode_static(value: Any) -> Any:  # noqa: ANN401
 
 
 def _decode_aux_data(type_name: str, value: Any) -> Any:  # noqa: ANN401
-    """Decode current static metadata and supported legacy HDF5 aux data.
+    """PRIVATE: Decode current static metadata and supported legacy HDF5 aux
+    data.
 
     The pre-migration codec wrote plain JSON lists for tuple-valued
     metadata. Current files use explicit tuple tags. The three conversions
     below retain read compatibility with those pinned files without restoring
     a per-carrier write registry.
+
+    Parameters
+    ----------
+    type_name : str
+        Registered carrier class name read from the group attributes.
+    value : Any
+        Parsed JSON auxiliary payload of that carrier.
+
+    Returns
+    -------
+    auxiliary_data : Any
+        Decoded static payload ready for the carrier constructor.
+
+    Implementation Logic
+    --------------------
+    Tagged dicts and ``None`` decode through :func:`_decode_static`.
+    A legacy untagged list converts per carrier.  ``CrystalGeometry``
+    restores its symbol tuple.  ``KPathInfo`` restores four string
+    fields with a string tuple in position two.  ``SOCVolumetricData``
+    and ``VolumetricData`` restore the integer grid-shape tuple and
+    the symbol tuple.  Every other carrier keeps the plainly decoded
+    value.
     """
     decoded: Any = _decode_static(value)
     auxiliary_data: Any
@@ -191,7 +271,27 @@ def _decode_aux_data(type_name: str, value: Any) -> Any:  # noqa: ANN401
 
 
 def _module_meta(module_class: type[eqx.Module]) -> Mapping[str, Any]:
-    """Build serialization metadata from Equinox dataclass fields."""
+    """PRIVATE: Build serialization metadata from Equinox dataclass fields.
+
+    Parameters
+    ----------
+    module_class : type[eqx.Module]
+        Registered carrier class to inspect.
+
+    Returns
+    -------
+    metadata : Mapping[str, Any]
+        Read-only mapping with the class under ``"cls"``, the dynamic
+        field names under ``"children_fields"``, and the static field
+        names under ``"static_fields"``.
+
+    Notes
+    -----
+    Splits the dataclass fields on the Equinox ``static`` marker in
+    ``field.metadata`` and keeps the declaration order inside each
+    group.  A ``MappingProxyType`` wraps the result, so registry
+    entries stay immutable.
+    """
     module_fields: tuple[Any, ...] = fields(module_class)
     children_fields: tuple[str, ...] = tuple(
         field.name
@@ -219,7 +319,20 @@ _PYTREE_REGISTRY: Mapping[str, Mapping[str, Any]] = MappingProxyType(
 
 
 def _optional_migration_fields() -> Mapping[str, frozenset[str]]:
-    """Return fields absent from historical serialized carriers."""
+    """PRIVATE: Return fields absent from historical serialized carriers.
+
+    Returns
+    -------
+    fields_by_type : Mapping[str, frozenset[str]]
+        Read-only map from carrier class name to the child fields a
+        legacy file may omit; currently the ``depths`` dataset of
+        ``DiagonalizedBands`` and ``TBModel``.
+
+    Notes
+    -----
+    The loader treats a listed field that is absent from a group as
+    ``None``, so files that predate the field still load.
+    """
     fields_by_type: Mapping[str, frozenset[str]] = MappingProxyType(
         {
             "DiagonalizedBands": frozenset({"depths"}),
@@ -238,7 +351,8 @@ def _dataset_write_kwargs(
     fletcher32: bool,
     chunks: Optional[Union[bool, tuple[int, ...]]],
 ) -> dict[str, Any]:
-    """Build ``h5py.create_dataset`` keyword arguments for one child array.
+    """PRIVATE: Build ``h5py.create_dataset`` keyword arguments for one
+    child array.
 
     Extended Summary
     ----------------
@@ -385,7 +499,31 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
         grp: h5py.Group,
         pytree: Any,  # noqa: ANN401
     ) -> None:
-        """Write one Equinox module, recursively storing module children."""
+        """PRIVATE: Write one Equinox module, recursively storing module
+        children.
+
+        Implementation Logic
+        --------------------
+        Stores the class name in the type attribute and the encoded
+        static payload as one JSON attribute.  One static field saves
+        bare; several save as a tuple.  A ``None`` child writes as an
+        entry in the none-field JSON attribute.  A nested module
+        writes as a recursive subgroup.  Any other child writes as
+        one dataset with the storage flags from
+        :func:`_dataset_write_kwargs`.
+
+        Parameters
+        ----------
+        grp : h5py.Group
+            Open destination group for this module.
+        pytree : Any
+            Registered carrier instance to serialize.
+
+        Raises
+        ------
+        TypeError
+            If the class of ``pytree`` is not in ``_PYTREE_REGISTRY``.
+        """
         field_name: str
 
         type_name: str = type(pytree).__name__
@@ -496,6 +634,35 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
     def _load_group(
         grp: h5py.Group,
     ) -> Any:  # noqa: ANN401
+        """PRIVATE: Build one registered carrier from an HDF5 group.
+
+        Implementation Logic
+        --------------------
+        Reads the type attribute, looks up the registry metadata, and
+        decodes the JSON static payload with :func:`_decode_aux_data`.
+        A child listed in the none-field attribute loads as ``None``;
+        a subgroup recurses; a dataset loads as a JAX array.  A
+        dataset that is absent but listed by
+        :func:`_optional_migration_fields` also loads as ``None``.
+        The loader calls the carrier class with children and static
+        fields as keyword arguments.  One static field takes the
+        payload bare; several unpack it as a tuple.
+
+        Parameters
+        ----------
+        grp : h5py.Group
+            Open source group that holds one serialized carrier.
+
+        Returns
+        -------
+        loaded : Any
+            Reconstructed carrier instance.
+
+        Raises
+        ------
+        TypeError
+            If the stored type name is not in ``_PYTREE_REGISTRY``.
+        """
         field_name: str
 
         type_name: str = str(grp.attrs[ATTR_TYPE])

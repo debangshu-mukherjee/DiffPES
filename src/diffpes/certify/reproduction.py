@@ -18,7 +18,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jax.flatten_util import ravel_pytree
 from jaxtyping import jaxtyped
 
@@ -36,12 +36,39 @@ from .resolvers import resolve_artifact
 
 
 def _unique_role(
-    artifacts: tuple[ArtifactRef, ...],
+    artifacts: Tuple[ArtifactRef, ...],
     roles: frozenset[str],
     label: str,
 ) -> ArtifactRef:
-    """Return the single artifact whose role is in ``roles``."""
-    matches: tuple[ArtifactRef, ...] = tuple(
+    """PRIVATE: Return the single artifact whose role is in ``roles``.
+
+    Parameters
+    ----------
+    artifacts : Tuple[ArtifactRef, ...]
+        Certificate artifact references.
+    roles : frozenset[str]
+        Accepted role labels for one reproduction slot.
+    label : str
+        Human-readable slot name for the error message.
+
+    Returns
+    -------
+    result : ArtifactRef
+        The one artifact whose role lies in ``roles``.
+
+    Raises
+    ------
+    ValueError
+        If no artifact or more than one artifact carries an accepted
+        role.
+
+    Notes
+    -----
+    Reproduction needs exactly one normalized-input artifact and one
+    recorded-result artifact; an ambiguous certificate must fail before
+    any resolver I/O runs.
+    """
+    matches: Tuple[ArtifactRef, ...] = tuple(
         artifact for artifact in artifacts if artifact.role in roles
     )
     if len(matches) != 1:

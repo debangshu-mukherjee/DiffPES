@@ -20,7 +20,7 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array
 
 import diffpes
@@ -984,7 +984,7 @@ class TestStaticMetadataEncoding:
         Notes
         -----
         The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        aux: tuple[tuple[int, int, int], tuple[str, str]]
+        aux: Tuple[Tuple[int, int, int], Tuple[str, str]]
         encoded: Any
         decoded: Any
 
@@ -1002,7 +1002,7 @@ class TestStaticMetadataEncoding:
         Notes
         -----
         The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        aux: tuple[tuple[int, int, int], tuple[str, str]]
+        aux: Tuple[Tuple[int, int, int], Tuple[str, str]]
         encoded: Any
 
         aux = ((4, 6, 8), ("H", "O"))

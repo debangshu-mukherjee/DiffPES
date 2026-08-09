@@ -47,23 +47,23 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, Float64, jaxtyped
 
 _ARRAY_MATRIX_NDIM: int = 2
 _MIN_COMPACT_GRID_POINTS: int = 3
-_RADIAL_MODES: tuple[str, ...] = (
+_RADIAL_MODES: Tuple[str, ...] = (
     "slater",
     "hydrogenic",
     "grid",
     "fixed",
 )
-_FINAL_STATE_MODES: tuple[str, ...] = ("plane_wave", "coulomb")
-_RADIAL_ACCELERATORS: tuple[str, ...] = ("direct", "hermite")
-_HERMITE_TABLE_POINTS: tuple[int, ...] = (257, 513, 1025, 2049)
+_FINAL_STATE_MODES: Tuple[str, ...] = ("plane_wave", "coulomb")
+_RADIAL_ACCELERATORS: Tuple[str, ...] = ("direct", "hermite")
+_HERMITE_TABLE_POINTS: Tuple[int, ...] = (257, 513, 1025, 2049)
 _CERTIFIED_RADIAL_PROFILES: dict[
     str,
-    tuple[
+    Tuple[
         int,
         float,
         float,
@@ -112,11 +112,28 @@ _MAX_MATRIXEL_L: int = 4
 
 
 def _shell_representatives(
-    radial_shell_index: tuple[int, ...],
-) -> tuple[int, ...]:
-    """Return the first orbital index assigned to every shell."""
+    radial_shell_index: Tuple[int, ...],
+) -> Tuple[int, ...]:
+    """PRIVATE: Return the first orbital index assigned to every shell.
+
+    Parameters
+    ----------
+    radial_shell_index : Tuple[int, ...]
+        Orbital-to-shell map with contiguous shell identifiers.
+
+    Returns
+    -------
+    representatives : Tuple[int, ...]
+        First orbital index of each shell, ordered by shell identifier.
+
+    Implementation Logic
+    --------------------
+    Derive the shell count from the maximum identifier plus one. Then
+    apply ``tuple.index`` per shell identifier, which returns the first
+    match. An empty map yields an empty tuple.
+    """
     n_shells: int = max(radial_shell_index, default=-1) + 1
-    representatives: tuple[int, ...] = tuple(
+    representatives: Tuple[int, ...] = tuple(
         radial_shell_index.index(shell_index)
         for shell_index in range(n_shells)
     )
@@ -125,10 +142,31 @@ def _shell_representatives(
 
 def _matrixel_phase_channel_keys(
     basis: "OrbitalBasis",
-    radial_shell_index: tuple[int, ...],
-) -> tuple[tuple[int, int], ...]:
-    """Return the canonical compact shell and final-angular-momentum keys."""
-    keys: list[tuple[int, int]] = []
+    radial_shell_index: Tuple[int, ...],
+) -> Tuple[Tuple[int, int], ...]:
+    """PRIVATE: Return the compact ``(shell, l_prime)`` phase-channel keys.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital quantum-number metadata for every orbital.
+    radial_shell_index : Tuple[int, ...]
+        Orbital-to-shell map with contiguous shell identifiers.
+
+    Returns
+    -------
+    channel_keys : Tuple[Tuple[int, int], ...]
+        Canonical ordered ``(shell_index, l_prime)`` keys for exactly
+        the physical dipole channels.
+
+    Implementation Logic
+    --------------------
+    Walk the shell representatives in shell order and read each shell
+    angular momentum ``l``. Emit ``(shell, l - 1)`` only when ``l > 0``
+    and always emit ``(shell, l + 1)``, following the dipole selection
+    rule ``l_prime = l +- 1``.
+    """
+    keys: list[Tuple[int, int]] = []
     shell_index: int
     orbital_index: int
     for shell_index, orbital_index in enumerate(
@@ -138,13 +176,29 @@ def _matrixel_phase_channel_keys(
         if angular > 0:
             keys.append((shell_index, angular - 1))
         keys.append((shell_index, angular + 1))
-    channel_keys: tuple[tuple[int, int], ...] = tuple(keys)
+    channel_keys: Tuple[Tuple[int, int], ...] = tuple(keys)
     return channel_keys
 
 
 def _default_n_star(principal: int) -> float:
-    """Return Slater's effective principal number."""
-    values: tuple[float, ...] = (1.0, 2.0, 3.0, 3.7, 4.0, 4.2)
+    """PRIVATE: Return Slater's effective principal number.
+
+    Parameters
+    ----------
+    principal : int
+        Hydrogenic principal quantum number ``n``, at least 1.
+
+    Returns
+    -------
+    value : float
+        Dimensionless Slater effective principal number ``n*``.
+
+    Notes
+    -----
+    Apply Slater's rules table ``(1, 2, 3, 3.7, 4, 4.2)`` indexed by
+    ``n - 1``. Every ``n`` of 6 or more maps to the last entry, 4.2.
+    """
+    values: Tuple[float, ...] = (1.0, 2.0, 3.0, 3.7, 4.0, 4.2)
     value: float = values[min(principal, len(values)) - 1]
     return value
 
@@ -154,7 +208,33 @@ def _slater_norm_squared(
     coefficient_row: Float64[Array, " n_contraction"],
     effective_principal: float,
 ) -> Float64[Array, ""]:
-    """Return the analytic radial norm of one contracted STO row."""
+    """PRIVATE: Return the analytic squared norm of one contracted STO row.
+
+    Parameters
+    ----------
+    zeta_row : Float64[Array, " n_contraction"]
+        Slater exponents of one shell in inverse Bohr.
+    coefficient_row : Float64[Array, " n_contraction"]
+        Dimensionless contraction coefficients of the same shell.
+    effective_principal : float
+        Dimensionless Slater effective principal number ``n*``.
+
+    Returns
+    -------
+    norm_squared : Float64[Array, ""]
+        Dimensionless squared radial norm ``c^T S c`` of the contracted
+        row, where ``S`` is the primitive overlap matrix.
+
+    Implementation Logic
+    --------------------
+    Each primitive is the normalized Slater orbital
+    ``N r^(n* - 1) exp(-zeta r)`` with normalization constant
+    ``N = (2 zeta)^(n* + 1/2) / sqrt(Gamma(2 n* + 1))``. The closed-form
+    radial overlap of two primitives is
+    ``N_i N_j Gamma(2 n* + 1) / (zeta_i + zeta_j)^(2 n* + 1)``. Contract
+    this overlap matrix with the coefficient row on both sides through
+    ``einsum``.
+    """
     gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
         dtype=jnp.float64,
@@ -185,7 +265,28 @@ def _slater_coefficient_condition(
     coefficient_row: Float64[Array, " n_contraction"],
     effective_principal: float,
 ) -> Float64[Array, ""]:
-    """Return the scale-invariant normalized-contraction tail condition."""
+    """PRIVATE: Return the scale-invariant normalized-contraction condition.
+
+    Parameters
+    ----------
+    zeta_row : Float64[Array, " n_contraction"]
+        Slater exponents of one shell in inverse Bohr.
+    coefficient_row : Float64[Array, " n_contraction"]
+        Dimensionless contraction coefficients of the same shell.
+    effective_principal : float
+        Dimensionless Slater effective principal number ``n*``.
+
+    Returns
+    -------
+    condition : Float64[Array, ""]
+        Dimensionless tail condition ``sum(|c|) / sqrt(c^T S c)``.
+
+    Notes
+    -----
+    The ratio measures signed-coefficient cancellation and is invariant
+    under a common rescale of the coefficients. The factory bounds it by
+    the certified maximum so that the tail envelope stays valid.
+    """
     norm_squared: Float64[Array, ""] = _slater_norm_squared(
         zeta_row,
         coefficient_row,
@@ -198,14 +299,48 @@ def _slater_coefficient_condition(
 
 
 def _validate_orbital_basis_structure(
-    atom_indices: tuple[int, ...],
-    n: tuple[int, ...],
-    l: tuple[int, ...],  # noqa: E741
-    m: tuple[int, ...],
-    spin: tuple[int, ...],
-    labels: tuple[str, ...],
+    atom_indices: Tuple[int, ...],
+    n: Tuple[int, ...],
+    l: Tuple[int, ...],  # noqa: E741
+    m: Tuple[int, ...],
+    spin: Tuple[int, ...],
+    labels: Tuple[str, ...],
 ) -> None:
-    """Validate static orbital-basis metadata."""
+    """PRIVATE: Validate static orbital-basis metadata.
+
+    Implementation Logic
+    --------------------
+    Use exact ``type`` comparisons so that bools and NumPy integers are
+    rejected. Check quantum-number consistency pairwise with
+    ``zip(..., strict=True)`` over ``(n, l)`` and ``(l, m)``.
+
+    Parameters
+    ----------
+    atom_indices : Tuple[int, ...]
+        Atom-row index for each orbital.
+    n : Tuple[int, ...]
+        Principal quantum numbers, one per orbital.
+    l : Tuple[int, ...]
+        Angular momentum quantum numbers, one per orbital.
+    m : Tuple[int, ...]
+        Magnetic quantum numbers, one per orbital.
+    spin : Tuple[int, ...]
+        Spin channels: empty for a spinless basis, otherwise one ``+1``
+        or ``-1`` entry per orbital.
+    labels : Tuple[str, ...]
+        Human-readable orbital labels.
+
+    Raises
+    ------
+    ValueError
+        If any field is not a tuple; if the per-orbital tuples disagree
+        on length; if an ``atom_indices`` entry is not a nonnegative
+        integer; if an ``n`` entry is not an integer of at least 1; if
+        the quantum numbers violate ``0 <= l < n`` or ``abs(m) <= l``;
+        if ``spin`` has the wrong length or an entry other than ``+1``
+        or ``-1``; or if a label is not a string. This is the static
+        construction-time contract.
+    """
     if any(
         type(values) is not tuple
         for values in (atom_indices, n, l, m, spin, labels)
@@ -271,31 +406,31 @@ class OrbitalBasis(eqx.Module):
 
     Attributes
     ----------
-    atom_indices : tuple[int, ...]
+    atom_indices : Tuple[int, ...]
         Atom-row index for each orbital. Each entry refers to a row of
         :attr:`~diffpes.types.CrystalGeometry.positions` (**static** -- a
         compile-time constant; changing it triggers retracing).
-    n : tuple[int, ...]
+    n : Tuple[int, ...]
         Principal quantum numbers, one per orbital. Each value controls the
         radial node count and the power of *r*. The Slater form
         R_nl(r) ~ r^{n-1} exp(-zeta*r) uses static compile-time values;
         changing them triggers retracing.
-    l : tuple[int, ...]
+    l : Tuple[int, ...]
         Angular momentum quantum numbers, one per orbital (0=s, 1=p,
         2=d, 3=f). Determines the spherical harmonic Y_l^m used in
         the matrix element integral (**static** -- compile-time constants;
         changing them triggers retracing).
-    m : tuple[int, ...]
+    m : Tuple[int, ...]
         Magnetic quantum numbers, one per orbital. Ranges from -l to
         +l for each orbital. Selects the specific spherical harmonic
         component (**static** -- compile-time constants; changing them
         triggers retracing).
-    spin : tuple[int, ...]
+    spin : Tuple[int, ...]
         Spin channel for each orbital. The empty tuple denotes a spinless
         basis; a spinor basis stores ``+1`` or ``-1`` for every orbital
         (**static** -- a compile-time constant; changing it triggers
         retracing).
-    labels : tuple[str, ...]
+    labels : Tuple[str, ...]
         Human-readable orbital labels (e.g. ``("2s", "2px", ...)``).
         Used for plotting and debugging (**static** -- compile-time constants;
         changing them triggers retracing).
@@ -314,12 +449,12 @@ class OrbitalBasis(eqx.Module):
         default label generation.
     """
 
-    atom_indices: tuple[int, ...] = eqx.field(static=True)
-    n: tuple[int, ...] = eqx.field(static=True)
-    l: tuple[int, ...] = eqx.field(static=True)  # noqa: E741
-    m: tuple[int, ...] = eqx.field(static=True)
-    spin: tuple[int, ...] = eqx.field(static=True)
-    labels: tuple[str, ...] = eqx.field(static=True)
+    atom_indices: Tuple[int, ...] = eqx.field(static=True)
+    n: Tuple[int, ...] = eqx.field(static=True)
+    l: Tuple[int, ...] = eqx.field(static=True)  # noqa: E741
+    m: Tuple[int, ...] = eqx.field(static=True)
+    spin: Tuple[int, ...] = eqx.field(static=True)
+    labels: Tuple[str, ...] = eqx.field(static=True)
 
     def __check_init__(self) -> None:
         """Validate the static orbital-basis invariants again."""
@@ -335,9 +470,40 @@ class OrbitalBasis(eqx.Module):
 
 def _validate_radial_shell_structure(
     basis: OrbitalBasis,
-    radial_shell_index: tuple[int, ...],
+    radial_shell_index: Tuple[int, ...],
 ) -> int:
-    """Validate one shell partition and return its shell count."""
+    """PRIVATE: Validate one shell partition and return its shell count.
+
+    Implementation Logic
+    --------------------
+    After the tuple and range checks, walk every orbital and record the
+    ``(atom_index, n, l)`` signature of its shell in two dictionaries.
+    Reject a shell that mixes signatures and a signature that is split
+    across shells. The bijection makes rotational partners share one
+    contraction row.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital quantum-number metadata for every orbital.
+    radial_shell_index : Tuple[int, ...]
+        Orbital-to-shell map with contiguous shell identifiers.
+
+    Returns
+    -------
+    n_shells : int
+        Number of radial shells, ``max(radial_shell_index) + 1``.
+
+    Raises
+    ------
+    ValueError
+        If ``radial_shell_index`` is not a tuple, does not have one
+        entry per orbital, or contains an entry that is not a
+        nonnegative integer; if any basis orbital has ``l > 4``; if the
+        shell identifiers are not contiguous from 0; or if the partition
+        does not map shells one-to-one to ``(atom, n, l)`` groups. This
+        is the static construction-time contract.
+    """
     if type(radial_shell_index) is not tuple:
         message: str = "radial_shell_index must be a tuple"
         raise ValueError(message)
@@ -357,17 +523,17 @@ def _validate_radial_shell_structure(
     if set(radial_shell_index) != set(range(n_shells)):
         message = "radial_shell_index must use contiguous shell identifiers"
         raise ValueError(message)
-    shell_quantum_numbers: dict[int, tuple[int, int, int]] = {}
-    quantum_number_shells: dict[tuple[int, int, int], int] = {}
+    shell_quantum_numbers: dict[int, Tuple[int, int, int]] = {}
+    quantum_number_shells: dict[Tuple[int, int, int], int] = {}
     orbital_index: int
     shell_index: int
     for orbital_index, shell_index in enumerate(radial_shell_index):
-        signature: tuple[int, int, int] = (
+        signature: Tuple[int, int, int] = (
             basis.atom_indices[orbital_index],
             basis.n[orbital_index],
             basis.l[orbital_index],
         )
-        previous_signature: tuple[int, int, int] | None = (
+        previous_signature: Tuple[int, int, int] | None = (
             shell_quantum_numbers.get(shell_index)
         )
         if previous_signature is not None and previous_signature != signature:
@@ -388,7 +554,33 @@ def _validate_radial_array_shapes(
     effective_charge_shell: Float64[Array, " n_shell"],
     n_shells: int,
 ) -> None:
-    """Validate common shell and contraction axes."""
+    """PRIVATE: Validate common shell and contraction axes.
+
+    Parameters
+    ----------
+    zeta_shell : Float64[Array, "n_shell n_contraction"]
+        Slater exponents in inverse Bohr, one row per shell.
+    coefficients_shell : Float64[Array, "n_shell n_contraction"]
+        Dimensionless contraction coefficients, one row per shell.
+    effective_charge_shell : Float64[Array, " n_shell"]
+        Hydrogenic effective charges in elementary-charge units.
+    n_shells : int
+        Shell count from the validated shell partition.
+
+    Raises
+    ------
+    ValueError
+        If ``zeta_shell`` or ``coefficients_shell`` is not a matrix; if
+        their shapes differ; if the shell axis does not equal
+        ``n_shells`` or the contraction axis is empty; or if
+        ``effective_charge_shell`` does not have shape ``(n_shells,)``.
+        This is the static construction-time contract.
+
+    Notes
+    -----
+    Only static shape metadata is checked here. Numerical content
+    checks stay traced inside the factory.
+    """
     if (
         zeta_shell.ndim != _ARRAY_MATRIX_NDIM
         or coefficients_shell.ndim != _ARRAY_MATRIX_NDIM
@@ -430,13 +622,13 @@ class RadialSpec(eqx.Module):
     fixed_integrals_shell : Optional[Float64[Array, "n_shell 2"]]
         Real phase-free fixed radial integrals for the ``l-1`` and ``l+1``
         channels.
-    radial_shell_index : tuple[int, ...]
+    radial_shell_index : Tuple[int, ...]
         Orbital-to-shell map (**static**).
     basis : OrbitalBasis
         Orbital metadata (**static**).
     mode : str
         Radial mode (**static**).
-    n_star_shell : tuple[float, ...]
+    n_star_shell : Tuple[float, ...]
         Slater effective principal numbers (**static**).
     tail_envelope_id : str
         Certified tail-envelope identity (**static**).
@@ -453,10 +645,10 @@ class RadialSpec(eqx.Module):
     r_grid: Optional[Float64[Array, " n_r"]]
     grid_values_shell: Optional[Float64[Array, "n_shell n_r"]]
     fixed_integrals_shell: Optional[Float64[Array, "n_shell 2"]]
-    radial_shell_index: tuple[int, ...] = eqx.field(static=True)
+    radial_shell_index: Tuple[int, ...] = eqx.field(static=True)
     basis: OrbitalBasis = eqx.field(static=True)
     mode: str = eqx.field(static=True)
-    n_star_shell: tuple[float, ...] = eqx.field(static=True)
+    n_star_shell: Tuple[float, ...] = eqx.field(static=True)
     tail_envelope_id: str = eqx.field(static=True)
 
     def __check_init__(self) -> None:
@@ -496,9 +688,9 @@ class MatrixElementParams(eqx.Module):
         Real shell amplitude scales.
     phase_shift_angles_shell : Float64[Array, " n_valid_phase"]
         Final-state phase angles for exactly the physical channels.
-    phase_channel_keys : tuple[tuple[int, int], ...]
+    phase_channel_keys : Tuple[Tuple[int, int], ...]
         Compact ``(radial_shell, l_prime)`` coordinate keys (**static**).
-    radial_shell_index : tuple[int, ...]
+    radial_shell_index : Tuple[int, ...]
         Orbital-to-shell map (**static**).
     basis : OrbitalBasis
         Orbital metadata (**static**).
@@ -506,8 +698,8 @@ class MatrixElementParams(eqx.Module):
 
     sigma_shell: Float64[Array, " n_shell"]
     phase_shift_angles_shell: Float64[Array, " n_valid_phase"]
-    phase_channel_keys: tuple[tuple[int, int], ...] = eqx.field(static=True)
-    radial_shell_index: tuple[int, ...] = eqx.field(static=True)
+    phase_channel_keys: Tuple[Tuple[int, int], ...] = eqx.field(static=True)
+    radial_shell_index: Tuple[int, ...] = eqx.field(static=True)
     basis: OrbitalBasis = eqx.field(static=True)
 
     def __check_init__(self) -> None:
@@ -519,7 +711,7 @@ class MatrixElementParams(eqx.Module):
         if self.sigma_shell.shape != (n_shells,):
             message: str = "sigma_shell must have one entry per shell"
             raise ValueError(message)
-        expected_keys: tuple[tuple[int, int], ...] = (
+        expected_keys: Tuple[Tuple[int, int], ...] = (
             _matrixel_phase_channel_keys(
                 self.basis,
                 self.radial_shell_index,
@@ -588,7 +780,7 @@ class RadialQuadratureSpec(eqx.Module):
     def __check_init__(self) -> None:
         """Require exact agreement with the selected certified profile."""
         expected: (
-            tuple[
+            Tuple[
                 int,
                 float,
                 float,
@@ -602,7 +794,7 @@ class RadialQuadratureSpec(eqx.Module):
             ]
             | None
         ) = _CERTIFIED_RADIAL_PROFILES.get(self.profile_id)
-        actual: tuple[
+        actual: Tuple[
             int,
             float,
             float,
@@ -684,9 +876,31 @@ class FinalStateSpec(eqx.Module):
 
 def _validate_slater_koster_structure(
     values: Float64[Array, " n_sk"],
-    keys: tuple[str, ...],
+    keys: Tuple[str, ...],
 ) -> None:
-    """Validate Slater--Koster parameter axes and static identifiers."""
+    """PRIVATE: Validate Slater--Koster parameter axes and identifiers.
+
+    Implementation Logic
+    --------------------
+    Check the traced axis only through ``ndim`` and ``shape`` so that no
+    numerical value leaves the traced domain. Compare the key-set size
+    against the tuple length to reject duplicates.
+
+    Parameters
+    ----------
+    values : Float64[Array, " n_sk"]
+        Fundamental two-center hopping integrals in eV.
+    keys : Tuple[str, ...]
+        Static material/channel identifiers, one per value.
+
+    Raises
+    ------
+    ValueError
+        If ``values`` is not one-dimensional; or if ``keys`` is not a
+        tuple, disagrees with ``values`` on length, contains an entry
+        that is not a nonempty string, or contains duplicates. This is
+        the static construction-time contract.
+    """
     if values.ndim != 1:
         message: str = "SlaterKosterParams values must be one-dimensional"
         raise ValueError(message)
@@ -721,7 +935,7 @@ class SlaterKosterParams(eqx.Module):
     values : Float64[Array, " n_sk"]
         Fundamental two-center hopping integrals in eV. These values remain
         differentiable JAX leaves.
-    keys : tuple[str, ...]
+    keys : Tuple[str, ...]
         Unique material/channel identifiers (**static** -- changing them
         triggers retracing).
 
@@ -737,7 +951,7 @@ class SlaterKosterParams(eqx.Module):
     """
 
     values: Float64[Array, " n_sk"]
-    keys: tuple[str, ...] = eqx.field(static=True)
+    keys: Tuple[str, ...] = eqx.field(static=True)
 
     def __check_init__(self) -> None:
         """Validate the traced axis against the static key tuple."""
@@ -746,12 +960,12 @@ class SlaterKosterParams(eqx.Module):
 
 @jaxtyped(typechecker=beartype)
 def make_orbital_basis(  # noqa: DOC502
-    atom_indices: tuple[int, ...],
-    n: tuple[int, ...],
-    l: tuple[int, ...],  # noqa: E741
-    m: tuple[int, ...],
-    spin: tuple[int, ...] = (),
-    labels: Optional[tuple[str, ...]] = None,
+    atom_indices: Tuple[int, ...],
+    n: Tuple[int, ...],
+    l: Tuple[int, ...],  # noqa: E741
+    m: Tuple[int, ...],
+    spin: Tuple[int, ...] = (),
+    labels: Optional[Tuple[str, ...]] = None,
 ) -> OrbitalBasis:
     """Create a validated ``OrbitalBasis`` instance.
 
@@ -791,23 +1005,23 @@ def make_orbital_basis(  # noqa: DOC502
 
     Parameters
     ----------
-    atom_indices : tuple[int, ...]
+    atom_indices : Tuple[int, ...]
         Atom-row indices (**static** -- compile-time constants; changing them
         triggers retracing), one per orbital.
-    n : tuple[int, ...]
+    n : Tuple[int, ...]
         Principal quantum numbers (**static** -- compile-time constants;
         changing them triggers retracing), one per orbital.
-    l : tuple[int, ...]
+    l : Tuple[int, ...]
         Angular momentum quantum numbers (**static** -- compile-time
         constants; changing them triggers retracing), one per orbital.
-    m : tuple[int, ...]
+    m : Tuple[int, ...]
         Magnetic quantum numbers (**static** -- compile-time constants;
         changing them triggers retracing), one per orbital.
-    spin : tuple[int, ...], optional
+    spin : Tuple[int, ...], optional
         Spin channels (**static** -- compile-time constants; changing them
         triggers retracing). The empty tuple denotes a spinless basis;
         otherwise every entry must be ``+1`` or ``-1``. Default is empty.
-    labels : Optional[tuple[str, ...]], optional
+    labels : Optional[Tuple[str, ...]], optional
         Human-readable orbital labels (**static** -- compile-time constants;
         changing them triggers retracing). Defaults to
         ``("orb_0", "orb_1", ...)``.
@@ -835,7 +1049,7 @@ def make_orbital_basis(  # noqa: DOC502
     OrbitalBasis : The PyTree class constructed by this factory.
     """
     n_orbitals: int = len(n)
-    resolved_labels: tuple[str, ...] = (
+    resolved_labels: Tuple[str, ...] = (
         tuple(f"orb_{i}" for i in range(n_orbitals))
         if labels is None
         else labels
@@ -862,7 +1076,7 @@ def make_orbital_basis(  # noqa: DOC502
 @jaxtyped(typechecker=beartype)
 def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     basis: OrbitalBasis,
-    radial_shell_index: tuple[int, ...],
+    radial_shell_index: Tuple[int, ...],
     mode: str = "slater",
     zeta_shell: Optional[Float64[Array, "n_shell n_contraction"]] = None,
     coefficients_shell: Optional[
@@ -872,7 +1086,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     r_grid: Optional[Float64[Array, " n_r"]] = None,
     grid_values_shell: Optional[Float64[Array, "n_shell n_r"]] = None,
     fixed_integrals_shell: Optional[Float64[Array, "n_shell 2"]] = None,
-    n_star_shell: Optional[tuple[float, ...]] = None,
+    n_star_shell: Optional[Tuple[float, ...]] = None,
     tail_envelope_id: str = _CERTIFIED_TAIL_ENVELOPE_ID,
 ) -> RadialSpec:
     """Create a validated shell-shared radial specification.
@@ -887,7 +1101,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     ----------
     basis : OrbitalBasis
         Static orbital metadata.
-    radial_shell_index : tuple[int, ...]
+    radial_shell_index : Tuple[int, ...]
         Static orbital-to-shell partition.
     mode : str, optional
         ``"slater"``, ``"hydrogenic"``, ``"grid"``, or ``"fixed"``.
@@ -903,7 +1117,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         Sampled radial rows on ``r_grid``.
     fixed_integrals_shell : Optional[Float64[Array, "n_shell 2"]], optional
         Real phase-free fixed channel integrals.
-    n_star_shell : Optional[tuple[float, ...]], optional
+    n_star_shell : Optional[Tuple[float, ...]], optional
         Slater effective principal numbers.
     tail_envelope_id : str, optional
         Certified tail-envelope identity.
@@ -932,10 +1146,10 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         basis,
         radial_shell_index,
     )
-    representatives: tuple[int, ...] = _shell_representatives(
+    representatives: Tuple[int, ...] = _shell_representatives(
         radial_shell_index,
     )
-    resolved_n_star: tuple[float, ...] = (
+    resolved_n_star: Tuple[float, ...] = (
         tuple(_default_n_star(basis.n[index]) for index in representatives)
         if n_star_shell is None
         else n_star_shell
@@ -1166,7 +1380,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
 @jaxtyped(typechecker=beartype)
 def make_matrix_element_params(  # noqa: DOC502, DOC503
     basis: OrbitalBasis,
-    radial_shell_index: tuple[int, ...],
+    radial_shell_index: Tuple[int, ...],
     sigma_shell: Optional[Float64[Array, "n_shell"]] = None,
     phase_shift_angles_shell: Optional[Float64[Array, "n_phase"]] = None,
 ) -> MatrixElementParams:
@@ -1186,7 +1400,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
     ----------
     basis : OrbitalBasis
         Static orbital metadata.
-    radial_shell_index : tuple[int, ...]
+    radial_shell_index : Tuple[int, ...]
         Static orbital-to-shell partition.
     sigma_shell : Optional[Float64[Array, "n_shell"]], optional
         Real shell scales, defaulting to one.
@@ -1215,7 +1429,7 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
         if sigma_shell is None
         else jnp.asarray(sigma_shell, dtype=jnp.float64)
     )
-    phase_channel_keys: tuple[tuple[int, int], ...] = (
+    phase_channel_keys: Tuple[Tuple[int, int], ...] = (
         _matrixel_phase_channel_keys(
             basis,
             radial_shell_index,
@@ -1286,7 +1500,7 @@ def make_radial_quadrature_spec(
         If ``profile_id`` is not registered.
     """
     profile: (
-        tuple[
+        Tuple[
             int,
             float,
             float,
@@ -1405,7 +1619,7 @@ def make_final_state_spec(  # noqa: DOC503
 @jaxtyped(typechecker=beartype)
 def make_slater_koster_params(  # noqa: DOC502, DOC503
     values: Float[Array, " n_sk"],
-    keys: tuple[str, ...],
+    keys: Tuple[str, ...],
 ) -> SlaterKosterParams:
     """Create validated Slater--Koster two-center parameters.
 
@@ -1418,7 +1632,7 @@ def make_slater_koster_params(  # noqa: DOC502, DOC503
     ----------
     values : Float[Array, " n_sk"]
         Fundamental two-center hopping integrals in eV.
-    keys : tuple[str, ...]
+    keys : Tuple[str, ...]
         Unique static identifiers, one for every value. Material builders use
         identifiers such as ``"C-C:pp_sigma"``.
 

@@ -30,7 +30,24 @@ from tests._types import GradRegime
 
 @jax.custom_jvp
 def _wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
-    """Return sine with a deliberately incorrect ten-percent tangent."""
+    """PRIVATE: Return sine with a deliberately incorrect ten-percent tangent.
+
+    Parameters
+    ----------
+    x : Float[Array, "..."]
+        Dimensionless input values in radians.
+
+    Returns
+    -------
+    result : Float[Array, "..."]
+        The elementwise sine of ``x``.
+
+    Notes
+    -----
+    The primal is the exact sine. The paired ``_wrong_sine_jvp`` rule
+    plants a tangent scaled by 1.1. The harness self-tests verify that
+    the gradient gate rejects this ten-percent derivative defect.
+    """
     result: Float[Array, "..."] = jnp.sin(x)
     return result
 
@@ -40,7 +57,26 @@ def _wrong_sine_jvp(
     primals: tuple[Float[Array, "..."], ...],
     tangents: tuple[Float[Array, "..."], ...],
 ) -> tuple[Float[Array, "..."], Float[Array, "..."]]:
-    """Plant a tangent scaled by 1.1 for harness-defect detection."""
+    """PRIVATE: Plant a tangent scaled by 1.1 for harness-defect detection.
+
+    Parameters
+    ----------
+    primals : tuple[Float[Array, "..."], ...]
+        One-element tuple that holds the input array ``x``.
+    tangents : tuple[Float[Array, "..."], ...]
+        One-element tuple that holds the input tangent of ``x``.
+
+    Returns
+    -------
+    result : tuple[Float[Array, "..."], Float[Array, "..."]]
+        The exact sine primal and the corrupted tangent.
+
+    Notes
+    -----
+    Computes ``1.1 * cos(x) * x_tangent``, ten percent above the true
+    derivative. Every tolerance rung of ``assert_grad_matches_fd`` must
+    reject this planted defect while the primal stays exact.
+    """
     x: Float[Array, "..."]
     x_tangent: Float[Array, "..."]
     (x,) = primals
@@ -56,7 +92,24 @@ def _wrong_sine_jvp(
 
 @jax.custom_jvp
 def _near_wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
-    """Return sine with a deliberately incorrect five-digit tangent."""
+    """PRIVATE: Return sine with a deliberately incorrect five-digit tangent.
+
+    Parameters
+    ----------
+    x : Float[Array, "..."]
+        Dimensionless input values in radians.
+
+    Returns
+    -------
+    result : Float[Array, "..."]
+        The elementwise sine of ``x``.
+
+    Notes
+    -----
+    The primal is the exact sine. The paired ``_near_wrong_sine_jvp``
+    rule plants a tangent scaled by 1.00001, so the detection-floor test
+    can pin the strictest relative tolerance rung of the harness.
+    """
     result: Float[Array, "..."] = jnp.sin(x)
     return result
 
@@ -66,7 +119,26 @@ def _near_wrong_sine_jvp(
     primals: tuple[Float[Array, "..."], ...],
     tangents: tuple[Float[Array, "..."], ...],
 ) -> tuple[Float[Array, "..."], Float[Array, "..."]]:
-    """Plant a tangent scaled by 1.00001 to pin the detection floor."""
+    """PRIVATE: Plant a tangent scaled by 1.00001 to pin the detection floor.
+
+    Parameters
+    ----------
+    primals : tuple[Float[Array, "..."], ...]
+        One-element tuple that holds the input array ``x``.
+    tangents : tuple[Float[Array, "..."], ...]
+        One-element tuple that holds the input tangent of ``x``.
+
+    Returns
+    -------
+    result : tuple[Float[Array, "..."], Float[Array, "..."]]
+        The exact sine primal and the slightly corrupted tangent.
+
+    Notes
+    -----
+    Computes ``1.00001 * cos(x) * x_tangent``, one part in 100000 above
+    the true derivative. The smooth 1e-6 rung must still detect this
+    defect, which documents the sensitivity floor of the gradient gate.
+    """
     x: Float[Array, "..."]
     x_tangent: Float[Array, "..."]
     (x,) = primals
@@ -82,7 +154,25 @@ def _near_wrong_sine_jvp(
 
 @jax.custom_jvp
 def _tiny_linear(x: Float[Array, ""]) -> Float[Array, ""]:
-    """Return an order-one loss with a resolvable ``1e-7`` derivative."""
+    """PRIVATE: Return an order-one loss with a resolvable ``1e-7`` derivative.
+
+    Parameters
+    ----------
+    x : Float[Array, ""]
+        Dimensionless scalar parameter.
+
+    Returns
+    -------
+    result : Float[Array, ""]
+        The affine loss ``1.0 + 1e-7 * x``.
+
+    Notes
+    -----
+    The true slope ``1e-7`` sits above the central-difference roundoff
+    floor for an order-one loss. The paired ``_tiny_linear_jvp`` rule
+    plants a zero tangent, so the finite-difference absolute-tolerance
+    tests can verify that the missing slope is not hidden.
+    """
     result: Float[Array, ""] = 1.0 + 1e-7 * x
     return result
 
@@ -92,7 +182,26 @@ def _tiny_linear_jvp(
     primals: tuple[Float[Array, ""], ...],
     tangents: tuple[Float[Array, ""], ...],
 ) -> tuple[Float[Array, ""], Float[Array, ""]]:
-    """Plant an exactly zero tangent for the nonzero linear primal."""
+    """PRIVATE: Plant an exactly zero tangent for the nonzero linear primal.
+
+    Parameters
+    ----------
+    primals : tuple[Float[Array, ""], ...]
+        One-element tuple that holds the scalar input ``x``.
+    tangents : tuple[Float[Array, ""], ...]
+        One-element tuple that holds the input tangent of ``x``.
+
+    Returns
+    -------
+    result : tuple[Float[Array, ""], Float[Array, ""]]
+        The exact affine primal and a zero tangent.
+
+    Notes
+    -----
+    Discards the input tangent and returns ``zeros_like(x)``. This is a
+    one-hundred-percent-wrong derivative that the elementwise and
+    directional finite-difference comparisons must both reject.
+    """
     x: Float[Array, ""]
     (x,) = primals
     primal: Float[Array, ""] = _tiny_linear(x)
@@ -103,7 +212,26 @@ def _tiny_linear_jvp(
 
 @jax.custom_jvp
 def _mixed_scale_linear(x: Float[Array, "2"]) -> Float[Array, ""]:
-    """Return a loss whose large parameter has a tiny nonzero sensitivity."""
+    """PRIVATE: Return a loss whose large parameter has a tiny sensitivity.
+
+    Parameters
+    ----------
+    x : Float[Array, "2"]
+        Dimensionless parameter pair; the test drives it at scales
+        ``1e-3`` and ``1e3``.
+
+    Returns
+    -------
+    result : Float[Array, ""]
+        The affine loss ``1.0 + 1e-4 * x[0] + 1e-10 * x[1]``.
+
+    Notes
+    -----
+    The second slope ``1e-10`` stays resolvable only under the large
+    per-parameter finite-difference step of ``x[1]``. The paired
+    ``_mixed_scale_linear_jvp`` rule suppresses that slope, so the test
+    can require a per-coordinate roundoff floor.
+    """
     result: Float[Array, ""] = 1.0 + 1e-4 * x[0] + 1e-10 * x[1]
     return result
 
@@ -113,7 +241,27 @@ def _mixed_scale_linear_jvp(
     primals: tuple[Float[Array, "2"], ...],
     tangents: tuple[Float[Array, "2"], ...],
 ) -> tuple[Float[Array, ""], Float[Array, ""]]:
-    """Plant zero for only the large parameter's resolvable tangent."""
+    """PRIVATE: Plant zero for only the large parameter's resolvable tangent.
+
+    Parameters
+    ----------
+    primals : tuple[Float[Array, "2"], ...]
+        One-element tuple that holds the parameter pair ``x``.
+    tangents : tuple[Float[Array, "2"], ...]
+        One-element tuple that holds the input tangent of ``x``.
+
+    Returns
+    -------
+    result : tuple[Float[Array, ""], Float[Array, ""]]
+        The exact affine primal and the truncated tangent.
+
+    Notes
+    -----
+    Computes ``1e-4 * x_tangent[0]`` and drops the ``1e-10`` sensitivity
+    of ``x[1]``. The per-coordinate finite-difference comparison must
+    expose the suppressed second coordinate despite its million-fold
+    larger step.
+    """
     x: Float[Array, "2"]
     x_tangent: Float[Array, "2"]
     (x,) = primals

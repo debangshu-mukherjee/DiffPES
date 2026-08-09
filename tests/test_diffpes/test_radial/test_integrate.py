@@ -43,7 +43,27 @@ def _exp_r3_transform(
     decay: Array,
     momentum: Array,
 ) -> Array:
-    """Return the analytic exponential r-cubed Bessel transform."""
+    """PRIVATE: Return the analytic exponential r-cubed Bessel transform.
+
+    Parameters
+    ----------
+    decay : Array
+        Exponential decay rate ``a`` in inverse Bohr.
+    momentum : Array
+        Final-state momentum ``k`` in inverse Bohr.
+
+    Returns
+    -------
+    values : Array
+        The closed form ``2 * (3*a**2 - k**2) / (a**2 + k**2)**3`` in
+        Bohr**4.
+
+    Notes
+    -----
+    This is the exact infinite integral of ``exp(-a*r) * j_0(k*r) *
+    r**3`` over ``r`` from zero to infinity. The quadrature tests
+    compare :func:`radial_integral` on a truncated grid against it.
+    """
     denominator: Array = decay * decay + momentum * momentum
     values: Array = (
         2.0 * (3.0 * decay * decay - momentum * momentum) / denominator**3

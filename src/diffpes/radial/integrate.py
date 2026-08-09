@@ -48,14 +48,45 @@ from .wavefunctions import evaluate_radial
 
 
 def _validate_l_prime(l_prime: int) -> None:
-    """Validate one static final-state angular momentum."""
+    """PRIVATE: Validate one static final-state angular momentum.
+
+    Parameters
+    ----------
+    l_prime : int
+        Static final-state angular momentum to check.
+
+    Raises
+    ------
+    ValueError
+        If ``l_prime`` is negative.
+
+    Notes
+    -----
+    Accepts any nonnegative integer and returns nothing on success.
+    """
     if l_prime < 0:
         message: str = "l_prime must be non-negative"
         raise ValueError(message)
 
 
 def _partial_wave_phase(l_prime: int) -> Complex128[Array, ""]:
-    """Return the single canonical partial-wave phase."""
+    """PRIVATE: Return the single canonical partial-wave phase.
+
+    Parameters
+    ----------
+    l_prime : int
+        Nonnegative static final-state angular momentum.
+
+    Returns
+    -------
+    phase : Complex128[Array, ""]
+        Dimensionless scalar phase :math:`i^{l'}`.
+
+    Notes
+    -----
+    Raises the Python complex unit to the static integer power on the
+    host and converts the result to a complex128 scalar once.
+    """
     phase: Complex128[Array, ""] = jnp.asarray(
         (1j) ** l_prime,
         dtype=jnp.complex128,
@@ -70,7 +101,35 @@ def _weighted_real_integral(
     radial_values: Float64[Array, " n_r"],
     l_prime: int,
 ) -> Float64[Array, " ..."]:
-    """Compute one real radial contraction with fixed quadrature weights."""
+    r"""PRIVATE: Compute one real radial contraction with fixed weights.
+
+    Parameters
+    ----------
+    k_bohr_inv : Float64[Array, " ..."]
+        Momentum in inverse Bohr.
+    r_bohr : Float64[Array, " n_r"]
+        Fixed radial nodes in Bohr.
+    weights_bohr : Float64[Array, " n_r"]
+        Fixed integration weights in Bohr.
+    radial_values : Float64[Array, " n_r"]
+        Real radial wavefunction values in inverse Bohr to the power
+        3/2.
+    l_prime : int
+        Static nonnegative final angular momentum.
+
+    Returns
+    -------
+    integral : Float64[Array, " ..."]
+        Real quadrature values of :math:`\int R(r)r^3j_{l'}(kr)\,dr`
+        with the momentum shape.
+
+    Notes
+    -----
+    Broadcasts ``k_bohr_inv`` against the radial axis, evaluates the
+    spherical Bessel factor at ``k r``, and contracts the fixed measure
+    ``weights_bohr * radial_values * r_bohr**3`` over the last axis.
+    The caller applies the partial-wave phase.
+    """
     kr: Float64[Array, "... n_r"] = (
         jnp.expand_dims(k_bohr_inv, axis=-1) * r_bohr
     )
@@ -88,7 +147,24 @@ def _weighted_real_integral(
 def _simpson_weights(
     r_bohr: Float64[Array, " n_r"],
 ) -> Float64[Array, " n_r"]:
-    """Return composite Simpson weights for a validated uniform grid."""
+    """PRIVATE: Return composite Simpson weights for a validated uniform grid.
+
+    Parameters
+    ----------
+    r_bohr : Float64[Array, " n_r"]
+        Uniform ascending radial grid in Bohr with an odd point count.
+
+    Returns
+    -------
+    weights : Float64[Array, " n_r"]
+        Composite Simpson weights in Bohr.
+
+    Notes
+    -----
+    Reads the uniform spacing from the first two nodes and scales the
+    coefficient pattern ``1, 4, 2, 4, ..., 4, 1`` by one third of the
+    spacing.  Callers validate uniformity and the odd point count.
+    """
     n_points: int = r_bohr.shape[0]
     spacing: Float64[Array, ""] = r_bohr[1] - r_bohr[0]
     coefficients: Float64[Array, " n_r"] = jnp.ones(

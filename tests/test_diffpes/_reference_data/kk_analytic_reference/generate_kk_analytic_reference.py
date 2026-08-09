@@ -14,6 +14,7 @@ from pathlib import Path
 
 import mpmath as mp
 import numpy as np
+from beartype.typing import Tuple
 from jaxtyping import Float
 from numpy.typing import NDArray
 
@@ -29,7 +30,7 @@ _POLE_GAMMA_EV: mp.mpf = mp.mpf("0.20")
 _POLE_G_EV2: mp.mpf = mp.mpf("0.12")
 _SEMICIRCLE_BAND_EV: mp.mpf = mp.mpf("1.50")
 _SEMICIRCLE_G_EV2: mp.mpf = mp.mpf("0.20")
-_PV_CHECK_POINTS_EV: tuple[str, ...] = (
+_PV_CHECK_POINTS_EV: Tuple[str, ...] = (
     "-1.0",
     "-0.75",
     "-0.2",
@@ -38,11 +39,32 @@ _PV_CHECK_POINTS_EV: tuple[str, ...] = (
     "0.8",
     "1.0",
 )
-_ZIP_TIMESTAMP: tuple[int, int, int, int, int, int] = (1980, 1, 1, 0, 0, 0)
+_ZIP_TIMESTAMP: Tuple[int, int, int, int, int, int] = (1980, 1, 1, 0, 0, 0)
 
 
-def _pole_parts(omega_ev: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
-    """Evaluate the retarded-pole real and imaginary parts."""
+def _pole_parts(omega_ev: mp.mpf) -> Tuple[mp.mpf, mp.mpf]:
+    """PRIVATE: Evaluate the retarded-pole real and imaginary parts.
+
+    Parameters
+    ----------
+    omega_ev : mp.mpf
+        Evaluation energy in eV.
+
+    Returns
+    -------
+    real_ev : mp.mpf
+        Real part g (omega - omega_0) / ((omega - omega_0)^2 +
+        gamma^2) in eV.
+    imaginary_ev : mp.mpf
+        Imaginary part -g gamma / ((omega - omega_0)^2 + gamma^2) in
+        eV, strictly negative.
+
+    Notes
+    -----
+    Evaluates the retarded-pole closed form at the module working
+    precision. The module constants give the strength g in eV^2, the
+    center omega_0 in eV, and the width gamma in eV.
+    """
     offset_ev: mp.mpf = omega_ev - _POLE_OMEGA_0_EV
     denominator_ev2: mp.mpf = offset_ev**2 + _POLE_GAMMA_EV**2
     real_ev: mp.mpf = _POLE_G_EV2 * offset_ev / denominator_ev2
@@ -50,8 +72,29 @@ def _pole_parts(omega_ev: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
     return real_ev, imaginary_ev
 
 
-def _semicircle_parts(omega_ev: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
-    """Evaluate the in-band Wigner-semicircle analytic pair."""
+def _semicircle_parts(omega_ev: mp.mpf) -> Tuple[mp.mpf, mp.mpf]:
+    """PRIVATE: Evaluate the in-band Wigner-semicircle analytic pair.
+
+    Parameters
+    ----------
+    omega_ev : mp.mpf
+        Evaluation energy in eV, inside the band of half width W.
+
+    Returns
+    -------
+    real_ev : mp.mpf
+        Real part (2 g / W^2) omega in eV.
+    imaginary_ev : mp.mpf
+        Imaginary part -(2 g / W^2) sqrt(W^2 - omega^2) in eV,
+        non-positive.
+
+    Notes
+    -----
+    Evaluates the in-band closed form of the semicircle model. The
+    module constants give the strength g in eV^2 and the band half
+    width W in eV. The caller keeps the grid inside the band, so the
+    radicand stays non-negative.
+    """
     prefactor: mp.mpf = 2 * _SEMICIRCLE_G_EV2 / _SEMICIRCLE_BAND_EV**2
     real_ev: mp.mpf = prefactor * omega_ev
     radicand_ev2: mp.mpf = _SEMICIRCLE_BAND_EV**2 - omega_ev**2
@@ -60,7 +103,30 @@ def _semicircle_parts(omega_ev: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
 
 
 def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
-    """Integrate the pole KK principal value numerically."""
+    """PRIVATE: Integrate the pole KK principal value numerically.
+
+    Parameters
+    ----------
+    omega_ev : mp.mpf
+        Query energy in eV.
+
+    Returns
+    -------
+    result_ev : mp.mpf
+        Kramers--Kronig real part in eV: the principal value of the
+        integral of Im / (omega' - omega) over the whole real line,
+        divided by pi.
+
+    Notes
+    -----
+    Maps the infinite domain to (-pi/2, pi/2) with the tangent
+    substitution, then subtracts the transformed numerator value at
+    the singular angle. Integrates the regularized difference with
+    ``mp.quad`` through the singular node and supplies the exact
+    derivative limit there. Adds the closed-form principal value of
+    the split-off constant term and divides the sum by pi. The
+    constant term contributes -pi omega N(theta_0) / (1 + omega^2).
+    """
     theta_0: mp.mpf = mp.atan(omega_ev)
 
     def transformed_numerator(theta: mp.mpf) -> mp.mpf:
@@ -89,7 +155,28 @@ def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
 
 
 def _semicircle_pv_real(omega_ev: mp.mpf) -> mp.mpf:
-    """Integrate the semicircle KK principal value numerically."""
+    """PRIVATE: Integrate the semicircle KK principal value numerically.
+
+    Parameters
+    ----------
+    omega_ev : mp.mpf
+        Query energy in eV, strictly inside the band.
+
+    Returns
+    -------
+    result_ev : mp.mpf
+        Kramers--Kronig real part in eV: the principal value of the
+        integral of Im / (omega' - omega) over the band [-W, W],
+        divided by pi.
+
+    Notes
+    -----
+    Subtracts the imaginary part at the query point so the remaining
+    integrand is regular. Supplies the exact derivative limit at the
+    query node and integrates with ``mp.quad`` through it. Adds the
+    closed-form principal value of the subtracted constant, Im(omega)
+    log((W - omega) / (W + omega)), before it divides by pi.
+    """
     imaginary_0_ev: mp.mpf = _semicircle_parts(omega_ev)[1]
     prefactor: mp.mpf = 2 * _SEMICIRCLE_G_EV2 / _SEMICIRCLE_BAND_EV**2
 
@@ -115,7 +202,27 @@ def _semicircle_pv_real(omega_ev: mp.mpf) -> mp.mpf:
 
 
 def _verify_principal_values() -> dict[str, str]:
-    """Verify both closed forms against independent PV quadrature."""
+    """PRIVATE: Verify both closed forms against independent PV quadrature.
+
+    Returns
+    -------
+    rendered_errors : dict[str, str]
+        Observed maximum absolute errors in eV for the pole and the
+        semicircle model, rendered to 12 significant digits for the
+        manifest.
+
+    Raises
+    ------
+    RuntimeError
+        If any maximum absolute error exceeds the module tolerance of
+        1e-45 eV.
+
+    Notes
+    -----
+    Walks the registered check energies and compares the quadrature
+    principal value with the closed-form real part for both models.
+    Tracks the per-model maxima before it renders them.
+    """
     maximum_errors: dict[str, mp.mpf] = {
         "pole_max_abs_error_ev": mp.mpf("0"),
         "semicircle_max_abs_error_ev": mp.mpf("0"),
@@ -147,7 +254,22 @@ def _verify_principal_values() -> dict[str, str]:
 
 
 def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
-    """Build the six frozen float64 arrays from mpmath values."""
+    """PRIVATE: Build the six frozen float64 arrays from mpmath values.
+
+    Returns
+    -------
+    arrays : dict[str, Float[NDArray, "..."]]
+        Archive members ``pole_omega``, ``pole_sigma_real``,
+        ``pole_sigma_imag`` and the three semicircle counterparts,
+        each of length 1001 in eV.
+
+    Notes
+    -----
+    Evaluates both closed forms on the uniform grid over [-1, 1] eV
+    at working precision. Subtracts the pole real part at the 0 eV
+    subtraction point, which freezes the once-subtracted convention.
+    Casts every value to float64 only at the end.
+    """
     step_ev: mp.mpf = (_GRID_STOP_EV - _GRID_START_EV) / (_GRID_COUNT - 1)
     omega_mp: list[mp.mpf] = [
         _GRID_START_EV + index * step_ev for index in range(_GRID_COUNT)
@@ -188,7 +310,22 @@ def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
 def _write_deterministic_npz(
     archive_path: Path, arrays: dict[str, Float[NDArray, "..."]]
 ) -> None:
-    """Write arrays in a deterministic uncompressed NumPy archive."""
+    """PRIVATE: Write arrays in a deterministic uncompressed NumPy archive.
+
+    Parameters
+    ----------
+    archive_path : Path
+        Destination path of the ``.npz`` archive.
+    arrays : dict[str, Float[NDArray, "..."]]
+        Named arrays to store, one ``.npy`` member each.
+
+    Notes
+    -----
+    Serializes each array with ``np.lib.format.write_array`` and no
+    pickle support. Stores each member with the fixed 1980 zip
+    timestamp, the ``ZIP_STORED`` method, and 0o600 permissions, so
+    the archive bytes stay identical across runs.
+    """
     archive: zipfile.ZipFile
     name: str
     array: Float[NDArray, "..."]

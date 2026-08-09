@@ -48,7 +48,7 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_simul.test_self_energy
+.. automodule:: tests.test_diffpes.test_simul.test_spectral
    :members:
    :undoc-members:
    :show-inheritance:

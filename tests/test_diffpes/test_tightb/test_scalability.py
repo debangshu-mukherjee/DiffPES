@@ -53,7 +53,24 @@ _MIB: int = 2**20
 
 
 def _one_atom_basis(n_orbitals: int) -> tuple[CrystalGeometry, OrbitalBasis]:
-    """Build static one-atom metadata with ``n_orbitals`` scalar channels."""
+    """PRIVATE: Build static one-atom metadata with ``n_orbitals`` channels.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of s-orbital channels on the single atom.
+
+    Returns
+    -------
+    geometry_and_basis : tuple[CrystalGeometry, OrbitalBasis]
+        A one-site cubic geometry in Angstrom and the matching all-s
+        basis labeled ``s_0`` to ``s_{n_orbitals - 1}``.
+
+    Notes
+    -----
+    The scaling models only need consistent static metadata; the
+    coincident s orbitals carry no physics.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -70,7 +87,31 @@ def _one_atom_basis(n_orbitals: int) -> tuple[CrystalGeometry, OrbitalBasis]:
 
 
 def _make_hopping_count_model(n_hoppings: int) -> TBModel:
-    """Build a one-orbital model with an exact closed hopping count."""
+    """PRIVATE: Build a one-orbital model with an exact closed hopping count.
+
+    Parameters
+    ----------
+    n_hoppings : int
+        Total hopping-record count; must be positive and even.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital chain with ``n_hoppings / 2`` conjugate pairs that
+        reach ever farther cells along x, amplitudes ``-1/(m + 1)`` eV
+        for shell ``m``.
+
+    Raises
+    ------
+    ValueError
+        If ``n_hoppings`` is not a positive even integer.
+
+    Notes
+    -----
+    Pairing every forward record ``(+m, 0, 0)`` with the reverse record
+    ``(-m, 0, 0)`` keeps the model Hermitian at any requested count.
+    The JAXPR sweep can therefore vary only the hopping-list length.
+    """
     if n_hoppings <= 0 or n_hoppings % 2:
         message: str = "n_hoppings must be a positive even integer"
         raise ValueError(message)
@@ -106,7 +147,29 @@ def _make_hopping_count_model(n_hoppings: int) -> TBModel:
 
 
 def _make_dispersive_diagonal_model(n_orbitals: int) -> TBModel:
-    """Build a closed diagonal model that still consumes every k-point."""
+    """PRIVATE: Build a closed diagonal model that still consumes every
+    k-point.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of independent scalar bands.
+
+    Returns
+    -------
+    model : TBModel
+        Model whose ``n_orbitals`` bands each follow the closed cosine
+        dispersion of one x-direction conjugate hopping pair. Onsite
+        energies spread over ``[-1, 1]`` eV and forward amplitudes
+        over ``[-0.2, -0.5]`` eV.
+
+    Notes
+    -----
+    Every hopping is orbital-diagonal, so ``H(k)`` is diagonal with the
+    analytic entries ``onsite + 2 t cos(2 pi k_x)``. This gives exact
+    eigenvalues at any size while the Hamiltonian still depends on each
+    k-point, which suits bounded diagonalization-shape checks.
+    """
     geometry: CrystalGeometry
     basis: OrbitalBasis
     geometry, basis = _one_atom_basis(n_orbitals)
@@ -144,7 +207,24 @@ def _make_dispersive_diagonal_model(n_orbitals: int) -> TBModel:
 
 
 def _kpoints(n_kpoints: int) -> Float64[Array, "n_k 3"]:
-    """Build a deterministic generic one-dimensional k-point batch."""
+    """PRIVATE: Build a deterministic generic one-dimensional k-point batch.
+
+    Parameters
+    ----------
+    n_kpoints : int
+        Number of k-points in the batch.
+
+    Returns
+    -------
+    points : Float64[Array, "n_k 3"]
+        Fractional k-points on the line ``(k_x, 0.17 k_x + 0.03,
+        -0.11 k_x + 0.02)`` with ``k_x`` uniform on ``[-0.47, 0.43]``.
+
+    Notes
+    -----
+    The tilted line avoids symmetry points and mirror pairs, so batched
+    evaluations see generic inputs at every size.
+    """
     k_x: Float64[Array, " n_k"] = jnp.linspace(
         -0.47,
         0.43,
@@ -163,7 +243,27 @@ def _kpoints(n_kpoints: int) -> Float64[Array, "n_k 3"]:
 
 
 def _count_jaxpr_equations(value: object) -> int:
-    """Return the recursive equation count across nested JAXPR parameters."""
+    """PRIVATE: Return the recursive equation count across nested JAXPRs.
+
+    Parameters
+    ----------
+    value : object
+        A ``ClosedJaxpr``, ``Jaxpr``, container, or any other object
+        found inside JAXPR equation parameters.
+
+    Returns
+    -------
+    count : int
+        Total number of equations in ``value`` and in every JAXPR
+        nested inside its equation parameters; zero for foreign
+        objects.
+
+    Notes
+    -----
+    Recurses through closed JAXPRs, equation parameters, tuples, lists,
+    and dictionaries. Counting nested bodies as well as top-level
+    equations catches unrolling hidden behind call primitives.
+    """
     if isinstance(value, ClosedJaxpr):
         return _count_jaxpr_equations(value.jaxpr)
     if isinstance(value, Jaxpr):
@@ -184,7 +284,25 @@ def _collect_jaxpr_shapes(
     value: object,
     shapes: list[tuple[int, ...]],
 ) -> None:
-    """Collect every shaped array variable from nested JAXPRs."""
+    """PRIVATE: Collect every shaped array variable from nested JAXPRs.
+
+    Parameters
+    ----------
+    value : object
+        A ``ClosedJaxpr``, ``Jaxpr``, container, or any other object
+        found inside JAXPR equation parameters.
+    shapes : list[tuple[int, ...]]
+        Mutable accumulator that receives one shape tuple per shaped
+        variable.
+
+    Notes
+    -----
+    Walks constant, input, output, and equation variables of each
+    JAXPR, skips literals, and appends the ``aval`` shape of every
+    variable that has one. Recurses into equation parameters and
+    containers, so shapes hidden inside call primitives also appear.
+    The traversal mutates ``shapes`` in place and returns ``None``.
+    """
     if isinstance(value, ClosedJaxpr):
         _collect_jaxpr_shapes(value.jaxpr, shapes)
         return
@@ -223,7 +341,30 @@ def _collect_jaxpr_shapes(
 
 
 def _memory_analysis(executable: Any) -> Any:
-    """Return compiler memory statistics, requiring backend support."""
+    """PRIVATE: Return compiler memory statistics, requiring backend support.
+
+    Parameters
+    ----------
+    executable : Any
+        Lowered and compiled JAX executable.
+
+    Returns
+    -------
+    statistics : Any
+        The backend ``memory_analysis()`` object with temporary and
+        output byte counts.
+
+    Raises
+    ------
+    AssertionError
+        If the active backend reports no memory statistics.
+
+    Notes
+    -----
+    Converting missing statistics into a failure keeps the memory
+    bounds meaningful: a silent ``None`` lets the reverse-tape checks
+    pass vacuously.
+    """
     statistics: Any = executable.memory_analysis()
     if statistics is None:
         message: str = (

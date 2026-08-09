@@ -32,7 +32,7 @@ and ``symbols`` as auxiliary data because it cannot trace their Python tuples.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
 
@@ -74,10 +74,10 @@ class VolumetricData(eqx.Module):
     atom_counts : Int32[Array, " S"]
         Number of atoms per species, with S = number of species.
         JAX-traced (differentiable, int32).
-    grid_shape : tuple[int, int, int]
+    grid_shape : Tuple[int, int, int]
         Grid dimensions ``(Nx, Ny, Nz)`` (**static** -- a compile-time
         constant; changing it triggers retracing).
-    symbols : tuple[str, ...]
+    symbols : Tuple[str, ...]
         Element symbols for each species (e.g. ``("Bi", "Se")``).
         **static** -- compile-time constants; changing them triggers retracing.
 
@@ -102,8 +102,8 @@ class VolumetricData(eqx.Module):
     charge: Float64[Array, "Nx Ny Nz"]
     magnetization: Optional[Float64[Array, "Nx Ny Nz"]]
     atom_counts: Int32[Array, " S"]
-    grid_shape: tuple[int, int, int] = eqx.field(static=True)
-    symbols: tuple[str, ...] = eqx.field(static=True)
+    grid_shape: Tuple[int, int, int] = eqx.field(static=True)
+    symbols: Tuple[str, ...] = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
@@ -112,8 +112,8 @@ def make_volumetric_data(  # noqa: DOC503
     coords: Float64[Array, "N 3"],
     charge: Float64[Array, "Cx Cy Cz"],
     magnetization: Optional[Float64[Array, "Mx My Mz"]] = None,
-    grid_shape: tuple[int, int, int] = (1, 1, 1),
-    symbols: tuple[str, ...] = (),
+    grid_shape: Tuple[int, int, int] = (1, 1, 1),
+    symbols: Tuple[str, ...] = (),
     atom_counts: Optional[Int32[Array, " S"]] = None,
 ) -> VolumetricData:
     """Create a validated ``VolumetricData`` instance.
@@ -170,10 +170,10 @@ def make_volumetric_data(  # noqa: DOC503
     magnetization : Optional[Float64[Array, "Mx My Mz"]], optional
         Magnetization density (spin-up minus spin-down).
         Default is ``None`` (non-spin-polarized).
-    grid_shape : tuple[int, int, int], optional
+    grid_shape : Tuple[int, int, int], optional
         Grid dimensions ``(Nx, Ny, Nz)`` (**static** -- a compile-time
         constant; changing it triggers retracing). Default is ``(1, 1, 1)``.
-    symbols : tuple[str, ...], optional
+    symbols : Tuple[str, ...], optional
         Element symbols per species (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty tuple.
     atom_counts : Optional[Int32[Array, " S"]], optional
@@ -300,10 +300,10 @@ class SOCVolumetricData(eqx.Module):
         JAX-traced (differentiable).
     atom_counts : Int32[Array, " S"]
         Number of atoms per species. JAX-traced (int32).
-    grid_shape : tuple[int, int, int]
+    grid_shape : Tuple[int, int, int]
         Grid dimensions ``(Nx, Ny, Nz)`` (**static** -- a compile-time
         constant; changing it triggers retracing).
-    symbols : tuple[str, ...]
+    symbols : Tuple[str, ...]
         Element symbols per species (**static** -- compile-time constants;
         changing them triggers retracing).
 
@@ -330,8 +330,8 @@ class SOCVolumetricData(eqx.Module):
     magnetization: Float64[Array, "Nx Ny Nz"]
     magnetization_vector: Float64[Array, "Nx Ny Nz 3"]
     atom_counts: Int32[Array, " S"]
-    grid_shape: tuple[int, int, int] = eqx.field(static=True)
-    symbols: tuple[str, ...] = eqx.field(static=True)
+    grid_shape: Tuple[int, int, int] = eqx.field(static=True)
+    symbols: Tuple[str, ...] = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
@@ -341,8 +341,8 @@ def make_soc_volumetric_data(  # noqa: DOC503
     charge: Float64[Array, "Cx Cy Cz"],
     magnetization: Float64[Array, "Mx My Mz"],
     magnetization_vector: Float64[Array, "Vx Vy Vz 3"],
-    grid_shape: tuple[int, int, int] = (1, 1, 1),
-    symbols: tuple[str, ...] = (),
+    grid_shape: Tuple[int, int, int] = (1, 1, 1),
+    symbols: Tuple[str, ...] = (),
     atom_counts: Optional[Int32[Array, " S"]] = None,
 ) -> SOCVolumetricData:
     """Create a validated ``SOCVolumetricData`` instance.
@@ -404,10 +404,10 @@ def make_soc_volumetric_data(  # noqa: DOC503
     magnetization_vector : Float64[Array, "Vx Vy Vz 3"]
         Full vector magnetization ``(mx, my, mz)`` at each grid
         point.
-    grid_shape : tuple[int, int, int], optional
+    grid_shape : Tuple[int, int, int], optional
         Grid dimensions ``(Nx, Ny, Nz)`` (**static** -- a compile-time
         constant; changing it triggers retracing). Default is ``(1, 1, 1)``.
-    symbols : tuple[str, ...], optional
+    symbols : Tuple[str, ...], optional
         Element symbols per species (**static** -- compile-time constants;
         changing them triggers retracing). Default is empty tuple.
     atom_counts : Optional[Int32[Array, " S"]], optional

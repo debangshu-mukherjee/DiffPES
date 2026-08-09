@@ -11,7 +11,7 @@ import unicodedata
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.certify import (
     canonical_json,
@@ -38,7 +38,7 @@ class TestCanonicalPytree:
         -----
         Encodes the same nested value twice and compares exact bytes.
         """
-        value: tuple[str, tuple[int, ...]] = ("stable", (1, 2))
+        value: Tuple[str, Tuple[int, ...]] = ("stable", (1, 2))
         assert canonical_pytree(value) == canonical_pytree(value)
 
     def test_numpy_and_jax_arrays_have_identical_canonical_bytes(self) -> None:

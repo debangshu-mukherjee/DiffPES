@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from beartype.typing import Tuple
 
 ARTIFACT_DIRECTORY: Path = (
     Path(__file__).parents[1]
@@ -26,7 +27,17 @@ REPOSITORY_ROOT: Path = Path(__file__).parents[3]
 
 
 def _artifact() -> dict[str, Any]:
-    """Load the committed literal-shape benchmark record."""
+    """PRIVATE: Load the committed literal-shape benchmark record.
+
+    Returns
+    -------
+    artifact : dict[str, Any]
+        Parsed JSON benchmark artifact.
+
+    Notes
+    -----
+    Reads the UTF-8 JSON file at the committed artifact path.
+    """
     artifact: dict[str, Any] = json.loads(
         ARTIFACT_PATH.read_text(encoding="utf-8")
     )
@@ -34,16 +45,47 @@ def _artifact() -> dict[str, Any]:
 
 
 def _sha256(path: Path) -> str:
-    """Return one retained artifact digest."""
+    """PRIVATE: Return one retained artifact digest.
+
+    Parameters
+    ----------
+    path : Path
+        File whose bytes the digest covers.
+
+    Returns
+    -------
+    digest : str
+        Hexadecimal SHA-256 digest of the complete file content.
+
+    Notes
+    -----
+    Reads the file bytes in one call and hashes them with SHA-256.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
-    """Extract numeric dimensions from the retained compiler text."""
-    shapes: set[tuple[int, ...]] = set()
+def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
+    r"""PRIVATE: Extract numeric dimensions from the retained compiler text.
+
+    Parameters
+    ----------
+    ir_text : str
+        Retained compiler IR text with bracketed shape literals.
+
+    Returns
+    -------
+    shapes : set[Tuple[int, ...]]
+        Distinct non-empty dimension tuples found in the text.
+
+    Notes
+    -----
+    Matches bracketed integer lists with the pattern
+    ``\[([0-9,\s]+)\]`` and converts each list to a tuple of ints.
+    """
+    shapes: set[Tuple[int, ...]] = set()
     match: re.Match[str]
     for match in re.finditer(r"\[([0-9,\s]+)\]", ir_text):
-        dimensions: tuple[int, ...] = tuple(
+        dimensions: Tuple[int, ...] = tuple(
             int(value) for value in match.group(1).split(",") if value.strip()
         )
         if dimensions:
@@ -141,10 +183,10 @@ class TestMatrixElementScalabilityEvidence:
         for text in (jaxpr_text, hlo_text):
             assert "SCALAR-ENERGY VALUE+GRADIENT" in text
             assert "EIGHT-ENERGY REDUCED SCAN" in text
-        parsed_shapes: set[tuple[int, ...]] = _array_shapes(
+        parsed_shapes: set[Tuple[int, ...]] = _array_shapes(
             f"{jaxpr_text}\n{hlo_text}"
         )
-        forbidden_shapes: set[tuple[int, ...]] = {
+        forbidden_shapes: set[Tuple[int, ...]] = {
             shape
             for shape in parsed_shapes
             if len(shape) == 3 and sorted(shape) == [8, 18, 4096]

@@ -12,7 +12,7 @@ import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Array
 
 from diffpes.inout import load_from_h5, save_to_h5
@@ -36,8 +36,25 @@ from tests._assertions import assert_rejects
 
 
 def _geometry(n_atoms: int = 1) -> CrystalGeometry:
-    """Return a cubic geometry for carrier validation."""
-    species: tuple[str, ...] = tuple(
+    """PRIVATE: Return a cubic geometry for carrier validation.
+
+    Parameters
+    ----------
+    n_atoms : int, optional
+        Number of atoms, all placed at the origin. Default 1.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Identity cubic lattice in Angstrom with species ``A`` for the
+        first atom and ``B`` for every further atom.
+
+    Notes
+    -----
+    Keeps positions degenerate at the origin because the metadata
+    carriers under test never consume interatomic distances.
+    """
+    species: Tuple[str, ...] = tuple(
         "A" if index == 0 else "B" for index in range(n_atoms)
     )
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -49,7 +66,24 @@ def _geometry(n_atoms: int = 1) -> CrystalGeometry:
 
 
 def _basis(n_orbitals: int) -> OrbitalBasis:
-    """Return a spinless s-orbital basis on one atom."""
+    """PRIVATE: Return a spinless s-orbital basis on one atom.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of identical 1s orbitals to place on atom 0.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Spinless basis with ``n_orbitals`` copies of the (n=1, l=0,
+        m=0) orbital on the one atom.
+
+    Notes
+    -----
+    Repeats one quantum-number tuple so the basis length can track the
+    depth arrays under test without further structure.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * n_orbitals,
         n=(1,) * n_orbitals,
@@ -60,7 +94,26 @@ def _basis(n_orbitals: int) -> OrbitalBasis:
 
 
 def _model(depths: Array | None) -> TBModel:
-    """Return a diagonal model carrying optional orbital depths."""
+    """PRIVATE: Return a diagonal model carrying optional orbital depths.
+
+    Parameters
+    ----------
+    depths : Array | None
+        Optional per-orbital depths below the surface in Angstrom.
+        ``None`` builds a bulk model with two orbitals.
+
+    Returns
+    -------
+    model : TBModel
+        Hopping-free model whose onsite energies are ``0, 1, ...`` eV,
+        with the ``depths`` leaf attached verbatim.
+
+    Notes
+    -----
+    Sizes the basis from ``depths`` when present and passes empty
+    hopping arrays. Marks every orbital with shell index -1, so the
+    depth leaf is the only slab metadata in play.
+    """
     n_orbitals: int = 2 if depths is None else depths.shape[0]
     model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.zeros((0,), dtype=jnp.complex128),
@@ -77,7 +130,21 @@ def _model(depths: Array | None) -> TBModel:
 
 
 def _surface_cell() -> SurfaceCell:
-    """Return a primitive (001) surface cell."""
+    """PRIVATE: Return a primitive (001) surface cell.
+
+    Returns
+    -------
+    surface_cell : SurfaceCell
+        Identity-oriented cell with unit in-plane vectors along x and
+        y and the stacking vector along z. Interlayer spacing is
+        1.0 Angstrom, with Miller indices (0, 0, 1) and matching
+        integer coefficients.
+
+    Notes
+    -----
+    Mirrors the trivial cubic surface so carrier tests can assert
+    exact round trips of every stored field.
+    """
     surface_cell: SurfaceCell = make_surface_cell(
         in_plane_vectors=jnp.asarray(
             [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
@@ -123,7 +190,7 @@ class TestDepthCarrier:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        cases: tuple[tuple[Array, str], ...] = (
+        cases: Tuple[Tuple[Array, str], ...] = (
             (
                 jnp.asarray([0.0, -1e-6], dtype=jnp.float64),
                 "depths must be nonnegative",

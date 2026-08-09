@@ -32,7 +32,7 @@ from diffpes.types import (
 
 @jaxtyped(typechecker=beartype)
 def _make_test_orb() -> OrbitalProjection:
-    """Create a test OrbitalProjection with 2 k-points, 2 bands, 3 atoms.
+    """PRIVATE: Create a test OrbitalProjection with 2 k-points, 2 bands, 3 atoms.
 
     The helper constructs an ``OrbitalProjection`` with shape ``(2, 2, 3, 9)``.
     Each atom has a distinct s-orbital value. All atoms share fixed p-orbital

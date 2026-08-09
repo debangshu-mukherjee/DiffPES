@@ -106,7 +106,12 @@ from .polarization import (
 
 
 def _basis_key(basis: OrbitalBasis) -> tuple[tuple[object, ...], ...]:
-    """Return the exact static identity of an orbital basis."""
+    """PRIVATE: Return the exact static identity of an orbital basis.
+
+    Notes
+    -----
+    The identity hashes only static basis structure, never values.
+    """
     key: tuple[tuple[object, ...], ...] = (
         basis.atom_indices,
         basis.n,
@@ -119,7 +124,12 @@ def _basis_key(basis: OrbitalBasis) -> tuple[tuple[object, ...], ...]:
 
 
 def _spin_layout(basis: OrbitalBasis) -> tuple[int, int]:
-    """Validate and return ``(n_spin, n_orbitals_per_spin)``."""
+    """PRIVATE: Validate and return ``(n_spin, n_orbitals_per_spin)``.
+
+    Notes
+    -----
+    The layout derives from the basis length and the spin flag.
+    """
     n_orbitals: int = len(basis.n)
     if not basis.spin:
         layout: tuple[int, int] = (1, n_orbitals)
@@ -150,7 +160,12 @@ def _solid_harmonic_component(
     degree: int,
     order: int,
 ) -> Float64[Array, " ..."]:
-    """Evaluate one normalized real solid harmonic on the unit sphere."""
+    """PRIVATE: Evaluate one normalized real solid harmonic on the unit sphere.
+
+    Notes
+    -----
+    The component follows the fixed real-harmonic convention.
+    """
     absolute_order: int = abs(order)
     x_component: Float64[Array, " ..."] = direction_unit[..., 0]
     y_component: Float64[Array, " ..."] = direction_unit[..., 1]
@@ -207,7 +222,12 @@ def _solid_harmonic_component(
 def _orbital_phase_indices(
     me_params: MatrixElementParams,
 ) -> tuple[tuple[int, int], ...]:
-    """Return each orbital branch's compact phase index or zero sentinel."""
+    """PRIVATE: Return each branch phase index or its zero sentinel.
+
+    Notes
+    -----
+    A zero sentinel marks the branch without a free phase.
+    """
     compact_index: dict[tuple[int, int], int] = {
         key: index for index, key in enumerate(me_params.phase_channel_keys)
     }
@@ -234,7 +254,12 @@ def _active_parameter_tree(
     me_params: MatrixElementParams,
     mean_free_path_ang: Float64[Array, ""],
 ) -> dict[str, Array]:
-    """Collect the mode-active matrix-element parameter leaves."""
+    """PRIVATE: Collect the mode-active matrix-element parameter leaves.
+
+    Notes
+    -----
+    The mode string selects which leaves stay active.
+    """
     active: dict[str, Array] = {}
     if radial.mode == "slater":
         active["zeta_shell"] = radial.zeta_shell
@@ -257,7 +282,12 @@ def _pack_active_tree(
     PyTreeDef,
     tuple[tuple[tuple[int, ...], bool], ...],
 ]:
-    """Pack one active parameter tree with stacked complex coordinates."""
+    """PRIVATE: Pack one active tree with stacked complex coordinates.
+
+    Notes
+    -----
+    The packing stacks real and imaginary parts as one vector.
+    """
     leaves: list[Array]
     tree_definition: PyTreeDef
     leaves, tree_definition = jax.tree_util.tree_flatten(active)
@@ -290,7 +320,12 @@ def _validate_band_groups(
     bands: DiagonalizedBands,
     band_groups: tuple[tuple[int, ...], ...],
 ) -> None:
-    """Validate complete static groups against every sampled eigenspectrum."""
+    """PRIVATE: Validate complete groups against each eigenspectrum.
+
+    Notes
+    -----
+    The check rejects overlapping or incomplete band groups.
+    """
     if type(band_groups) is not tuple or not band_groups:
         message: str = "band_groups must be a nonempty tuple"
         raise ValueError(message)

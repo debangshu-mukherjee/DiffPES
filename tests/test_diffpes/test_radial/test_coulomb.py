@@ -28,7 +28,21 @@ from diffpes.types import FinalStateSpec, make_final_state_spec
 
 
 def _reference() -> dict[str, Shaped[NDArray, "..."]]:
-    """Load the frozen 80-digit Coulomb value and derivative artifact."""
+    """PRIVATE: Load the frozen 80-digit Coulomb value and derivative artifact.
+
+    Returns
+    -------
+    result : dict[str, Shaped[NDArray, "..."]]
+        Every array in the archive keyed by its stored name. The
+        content includes the dimensionless ``etas`` grid and the frozen
+        ``phase`` and ``phase_eta`` rows for orders zero to four.
+
+    Notes
+    -----
+    Opens ``coulomb_mpmath_80digit.npz`` beside this module and copies
+    each member of the archive into a plain dictionary. The values come
+    from an offline 80-digit mpmath computation.
+    """
     path: Path = (
         Path(__file__).with_name("data") / "coulomb_mpmath_80digit.npz"
     )

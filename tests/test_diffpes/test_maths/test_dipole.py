@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Array, Complex128, Float64, Int64
 from numpy.typing import NDArray
 from scipy.integrate import lebedev_rule
@@ -33,7 +33,18 @@ from diffpes.types import L_MAX, OrbitalBasis, make_orbital_basis
 
 
 def _generic_polarization() -> Array:
-    """Return a generic complex elliptic polarization."""
+    """PRIVATE: Return a generic complex elliptic polarization.
+
+    Returns
+    -------
+    polarization : Array
+        Complex128 Cartesian polarization with three unequal elliptic
+        components.
+
+    Notes
+    -----
+    Fixes the components so no Cartesian axis or phase is special.
+    """
     polarization: Array = jnp.asarray(
         (0.31 + 0.17j, -0.23 + 0.41j, 0.53 - 0.29j),
         dtype=jnp.complex128,
@@ -44,7 +55,27 @@ def _generic_polarization() -> Array:
 def _boole_weights(
     node_count: int, radius: float
 ) -> Float64[NDArray, " n_node"]:
-    """Return composite closed-Boole weights on a uniform inclusive grid."""
+    """PRIVATE: Return composite closed-Boole weights on a uniform grid.
+
+    Parameters
+    ----------
+    node_count : int
+        Number of inclusive grid nodes; the interval count must be a
+        multiple of four.
+    radius : float
+        Upper limit of the [0, radius] radial grid in Bohr.
+
+    Returns
+    -------
+    weights : Float64[NDArray, " n_node"]
+        Quadrature weights for the uniform inclusive grid.
+
+    Notes
+    -----
+    Adds the five-point closed Boole block 2h/45 * (7, 32, 12, 32, 7)
+    over each group of four intervals; interior block edges accumulate
+    contributions from both neighbor blocks.
+    """
     interval_count: int = node_count - 1
     assert interval_count % 4 == 0
     spacing: float = radius / interval_count
@@ -67,8 +98,41 @@ def _tensor_product_gauges(
     radial_initial_derivative: Float64[NDArray, " n_node"],
     radial_final: Float64[NDArray, " n_node"],
     lebedev_degree: int,
-) -> tuple[Array, Array]:
-    """Evaluate both public gauges on a radial-by-Lebedev reconstruction."""
+) -> Tuple[Array, Array]:
+    """PRIVATE: Evaluate both public gauges on a radial-Lebedev product grid.
+
+    Parameters
+    ----------
+    radial_grid : Float64[NDArray, " n_node"]
+        Radial nodes in Bohr.
+    radial_weights : Float64[NDArray, " n_node"]
+        One-dimensional radial quadrature weights in Bohr.
+    radial_initial : Float64[NDArray, " n_node"]
+        Initial s-state radial function samples.
+    radial_initial_derivative : Float64[NDArray, " n_node"]
+        Radial derivative samples of the initial radial function.
+    radial_final : Float64[NDArray, " n_node"]
+        Final p-state radial function samples.
+    lebedev_degree : int
+        Degree of the Lebedev angular rule.
+
+    Returns
+    -------
+    length : Array
+        Length-gauge amplitude for z polarization.
+    momentum : Array
+        Momentum-gauge amplitude for z polarization.
+
+    Implementation Logic
+    --------------------
+    Attaches the s harmonic to the initial state and the p_z harmonic
+    to the final state, forms flattened radius-times-direction sample
+    points in chunks of 512 radial nodes, weights each sample with the
+    radial weight times radius squared times the angular weight, and
+    accumulates both public Cartesian contractions over the chunks. The
+    initial-state gradient is the radial derivative times the unit
+    direction.
+    """
     angular_points: Float64[NDArray, "3 n_angular"]
     angular_weights: Float64[NDArray, " n_angular"]
     angular_points, angular_weights = lebedev_rule(lebedev_degree)
@@ -147,8 +211,34 @@ def _hydrogenic_gauges(
     charge: Array,
     node_count: int,
     lebedev_degree: int,
-) -> tuple[Array, Array]:
-    """Evaluate the normalized hydrogenic 1s-to-2p gauge pair."""
+) -> Tuple[Array, Array]:
+    """PRIVATE: Evaluate the normalized hydrogenic 1s-to-2p gauge pair.
+
+    Parameters
+    ----------
+    charge : Array
+        Nuclear charge that scales both hydrogenic orbitals; the JAX
+        scalar stays differentiable.
+    node_count : int
+        Number of radial nodes on the [0, 43] Bohr grid.
+    lebedev_degree : int
+        Degree of the Lebedev angular rule.
+
+    Returns
+    -------
+    length : Array
+        Length-gauge 1s-to-2p amplitude for z polarization.
+    momentum : Array
+        Momentum-gauge 1s-to-2p amplitude for z polarization.
+
+    Implementation Logic
+    --------------------
+    Samples the closed-form normalized 1s and 2p radial functions and
+    the analytic 1s radial derivative on a Boole-weighted uniform grid,
+    attaches the s and p_z harmonics, and accumulates both public
+    Cartesian contractions over radius-times-direction chunks of 512
+    radial nodes.
+    """
     radius: float = 43.0
     radial_grid_numpy: Float64[NDArray, " n_node"] = np.linspace(
         0.0, radius, node_count
@@ -230,8 +320,30 @@ def _hydrogenic_gauges(
 def _hydrogenic_reduced_public_gauges(
     charge: Array,
     node_count: int,
-) -> tuple[Array, Array]:
-    """Evaluate the analytic angular reduction through both public APIs."""
+) -> Tuple[Array, Array]:
+    """PRIVATE: Evaluate the analytic angular reduction through public APIs.
+
+    Parameters
+    ----------
+    charge : Array
+        Nuclear charge that scales both hydrogenic orbitals.
+    node_count : int
+        Number of radial nodes on the [0, 43] Bohr grid.
+
+    Returns
+    -------
+    length : Array
+        Length-gauge 1s-to-2p amplitude for z polarization.
+    momentum : Array
+        Momentum-gauge 1s-to-2p amplitude for z polarization.
+
+    Implementation Logic
+    --------------------
+    Folds the exact angular integral 1/sqrt(3) into the position and
+    gradient z components, so each public Cartesian contraction over
+    the Boole-weighted radial grid equals the reduced one-dimensional
+    radial integral. No angular quadrature remains.
+    """
     radius: float = 43.0
     radial_grid: Array = jnp.linspace(0.0, radius, node_count)
     radial_weights: Array = jnp.asarray(_boole_weights(node_count, radius))
@@ -281,7 +393,30 @@ def _radial_second_derivative(
     radius: float,
     angular_momentum: int,
 ) -> csr_matrix:
-    """Build a centered sixth-order radial Dirichlet operator."""
+    """PRIVATE: Build a centered sixth-order radial Dirichlet operator.
+
+    Parameters
+    ----------
+    node_count : int
+        Number of radial nodes, both boundary nodes included.
+    radius : float
+        Upper limit of the [0, radius] radial grid in Bohr.
+    angular_momentum : int
+        Angular momentum l; sets the reflection parity of the reduced
+        radial function at the origin.
+
+    Returns
+    -------
+    result : csr_matrix
+        Sparse second-derivative operator on the interior nodes.
+
+    Implementation Logic
+    --------------------
+    Assembles the seven-point sixth-order centered stencil divided by
+    the spacing squared. Out-of-range samples reflect through the
+    origin with sign (-1)**(l + 1) and through the outer wall with sign
+    -1; contributions on the two Dirichlet boundary nodes are dropped.
+    """
     spacing: float = radius / (node_count - 1)
     interior_count: int = node_count - 2
     operator: lil_matrix = lil_matrix(
@@ -321,13 +456,42 @@ def _radial_second_derivative(
 def _local_box_states(
     node_count: int,
     quadratic_coefficient: float,
-) -> tuple[
+) -> Tuple[
     Float64[NDArray, " n_node"],
     Float64[NDArray, " n_node"],
     Float64[NDArray, " 2"],
     Float64[NDArray, "2 n_node"],
 ]:
-    """Compute phase-pinned local anharmonic s and p radial states."""
+    """PRIVATE: Compute phase-pinned local anharmonic s and p radial states.
+
+    Parameters
+    ----------
+    node_count : int
+        Number of radial nodes on the [0, 40] Bohr grid.
+    quadratic_coefficient : float
+        Coefficient of the quadratic confinement term in Hartree per
+        Bohr squared.
+
+    Returns
+    -------
+    radial_grid : Float64[NDArray, " n_node"]
+        Radial nodes in Bohr.
+    radial_weights : Float64[NDArray, " n_node"]
+        Boole quadrature weights in Bohr.
+    energies : Float64[NDArray, " 2"]
+        Ground s and p eigenvalues in Hartree.
+    states : Float64[NDArray, "2 n_node"]
+        Normalized reduced radial states with zero boundary values.
+
+    Implementation Logic
+    --------------------
+    For l = 0 and l = 1, builds the sixth-order Dirichlet Hamiltonian
+    with centrifugal, quadratic, and fixed quartic (0.001) terms,
+    solves for the lowest eigenpair with shift-invert Lanczos at sigma
+    0, embeds the interior eigenvector with zero boundaries, normalizes
+    against the Boole weights, and pins the sign so the first interior
+    sample is positive. The lru_cache reuses up to four grids.
+    """
     radius: float = 40.0
     radial_grid: Float64[NDArray, " n_node"] = np.linspace(
         0.0, radius, node_count
@@ -379,7 +543,26 @@ def _local_box_states(
 def _derivative_sixth(
     values: Float64[NDArray, " n_node"], spacing: float
 ) -> Float64[NDArray, " n_node"]:
-    """Differentiate a radial array with sixth-order seven-point stencils."""
+    """PRIVATE: Differentiate an array with sixth-order seven-point stencils.
+
+    Parameters
+    ----------
+    values : Float64[NDArray, " n_node"]
+        Samples on a uniform grid.
+    spacing : float
+        Uniform grid spacing in Bohr.
+
+    Returns
+    -------
+    derivative : Float64[NDArray, " n_node"]
+        First-derivative samples at every node.
+
+    Notes
+    -----
+    For each node, clamps a seven-point window inside the grid, solves
+    the Vandermonde moment system for the first-derivative weights at
+    that offset, and applies the weights to the windowed samples.
+    """
     node_count: int = values.size
     derivative: Float64[NDArray, " n_node"] = np.empty_like(values)
     index: int
@@ -767,8 +950,8 @@ class TestChannelTables:
             labels=("py", "dxz"),
         )
 
-        def build_tables() -> tuple[Array, Array]:
-            result: tuple[Array, Array] = channel_tables(basis)
+        def build_tables() -> Tuple[Array, Array]:
+            result: Tuple[Array, Array] = channel_tables(basis)
             return result
 
         expression: Any = jax.make_jaxpr(build_tables)()
@@ -879,7 +1062,7 @@ class TestDipoleLengthCartesian:
             )
             return result
 
-        jvp_result: tuple[Array, Array] = jax.jvp(
+        jvp_result: Tuple[Array, Array] = jax.jvp(
             amplitude, (psi_initial,), (direction,)
         )
         tangent: Array = jvp_result[1]

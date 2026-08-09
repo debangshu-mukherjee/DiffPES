@@ -47,10 +47,30 @@ def _gr_66213_power(
     decay: mp.mpf,
     momentum: mp.mpf,
 ) -> mp.mpf:
-    r"""Evaluate ``integral r**power exp(-a r) j_l(k r) dr``.
+    r"""PRIVATE: Evaluate ``integral r**power exp(-a r) j_l(k r) dr``.
 
+    Parameters
+    ----------
+    power : int
+        Radial power of the integrand.
+    l_prime : int
+        Final-state spherical-Bessel order.
+    decay : mp.mpf
+        Exponential decay constant in 1/Bohr.
+    momentum : mp.mpf
+        Photoelectron momentum in 1/Bohr.
+
+    Returns
+    -------
+    value : mp.mpf
+        The integral in Bohr units at the working precision.
+
+    Notes
+    -----
     This is G&R 6.621.3 after substituting
-    ``j_l(x) = sqrt(pi / (2 x)) J_(l+1/2)(x)``.
+    ``j_l(x) = sqrt(pi / (2 x)) J_(l+1/2)(x)``: a Gamma-function
+    prefactor times the Gauss hypergeometric ``2F1`` at argument
+    ``-(k/a)**2``.
     """
     mu: mp.mpf = mp.mpf(power) + mp.mpf("0.5")
     nu: mp.mpf = mp.mpf(l_prime) + mp.mpf("0.5")
@@ -72,7 +92,25 @@ def _gr_66213_power(
 
 
 def _slater_reference(case: RadialCase) -> mp.mpf:
-    """Evaluate one normalized Slater radial dipole integral."""
+    """PRIVATE: Evaluate one normalized Slater radial dipole integral.
+
+    Parameters
+    ----------
+    case : RadialCase
+        Frozen case with quantum numbers, the Slater exponent in
+        1/Bohr, and the momentum in 1/Bohr.
+
+    Returns
+    -------
+    value : mp.mpf
+        Normalized ``<R_nl | r | j_l'>`` integral in Bohr units.
+
+    Notes
+    -----
+    The normalized STO radial part is ``N r^{n-1} e^{-zeta r}`` with
+    ``N = (2 zeta)^{n+1/2} / sqrt((2n)!)``; the dipole integral then
+    reduces to one :func:`_gr_66213_power` call with power ``n + 2``.
+    """
     zeta: mp.mpf = mp.mpf(case.radial_parameter)
     normalization: mp.mpf = (2 * zeta) ** (case.n + mp.mpf("0.5"))
     normalization /= mp.sqrt(mp.factorial(2 * case.n))
@@ -86,7 +124,27 @@ def _slater_reference(case: RadialCase) -> mp.mpf:
 
 
 def _hydrogenic_reference(case: RadialCase) -> mp.mpf:
-    """Evaluate one normalized hydrogenic radial dipole integral."""
+    """PRIVATE: Evaluate one normalized hydrogenic radial dipole integral.
+
+    Parameters
+    ----------
+    case : RadialCase
+        Frozen case with quantum numbers, the effective charge, and
+        the momentum in 1/Bohr.
+
+    Returns
+    -------
+    value : mp.mpf
+        Normalized ``<R_nl | r | j_l'>`` integral in Bohr units.
+
+    Implementation Logic
+    --------------------
+    The associated Laguerre polynomial expands into its explicit
+    binomial sum; each monomial term maps to one
+    :func:`_gr_66213_power` call with power ``3 + l + term`` and the
+    hydrogenic decay ``Z/n``, and the normalized prefactor scales the
+    sum.
+    """
     charge: mp.mpf = mp.mpf(case.radial_parameter)
     decay: mp.mpf = charge / case.n
     laguerre_order: int = case.n - case.angular_momentum - 1
@@ -118,7 +176,28 @@ def _hydrogenic_reference(case: RadialCase) -> mp.mpf:
 
 
 def _direct_quadrature(case: RadialCase) -> mp.mpf:
-    """Evaluate the same reference by direct arbitrary-precision quadrature."""
+    """PRIVATE: Evaluate the same reference by direct quadrature.
+
+    Parameters
+    ----------
+    case : RadialCase
+        Frozen case with quantum numbers, the radial parameter, and
+        the momentum in 1/Bohr.
+
+    Returns
+    -------
+    value : mp.mpf
+        The dipole integral in Bohr units from ``mp.quad`` on
+        ``[0, inf)``.
+
+    Implementation Logic
+    --------------------
+    The integrand assembles the normalized Slater or hydrogenic radial
+    function explicitly, multiplies by ``r^3`` and the spherical
+    Bessel function ``j_l'(k r)`` (with its exact ``k r = 0`` limit),
+    and integrates with adaptive arbitrary-precision quadrature as an
+    independent check on the closed form.
+    """
     momentum: mp.mpf = mp.mpf(case.k_bohr_inv)
     parameter: mp.mpf = mp.mpf(case.radial_parameter)
 

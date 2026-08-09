@@ -11,12 +11,12 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarFloat
 
-_MODES: tuple[str, ...] = (
+_MODES: Tuple[str, ...] = (
     "constant",
     "poly",
     "grid",
@@ -77,7 +77,14 @@ class SelfEnergyModel(eqx.Module):
         self._check_values()
 
     def _check_structure(self) -> None:
-        """Reject invalid static carrier structure."""
+        """PRIVATE: Reject invalid static carrier structure.
+
+        Notes
+        -----
+        The checks compare the mode, the coefficient length, and the
+        domain and tail fields against the carrier state table. Every
+        violation raises :class:`ValueError` before tracing.
+        """
         if self.mode not in _MODES:
             raise ValueError(
                 f"mode must be one of {_MODES}, got {self.mode!r}"
@@ -136,7 +143,13 @@ class SelfEnergyModel(eqx.Module):
                 )
 
     def _check_node_structure(self) -> None:
-        """Reject node shapes incompatible with the selected mode."""
+        """PRIVATE: Reject node shapes incompatible with the selected mode.
+
+        Notes
+        -----
+        Grid mode requires one node vector that matches the coefficient
+        length. Every other mode rejects a node vector.
+        """
         nodes: Optional[Float64[Array, "..."]] = self.energy_nodes_rel_fermi_ev
         if self.mode == "grid":
             if (
@@ -158,7 +171,14 @@ class SelfEnergyModel(eqx.Module):
             )
 
     def _check_values(self) -> None:
-        """Reject invalid numerical values eagerly and while traced."""
+        """PRIVATE: Reject invalid numerical values eagerly and while traced.
+
+        Notes
+        -----
+        Every predicate threads through a value-bound
+        :func:`equinox.error_if`, so each check stays active inside
+        compiled code and rewrites the checked field in place.
+        """
         nodes: Optional[Float64[Array, "..."]] = self.energy_nodes_rel_fermi_ev
         domain: Optional[Float64[Array, "..."]] = self.kk_domain_rel_fermi_ev
         tail: Optional[Float64[Array, "..."]] = self.tail_coefficients
@@ -246,7 +266,7 @@ class SelfEnergyModel(eqx.Module):
 @jaxtyped(typechecker=beartype)
 def make_self_energy_model(
     coefficients: Optional[Float[Array, "..."]] = None,
-    gamma: ScalarFloat = 0.1,
+    gamma: Optional[ScalarFloat] = None,
     mode: str = "constant",
     energy_nodes_rel_fermi_ev: Optional[Float[Array, "..."]] = None,
     kk_consistent: bool = True,
@@ -268,8 +288,11 @@ def make_self_energy_model(
 
            if mode not in _MODES:
                raise ValueError(msg)
+           if coefficients is not None and gamma is not None:
+               raise ValueError(msg)
 
-       The factory also validates the exclusive ``gamma`` shortcut.
+       The factory rejects a ``gamma`` shortcut next to explicit
+       coefficients instead of dropping one input silently.
     2. **Convert the numerical inputs**::
 
            coefficients_array = jnp.asarray(coefficients, dtype=jnp.float64)
@@ -285,9 +308,10 @@ def make_self_energy_model(
     ----------
     coefficients : Optional[Float[Array, " n_coef"]], optional
         Explicit unconstrained raw model coordinates.
-    gamma : ScalarFloat, optional
-        Positive finite constant linewidth shortcut in eV. Used only when
-        ``coefficients`` is absent and ``mode='constant'``.
+    gamma : Optional[ScalarFloat], optional
+        Positive finite constant linewidth shortcut in eV. The shortcut
+        requires ``coefficients`` absent and ``mode='constant'``. An
+        absent shortcut with absent coefficients defaults to ``0.1``.
     mode : str, optional
         One of ``constant``, ``poly``, ``grid``, ``fermi_liquid``, or
         ``bosonic_kink``. **Static** -- changing it triggers retracing.
@@ -313,19 +337,28 @@ def make_self_energy_model(
     Raises
     ------
     ValueError
-        If static structure does not match the complete carrier state table.
+        If static structure does not match the complete carrier state table,
+        or if ``gamma`` accompanies explicit ``coefficients``.
     EquinoxRuntimeError
         If a traced numerical value violates its finite, ordering, domain, or
         tail-bound constraint.
     """
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}, got {mode!r}")
+    if coefficients is not None and gamma is not None:
+        raise ValueError(
+            "the gamma shortcut is exclusive; supply gamma or explicit "
+            "coefficients, never both"
+        )
     if coefficients is None:
         if mode != "constant":
             raise ValueError(
                 "coefficients are required unless mode='constant'"
             )
-        gamma_array: Float64[Array, ""] = jnp.asarray(gamma, dtype=jnp.float64)
+        gamma_value: ScalarFloat = 0.1 if gamma is None else gamma
+        gamma_array: Float64[Array, ""] = jnp.asarray(
+            gamma_value, dtype=jnp.float64
+        )
         gamma_array = eqx.error_if(
             gamma_array,
             ~jnp.isfinite(gamma_array) | (gamma_array <= 0.0),

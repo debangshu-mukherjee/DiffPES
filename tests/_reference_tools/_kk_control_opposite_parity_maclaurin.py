@@ -1,7 +1,7 @@
 """Rejected opposite-parity Maclaurin control for the Kramers--Kronig study.
 
-This module deliberately reproduces the path rejected by the 2026-07-29
-amendment.  It first transforms point samples at the core-grid nodes and then
+This module deliberately reproduces the rejected point-sampled transform
+path.  It first transforms point samples at the core-grid nodes and then
 uses one cubic-Hermite interpolant for arbitrary queries.  Production code
 must not use this post-transform interpolation scheme.
 """
@@ -22,7 +22,27 @@ def _node_transform(
     core_grid_ev: Array,
     core_imag_values: Array,
 ) -> Array:
-    """Apply the opposite-parity Maclaurin rule at every grid node."""
+    """PRIVATE: Apply the opposite-parity Maclaurin rule at every grid node.
+
+    Parameters
+    ----------
+    core_grid_ev : Array
+        Uniform core energy grid in eV.
+    core_imag_values : Array
+        Imaginary self-energy samples in eV at the grid nodes.
+
+    Returns
+    -------
+    result_ev : Array
+        Point-sampled principal-value transform in eV at every node.
+
+    Implementation Logic
+    --------------------
+    The rule couples only node pairs with opposite index parity. Each
+    such pair receives the weight ``(2 h / pi) / (omega_j - omega_i)``
+    with grid spacing ``h``; same-parity pairs receive zero. One dense
+    matrix-vector product then yields all node values at once.
+    """
     spacing_ev: Array = core_grid_ev[1] - core_grid_ev[0]
     row_indices: Array = jnp.arange(core_grid_ev.size)[:, None]
     column_indices: Array = jnp.arange(core_grid_ev.size)[None, :]
@@ -43,7 +63,26 @@ def _node_transform(
 
 
 def _node_slopes(core_grid_ev: Array, node_values: Array) -> Array:
-    """Return second-order centered and one-sided node derivatives."""
+    """PRIVATE: Return second-order centered and one-sided node derivatives.
+
+    Parameters
+    ----------
+    core_grid_ev : Array
+        Uniform core energy grid in eV.
+    node_values : Array
+        Transformed values in eV at the grid nodes.
+
+    Returns
+    -------
+    result : Array
+        First-derivative estimate at every node, in eV per eV.
+
+    Implementation Logic
+    --------------------
+    Interior nodes use the centered difference over ``2 h``. The first
+    and last nodes use the matching second-order three-point one-sided
+    stencils, so every slope keeps the same truncation order.
+    """
     spacing_ev: Array = core_grid_ev[1] - core_grid_ev[0]
     interior: Array = (node_values[2:] - node_values[:-2]) / (2.0 * spacing_ev)
     left: Array = (
@@ -61,7 +100,29 @@ def _cubic_hermite(
     node_values: Array,
     queries_ev: Array,
 ) -> Array:
-    """Evaluate the rejected single post-transform cubic-Hermite interpolant."""
+    """PRIVATE: Evaluate the rejected post-transform cubic-Hermite interpolant.
+
+    Parameters
+    ----------
+    core_grid_ev : Array
+        Uniform core energy grid in eV.
+    node_values : Array
+        Point-sampled transform values in eV at the grid nodes.
+    queries_ev : Array
+        Query energies in eV inside the core grid.
+
+    Returns
+    -------
+    result_ev : Array
+        Interpolated transform values in eV at the queries.
+
+    Implementation Logic
+    --------------------
+    A clipped ``searchsorted`` locates the cell of every query. The
+    normalized cell coordinate feeds the four Hermite basis cubics.
+    Node values and spacing-scaled ``_node_slopes`` derivatives then
+    combine into the C1 piecewise-cubic value.
+    """
     spacing_ev: Array = core_grid_ev[1] - core_grid_ev[0]
     slopes: Array = _node_slopes(core_grid_ev, node_values)
     left_indices: Array = (
@@ -107,7 +168,27 @@ def core_pv_transform(
 
 
 def _wigner_calibration(node_count: int) -> tuple[float, float]:
-    """Measure maximum Wigner value and query-derivative errors."""
+    """PRIVATE: Measure maximum Wigner value and query-derivative errors.
+
+    Parameters
+    ----------
+    node_count : int
+        Number of uniform core-grid nodes on ``[-8, 8]`` eV.
+
+    Returns
+    -------
+    errors : tuple[float, float]
+        Maximum absolute value error in eV and maximum absolute
+        query-derivative error over the in-band queries.
+
+    Implementation Logic
+    --------------------
+    The fixture is the Wigner semicircle with half-width 1.5 eV and
+    coupling 0.2 eV^2, whose in-band transform is ``prefactor * omega``.
+    The function evaluates the control on 1001 queries in ``[-1, 1]``
+    eV, differentiates one scalar wrapper with ``jax.vmap(jax.grad)``,
+    and returns both maximum deviations from the analytic line.
+    """
     core_grid_ev: Array = jnp.linspace(
         -8.0, 8.0, node_count, dtype=jnp.float64
     )

@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import mpmath
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
@@ -47,7 +48,18 @@ from tests._gradients import assert_grad_matches_fd, assert_nonzero_grad
 
 
 def _basis() -> OrbitalBasis:
-    """Build one complete mixed s-and-p real-orbital basis."""
+    """PRIVATE: Build one complete mixed s-and-p real-orbital basis.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        One atom with the 1s orbital and the complete n=2 p shell.
+
+    Notes
+    -----
+    Lists the three p orbitals in ascending m order after the s
+    orbital.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0, 0),
         n=(1, 2, 2, 2),
@@ -66,7 +78,32 @@ def _experiment(
     mean_free_path: Float64[Array, ""] = jnp.asarray(8.4),
     inner_potential: Float64[Array, ""] = jnp.asarray(11.0),
 ) -> ExperimentGeometry:
-    """Build a generic transverse experiment carrier."""
+    """PRIVATE: Build a generic transverse experiment carrier.
+
+    Parameters
+    ----------
+    photon_energy : Float64[Array, ""]
+        Photon energy in eV.
+    polarization : Complex128[Array, " 3"]
+        Cartesian complex polarization; the default is transverse with
+        a zero z component.
+    azimuth : Float64[Array, ""]
+        Sample azimuth in radians.
+    mean_free_path : Float64[Array, ""]
+        Inelastic mean free path in Angstrom.
+    inner_potential : Float64[Array, ""]
+        Inner potential in eV.
+
+    Returns
+    -------
+    experiment : ExperimentGeometry
+        Experiment carrier with the work function fixed at 4.5 eV.
+
+    Notes
+    -----
+    Passes every argument through the public factory and pins only the
+    work function.
+    """
     experiment: ExperimentGeometry = make_experiment_geometry(
         photon_energy,
         polarization,
@@ -92,7 +129,33 @@ def _bands(
     ),
     depths: Float64[Array, " 4"] | None = jnp.asarray([0.4, 1.2, 2.1, 3.4]),
 ) -> DiagonalizedBands:
-    """Build one generic-complex nondegenerate band carrier."""
+    """PRIVATE: Build one generic-complex nondegenerate band carrier.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Four-orbital metadata for the single atom.
+    lattice : Float64[Array, "3 3"]
+        Lattice rows in Angstrom.
+    atom_positions : Float64[Array, "1 3"]
+        Fractional position of the one atom.
+    orbital_positions : Float64[Array, "4 3"] | None
+        Fractional orbital centres; None falls back to the host atom
+        sites.
+    depths : Float64[Array, " 4"] | None
+        Orbital depths in Angstrom; None drops the depth carrier.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        One zone-center k-point with one band at -0.37 eV and a fixed
+        generic complex eigenvector.
+
+    Notes
+    -----
+    The generic default positions and depths keep every orbital factor
+    distinct so no gradient path cancels.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice,
         atom_positions,
@@ -117,7 +180,26 @@ def _matrix_params(
     basis: OrbitalBasis,
     phases: Float64[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67]),
 ) -> MatrixElementParams:
-    """Build compact physical phase and scale coordinates."""
+    """PRIVATE: Build compact physical phase and scale coordinates.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital metadata for the mixed s-and-p basis.
+    phases : Float64[Array, " 3"]
+        Phase-shift angles in radians for the three dipole branch
+        channels of the two shells.
+
+    Returns
+    -------
+    params : MatrixElementParams
+        Parameter carrier with per-shell sigma scales 1.1 and 0.83.
+
+    Notes
+    -----
+    Maps the four orbitals onto the s shell and one p shell with shell
+    map (0, 1, 1, 1).
+    """
     params: MatrixElementParams = make_matrix_element_params(
         basis,
         (0, 1, 1, 1),
@@ -133,7 +215,29 @@ def _generic_channels(
     mean_free_path: Float64[Array, ""] = jnp.asarray(8.4),
     phases: Float64[Array, " 3"] = jnp.asarray([0.23, -0.41, 0.67]),
 ) -> Complex128[Array, "1 1 4 3"]:
-    """Assemble lower-level generic-complex orbital channels."""
+    """PRIVATE: Assemble lower-level generic-complex orbital channels.
+
+    Parameters
+    ----------
+    positions : Float64[Array, "4 3"] | None
+        Cartesian orbital positions in Angstrom; None selects fixed
+        generic values.
+    mean_free_path : Float64[Array, ""]
+        Inelastic mean free path in Angstrom.
+    phases : Float64[Array, " 3"]
+        Branch phase-shift angles in radians.
+
+    Returns
+    -------
+    channels : Complex128[Array, "1 1 4 3"]
+        Cartesian orbital transition channels at one k-point.
+
+    Notes
+    -----
+    Fixes one initial and one final momentum in 1/Angstrom, generic
+    complex radial branch values with the s lower branch zero, and
+    depths 0.4 to 3.4 Angstrom.
+    """
     basis: OrbitalBasis = _basis()
     resolved_positions: Float64[Array, "4 3"] = (
         jnp.asarray(
@@ -175,7 +279,28 @@ def _intensity(
     experiment: ExperimentGeometry,
     eigenvectors: Complex128[Array, "1 1 4"] | None = None,
 ) -> Float64[Array, ""]:
-    """Reduce generic orbital channels through one physical modulus square."""
+    """PRIVATE: Reduce generic orbital channels through one modulus square.
+
+    Parameters
+    ----------
+    channels : Complex128[Array, "1 1 4 3"]
+        Cartesian orbital transition channels.
+    experiment : ExperimentGeometry
+        Carrier that supplies the late polarization contraction.
+    eigenvectors : Complex128[Array, "1 1 4"] | None
+        Band projection coefficients; None selects the fixed generic
+        vector.
+
+    Returns
+    -------
+    intensity : Float64[Array, ""]
+        Summed physical intensity of the projected amplitudes.
+
+    Notes
+    -----
+    Projects the channels onto the band, contracts the experiment
+    polarization late, and sums the modulus-squared amplitudes.
+    """
     coefficients: Complex128[Array, "1 1 4"] = (
         jnp.asarray(
             [[[0.43 + 0.17j, -0.28 + 0.51j, 0.36 - 0.22j, 0.19 + 0.47j]]]
@@ -404,7 +529,7 @@ class TestProjectionAndPolarizationGradients:
         )
 
         def explicit_loss(
-            candidate: tuple[Float64[Array, "4 3"], Float64[Array, "3 3"]],
+            candidate: Tuple[Float64[Array, "4 3"], Float64[Array, "3 3"]],
         ) -> Float64[Array, ""]:
             """Return intensity through explicit Wannier centres."""
             centres: Float64[Array, "4 3"]
@@ -431,7 +556,7 @@ class TestProjectionAndPolarizationGradients:
         )
 
         def fallback_loss(
-            candidate: tuple[Float64[Array, "1 3"], Float64[Array, "3 3"]],
+            candidate: Tuple[Float64[Array, "1 3"], Float64[Array, "3 3"]],
         ) -> Float64[Array, ""]:
             """Return intensity through atom-derived centres."""
             atoms: Float64[Array, "1 3"]

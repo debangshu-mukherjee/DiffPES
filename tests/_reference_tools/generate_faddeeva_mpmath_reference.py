@@ -34,7 +34,22 @@ DIRECTIONS: np.ndarray = np.asarray(
 
 
 def _reference_points() -> np.ndarray:
-    """Return the exact preregistered base grid with duplicate zero removed."""
+    """PRIVATE: Return the preregistered grid with duplicate zeros removed.
+
+    Returns
+    -------
+    result : np.ndarray
+        Unique complex128 evaluation points in the closed upper half
+        plane with ``|z| <= 1e8``.
+
+    Implementation Logic
+    --------------------
+    The polar product of the frozen radii and angles fills the upper
+    half plane; a clamped ``sin`` keeps every imaginary part
+    nonnegative, points beyond ``|z| = 1e8`` rescale onto that
+    envelope, the explicit spot points append, and a first-seen filter
+    removes exact duplicates while it preserves order.
+    """
     radial_points: np.ndarray = (
         RADII[:, None] * np.cos(ANGLES)[None, :]
         + 1j * RADII[:, None] * np.maximum(np.sin(ANGLES), 0.0)[None, :]
@@ -62,7 +77,23 @@ def _reference_points() -> np.ndarray:
 
 
 def _array_bytes(array: np.ndarray) -> bytes:
-    """Serialize one NumPy array without filesystem timestamp metadata."""
+    """PRIVATE: Serialize one NumPy array without timestamp metadata.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        Array to serialize.
+
+    Returns
+    -------
+    result : bytes
+        The exact ``.npy`` byte stream for the array.
+
+    Notes
+    -----
+    ``np.lib.format.write_array`` writes into an in-memory buffer with
+    pickle disabled, so equal arrays always produce equal bytes.
+    """
     output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
     result: bytes = output.getvalue()
@@ -73,7 +104,21 @@ def _write_deterministic_npz(
     path: Path,
     arrays: dict[str, np.ndarray],
 ) -> None:
-    """Write an NPZ whose members have stable order and timestamps."""
+    """PRIVATE: Write an NPZ whose members have stable order and dates.
+
+    Parameters
+    ----------
+    path : Path
+        Destination NPZ path.
+    arrays : dict[str, np.ndarray]
+        Named arrays to store.
+
+    Notes
+    -----
+    Members enter in sorted name order with the fixed 1980-01-01 ZIP
+    timestamp, a fixed file mode, and DEFLATE level 9, so identical
+    arrays always produce byte-identical archives.
+    """
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -98,7 +143,23 @@ def _write_deterministic_npz(
 
 
 def _sha256(path: Path) -> str:
-    """Return the SHA-256 digest of one evidence file."""
+    """PRIVATE: Return the SHA-256 digest of one evidence file.
+
+    Parameters
+    ----------
+    path : Path
+        File to digest.
+
+    Returns
+    -------
+    result : str
+        Lowercase hexadecimal SHA-256 of the file bytes.
+
+    Notes
+    -----
+    The function reads the complete file into memory before hashing;
+    every evidence file stays small enough for that.
+    """
     result: str = hashlib.sha256(path.read_bytes()).hexdigest()
     return result
 

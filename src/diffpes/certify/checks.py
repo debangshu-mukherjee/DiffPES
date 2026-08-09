@@ -20,6 +20,7 @@ Routine Listings
 from functools import cache
 
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import CheckFunction
@@ -27,7 +28,20 @@ from diffpes.types import CheckFunction
 
 @cache
 def _check_registry() -> dict[str, CheckFunction]:
-    """Return process-local pure-JAX check bindings."""
+    """PRIVATE: Return process-local pure-JAX check bindings.
+
+    Returns
+    -------
+    registry : dict[str, CheckFunction]
+        The single mutable mapping from stable predicate identifiers to
+        registered pure JAX predicates.
+
+    Notes
+    -----
+    The :func:`functools.cache` decorator makes the empty dictionary a
+    process-local singleton. :func:`register_check` mutates the returned
+    mapping in place; :func:`get_check` and :func:`list_checks` read it.
+    """
     registry: dict[str, CheckFunction] = {}
     return registry
 
@@ -112,7 +126,7 @@ def get_check(check_id: str) -> CheckFunction:
 
 
 @jaxtyped(typechecker=beartype)
-def list_checks() -> tuple[str, ...]:
+def list_checks() -> Tuple[str, ...]:
     """List registered checks in deterministic identity order.
 
     The process-local registry selects pure JAX predicates by stable scientific
@@ -132,10 +146,10 @@ def list_checks() -> tuple[str, ...]:
 
     Returns
     -------
-    checks : tuple[str, ...]
+    checks : Tuple[str, ...]
         Sorted stable predicate identifiers.
     """
-    checks: tuple[str, ...] = tuple(sorted(_check_registry()))
+    checks: Tuple[str, ...] = tuple(sorted(_check_registry()))
     return checks
 
 

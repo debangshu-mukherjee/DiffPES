@@ -226,7 +226,7 @@ def read_eigenval(  # noqa: PLR0915
 
 
 def _read_next_nonempty_line(fid: TextIO) -> str:
-    """Read and return the next non-empty line, or ``""`` at EOF.
+    """PRIVATE: Read and return the next non-empty line, or ``""`` at EOF.
 
     Extended Summary
     ----------------

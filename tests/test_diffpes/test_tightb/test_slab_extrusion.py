@@ -28,7 +28,26 @@ from diffpes.types import (
 
 
 def _z_chain_model(hopping: jax.Array | float = -1.0) -> TBModel:
-    """Build a one-orbital chain whose periodic direction is bulk z."""
+    """PRIVATE: Build a one-orbital chain whose periodic direction is bulk z.
+
+    Parameters
+    ----------
+    hopping : jax.Array | float
+        Nearest-neighbor hopping amplitude in eV; a traced array keeps
+        the model differentiable through this value.
+
+    Returns
+    -------
+    model : TBModel
+        One-atom cubic-cell model with the hopping on ``(0, 0, 1)`` and
+        its conjugate on ``(0, 0, -1)``, and zero onsite energy.
+
+    Notes
+    -----
+    Stacking the value with its conjugate keeps the pair Hermitian for
+    complex inputs. The (001) slab of this chain is the textbook open
+    chain with the closed cosine spectrum.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -56,7 +75,21 @@ def _z_chain_model(hopping: jax.Array | float = -1.0) -> TBModel:
 
 
 def _alternating_species_model() -> TBModel:
-    """Build an inert X/Y stack with two planes per stacking period."""
+    """PRIVATE: Build an inert X/Y stack with two planes per stacking period.
+
+    Returns
+    -------
+    model : TBModel
+        Two-atom cubic-cell model with species X at fractional z zero
+        and species Y at fractional z one half, no hoppings, and zero
+        onsite energies.
+
+    Notes
+    -----
+    The hopping-free model isolates the geometric extrusion logic. The
+    termination and layer-ordering checks can count X and Y planes
+    without any electronic structure in the way.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.asarray(

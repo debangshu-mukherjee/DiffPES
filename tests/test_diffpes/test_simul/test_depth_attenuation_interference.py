@@ -11,6 +11,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.simul import (
@@ -31,7 +32,17 @@ from diffpes.types import (
 
 
 def _two_s_basis() -> OrbitalBasis:
-    """Return two independent real s orbitals."""
+    """PRIVATE: Return two independent real s orbitals.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Two 1s orbitals on atoms 0 and 1.
+
+    Notes
+    -----
+    Both orbitals share n=1, l=0, m=0 and differ only by atom index.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 1),
         n=(1, 1),
@@ -48,7 +59,32 @@ def _two_s_channels(
     initial_momentum: Float64[Array, "1 3"] | None = None,
     final_momentum: Float64[Array, "1 3"] | None = None,
 ) -> Complex128[Array, "1 1 2 3"]:
-    """Evaluate identical s-orbital transition rows."""
+    """PRIVATE: Evaluate identical s-orbital transition rows.
+
+    Parameters
+    ----------
+    positions_cart : Float64[Array, "2 3"]
+        Cartesian orbital positions in Angstrom.
+    depths : Float64[Array, " 2"]
+        Orbital depths below the surface in Angstrom.
+    mean_free_path : Float64[Array, ""]
+        Inelastic mean free path in Angstrom.
+    initial_momentum : Float64[Array, "1 3"] | None
+        Initial momentum in 1/Angstrom; zero when None.
+    final_momentum : Float64[Array, "1 3"] | None
+        Final momentum in 1/Angstrom; (0, 0, 1.1) when None.
+
+    Returns
+    -------
+    channels : Complex128[Array, "1 1 2 3"]
+        Cartesian transition channels of both orbitals at one k-point.
+
+    Notes
+    -----
+    Shares one complex value on the l+1 radial branch of both orbitals,
+    so the two rows differ only through the position, depth, and
+    momentum factors.
+    """
     basis: OrbitalBasis = _two_s_basis()
     params: MatrixElementParams = make_matrix_element_params(basis, (0, 1))
     initial: Float64[Array, "1 3"] = (
@@ -206,11 +242,27 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
     assert float(material_abs_factor) < 1.0
 
 
-def _displaced_bands() -> tuple[
+def _displaced_bands() -> Tuple[
     DiagonalizedBands,
-    Float64[Array, "2 3"],
+    Float64[Array, " 3"],
 ]:
-    """Return two atoms with one explicitly displaced Wannier centre."""
+    """PRIVATE: Return two atoms with one explicitly displaced Wannier centre.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Zero-energy identity-eigenvector bands at one k-point with
+        explicit orbital positions.
+    displacement_fractional : Float64[Array, " 3"]
+        Fractional displacement added to the second orbital centre.
+
+    Implementation Logic
+    --------------------
+    Builds a generic triclinic cell in Angstrom with two fractional
+    sites, displaces the orbital centre of the second site by a fixed
+    fractional offset, and attaches the two-s basis so only the
+    explicit centre differs from the host atom position.
+    """
     basis: OrbitalBasis = _two_s_basis()
     geometry: CrystalGeometry = make_crystal_geometry(
         jnp.asarray(

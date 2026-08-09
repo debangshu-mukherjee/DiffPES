@@ -35,7 +35,7 @@ from pathlib import Path
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, cast
+from beartype.typing import Any, Tuple, cast
 from jaxtyping import Shaped, jaxtyped
 from numpy.typing import NDArray
 
@@ -48,13 +48,51 @@ from diffpes.types import (
 
 
 def _normalize_text(value: str) -> str:
-    """Return the NFC-normalized form of ``value``."""
+    """PRIVATE: Return the NFC-normalized form of ``value``.
+
+    Parameters
+    ----------
+    value : str
+        Text in any Unicode normalization state.
+
+    Returns
+    -------
+    normalized : str
+        The NFC-normalized text.
+
+    Notes
+    -----
+    Applies :func:`unicodedata.normalize` with the ``NFC`` form so that
+    canonically equivalent text produces identical canonical bytes.
+    """
     normalized: str = unicodedata.normalize("NFC", value)
     return normalized
 
 
 def _length(value: int) -> bytes:
-    """Encode a nonnegative record length as an unsigned 64-bit integer."""
+    """PRIVATE: Encode a nonnegative record length as an unsigned 64-bit
+    integer.
+
+    Parameters
+    ----------
+    value : int
+        Nonnegative length or count of a canonical record component.
+
+    Returns
+    -------
+    encoded : bytes
+        Eight big-endian bytes that encode ``value``.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is negative.
+
+    Notes
+    -----
+    Packs ``value`` with the ``struct`` format ``>Q`` so every length
+    field in a canonical record has a fixed width and byte order.
+    """
     if value < 0:
         msg: str = "canonical record lengths must be nonnegative"
         raise ValueError(msg)
@@ -63,20 +101,80 @@ def _length(value: int) -> bytes:
 
 
 def _text_record(tag: bytes, value: str) -> bytes:
-    """Encode a tagged normalized UTF-8 text record."""
+    """PRIVATE: Encode a tagged normalized UTF-8 text record.
+
+    Parameters
+    ----------
+    tag : bytes
+        One-byte type tag that names the record kind.
+    value : str
+        Text payload for the record.
+
+    Returns
+    -------
+    record : bytes
+        The tag, the big-endian payload length, and the NFC-normalized
+        UTF-8 payload, in that order.
+
+    Notes
+    -----
+    Normalizes ``value`` with :func:`_normalize_text` before encoding so
+    that equivalent text yields one record. The length prefix makes the
+    record self-delimiting.
+    """
     encoded: bytes = _normalize_text(value).encode("utf-8")
     record: bytes = tag + _length(len(encoded)) + encoded
     return record
 
 
 def _qualified_name(value_type: type[Any]) -> str:
-    """Return a stable module-qualified type name."""
+    """PRIVATE: Return a stable module-qualified type name.
+
+    Parameters
+    ----------
+    value_type : type[Any]
+        Type whose identity enters a canonical record.
+
+    Returns
+    -------
+    name : str
+        The ``module.qualname`` string for ``value_type``.
+
+    Notes
+    -----
+    Joins ``__module__`` and ``__qualname__`` with a dot so dataclass and
+    enum records name their type without ambiguity across modules.
+    """
     name: str = f"{value_type.__module__}.{value_type.__qualname__}"
     return name
 
 
 def _float_bits(value: float) -> str:
-    """Return exact IEEE-754 binary64 bits as lowercase hexadecimal."""
+    """PRIVATE: Return exact IEEE-754 binary64 bits as lowercase
+    hexadecimal.
+
+    Parameters
+    ----------
+    value : float
+        Finite floating-point number.
+
+    Returns
+    -------
+    bits : str
+        Sixteen lowercase hexadecimal digits of the big-endian binary64
+        encoding of ``value``.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is NaN or infinite.
+
+    Notes
+    -----
+    Packs ``value`` with the ``struct`` format ``>d`` and hex-encodes the
+    result. The bit-exact encoding keeps the canonical record free of
+    decimal rounding.
+    """
     if not math.isfinite(value):
         msg: str = "canonical records reject NaN and infinite floats"
         raise ValueError(msg)
@@ -85,7 +183,36 @@ def _float_bits(value: float) -> str:
 
 
 def _json_node(value: object) -> object:  # noqa: PLR0911
-    """Convert JSON-like input to an explicitly typed JSON tree."""
+    """PRIVATE: Convert JSON-like input to an explicitly typed JSON tree.
+
+    Implementation Logic
+    --------------------
+    Dispatches on the concrete type. Integers become decimal strings and
+    floats become binary64 hex through :func:`_float_bits`, so the JSON
+    layer cannot round them. Mapping entries get NFC-normalized keys and
+    a sort by the UTF-8 byte order of the keys. Tuples and lists keep
+    distinct tags. The function recurses into containers.
+
+    Parameters
+    ----------
+    value : object
+        JSON-like value: ``None``, ``bool``, ``int``, ``float``, ``str``,
+        ``tuple``, ``list``, or a mapping with string keys.
+
+    Returns
+    -------
+    node : object
+        A tree of single-key dictionaries. Each key states the value
+        type: ``$none``, ``$bool``, ``$int``, ``$float64``, ``$str``,
+        ``$tuple``, ``$list``, or ``$map``.
+
+    Raises
+    ------
+    ValueError
+        If a mapping key is not a string, if two mapping keys collide
+        after Unicode normalization, or if the value type is not
+        supported.
+    """
     key: Any
     item: Any
     if value is None:
@@ -103,7 +230,7 @@ def _json_node(value: object) -> object:  # noqa: PLR0911
     elif isinstance(value, list):
         node = {"$list": [_json_node(item) for item in value]}
     elif isinstance(value, Mapping):
-        normalized: list[tuple[str, object]] = []
+        normalized: list[Tuple[str, object]] = []
         seen: set[str] = set()
         for key, item in value.items():
             if not isinstance(key, str):
@@ -171,7 +298,26 @@ def canonical_json(value: object) -> bytes:
 
 
 def _is_array(value: object) -> bool:
-    """Return whether ``value`` exposes a concrete NumPy/JAX array protocol."""
+    """PRIVATE: Return whether ``value`` exposes a concrete NumPy/JAX
+    array protocol.
+
+    Parameters
+    ----------
+    value : object
+        Candidate value from a canonical PyTree.
+
+    Returns
+    -------
+    is_array : bool
+        ``True`` when the value is a NumPy array or scalar, or when it
+        has ``__array__``, ``dtype``, and ``shape`` attributes together.
+
+    Notes
+    -----
+    The attribute triple accepts JAX arrays without an import of JAX.
+    The check is structural only; :func:`_canonical_array` still rejects
+    tracers when it materializes the value.
+    """
     if isinstance(value, np.ndarray | np.generic):
         is_array: bool = True
         return is_array
@@ -182,7 +328,35 @@ def _is_array(value: object) -> bool:
 
 
 def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
-    """Materialize one array in the canonical dtype and memory order."""
+    """PRIVATE: Materialize one array in the canonical dtype and memory
+    order.
+
+    Implementation Logic
+    --------------------
+    Calls :func:`numpy.asarray` and wraps any failure as a
+    :class:`ValueError`. Validates the dtype kind against
+    ``CANONICAL_SUPPORTED_ARRAY_KINDS`` and checks finiteness for float
+    and complex kinds. Then re-materializes the array with the
+    little-endian dtype and C memory order so the raw bytes are
+    platform-independent.
+
+    Parameters
+    ----------
+    value : object
+        Array-like value that passed :func:`_is_array`.
+
+    Returns
+    -------
+    canonical : Shaped[NDArray, "..."]
+        NumPy array with a little-endian dtype in C order.
+
+    Raises
+    ------
+    ValueError
+        If the value cannot become a concrete NumPy array, for example
+        a JAX tracer. Also if the dtype kind lacks support, or a float
+        or complex array contains NaN or infinity.
+    """
     exc: Exception
     try:
         array: Shaped[NDArray, "..."] = np.asarray(value)
@@ -212,7 +386,30 @@ def _iter_array_chunks(
     *,
     chunk_bytes: int,
 ) -> Iterator[bytes | memoryview]:
-    """Yield a canonical typed header followed by bounded array chunks."""
+    """PRIVATE: Yield a canonical typed header followed by bounded array
+    chunks.
+
+    Implementation Logic
+    --------------------
+    Materializes the array through :func:`_canonical_array`, records the
+    dtype string and shape with fixed-width lengths, and then yields
+    zero-copy :class:`memoryview` slices over the C-order payload. An
+    empty array yields no payload slice.
+
+    Parameters
+    ----------
+    value : object
+        Array-like value to serialize.
+    chunk_bytes : int
+        Maximum payload bytes per yielded array chunk.
+
+    Yields
+    ------
+    chunk : bytes | memoryview
+        The ``A`` tag with the dtype string record, the dimension count,
+        each dimension length, and the payload byte count. Then payload
+        slices of at most ``chunk_bytes`` bytes.
+    """
     dimension: Any
     offset: Any
     array: Shaped[NDArray, "..."] = _canonical_array(value)
@@ -234,10 +431,36 @@ def _iter_mapping_chunks(
     *,
     chunk_bytes: int,
 ) -> Iterator[bytes | memoryview]:
-    """Yield a mapping sorted by normalized text keys."""
+    """PRIVATE: Yield a mapping sorted by normalized text keys.
+
+    Implementation Logic
+    --------------------
+    NFC-normalizes every key, rejects collisions, and sorts entries by
+    the UTF-8 byte order of the normalized keys. Entry values recurse
+    through :func:`_iter_value_chunks`.
+
+    Parameters
+    ----------
+    value : Mapping[object, object]
+        Mapping whose keys must all be strings.
+    chunk_bytes : int
+        Maximum payload bytes per yielded array chunk.
+
+    Yields
+    ------
+    chunk : bytes | memoryview
+        The ``M`` tag with the entry count, then for each entry a ``K``
+        key record followed by the canonical chunks of the value.
+
+    Raises
+    ------
+    ValueError
+        If a key is not a string, or if two keys collide after Unicode
+        normalization.
+    """
     key: Any
     item: Any
-    normalized: list[tuple[str, object]] = []
+    normalized: list[Tuple[str, object]] = []
     seen: set[str] = set()
     for key, item in value.items():
         if not isinstance(key, str):
@@ -261,9 +484,31 @@ def _iter_dataclass_chunks(
     *,
     chunk_bytes: int,
 ) -> Iterator[bytes | memoryview]:
-    """Yield dataclass or Equinox fields in declaration order."""
+    """PRIVATE: Yield dataclass or Equinox fields in declaration order.
+
+    Implementation Logic
+    --------------------
+    Reads the fields with :func:`dataclasses.fields`, which returns them
+    in declaration order, and recurses into each field value through
+    :func:`_iter_value_chunks`. The type-name record separates equal
+    field contents of different dataclass types.
+
+    Parameters
+    ----------
+    value : object
+        Dataclass instance, including any Equinox module.
+    chunk_bytes : int
+        Maximum payload bytes per yielded array chunk.
+
+    Yields
+    ------
+    chunk : bytes | memoryview
+        An ``O`` record with the module-qualified type name and the
+        field count. Then, per field, a ``K`` name record followed by
+        the canonical chunks of the field value.
+    """
     field: Any
-    fields: tuple[dataclasses.Field[Any], ...] = dataclasses.fields(
+    fields: Tuple[dataclasses.Field[Any], ...] = dataclasses.fields(
         cast(Any, value)
     )
     yield _text_record(b"O", _qualified_name(type(value)))
@@ -282,7 +527,28 @@ def _iter_sequence_chunks(
     tag: bytes,
     chunk_bytes: int,
 ) -> Iterator[bytes | memoryview]:
-    """Yield one tagged list or tuple record."""
+    """PRIVATE: Yield one tagged list or tuple record.
+
+    Parameters
+    ----------
+    value : Sequence[object]
+        List or tuple to serialize.
+    tag : bytes
+        One-byte container tag: ``T`` for tuples, ``L`` for lists.
+    chunk_bytes : int
+        Maximum payload bytes per yielded array chunk.
+
+    Yields
+    ------
+    chunk : bytes | memoryview
+        The tag with the element count, then the canonical chunks of
+        each element in order.
+
+    Notes
+    -----
+    The distinct tags keep the list/tuple identity in the record. The
+    elements recurse through :func:`_iter_value_chunks`.
+    """
     item: Any
     yield tag + _length(len(value))
     for item in value:
@@ -294,7 +560,38 @@ def _iter_value_chunks(  # noqa: PLR0912
     *,
     chunk_bytes: int,
 ) -> Iterator[bytes | memoryview]:
-    """Yield canonical chunks for one supported value."""
+    """PRIVATE: Yield canonical chunks for one supported value.
+
+    Implementation Logic
+    --------------------
+    Dispatches on the concrete type and assigns one tag per kind:
+    ``N`` none, ``B`` bool, ``I`` integer text, ``F`` binary64 bits,
+    ``C`` complex as two big-endian binary64 fields, ``S`` text, ``Y``
+    raw bytes, ``P`` POSIX path text, ``E`` enum type name plus its
+    value, ``A`` array, ``O`` dataclass, ``T`` tuple, ``L`` list, and
+    ``M`` mapping. The bool check runs before the int check because
+    ``bool`` subclasses ``int``. Containers recurse through the
+    dedicated ``_iter_*_chunks`` helpers.
+
+    Parameters
+    ----------
+    value : object
+        Supported scalar, container, array, dataclass, enum, path, or
+        bytes value.
+    chunk_bytes : int
+        Maximum payload bytes per yielded array chunk.
+
+    Yields
+    ------
+    chunk : bytes | memoryview
+        Tagged canonical chunks for the value.
+
+    Raises
+    ------
+    ValueError
+        If a complex value is not finite, or if the value type is not
+        supported.
+    """
     if value is None:
         yield b"N"
     elif isinstance(value, bool):

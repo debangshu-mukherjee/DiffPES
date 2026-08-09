@@ -30,7 +30,7 @@ from functools import cache
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable, Optional
+from beartype.typing import Any, Callable, Optional, Tuple
 from jax import core
 from jaxtyping import Array, Float, PyTree, jaxtyped
 
@@ -49,7 +49,7 @@ class _DependencyCacheState:
     """Store eager structural analyses for static model configurations."""
 
     def __init__(self) -> None:
-        self.entries: dict[tuple[Any, ...], tuple[PyTree, Array]] = {}
+        self.entries: dict[Tuple[Any, ...], Tuple[PyTree, Array]] = {}
         self.hits: int = 0
         self.misses: int = 0
         self.lock = threading.RLock()
@@ -57,30 +57,81 @@ class _DependencyCacheState:
 
 @cache
 def _dependency_cache_state() -> _DependencyCacheState:
-    """Return the process-local cache for structural dependency analyses."""
+    """PRIVATE: Return the process-local cache for structural dependency
+    analyses.
+
+    Returns
+    -------
+    state : _DependencyCacheState
+        The single mutable holder of cached analyses, hit and miss
+        counters, and their reentrant lock.
+
+    Notes
+    -----
+    The :func:`functools.cache` decorator makes the state object a
+    process-local singleton. :func:`_dependency_structure` reads and
+    fills it; :func:`clear_dependency_cache` resets it.
+    """
     state: _DependencyCacheState = _DependencyCacheState()
     return state
 
 
-def _abstract_signature(tree: PyTree) -> tuple[Any, ...]:
-    """Return a hashable signature for one static input configuration."""
+def _abstract_signature(tree: PyTree) -> Tuple[Any, ...]:
+    """PRIVATE: Return a hashable signature for one static input
+    configuration.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Numerical input PyTree.
+
+    Returns
+    -------
+    signature : Tuple[Any, ...]
+        The tree-structure string and one ``(shape, dtype)`` pair per
+        leaf.
+
+    Notes
+    -----
+    Captures only the static configuration (structure, shapes, and
+    dtypes), so cache entries stay valid across different numerical
+    values. The signature joins the model identity and callable identity
+    in the structural-cache key.
+    """
     leaves: list[Any] = jax.tree.leaves(tree)
-    leaf_signatures: tuple[tuple[tuple[int, ...], str], ...] = tuple(
+    leaf_signatures: Tuple[Tuple[Tuple[int, ...], str], ...] = tuple(
         (tuple(jnp.shape(leaf)), str(jnp.asarray(leaf).dtype))
         for leaf in leaves
     )
-    signature: tuple[Any, ...] = (
+    signature: Tuple[Any, ...] = (
         str(jax.tree.structure(tree)),
         leaf_signatures,
     )
     return signature
 
 
-def _path_names(tree: PyTree) -> tuple[str, ...]:
-    """Return stable JAX key-path names for all leaves."""
+def _path_names(tree: PyTree) -> Tuple[str, ...]:
+    """PRIVATE: Return stable JAX key-path names for all leaves.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Input or output PyTree.
+
+    Returns
+    -------
+    names : Tuple[str, ...]
+        One :func:`jax.tree_util.keystr` name per leaf in flattening
+        order. A bare root leaf gets the name ``"$"``.
+
+    Notes
+    -----
+    The names label the rows and columns of dependency matrices, so they
+    must be deterministic for one tree structure.
+    """
     flattened: Any = jax.tree_util.tree_flatten_with_path(tree)
     path_leaves: Any = flattened[0]
-    names: tuple[str, ...] = tuple(
+    names: Tuple[str, ...] = tuple(
         jax.tree_util.keystr(path) or "$" for path, _ in path_leaves
     )
     return names
@@ -88,8 +139,33 @@ def _path_names(tree: PyTree) -> tuple[str, ...]:
 
 def _structural_dependencies(
     forward_fn: Callable[[PyTree], PyTree], inputs: PyTree
-) -> tuple[PyTree, Array]:
-    """Propagate input-leaf dependency sets through a closed JAXPR."""
+) -> Tuple[PyTree, Array]:
+    """PRIVATE: Propagate input-leaf dependency sets through a closed
+    JAXPR.
+
+    Implementation Logic
+    --------------------
+    Obtains the abstract output with :func:`jax.eval_shape` and the
+    typed JAXPR with :func:`jax.make_jaxpr`. Seeds each input variable
+    with its own index set and each constant with the empty set, then
+    walks the equations in order: every output variable of an equation
+    receives the union of the index sets of its input variables. The
+    final matrix marks, for each JAXPR output, which input leaves can
+    reach it structurally.
+
+    Parameters
+    ----------
+    forward_fn : Callable[[PyTree], PyTree]
+        Pure JAX forward function.
+    inputs : PyTree
+        Numerical inputs for one static shape and dtype configuration.
+
+    Returns
+    -------
+    result : Tuple[PyTree, Array]
+        Abstract output PyTree and the Boolean output-by-input
+        structural dependency matrix.
+    """
     constvar: Any
     equation: Any
     variable: Any
@@ -126,7 +202,7 @@ def _structural_dependencies(
             )
         )
     structural: Array = jnp.stack(rows, axis=0)
-    result: tuple[PyTree, Array] = (output, structural)
+    result: Tuple[PyTree, Array] = (output, structural)
     return result
 
 
@@ -134,8 +210,9 @@ def _dependency_structure(
     model_id: str,
     forward_fn: Callable[[PyTree], PyTree],
     inputs: PyTree,
-) -> tuple[PyTree, Array]:
-    """Resolve one cached structural analysis outside compiled execution.
+) -> Tuple[PyTree, Array]:
+    """PRIVATE: Resolve one cached structural analysis outside compiled
+    execution.
 
     The cache key includes the model ID, callable, tree, shapes, and dtypes.
 
@@ -150,7 +227,7 @@ def _dependency_structure(
 
     Returns
     -------
-    result : tuple[PyTree, Array]
+    result : Tuple[PyTree, Array]
         Abstract output and output-by-input structural dependency matrix.
 
     Notes
@@ -162,18 +239,18 @@ def _dependency_structure(
         isinstance(leaf, core.Tracer) for leaf in jax.tree.leaves(inputs)
     )
     if contains_tracer:
-        result: tuple[PyTree, Array] = _structural_dependencies(
+        result: Tuple[PyTree, Array] = _structural_dependencies(
             forward_fn, inputs
         )
         return result
-    key: tuple[Any, ...] = (
+    key: Tuple[Any, ...] = (
         model_id,
         id(forward_fn),
         *_abstract_signature(inputs),
     )
     state: _DependencyCacheState = _dependency_cache_state()
     with state.lock:
-        cached: tuple[PyTree, Array] | None = state.entries.get(key)
+        cached: Tuple[PyTree, Array] | None = state.entries.get(key)
         if cached is not None:
             state.hits += 1
             return cached
@@ -205,7 +282,7 @@ def clear_dependency_cache() -> None:
 
 
 @jaxtyped(typechecker=beartype)
-def dependency_cache_info() -> tuple[int, int, int]:
+def dependency_cache_info() -> Tuple[int, int, int]:
     """Return cache size, hit count, and miss count.
 
     The tuple gives deterministic counters for structural cache tests.
@@ -214,7 +291,7 @@ def dependency_cache_info() -> tuple[int, int, int]:
 
     Returns
     -------
-    info : tuple[int, int, int]
+    info : Tuple[int, int, int]
         Entry count, hit count, and miss count.
 
     Notes
@@ -224,7 +301,7 @@ def dependency_cache_info() -> tuple[int, int, int]:
     """
     state: _DependencyCacheState = _dependency_cache_state()
     with state.lock:
-        info: tuple[int, int, int] = (
+        info: Tuple[int, int, int] = (
             len(state.entries),
             state.hits,
             state.misses,
@@ -233,8 +310,28 @@ def dependency_cache_info() -> tuple[int, int, int]:
 
 
 def _leaf_direction(inputs: PyTree, leaf_index: int) -> PyTree:
-    """Build an all-ones tangent for one input leaf."""
-    flattened: tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
+    """PRIVATE: Build an all-ones tangent for one input leaf.
+
+    Parameters
+    ----------
+    inputs : PyTree
+        Numerical input PyTree that fixes the tangent structure.
+    leaf_index : int
+        Flattened index of the leaf to probe.
+
+    Returns
+    -------
+    tangent : PyTree
+        PyTree with the structure of ``inputs``: ones at the selected
+        leaf and zeros at every other leaf.
+
+    Notes
+    -----
+    The tangent probes one input leaf at a time through the retained
+    pushforward when :func:`_dependency_map_from_linearization` builds
+    the traced dependency matrix.
+    """
+    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
     leaves: list[Any] = flattened[0]
     treedef: Any = flattened[1]
     tangent_leaves: list[Array] = [jnp.zeros_like(leaf) for leaf in leaves]
@@ -246,7 +343,7 @@ def _leaf_direction(inputs: PyTree, leaf_index: int) -> PyTree:
 @jaxtyped(typechecker=beartype)
 def linearized_forward(
     forward_fn: Callable[[PyTree], PyTree], inputs: PyTree
-) -> tuple[PyTree, Callable[[PyTree], PyTree]]:
+) -> Tuple[PyTree, Callable[[PyTree], PyTree]]:
     """Evaluate a forward model and retain its JVP linearization.
 
     The operation exposes local information flow with JAX linearization and
@@ -278,7 +375,7 @@ def linearized_forward(
     pushforward : Callable[[PyTree], PyTree]
         Reusable linear map from input tangents to output tangents.
     """
-    linearized: tuple[PyTree, Callable[[PyTree], PyTree]] = jax.linearize(
+    linearized: Tuple[PyTree, Callable[[PyTree], PyTree]] = jax.linearize(
         forward_fn,
         inputs,
     )
@@ -337,12 +434,12 @@ def dependency_map(
     The traced matrix is differentiable only through its continuous JVP
     source. Thresholded Boolean entries do not carry useful gradients.
     """
-    structural_evaluation: tuple[PyTree, Array] = _dependency_structure(
+    structural_evaluation: Tuple[PyTree, Array] = _dependency_structure(
         model_id, forward_fn, inputs
     )
     abstract_output: PyTree = structural_evaluation[0]
     structural: Array = structural_evaluation[1]
-    linearized: tuple[PyTree, Callable[[PyTree], PyTree]] = linearized_forward(
+    linearized: Tuple[PyTree, Callable[[PyTree], PyTree]] = linearized_forward(
         forward_fn,
         inputs,
     )
@@ -368,7 +465,8 @@ def _dependency_map_from_linearization(
     *,
     threshold: float = 1e-12,
 ) -> DependencyMap:
-    """Build a dependency map from one retained JAX linearization.
+    """PRIVATE: Build a dependency map from one retained JAX
+    linearization.
 
     The function reuses the supplied pushforward for every numerical probe.
 
@@ -424,8 +522,8 @@ def _dependency_map_from_linearization(
 
 @jaxtyped(typechecker=beartype)
 def sensitivity_map(
-    input_paths: tuple[str, ...],
-    output_projection_ids: tuple[str, ...],
+    input_paths: Tuple[str, ...],
+    output_projection_ids: Tuple[str, ...],
     forward_fn: Callable[[PyTree], Array],
     inputs: PyTree,
     directions: PyTree,
@@ -459,9 +557,9 @@ def sensitivity_map(
 
     Parameters
     ----------
-    input_paths : tuple[str, ...]
+    input_paths : Tuple[str, ...]
         Stable input-coordinate names (**static**).
-    output_projection_ids : tuple[str, ...]
+    output_projection_ids : Tuple[str, ...]
         Stable output-projection names (**static**).
     forward_fn : Callable[[PyTree], Array]
         Pure differentiable forward model.
@@ -484,7 +582,7 @@ def sensitivity_map(
     The sensitivity values carry gradients through ``jax.linearize``. The
     thresholded activity matrix is a derived diagnostic.
     """
-    linearized: tuple[PyTree, Callable[[PyTree], PyTree]] = linearized_forward(
+    linearized: Tuple[PyTree, Callable[[PyTree], PyTree]] = linearized_forward(
         forward_fn,
         inputs,
     )
@@ -502,21 +600,22 @@ def sensitivity_map(
 
 @jaxtyped(typechecker=beartype)
 def _sensitivity_map_from_linearization(
-    input_paths: tuple[str, ...],
-    output_projection_ids: tuple[str, ...],
+    input_paths: Tuple[str, ...],
+    output_projection_ids: Tuple[str, ...],
     directions: PyTree,
     scales: Float[Array, " n_input"],
     pushforward: Callable[[PyTree], PyTree],
     *,
     threshold: float = 1e-12,
 ) -> SensitivityMap:
-    """Measure scaled sensitivities from one retained JAX linearization.
+    """PRIVATE: Measure scaled sensitivities from one retained JAX
+    linearization.
 
     Parameters
     ----------
-    input_paths : tuple[str, ...]
+    input_paths : Tuple[str, ...]
         Stable input-coordinate names (**static**).
-    output_projection_ids : tuple[str, ...]
+    output_projection_ids : Tuple[str, ...]
         Stable output-projection names (**static**).
     directions : PyTree
         Batched tangent directions with a leading probe axis.
@@ -552,11 +651,33 @@ def _sensitivity_map_from_linearization(
 
 
 def _deterministic_subspace(size: int, rank: int, dtype: Any) -> Array:
-    """Construct a deterministic full-rank starting subspace."""
+    """PRIVATE: Construct a deterministic full-rank starting subspace.
+
+    Parameters
+    ----------
+    size : int
+        Number of real input coordinates (matrix row count).
+    rank : int
+        Number of subspace columns.
+    dtype : Any
+        Real floating dtype of the subspace.
+
+    Returns
+    -------
+    orthogonal : Array
+        ``(size, rank)`` matrix with orthonormal columns.
+
+    Notes
+    -----
+    Fills the matrix with incommensurate sine and cosine values of the
+    index products and orthonormalizes it with a reduced QR
+    decomposition. The construction needs no random key, so repeated
+    spectrum estimates are bit-reproducible.
+    """
     rows: Array = jnp.arange(1, size + 1, dtype=dtype)[:, None]
     cols: Array = jnp.arange(1, rank + 1, dtype=dtype)[None, :]
     initial: Array = jnp.sin(rows * cols) + jnp.cos(rows * (cols + 0.5))
-    decomposition: tuple[Array, Array] = jnp.linalg.qr(
+    decomposition: Tuple[Array, Array] = jnp.linalg.qr(
         initial,
         mode="reduced",
     )
@@ -564,8 +685,28 @@ def _deterministic_subspace(size: int, rank: int, dtype: Any) -> Array:
     return orthogonal
 
 
-def _element_paths(tree: PyTree) -> tuple[str, ...]:
-    """Expand leaf paths to one stable name per scalar parameter."""
+def _element_paths(tree: PyTree) -> Tuple[str, ...]:
+    """PRIVATE: Expand leaf paths to one stable name per scalar
+    parameter.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Numerical input PyTree.
+
+    Returns
+    -------
+    paths : Tuple[str, ...]
+        One name per real coordinate, in the order of
+        :func:`_ravel_real_pytree`.
+
+    Notes
+    -----
+    Starts from the leaf key path, appends ``[index]`` when a leaf has
+    more than one element, and appends ``.real`` and ``.imag`` for each
+    element of a complex leaf. The names label the rows of the right
+    singular vectors in an information spectrum.
+    """
     path: Any
     leaf: Any
     index: Any
@@ -576,7 +717,7 @@ def _element_paths(tree: PyTree) -> tuple[str, ...]:
         base: str = jax.tree_util.keystr(path) or "$"
         array: Array = jnp.asarray(leaf)
         size: int = array.size
-        components: tuple[str, ...] = (
+        components: Tuple[str, ...] = (
             ("real", "imag") if jnp.iscomplexobj(array) else ("",)
         )
         for index in range(size):
@@ -585,16 +726,43 @@ def _element_paths(tree: PyTree) -> tuple[str, ...]:
                 indexed if not component else f"{indexed}.{component}"
                 for component in components
             )
-    paths: tuple[str, ...] = tuple(names)
+    paths: Tuple[str, ...] = tuple(names)
     return paths
 
 
 def _ravel_real_pytree(
     tree: PyTree,
-) -> tuple[Array, Callable[[Array], PyTree]]:
-    """Ravel a numerical PyTree in independent real coordinates."""
+) -> Tuple[Array, Callable[[Array], PyTree]]:
+    """PRIVATE: Ravel a numerical PyTree in independent real
+    coordinates.
+
+    Implementation Logic
+    --------------------
+    Flattens the tree and converts each leaf: a complex leaf becomes
+    interleaved real and imaginary pairs through
+    :func:`~diffpes.utils.pack_complex`; a real inexact leaf ravels
+    directly; any other dtype raises. The returned ``unravel`` closure
+    inverts the layout leaf by leaf and restores the original dtypes and
+    tree structure.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Numerical PyTree with inexact (float or complex) array leaves.
+
+    Returns
+    -------
+    result : Tuple[Array, Callable[[Array], PyTree]]
+        Flat real coordinate vector and the inverse map back to the
+        PyTree.
+
+    Raises
+    ------
+    TypeError
+        If a leaf has a non-inexact dtype.
+    """
     array: Any
-    flattened: tuple[list[Any], Any] = jax.tree_util.tree_flatten(tree)
+    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(tree)
     leaves: list[Any] = flattened[0]
     treedef: Any = flattened[1]
     arrays: list[Array] = [jnp.asarray(leaf) for leaf in leaves]
@@ -632,7 +800,7 @@ def _ravel_real_pytree(
         result: PyTree = jax.tree_util.tree_unflatten(treedef, rebuilt)
         return result
 
-    result: tuple[Array, Callable[[Array], PyTree]] = (flat, unravel)
+    result: Tuple[Array, Callable[[Array], PyTree]] = (flat, unravel)
     return result
 
 
@@ -641,7 +809,7 @@ def information_spectrum(  # noqa: PLR0915
     forward_fn: Callable[[PyTree], PyTree],
     inputs: PyTree,
     *,
-    input_paths: Optional[tuple[str, ...]] = None,
+    input_paths: Optional[Tuple[str, ...]] = None,
     output_weights: Optional[Float[Array, " n_output"]] = None,
     rank: int = 8,
     iterations: int = 8,
@@ -677,7 +845,7 @@ def information_spectrum(  # noqa: PLR0915
         Pure differentiable forward model.
     inputs : PyTree
         Numerical model inputs in their declared physical units.
-    input_paths : Optional[tuple[str, ...]]
+    input_paths : Optional[Tuple[str, ...]]
         Names for flattened real input coordinates (**static**). Default None.
     output_weights : Optional[Float[Array, " n_output"]]
         Nonnegative metric weights for flattened outputs. Default None.
@@ -698,7 +866,7 @@ def information_spectrum(  # noqa: PLR0915
     The subspace iteration and eigendecomposition remain JAX differentiable.
     Degenerate eigenvalues can make individual singular vectors non-unique.
     """
-    flattened_inputs: tuple[Array, Callable[[Array], PyTree]] = (
+    flattened_inputs: Tuple[Array, Callable[[Array], PyTree]] = (
         _ravel_real_pytree(inputs)
     )
     flat_inputs: Array = flattened_inputs[0]
@@ -706,19 +874,19 @@ def information_spectrum(  # noqa: PLR0915
 
     def flat_forward(flat: Array) -> Array:
         output: PyTree = forward_fn(unravel_inputs(flat))
-        flattened_output: tuple[Array, Callable[[Array], PyTree]] = (
+        flattened_output: Tuple[Array, Callable[[Array], PyTree]] = (
             _ravel_real_pytree(output)
         )
         flat_output: Array = flattened_output[0]
         return flat_output
 
-    linearized: tuple[Array, Callable[[Array], Array]] = jax.linearize(
+    linearized: Tuple[Array, Callable[[Array], Array]] = jax.linearize(
         flat_forward,
         flat_inputs,
     )
     flat_output: Array = linearized[0]
     pushforward: Callable[[Array], Array] = linearized[1]
-    transposed: Callable[[Array], tuple[Array]] = jax.linear_transpose(
+    transposed: Callable[[Array], Tuple[Array]] = jax.linear_transpose(
         pushforward,
         flat_inputs,
     )
@@ -748,13 +916,14 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
     pushforward: Callable[[Array], Array],
     pullback: Callable[[Array], Array],
     *,
-    input_paths: Optional[tuple[str, ...]] = None,
+    input_paths: Optional[Tuple[str, ...]] = None,
     output_weights: Optional[Float[Array, " n_output"]] = None,
     rank: int = 8,
     iterations: int = 8,
     threshold: float = 1e-10,
 ) -> InformationSpectrum:
-    """Estimate an information spectrum from one retained linearization.
+    """PRIVATE: Estimate an information spectrum from one retained
+    linearization.
 
     The function applies supplied JVP and transpose maps. It does not evaluate
     or linearize the nonlinear model again.
@@ -769,7 +938,7 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
         Linear map from real input coordinates to real output coordinates.
     pullback : Callable[[Array], Array]
         Transpose map from real output coordinates to real input coordinates.
-    input_paths : Optional[tuple[str, ...]]
+    input_paths : Optional[Tuple[str, ...]]
         Names for flattened real input coordinates. Default None.
     output_weights : Optional[Float[Array, " n_output"]]
         Nonnegative output metric weights. Default None.
@@ -840,7 +1009,7 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
         singular_values[0] / smallest_active,
         0.0,
     )
-    paths: tuple[str, ...] = (
+    paths: Tuple[str, ...] = (
         _element_paths(inputs) if input_paths is None else input_paths
     )
     if len(paths) != flat_inputs.size:

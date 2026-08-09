@@ -42,7 +42,12 @@ def _build_inputs(
     surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat,
 ) -> tuple[BandStructure, OrbitalProjection]:
-    """Convert plain arrays into validated spectrum input carriers."""
+    """PRIVATE: Convert plain arrays into validated spectrum input carriers.
+
+    Notes
+    -----
+    The carriers validate through their types-owned factories.
+    """
     bands_array: Float64[Array, "K B"] = jnp.asarray(
         eigenbands,
         dtype=jnp.float64,

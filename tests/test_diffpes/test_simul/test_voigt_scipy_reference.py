@@ -17,6 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jax import test_util
 from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
@@ -53,14 +54,45 @@ _DERIVATIVE_ATL: float = 2.0e-10
 
 
 def _load_npz(path: Path) -> dict[str, Float64[NDArray, "..."]]:
-    """Load one inert NPZ into ordinary arrays without pickle."""
+    """PRIVATE: Load one inert NPZ into ordinary arrays without pickle.
+
+    Parameters
+    ----------
+    path : Path
+        NPZ archive on disk.
+
+    Returns
+    -------
+    arrays : dict[str, Float64[NDArray, "..."]]
+        Mapping from archive member name to a materialized array.
+
+    Notes
+    -----
+    Opens the archive with allow_pickle=False and copies every member
+    inside the context manager.
+    """
     archive: Any
     with np.load(path, allow_pickle=False) as archive:
         return {name: archive[name] for name in archive.files}
 
 
 def _sha256(path: Path) -> str:
-    """Return the SHA-256 digest of one evidence file."""
+    """PRIVATE: Return the SHA-256 digest of one evidence file.
+
+    Parameters
+    ----------
+    path : Path
+        File whose bytes the digest covers.
+
+    Returns
+    -------
+    digest : str
+        Hexadecimal SHA-256 digest of the complete file content.
+
+    Notes
+    -----
+    Reads the file bytes in one call and hashes them with SHA-256.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -68,7 +100,26 @@ def _positive_bound(
     reference: Float64[NDArray, "..."],
     sigma: float,
 ) -> Float64[NDArray, "..."]:
-    """Return the registered Faddeeva-reference positive-width bound."""
+    """PRIVATE: Return the registered Faddeeva-reference positive-width bound.
+
+    Parameters
+    ----------
+    reference : Float64[NDArray, "..."]
+        Frozen SciPy Voigt reference values in 1/eV.
+    sigma : float
+        Gaussian standard deviation in eV.
+
+    Returns
+    -------
+    bound : Float64[NDArray, "..."]
+        Elementwise tolerance for positive-width comparisons.
+
+    Notes
+    -----
+    Adds the relative term 1e-10 times the reference magnitude to the
+    absolute floor 2e-15 scaled by the Gaussian peak height
+    1 / (sigma * sqrt(2 * pi)).
+    """
     return _POSITIVE_RTL * np.abs(reference) + _POSITIVE_REFERENCE_FLOOR / (
         sigma * np.sqrt(2.0 * np.pi)
     )
@@ -80,7 +131,29 @@ def _profile(
     sigma: float,
     gamma: float,
 ) -> Float64[NDArray, " n"]:
-    """Evaluate the independent SciPy profile with analytic endpoints."""
+    """PRIVATE: Evaluate the independent SciPy profile with analytic endpoints.
+
+    Parameters
+    ----------
+    energy : Float64[NDArray, " n"]
+        Energy samples in eV.
+    center : float
+        Line center in eV.
+    sigma : float
+        Gaussian standard deviation in eV.
+    gamma : float
+        Lorentzian half width at half maximum in eV.
+
+    Returns
+    -------
+    profile : Float64[NDArray, " n"]
+        Voigt profile density in 1/eV.
+
+    Notes
+    -----
+    Returns the normalized Gaussian when gamma is zero, the Lorentzian
+    when sigma is zero, and scipy.special.voigt_profile otherwise.
+    """
     displacement: Float64[NDArray, " n"] = energy - center
     if gamma == 0.0:
         return np.exp(-((displacement / sigma) ** 2) / 2.0) / (
@@ -94,7 +167,24 @@ def _profile(
 def _stable_fermi(
     energy: Float64[NDArray, "nkpt nband"],
 ) -> Float64[NDArray, "nkpt nband"]:
-    """Evaluate the registered overflow-safe analytic Fermi function."""
+    """PRIVATE: Evaluate the registered overflow-safe analytic Fermi function.
+
+    Parameters
+    ----------
+    energy : Float64[NDArray, "nkpt nband"]
+        Band energies relative to the Fermi level in eV.
+
+    Returns
+    -------
+    occupation : Float64[NDArray, "nkpt nband"]
+        Fermi-Dirac occupation at 15 Kelvin.
+
+    Notes
+    -----
+    Divides by kB T with kB = 8.617333e-5 eV per Kelvin and T = 15
+    Kelvin, then uses exp(-x) / (1 + exp(-x)) for x >= 0 and
+    1 / (1 + exp(x)) otherwise, so the exponential never overflows.
+    """
     exponent: Float64[NDArray, "nkpt nband"] = energy / (8.617333e-5 * 15.0)
     occupation: Float64[NDArray, "nkpt nband"] = np.empty_like(exponent)
     positive: Bool[NDArray, "nkpt nband"] = exponent >= 0.0
@@ -775,7 +865,7 @@ class TestVoigtProduction:
             [_CENTER - 1.0, _CENTER, _CENTER + 1.0],
             dtype=jnp.float64,
         )
-        invalid: tuple[tuple[float, float, str], ...] = (
+        invalid: Tuple[Tuple[float, float, str], ...] = (
             (-1.0e-6, 2.0e-6, "sigma must be finite and nonnegative"),
             (1.0e-6, -2.0e-6, "gamma must be finite and nonnegative"),
             (np.nan, 2.0e-6, "sigma must be finite and nonnegative"),

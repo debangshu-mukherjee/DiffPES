@@ -17,7 +17,7 @@ _LEGACY_ALLOWLIST: frozenset[Path] = frozenset()
 
 
 def _matching_names(node: ast.AST) -> set[str]:
-    """Return fractional-momentum names below one syntax node.
+    """PRIVATE: Return fractional-momentum names below one syntax node.
 
     The helper walks the supplied expression and selects identifiers that
     match the contract's pinned fractional-coordinate vocabulary.
@@ -42,7 +42,7 @@ def _matching_names(node: ast.AST) -> set[str]:
 
 
 def _is_norm_call(node: ast.AST) -> bool:
-    """Return whether a syntax node calls a norm function.
+    """PRIVATE: Return whether a syntax node calls a norm function.
 
     The helper recognizes attribute and direct calls whose function name is
     ``norm`` or ``safe_norm``.
@@ -70,7 +70,7 @@ def _is_norm_call(node: ast.AST) -> bool:
 
 
 def _fractional_norm_lines(tree: ast.AST) -> set[int]:
-    """Return source lines that normalize fractional momentum.
+    """PRIVATE: Return source lines that normalize fractional momentum.
 
     The helper finds norm calls on pinned names and division expressions that
     divide a pinned name by its own norm.

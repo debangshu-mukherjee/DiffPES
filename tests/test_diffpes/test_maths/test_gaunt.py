@@ -32,7 +32,31 @@ def _scipy_real_spherical_harmonic(
     theta: Float[NDArray, "..."],
     phi: Float[NDArray, "..."],
 ) -> Float[NDArray, "..."]:
-    """Evaluate the production real-harmonic convention through SciPy."""
+    """PRIVATE: Evaluate the production real-harmonic convention through SciPy.
+
+    Parameters
+    ----------
+    l_value : int
+        Spherical-harmonic degree l.
+    m_value : int
+        Signed spherical-harmonic order m.
+    theta : Float[NDArray, "..."]
+        Polar angles in radians.
+    phi : Float[NDArray, "..."]
+        Azimuthal angles in radians.
+
+    Returns
+    -------
+    real_value : Float[NDArray, "..."]
+        Real spherical-harmonic samples in the production convention.
+
+    Notes
+    -----
+    Evaluates the complex harmonic at order abs(m) with SciPy and takes
+    sqrt(2) * (-1)**m times the real part for m > 0, sqrt(2) *
+    (-1)**abs(m) times the imaginary part for m < 0, and the real part
+    for m = 0.
+    """
     complex_value: Complex[NDArray, "..."] = sph_harm_y(
         l_value,
         abs(m_value),

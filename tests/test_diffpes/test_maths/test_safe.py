@@ -12,6 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Float64
@@ -70,7 +71,7 @@ class TestSafeDivide:
         guarded: Float64[Array, ""] = jax.jit(safe_divide)(
             jnp.array(3.0), jnp.array(0.0), -7.0
         )
-        gradients: tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
+        gradients: Tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
             lambda n, d: safe_divide(n, d, -7.0), argnums=(0, 1)
         )(jnp.array(3.0), jnp.array(0.0))
         chex.assert_trees_all_close(guarded, -7.0, rtol=0.0, atol=0.0)
@@ -337,7 +338,7 @@ class TestSafeArctan2:
         guarded: Float64[Array, ""] = jax.jit(safe_arctan2)(
             jnp.array(0.0), jnp.array(0.0)
         )
-        gradients: tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
+        gradients: Tuple[Float64[Array, ""], Float64[Array, ""]] = jax.grad(
             safe_arctan2, argnums=(0, 1)
         )(jnp.array(0.0), jnp.array(0.0))
         chex.assert_trees_all_close(guarded, 0.0, rtol=0.0, atol=0.0)
@@ -430,7 +431,7 @@ class TestSafePower:
         guarded: Float64[Array, " 2"] = jax.jit(safe_power)(
             guarded_x, exponent
         )
-        gradients: tuple[Float64[Array, " 2"], Float64[Array, ""]] = jax.grad(
+        gradients: Tuple[Float64[Array, " 2"], Float64[Array, ""]] = jax.grad(
             lambda bases, power: jnp.sum(safe_power(bases, power)),
             argnums=(0, 1),
         )(guarded_x, exponent)

@@ -9,6 +9,11 @@ and the project uses calendar versioning.
 
 ### Removed
 
+- The interim real-linewidth evaluator module `simul/self_energy.py` is
+  removed together with its interim tests. `diffpes.simul.evaluate_self_energy`
+  now lives in `diffpes.simul.spectral` and returns the complex retarded
+  self-energy. A caller that needs an imaginary linewidth takes `-sigma.imag`
+  from the complex result.
 - The public `diffpes.types.N_TAYLOR` implementation detail is removed.
   `diffpes.utils.faddeeva` now uses a certified fixed-order rational method.
 - The Thompson--Cox--Hastings pseudo-Voigt approximation is removed with
@@ -52,6 +57,18 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- **Breaking:** `make_self_energy_model` now rejects a `gamma` shortcut
+  supplied together with explicit `coefficients` instead of silently ignoring
+  `gamma`. The `gamma` default becomes `None`; an absent `gamma` with absent
+  `coefficients` still constructs the `0.1` eV constant carrier.
+- Three authenticated reference artifacts are re-issued:
+  `chinook_tightb_reference.json`, `chinook_slab_reference.json`, and
+  `wannier90_wse2_reference.json`. Each carried one plan-named metadata key.
+  The key becomes `requirement` or `requirements` with a descriptive value, and
+  each pinned artifact digest is recomputed. A guard confirmed that every field
+  outside the metadata block stays identical, so all compared numeric data is
+  unchanged. The artifacts now differ from the raw external generator output by
+  that metadata key alone.
 - Two pinned `generator_sha256` values are re-pinned:
   `tests/test_diffpes/test_radial/data/coulomb_mpmath_80digit.manifest.json` and
   `src/diffpes/simul/data/yeh_lindau_1985.json`. Their generator scripts changed
@@ -154,6 +171,14 @@ and the project uses calendar versioning.
 
 ### Added
 
+- `diffpes.simul.spectral` adds the complex retarded self-energy evaluation
+  `evaluate_self_energy` with the certified cell-integrated principal-value
+  Kramers--Kronig operator. Grid mode uses the exact hat transform; the
+  smooth modes use the piecewise-cubic transform with C1 `power2` tails and
+  256-node semi-infinite quadratures. Queries outside the trusted interval
+  `[a + 2h, b - 2h]` raise eagerly and under `jit`. Public `jax.jvp` and
+  `jax.grad` in the frequency follow the composite Kramers--Kronig
+  derivative route through a `jax.custom_jvp` rule.
 - The package adds shell-shared `RadialSpec`, `MatrixElementParams`,
   `RadialQuadratureSpec`, and `FinalStateSpec` carriers. New radial APIs cover
   Slater screening, normalized Slater/hydrogenic/grid/fixed rows, hardened

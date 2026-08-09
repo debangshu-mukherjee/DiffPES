@@ -59,7 +59,28 @@ def _checked_hermitian(
     *,
     context: str,
 ) -> Complex128[Array, "n n"]:
-    """Reject non-finite or detectably non-Hermitian matrices under JAX."""
+    """PRIVATE: Reject non-finite or detectably non-Hermitian matrices.
+
+    Parameters
+    ----------
+    hamiltonian : Complex128[Array, "n n"]
+        Candidate Hermitian matrix in eV.
+    context : str
+        Caller name used as the runtime error-message prefix.
+
+    Returns
+    -------
+    checked : Complex128[Array, "n n"]
+        The unchanged matrix with both runtime checks threaded through.
+
+    Notes
+    -----
+    Two chained :func:`equinox.error_if` guards run under JAX. They raise
+    ``EquinoxRuntimeError`` for a non-finite entry or a deviation from
+    the conjugate transpose beyond the types-owned ``EPS`` tolerance. The
+    checks thread through the returned value, so they also run inside
+    jit-traced callers.
+    """
     checked: Complex128[Array, "n n"] = eqx.error_if(
         hamiltonian,
         ~jnp.all(jnp.isfinite(hamiltonian)),
@@ -138,7 +159,33 @@ def _eigh_safe_jvp(
     tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
     tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
 ]:
-    """Apply the Lorentzian-regularized Hermitian eigensystem JVP."""
+    r"""PRIVATE: Apply the Lorentzian-regularized Hermitian eigensystem JVP.
+
+    Parameters
+    ----------
+    primals : tuple[Complex128[Array, "n n"]]
+        One-element tuple holding the Hermitian input matrix in eV.
+    tangents : tuple[Complex128[Array, "n n"]]
+        One-element tuple holding the input tangent matrix in eV.
+
+    Returns
+    -------
+    result : tuple
+        Pair ``(primal_output, tangent_output)``. Each member is an
+        ``(eigenvalues, eigenvectors)`` tuple with shapes ``(n,)`` and
+        ``(n, n)``.
+
+    Notes
+    -----
+    The rule projects the tangent into the eigenbasis of the revalidated
+    primal. Eigenvalue tangents are the real diagonal of that projection.
+    Eigenvector tangents replace the exact inverse gap :math:`1/\Delta`
+    by the Lorentzian factor :math:`\Delta/(\Delta^2+\epsilon^2)` with
+    ``epsilon = EPS_DEG`` eV. Tangents therefore stay finite at exact
+    degeneracy, with an :math:`O(\epsilon^2/g^2)` bias for a gap ``g``
+    near the regularization scale. The zero diagonal of the gap matrix also
+    removes the arbitrary U(1) phase velocity from each column tangent.
+    """
     hamiltonian: Complex128[Array, "n n"]
     hamiltonian_tangent: Complex128[Array, "n n"]
     (hamiltonian,) = primals

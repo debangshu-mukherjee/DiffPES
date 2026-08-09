@@ -14,6 +14,7 @@ import math
 import chex
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy.special import sph_harm_y
@@ -49,7 +50,29 @@ def _complex_harmonic(
     theta: Float64[NDArray, "..."] | float,
     phi: Float64[NDArray, "..."] | float,
 ) -> Complex128[NDArray, "..."]:
-    """Evaluate one Condon--Shortley complex spherical harmonic."""
+    """PRIVATE: Evaluate one Condon--Shortley complex spherical harmonic.
+
+    Parameters
+    ----------
+    degree : int
+        Spherical-harmonic degree l.
+    order : int
+        Signed spherical-harmonic order m.
+    theta : Float64[NDArray, "..."] | float
+        Polar angles in radians.
+    phi : Float64[NDArray, "..."] | float
+        Azimuthal angles in radians.
+
+    Returns
+    -------
+    value : Complex128[NDArray, "..."]
+        Complex harmonic samples from SciPy.
+
+    Notes
+    -----
+    Wraps scipy.special.sph_harm_y and converts the result to a
+    complex128 array.
+    """
     value: Complex128[NDArray, "..."] = np.asarray(
         sph_harm_y(degree, order, theta, phi),
         dtype=np.complex128,
@@ -63,7 +86,30 @@ def _real_harmonic(
     theta: Float64[NDArray, "..."] | float,
     phi: Float64[NDArray, "..."] | float,
 ) -> Float64[NDArray, "..."]:
-    """Evaluate one real harmonic directly from independent SciPy values."""
+    """PRIVATE: Evaluate one real harmonic from independent SciPy values.
+
+    Parameters
+    ----------
+    degree : int
+        Spherical-harmonic degree l.
+    order : int
+        Signed real-harmonic order m.
+    theta : Float64[NDArray, "..."] | float
+        Polar angles in radians.
+    phi : Float64[NDArray, "..."] | float
+        Azimuthal angles in radians.
+
+    Returns
+    -------
+    value : Float64[NDArray, "..."]
+        Real harmonic samples.
+
+    Notes
+    -----
+    Evaluates the complex harmonic at order abs(m) and takes sqrt(2) *
+    (-1)**m times the real part for m > 0, sqrt(2) * (-1)**abs(m)
+    times the imaginary part for m < 0, and the real part for m = 0.
+    """
     complex_value: Complex128[NDArray, "..."] = _complex_harmonic(
         degree,
         abs(order),
@@ -84,7 +130,23 @@ def _real_harmonic(
 def _cart_to_complex_independent(
     polarization_cart: Complex128[NDArray, " 3"],
 ) -> Complex128[NDArray, " 3"]:
-    """Apply the canonical Cartesian-to-spherical map without package code."""
+    """PRIVATE: Apply the Cartesian-to-spherical map without package code.
+
+    Parameters
+    ----------
+    polarization_cart : Complex128[NDArray, " 3"]
+        Cartesian complex polarization.
+
+    Returns
+    -------
+    result : Complex128[NDArray, " 3"]
+        Spherical components in ascending order q = -1, 0, +1.
+
+    Notes
+    -----
+    Writes the Condon--Shortley components explicitly:
+    (ex - i ey) / sqrt(2), ez, and -(ex + i ey) / sqrt(2).
+    """
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
     ex: complex = complex(polarization_cart[0])
     ey: complex = complex(polarization_cart[1])
@@ -107,11 +169,38 @@ def _complex_formula_amplitude(
     radial_channels: Complex128[NDArray, " 2"],
     polarization_cart: Complex128[NDArray, " 3"],
 ) -> complex:
-    r"""Evaluate the independent complex-Ylm amplitude.
+    r"""PRIVATE: Evaluate the independent complex-Ylm amplitude.
 
     The oracle contracts
     ``sum_q (-1)^q epsilon_q Y_1^{-q}`` and
     ``sum_m' Y_l'^m'*(khat) Y_l'^m'(rhat)`` by angular quadrature.
+
+    Parameters
+    ----------
+    degree : int
+        Initial orbital degree l.
+    order : int
+        Initial real-harmonic order m.
+    direction_cart : Float64[NDArray, " 3"]
+        Detector direction; normalized inside.
+    radial_channels : Complex128[NDArray, " 2"]
+        Complex radial values for the l-1 and l+1 branches.
+    polarization_cart : Complex128[NDArray, " 3"]
+        Cartesian complex polarization.
+
+    Returns
+    -------
+    amplitude : complex
+        Oracle transition amplitude for the single orbital.
+
+    Implementation Logic
+    --------------------
+    Builds the dipole operator on the 32-by-64 product grid from the
+    complex polarization components, integrates initial real harmonic
+    times dipole times final complex harmonic with Gauss-Legendre
+    cosine nodes and uniform azimuth weights, multiplies each final
+    order by the conjugated final harmonic at the detector direction,
+    and sums both dipole-allowed branches with their radial channels.
     """
     direction: Float64[NDArray, " 3"] = np.asarray(
         direction_cart, dtype=np.float64
@@ -189,8 +278,33 @@ def _single_orbital_channels(
     order: int,
     direction_cart: Float64[NDArray, " 3"],
     radial_channels: Complex128[NDArray, " 2"],
-) -> tuple[Complex128[Array, " 3"], OrbitalBasis]:
-    """Evaluate one production real-orbital transition row."""
+) -> Tuple[Complex128[Array, " 3"], OrbitalBasis]:
+    """PRIVATE: Evaluate one production real-orbital transition row.
+
+    Parameters
+    ----------
+    degree : int
+        Orbital degree l; the principal number is l + 1.
+    order : int
+        Real-harmonic order m.
+    direction_cart : Float64[NDArray, " 3"]
+        Final momentum direction for the single detector point.
+    radial_channels : Complex128[NDArray, " 2"]
+        Radial branch values of the single orbital.
+
+    Returns
+    -------
+    row : Complex128[Array, " 3"]
+        Cartesian transition row of the single orbital.
+    basis : OrbitalBasis
+        One-orbital basis metadata used for the row.
+
+    Notes
+    -----
+    Places the orbital at the origin with zero depth and zero initial
+    momentum, uses an 8 Angstrom mean free path, and slices the single
+    k-point, spin, and orbital entry.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,),
         n=(degree + 1,),
@@ -219,7 +333,25 @@ def _complex_metric(
     first: Complex128[Array, " 3"],
     second: Complex128[Array, " 3"],
 ) -> Complex128[Array, ""]:
-    """Return the rank-one metric contraction of two spherical vectors."""
+    """PRIVATE: Return the metric contraction of two spherical vectors.
+
+    Parameters
+    ----------
+    first : Complex128[Array, " 3"]
+        Spherical vector in ascending order q = -1, 0, +1.
+    second : Complex128[Array, " 3"]
+        Spherical vector in the same component order.
+
+    Returns
+    -------
+    result : Complex128[Array, ""]
+        Rank-one scalar contraction of the two vectors.
+
+    Notes
+    -----
+    Expands sum_q (-1)**q a_q b_(-q) as -a[0] b[2] + a[1] b[1] -
+    a[2] b[0] in the ascending component order.
+    """
     result: Complex128[Array, ""] = (
         -first[0] * second[2] + first[1] * second[1] - first[2] * second[0]
     )
@@ -351,7 +483,7 @@ def test_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         return complex(jnp.sum(polarized * jnp.asarray(coefficients)))
 
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    polarizations: tuple[Complex128[NDArray, " 3"], ...] = (
+    polarizations: Tuple[Complex128[NDArray, " 3"], ...] = (
         np.asarray((0.23 + 0.17j, -0.49 + 0.31j, 0.61 - 0.09j)),
         inverse_sqrt_two * np.asarray((1.0, 1j, 0.0)),
         inverse_sqrt_two * np.asarray((1.0, -1j, 0.0)),
@@ -416,7 +548,7 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
         dipole_cart
     )
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-    polarizations: tuple[Complex128[Array, " 3"], ...] = (
+    polarizations: Tuple[Complex128[Array, " 3"], ...] = (
         jnp.asarray((1.0, 0.0, 0.0), dtype=jnp.complex128),
         jnp.asarray((0.0, 1.0, 0.0), dtype=jnp.complex128),
         jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128),

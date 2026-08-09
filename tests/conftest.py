@@ -26,10 +26,10 @@ import jax.numpy as jnp
 import psutil
 import pytest
 from beartype import beartype
-from beartype.typing import Iterator
+from beartype.typing import Iterator, Tuple
 from jaxtyping import PRNGKeyArray, jaxtyped
 
-pytest_plugins: tuple[str, ...] = ("pytester",)
+pytest_plugins: Tuple[str, ...] = ("pytester",)
 
 _PREFLIGHT_SKIP_VARIABLE: str = "DIFFPES_SKIP_PREFLIGHT"
 RSS_LEAK_LIMIT_MB: float = 500.0
@@ -59,7 +59,7 @@ _CHINOOK_IMPORT_BLOCKER = _ChinookImportBlocker()
 
 
 def _run_annotation_preflight(config: pytest.Config) -> None:
-    """Reject invalid annotations before pytest collects test modules.
+    """PRIVATE: Reject invalid annotations before pytest collects test modules.
 
     The gate runs ``tests/_preflight_types.py`` in a subprocess. A subprocess
     keeps the jaxtyping import hook out of this process. An in-process run
@@ -106,7 +106,7 @@ def _run_annotation_preflight(config: pytest.Config) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Install the test-suite firewall before pytest collects test modules."""
     _run_annotation_preflight(config)
-    imported: tuple[str, ...] = tuple(
+    imported: Tuple[str, ...] = tuple(
         sorted(
             name
             for name in sys.modules

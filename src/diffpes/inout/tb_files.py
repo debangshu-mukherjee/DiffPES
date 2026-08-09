@@ -137,18 +137,66 @@ class _LineCursor:
 
 
 def _line_error(path: Path, line_number: int, message: str) -> ValueError:
-    """Build a line-numbered parser error."""
+    """PRIVATE: Build a line-numbered parser error.
+
+    Parameters
+    ----------
+    path : Path
+        Source file the diagnostic names.
+    line_number : int
+        One-based physical line number of the offending record.
+    message : str
+        Human-readable description of the defect.
+
+    Returns
+    -------
+    error : ValueError
+        Constructed exception with the ``path: line N: message`` text;
+        the caller raises it.
+
+    Notes
+    -----
+    Only formats and returns the exception.  Returning instead of
+    raising lets callers attach ``from`` causes at the raise site.
+    """
     error: ValueError = ValueError(f"{path}: line {line_number}: {message}")
     return error
 
 
-def _parse_integer(
+def _parse_integer(  # noqa: DOC503 -- raises a prebuilt line error.
     token: str,
     path: Path,
     line_number: int,
     label: str,
 ) -> int:
-    """Parse one exact integer token."""
+    """PRIVATE: Parse one exact integer token.
+
+    Parameters
+    ----------
+    token : str
+        Whitespace-stripped text token to convert.
+    path : Path
+        Source file for the diagnostic.
+    line_number : int
+        One-based physical line number for the diagnostic.
+    label : str
+        Field name the diagnostic quotes.
+
+    Returns
+    -------
+    value : int
+        Exact Python integer parsed from the token.
+
+    Raises
+    ------
+    ValueError
+        If ``int(token)`` rejects the token.
+
+    Notes
+    -----
+    Uses the strict ``int`` constructor, so decimal notation such as
+    ``"2.0"`` fails and keeps file cells exact.
+    """
     try:
         value: int = int(token)
     except ValueError as error:
@@ -162,13 +210,42 @@ def _parse_integer(
     return value
 
 
-def _parse_finite_float(
+def _parse_finite_float(  # noqa: DOC503 -- raises a prebuilt line error.
     token: str,
     path: Path,
     line_number: int,
     label: str,
 ) -> float:
-    """Parse one finite floating-point token."""
+    """PRIVATE: Parse one finite floating-point token.
+
+    Parameters
+    ----------
+    token : str
+        Whitespace-stripped text token to convert.
+    path : Path
+        Source file for the diagnostic.
+    line_number : int
+        One-based physical line number for the diagnostic.
+    label : str
+        Field name the diagnostic quotes.
+
+    Returns
+    -------
+    value : float
+        Finite Python float parsed from the token.
+
+    Raises
+    ------
+    ValueError
+        If ``float(token)`` rejects the token or the value is NaN or
+        infinite.
+
+    Notes
+    -----
+    Accepts any ``float``-parseable notation and then applies
+    :func:`np.isfinite`, so ``"nan"`` and ``"inf"`` fail with a
+    line-numbered diagnostic.
+    """
     try:
         value: float = float(token)
     except ValueError as error:
@@ -189,11 +266,36 @@ def _parse_finite_float(
     return value
 
 
-def _parse_single_positive_integer(
+def _parse_single_positive_integer(  # noqa: DOC503 -- prebuilt line error.
     cursor: _LineCursor,
     context: str,
 ) -> int:
-    """Parse a one-token positive integer line."""
+    """PRIVATE: Parse a one-token positive integer line.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned before the expected counter line.
+    context : str
+        Field name, such as ``"num_wann"`` or ``"nrpts"``, used in
+        diagnostics.
+
+    Returns
+    -------
+    value : int
+        Positive integer from the next nonblank line.
+
+    Raises
+    ------
+    ValueError
+        If the next nonblank line does not hold exactly one token, the
+        token is not an integer, or the value is not positive.
+
+    Notes
+    -----
+    Advances the cursor past the consumed line.  Wannier90 writes the
+    ``num_wann`` and ``nrpts`` counters in this one-token form.
+    """
     line_number: int
     text: str
     line_number, text = cursor.next_nonempty(context)
@@ -221,13 +323,42 @@ def _parse_single_positive_integer(
     return value
 
 
-def _parse_cell(
+def _parse_cell(  # noqa: DOC503 -- raises a prebuilt line error.
     tokens: list[str],
     path: Path,
     line_number: int,
     context: str,
 ) -> tuple[int, int, int]:
-    """Parse one exact three-integer cell."""
+    """PRIVATE: Parse one exact three-integer cell.
+
+    Parameters
+    ----------
+    tokens : list[str]
+        Split tokens of one cell record.
+    path : Path
+        Source file for the diagnostic.
+    line_number : int
+        One-based physical line number for the diagnostic.
+    context : str
+        Record name the diagnostic quotes.
+
+    Returns
+    -------
+    values : tuple[int, int, int]
+        Integer lattice translation ``(R1, R2, R3)`` in lattice-vector
+        units.
+
+    Raises
+    ------
+    ValueError
+        If the token count differs from three or any token is not an
+        exact integer.
+
+    Notes
+    -----
+    Delegates each component to :func:`_parse_integer` with an ``R1``,
+    ``R2``, or ``R3`` label.
+    """
     if len(tokens) != WANNIER_CELL_FIELDS:
         message: ValueError = _line_error(
             path,
@@ -243,13 +374,41 @@ def _parse_cell(
     return values
 
 
-def _parse_one_based_pair(
+def _parse_one_based_pair(  # noqa: DOC503 -- raises a prebuilt line error.
     tokens: list[str],
     n_orbitals: int,
     path: Path,
     line_number: int,
 ) -> tuple[int, int]:
-    """Parse and validate a one-based Wannier matrix index pair."""
+    """PRIVATE: Parse and validate a one-based Wannier matrix index pair.
+
+    Parameters
+    ----------
+    tokens : list[str]
+        Two index tokens from one matrix row.
+    n_orbitals : int
+        Declared ``num_wann`` orbital count.
+    path : Path
+        Source file for the diagnostic.
+    line_number : int
+        One-based physical line number for the diagnostic.
+
+    Returns
+    -------
+    pair : tuple[int, int]
+        Zero-based ``(row, column)`` matrix indices.
+
+    Raises
+    ------
+    ValueError
+        If either token is not an integer or lies outside
+        ``[1, n_orbitals]``.
+
+    Notes
+    -----
+    Wannier90 writes one-based indices; the return value subtracts one
+    from each after the range check.
+    """
     first: int = _parse_integer(
         tokens[0],
         path,
@@ -273,11 +432,38 @@ def _parse_one_based_pair(
     return pair
 
 
-def _parse_degeneracies(
+def _parse_degeneracies(  # noqa: DOC503 -- raises a prebuilt line error.
     cursor: _LineCursor,
     n_cells: int,
 ) -> tuple[int, ...]:
-    """Parse the normative 15-integer-per-line degeneracy block."""
+    """PRIVATE: Parse the normative 15-integer-per-line degeneracy block.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the start of the degeneracy block.
+    n_cells : int
+        Declared ``nrpts`` cell count.
+
+    Returns
+    -------
+    degeneracies : tuple[int, ...]
+        One positive Wigner--Seitz degeneracy weight per cell, in file
+        order.
+
+    Raises
+    ------
+    ValueError
+        If a block line does not hold exactly the expected token
+        count, a token is not an integer, or a weight is not positive.
+
+    Notes
+    -----
+    Wannier90 writes fifteen weights per line; the final line holds
+    the remainder.  The parser demands exactly
+    ``min(15, n_cells - parsed)`` tokens per line, so a malformed
+    block cannot silently shift the Hamiltonian rows that follow.
+    """
     values: list[int] = []
     while len(values) < n_cells:
         line_number: int
@@ -318,7 +504,26 @@ def _parse_degeneracies(
 def _parse_wannier_dimensions(
     cursor: _LineCursor,
 ) -> tuple[int, int, tuple[int, ...]]:
-    """Parse ``num_wann``, ``nrpts``, and their weight block."""
+    """PRIVATE: Parse ``num_wann``, ``nrpts``, and their weight block.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned after the header line.
+
+    Returns
+    -------
+    dimensions : tuple[int, int, tuple[int, ...]]
+        Orbital count ``num_wann``, cell count ``nrpts``, and the
+        per-cell degeneracy weights.
+
+    Notes
+    -----
+    Reads the two one-token counter lines and then the degeneracy
+    block; both Wannier90 grammars share this layout.  The counter and
+    degeneracy helpers raise line-numbered ``ValueError`` diagnostics
+    for malformed lines.
+    """
     n_orbitals: int = _parse_single_positive_integer(cursor, "num_wann")
     n_cells: int = _parse_single_positive_integer(cursor, "nrpts")
     degeneracies: tuple[int, ...] = _parse_degeneracies(cursor, n_cells)
@@ -330,8 +535,25 @@ def _parse_wannier_dimensions(
     return dimensions
 
 
-def _parse_header(cursor: _LineCursor) -> None:
-    """Consume and validate the required free-form header line."""
+def _parse_header(cursor: _LineCursor) -> None:  # noqa: DOC503
+    """PRIVATE: Consume and validate the required free-form header line.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the first physical line.
+
+    Raises
+    ------
+    ValueError
+        If the first physical line is blank.
+
+    Notes
+    -----
+    Wannier90 always writes a date comment as line one.  The check
+    reads the physical line without blank skipping.  A file that
+    starts with data fails instead of losing its first record.
+    """
     line_number: int
     text: str
     line_number, text = cursor.next_line("header")
@@ -345,7 +567,25 @@ def _parse_header(cursor: _LineCursor) -> None:
 
 
 def _require_filename_suffix(path: Path, suffix: str) -> None:
-    """Prevent accidental cross-format or generic ``.dat`` dispatch."""
+    """PRIVATE: Prevent accidental cross-format or generic ``.dat`` dispatch.
+
+    Parameters
+    ----------
+    path : Path
+        File path the caller wants to parse.
+    suffix : str
+        Required filename ending, ``"_hr.dat"`` or ``"_tb.dat"``.
+
+    Raises
+    ------
+    ValueError
+        If the filename does not end with ``suffix``.
+
+    Notes
+    -----
+    The two Wannier90 grammars are intentionally not auto-detected;
+    the filename must state the format explicitly.
+    """
     if not path.name.endswith(suffix):
         message: str = (
             f"{path}: expected an explicit {suffix} filename; "
@@ -354,13 +594,48 @@ def _require_filename_suffix(path: Path, suffix: str) -> None:
         raise ValueError(message)
 
 
-def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
+def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
     cursor: _LineCursor,
     n_orbitals: int,
     n_cells: int,
     degeneracies: tuple[int, ...],
 ) -> _HamiltonianBlocks:
-    """Parse cell-bearing ``hr.dat`` Hamiltonian rows."""
+    """PRIVATE: Parse cell-bearing ``hr.dat`` Hamiltonian rows.
+
+    Implementation Logic
+    --------------------
+    Reads ``n_cells`` blocks of ``n_orbitals**2`` rows.  Each row
+    holds the seven fields ``R1 R2 R3 i j Re Im`` and repeats the
+    cell on every line.  The cell must stay constant inside one
+    block.  No ``(i, j)`` pair may repeat inside a block, and no cell
+    may repeat across blocks.  Every stored entry divides by the
+    block degeneracy weight once, and a parallel array records the
+    one-based source line of each entry for later diagnostics.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the first Hamiltonian row.
+    n_orbitals : int
+        Declared ``num_wann`` orbital count.
+    n_cells : int
+        Declared ``nrpts`` cell count.
+    degeneracies : tuple[int, ...]
+        Per-cell Wigner--Seitz degeneracy weights in file order.
+
+    Returns
+    -------
+    blocks : _HamiltonianBlocks
+        Weight-normalized complex matrices in eV, their source-line
+        map, the cell tuple in file order, and the degeneracies.
+
+    Raises
+    ------
+    ValueError
+        If a row has the wrong field count, a value fails to parse,
+        or the cell changes inside a block.  Also if an index pair
+        repeats, a block is empty, or a cell repeats.
+    """
     matrices: Complex128[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.complex128,
@@ -448,8 +723,31 @@ def _parse_hr_hamiltonian_blocks(  # noqa: PLR0913
     return blocks
 
 
-def _parse_tb_lattice(cursor: _LineCursor) -> Float64[NDArray, "3 3"]:
-    """Parse three Cartesian lattice rows in Angstrom."""
+def _parse_tb_lattice(  # noqa: DOC503
+    cursor: _LineCursor,
+) -> Float64[NDArray, "3 3"]:
+    """PRIVATE: Parse three Cartesian lattice rows in Angstrom.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the first lattice row.
+
+    Returns
+    -------
+    lattice : Float64[NDArray, "3 3"]
+        Row-vector lattice matrix in Angstrom.
+
+    Raises
+    ------
+    ValueError
+        If a lattice row does not hold exactly three finite floats.
+
+    Notes
+    -----
+    ``tb.dat`` stores the lattice directly after the header; each of
+    the three nonblank lines carries one Cartesian lattice vector.
+    """
     lattice: Float64[NDArray, "3 3"] = np.empty((3, 3), dtype=np.float64)
     row: int
     for row in range(3):
@@ -476,13 +774,47 @@ def _parse_tb_lattice(cursor: _LineCursor) -> Float64[NDArray, "3 3"]:
     return lattice
 
 
-def _parse_tb_hamiltonian_blocks(
+def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
     cursor: _LineCursor,
     n_orbitals: int,
     n_cells: int,
     degeneracies: tuple[int, ...],
 ) -> _HamiltonianBlocks:
-    """Parse block-headed ``tb.dat`` Hamiltonian matrices."""
+    """PRIVATE: Parse block-headed ``tb.dat`` Hamiltonian matrices.
+
+    Implementation Logic
+    --------------------
+    Reads ``n_cells`` blocks.  Each block starts with one
+    three-integer cell header and continues with ``n_orbitals**2``
+    rows of four fields ``i j Re Im``.  No cell may repeat and no
+    ``(i, j)`` pair may repeat inside a block.  Every stored entry
+    divides by the block degeneracy weight once, and a parallel array
+    records the one-based source line of each entry.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the first cell header.
+    n_orbitals : int
+        Declared ``num_wann`` orbital count.
+    n_cells : int
+        Declared ``nrpts`` cell count.
+    degeneracies : tuple[int, ...]
+        Per-cell Wigner--Seitz degeneracy weights in file order.
+
+    Returns
+    -------
+    blocks : _HamiltonianBlocks
+        Weight-normalized complex matrices in eV, their source-line
+        map, the cell tuple in file order, and the degeneracies.
+
+    Raises
+    ------
+    ValueError
+        If a header or row has an invalid shape, a value fails to
+        parse, an index pair repeats inside a block, or a cell
+        repeats.
+    """
     matrices: Complex128[NDArray, "n_cell n_orb n_orb"] = np.empty(
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.complex128,
@@ -564,12 +896,47 @@ def _parse_tb_hamiltonian_blocks(
     return blocks
 
 
-def _parse_tb_position_blocks(
+def _parse_tb_position_blocks(  # noqa: DOC503 -- prebuilt line error.
     cursor: _LineCursor,
     n_orbitals: int,
     hamiltonian_blocks: _HamiltonianBlocks,
 ) -> Complex128[NDArray, "n_cell n_orb n_orb 3"]:
-    """Parse and align block-headed ``tb.dat`` position matrices."""
+    """PRIVATE: Parse and align block-headed ``tb.dat`` position matrices.
+
+    Implementation Logic
+    --------------------
+    Reads one position block per Hamiltonian cell.  Each block starts
+    with one three-integer cell header.  The header must name an
+    existing Hamiltonian cell and must not repeat.  The block then
+    holds ``n_orbitals**2`` rows of eight fields: the index pair,
+    then real and imaginary parts of the x, y, and z components.
+    Every component divides by the degeneracy weight of its cell
+    once.  The stacked result follows the Hamiltonian cell order, not
+    the position-block file order.
+
+    Parameters
+    ----------
+    cursor : _LineCursor
+        Line cursor positioned at the first position cell header.
+    n_orbitals : int
+        Declared ``num_wann`` orbital count.
+    hamiltonian_blocks : _HamiltonianBlocks
+        Parsed Hamiltonian blocks that define the cell set, the cell
+        order, and the degeneracy weights.
+
+    Returns
+    -------
+    aligned : Complex128[NDArray, "n_cell n_orb n_orb 3"]
+        Weight-normalized position-operator matrix elements in
+        Angstrom, aligned to the Hamiltonian cell order.
+
+    Raises
+    ------
+    ValueError
+        If a header names an unknown or repeated cell, a row has an
+        invalid shape, a value fails to parse, or an index pair
+        repeats.
+    """
     by_cell: dict[
         tuple[int, int, int], Complex128[NDArray, "n_orb n_orb 3"]
     ] = {}
@@ -666,7 +1033,27 @@ def _validate_basis_size(
     n_orbitals: int,
     path: Path,
 ) -> None:
-    """Require one basis entry per serialized Wannier function."""
+    """PRIVATE: Require one basis entry per serialized Wannier function.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Caller-supplied orbital metadata.
+    n_orbitals : int
+        ``num_wann`` count declared by the file.
+    path : Path
+        Source file for the diagnostic.
+
+    Raises
+    ------
+    ValueError
+        If ``len(basis.n)`` differs from ``n_orbitals``.
+
+    Notes
+    -----
+    Compares only the lengths; the carrier constructors validate
+    per-orbital quantum numbers.
+    """
     if len(basis.n) != n_orbitals:
         message: str = (
             f"{path}: basis has {len(basis.n)} orbitals but file declares "
@@ -679,7 +1066,32 @@ def _validate_hopping_closure(
     records: tuple[_HoppingRecord, ...],
     path: Path,
 ) -> None:
-    """Name duplicate, missing, or numerically inconsistent reverse rows."""
+    """PRIVATE: Name duplicate, missing, or numerically inconsistent reverse
+    rows.
+
+    Implementation Logic
+    --------------------
+    Indexes every record by ``(i, j, R)`` and rejects duplicates.  For
+    each record it then requires the Hermitian partner
+    ``(j, i, -R)`` to exist and checks
+    ``abs(reverse - conj(amplitude))`` against the ``1e-12`` eV
+    Hermiticity tolerance.  Diagnostics quote the one-based source
+    lines of both offending rows.
+
+    Parameters
+    ----------
+    records : tuple[_HoppingRecord, ...]
+        Directed non-onsite hopping records with source lines.
+    path : Path
+        Source file for the diagnostics.
+
+    Raises
+    ------
+    ValueError
+        If a record repeats, its reverse partner is missing, or the
+        reverse amplitude is not the complex conjugate within
+        tolerance.
+    """
     lookup: dict[
         tuple[int, int, tuple[int, int, int]],
         _HoppingRecord,
@@ -726,11 +1138,41 @@ def _validate_hopping_closure(
             raise ValueError(message)
 
 
-def _extract_model_data(
+def _extract_model_data(  # noqa: DOC503 -- raises a prebuilt line error.
     blocks: _HamiltonianBlocks,
     path: Path,
 ) -> tuple[Float64[NDArray, " n_orb"], tuple[_HoppingRecord, ...]]:
-    """Extract real origin diagonals and directed hopping records."""
+    """PRIVATE: Extract real origin diagonals and directed hopping records.
+
+    Implementation Logic
+    --------------------
+    Requires exactly one origin cell ``(0, 0, 0)``.  Origin-diagonal
+    entries must be real within the ``1e-12`` eV tolerance and become
+    the onsite energies.  Every other entry, including origin
+    off-diagonals, becomes one directed hopping record that keeps its
+    source line.  The record set then passes
+    :func:`_validate_hopping_closure` before it is returned.
+
+    Parameters
+    ----------
+    blocks : _HamiltonianBlocks
+        Weight-normalized Hamiltonian blocks with source-line maps.
+    path : Path
+        Source file for the diagnostics.
+
+    Returns
+    -------
+    result : tuple[Float64[NDArray, " n_orb"], \
+tuple[_HoppingRecord, ...]]
+        Real onsite energies in eV and the validated directed hopping
+        records in eV.
+
+    Raises
+    ------
+    ValueError
+        If the origin cell is absent or repeated, an onsite entry has
+        an imaginary part above tolerance, or Hermitian closure fails.
+    """
     origin_indices: list[int] = [
         index for index, cell in enumerate(blocks.cells) if cell == (0, 0, 0)
     ]
@@ -792,7 +1234,36 @@ def _make_model(
     path: Path,
     orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None,
 ) -> TBModel:
-    """Convert normalized matrix blocks to a validated native model."""
+    """PRIVATE: Convert normalized matrix blocks to a validated native model.
+
+    Parameters
+    ----------
+    blocks : _HamiltonianBlocks
+        Weight-normalized Hamiltonian blocks with source-line maps.
+    geometry : CrystalGeometry
+        Resolved lattice and atomic positions.
+    basis : OrbitalBasis
+        Orbital metadata matching the file orbital count.
+    path : Path
+        Source file for diagnostics.
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]], optional
+        Explicit Cartesian Wannier centres in Angstrom, or ``None``
+        for the basis-position gauge.  Default is ``None``.
+
+    Returns
+    -------
+    model : TBModel
+        Validated native carrier with hopping amplitudes and onsite
+        energies in eV.
+
+    Notes
+    -----
+    Splits the blocks with :func:`_extract_model_data` and forwards
+    everything to :func:`make_tb_model`.  The call passes no SOC
+    shells (``shell_index`` all ``-1``, empty ``soc_lambdas``) and
+    takes the spinor flag from ``basis.spin``.  The factory performs
+    the final carrier validation.
+    """
     onsite: Float64[NDArray, " n_orb"]
     records: tuple[_HoppingRecord, ...]
     onsite, records = _extract_model_data(blocks, path)
@@ -820,7 +1291,44 @@ def _spin_permutation(
     spin_layout: str,
     path: Path,
 ) -> tuple[int, ...]:
-    """Convert native block-down/up axes to serialized axes."""
+    """PRIVATE: Convert native block-down/up axes to serialized axes.
+
+    Implementation Logic
+    --------------------
+    Validates the layout label, then the basis: a non-spinor basis
+    admits only ``"block_down_up"`` and yields the identity.  A spinor
+    basis must hold an even orbital count and native spin metadata
+    ``(-1, ..., -1, 1, ..., 1)``.  The per-spin copies of the
+    ``atom_indices``, ``n``, ``l``, and ``m`` tuples must match.
+    ``"block_down_up"`` then also yields the identity.
+    ``"interleaved_up_down"`` maps native down index ``i`` to
+    serialized index ``2 i + 1`` and native up index
+    ``n_spatial + i`` to serialized index ``2 i``.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital metadata in the native block-down/up order.
+    spin_layout : str
+        Serialized layout: ``"block_down_up"`` or
+        ``"interleaved_up_down"``.
+    path : Path
+        Source file for diagnostics.
+
+    Returns
+    -------
+    permutation : tuple[int, ...]
+        For each native basis index, the serialized file index; a
+        gather with this permutation reorders serialized matrices into
+        the native layout.
+
+    Raises
+    ------
+    ValueError
+        If the layout label is unknown, interleaved layout meets a
+        non-spinor basis, the spinor count is odd, or spin metadata
+        breaks the convention.
+    """
     if spin_layout not in ("block_down_up", "interleaved_up_down"):
         message: str = (
             f"{path}: spin_layout must be 'block_down_up' or "
@@ -875,7 +1383,30 @@ def _permute_hamiltonian_blocks(
     blocks: _HamiltonianBlocks,
     permutation: tuple[int, ...],
 ) -> _HamiltonianBlocks:
-    """Apply one state permutation to both Hamiltonian axes and line maps."""
+    """PRIVATE: Apply one state permutation to both Hamiltonian axes and
+    line maps.
+
+    Parameters
+    ----------
+    blocks : _HamiltonianBlocks
+        Parsed blocks in the serialized orbital order.
+    permutation : tuple[int, ...]
+        Serialized index for each native index, from
+        :func:`_spin_permutation`.
+
+    Returns
+    -------
+    permuted_blocks : _HamiltonianBlocks
+        Blocks with both orbital axes of the matrices and of the
+        source-line map gathered into the native order; cells and
+        degeneracies pass through unchanged.
+
+    Notes
+    -----
+    Uses :func:`np.take` on axes one and two, so rows and columns
+    reorder consistently and every entry keeps its recorded source
+    line.
+    """
     matrices: Complex128[NDArray, "n_cell n_orb n_orb"] = np.take(
         blocks.matrices, permutation, axis=1
     )
@@ -899,7 +1430,28 @@ def _permute_position_matrices(
     matrices: Complex128[NDArray, "n_cell n_orb n_orb 3"],
     permutation: tuple[int, ...],
 ) -> Complex128[NDArray, "n_cell n_orb n_orb 3"]:
-    """Apply one state permutation to both position-operator axes."""
+    """PRIVATE: Apply one state permutation to both position-operator axes.
+
+    Parameters
+    ----------
+    matrices : Complex128[NDArray, "n_cell n_orb n_orb 3"]
+        Position-operator matrix elements in Angstrom in the
+        serialized orbital order.
+    permutation : tuple[int, ...]
+        Serialized index for each native index, from
+        :func:`_spin_permutation`.
+
+    Returns
+    -------
+    result : Complex128[NDArray, "n_cell n_orb n_orb 3"]
+        Matrix elements gathered into the native order on both orbital
+        axes; the Cartesian axis stays untouched.
+
+    Notes
+    -----
+    Uses :func:`np.take` on axes one and two exactly as the
+    Hamiltonian permutation does.
+    """
     permuted: Complex128[NDArray, "n_cell n_orb n_orb 3"] = np.take(
         matrices, permutation, axis=1
     )
@@ -914,7 +1466,36 @@ def _centres_from_position_matrices(
     cells: tuple[tuple[int, int, int], ...],
     path: Path,
 ) -> Float64[NDArray, "n_orb 3"]:
-    """Extract real origin-diagonal Wannier centres in Angstrom."""
+    """PRIVATE: Extract real origin-diagonal Wannier centres in Angstrom.
+
+    Parameters
+    ----------
+    matrices : Complex128[NDArray, "n_cell n_orb n_orb 3"]
+        Weight-normalized position-operator matrix elements in
+        Angstrom, aligned to ``cells``.
+    cells : tuple[tuple[int, int, int], ...]
+        Cell tuple in the same order as the matrix leading axis.
+    path : Path
+        Source file for diagnostics.
+
+    Returns
+    -------
+    centres : Float64[NDArray, "n_orb 3"]
+        Real Cartesian Wannier centres in Angstrom, one row per
+        orbital.
+
+    Raises
+    ------
+    ValueError
+        If no origin cell exists or an origin-diagonal entry has an
+        imaginary part above the ``1e-12`` tolerance.
+
+    Notes
+    -----
+    The centre of Wannier function ``n`` is the origin-cell diagonal
+    ``<n0|r|n0>``.  The helper takes the diagonal of the origin block
+    and keeps the real part after the imaginary-part check.
+    """
     try:
         origin: int = cells.index((0, 0, 0))
     except ValueError as error:
@@ -944,7 +1525,41 @@ def _geometry_from_centres(
     basis: OrbitalBasis,
     path: Path,
 ) -> CrystalGeometry:
-    """Build atom positions after validating orbital-centre assumptions."""
+    """PRIVATE: Build atom positions after validating orbital-centre
+    assumptions.
+
+    Implementation Logic
+    --------------------
+    Requires nonempty, zero-based, contiguous ``basis.atom_indices``.
+    Wannier centres assigned to one atom must agree within the
+    ``1e-10`` Angstrom tolerance.  The first orbital centre of each
+    atom becomes the atom position.  Cartesian atom positions
+    convert to fractional coordinates through the inverse lattice, and
+    the geometry factory receives an empty species tuple.
+
+    Parameters
+    ----------
+    lattice : Float64[NDArray, "3 3"]
+        Row-vector lattice matrix in Angstrom.
+    centres_cart : Float64[NDArray, "n_orb 3"]
+        Cartesian Wannier centres in Angstrom.
+    basis : OrbitalBasis
+        Orbital metadata that assigns each orbital to an atom.
+    path : Path
+        Source file for diagnostics.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Validated geometry with fractional atomic positions.
+
+    Raises
+    ------
+    ValueError
+        If the basis is empty, atom indices are not contiguous from
+        zero, centres of one atom disagree, or the lattice is
+        singular.
+    """
     atom_indices: tuple[int, ...] = basis.atom_indices
     if not atom_indices:
         message: str = f"{path}: basis must contain at least one orbital"
@@ -996,7 +1611,34 @@ def _validated_explicit_centres(
     n_orbitals: int,
     path: Path,
 ) -> Float64[NDArray, "n_orb 3"]:
-    """Validate explicit ``hr.dat`` centres without altering connectivity."""
+    """PRIVATE: Validate explicit ``hr.dat`` centres without altering
+    connectivity.
+
+    Parameters
+    ----------
+    centres_cart : Float64[Array, "n_orb 3"]
+        Caller-supplied Cartesian Wannier centres in Angstrom.
+    n_orbitals : int
+        ``num_wann`` count declared by the file.
+    path : Path
+        Source file for diagnostics.
+
+    Returns
+    -------
+    centres : Float64[NDArray, "n_orb 3"]
+        The same centres as a ``float64`` NumPy array.
+
+    Raises
+    ------
+    ValueError
+        If the shape differs from ``(n_orbitals, 3)`` or any value is
+        not finite.
+
+    Notes
+    -----
+    Only converts and checks; hopping cells and pairs stay exactly as
+    parsed from the file.
+    """
     centres: Float64[NDArray, "n_orb 3"] = np.asarray(
         centres_cart, dtype=np.float64
     )
@@ -1016,7 +1658,32 @@ def _fractional_wannier_centres(
     centres_cart: Float64[NDArray, "n_orb 3"],
     path: Path,
 ) -> Float64[NDArray, "n_orb 3"]:
-    """Convert Cartesian Wannier centres to fractional coordinates."""
+    """PRIVATE: Convert Cartesian Wannier centres to fractional coordinates.
+
+    Parameters
+    ----------
+    lattice : Float64[NDArray, "3 3"]
+        Row-vector lattice matrix in Angstrom.
+    centres_cart : Float64[NDArray, "n_orb 3"]
+        Cartesian Wannier centres in Angstrom.
+    path : Path
+        Source file for the diagnostic.
+
+    Returns
+    -------
+    fractional_array : Float64[NDArray, "n_orb 3"]
+        Dimensionless fractional centres ``centres_cart @ inv(L)``.
+
+    Raises
+    ------
+    ValueError
+        If the lattice matrix is singular.
+
+    Notes
+    -----
+    Right-multiplies by the inverse lattice because both the lattice
+    rows and the centre rows are Cartesian row vectors.
+    """
     try:
         inverse_lattice: Float64[NDArray, "3 3"] = np.linalg.inv(lattice)
     except np.linalg.LinAlgError as error:
@@ -1037,7 +1704,41 @@ def _resolve_tb_geometry(
     path: Path,
     geometry: Optional[CrystalGeometry],
 ) -> CrystalGeometry:
-    """Resolve atomic geometry without conflating atoms and Wannier centres."""
+    """PRIVATE: Resolve atomic geometry without conflating atoms and Wannier
+    centres.
+
+    Parameters
+    ----------
+    lattice : Float64[NDArray, "3 3"]
+        Lattice matrix in Angstrom parsed from ``tb.dat``.
+    centres_cart : Float64[NDArray, "n_orb 3"]
+        Cartesian Wannier centres in Angstrom.
+    basis : OrbitalBasis
+        Orbital metadata that assigns each orbital to an atom.
+    path : Path
+        Source file for diagnostics.
+    geometry : Optional[CrystalGeometry]
+        Caller-supplied geometry, or ``None`` to derive one.
+
+    Returns
+    -------
+    resolved_geometry : CrystalGeometry
+        The supplied geometry after validation, or a geometry derived
+        from the Wannier centres.
+
+    Raises
+    ------
+    ValueError
+        If the supplied geometry does not cover all basis atom indices
+        or its lattice differs from the ``tb.dat`` lattice beyond the
+        ``1e-10`` Angstrom tolerance.
+
+    Notes
+    -----
+    With ``geometry is None`` the atom positions come from
+    :func:`_geometry_from_centres`; otherwise the supplied atoms stay
+    authoritative and only consistency checks run.
+    """
     resolved_geometry: CrystalGeometry
     if geometry is None:
         resolved_geometry = _geometry_from_centres(

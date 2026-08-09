@@ -174,8 +174,8 @@
   },
   "schema": "diffpes.matrix-element-scalability.v2",
   "source_sha256": {
-    "tests/_reference_tools/measure_matrix_element_scaling.py": "9797b02d3da82bacf3412373455dd448277294708a45220196855d8334f8dd36",
     "src/diffpes/simul/matrixel.py": "125e5c3145442decdead0ef50fa91d22214ccd39cc6107f3fbdddcd9c31824b4",
-    "src/diffpes/types/radial_params.py": "055d6aa2286e2299b253cb9056dc8b14e0ee65fbde93df0e604f70fb54b3632b"
+    "src/diffpes/types/radial_params.py": "055d6aa2286e2299b253cb9056dc8b14e0ee65fbde93df0e604f70fb54b3632b",
+    "tests/_reference_tools/measure_matrix_element_scaling.py": "abd329c35be691642a7130f567ce198d148914044fb175b448d12c3c3704f4c7"
   }
 }

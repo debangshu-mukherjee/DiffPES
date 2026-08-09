@@ -25,7 +25,20 @@ from diffpes.types import (
 
 
 def _spin_basis() -> OrbitalBasis:
-    """Build two spatial orbitals in a deliberately interleaved spin order."""
+    """PRIVATE: Build two spatial orbitals in an interleaved spin order.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Four-orbital basis whose spin labels run ``(-1, 1, 1, -1)``, so
+        neither spin sector occupies one contiguous block.
+
+    Notes
+    -----
+    The deliberate interleaving forces the operator builders to place
+    Pauli blocks by the per-orbital spin metadata rather than by an
+    assumed block layout.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0, 0),
         n=(1, 2, 1, 2),
@@ -38,7 +51,23 @@ def _spin_basis() -> OrbitalBasis:
 
 
 def _rashba_bands() -> tuple[DiagonalizedBands, Array]:
-    """Diagonalize analytic two-band Rashba matrices away from Gamma."""
+    """PRIVATE: Diagonalize analytic two-band Rashba matrices away from Gamma.
+
+    Returns
+    -------
+    bands_and_direction : tuple[DiagonalizedBands, Array]
+        The diagonalized two-band eigensystem at three generic in-plane
+        k-points and the in-plane Rashba field direction
+        ``(sin 2*pi*k_y, -sin 2*pi*k_x)`` at each point.
+
+    Notes
+    -----
+    Builds ``H(k) = d_x(k) sigma_x + d_y(k) sigma_y`` in the down--up
+    basis, diagonalizes with ``jnp.linalg.eigh``, and swaps the column
+    eigenvectors into the band-major carrier layout. The returned field
+    direction is the analytic truth for the in-plane spin texture of
+    the two chiral bands.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0),
         n=(1, 1),

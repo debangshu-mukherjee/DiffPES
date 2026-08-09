@@ -40,7 +40,20 @@ from tests._gradients import gradient_gate
 
 
 def _geometry() -> CrystalGeometry:
-    """Build the anisotropic one-site geometry used by differentiation gates."""
+    """PRIVATE: Build the anisotropic one-site geometry for the gradient
+    gates.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        One-site orthorhombic cell with lattice constants 2.2, 2.5, and
+        1.3 Angstrom.
+
+    Notes
+    -----
+    The three distinct lattice constants remove accidental cubic
+    symmetry, so gradient and gauge checks see generic geometry.
+    """
     return make_crystal_geometry(
         lattice=jnp.diag(jnp.asarray((2.2, 2.5, 1.3))),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -49,7 +62,33 @@ def _geometry() -> CrystalGeometry:
 
 
 def _complex_soc_bulk(parameters: Array) -> TBModel:
-    """Build a complete p-shell spinor model from five active coordinates."""
+    """PRIVATE: Build a complete p-shell spinor model from five coordinates.
+
+    Parameters
+    ----------
+    parameters : Array
+        Five active coordinates ``(p0, p1, p2, p3, soc)``; the first
+        four scale hopping entries in eV and the last is the atomic
+        spin--orbit coupling in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Spin-doubled complete-p model with dense complex x- and
+        z-direction hopping blocks, fixed onsite energies, three
+        distinct z-offset orbital positions, and the traced SOC
+        strength.
+
+    Notes
+    -----
+    Every entry of the two dense three-by-three blocks carries one of
+    the four hopping coordinates with a distinct complex coefficient.
+    The conjugate-transpose blocks sit on the reverse cells. The Bloch
+    Hamiltonian therefore stays Hermitian for any parameter value
+    while each coordinate keeps a nonzero, generic sensitivity. The
+    final :func:`spin_double_model` call doubles the basis and applies
+    the SOC coordinate.
+    """
     p0: Any
     p1: Any
     p2: Any
@@ -119,7 +158,22 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
 
 
 def _canonical_topology() -> SlabTopology:
-    """Return the registered one-layer (001) slab outside traced paths."""
+    """PRIVATE: Return the registered thin (001) slab outside traced paths.
+
+    Returns
+    -------
+    topology : SlabTopology
+        Frozen static two-layer slab topology of the nominal-parameter
+        bulk with Miller index (001), thickness 1.3 Angstrom, and
+        vacuum 4.0 Angstrom.
+
+    Notes
+    -----
+    Freezing at the fixed nominal coordinates happens once, outside
+    any traced function. Gradient losses can then rebuild the slab
+    under autodiff with :func:`rebuild_slab` while the integer topology
+    stays static.
+    """
     nominal: Array = jnp.asarray((0.53, -0.47, 0.61, -0.39, 0.22))
     return freeze_slab_topology(
         _complex_soc_bulk(nominal),
@@ -130,7 +184,27 @@ def _canonical_topology() -> SlabTopology:
 
 
 def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
-    """Build a one-orbital chain in a continuously deformable oblique cell."""
+    """PRIVATE: Build a one-orbital chain in a continuously deformable
+    oblique cell.
+
+    Parameters
+    ----------
+    shape_parameter : Array | float
+        Dimensionless deformation coordinate; three off-diagonal
+        lattice entries in Angstrom vary linearly with it.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital model with a Hermitian ``-0.4`` eV hopping pair
+        along the third lattice vector inside the deformed cell.
+
+    Notes
+    -----
+    Differentiating through ``shape_parameter`` exercises the lattice
+    path of slab construction: the surface cell, layer spacing, and
+    depths all respond to the continuous cell deformation.
+    """
     parameter: Array = jnp.asarray(shape_parameter, dtype=jnp.float64)
     lattice: Array = jnp.asarray(
         (
@@ -165,7 +239,32 @@ def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
 
 
 def _spectral_loss(parameters: Array, topology: SlabTopology) -> Array:
-    """Return a smooth broadened spectrum plus an isolated-group trace."""
+    """PRIVATE: Return a smooth broadened spectrum plus an isolated-group
+    trace.
+
+    Parameters
+    ----------
+    parameters : Array
+        Five active bulk coordinates for :func:`_complex_soc_bulk`.
+    topology : SlabTopology
+        Frozen static slab topology from :func:`_canonical_topology`.
+
+    Returns
+    -------
+    loss : Array
+        Scalar sum of two gauge-invariant terms. The first is a
+        Gaussian-broadened spectral moment over four probe energies in
+        eV with width 0.37 eV. The second is 0.17 times the summed
+        layer-resolved trace of the isolated two-band group.
+
+    Notes
+    -----
+    Rebuilds the slab from the traced parameters, diagonalizes it on
+    five generic in-plane k-points, and contracts the eigenvalues with
+    fixed probe weights. Both terms are gauge invariant, so the loss
+    gives a degeneracy-safe gradient path from the eigensolver back to
+    every hopping and SOC coordinate.
+    """
     slab: TBModel
     slab, _ = rebuild_slab(_complex_soc_bulk(parameters), topology)
     k_x: Array = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
@@ -192,7 +291,29 @@ def _spectral_loss(parameters: Array, topology: SlabTopology) -> Array:
 
 
 def _group_trace_loss(parameters: Array, topology: SlabTopology) -> Array:
-    """Return the isolated fixed-group component of the depth-gradient loss."""
+    """PRIVATE: Return the isolated fixed-group component of the
+    depth-gradient loss.
+
+    Parameters
+    ----------
+    parameters : Array
+        Five active bulk coordinates for :func:`_complex_soc_bulk`.
+    topology : SlabTopology
+        Frozen static slab topology from :func:`_canonical_topology`.
+
+    Returns
+    -------
+    loss : Array
+        Scalar sum of the layer-resolved trace of the fixed band group
+        ``(0, 1)`` at an intensity escape length of 2.1 Angstrom.
+
+    Notes
+    -----
+    Repeats the slab rebuild and diagonalization of
+    :func:`_spectral_loss` on the same five k-points but keeps only the
+    group-trace term, so tests can attribute a gradient defect to the
+    depth-weighted projector path alone.
+    """
     slab: TBModel
     slab, _ = rebuild_slab(_complex_soc_bulk(parameters), topology)
     k_x: Array = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
@@ -209,7 +330,30 @@ def _bands(
     eigenvectors: Array,
     depths: Array,
 ) -> DiagonalizedBands:
-    """Build a small surface-bearing eigensystem."""
+    """PRIVATE: Build a small surface-bearing eigensystem.
+
+    Parameters
+    ----------
+    eigenvalues : Array
+        Synthetic band energies in eV.
+    eigenvectors : Array
+        Band-major eigenvector rows for each k-point.
+    depths : Array
+        Per-orbital depths below the surface in Angstrom.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Carrier with the supplied eigensystem and depths, zero
+        k-points, Fermi energy zero eV, and a one-site placeholder
+        geometry with an all-s basis.
+
+    Notes
+    -----
+    The attached depths make the carrier acceptable to the surface and
+    layer-resolved operators; the placeholder geometry carries no
+    physics.
+    """
     n_orbitals: int = eigenvalues.shape[-1]
     return make_diagonalized_bands(
         eigenvalues=eigenvalues,
@@ -233,7 +377,29 @@ def _bands(
 
 
 def _random_unitary(key: Array, size: int) -> Array:
-    """Return a deterministic Haar-like complex unitary from a complex QR."""
+    """PRIVATE: Return a deterministic Haar-like complex unitary from a
+    complex QR.
+
+    Parameters
+    ----------
+    key : Array
+        JAX PRNG key that fixes the draw.
+    size : int
+        Matrix dimension.
+
+    Returns
+    -------
+    unitary : Array
+        A ``size`` by ``size`` complex unitary matrix.
+
+    Notes
+    -----
+    Draws a complex Gaussian matrix and takes its QR decomposition.
+    Multiplies each column of Q by the conjugate unit phase of the
+    matching R diagonal entry. The phase fix removes the sign ambiguity
+    of QR, so the same key always yields the same unitary for the
+    gauge-invariance checks.
+    """
     real_key: Array
     imaginary_key: Array
     real_key, imaginary_key = jax.random.split(key)
@@ -248,7 +414,27 @@ def _random_unitary(key: Array, size: int) -> Array:
 
 
 def _diagonal_model(n_orbitals: int) -> TBModel:
-    """Build a bounded comparator for low-cost eigensolver contract tests."""
+    """PRIVATE: Build a bounded comparator for low-cost eigensolver contract
+    tests.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of independent scalar bands.
+
+    Returns
+    -------
+    model : TBModel
+        Model whose hoppings are all orbital-diagonal conjugate pairs
+        along x with forward amplitudes spread over ``[-0.31, -0.07]``
+        eV and onsite energies spread over ``[-1.3, 1.7]`` eV.
+
+    Notes
+    -----
+    ``H(k)`` stays diagonal with closed cosine entries, so eigensolver
+    contract checks scale to any size without meaningful linear-algebra
+    cost.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * n_orbitals,
         n=(1,) * n_orbitals,
@@ -275,7 +461,30 @@ def _diagonal_model(n_orbitals: int) -> TBModel:
 
 
 def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
-    """Build a dense four-orbital bulk used by real slab scaling tests."""
+    """PRIVATE: Build a dense four-orbital bulk for real slab scaling tests.
+
+    Parameters
+    ----------
+    alternating_species : bool
+        If true, split the four orbitals over an X site and a Y site
+        at fractional z one half. Otherwise place all four orbitals on
+        one X site.
+
+    Returns
+    -------
+    model : TBModel
+        Four-orbital model with dense complex sixteen-entry hopping
+        blocks on the x and z conjugate cell pairs. A deterministic
+        sine--cosine seed at scale 0.13 eV generates the blocks.
+        Onsite energies are ``(-1.2, -0.3, 0.4, 1.5)`` eV.
+
+    Notes
+    -----
+    The z blocks carry factor 1.3 relative to the x blocks. Each
+    reverse cell holds the conjugate transpose, so the bulk is
+    Hermitian, dense, and generic. Slab scaling tests extrude it layer
+    by layer with four orbitals per layer.
+    """
     positions: Array = (
         jnp.asarray(((0.0, 0.0, 0.0), (0.0, 0.0, 0.5)))
         if alternating_species
@@ -327,7 +536,26 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
 
 
 def _scaling_slab(n_layers: int) -> TBModel:
-    """Build a four-orbital-per-layer slab through the public generator."""
+    """PRIVATE: Build a four-orbital-per-layer slab through the public
+    generator.
+
+    Parameters
+    ----------
+    n_layers : int
+        Number of extruded layers.
+
+    Returns
+    -------
+    slab : TBModel
+        The (001) slab of :func:`_scaling_bulk_model` with thickness
+        ``(n_layers - 1) * 1.3`` Angstrom and 4.0 Angstrom of vacuum.
+
+    Notes
+    -----
+    Asserts that the generator reports exactly ``n_layers`` layers and
+    ``4 * n_layers`` orbitals before returning, so the scaling sweeps
+    measure the size they claim.
+    """
     specification: Any
     slab: TBModel
     slab, specification = gen_slab(
@@ -342,7 +570,25 @@ def _scaling_slab(n_layers: int) -> TBModel:
 
 
 def _collect_shapes(value: object, shapes: list[tuple[int, ...]]) -> None:
-    """Collect shaped variables recursively from one JAXPR."""
+    """PRIVATE: Collect shaped variables recursively from one JAXPR.
+
+    Parameters
+    ----------
+    value : object
+        A ``ClosedJaxpr``, ``Jaxpr``, container, or any other object
+        found inside JAXPR equation parameters.
+    shapes : list[tuple[int, ...]]
+        Mutable accumulator that receives one shape tuple per shaped
+        variable.
+
+    Notes
+    -----
+    Walks constant, input, output, and equation variables, skips
+    literals, and appends the ``aval`` shape of every variable that has
+    one. Recurses into equation parameters, tuples, lists, and
+    dictionaries, so shapes hidden behind call primitives also appear.
+    The traversal mutates ``shapes`` in place and returns ``None``.
+    """
     equation: Any
     item: Any
     parameter: Any

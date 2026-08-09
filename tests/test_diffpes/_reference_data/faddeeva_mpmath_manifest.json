@@ -32,7 +32,7 @@
     "spectral-broadening-gradient"
   ],
   "generator": "tests/_reference_tools/generate_faddeeva_mpmath_reference.py",
-  "generator_sha256": "4e2f8e6fbef5513639c1a3f21fb1adf3a59dcf4c86f97c83c6c28a80744782fd",
+  "generator_sha256": "e1c58b6df69b057ec2ff4515b3722064e10c3449239e93c7066d3243f80503a1",
   "grid": {
     "angles": "linspace(0,pi,33)",
     "radii": "{0} union 10**linspace(-12,8,161)"

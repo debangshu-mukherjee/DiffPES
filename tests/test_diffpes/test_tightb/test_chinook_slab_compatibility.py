@@ -42,7 +42,28 @@ _COMPATIBILITY_ATOL_EV: float = 1e-8
 
 
 def _reference() -> dict[str, Any]:
-    """Load and authenticate the inert numeric compatibility artifact."""
+    """PRIVATE: Load and authenticate the inert numeric compatibility artifact.
+
+    Returns
+    -------
+    payload : dict[str, Any]
+        Parsed JSON content of ``chinook_slab_reference.json`` with the
+        neutral model specification and the frozen Chinook slab
+        reference in eV and Angstrom.
+
+    Raises
+    ------
+    ValueError
+        If the SHA-256 digest differs from the pinned constant, or if
+        the metadata does not declare both K-type slab-parity
+        requirements.
+
+    Notes
+    -----
+    Reads the artifact bytes, checks them against ``_ARTIFACT_SHA256``,
+    and validates the recorded requirements and classification before
+    any comparison uses the payload. Chinook itself never runs.
+    """
     encoded: bytes = _ARTIFACT_PATH.read_bytes()
     digest: str = hashlib.sha256(encoded).hexdigest()
     if digest != _ARTIFACT_SHA256:
@@ -63,7 +84,28 @@ def _reference() -> dict[str, Any]:
 
 
 def _bulk_model(specification: dict[str, Any]) -> TBModel:
-    """Build the native side of the implementation-neutral frozen model."""
+    """PRIVATE: Build the native side of the implementation-neutral model.
+
+    Parameters
+    ----------
+    specification : dict[str, Any]
+        Frozen ``model_specification`` block with the lattice in
+        Angstrom, fractional positions, species, onsite energy in eV,
+        and anisotropic nearest-neighbor hoppings in eV.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital cubic bulk model with six nearest-neighbor hopping
+        records that mirror the specification exactly.
+
+    Notes
+    -----
+    Duplicates each of the x, y, and z hopping values onto the forward
+    and reverse cells. The model is therefore Hermitian by
+    construction. It matches the model that Chinook builds from the
+    same neutral numbers.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.asarray(
             specification["lattice_angstrom"],
@@ -120,7 +162,25 @@ def _bulk_model(specification: dict[str, Any]) -> TBModel:
 def _native_slab(
     payload: dict[str, Any],
 ) -> tuple[TBModel, SlabSpec]:
-    """Construct the native slab from the frozen neutral specification."""
+    """PRIVATE: Construct the native slab from the frozen specification.
+
+    Parameters
+    ----------
+    payload : dict[str, Any]
+        Authenticated artifact dictionary from :func:`_reference`.
+
+    Returns
+    -------
+    slab_and_spec : tuple[TBModel, SlabSpec]
+        The extruded slab model and its specification carrier.
+
+    Notes
+    -----
+    Feeds the frozen Miller index, thickness and vacuum in Angstrom,
+    termination species, and fine offsets into the public
+    :func:`gen_slab` on top of :func:`_bulk_model`, so the native slab
+    derives only from implementation-neutral numbers.
+    """
     specification: dict[str, Any] = payload["model_specification"]
     return gen_slab(
         bulk_model=_bulk_model(specification),
@@ -135,7 +195,33 @@ def _native_slab(
 def _gauss_reduced_metric(
     vectors: Float64[NDArray, "2 3"],
 ) -> Float64[NDArray, "2 3"]:
-    """Return a deterministic reduced two-dimensional lattice metric."""
+    """PRIVATE: Return a deterministic reduced two-dimensional lattice metric.
+
+    Parameters
+    ----------
+    vectors : Float64[NDArray, "2 3"]
+        Two in-plane surface lattice vectors in Angstrom as rows.
+
+    Returns
+    -------
+    metric : Float64[NDArray, "2 3"]
+        The Gram matrix ``reduced @ reduced.T`` of the Gauss-reduced
+        vectors in Angstrom squared.
+
+    Raises
+    ------
+    RuntimeError
+        If the reduction loop does not converge within 32 sweeps.
+
+    Notes
+    -----
+    Applies classical Gauss lattice reduction. The loop orders the two
+    vectors by squared length. It then subtracts the nearest-integer
+    multiple of the shorter vector from the longer vector. The loop
+    stops when the pair reaches reduced form. The resulting metric is a
+    unimodular invariant, so it permits a direct comparison between two
+    differently chosen surface cells.
+    """
     reduced: Float64[NDArray, "2 3"] = np.asarray(
         vectors, dtype=np.float64
     ).copy()

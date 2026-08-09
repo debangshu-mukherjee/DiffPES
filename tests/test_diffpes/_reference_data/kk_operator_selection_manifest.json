@@ -1,0 +1,936 @@
+{
+  "archive": "kk_operator_selection_reference.npz",
+  "archive_sha256": "e827e91c62e294afc50112af5fe484e5ff002070f106511d07bb813502648430",
+  "candidate_modules": {
+    "grid_carrier": {
+      "description": "Analytic linear-cell PV integrals with exactly cancelling node logs.",
+      "module": "tests/_reference_tools/_kk_candidate_piecewise_linear.py",
+      "name": "cell-integrated piecewise-linear"
+    },
+    "maclaurin_control": {
+      "description": "Rejected point-sampled Maclaurin rule with cubic-Hermite post-interpolation.",
+      "module": "tests/_reference_tools/_kk_control_opposite_parity_maclaurin.py",
+      "name": "opposite-parity Maclaurin control"
+    },
+    "pwcubic": {
+      "description": "Analytic cell PV integration of cubic interpolants on four-node stencils, with regrouped node logs and double-where node cancellation.",
+      "module": "tests/_reference_tools/_kk_candidate_piecewise_cubic.py",
+      "name": "cell_integrated_piecewise_cubic"
+    },
+    "pwquadratic": {
+      "description": "Analytic cell PV integration of quadratic interpolants on adjacent cell pairs, with regrouped node logs and double-where node cancellation.",
+      "module": "tests/_reference_tools/_kk_candidate_piecewise_quadratic.py",
+      "name": "cell_integrated_piecewise_quadratic"
+    }
+  },
+  "configurations": {
+    "base": {
+      "construction": "uniform",
+      "domain_high_ev": 8.0,
+      "domain_low_ev": -8.0,
+      "n_kk": 4096,
+      "n_tail": 256
+    },
+    "domain_extension": {
+      "construction": "phase_aligned_extension",
+      "domain_high_ev": 8.0,
+      "domain_low_ev": -8.0,
+      "n_kk": 8192,
+      "n_tail": 256
+    },
+    "grid16384": {
+      "construction": "uniform",
+      "domain_high_ev": 8.0,
+      "domain_low_ev": -8.0,
+      "n_kk": 16384,
+      "n_tail": 256
+    },
+    "grid8192": {
+      "construction": "uniform",
+      "domain_high_ev": 8.0,
+      "domain_low_ev": -8.0,
+      "n_kk": 8192,
+      "n_tail": 256
+    },
+    "tail512": {
+      "construction": "uniform",
+      "domain_high_ev": 8.0,
+      "domain_low_ev": -8.0,
+      "n_kk": 4096,
+      "n_tail": 512
+    }
+  },
+  "derivative_route": "query derivatives evaluate the transform of the sampled analytic derivative of Sigma'' plus the finite-core boundary terms Sigma''(a)/(a-omega) - Sigma''(b)/(b-omega) and the exact forward-mode derivative of the tail quadrature; the subtraction constant has zero query derivative",
+  "environment": {
+    "jax": "0.9.0.1",
+    "numpy": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "python": "3.13.6",
+    "scipy": "1.17.1"
+  },
+  "executable_inputs": {
+    "analytic_arbiter": {
+      "arbiter": {
+        "decimal_digits": 80,
+        "method": "closed forms checked by numerical principal-value integration",
+        "name": "mpmath",
+        "observed_maximum_errors": {
+          "pole_max_abs_error_ev": "3.35568582744e-81",
+          "semicircle_max_abs_error_ev": "2.63554948581e-82"
+        },
+        "pv_check_absolute_tolerance_ev": "1.0e-45",
+        "pv_check_points_ev": [
+          "-1.0",
+          "-0.75",
+          "-0.2",
+          "0.0",
+          "0.35",
+          "0.8",
+          "1.0"
+        ]
+      },
+      "archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
+      "directory": "tests/test_diffpes/_reference_data/kk_analytic_reference",
+      "generator_sha256": "e54510e7dfa8663fbed959af0eee118170c1339b7124c8d73ca4d4b0c8dc4b59",
+      "manifest_recorded_archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
+      "manifest_sha256": "cf0ddb484727102a65c4bf88d742c11334ca03cec1e010422ea6ffc19aefa7be"
+    },
+    "common": {
+      "path": "tests/_reference_tools/_kk_candidate_common.py",
+      "sha256": "f6af92d4ea7b16cc020b894637e9ce4feecb7dcde8926c1026c6928dee2e5517"
+    },
+    "generator": {
+      "path": "tests/_reference_tools/generate_kk_operator_selection.py",
+      "sha256": "239543b12c5c3ea46cbc4b579f1fd062c0183328d9dc379cbe67cbcd689307c7"
+    },
+    "maclaurin_control": {
+      "path": "tests/_reference_tools/_kk_control_opposite_parity_maclaurin.py",
+      "sha256": "77eaec4ef9898b0b8abc372065a14353f6fb6e4ff6a3377c6436e62b1b8f53e3"
+    },
+    "piecewise_cubic": {
+      "path": "tests/_reference_tools/_kk_candidate_piecewise_cubic.py",
+      "sha256": "a17e6f2c6b4ec3aee76d3ec116cb091bccc85bcc0edb59f908f1128aa2ea7900"
+    },
+    "piecewise_linear": {
+      "path": "tests/_reference_tools/_kk_candidate_piecewise_linear.py",
+      "sha256": "f01469f8fa44163dc07c5f1e1be76facd4c4a8ad00584deef9b8e210a23d6bfb"
+    },
+    "piecewise_quadratic": {
+      "path": "tests/_reference_tools/_kk_candidate_piecewise_quadratic.py",
+      "sha256": "83ae1ff85341782bac118447f1d9ab0381c1135a9fb00e4e79c83220c968cf3e"
+    }
+  },
+  "fixture_configurations": {
+    "pole": [
+      "base",
+      "grid8192",
+      "domain_extension",
+      "tail512"
+    ],
+    "wigner": [
+      "base",
+      "grid8192",
+      "domain_extension",
+      "grid16384"
+    ]
+  },
+  "fixtures": {
+    "pole": {
+      "g": 0.12,
+      "gamma": 0.2,
+      "omega0": 0.35
+    },
+    "query_grid": "kk_analytic_reference pole_omega (1001 pts)",
+    "subtraction_point_ev": 0.0,
+    "wigner": {
+      "g": 0.2,
+      "half_width": 1.5
+    }
+  },
+  "grid_construction": {
+    "base_nodes_embedded_bitwise": true,
+    "embedding_mismatch_count": 0,
+    "extension_endpoints_ev": [
+      -16.001953601953602,
+      16.001953601953602
+    ],
+    "n_kk_parity": "even: no node at the subtraction point and no collision with the frozen query grid",
+    "phase_aligned_extension": "x_j = low + (j - 2048)*h, j = 0..8191, h = (high-low)/(n_base-1) with n_base = 4096; the construction expression is frozen, not the endpoints",
+    "query_node_collision_count": 0,
+    "uniform": "x_j = low + j*h, h = (high-low)/(n_kk-1)"
+  },
+  "jvp_method": "exact forward-mode jax.jvp through the full pipeline in the dimensionless coordinate q_p = p/p_fixture; raw tail coordinates held fixed; cross-checked by a five-point central difference with step 0.000244140625",
+  "metrics": {
+    "candidates": {
+      "pwcubic": {
+        "pole": {
+          "analytic_pair_truth": {
+            "base": {
+              "max_abs_error_ev": 3.393963743381079e-08,
+              "mixed_criterion_max_ratio": 0.8239596852267533,
+              "pass": true,
+              "violating_rows": 0,
+              "worst_query_ev": 0.236
+            },
+            "domain_extension": {
+              "max_abs_error_ev": 3.393963943221223e-08,
+              "mixed_criterion_max_ratio": 0.8239596251522594,
+              "pass": true,
+              "violating_rows": 0,
+              "worst_query_ev": 0.236
+            },
+            "grid8192": {
+              "max_abs_error_ev": 2.2022852708136753e-09,
+              "mixed_criterion_max_ratio": 0.024395581650217137,
+              "pass": true,
+              "violating_rows": 0,
+              "worst_query_ev": 0.26
+            },
+            "requirement": "kk-analytic-pair-truth",
+            "tail512": {
+              "max_abs_error_ev": 3.393963743381079e-08,
+              "mixed_criterion_max_ratio": 0.8239596852267533,
+              "pass": true,
+              "violating_rows": 0,
+              "worst_query_ev": 0.236
+            }
+          },
+          "derivative_composite": {
+            "base": {
+              "max_abs_error": 9.342723950034326e-07,
+              "max_abs_error_direct_ad": 8.872434083384562e-05
+            },
+            "domain_extension": {
+              "max_abs_error": 9.342723994443247e-07,
+              "max_abs_error_direct_ad": 8.872434082762837e-05
+            },
+            "grid8192": {
+              "max_abs_error": 5.1297888603585307e-08,
+              "max_abs_error_direct_ad": 7.609889164150729e-06
+            },
+            "requirement": "kk-derivative-composite-route",
+            "tail512": {
+              "max_abs_error": 9.342723950034326e-07,
+              "max_abs_error_direct_ad": 8.872434083384562e-05
+            }
+          },
+          "fd_vs_jvp_max_abs": {
+            "g": 2.3602092502628125e-11,
+            "gamma": 2.2719659487080435e-11,
+            "omega0": 3.1539298950278294e-11
+          },
+          "query_derivative_identity_max_abs_dev": {
+            "base": 2.2633284135764598e-13,
+            "domain_extension": 2.2420953982305036e-13,
+            "grid8192": 3.8803682489430003e-13,
+            "tail512": 2.2633284135764598e-13
+          },
+          "refinements": {
+            "domain_extension": {
+              "held_raw_deltas": {
+                "max_delta_dsigma_composite": 3.0112018434280685e-10,
+                "max_delta_dsigma_direct": 3.0112021209838247e-10,
+                "max_delta_jvp_per_param_ev": {
+                  "g": 2.987307623492086e-10,
+                  "gamma": 1.5442631062789758e-09,
+                  "omega0": 3.100163181724014e-11
+                },
+                "max_delta_sigma_ev": 2.987307623492086e-10
+              },
+              "max_delta_dsigma_composite": 6.217248937900877e-15,
+              "max_delta_dsigma_direct": 6.661338147750939e-15,
+              "max_delta_jvp_ev": 1.245432784680034e-09,
+              "max_delta_jvp_per_param_ev": {
+                "g": 5.440092820663267e-15,
+                "gamma": 1.245432784680034e-09,
+                "omega0": 3.097991307932091e-11
+              },
+              "max_delta_sigma_ev": 5.440092820663267e-15,
+              "pass_delta_dsigma_composite_2em5": true,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true,
+              "tail_raw_convention": "recomputed (domain changed)"
+            },
+            "grid8192": {
+              "max_delta_dsigma_composite": 9.042664075309403e-07,
+              "max_delta_dsigma_direct": 9.153614513168762e-05,
+              "max_delta_jvp_ev": 3.125964165295869e-07,
+              "max_delta_jvp_per_param_ev": {
+                "g": 3.3168288504636934e-08,
+                "gamma": 1.6791921453318537e-07,
+                "omega0": 3.125964165295869e-07
+              },
+              "max_delta_sigma_ev": 3.3168288504636934e-08,
+              "pass_delta_dsigma_composite_2em5": true,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true
+            },
+            "requirement": "kk-refinement-convergence",
+            "tail512": {
+              "max_delta_dsigma_composite": 1.3552527156068805e-20,
+              "max_delta_dsigma_direct": 1.3552527156068805e-20,
+              "max_delta_jvp_ev": 0.0,
+              "max_delta_jvp_per_param_ev": {
+                "g": 0.0,
+                "gamma": 0.0,
+                "omega0": 0.0
+              },
+              "max_delta_sigma_ev": 0.0,
+              "pass_delta_dsigma_composite_2em5": true,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true,
+              "pass_tail_delta_dsigma_1em13": true,
+              "pass_tail_delta_sigma_1em13": true
+            }
+          }
+        },
+        "wigner": {
+          "fd_vs_jvp_max_abs": {
+            "g": 4.902014431318324e-07,
+            "half_width": 8.859882027922872e-06
+          },
+          "query_derivative_identity_max_abs_dev": {
+            "base": 8.849176946768011e-11,
+            "domain_extension": 8.849176946768011e-11,
+            "grid8192": 8.679834628821936e-10
+          },
+          "refinements": {
+            "domain_extension": {
+              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "max_delta_dsigma_direct": 0.0,
+              "max_delta_jvp_per_param_ev": {
+                "g": 0.0,
+                "half_width": 0.0
+              },
+              "max_delta_sigma_ev": 0.0,
+              "pass_delta_jvp_g_value_budget_2em6": true
+            },
+            "grid8192": {
+              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "max_delta_dsigma_direct": 5.383473510811587e-06,
+              "max_delta_jvp_per_param_ev": {
+                "g": 2.072367922462126e-06,
+                "half_width": 0.0007684476586106714
+              },
+              "max_delta_sigma_ev": 2.072367922462126e-06,
+              "pass_delta_jvp_g_value_budget_2em6": false
+            },
+            "requirement": "kk-refinement-convergence"
+          },
+          "stress_witness": {
+            "pass_base_value_error_1em5": true,
+            "pass_monotone_decrease": true,
+            "pass_value_orders_min_1p4": true,
+            "requirement": "kk-singularity-stress-witness",
+            "value_error_ev": {
+              "base": 3.205282973650636e-06,
+              "domain_extension": 3.205282973650636e-06,
+              "grid16384": 4.051566537544016e-07,
+              "grid8192": 1.1331090281896383e-06
+            },
+            "value_order_4096_to_8192": 1.500165044144154,
+            "value_order_8192_to_16384": 1.4837349457319204
+          }
+        }
+      },
+      "pwquadratic": {
+        "pole": {
+          "analytic_pair_truth": {
+            "base": {
+              "max_abs_error_ev": 1.5776356044328033e-06,
+              "mixed_criterion_max_ratio": 44.17002319787835,
+              "pass": false,
+              "violating_rows": 194,
+              "worst_query_ev": 0.236
+            },
+            "domain_extension": {
+              "max_abs_error_ev": 1.5776367787156964e-06,
+              "mixed_criterion_max_ratio": 44.16999053919895,
+              "pass": false,
+              "violating_rows": 194,
+              "worst_query_ev": 0.236
+            },
+            "grid8192": {
+              "max_abs_error_ev": 1.9481826120382184e-07,
+              "mixed_criterion_max_ratio": 2.9719765306957124,
+              "pass": false,
+              "violating_rows": 42,
+              "worst_query_ev": 0.234
+            },
+            "requirement": "kk-analytic-pair-truth",
+            "tail512": {
+              "max_abs_error_ev": 1.5776356044328033e-06,
+              "mixed_criterion_max_ratio": 44.17002319787835,
+              "pass": false,
+              "violating_rows": 194,
+              "worst_query_ev": 0.236
+            }
+          },
+          "derivative_composite": {
+            "base": {
+              "max_abs_error": 3.8844398134063596e-05,
+              "max_abs_error_direct_ad": 0.0010935957315814093
+            },
+            "domain_extension": {
+              "max_abs_error": 3.884440097134956e-05,
+              "max_abs_error_direct_ad": 0.0010935957287516729
+            },
+            "grid8192": {
+              "max_abs_error": 4.089895982328784e-06,
+              "max_abs_error_direct_ad": 0.00027045113022250433
+            },
+            "requirement": "kk-derivative-composite-route",
+            "tail512": {
+              "max_abs_error": 3.8844398134063596e-05,
+              "max_abs_error_direct_ad": 0.0010935957315814093
+            }
+          },
+          "fd_vs_jvp_max_abs": {
+            "g": 5.970002270316854e-12,
+            "gamma": 5.291572735544037e-12,
+            "omega0": 5.1690735025644585e-12
+          },
+          "query_derivative_identity_max_abs_dev": {
+            "base": 2.531308496145357e-14,
+            "domain_extension": 2.681188604469753e-14,
+            "grid8192": 3.441691376337985e-14,
+            "tail512": 2.531308496145357e-14
+          },
+          "refinements": {
+            "domain_extension": {
+              "held_raw_deltas": {
+                "max_delta_dsigma_composite": 3.049949737210511e-10,
+                "max_delta_dsigma_direct": 3.0499502923220234e-10,
+                "max_delta_jvp_per_param_ev": {
+                  "g": 3.025136807721651e-10,
+                  "gamma": 1.5480198511941268e-09,
+                  "omega0": 3.1230698582795924e-11
+                },
+                "max_delta_sigma_ev": 3.025136807721651e-10
+              },
+              "max_delta_dsigma_composite": 2.9489188868581095e-12,
+              "max_delta_dsigma_direct": 2.948974398009341e-12,
+              "max_delta_jvp_ev": 1.2482760103349477e-09,
+              "max_delta_jvp_per_param_ev": {
+                "g": 2.86420887007921e-12,
+                "gamma": 1.2482760103349477e-09,
+                "omega0": 3.120888270036204e-11
+              },
+              "max_delta_sigma_ev": 2.86420887007921e-12,
+              "pass_delta_dsigma_composite_2em5": true,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true,
+              "tail_raw_convention": "recomputed (domain changed)"
+            },
+            "grid8192": {
+              "max_delta_dsigma_composite": 4.0854743946994176e-05,
+              "max_delta_dsigma_direct": 0.001260568499197312,
+              "max_delta_jvp_ev": 1.432196181938572e-05,
+              "max_delta_jvp_per_param_ev": {
+                "g": 1.6109775293204898e-06,
+                "gamma": 6.25632473016946e-06,
+                "omega0": 1.432196181938572e-05
+              },
+              "max_delta_sigma_ev": 1.6109775293204898e-06,
+              "pass_delta_dsigma_composite_2em5": false,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true
+            },
+            "requirement": "kk-refinement-convergence",
+            "tail512": {
+              "max_delta_dsigma_composite": 2.7755575615628914e-17,
+              "max_delta_dsigma_direct": 2.7755575615628914e-17,
+              "max_delta_jvp_ev": 0.0,
+              "max_delta_jvp_per_param_ev": {
+                "g": 0.0,
+                "gamma": 0.0,
+                "omega0": 0.0
+              },
+              "max_delta_sigma_ev": 2.7755575615628914e-17,
+              "pass_delta_dsigma_composite_2em5": true,
+              "pass_delta_jvp_2em5": true,
+              "pass_delta_sigma_2em6": true,
+              "pass_tail_delta_dsigma_1em13": true,
+              "pass_tail_delta_sigma_1em13": true
+            }
+          }
+        },
+        "wigner": {
+          "fd_vs_jvp_max_abs": {
+            "g": 1.939032157061149e-09,
+            "half_width": 1.044684150680597e-05
+          },
+          "query_derivative_identity_max_abs_dev": {
+            "base": 2.0003443346183758e-13,
+            "domain_extension": 2.0003443346183758e-13,
+            "grid8192": 5.898059818321144e-14
+          },
+          "refinements": {
+            "domain_extension": {
+              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "max_delta_dsigma_direct": 0.0,
+              "max_delta_jvp_per_param_ev": {
+                "g": 0.0,
+                "half_width": 0.0
+              },
+              "max_delta_sigma_ev": 0.0,
+              "pass_delta_jvp_g_value_budget_2em6": true
+            },
+            "grid8192": {
+              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "max_delta_dsigma_direct": 9.9862179479826e-06,
+              "max_delta_jvp_per_param_ev": {
+                "g": 2.8726285177804733e-06,
+                "half_width": 0.0012860034112118224
+              },
+              "max_delta_sigma_ev": 2.8726285177804733e-06,
+              "pass_delta_jvp_g_value_budget_2em6": false
+            },
+            "requirement": "kk-refinement-convergence"
+          },
+          "stress_witness": {
+            "pass_base_value_error_1em5": true,
+            "pass_monotone_decrease": true,
+            "pass_value_orders_min_1p4": true,
+            "requirement": "kk-singularity-stress-witness",
+            "value_error_ev": {
+              "base": 4.446283081910307e-06,
+              "domain_extension": 4.446283081910307e-06,
+              "grid16384": 5.566568249959492e-07,
+              "grid8192": 1.5736545641298338e-06
+            },
+            "value_order_4096_to_8192": 1.498480916586071,
+            "value_order_8192_to_16384": 1.499258791487415
+          }
+        }
+      }
+    },
+    "carrier_consistency": {
+      "cubic_positivity_overshoot": true,
+      "cubic_reconstruction_max_ev": 4.343346679687535e-05,
+      "cubic_transform_max_abs_error_ev": 3.707182488821292e-05,
+      "fixture": {
+        "all_samples_negative": true,
+        "break_node_indices": [
+          0,
+          512,
+          1600,
+          2100,
+          2600,
+          3300,
+          4095
+        ],
+        "break_values_ev": [
+          -0.05,
+          -0.12,
+          -0.35,
+          -1e-06,
+          -1e-06,
+          -0.07,
+          -0.04
+        ],
+        "interior_kink_count": 5
+      },
+      "hat_reconstruction_max_ev": -1e-06,
+      "hat_sign_preserved": true,
+      "hat_tail_seam_slope_error_left": 0.0,
+      "hat_tail_seam_slope_error_right": 0.0,
+      "linear_transform_error_scale_ev": 1.0,
+      "linear_transform_max_abs_error_ev": 3.885780586188048e-16,
+      "pass_hat_tail_seam_roundoff": true,
+      "pass_linear_exactness_roundoff": true,
+      "requirement": "kk-carrier-consistency"
+    },
+    "maclaurin_control": {
+      "pole": {
+        "max_abs_dsigma_error": 0.001056856372339876,
+        "max_abs_error_ev": 4.44025030410522e-07,
+        "mixed_criterion_max_ratio": 6.944936281474336,
+        "pass": false,
+        "violating_rows": 126,
+        "worst_query_ev": 0.236
+      },
+      "requirement": "kk-rejected-control-reference",
+      "wigner": {
+        "max_abs_dsigma_error": 0.006375894594874865,
+        "max_abs_error_ev": 1.1056042994783688e-05,
+        "mixed_criterion_max_ratio": 230.58810278928536,
+        "pass": false,
+        "violating_rows": 994,
+        "worst_query_ev": -0.002
+      }
+    },
+    "reverse_mode": {
+      "pwcubic": {
+        "core_samples": {
+          "abs_forward_minus_fd": 6.690612508464255e-10,
+          "abs_reverse_minus_forward": 1.9184653865522705e-13,
+          "directional_fd": 61.05901373453283,
+          "directional_forward": 61.05901373386377,
+          "directional_reverse": 61.059013733863964,
+          "max_abs_grad": 444.340568412227,
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true
+        },
+        "node_coincident_queries": {
+          "abs_forward_minus_fd": 3.396246367470823e-09,
+          "abs_reverse_minus_forward": 1.7982837441365973e-13,
+          "directional_fd": 0.22983831055898918,
+          "directional_forward": 0.22983831395523555,
+          "directional_reverse": 0.22983831395505572,
+          "grad_wrt_core_samples_finite": true,
+          "grad_wrt_queries_finite": true,
+          "node_indices": [
+            1024,
+            2048,
+            3072
+          ],
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true
+        },
+        "queries": {
+          "abs_forward_minus_fd": 8.198667302394824e-06,
+          "abs_reverse_minus_forward": 5.684341886080801e-13,
+          "directional_fd": 232.62018314172747,
+          "directional_forward": 232.62017494306016,
+          "directional_reverse": 232.6201749430596,
+          "max_abs_grad": 3.0129234102305413,
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true,
+          "reverse_vs_forward_per_query_max_abs": 3.484573740664132e-13
+        },
+        "raw_tail_coordinates": {
+          "pass_all": true,
+          "raw_left": {
+            "abs_reverse_minus_fd": 1.5057141277537263e-13,
+            "abs_reverse_minus_forward": 1.3652616010187722e-21,
+            "fd": -2.567067743560377e-09,
+            "forward": -2.5672183149745177e-09,
+            "pass": true,
+            "reverse": -2.5672183149731524e-09
+          },
+          "raw_right": {
+            "abs_reverse_minus_fd": 1.1004011005936348e-13,
+            "abs_reverse_minus_forward": 1.8983795058091985e-21,
+            "fd": 3.7356168528882945e-09,
+            "forward": 3.735726893000252e-09,
+            "pass": true,
+            "reverse": 3.735726892998354e-09
+          }
+        },
+        "requirement": "kk-reverse-mode-consistency",
+        "rules": "forward-versus-reverse identities at roundoff scale; finite-difference directional cross-checks at the program-wide f64 ladder rtol 1e-6 (the query-direction difference quotient carries an intrinsic truncation floor from node-crossing logarithmic kinks of the interpolant, so roundoff-scale FD agreement is not attainable there)"
+      },
+      "pwquadratic": {
+        "core_samples": {
+          "abs_forward_minus_fd": 1.014868189486151e-09,
+          "abs_reverse_minus_forward": 8.526512829121202e-14,
+          "directional_fd": 61.05901709026269,
+          "directional_forward": 61.059017089247824,
+          "directional_reverse": 61.05901708924791,
+          "max_abs_grad": 449.2065270955066,
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true
+        },
+        "node_coincident_queries": {
+          "abs_forward_minus_fd": 8.453506228356389e-10,
+          "abs_reverse_minus_forward": 4.274358644806853e-15,
+          "directional_fd": 0.22983837422149614,
+          "directional_forward": 0.22983837506684676,
+          "directional_reverse": 0.2298383750668425,
+          "grad_wrt_core_samples_finite": true,
+          "grad_wrt_queries_finite": true,
+          "node_indices": [
+            1024,
+            2048,
+            3072
+          ],
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true
+        },
+        "queries": {
+          "abs_forward_minus_fd": 2.4458478918631954e-05,
+          "abs_reverse_minus_forward": 1.9895196601282805e-13,
+          "directional_fd": 232.6201997526805,
+          "directional_forward": 232.62017529420157,
+          "directional_reverse": 232.62017529420177,
+          "max_abs_grad": 3.0128605276382685,
+          "pass_fd_agreement": true,
+          "pass_reverse_vs_forward": true,
+          "reverse_vs_forward_per_query_max_abs": 6.578071420904053e-14
+        },
+        "raw_tail_coordinates": {
+          "pass_all": true,
+          "raw_left": {
+            "abs_reverse_minus_fd": 8.236610427796264e-13,
+            "abs_reverse_minus_forward": 1.5273890010791656e-21,
+            "fd": -2.5742489621431255e-09,
+            "forward": -2.5750726231874325e-09,
+            "pass": true,
+            "reverse": -2.575072623185905e-09
+          },
+          "raw_right": {
+            "abs_reverse_minus_fd": 3.416363089884677e-13,
+            "abs_reverse_minus_forward": 1.5046415342339573e-21,
+            "fd": 3.746815006403874e-09,
+            "forward": 3.747156642714367e-09,
+            "pass": true,
+            "reverse": 3.747156642712862e-09
+          }
+        },
+        "requirement": "kk-reverse-mode-consistency",
+        "rules": "forward-versus-reverse identities at roundoff scale; finite-difference directional cross-checks at the program-wide f64 ladder rtol 1e-6 (the query-direction difference quotient carries an intrinsic truncation floor from node-crossing logarithmic kinks of the interpolant, so roundoff-scale FD agreement is not attainable there)"
+      }
+    },
+    "smooth_seam_consistency": {
+      "pwcubic": {
+        "edge_slope_error_left": 1.266437042041213e-13,
+        "edge_slope_error_right": 2.1402117003545967e-13,
+        "pass_tail_seam_roundoff": true,
+        "tail_seam_slope_error_left": 0.0,
+        "tail_seam_slope_error_right": 0.0
+      },
+      "pwlinear": {
+        "edge_slope_error_left": 5.779538096465308e-08,
+        "edge_slope_error_right": 8.200855583787232e-08,
+        "pass_tail_seam_roundoff": true,
+        "tail_seam_slope_error_left": 0.0,
+        "tail_seam_slope_error_right": 0.0
+      },
+      "pwquadratic": {
+        "edge_slope_error_left": 7.213014297717361e-11,
+        "edge_slope_error_right": 1.1170518119708612e-10,
+        "pass_tail_seam_roundoff": true,
+        "tail_seam_slope_error_left": 0.0,
+        "tail_seam_slope_error_right": 1.3552527156068805e-20
+      },
+      "requirement": "kk-carrier-consistency"
+    },
+    "spectral_observable": {
+      "eta_ev": 0.0001,
+      "hamiltonian_ev": [
+        [
+          "(-0.25+0j)",
+          "(0.11+0.07j)"
+        ],
+        [
+          "(0.11-0.07j)",
+          "(0.32+0j)"
+        ]
+      ],
+      "n_omega": 4001,
+      "pwcubic": {
+        "base_peak_ev": -0.2143633038770293,
+        "domain_extension": {
+          "l1_shape_change": 1.2723000170770925e-14,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 1.609823385706477e-15,
+          "weight_relative_change": 5.013002284594333e-15
+        },
+        "grid8192": {
+          "l1_shape_change": 6.593039140379931e-09,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 8.033620157998911e-10,
+          "weight_relative_change": 2.0326578434936395e-10
+        },
+        "tail512": {
+          "l1_shape_change": 0.0,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 0.0,
+          "weight_relative_change": 0.0
+        }
+      },
+      "pwquadratic": {
+        "base_peak_ev": -0.21436326272289763,
+        "domain_extension": {
+          "l1_shape_change": 6.718892863300958e-12,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 4.694300503871318e-13,
+          "weight_relative_change": 2.6521169246223497e-12
+        },
+        "grid8192": {
+          "l1_shape_change": 1.8116385528497547e-07,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 5.201282535227669e-08,
+          "weight_relative_change": 7.563715724681666e-10
+        },
+        "tail512": {
+          "l1_shape_change": 1.1102230246250343e-19,
+          "pass_l1_shape_1em5": true,
+          "pass_peak_2em5": true,
+          "pass_weight_1em5": true,
+          "peak_motion_ev": 0.0,
+          "weight_relative_change": 0.0
+        }
+      },
+      "requirement": "kk-spectral-observable-stability",
+      "sigma_model": "retarded-pole fixture: Sigma'' analytic, Sigma' from the operator under test, subtracted at omega_s = 0 eV",
+      "source": [
+        "(1+0.3j)",
+        "(-0.4+0.8j)"
+      ]
+    }
+  },
+  "mode_operator_contract": {
+    "grid": "cell-integrated piecewise-linear PV transform; exact for the binding hat-interpolant carrier; tail edge slopes from the hat interpolant's edge cells",
+    "smooth_analytic": "cell-integrated piecewise-cubic PV transform for smooth analytic modes (poly, fermi_liquid, analytic fixtures); tail edge slopes from the one-sided cubic edge stencils"
+  },
+  "pole_tail_construction": {
+    "pwcubic": {
+      "base_domain": {
+        "left": {
+          "alpha_per_ev": 0.23938362337475386,
+          "amplitude_ev": 0.00034402436839276113,
+          "analytic_beta_target_per_ev2": 0.014334348683031715,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 8.218898025214028e-06,
+          "raw_delta_beta": -11.70907030862417
+        },
+        "raw_left": -11.70907030862417,
+        "raw_right": -11.359064962331182,
+        "right": {
+          "alpha_per_ev": 0.2612593388360013,
+          "amplitude_ev": 0.00040981856990394874,
+          "analytic_beta_target_per_ev2": 0.017075773745997863,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 1.166321374173121e-05,
+          "raw_delta_beta": -11.359064962331182
+        }
+      },
+      "extended_domain": {
+        "left": {
+          "alpha_per_ev": 0.12229125041236563,
+          "amplitude_ev": 8.974432293346555e-05,
+          "analytic_beta_target_per_ev2": 0.003739346788894398,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 5.593070394184323e-07,
+          "raw_delta_beta": -14.39656696942183
+        },
+        "raw_left": -14.39656696942183,
+        "raw_right": -14.221587839258836,
+        "right": {
+          "alpha_per_ev": 0.1277587164023146,
+          "amplitude_ev": 9.794972790350194e-05,
+          "analytic_beta_target_per_ev2": 0.004081238662645914,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 6.662584541520383e-07,
+          "raw_delta_beta": -14.221587839258836
+        }
+      }
+    },
+    "pwlinear": {
+      "base_domain": {
+        "left": {
+          "alpha_per_ev": 0.23955162093431906,
+          "amplitude_ev": 0.00034402436839276113,
+          "analytic_beta_target_per_ev2": 0.014334348683031715,
+          "clamped_to_floor": true,
+          "delta_beta_per_ev2": -1.1896090033207407e-05,
+          "raw_delta_beta": -30.0
+        },
+        "raw_left": -30.0,
+        "raw_right": -30.0,
+        "right": {
+          "alpha_per_ev": 0.2614594477325696,
+          "amplitude_ev": 0.00040981856990394874,
+          "analytic_beta_target_per_ev2": 0.017075773745997863,
+          "clamped_to_floor": true,
+          "delta_beta_per_ev2": -1.4486956157213488e-05,
+          "raw_delta_beta": -30.0
+        }
+      },
+      "extended_domain": {
+        "left": {
+          "alpha_per_ev": 0.12233508677924082,
+          "amplitude_ev": 8.974432293346555e-05,
+          "analytic_beta_target_per_ev2": 0.003739346788894398,
+          "clamped_to_floor": true,
+          "delta_beta_per_ev2": -2.1215754266975043e-06,
+          "raw_delta_beta": -30.0
+        },
+        "raw_left": -30.0,
+        "raw_right": -30.0,
+        "right": {
+          "alpha_per_ev": 0.12780656057438625,
+          "amplitude_ev": 9.794972790350194e-05,
+          "analytic_beta_target_per_ev2": 0.004081238662645914,
+          "clamped_to_floor": true,
+          "delta_beta_per_ev2": -2.3905688176515186e-06,
+          "raw_delta_beta": -30.0
+        }
+      }
+    },
+    "pwquadratic": {
+      "base_domain": {
+        "left": {
+          "alpha_per_ev": 0.23938341334083382,
+          "amplitude_ev": 0.00034402436839276113,
+          "analytic_beta_target_per_ev2": 0.014334348683031715,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 8.244037354590908e-06,
+          "raw_delta_beta": -11.706016241800253
+        },
+        "raw_left": -11.706016241800253,
+        "raw_right": -11.35601091661959,
+        "right": {
+          "alpha_per_ev": 0.2612590657414892,
+          "amplitude_ev": 0.00040981856990394874,
+          "analytic_beta_target_per_ev2": 0.017075773745997863,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 1.1698887968918104e-05,
+          "raw_delta_beta": -11.35601091661959
+        }
+      },
+      "extended_domain": {
+        "left": {
+          "alpha_per_ev": 0.12229122244625458,
+          "amplitude_ev": 8.974432293346555e-05,
+          "analytic_beta_target_per_ev2": 0.003739346788894398,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 5.61017044568065e-07,
+          "raw_delta_beta": -14.393514268902448
+        },
+        "raw_left": -14.393514268902448,
+        "raw_right": -14.218535025660154,
+        "right": {
+          "alpha_per_ev": 0.1277586845129795,
+          "amplitude_ev": 9.794972790350194e-05,
+          "analytic_beta_target_per_ev2": 0.004081238662645914,
+          "clamped_to_floor": false,
+          "delta_beta_per_ev2": 6.682955241569047e-07,
+          "raw_delta_beta": -14.218535025660154
+        }
+      }
+    }
+  },
+  "production_imports": [],
+  "purpose": "preproduction Kramers-Kronig operator selection: candidate comparison, carrier consistency, derivative route, reverse-mode consistency, and spectral observable stability",
+  "query_derivative_identity_check": "forward all-ones JVP versus jax.grad at three spot queries; scale-aware bound 1e-9 * (n_kk/4096) * max(1, |grad|, |jvp|) covering f64 summation-order conditioning; the measured maximum deviation is recorded per scenario",
+  "registered_budgets": {
+    "max_delta_dsigma": 2e-05,
+    "max_delta_jvp_ev": 2e-05,
+    "max_delta_sigma_ev": 2e-06,
+    "pair_truth_atol_ev": 2e-08,
+    "pair_truth_rtol": 1e-06,
+    "pole_tail_only_max_delta_dsigma": 1e-13,
+    "pole_tail_only_max_delta_sigma_ev": 1e-13,
+    "spectral_l1_shape_change": 1e-05,
+    "spectral_peak_motion_ev": 2e-05,
+    "spectral_weight_relative_change": 1e-05,
+    "wigner_base_value_error_ev": 1e-05,
+    "wigner_jvp_g_budget_ev": 2e-06,
+    "wigner_min_value_order": 1.4
+  },
+  "schema": "diffpes.kk-operator-selection.v1",
+  "tail_raw_convention": "raw tail coordinates are carrier state: frozen per model domain from the analytic fixture before any candidate output is inspected, held fixed across refinements that keep the domain unchanged, recomputed only when the domain changes; the domain-extension row records both conventions"
+}

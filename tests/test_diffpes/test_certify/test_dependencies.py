@@ -6,7 +6,7 @@ scientific identity in the supported certification regime.
 
 import jax
 import jax.numpy as jnp
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.certify import (
     clear_dependency_cache,
@@ -202,7 +202,7 @@ class TestClearDependencyCache:
             jnp.array([1.0]),
         )
         clear_dependency_cache()
-        info: tuple[int, int, int] = dependency_cache_info()
+        info: Tuple[int, int, int] = dependency_cache_info()
         assert info == (0, 0, 0)
 
 
@@ -232,5 +232,5 @@ class TestDependencyCacheInfo:
         inputs: Any = jnp.array([1.0, 2.0])
         dependency_map("org.diffpes.model.cache", forward, inputs)
         dependency_map("org.diffpes.model.cache", forward, inputs)
-        info: tuple[int, int, int] = dependency_cache_info()
+        info: Tuple[int, int, int] = dependency_cache_info()
         assert info == (1, 1, 1)

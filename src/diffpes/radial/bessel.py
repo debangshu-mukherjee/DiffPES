@@ -24,7 +24,28 @@ from jaxtyping import Array, Float64, Integer, jaxtyped
 
 
 def _odd_double_factorial(order: int) -> float:
-    """Return an odd positive double factorial as a float."""
+    """PRIVATE: Return an odd positive double factorial as a float.
+
+    Parameters
+    ----------
+    order : int
+        Odd positive integer argument of the double factorial.
+
+    Returns
+    -------
+    result : float
+        Product of the odd integers from 1 to ``order``.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` is not a positive odd integer.
+
+    Notes
+    -----
+    Multiplies the odd integers with :func:`math.prod` and converts the
+    exact integer product to a float once.
+    """
     if order < 1 or order % 2 == 0:
         message: str = "order must be a positive odd integer"
         raise ValueError(message)
@@ -36,7 +57,27 @@ def _origin_series(
     order: int,
     x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    """Evaluate the first three nonzero terms of the origin series."""
+    """PRIVATE: Evaluate the first three nonzero terms of the origin series.
+
+    Parameters
+    ----------
+    order : int
+        Nonnegative static angular-momentum order.
+    x : Float64[Array, " ..."]
+        Real dimensionless arguments near the origin.
+
+    Returns
+    -------
+    values : Float64[Array, " ..."]
+        Truncated Maclaurin values of :math:`j_l(x)` with the input
+        shape.
+
+    Notes
+    -----
+    Evaluates ``x**l / (2l+1)!!`` times the correction polynomial
+    ``1 - x**2/(2(2l+3)) + x**4/(8(2l+3)(2l+5))``.  The truncation
+    error is of relative order ``x**6``.
+    """
     denominator: float = _odd_double_factorial(2 * order + 1)
     second_denominator: float = 2.0 * (2 * order + 3)
     fourth_denominator: float = 8.0 * (2 * order + 3) * (2 * order + 5)
@@ -51,7 +92,27 @@ def _origin_series_derivative(
     order: int,
     x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    """Differentiate the three-term origin series analytically."""
+    """PRIVATE: Differentiate the three-term origin series analytically.
+
+    Parameters
+    ----------
+    order : int
+        Nonnegative static angular-momentum order.
+    x : Float64[Array, " ..."]
+        Real dimensionless arguments near the origin.
+
+    Returns
+    -------
+    derivatives : Float64[Array, " ..."]
+        Exact derivative of the truncated series with the input shape.
+
+    Notes
+    -----
+    Applies the product rule to ``x**l`` times the correction
+    polynomial of :func:`_origin_series`.  Order zero keeps only the
+    correction derivative, so the expression stays finite at the
+    origin.
+    """
     denominator: float = _odd_double_factorial(2 * order + 1)
     second_denominator: float = 2.0 * (2 * order + 3)
     fourth_denominator: float = 8.0 * (2 * order + 3) * (2 * order + 5)
@@ -75,7 +136,24 @@ def _origin_series_derivative(
 def _analytic_anchors(
     x: Float64[Array, " ..."],
 ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
-    """Evaluate analytic nonzero-argument anchors j0 and j1."""
+    """PRIVATE: Evaluate analytic nonzero-argument anchors j0 and j1.
+
+    Parameters
+    ----------
+    x : Float64[Array, " ..."]
+        Real dimensionless arguments away from zero.
+
+    Returns
+    -------
+    anchors : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+        Pair ``(j0, j1)`` with ``j0 = sin(x)/x`` and
+        ``j1 = sin(x)/x**2 - cos(x)/x``.
+
+    Notes
+    -----
+    The closed forms divide by ``x``.  Callers pass sanitized nonzero
+    arguments so the quotients stay finite.
+    """
     j0: Float64[Array, " ..."] = jnp.sin(x) / x
     j1: Float64[Array, " ..."] = jnp.sin(x) / (x * x) - jnp.cos(x) / x
     anchors: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (j0, j1)
@@ -88,12 +166,55 @@ def _upward_recurrence(
     j0: Float64[Array, " ..."],
     j1: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    """Evaluate j_l by upward recurrence."""
+    """PRIVATE: Evaluate j_l by upward recurrence.
+
+    Parameters
+    ----------
+    order : int
+        Static target order of at least two.
+    x : Float64[Array, " ..."]
+        Real nonzero dimensionless arguments.
+    j0 : Float64[Array, " ..."]
+        Analytic anchor :math:`j_0(x)`.
+    j1 : Float64[Array, " ..."]
+        Analytic anchor :math:`j_1(x)`.
+
+    Returns
+    -------
+    values : Float64[Array, " ..."]
+        Spherical Bessel values :math:`j_l(x)` with the input shape.
+
+    Implementation Logic
+    --------------------
+    A :func:`jax.lax.fori_loop` applies the recurrence
+    ``j_(l+1) = (2l+1) j_l / x - j_(l-1)`` from the anchor pair
+    ``(j0, j1)`` up to ``order``.  Upward recurrence is stable when
+    ``order <= abs(x)``.
+    """
 
     def _step(
         index: Integer[Array, ""],
         state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
     ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        """PRIVATE: Apply one step of the upward recurrence.
+
+        Parameters
+        ----------
+        index : Integer[Array, ""]
+            Order ``l`` of the current leading value.
+        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+            Consecutive pair ``(j_(l-1), j_l)``.
+
+        Returns
+        -------
+        next_state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+            Shifted pair ``(j_l, j_(l+1))``.
+
+        Notes
+        -----
+        Casts the loop index to float64 and applies
+        ``j_(l+1) = (2l+1) j_l / x - j_(l-1)``.
+        """
         previous: Float64[Array, " ..."] = state[0]
         current: Float64[Array, " ..."] = state[1]
         index_float: Float64[Array, ""] = jnp.asarray(index, dtype=jnp.float64)
@@ -119,7 +240,34 @@ def _downward_miller(
     j0: Float64[Array, " ..."],
     j1: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    """Evaluate j_l by fixed-depth downward Miller recurrence."""
+    """PRIVATE: Evaluate j_l by fixed-depth downward Miller recurrence.
+
+    Parameters
+    ----------
+    order : int
+        Static target order of at least two.
+    x : Float64[Array, " ..."]
+        Real nonzero dimensionless arguments.
+    j0 : Float64[Array, " ..."]
+        Analytic anchor :math:`j_0(x)`.
+    j1 : Float64[Array, " ..."]
+        Analytic anchor :math:`j_1(x)`.
+
+    Returns
+    -------
+    values : Float64[Array, " ..."]
+        Spherical Bessel values :math:`j_l(x)` with the input shape.
+
+    Implementation Logic
+    --------------------
+    Starts at order ``order + ceil(sqrt(40 * max(order, 1))) + 12``
+    with the arbitrary seed pair ``(0, 1)``.  Iterates the downward
+    recurrence ``j_(l-1) = (2l+1) j_l / x - j_(l+1)`` to order zero
+    and records the unnormalized value at the target order.  Miller
+    normalization then rescales the recorded value with whichever
+    analytic anchor, ``j0`` or ``j1``, has the larger magnitude.  The
+    inactive ratio divides by one, so it stays finite.
+    """
     start_order: int = order + math.ceil(math.sqrt(40.0 * max(order, 1))) + 12
     target_seed: Float64[Array, " ..."] = jnp.ones_like(x)
 
@@ -135,6 +283,30 @@ def _downward_miller(
         Float64[Array, " ..."],
         Float64[Array, " ..."],
     ]:
+        """PRIVATE: Apply one step of the downward recurrence.
+
+        Parameters
+        ----------
+        iteration : Integer[Array, ""]
+            Loop counter; the active order is
+            ``start_order - iteration``.
+        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
+Float64[Array, " ..."]]
+            Triple ``(j_(l+1), j_l, target)`` of unnormalized values
+            and the recorded target-order value.
+
+        Returns
+        -------
+        next_state : tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
+Float64[Array, " ..."]]
+            Shifted triple ``(j_l, j_(l-1), target)``.
+
+        Notes
+        -----
+        Applies ``j_(l-1) = (2l+1) j_l / x - j_(l+1)`` and stores the
+        new value into ``target`` when ``l - 1`` equals the requested
+        order.
+        """
         following: Float64[Array, " ..."] = state[0]
         current: Float64[Array, " ..."] = state[1]
         target: Float64[Array, " ..."] = state[2]

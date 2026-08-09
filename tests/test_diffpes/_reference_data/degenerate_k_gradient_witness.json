@@ -1,0 +1,429 @@
+{
+  "fixture": "degenerate_k_gradient_witness",
+  "requirement": "degenerate-k-gradient-witness",
+  "witness_registry": "The one-bond graphene hopping with nonzero dH/dtheta at K is the registered witness; the common nearest-neighbor scale is forbidden; the Kramers witness uses the registered t2g spin-orbit test model and a registered crystal-field direction with nonzero projected-intensity sensitivity",
+  "fd_steps": [
+    0.000244140625,
+    6.103515625e-05,
+    1.52587890625e-05
+  ],
+  "graphene_one_bond_witness": {
+    "model": {
+      "factory": "tests._factories.make_graphene_model",
+      "factory_kwargs": {
+        "t": -2.7
+      },
+      "lattice_constant_angstrom": 2.46,
+      "lattice_rows_angstrom": [
+        [
+          2.46,
+          0.0,
+          0.0
+        ],
+        [
+          1.23,
+          2.130422493309719,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          10.0
+        ]
+      ],
+      "fractional_positions": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.0
+        ]
+      ],
+      "species": [
+        "C",
+        "C"
+      ],
+      "basis": {
+        "atom_indices": [
+          0,
+          1
+        ],
+        "n": [
+          2,
+          2
+        ],
+        "l": [
+          1,
+          1
+        ],
+        "m": [
+          0,
+          0
+        ],
+        "labels": [
+          "A_pz",
+          "B_pz"
+        ]
+      },
+      "hopping_pairs": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "hopping_cells": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          -1,
+          0,
+          0
+        ],
+        [
+          0,
+          -1,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0
+        ]
+      ],
+      "onsite_energies_ev": [
+        0.0,
+        0.0
+      ],
+      "shell_index": [
+        -1,
+        -1
+      ],
+      "spinor": false
+    },
+    "dirac_k_fractional": [
+      0.6666666666666666,
+      0.3333333333333333,
+      0.0
+    ],
+    "parameter_view": {
+      "packing": "tb_parameter_view: [Re t(0,1|000), Im t(0,1|000), Re t(0,1|-100), Im t(0,1|-100), Re t(0,1|0-10), Im t(0,1|0-10), onsite_A, onsite_B]; reverse hoppings are conjugate-closed by rebuild",
+      "values": [
+        -2.7,
+        0.0,
+        -2.7,
+        0.0,
+        -2.7,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "registered_one_bond_coordinate": {
+      "description": "Single nearest-neighbor bond perturbation t1 -> t1 + theta on pair (0, 1) in cell (0, 0, 0); the other two bonds stay fixed (Kekule-type one-bond coordinate)",
+      "view_index": 0,
+      "theta0": 0.0
+    },
+    "forbidden_common_scale_coordinate": {
+      "description": "Common nearest-neighbor scale s multiplying every bond representative; forbidden as the degeneracy witness because H(K) = 0 makes it a structural zero at K",
+      "view_indices": [
+        0,
+        2,
+        4
+      ],
+      "scale0": 1.0
+    },
+    "intensity": {
+      "definition": "I = -Im[M^H ((omega + i eta) I - H(K))^{-1} M] / pi",
+      "omega_ev": 0.15,
+      "eta_ev": 0.05,
+      "source_real": [
+        0.6,
+        -0.45
+      ],
+      "source_imag": [
+        0.35,
+        0.8
+      ]
+    },
+    "measurements": {
+      "bands_at_k_ev": [
+        -2.5544990089026805e-17,
+        2.5544990089026805e-17
+      ],
+      "degeneracy_gap_ev": 5.108998017805361e-17,
+      "hamiltonian_at_k_fro_norm_ev": 3.6126071434588003e-17,
+      "one_bond_dh_dtheta_fro_norm": 1.414213562373095,
+      "one_bond_dh_dtheta_offdiag": {
+        "real": -0.4999999999999998,
+        "imag": 0.8660254037844387
+      },
+      "common_scale_dh_ds_fro_norm": 3.6126071434588003e-17,
+      "one_bond_grad_reverse": -8.511726472637532,
+      "one_bond_grad_forward": -8.511726472637532,
+      "one_bond_fd_central": [
+        -8.511758942378037,
+        -8.511728502006008,
+        -8.511726599448593
+      ],
+      "one_bond_fd_relative_error_vs_grad": [
+        3.814706758913357e-06,
+        2.384203113733395e-07,
+        1.489839477514154e-08
+      ],
+      "common_scale_grad_reverse": -2.4424906541753444e-15,
+      "common_scale_fd_central": [
+        9.094947017729282e-12,
+        -3.637978807091713e-11,
+        1.4551915228366852e-10
+      ],
+      "omega_zero_symmetric_zero_grad": 1.4210854715202004e-13
+    },
+    "notes": "H(K) vanishes identically, so G = I/(omega + i eta) and the omega = 0 first-order response -Im[M^H dH M / (i eta)^2]/pi is exactly zero for every Hermitian dH; the registered probe frequency is therefore off the degenerate energy"
+  },
+  "t2g_soc_kramers_witness": {
+    "model": {
+      "factory": "tests._factories.make_t2g_soc_model",
+      "factory_kwargs": {
+        "coupling": 0.4
+      },
+      "lattice_rows_angstrom": [
+        [
+          4.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          4.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          4.0
+        ]
+      ],
+      "fractional_positions": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "species": [
+        "Ti"
+      ],
+      "basis": {
+        "atom_indices": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "n": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "l": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "m": [
+          -2,
+          -1,
+          1,
+          -2,
+          -1,
+          1
+        ],
+        "spin": [
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          1
+        ],
+        "labels": [
+          "dxy_down",
+          "dyz_down",
+          "dxz_down",
+          "dxy_up",
+          "dyz_up",
+          "dxz_up"
+        ]
+      },
+      "onsite_energies_ev": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "soc_lambdas_ev": [
+        0.4
+      ],
+      "shell_index": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "spinor": true
+    },
+    "kramers_k_fractional": [
+      0.173,
+      -0.219,
+      0.083
+    ],
+    "parameter_view": {
+      "packing": "tb_parameter_view: [onsite dxy_down, dyz_down, dxz_down, dxy_up, dyz_up, dxz_up, soc_lambda]",
+      "values": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.4
+      ]
+    },
+    "registered_crystal_field_coordinate": {
+      "description": "Spin-symmetric tetragonal crystal-field direction: onsite(dxy_down) and onsite(dxy_up) shift together as delta; time reversal is preserved, so Kramers pairs stay exactly degenerate at every delta",
+      "view_indices": [
+        0,
+        3
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "delta0": 0.0
+    },
+    "intensity": {
+      "definition": "I = sum_n |<M|n>|^2 (gamma/pi) / ((omega - E_n)^2 + gamma^2)",
+      "omega_ev": 0.1,
+      "gamma_ev": 0.06,
+      "source_real": [
+        0.31,
+        -0.52,
+        0.23,
+        -0.37,
+        0.55,
+        0.12
+      ],
+      "source_imag": [
+        -0.44,
+        0.17,
+        0.61,
+        -0.28,
+        0.09,
+        -0.73
+      ]
+    },
+    "measurements": {
+      "bands_at_k_ev": [
+        -0.2,
+        -0.19999999999999996,
+        -0.1999999999999999,
+        -0.19999999999999984,
+        0.39999999999999974,
+        0.4
+      ],
+      "kramers_pair_gaps_ev": [
+        5.551115123125783e-17,
+        5.551115123125783e-17,
+        2.7755575615628914e-16
+      ],
+      "max_kramers_pair_gap_ev": 2.7755575615628914e-16,
+      "perturbed_delta_ev": 0.3,
+      "perturbed_bands_ev": [
+        -0.19999999999999993,
+        -0.19999999999999984,
+        -0.037228132326901475,
+        -0.03722813232690134,
+        0.5372281323269014,
+        0.5372281323269015
+      ],
+      "perturbed_kramers_pair_gaps_ev": [
+        8.326672684688674e-17,
+        1.3183898417423734e-16,
+        1.1102230246251565e-16
+      ],
+      "crystal_field_fd_central": [
+        0.4999972262286292,
+        0.49999697268413,
+        0.49999695683254686
+      ],
+      "eigen_path_grad_at_degeneracy": 0.37697343983989695,
+      "eigen_path_grad_minus_fd": [
+        -0.12302378638873224,
+        -0.12302353284423306,
+        -0.1230235169926499
+      ]
+    },
+    "notes": "The atomic model is k-independent, so the registered generic k inherits the exact j_eff = 3/2 quartet at -lambda/2 and j_eff = 1/2 doublet at +lambda; the eigen autodiff path returns a finite but wrong derivative at this degeneracy, which is why the witness test asserts it excluded (documented xfail) and takes finite-difference truth from the invariant multiplet-summed observable instead"
+  },
+  "environment": {
+    "diffpes": "2026.6.4",
+    "jax": "0.9.0.1",
+    "numpy": "2.4.2",
+    "python": "3.13.6"
+  },
+  "generator": "tests/_reference_tools/generate_degenerate_k_gradient_witness.py"
+}

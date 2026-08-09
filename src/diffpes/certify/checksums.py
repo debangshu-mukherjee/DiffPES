@@ -40,7 +40,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import TYPE_CHECKING, Any
+from beartype.typing import TYPE_CHECKING, Any, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -59,7 +59,25 @@ if TYPE_CHECKING:
 
 
 def _validate_record_kind(record_kind: str) -> None:
-    """Reject ambiguous or unstable checksum record-kind labels."""
+    """PRIVATE: Reject ambiguous or unstable checksum record-kind labels.
+
+    Parameters
+    ----------
+    record_kind : str
+        Candidate record-kind label, such as ``"content"`` or
+        ``"result"``.
+
+    Raises
+    ------
+    ValueError
+        If the label does not match ``CHECKSUM_RECORD_KIND_PATTERN``.
+
+    Notes
+    -----
+    Requires a full match of the lowercase-letter, digit, and hyphen
+    pattern. A stable label keeps the domain-separation prefix and the
+    formatted checksum unambiguous.
+    """
     if CHECKSUM_RECORD_KIND_PATTERN.fullmatch(record_kind) is None:
         msg: str = (
             "record_kind must start with a lowercase letter and contain "
@@ -69,7 +87,28 @@ def _validate_record_kind(record_kind: str) -> None:
 
 
 def _identity_prefix(record_kind: str) -> bytes:
-    """Return the domain-separated preimage prefix for one record kind."""
+    """PRIVATE: Return the domain-separated preimage prefix for one
+    record kind.
+
+    Parameters
+    ----------
+    record_kind : str
+        Validated record-kind label.
+
+    Returns
+    -------
+    prefix : bytes
+        NUL-separated ASCII fields: the fixed identity banner, the
+        checksum algorithm, the canonicalization version, and the
+        versioned schema identifier
+        ``org.diffpes.identity.<record_kind>.v1``.
+
+    Notes
+    -----
+    The prefix feeds the SHA-256 state before any payload byte. Distinct
+    record kinds therefore hash into disjoint preimage domains, so equal
+    content bytes cannot collide across identity roles.
+    """
     schema_id: str = f"org.diffpes.identity.{record_kind}.v1"
     prefix: bytes = (
         b"DIFFPES-SCIENTIFIC-IDENTITY\x00"
@@ -84,7 +123,25 @@ def _identity_prefix(record_kind: str) -> bytes:
 
 
 def _format_checksum(value: str, *, record_kind: str) -> str:
-    """Format a SHA-256 digest with its identity context."""
+    """PRIVATE: Format a SHA-256 digest with its identity context.
+
+    Parameters
+    ----------
+    value : str
+        Hexadecimal SHA-256 digest.
+    record_kind : str
+        Validated record-kind label.
+
+    Returns
+    -------
+    checksum : str
+        Colon-joined ``algorithm:version:kind:digest`` identity string.
+
+    Notes
+    -----
+    Embeds ``CHECKSUM_ALGORITHM`` and ``CANONICAL_PYTREE_VERSION`` so a
+    stored identity states how a verifier must recompute it.
+    """
     checksum: str = (
         f"{CHECKSUM_ALGORITHM}:{CANONICAL_PYTREE_VERSION}:"
         f"{record_kind}:{value}"
@@ -258,7 +315,7 @@ def checksum_file(path: str | Path, *, record_kind: str) -> str:
 
 
 @jaxtyped(typechecker=beartype)
-def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
+def parse_checksum(checksum: str) -> Tuple[str, str, str, str]:
     """Parse and validate one checksum string.
 
     The parser rejects legacy CRC32 strings. Domain-separated SHA-256 supplies
@@ -289,7 +346,7 @@ def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
 
     Returns
     -------
-    parsed : tuple[str, str, str, str]
+    parsed : Tuple[str, str, str, str]
         Algorithm, canonicalization version, record kind, and hexadecimal
         value.
 
@@ -302,7 +359,7 @@ def parse_checksum(checksum: str) -> tuple[str, str, str, str]:
     if match is None:
         msg: str = "invalid DiffPES scientific-identity format"
         raise ValueError(msg)
-    parsed: tuple[str, str, str, str] = (
+    parsed: Tuple[str, str, str, str] = (
         CHECKSUM_ALGORITHM,
         match.group("canonical"),
         match.group("kind"),
@@ -346,7 +403,7 @@ def semantic_checksum(
     checksum : str
         Collision-resistant semantic identity.
     """
-    payload: tuple[str, object, object] = (
+    payload: Tuple[str, object, object] = (
         "org.diffpes.semantic-record.v1",
         value,
         semantics,
@@ -387,7 +444,7 @@ def result_checksum(value: object, numerical: object) -> str:
     checksum : str
         Collision-resistant result identity.
     """
-    payload: tuple[str, object, object] = (
+    payload: Tuple[str, object, object] = (
         "org.diffpes.result-record.v1",
         value,
         numerical,

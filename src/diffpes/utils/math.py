@@ -37,7 +37,7 @@ from diffpes.maths import safe_divide
 
 
 def _faddeeva_weideman_coefficients() -> Float64[Array, " N"]:
-    r"""Generate fixed-order Weideman rational coefficients.
+    r"""PRIVATE: Generate fixed-order Weideman rational coefficients.
 
     The construction samples the mapped Gaussian on a fixed tangent grid.
     A discrete Fourier transform produces the rational-basis coefficients.

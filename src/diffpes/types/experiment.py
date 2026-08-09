@@ -25,11 +25,12 @@ defined by the incidence angles.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from .aliases import ScalarFloat
 
-_SLIT_ORIENTATIONS: tuple[str, ...] = ("H", "V")
+_SLIT_ORIENTATIONS: Tuple[str, ...] = ("H", "V")
 _TRANSVERSALITY_ATOL: float = 1.0e-10
 
 

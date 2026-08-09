@@ -217,7 +217,7 @@ def read_procar(
 def _parse_procar_blocks(
     content: str,
 ) -> list[dict]:
-    """Parse all PROCAR blocks from the full file content string.
+    """PRIVATE: Parse all PROCAR blocks from the full file content string.
 
     Extended Summary
     ----------------

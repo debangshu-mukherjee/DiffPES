@@ -47,7 +47,22 @@ from tests._factories import make_1d_chain_model
 
 
 def _all_carriers() -> dict[str, eqx.Module]:
-    """Construct one deterministic instance of every carrier class."""
+    """PRIVATE: Construct one deterministic instance of every carrier class.
+
+    Returns
+    -------
+    carriers : dict[str, eqx.Module]
+        Mapping from a short label to one instance of each registered
+        types-owned Equinox carrier. Nested carriers such as the
+        tight-binding model keep their geometry and basis.
+
+    Notes
+    -----
+    Builds small fixed-value arrays with two k-points and one band or
+    orbital. Reuses the one-dimensional chain factory for the
+    tight-binding pieces, so every HDF5 round-trip test sees
+    identical inputs.
+    """
     energy: Array
     kpoints: Array
     bands: diffpes.types.BandStructure

@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.certify import (
     freeze_registry,
@@ -39,6 +39,26 @@ from diffpes.types import (
 
 
 def _model_spec(name: str) -> Any:
+    """PRIVATE: Build one registry-test forward-model spec from a name.
+
+    Parameters
+    ----------
+    name : str
+        Short name that sets the model identity and the implementation
+        reference.
+
+    Returns
+    -------
+    spec : Any
+        Forward-model spec at version 1.0.0 for the ARPES intensity
+        observable with one differentiable scale path.
+
+    Notes
+    -----
+    Embeds the name in the identity
+    ``org.diffpes.model.registry_test.<name>`` and in the implementation
+    reference ``tests.registry:<name>``.
+    """
     return make_forward_model_spec(
         model_id=f"org.diffpes.model.registry_test.{name}",
         model_version="1.0.0",
@@ -306,7 +326,7 @@ class TestListModels:
         """
         models: Any
         models = list_models()
-        identities: tuple[tuple[str, str], ...] = tuple(
+        identities: Tuple[Tuple[str, str], ...] = tuple(
             (model.model_id, model.model_version) for model in models
         )
         assert identities == tuple(sorted(identities))
@@ -332,7 +352,7 @@ class TestListRegisteredModels:
         """
         models: Any
         models = list_registered_models()
-        identities: tuple[tuple[str, str], ...] = tuple(
+        identities: Tuple[Tuple[str, str], ...] = tuple(
             (model.spec.model_id, model.spec.model_version) for model in models
         )
         assert identities == tuple(sorted(identities))
@@ -358,7 +378,7 @@ class TestListTransformations:
         """
         contracts: Any
         contracts = list_transformations()
-        identities: tuple[tuple[str, str], ...] = tuple(
+        identities: Tuple[Tuple[str, str], ...] = tuple(
             (item.transformation_id, item.transformation_version)
             for item in contracts
         )
@@ -449,7 +469,7 @@ class TestListHandshakes:
         -----
         The test compares the owner sequence with its sorted copy.
         """
-        owners: tuple[str, ...] = tuple(
+        owners: Tuple[str, ...] = tuple(
             item.owner_id for item in list_handshakes()
         )
         assert owners == tuple(sorted(owners))
@@ -521,7 +541,7 @@ class TestValidateHandshake:
             for item in list_handshakes()
             if item.owner_id == "org.diffpes.kspace"
         )
-        expected_refs: tuple[str, ...] = (
+        expected_refs: Tuple[str, ...] = (
             "org.diffpes.transform.kspace.fractional_cartesian@1.0.0",
             "org.diffpes.transform.kinematics.detector_angle_kpar@1.0.0",
             "org.diffpes.transform.kinematics.inner_potential@1.0.0",
@@ -563,8 +583,8 @@ class TestValidateHandshake:
         evidence.
         """
         register_builtin_models()
-        transformations_before: tuple[Any, ...] = list_transformations()
-        handshakes_before: tuple[Any, ...] = list_handshakes()
+        transformations_before: Tuple[Any, ...] = list_transformations()
+        handshakes_before: Tuple[Any, ...] = list_handshakes()
         register_builtin_models()
         assert list_transformations() == transformations_before
         assert list_handshakes() == handshakes_before
@@ -580,7 +600,7 @@ class TestValidateHandshake:
             for item in list_handshakes()
             if item.owner_id == "org.diffpes.tightb"
         )
-        expected_refs: tuple[str, ...] = (
+        expected_refs: Tuple[str, ...] = (
             "org.diffpes.transform.tightb.bloch_basis_position@1.0.0",
             "org.diffpes.transform.tightb.eigensystem_fixed_group@1.0.0",
             "org.diffpes.transform.tightb.dos_gaussian@1.0.0",
@@ -591,7 +611,7 @@ class TestValidateHandshake:
         assert tuple(declaration["transformation_refs"]) == expected_refs
         assert declaration["model_refs"] == []
 
-        evidence_ids: tuple[str, ...] = tuple(declaration["evidence_ids"])
+        evidence_ids: Tuple[str, ...] = tuple(declaration["evidence_ids"])
         assert len(evidence_ids) == 17
         assert len(set(evidence_ids)) == 17
         assert all(
@@ -674,14 +694,14 @@ class TestValidateHandshake:
         assert {carrier_owner, slab_owner} <= declarations.keys()
         assert {carrier_owner, slab_owner} <= handshakes.keys()
 
-        carrier_evidence: tuple[str, ...] = (
+        carrier_evidence: Tuple[str, ...] = (
             "org.diffpes.evidence.slab.depth_carrier_persistence",
             "org.diffpes.evidence.slab.depth_identity_jacobian",
         )
-        carrier_refs: tuple[str, ...] = (
+        carrier_refs: Tuple[str, ...] = (
             "org.diffpes.transform.tightb.depth_carrier@1.0.0",
         )
-        slab_evidence: tuple[str, ...] = (
+        slab_evidence: Tuple[str, ...] = (
             "org.diffpes.evidence.surface.finite_chain",
             "org.diffpes.evidence.surface.rotation_covariance",
             "org.diffpes.evidence.surface.graphene_edges",
@@ -703,7 +723,7 @@ class TestValidateHandshake:
             "org.diffpes.evidence.surface.chunked_memory",
             "org.diffpes.evidence.surface.compile_count",
         )
-        slab_refs: tuple[str, ...] = (
+        slab_refs: Tuple[str, ...] = (
             "org.diffpes.transform.tightb.slab_surface@1.0.0",
             "org.diffpes.transform.tightb.surface_projection@1.0.0",
         )
@@ -714,13 +734,13 @@ class TestValidateHandshake:
         assert set((*carrier_refs, *slab_refs)) <= manifest_transformation_refs
         assert tuple(declarations) == tuple(sorted(declarations))
 
-        expected: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+        expected: Tuple[Tuple[str, Tuple[str, ...], Tuple[str, ...]], ...] = (
             (carrier_owner, carrier_refs, carrier_evidence),
             (slab_owner, slab_refs, slab_evidence),
         )
         owner: str
-        transformation_refs: tuple[str, ...]
-        evidence_ids: tuple[str, ...]
+        transformation_refs: Tuple[str, ...]
+        evidence_ids: Tuple[str, ...]
         for owner, transformation_refs, evidence_ids in expected:
             declaration: dict[str, Any] = declarations[owner]
             handshake: Any = handshakes[owner]
@@ -746,7 +766,7 @@ class TestValidateHandshake:
         assert len(set(slab_evidence[:14])) == 14
         assert len(slab_evidence[14:]) == 6
         assert len(set(slab_evidence[14:])) == 6
-        slab_identifiers: tuple[str, ...] = tuple(
+        slab_identifiers: Tuple[str, ...] = tuple(
             identifier
             for owner in (carrier_owner, slab_owner)
             for identifier in (
@@ -812,7 +832,7 @@ class TestRegistryManifest:
         manifest: dict[str, Any] = registry_manifest()
         assert manifest["schema_version"] == "1.0.0"
         assert manifest["models"] == []
-        owners: tuple[str, ...] = tuple(
+        owners: Tuple[str, ...] = tuple(
             item["owner_id"] for item in manifest["handshakes"]
         )
         assert owners == tuple(sorted(owners))

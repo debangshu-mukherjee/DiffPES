@@ -317,7 +317,19 @@ class TestEvaluateRadial(chex.TestCase):
 
     @staticmethod
     def _basis() -> Any:
-        """Return one complete p shell for shell-sharing checks."""
+        """PRIVATE: Return one complete p shell for shell-sharing checks.
+
+        Returns
+        -------
+        basis : Any
+            Orbital basis with the three ``n=4``, ``l=1`` partners
+            ``py``, ``pz``, and ``px`` on one atom.
+
+        Notes
+        -----
+        All three orbitals share one radial shell, so gathered radial
+        rows must be identical across the magnetic partners.
+        """
         return make_orbital_basis(
             atom_indices=(0, 0, 0),
             n=(4, 4, 4),

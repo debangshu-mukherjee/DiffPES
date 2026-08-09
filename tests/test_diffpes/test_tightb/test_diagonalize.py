@@ -35,7 +35,24 @@ from tests._gradients import gradient_gate
 
 
 def _geometry(n_atoms: int) -> diffpes.types.CrystalGeometry:
-    """Build a minimal geometry for atom-resolved adapter tests."""
+    """PRIVATE: Build a minimal geometry for atom-resolved adapter tests.
+
+    Parameters
+    ----------
+    n_atoms : int
+        Number of synthetic atoms to place.
+
+    Returns
+    -------
+    geometry : diffpes.types.CrystalGeometry
+        Unit-cubic-cell geometry in Angstrom with ``n_atoms`` species-X
+        sites at the origin.
+
+    Notes
+    -----
+    The VASP adapter tests only need a consistent atom count for the
+    projection metadata; the coincident positions carry no physics.
+    """
     geometry: diffpes.types.CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=jnp.zeros((n_atoms, 3), dtype=jnp.float64),

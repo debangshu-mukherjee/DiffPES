@@ -37,7 +37,7 @@ from jaxtyping import Array, Float64, Int64, jaxtyped
 
 
 def _normalization(l: int, m: int) -> float:
-    r"""Compute normalization factor for associated Legendre / real Y_lm.
+    r"""PRIVATE: Compute normalization for associated Legendre / real Y_lm.
 
     Extended Summary
     ----------------
@@ -92,7 +92,7 @@ def _associated_legendre_plm(
     m: int,
     x: Float64[Array, " ..."],
 ) -> Float64[Array, " ..."]:
-    r"""Evaluate associated Legendre polynomial P_l^m(x).
+    r"""PRIVATE: Evaluate associated Legendre polynomial P_l^m(x).
 
     Extended Summary
     ----------------
@@ -177,6 +177,26 @@ def _associated_legendre_plm(
         idx: Int64[Array, ""],
         state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
     ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        """PRIVATE: Compute one upward Legendre recurrence step in degree.
+
+        Parameters
+        ----------
+        idx : Int64[Array, ""]
+            Current target degree ``l`` supplied by ``fori_loop``.
+        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+            Values ``(P(idx - 2), P(idx - 1))`` at fixed order ``m``.
+
+        Returns
+        -------
+        recurrence_state : tuple
+            Shifted carry ``(P(idx - 1), P(idx))``.
+
+        Notes
+        -----
+        One step evaluates ``P(idx) = ((2 idx - 1) x P(idx - 1)
+        - (idx + m - 1) P(idx - 2)) / (idx - m)``, the stable upward
+        three-term recurrence in the degree at fixed order.
+        """
         p_prev2: Float64[Array, " ..."]
         p_prev1: Float64[Array, " ..."]
         p_prev2, p_prev1 = state

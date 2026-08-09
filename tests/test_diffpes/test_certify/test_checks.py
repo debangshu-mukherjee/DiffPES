@@ -9,6 +9,7 @@ import uuid
 import jax.numpy as jnp
 import pytest
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, jaxtyped
 
 from diffpes.certify import get_check, list_checks, register_check
@@ -17,7 +18,24 @@ from diffpes.types import CheckFunction, DomainResult, make_domain_result
 
 @jaxtyped(typechecker=beartype)
 def _positive_check(value: Array) -> DomainResult:
-    """Return a traced positive-value domain result."""
+    """PRIVATE: Return a traced positive-value domain result.
+
+    Parameters
+    ----------
+    value : Array
+        JAX value whose sign the check measures.
+
+    Returns
+    -------
+    result : DomainResult
+        Domain result that passes and is in domain when the value is
+        positive.
+
+    Notes
+    -----
+    Casts the value to float64 and reuses it as the measured, residual,
+    and margin fields against a zero reference and a zero tolerance.
+    """
     margin: Array = jnp.asarray(value, dtype=jnp.float64)
     result: DomainResult = make_domain_result(
         predicate_id="org.diffpes.domain.test.positive",
@@ -101,6 +119,6 @@ class TestListChecks:
         """
         check_id: str = f"org.diffpes.domain.test.{uuid.uuid4().hex}"
         register_check(check_id, _positive_check)
-        checks: tuple[str, ...] = list_checks()
+        checks: Tuple[str, ...] = list_checks()
         assert checks == tuple(sorted(checks))
         assert check_id in checks

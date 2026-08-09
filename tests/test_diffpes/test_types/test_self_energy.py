@@ -24,14 +24,54 @@ _TAIL: jax.Array = jnp.array([0.0, 0.0])
 
 
 def _softplus(x: jax.Array) -> jax.Array:
-    """Convert an unconstrained coordinate to a positive parameter."""
+    """PRIVATE: Convert an unconstrained coordinate to a positive parameter.
+
+    Parameters
+    ----------
+    x : jax.Array
+        Unconstrained raw coefficient.
+
+    Returns
+    -------
+    positive : jax.Array
+        Softplus image ``log(1 + exp(x))``, strictly positive.
+
+    Notes
+    -----
+    Wraps ``jax.nn.softplus`` so the independent identities below use
+    the same raw-to-physical map as the carrier contract.
+    """
     return jax.nn.softplus(x)
 
 
 def _imaginary_part(
     model: SelfEnergyModel, omega_rel_fermi_ev: jax.Array
 ) -> jax.Array:
-    """Evaluate the independently stated self-energy imaginary-part identities."""
+    """PRIVATE: Evaluate the independently stated self-energy imaginary-part identities.
+
+    Parameters
+    ----------
+    model : SelfEnergyModel
+        Carrier whose mode and raw coefficients define the identity.
+    omega_rel_fermi_ev : jax.Array
+        Energies relative to the Fermi level in eV.
+
+    Returns
+    -------
+    imaginary_part : jax.Array
+        Non-positive imaginary part of the self-energy in eV at each
+        energy.
+
+    Notes
+    -----
+    Restates each mode independently of the production code. Constant
+    broadcasts ``-softplus(raw[0])``, and poly negates the softplus
+    of the polynomial value. Grid interpolates softplus-negated
+    ordinates over the energy nodes. The ``fermi_liquid`` mode
+    evaluates the quartic-damped quadratic. The remaining mode sums
+    symmetric Lorentzians at ``+/- omega0`` on top of the constant
+    offset.
+    """
     raw: jax.Array = model.coefficients
     if model.mode == "constant":
         return -jnp.broadcast_to(_softplus(raw[0]), omega_rel_fermi_ev.shape)
@@ -61,7 +101,28 @@ def _imaginary_part(
 
 
 def _make_mode(mode: str, coefficients: jax.Array) -> SelfEnergyModel:
-    """Construct one valid representative of every frozen carrier state."""
+    """PRIVATE: Construct one valid representative of every frozen carrier state.
+
+    Parameters
+    ----------
+    mode : str
+        Self-energy mode name to build.
+    coefficients : jax.Array
+        Raw unconstrained coefficients for that mode.
+
+    Returns
+    -------
+    model : SelfEnergyModel
+        Validated carrier for the requested mode.
+
+    Notes
+    -----
+    Supplies the mode-specific mandatory fields. Constant passes
+    ``kk_consistent=False``. Grid adds evenly spaced energy nodes on
+    [-4, 4] eV plus the shared KK domain and power2 tail. Poly and
+    ``fermi_liquid`` add the shared KK domain and power2 tail. Every
+    other mode uses the analytic tail.
+    """
     if mode == "constant":
         return make_self_energy_model(
             mode=mode, coefficients=coefficients, kk_consistent=False

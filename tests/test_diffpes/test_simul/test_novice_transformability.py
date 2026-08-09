@@ -11,7 +11,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array, Float64
 
 import diffpes
@@ -30,8 +30,26 @@ from tests._gradients import assert_grad_matches_fd, assert_nonzero_grad
 
 def _novice_fixture(
     fidelity: int = 16,
-) -> tuple[BandStructure, OrbitalProjection, SimulationParams]:
-    """Build the pinned two-band audit fixture."""
+) -> Tuple[BandStructure, OrbitalProjection, SimulationParams]:
+    """PRIVATE: Build the pinned two-band audit fixture.
+
+    Parameters
+    ----------
+    fidelity : int
+        Number of energy grid points for the simulation window.
+
+    Returns
+    -------
+    result : Tuple[BandStructure, OrbitalProjection, SimulationParams]
+        Pinned bands at -1 and +1 eV on one zone-center k-point, unit
+        projections of shape (1, 2, 1, 9), and parameters on the
+        [-2, 2] eV window with sigma 0.08 eV and gamma 0.12 eV.
+
+    Notes
+    -----
+    Keeps every projection weight at one so each carrier seam carries a
+    nonzero gradient.
+    """
     bands: BandStructure = make_band_structure(
         eigenvalues=jnp.array([[-1.0, 1.0]], dtype=jnp.float64),
         kpoints=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -49,7 +67,7 @@ def _novice_fixture(
         sigma=0.08,
         gamma=0.12,
     )
-    result: tuple[BandStructure, OrbitalProjection, SimulationParams] = (
+    result: Tuple[BandStructure, OrbitalProjection, SimulationParams] = (
         bands,
         orbital_projection,
         params,

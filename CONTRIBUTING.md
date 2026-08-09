@@ -189,6 +189,12 @@ def simulate_spectrum(
 #### Type Hinting Rules:
 - Annotate all parameters and return values.
 - Use `beartype.typing.Tuple[...]` for multiple returns.
+- **Never use the builtin `tuple[...]` generic in an annotation.** This rule
+  covers every annotation position: parameters, returns, and annotated
+  variables, at any nesting depth. Import `Tuple` from `beartype.typing`.
+  Runtime uses of `tuple` (calls, literals, `isinstance` checks) stay valid.
+  The repository floor enforces this rule with an AST gate, which also
+  rejects stdlib `typing` imports of the charter-owned constructs.
 - Annotate intermediate variables inside function bodies too — e.g.
   `theta_rad: Float[Array, ""] = jnp.deg2rad(theta_deg)`.
 - **Assign before returning.** Bind a function's result to a type-annotated
@@ -698,9 +704,44 @@ class LifetimeModel(eqx.Module):
 
 ##### Private objects and raw strings
 
-- Give each `_`-prefixed helper at least a summary. Give numerical helpers full
-  `Parameters`, `Returns`, and `Notes` sections. Private code is exempt only
-  from the three-places rule.
+- **Every `_`-prefixed function or method has a fully fledged docstring.**
+  A private docstring uses the same numpydoc sections as a public one. It
+  carries the summary line, `Parameters`, `Returns`, and `Implementation
+  Logic` (or `Notes` for a one-formula function). It adds `Raises` for
+  every explicit raise. A docstring that only gives a summary is a defect.
+  Private code is exempt only from the three-places rule and the `:see:`
+  cross-reference.
+- **Start every private docstring with `PRIVATE`.** Write the summary line
+  as `PRIVATE: <imperative sentence>`. The marker states the audience at
+  the first word. The function is internal, its contract can change without
+  a `CHANGELOG.md` entry, and no `Routine Listings` entry exists for it.
+
+  ```python
+  @jaxtyped(typechecker=beartype)
+  def _cell_weights(
+      node_positions: Float[Array, " n_kk"],
+      query: Float[Array, ""],
+  ) -> Float[Array, " n_kk"]:
+      """PRIVATE: Compute the cell-integrated weights for one query.
+
+      Parameters
+      ----------
+      node_positions : Float[Array, " n_kk"]
+          Grid node positions in eV.
+      query : Float[Array, ""]
+          Query energy in eV.
+
+      Returns
+      -------
+      cell_weights : Float[Array, " n_kk"]
+          Closed-form principal-value weights for the query row.
+
+      Notes
+      -----
+      Integrates each linear segment analytically after the query-value
+      subtraction.
+      """
+  ```
 - Use a raw string (`r"""`) when a docstring contains a backslash.
 
 ### Code Style

@@ -10,6 +10,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Tuple
 from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Complex128, Float64
 
@@ -38,20 +39,39 @@ from diffpes.types import (
 )
 
 
-def _complete_pd_fixture() -> tuple[
+def _complete_pd_fixture() -> Tuple[
     OrbitalBasis,
-    tuple[int, ...],
+    Tuple[int, ...],
     RadialSpec,
     MatrixElementParams,
 ]:
-    """Return complete p and d shells with two normalized contractions."""
+    """PRIVATE: Return complete p and d shells with normalized contractions.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        One-atom basis with the complete n=2 p and n=3 d shells.
+    shell_index : Tuple[int, ...]
+        Shell assignment mapping the three p orbitals to shell 0 and
+        the five d orbitals to shell 1.
+    radial : RadialSpec
+        Two-term contracted Slater radial spec for both shells.
+    params : MatrixElementParams
+        Parameter carrier with per-shell sigma scales and four phase
+        shift angles.
+
+    Notes
+    -----
+    Fixes generic zeta pairs, contraction coefficients, sigma scales,
+    and phase-shift angles so no shell or channel is degenerate.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * 8,
         n=(2,) * 3 + (3,) * 5,
         l=(1,) * 3 + (2,) * 5,
         m=(-1, 0, 1, -2, -1, 0, 1, 2),
     )
-    shell_index: tuple[int, ...] = (0, 0, 0, 1, 1, 1, 1, 1)
+    shell_index: Tuple[int, ...] = (0, 0, 0, 1, 1, 1, 1, 1)
     radial: RadialSpec = make_radial_spec(
         basis,
         shell_index,
@@ -69,9 +89,28 @@ def _complete_pd_fixture() -> tuple[
 
 def _real_wigner(
     degree: int,
-    angles: tuple[float, float, float],
+    angles: Tuple[float, float, float],
 ) -> Float64[Array, "m1 m2"]:
-    """Return one complex Wigner matrix in the real-harmonic basis."""
+    """PRIVATE: Return one Wigner rotation in the real-harmonic basis.
+
+    Parameters
+    ----------
+    degree : int
+        Tensor degree l of the rotated shell.
+    angles : Tuple[float, float, float]
+        The z-y-z Euler angles in radians.
+
+    Returns
+    -------
+    real_rotation : Float64[Array, "m1 m2"]
+        Real rotation matrix acting on the real harmonics of the
+        degree.
+
+    Notes
+    -----
+    Conjugates the complex Wigner D-matrix with the real-harmonic
+    unitary and takes the real part of U.conj() @ D @ U.T.
+    """
     unitary: Complex128[Array, "m1 m2"] = real_harmonic_unitary(degree)
     complex_rotation: Complex128[Array, "m1 m2"] = wigner_d(degree, *angles)
     real_rotation: Float64[Array, "m1 m2"] = jnp.real(
@@ -106,7 +145,7 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
     for degree, start in ((1, 0), (2, 3)):
         shell_size: int = 2 * degree + 1
         for _ in range(4):
-            angles: tuple[float, float, float] = tuple(
+            angles: Tuple[float, float, float] = tuple(
                 float(value)
                 for value in generator.uniform(
                     low=(-np.pi, 0.2, -np.pi),
@@ -182,7 +221,7 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
     mean_free_path: Float64[Array, ""] = jnp.asarray(8.4)
     flat: Float64[Array, " n_theta"]
     tree_definition: PyTreeDef
-    metadata: tuple[tuple[tuple[int, ...], bool], ...]
+    metadata: Tuple[Tuple[Tuple[int, ...], bool], ...]
     flat, tree_definition, metadata = pack_matrixel_params(
         radial,
         params,

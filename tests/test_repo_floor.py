@@ -25,7 +25,7 @@ import pytest
 import yaml
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, List, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, jaxtyped
 from numpy.typing import NDArray
 
@@ -199,7 +199,7 @@ class TestHelpers:
         chain_model: TBModel
         chain_bands: DiagonalizedBands
         chain_model, chain_bands = toy_chain_diagonalized(n_k=7)
-        all_carriers: tuple[object, ...] = (
+        all_carriers: Tuple[object, ...] = (
             bands,
             projections,
             simulation,
@@ -258,14 +258,14 @@ class TestMetadata(chex.TestCase):
         optional_dependencies: dict[str, list[str]] = project[
             "optional-dependencies"
         ]
-        dependency_groups: tuple[str, ...] = tuple(
+        dependency_groups: Tuple[str, ...] = tuple(
             runtime_dependencies
         ) + tuple(
             dependency
             for group in optional_dependencies.values()
             for dependency in group
         )
-        retired_names: tuple[str, ...] = (
+        retired_names: Tuple[str, ...] = (
             "diff" + "tb",
             "chinook",
             "black",
@@ -342,7 +342,7 @@ class TestCI(chex.TestCase):
         )
         chex.assert_equal(python_versions, ["3.12", "3.13", "3.14"])
         docs_job: dict[str, Any] = workflow["jobs"]["docs"]
-        docs_commands: tuple[str, ...] = tuple(
+        docs_commands: Tuple[str, ...] = tuple(
             step["run"] for step in docs_job["steps"] if "run" in step
         )
         self.assertIn("uv sync --extra docs --extra test", docs_commands)
@@ -386,7 +386,7 @@ class TestCI(chex.TestCase):
         workflow_path: Path = repository_root / ".github/workflows/release.yml"
         workflow: dict[str, Any] = yaml.safe_load(workflow_path.read_text())
         publish_job: dict[str, Any] = workflow["jobs"]["publish"]
-        run_commands: tuple[str, ...] = tuple(
+        run_commands: Tuple[str, ...] = tuple(
             step["run"] for step in publish_job["steps"] if "run" in step
         )
         combined_commands: str = "\n".join(run_commands)
@@ -407,7 +407,7 @@ class TestCI(chex.TestCase):
 
 
 class TestRegressionReferences(chex.TestCase):
-    """Validate the retained novice forward baseline after WP7.2.
+    """Validate the retained novice forward baseline after the true-Voigt migration.
 
     The class covers the independently preregistered true-Voigt spectrum,
     archive metadata, and the manifest checksum.
@@ -461,7 +461,7 @@ class TestRegressionReferences(chex.TestCase):
             atol=2.0 * np.finfo(np.float64).eps,
         )
         chex.assert_shape(novice.intensity, (8, 512))
-        actual_dtypes: tuple[jnp.dtype, ...] = tuple(
+        actual_dtypes: Tuple[jnp.dtype, ...] = tuple(
             array.dtype for array in (novice.intensity,)
         )
         chex.assert_equal(actual_dtypes, (jnp.float64,))
@@ -510,20 +510,46 @@ class TestRepositoryArchitecture(chex.TestCase):
         )
 
     @staticmethod
-    def _production_modules() -> tuple[tuple[Path, ast.Module], ...]:
-        """Parse every production Python module in deterministic order."""
+    def _production_modules() -> Tuple[Tuple[Path, ast.Module], ...]:
+        """PRIVATE: Parse every production Python module in deterministic order.
+
+        Returns
+        -------
+        modules : Tuple[Tuple[Path, ast.Module], ...]
+            Pairs of source path and parsed tree for every file under
+            ``src/diffpes``, in sorted path order.
+
+        Notes
+        -----
+        Reads each file as UTF-8 text and parses it with
+        ``ast.parse``, so every architecture gate walks one shared
+        representation.
+        """
         source_root: Path = Path(__file__).resolve().parents[1] / "src/diffpes"
-        modules: tuple[tuple[Path, ast.Module], ...] = tuple(
+        modules: Tuple[Tuple[Path, ast.Module], ...] = tuple(
             (path, ast.parse(path.read_text(encoding="utf-8")))
             for path in sorted(source_root.rglob("*.py"))
         )
         return modules
 
     @staticmethod
-    def _test_modules() -> tuple[tuple[Path, ast.Module], ...]:
-        """Parse every collected-test Python module in deterministic order."""
+    def _test_modules() -> Tuple[Tuple[Path, ast.Module], ...]:
+        """PRIVATE: Parse every collected-test Python module in deterministic order.
+
+        Returns
+        -------
+        modules : Tuple[Tuple[Path, ast.Module], ...]
+            Pairs of source path and parsed tree for every file under
+            ``tests`` outside ``_reference_tools``, in sorted path
+            order.
+
+        Notes
+        -----
+        Excludes ``_reference_tools`` because those generators live
+        outside the collected-test documentation contract.
+        """
         test_root: Path = Path(__file__).resolve().parents[1] / "tests"
-        modules: tuple[tuple[Path, ast.Module], ...] = tuple(
+        modules: Tuple[Tuple[Path, ast.Module], ...] = tuple(
             (path, ast.parse(path.read_text(encoding="utf-8")))
             for path in sorted(test_root.rglob("*.py"))
             if "_reference_tools" not in path.parts
@@ -531,10 +557,23 @@ class TestRepositoryArchitecture(chex.TestCase):
         return modules
 
     @staticmethod
-    def _test_tree_modules() -> tuple[tuple[Path, ast.Module], ...]:
-        """Parse every Python module in the complete test tree."""
+    def _test_tree_modules() -> Tuple[Tuple[Path, ast.Module], ...]:
+        """PRIVATE: Parse every Python module in the complete test tree.
+
+        Returns
+        -------
+        modules : Tuple[Tuple[Path, ast.Module], ...]
+            Pairs of source path and parsed tree for every file under
+            ``tests``, including non-collected helpers, in sorted
+            path order.
+
+        Notes
+        -----
+        Keeps ``_reference_tools`` in scope, so the boundary gates
+        see the whole tree.
+        """
         test_root: Path = Path(__file__).resolve().parents[1] / "tests"
-        modules: tuple[tuple[Path, ast.Module], ...] = tuple(
+        modules: Tuple[Tuple[Path, ast.Module], ...] = tuple(
             (path, ast.parse(path.read_text(encoding="utf-8")))
             for path in sorted(test_root.rglob("*.py"))
         )
@@ -604,7 +643,24 @@ class TestRepositoryArchitecture(chex.TestCase):
 
     @staticmethod
     def _literal_exports(module: ast.Module) -> set[str]:
-        """Return literal names from one module-level ``__all__``."""
+        """PRIVATE: Return literal names from one module-level ``__all__``.
+
+        Parameters
+        ----------
+        module : ast.Module
+            Parsed module to inspect.
+
+        Returns
+        -------
+        exports : set[str]
+            String constants inside the last ``__all__`` list or
+            tuple, empty when the module declares none.
+
+        Notes
+        -----
+        Accepts plain and annotated assignments to ``__all__`` and
+        ignores every non-literal element.
+        """
         exports: set[str] = set()
         node: ast.stmt
         for node in module.body:
@@ -631,7 +687,26 @@ class TestRepositoryArchitecture(chex.TestCase):
 
     @staticmethod
     def _routine_listing_summaries(docstring: str) -> dict[str, str]:
-        """Return public names and summaries from one Routine Listings block."""
+        """PRIVATE: Return public names and summaries from one Routine Listings block.
+
+        Parameters
+        ----------
+        docstring : str
+            Package docstring that carries the Routine Listings
+            entries.
+
+        Returns
+        -------
+        summaries : dict[str, str]
+            Mapping from each referenced public name to the indented
+            summary line after it, or to an empty string.
+
+        Notes
+        -----
+        Matches ``:func:``, ``:class:``, and ``:obj:`` roles line by
+        line and strips any leading module path from the captured
+        name.
+        """
         summaries: dict[str, str] = {}
         lines: list[str] = docstring.splitlines()
         index: int
@@ -650,10 +725,30 @@ class TestRepositoryArchitecture(chex.TestCase):
         return summaries
 
     @staticmethod
-    def _markdown_prose(path: Path) -> tuple[tuple[int, str], ...]:
-        """Return line-numbered prose blocks from one Markdown file."""
+    def _markdown_prose(path: Path) -> Tuple[Tuple[int, str], ...]:
+        """PRIVATE: Return line-numbered prose blocks from one Markdown file.
+
+        Parameters
+        ----------
+        path : Path
+            Markdown file to segment.
+
+        Returns
+        -------
+        prose : Tuple[Tuple[int, str], ...]
+            Start line and joined text of every prose block, with
+            table cells and list items as separate blocks.
+
+        Notes
+        -----
+        Skips code fences, math blocks, front matter, headings,
+        comments, directives, and horizontal rules. Splits table
+        rows into cells, starts a new block at each list item, and
+        strips block-quote markers before it joins continuation
+        lines.
+        """
         lines: list[str] = path.read_text(encoding="utf-8").splitlines()
-        paragraphs: list[tuple[int, str]] = []
+        paragraphs: list[Tuple[int, str]] = []
         current_lines: list[str] = []
         current_start: int = 0
         in_fence: bool = False
@@ -722,12 +817,30 @@ class TestRepositoryArchitecture(chex.TestCase):
 
         if current_lines:
             paragraphs.append((current_start, " ".join(current_lines)))
-        prose: tuple[tuple[int, str], ...] = tuple(paragraphs)
+        prose: Tuple[Tuple[int, str], ...] = tuple(paragraphs)
         return prose
 
     @staticmethod
-    def _markdown_sentences(paragraph: str) -> tuple[str, ...]:
-        """Return normalized sentences from one Markdown prose block."""
+    def _markdown_sentences(paragraph: str) -> Tuple[str, ...]:
+        """PRIVATE: Return normalized sentences from one Markdown prose block.
+
+        Parameters
+        ----------
+        paragraph : str
+            Joined prose text of one block.
+
+        Returns
+        -------
+        sentences : Tuple[str, ...]
+            Non-empty sentences split at terminal punctuation.
+
+        Notes
+        -----
+        Drops images, keeps link text, and replaces roles, code
+        spans, and inline math with a ``TECH`` placeholder. Removes
+        HTML tags and emphasis markers, expands the Latin
+        abbreviations, and collapses whitespace before the split.
+        """
         normalized: str = re.sub(
             r"!\[[^\]]*\]\([^)]*\)",
             " ",
@@ -750,7 +863,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         normalized = normalized.replace("e.g.", "for example")
         normalized = normalized.replace("i.e.", "that is")
         normalized = re.sub(r"\s+", " ", normalized).strip()
-        sentences: tuple[str, ...] = tuple(
+        sentences: Tuple[str, ...] = tuple(
             sentence.strip()
             for sentence in re.split(r"(?<=[.!?])\s+", normalized)
             if sentence.strip()
@@ -759,7 +872,25 @@ class TestRepositoryArchitecture(chex.TestCase):
 
     @staticmethod
     def _markdown_instruction(sentence: str) -> bool:
-        """Return whether one Markdown sentence gives an instruction."""
+        """PRIVATE: Return whether one Markdown sentence gives an instruction.
+
+        Parameters
+        ----------
+        sentence : str
+            Normalized sentence to classify.
+
+        Returns
+        -------
+        is_instruction : bool
+            True when the first word is an imperative verb or
+            ``you``, or when the sentence carries a directive modal.
+
+        Notes
+        -----
+        Compares the lowercased first word against the frozen
+        imperative list and searches for the directive modals with
+        one regular expression.
+        """
         imperative_verbs: frozenset[str] = frozenset(
             {
                 "accept",
@@ -954,8 +1085,27 @@ class TestRepositoryArchitecture(chex.TestCase):
         return is_instruction
 
     @staticmethod
-    def _docstring_prose(docstring: str) -> tuple[str, ...]:
-        """Return prose blocks from one Python docstring."""
+    def _docstring_prose(docstring: str) -> Tuple[str, ...]:
+        """PRIVATE: Return prose blocks from one Python docstring.
+
+        Parameters
+        ----------
+        docstring : str
+            Docstring text as ``ast.get_docstring`` yields it.
+
+        Returns
+        -------
+        prose : Tuple[str, ...]
+            Joined prose paragraphs in reading order.
+
+        Notes
+        -----
+        Tracks the current numpydoc section and keeps only indented
+        description lines inside structured sections. Skips section
+        rules, directives, Sphinx fields, doctests, and literal
+        blocks after a double colon, and starts a new paragraph at
+        each list item.
+        """
         lines: list[str] = docstring.splitlines()
         paragraphs: list[str] = []
         current_lines: list[str] = []
@@ -1046,7 +1196,7 @@ class TestRepositoryArchitecture(chex.TestCase):
 
         if current_lines:
             paragraphs.append(" ".join(current_lines))
-        prose: tuple[str, ...] = tuple(paragraphs)
+        prose: Tuple[str, ...] = tuple(paragraphs)
         return prose
 
     def test_markdown_prose_obeys_ste_sentence_limits(self) -> None:
@@ -1061,13 +1211,13 @@ class TestRepositoryArchitecture(chex.TestCase):
         files, code fences, math blocks, front matter, and technical literals.
         """
         repository_root: Path = Path(__file__).resolve().parents[1]
-        excluded_roots: tuple[Path, ...] = (
+        excluded_roots: Tuple[Path, ...] = (
             repository_root / ".git",
             repository_root / ".venv",
             repository_root / ".pytest_cache",
             repository_root / "docs/build",
         )
-        markdown_paths: tuple[Path, ...] = tuple(
+        markdown_paths: Tuple[Path, ...] = tuple(
             path
             for path in sorted(repository_root.rglob("*.md"))
             if path.is_file()
@@ -1113,7 +1263,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         excludes structured signatures, directives, code blocks, and technical
         literals before it checks the prose.
         """
-        modules: tuple[tuple[Path, ast.Module], ...] = (
+        modules: Tuple[Tuple[Path, ast.Module], ...] = (
             self._production_modules() + self._test_modules()
         )
         passive_pattern: re.Pattern[str] = re.compile(
@@ -1148,7 +1298,10 @@ class TestRepositoryArchitecture(chex.TestCase):
                 summary: str = docstring.splitlines()[0]
                 symbol_name: str = getattr(node, "name", "<module>")
                 location: str = f"{path}:{getattr(node, 'lineno', 1)}"
-                if not self._markdown_instruction(summary):
+                summary_text: str = summary
+                if symbol_name.startswith("_"):
+                    summary_text = summary_text.removeprefix("PRIVATE: ")
+                if not self._markdown_instruction(summary_text):
                     violations.append(
                         f"{location}:{symbol_name}: non-imperative summary: "
                         f"{summary}"
@@ -1179,6 +1332,153 @@ class TestRepositoryArchitecture(chex.TestCase):
                                 f"{location}:{symbol_name}: non-present tense: "
                                 f"{sentence}"
                             )
+        self.assertEqual(violations, [])
+
+    def test_private_functions_have_private_docstrings(self) -> None:
+        """Require fully fledged PRIVATE docstrings on private callables.
+
+        The test confirms every single-underscore function or method at any
+        nesting depth carries a docstring whose summary starts with the
+        ``PRIVATE:`` marker.
+
+        Notes
+        -----
+        The test walks production and complete-test-tree modules, excludes
+        dunder names, and rejects summary-only docstrings unless the body
+        is a bare ``pass`` or ellipsis stub. It reports each violation as
+        a path, line, name, and reason row.
+        """
+        section_markers: Tuple[str, ...] = (
+            "Parameters\n",
+            "Returns\n",
+            "Yields\n",
+            "Notes\n",
+            "Implementation Logic\n",
+            "Raises\n",
+        )
+        violations: list[str] = []
+        path: Path
+        module: ast.Module
+        node: ast.AST
+        for path, module in (
+            self._production_modules() + self._test_tree_modules()
+        ):
+            for node in ast.walk(module):
+                if not isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ):
+                    continue
+                if not node.name.startswith("_") or node.name.startswith("__"):
+                    continue
+                docstring: str | None = ast.get_docstring(node)
+                if docstring is None:
+                    violations.append(
+                        f"{path}:{node.lineno}:{node.name}:missing-docstring"
+                    )
+                    continue
+                if not docstring.startswith("PRIVATE: "):
+                    violations.append(
+                        f"{path}:{node.lineno}:{node.name}:no-PRIVATE-prefix"
+                    )
+                body_after_doc: list[ast.stmt] = node.body[1:]
+                is_stub: bool = not body_after_doc or all(
+                    isinstance(statement, ast.Pass)
+                    or (
+                        isinstance(statement, ast.Expr)
+                        and isinstance(statement.value, ast.Constant)
+                        and statement.value.value is Ellipsis
+                    )
+                    for statement in body_after_doc
+                )
+                has_section: bool = any(
+                    marker in docstring for marker in section_markers
+                )
+                if not has_section and not is_stub:
+                    violations.append(
+                        f"{path}:{node.lineno}:{node.name}:summary-only"
+                    )
+        self.assertEqual(violations, [])
+
+    def test_annotations_use_beartype_tuple(self) -> None:
+        """Require ``beartype.typing.Tuple`` in every tuple annotation.
+
+        The test confirms no annotation expression uses the builtin
+        ``tuple`` generic and no module imports charter-owned typing
+        constructs from the stdlib ``typing`` module.
+
+        Notes
+        -----
+        The test walks every argument, return, and variable annotation in
+        the production and complete test trees. It reports one row per
+        offending annotation as a path, line, and reason. Runtime uses of
+        ``tuple`` (calls, ``isinstance`` checks, literals) stay valid; the
+        gate reads annotation expressions only.
+        """
+        banned_typing_names: Tuple[str, ...] = (
+            "Dict",
+            "List",
+            "Optional",
+            "Tuple",
+            "TypeAlias",
+            "Union",
+        )
+        violations: List[str] = []
+        path: Path
+        module: ast.Module
+        node: ast.AST
+        for path, module in (
+            self._production_modules() + self._test_tree_modules()
+        ):
+            for node in ast.walk(module):
+                annotations: List[Tuple[int, ast.AST]] = []
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    arguments: ast.arguments = node.args
+                    argument: ast.arg
+                    for argument in (
+                        list(arguments.posonlyargs)
+                        + list(arguments.args)
+                        + list(arguments.kwonlyargs)
+                        + (
+                            [arguments.vararg]
+                            if arguments.vararg is not None
+                            else []
+                        )
+                        + (
+                            [arguments.kwarg]
+                            if arguments.kwarg is not None
+                            else []
+                        )
+                    ):
+                        if argument.annotation is not None:
+                            annotations.append(
+                                (argument.lineno, argument.annotation)
+                            )
+                    if node.returns is not None:
+                        annotations.append((node.lineno, node.returns))
+                elif isinstance(node, ast.AnnAssign):
+                    annotations.append((node.lineno, node.annotation))
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module == "typing":
+                        imported_banned: List[str] = sorted(
+                            alias.name
+                            for alias in node.names
+                            if alias.name in banned_typing_names
+                        )
+                        if imported_banned:
+                            violations.append(
+                                f"{path}:{node.lineno}:stdlib-typing-import:"
+                                + ",".join(imported_banned)
+                            )
+                lineno: int
+                annotation: ast.AST
+                for lineno, annotation in annotations:
+                    if any(
+                        isinstance(inner, ast.Name) and inner.id == "tuple"
+                        for inner in ast.walk(annotation)
+                    ):
+                        violations.append(
+                            f"{path}:{lineno}:builtin-tuple-annotation"
+                        )
         self.assertEqual(violations, [])
 
     def test_legacy_pytree_carriers_are_forbidden(self) -> None:
@@ -1451,7 +1751,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 self.root: ast.FunctionDef | ast.AsyncFunctionDef = root
                 self.annotated: set[str] = set()
                 self.nonlocal_names: set[str] = set()
-                self.assignments: list[tuple[int, str]] = []
+                self.assignments: list[Tuple[int, str]] = []
 
             def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
                 """Visit only the requested root function body."""
@@ -1480,7 +1780,22 @@ class TestRepositoryArchitecture(chex.TestCase):
                 self.nonlocal_names.update(node.names)
 
             def _record_target(self, target: ast.expr, line: int) -> None:
-                """Record stored names within one assignment-like target."""
+                """PRIVATE: Record stored names within one assignment-like target.
+
+                Parameters
+                ----------
+                target : ast.expr
+                    Assignment, loop, context, or walrus target
+                    expression.
+                line : int
+                    Source line to attach to each recorded name.
+
+                Notes
+                -----
+                Walks the target and appends every stored
+                ``ast.Name`` except the throwaway ``_`` to the
+                collected assignments.
+                """
                 candidate: ast.AST
                 for candidate in ast.walk(target):
                     if (
@@ -1570,7 +1885,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         module: ast.Module
         node: ast.AST
         for path, module in self._production_modules():
-            relative_parts: tuple[str, ...] = tuple(
+            relative_parts: Tuple[str, ...] = tuple(
                 path.as_posix().split("/src/diffpes/", 1)[1].split("/")
             )
             owner: str = relative_parts[0]
@@ -1682,7 +1997,24 @@ class TestRepositoryArchitecture(chex.TestCase):
         inner: ast.AST
 
         def _names_array(annotation: ast.AST) -> bool:
-            """Return whether one node names the NumPy array type itself."""
+            """PRIVATE: Return whether one node names the NumPy array type itself.
+
+            Parameters
+            ----------
+            annotation : ast.AST
+                Annotation node to test.
+
+            Returns
+            -------
+            is_name : bool
+                True for an attribute access ending in ``ndarray``
+                or for the bare name ``NDArray``.
+
+            Notes
+            -----
+            Checks the two spellings separately, so dotted and
+            imported forms match the same rule.
+            """
             if isinstance(annotation, ast.Attribute):
                 is_attribute: bool = annotation.attr == "ndarray"
                 return is_attribute
@@ -1692,7 +2024,26 @@ class TestRepositoryArchitecture(chex.TestCase):
             return is_name
 
         def _qualified(annotation: ast.AST) -> set[int]:
-            """Collect array nodes that a jaxtyping dtype and shape qualify."""
+            """PRIVATE: Collect array nodes that a jaxtyping dtype and shape qualify.
+
+            Parameters
+            ----------
+            annotation : ast.AST
+                Full annotation expression to scan.
+
+            Returns
+            -------
+            allowed : set[int]
+                ``id`` values of array-type nodes in the first slot
+                of a two-part jaxtyping subscript with a string
+                shape.
+
+            Notes
+            -----
+            Walks every subscript and accepts exactly the
+            two-element dtype-and-shape pattern, so any other
+            parameterization stays reportable.
+            """
             allowed: set[int] = set()
             candidate: ast.AST
             for candidate in ast.walk(annotation):
@@ -1793,11 +2144,11 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test parses literal export lists and Sphinx Routine Listings, then compares
         defining docstrings, module entries, and subpackage entries verbatim.
         """
-        parsed_modules: tuple[tuple[Path, ast.Module], ...] = (
+        parsed_modules: Tuple[Tuple[Path, ast.Module], ...] = (
             self._production_modules()
         )
         module_records: dict[
-            Path, tuple[ast.Module, set[str], dict[str, str]]
+            Path, Tuple[ast.Module, set[str], dict[str, str]]
         ] = {}
         violations: list[str] = []
         path: Path
@@ -2127,7 +2478,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 self.root: ast.FunctionDef | ast.AsyncFunctionDef = root
                 self.annotated: set[str] = set()
                 self.nonlocal_names: set[str] = set()
-                self.assignments: list[tuple[int, str]] = []
+                self.assignments: list[Tuple[int, str]] = []
 
             def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
                 """Visit only the requested root function body."""
@@ -2156,7 +2507,22 @@ class TestRepositoryArchitecture(chex.TestCase):
                 self.nonlocal_names.update(node.names)
 
             def _record_target(self, target: ast.expr, line: int) -> None:
-                """Record stored names within one assignment-like target."""
+                """PRIVATE: Record stored names within one assignment-like target.
+
+                Parameters
+                ----------
+                target : ast.expr
+                    Assignment, loop, context, or walrus target
+                    expression.
+                line : int
+                    Source line to attach to each recorded name.
+
+                Notes
+                -----
+                Walks the target and appends every stored
+                ``ast.Name`` except the throwaway ``_`` to the
+                collected assignments.
+                """
                 candidate: ast.AST
                 for candidate in ast.walk(target):
                     if (
@@ -2296,13 +2662,13 @@ class TestStack(chex.TestCase):
         It constructs a scalar Equinox linear layer with a fixed key. The test
         checks the reconstructed module type and leaves exactly.
         """
-        runtime_modules: tuple[object, ...] = (
+        runtime_modules: Tuple[object, ...] = (
             eqx,
             optimistix,
             lineax,
             optax,
         )
-        module_names: tuple[str, ...] = tuple(
+        module_names: Tuple[str, ...] = tuple(
             module.__name__ for module in runtime_modules
         )
         precision_probe: Float[Array, ""] = jnp.zeros(())
@@ -2311,7 +2677,7 @@ class TestStack(chex.TestCase):
             "scalar",
             key=jax.random.PRNGKey(0),
         )
-        flattened: tuple[list[Array], jax.tree_util.PyTreeDef] = (
+        flattened: Tuple[list[Array], jax.tree_util.PyTreeDef] = (
             jax.tree_util.tree_flatten(linear_module)
         )
         leaves: list[Array]

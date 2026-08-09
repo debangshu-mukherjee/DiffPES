@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Bool, Shaped, jaxtyped
 from numpy.typing import NDArray
 
@@ -38,7 +38,29 @@ from .policy import evidence_is_independent
 
 
 def _scalar_bool(value: Any) -> bool:
-    """Convert one concrete scalar array to ``bool`` for display."""
+    """PRIVATE: Convert one concrete scalar array to ``bool`` for
+    display.
+
+    Parameters
+    ----------
+    value : Any
+        Concrete zero-dimensional array or Python scalar.
+
+    Returns
+    -------
+    result : bool
+        Python Boolean value of the scalar.
+
+    Raises
+    ------
+    ValueError
+        If the value is not zero-dimensional.
+
+    Notes
+    -----
+    Materializes through :func:`numpy.asarray` and extracts the single
+    item, so claim status logic works on plain Python Booleans.
+    """
     array: Shaped[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         msg: str = (
@@ -50,7 +72,25 @@ def _scalar_bool(value: Any) -> bool:
 
 
 def _scalar_text(value: Any) -> str:
-    """Format one concrete scalar numerical certificate field."""
+    """PRIVATE: Format one concrete scalar numerical certificate field.
+
+    Parameters
+    ----------
+    value : Any
+        Concrete numerical certificate leaf.
+
+    Returns
+    -------
+    text : str
+        Compact rendering: a non-scalar value becomes a shape and dtype
+        placeholder, a float uses the ``.8g`` format, and any other
+        scalar uses ``str``.
+
+    Notes
+    -----
+    The fixed ``.8g`` float format keeps summaries deterministic across
+    platforms and print options.
+    """
     array: Shaped[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         text: str = f"array(shape={array.shape}, dtype={array.dtype})"
@@ -64,7 +104,25 @@ def _scalar_text(value: Any) -> str:
 
 
 def _array_text(value: Any) -> str:
-    """Format a bounded preview of a numerical evidence array."""
+    """PRIVATE: Format a bounded preview of a numerical evidence array.
+
+    Parameters
+    ----------
+    value : Any
+        Concrete numerical evidence array.
+
+    Returns
+    -------
+    text : str
+        ``shape=..., values=[...]`` preview of at most
+        ``CERTIFICATE_ARRAY_PREVIEW_ITEMS`` leading flattened values at
+        precision 8. A truncated preview ends with an ellipsis marker.
+
+    Notes
+    -----
+    The bound keeps claim explanations readable for large evidence
+    arrays while the full shape stays visible.
+    """
     array: Shaped[NDArray, "..."] = np.asarray(value)
     flat: Shaped[NDArray, " n_flat"] = array.reshape(-1)
     preview: str = np.array2string(
@@ -80,7 +138,26 @@ def _array_text(value: Any) -> str:
 
 
 def _claim_status(claim: Any) -> str:
-    """Return the bounded status label for one claim."""
+    """PRIVATE: Return the bounded status label for one claim.
+
+    Parameters
+    ----------
+    claim : Any
+        Claim record with scalar ``checked``, ``in_domain``, and
+        ``passed`` leaves.
+
+    Returns
+    -------
+    status : str
+        One of ``"not_checked"``, ``"out_of_domain"``, ``"passed"``, or
+        ``"failed"``, tested in that order of precedence.
+
+    Notes
+    -----
+    An unchecked claim reports ``not_checked`` even when its pass flag
+    is set, so a summary cannot present an unevaluated claim as an
+    outcome.
+    """
     if not _scalar_bool(claim.checked):
         status: str = "not_checked"
         return status  # noqa: RET504
@@ -94,22 +171,57 @@ def _claim_status(claim: Any) -> str:
     return status  # noqa: RET504
 
 
-def _optional_static_tuple(value: object, name: str) -> tuple[str, ...]:
-    """Read an optional tuple-valued static inspection field."""
+def _optional_static_tuple(value: object, name: str) -> Tuple[str, ...]:
+    """PRIVATE: Read an optional tuple-valued static inspection field.
+
+    Parameters
+    ----------
+    value : object
+        Record that may carry the named field.
+    name : str
+        Attribute name to read.
+
+    Returns
+    -------
+    result : Tuple[str, ...]
+        String forms of the tuple entries, or the empty tuple when the
+        field is absent or not a tuple.
+
+    Notes
+    -----
+    Tolerant reading lets the summary render certificates from schema
+    versions that lack an optional field.
+    """
     field_value: object = getattr(value, name, ())
     if not isinstance(field_value, tuple):
-        result: tuple[str, ...] = ()
+        result: Tuple[str, ...] = ()
         return result
-    result: tuple[str, ...] = tuple(str(item) for item in field_value)
+    result: Tuple[str, ...] = tuple(str(item) for item in field_value)
     return result
 
 
 def _append_tuple(
     lines: list[str],
     heading: str,
-    values: tuple[str, ...],
+    values: Tuple[str, ...],
 ) -> None:
-    """Append one heading and its static values when nonempty."""
+    """PRIVATE: Append one heading and its static values when nonempty.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Summary lines to extend in place.
+    heading : str
+        Section heading without a trailing colon.
+    values : Tuple[str, ...]
+        Values to list under the heading.
+
+    Notes
+    -----
+    Writes the heading with a colon and one indented dash line per
+    value. An empty tuple appends nothing, so empty sections leave no
+    trace in the summary.
+    """
     if not values:
         return
     lines.append(f"{heading}:")
@@ -166,10 +278,10 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
     ]
 
     policy_report: Any = certificate.policy_report
-    achieved_flags: tuple[bool, ...] = tuple(
+    achieved_flags: Tuple[bool, ...] = tuple(
         bool(item) for item in np.asarray(policy_report.achieved).tolist()
     )
-    levels: tuple[str, ...] = tuple(
+    levels: Tuple[str, ...] = tuple(
         level
         for level, achieved in zip(
             policy_report.level_ids,
@@ -180,7 +292,7 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
     )
     if levels:
         lines.append(f"Achieved levels: {', '.join(levels)}")
-    unachieved: tuple[str, ...] = tuple(
+    unachieved: Tuple[str, ...] = tuple(
         level
         for level, achieved in zip(
             policy_report.level_ids,
@@ -192,7 +304,7 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
     if unachieved:
         lines.append(f"Unachieved levels: {', '.join(unachieved)}")
 
-    unmet_requirements: tuple[str, ...] = tuple(
+    unmet_requirements: Tuple[str, ...] = tuple(
         claim_id
         for claim_id, passed, checked, in_domain in zip(
             policy_report.required_claim_ids,
@@ -338,7 +450,7 @@ def explain_claim(
         If the certificate does not contain ``claim_id``.
     """
     evidence_id: Any
-    matching: tuple[Any, ...] = tuple(
+    matching: Tuple[Any, ...] = tuple(
         claim for claim in certificate.claims if claim.claim_id == claim_id
     )
     if not matching:
@@ -348,7 +460,7 @@ def explain_claim(
     evidence_by_id: dict[str, Any] = {
         item.evidence_id: item for item in certificate.evidence
     }
-    artifact_ids: tuple[str, ...] = tuple(
+    artifact_ids: Tuple[str, ...] = tuple(
         item.artifact_id for item in certificate.artifacts
     )
     lines: list[str] = [
@@ -404,7 +516,28 @@ def explain_claim(
 
 
 def _different(left: object, right: object) -> bool:
-    """Return deterministic semantic inequality for supported records."""
+    """PRIVATE: Return deterministic semantic inequality for supported
+    records.
+
+    Parameters
+    ----------
+    left : object
+        Reference record.
+    right : object
+        Candidate record.
+
+    Returns
+    -------
+    result : bool
+        ``True`` when the canonical byte records of the two values
+        differ.
+
+    Notes
+    -----
+    Compares :func:`~.canonical.canonical_pytree` bytes, so the test
+    sees type, dtype, shape, and bit-exact value identity rather than
+    Python object equality.
+    """
     result: bool = canonical_pytree(left) != canonical_pytree(right)
     return result
 
@@ -412,10 +545,32 @@ def _different(left: object, right: object) -> bool:
 def _field_differences(
     left: object,
     right: object,
-    names: tuple[str, ...],
-) -> tuple[str, ...]:
-    """Return names whose values differ under canonical comparison."""
-    result: tuple[str, ...] = tuple(
+    names: Tuple[str, ...],
+) -> Tuple[str, ...]:
+    """PRIVATE: Return names whose values differ under canonical
+    comparison.
+
+    Parameters
+    ----------
+    left : object
+        Reference record.
+    right : object
+        Candidate record.
+    names : Tuple[str, ...]
+        Attribute names to compare.
+
+    Returns
+    -------
+    result : Tuple[str, ...]
+        The names, in input order, whose attribute values differ under
+        :func:`_different`.
+
+    Notes
+    -----
+    The stable name order keeps certificate diffs deterministic for one
+    field grouping.
+    """
+    result: Tuple[str, ...] = tuple(
         name
         for name in names
         if _different(getattr(left, name), getattr(right, name))
@@ -423,9 +578,29 @@ def _field_differences(
     return result
 
 
-def _artifact_identity(certificate: ForwardCertificate) -> tuple[object, ...]:
-    """Return meaning-bearing artifact fields without local locators."""
-    result: tuple[object, ...] = tuple(
+def _artifact_identity(certificate: ForwardCertificate) -> Tuple[object, ...]:
+    """PRIVATE: Return meaning-bearing artifact fields without local
+    locators.
+
+    Parameters
+    ----------
+    certificate : ForwardCertificate
+        Certificate whose artifacts enter a scientific comparison.
+
+    Returns
+    -------
+    result : Tuple[object, ...]
+        Per artifact: identifier, media type, byte checksum, content
+        checksum, semantic checksum, and role.
+
+    Notes
+    -----
+    Omits the locator on purpose. Two certificates that reference the
+    same content at different filesystem paths compare as scientifically
+    equal; the locator difference surfaces in the audit category
+    instead.
+    """
+    result: Tuple[object, ...] = tuple(
         (
             item.artifact_id,
             item.media_type,
@@ -483,14 +658,14 @@ def diff_certificates(
         Stable field-name differences grouped into scientific, numerical,
         environment, and audit categories.
     """
-    scientific_names: tuple[str, ...] = (
+    scientific_names: Tuple[str, ...] = (
         "model",
         "transformations",
         "domains",
         "policy_id",
         "extensions_json",
     )
-    numerical_names: tuple[str, ...] = (
+    numerical_names: Tuple[str, ...] = (
         "evidence",
         "claims",
         "derivatives",
@@ -500,7 +675,7 @@ def diff_certificates(
         "policy_report",
         "certificate_checksum",
     )
-    environment_names: tuple[str, ...] = (
+    environment_names: Tuple[str, ...] = (
         "schema_version",
         "package_version",
         "source_checksum",
@@ -509,7 +684,7 @@ def diff_certificates(
         "precision_policy",
         "deterministic",
     )
-    audit_names: tuple[str, ...] = ("execution_id", "started_at_utc")
+    audit_names: Tuple[str, ...] = ("execution_id", "started_at_utc")
     scientific: list[str] = list(
         _field_differences(left, right, scientific_names)
     )
@@ -522,10 +697,10 @@ def diff_certificates(
             audit_names,
         )
     )
-    left_locators: tuple[str | None, ...] = tuple(
+    left_locators: Tuple[str | None, ...] = tuple(
         item.locator for item in left.artifacts
     )
-    right_locators: tuple[str | None, ...] = tuple(
+    right_locators: Tuple[str | None, ...] = tuple(
         item.locator for item in right.artifacts
     )
     if _different(left_locators, right_locators):

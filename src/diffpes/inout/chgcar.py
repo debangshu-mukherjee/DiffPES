@@ -213,7 +213,8 @@ def _read_poscar_header(
     tuple[str, ...],
     list[int],
 ]:
-    """Read the POSCAR-like header section at the start of a CHGCAR file.
+    """PRIVATE: Read the POSCAR-like header section at the start of a CHGCAR
+    file.
 
     Extended Summary
     ----------------
@@ -323,7 +324,8 @@ def _find_next_grid_line(
     lines: list[str],
     start_idx: int,
 ) -> Tuple[Optional[int], Tuple[int, int, int]]:
-    """Find the next line containing exactly three positive integers.
+    """PRIVATE: Find the next line containing exactly three positive
+    integers.
 
     Extended Summary
     ----------------
@@ -390,7 +392,8 @@ def _parse_float_block(
     start_idx: int,
     nvals: int,
 ) -> Tuple[Float64[NDArray, " nvals"], int]:
-    """Parse ``nvals`` whitespace-separated floats starting at ``start_idx``.
+    """PRIVATE: Parse ``nvals`` whitespace-separated floats starting at
+    ``start_idx``.
 
     Extended Summary
     ----------------

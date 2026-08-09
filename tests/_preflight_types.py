@@ -20,7 +20,7 @@ that defect, because it requires real array values.
 
 The gate skips ``conftest`` modules. Pytest drives the fixtures in those
 modules, and the jaxtyping wrapper hides ``inspect.isgeneratorfunction``. A
-hooked yield fixture would therefore lose its teardown.
+hooked yield fixture therefore loses its teardown.
 
 Run the gate directly::
 

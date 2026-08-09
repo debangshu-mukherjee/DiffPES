@@ -59,7 +59,26 @@ _GRAPHENE_CELLS: tuple[tuple[int, int, int], ...] = (
 def _honeycomb_geometry(
     second_position: Float64[Array, " 3"],
 ) -> CrystalGeometry:
-    """Build a graphene lattice with a traced second-atom position."""
+    """PRIVATE: Build a graphene lattice with a traced second-atom position.
+
+    Parameters
+    ----------
+    second_position : Float64[Array, " 3"]
+        Fractional position of the B sublattice atom; the position
+        gradient tests differentiate through it.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Hexagonal two-atom cell with lattice constant 2.46 Angstrom, a
+        10 Angstrom vacuum axis, atom A at the origin, and atom B at
+        ``second_position``.
+
+    Notes
+    -----
+    Stacks the traced position with the static origin, so autodiff
+    through the geometry reaches only the second atom.
+    """
     lattice_constant: float = 2.46
     lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
@@ -94,12 +113,34 @@ def _pz_honeycomb_model(
     spinful: bool,
     onsite_offset: float = 0.0,
 ) -> TBModel:
-    """Build a fixed-topology pz honeycomb through the public SK kernel.
+    """PRIVATE: Build a fixed-topology pz honeycomb through the public SK
+    kernel.
 
+    Parameters
+    ----------
+    sk_values : Float64[Array, " 2"]
+        The ``pp_sigma`` and ``pp_pi`` Slater--Koster integrals in eV.
+    second_position : Float64[Array, " 3"]
+        Fractional position of the B atom inside the honeycomb cell.
+    spinful : bool
+        If true, duplicate the pz pair into a four-orbital spinor basis.
+    onsite_offset : float
+        Sublattice-staggered onsite energy in eV; atom A receives
+        ``+onsite_offset`` and atom B receives ``-onsite_offset``.
+
+    Returns
+    -------
+    model : TBModel
+        Honeycomb pz model whose hoppings come from :func:`sk_block` on
+        the three nearest-neighbor bonds.
+
+    Notes
+    -----
     The three nearest-neighbor cells are exact static metadata. Each
-    two-center block uses ``R + tau_B - tau_A``. This matches the production
-    builder away from cutoff crossings. The small gate excludes topology
-    discovery.
+    two-center block uses ``R + tau_B - tau_A``. This matches the
+    production builder away from cutoff crossings. The small gate
+    excludes topology discovery. Reverse hoppings reuse the forward
+    values because the pz--pz element is direction-even.
     """
     geometry: CrystalGeometry = _honeycomb_geometry(second_position)
     sk_params: SlaterKosterParams = make_slater_koster_params(
@@ -205,7 +246,27 @@ def _spectral_square(
     model: TBModel,
     kpoint: Float64[Array, " 3"],
 ) -> Float64[Array, ""]:
-    r"""Return ``Tr(H**2)``, a symmetric spectral polynomial."""
+    r"""PRIVATE: Return ``Tr(H**2)``, a symmetric spectral polynomial.
+
+    Parameters
+    ----------
+    model : TBModel
+        Tight-binding model under differentiation.
+    kpoint : Float64[Array, " 3"]
+        Fractional k-point of the Bloch Hamiltonian.
+
+    Returns
+    -------
+    value : Float64[Array, ""]
+        The real trace of :math:`H(k)^2` in eV squared.
+
+    Notes
+    -----
+    The trace of a spectral polynomial is invariant under any unitary
+    eigenbasis choice. This loss therefore gives a degeneracy-safe
+    gradient path through :func:`bloch_hamiltonian` without eigenvector
+    gauge ambiguity.
+    """
     hamiltonian: Complex128[Array, "n n"] = bloch_hamiltonian(model, kpoint)
     value: Float64[Array, ""] = jnp.real(jnp.trace(hamiltonian @ hamiltonian))
     return value
@@ -215,7 +276,26 @@ def _minimal_bands(
     eigenvalues: Float64[Array, "n_k n_bands"],
     eigenvectors: Complex128[Array, "n_k n_bands n_orb"],
 ) -> DiagonalizedBands:
-    """Attach a minimal geometry and basis to a synthetic eigensystem."""
+    """PRIVATE: Attach a minimal geometry and basis to a synthetic eigensystem.
+
+    Parameters
+    ----------
+    eigenvalues : Float64[Array, "n_k n_bands"]
+        Synthetic band energies in eV.
+    eigenvectors : Complex128[Array, "n_k n_bands n_orb"]
+        Band-major eigenvector rows for each k-point.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Carrier that wraps the supplied eigensystem with zero k-points,
+        a one-site cubic geometry, and an all-s orbital basis.
+
+    Notes
+    -----
+    The projector and group-trace tests only need a well-formed carrier;
+    the placeholder geometry and basis carry no physics.
+    """
     n_orbitals: int = eigenvectors.shape[-1]
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * n_orbitals,
@@ -246,7 +326,34 @@ def _normwise_roundoff_budget(
     contraction_dimension: int,
     contractions: int,
 ) -> float:
-    """Derive a normwise f64 budget from the standard gamma-n bound."""
+    """PRIVATE: Derive a normwise f64 budget from the standard gamma-n bound.
+
+    Parameters
+    ----------
+    reference : Array
+        Reference matrix stack whose trailing two axes set the matrix
+        dimension.
+    scale : Array
+        Companion array whose norm also bounds the input magnitude.
+    contraction_dimension : int
+        Inner dimension of one matrix contraction.
+    contractions : int
+        Number of chained contractions in the compared expression.
+
+    Returns
+    -------
+    budget : float
+        Normwise roundoff allowance
+        ``gamma_n * sqrt(matrix_dimension) * magnitude``.
+
+    Notes
+    -----
+    Uses the standard Higham bound ``gamma_n = n*eps / (1 - n*eps)``
+    with ``n = contraction_dimension * contractions``. Converts the
+    entrywise bound to a Frobenius-norm bound through the square root
+    of the matrix size. Scales the result by the largest of one and the
+    two input norms.
+    """
     epsilon: float = np.finfo(np.float64).eps
     operation_count: int = contraction_dimension * contractions
     gamma: float = (

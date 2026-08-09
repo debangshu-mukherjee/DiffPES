@@ -1,6 +1,6 @@
 # Analytic Kramers--Kronig reference
 
-This directory contains the independent analytic reference for WP7.4. The
+This directory contains the independent analytic reference for the Kramers--Kronig operator. The
 archive uses the frozen 1001-point relative-energy grid from -1 eV to 1 eV.
 All real parts are subtracted at 0 eV.
 

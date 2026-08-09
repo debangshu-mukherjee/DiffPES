@@ -1,0 +1,195 @@
+{
+  "adjoint_derivative": {
+    "adjoint_truth": "two dense solves g=G M and h=G^dagger M with G=((omega+i*Gamma_total)I-H)^-1; dI/dtheta = -(1/pi) Im[h^dagger E_theta g]",
+    "coordinates": [
+      "h00_real",
+      "h11_real",
+      "h01_real",
+      "h01_imag"
+    ],
+    "direction_matrices": "E_00, E_11, E_01+E_10, i*(E_01-E_10); real coordinate directions for every independent Hermitian entry",
+    "fd_steps": [
+      0.000244140625,
+      6.103515625e-05,
+      1.52587890625e-05
+    ],
+    "omegas_ev": [
+      -0.95,
+      -0.855,
+      -0.6,
+      -0.2,
+      0.1,
+      0.55,
+      0.9
+    ],
+    "richardson": "two-level: R_j=(16*D(h_{j+1})-D(h_j))/15 over the frozen step ladder, then (256*R_2-R_1)/255",
+    "tolerance": "abs(richardson - analytic) <= 1e-10 * max(1, abs(analytic))"
+  },
+  "archives": {
+    "spectral_intensity_reference": {
+      "filename": "spectral_intensity_reference.npz",
+      "sha256": "67e5f9e18ad39a1b51e8ed5713003b684f35fff60df2637e9dd16e90f6ca547c"
+    }
+  },
+  "differentiated_coordinates": [
+    {
+      "fixture": "two_pole",
+      "name": "two_pole_hopping_t",
+      "value": 0.08
+    },
+    {
+      "fixture": "hermitian_resolvent",
+      "name": "h01_real",
+      "value": 0.1
+    },
+    {
+      "fixture": "two_pole",
+      "name": "gamma_softplus_raw",
+      "note": "Gamma = softplus(raw); raw = log(expm1(0.03))",
+      "value": -3.491520397601228
+    },
+    {
+      "fixture": "shared",
+      "name": "eta",
+      "value": 0.0001
+    }
+  ],
+  "environment": {
+    "numpy": "2.4.2",
+    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "python": "3.13.6",
+    "scipy": "1.17.1"
+  },
+  "eta_ladder": {
+    "convergence_ratio_band": [
+      1.98,
+      2.02
+    ],
+    "eta_ladder_ev": [
+      0.0008,
+      0.0004,
+      0.0002,
+      0.0001
+    ],
+    "eta_ladder_note": "frozen at {8,4,2,1}x1e-4 eV; an e-3 ladder violates the frozen final-rung budgets",
+    "extrapolation": "two smallest rungs, linear in eta: X(0) ~ 2*X(eta_min) - X(2*eta_min); absolute budget 2e-6",
+    "final_rung_budgets": {
+      "captured_mass_change": 6.5e-05,
+      "hwhm_change_ev": 0.000101
+    },
+    "gamma_physical_ev": 0.05,
+    "hwhm_definition": "three-point quadratic vertex around the grid argmax gives peak position and height; the half level is half the vertex height; each crossing is linearly interpolated between the bracketing frozen-grid samples; HWHM is half the crossing separation",
+    "level_energy_ev": 0.1,
+    "omega_window_ev": [
+      -1.0,
+      1.0
+    ],
+    "peak_position_budget_ev": 2e-06,
+    "per_rung_tolerance_rtol": 1e-10,
+    "points": 8001
+  },
+  "fermi_counterexample": {
+    "band_energy_ev": 0.05,
+    "boltzmann_ev_per_k": 8.617333e-05,
+    "definition": "I_correct = A(omega)*f_FD(omega, T) with occupation at the sampled omega; I_wrong = A(omega)*f_FD(E0, T) with occupation at the band eigenvalue; the occupied-side tail survives only in I_correct",
+    "gamma_ev": 0.05,
+    "max_relative_discrepancy_floor": 1000000000000.0,
+    "omega_window_ev": [
+      -0.3,
+      0.3
+    ],
+    "points": 1201,
+    "temperature_k": 15.0
+  },
+  "generator": "tests/_reference_tools/generate_spectral_intensity_reference.py",
+  "generator_sha256": "dab08acf1d7767bf5242f7526cc2861419511493bafa0fcadf3ae9a9c71a888b",
+  "hermitian_resolvent": {
+    "eta_ev": 0.0001,
+    "matrix_a_ev": [
+      [
+        "0.2+0.1j",
+        "-0.3+0.7j"
+      ],
+      [
+        "0.4-0.2j",
+        "-0.1+0.05j"
+      ]
+    ],
+    "omega_window_ev": [
+      -1.0,
+      1.0
+    ],
+    "points": 4001,
+    "sigma_ev": "-0.02j",
+    "source": [
+      "1+0.3j",
+      "-0.4+0.8j"
+    ],
+    "tolerance_rtol": 1e-10,
+    "truth_engine": "numpy.linalg.eigh dense eigendecomposition"
+  },
+  "reference_engine": {
+    "name": "numpy",
+    "value_functions": [
+      "numpy.linalg.eigh",
+      "numpy.linalg.solve",
+      "numpy.polynomial.legendre.leggauss",
+      "analytic arctangent/Lorentzian closed forms"
+    ]
+  },
+  "requirements": [
+    "two-pole-closed-form",
+    "hermitian-resolvent-eigh-agreement",
+    "finite-window-arctangent-mass",
+    "lorentzian-linewidth-ladder",
+    "resolvent-adjoint-derivative-truth",
+    "differentiated-coordinate-registry",
+    "sampled-energy-occupation-witness"
+  ],
+  "schema": "diffpes.spectral-intensity-reference.v1",
+  "stage": "preregistered-before-spectral-intensity-production-edit",
+  "sum_rule": {
+    "fullline_map": "E = center + s*tan(pi*u/2), Jacobian s*pi/2*sec(pi*u/2)^2, s = Gamma_total, mirroring the frozen true-Voigt convention",
+    "orders": [
+      256,
+      512
+    ],
+    "row_labels": [
+      "two_pole_plus",
+      "two_pole_minus",
+      "two_pole_degenerate",
+      "hermitian_band_0",
+      "hermitian_band_1",
+      "eta_ladder_eta_8e-04",
+      "eta_ladder_eta_4e-04",
+      "eta_ladder_eta_2e-04",
+      "eta_ladder_eta_1e-04",
+      "eta_ladder_eta_0"
+    ],
+    "tolerance_rtol": 1e-08,
+    "window_ev": [
+      -2.0,
+      2.0
+    ],
+    "window_mass": "(1/pi)*(arctan((w2-E)/Gamma) - arctan((w1-E)/Gamma))"
+  },
+  "two_pole": {
+    "closed_form": "I(omega) = sum_pm |m1 +/- m2|^2/2 * (1/pi) * Gamma_total / ((omega - (eps0 +/- t))^2 + Gamma_total^2)",
+    "degenerate_limit": "t = 0 exactly; single pole at eps0",
+    "epsilon0_ev": -0.15,
+    "eta_ev": 0.0001,
+    "gamma_ev": 0.03,
+    "hopping_ev": 0.08,
+    "omega_window_ev": [
+      -0.6,
+      0.4
+    ],
+    "points": 2001,
+    "sigma": "constant Sigma = -i*Gamma",
+    "source": [
+      "0.9+0.4j",
+      "-0.5+0.7j"
+    ],
+    "tolerance_rtol": 1e-10
+  }
+}

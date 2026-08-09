@@ -40,7 +40,28 @@ def _node_doubling_with_parameter_gradient(
     parameter_getter: Callable[[RadialSpec], Array],
     directions: tuple[Array, ...] | None = None,
 ) -> None:
-    """Compare profile values and selected parameter tangents."""
+    """PRIVATE: Compare profile values and selected parameter tangents.
+
+    Parameters
+    ----------
+    base : RadialSpec
+        Shell-shared radial carrier whose envelope the check probes.
+    parameter_getter : Callable[[RadialSpec], Array]
+        Accessor that selects the differentiated leaf of ``base``.
+    directions : tuple[Array, ...] | None
+        Tangent directions for the selected leaf; ``None`` selects the
+        all-ones direction.
+
+    Notes
+    -----
+    Evaluates :func:`radial_bvals` on five fixed momenta in inverse
+    Bohr under the production quadrature profile and under the doubled
+    ``gl2048-r120-k4-l9-reference-v1`` profile. Asserts value agreement
+    at ``rtol=1e-10`` and, for each direction, agreement of the JVP
+    through the selected parameter at ``rtol=1e-8``. Node doubling
+    leaves a converged quadrature unchanged, so any disagreement is a
+    resolution defect.
+    """
     production: RadialQuadratureSpec = make_radial_quadrature_spec()
     reference: RadialQuadratureSpec = make_radial_quadrature_spec(
         "gl2048-r120-k4-l9-reference-v1"

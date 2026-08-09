@@ -14,7 +14,7 @@ Routine Listings
 """
 
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -32,9 +32,21 @@ from .registry import (
 
 
 def _register_transformations() -> None:
-    """Register built-in semantic and information-loss contracts."""
+    """PRIVATE: Register built-in semantic and information-loss
+    contracts.
+
+    Notes
+    -----
+    Builds the full tuple of built-in transformation contracts
+    (amplitude, band, resolution, normalization, k-space, kinematics,
+    polarization, geometry, and tight-binding transformations), then
+    registers only the identity-version pairs that
+    :func:`~.registry.list_transformations` does not already report.
+    The skip step makes repeated registration idempotent against the
+    append-only registry.
+    """
     contract: Any
-    contracts: tuple[TransformationContract, ...] = (
+    contracts: Tuple[TransformationContract, ...] = (
         make_transformation_contract(
             "org.diffpes.transform.amplitude.intensity",
             "1.0.0",
@@ -312,12 +324,12 @@ def _register_transformations() -> None:
             introduces=("exponential_intensity_depth_weight",),
         ),
     )
-    existing: set[tuple[str, str]] = {
+    existing: set[Tuple[str, str]] = {
         (item.transformation_id, item.transformation_version)
         for item in list_transformations()
     }
     for contract in contracts:
-        key: tuple[str, str] = (
+        key: Tuple[str, str] = (
             contract.transformation_id,
             contract.transformation_version,
         )
@@ -326,7 +338,17 @@ def _register_transformations() -> None:
 
 
 def _register_kspace_handshake() -> None:
-    """Register the k-space certification handshake idempotently."""
+    """PRIVATE: Register the k-space certification handshake
+    idempotently.
+
+    Notes
+    -----
+    Returns without effect when a handshake for the
+    ``org.diffpes.kspace`` owner already exists. Otherwise registers the
+    owner's versioned coordinate, kinematics, polarization, and geometry
+    transformation references together with the named k-space evidence
+    identities.
+    """
     owner_id: str = "org.diffpes.kspace"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
@@ -353,7 +375,17 @@ def _register_kspace_handshake() -> None:
 
 
 def _register_tightb_handshake() -> None:
-    """Register the tight-binding certification handshake idempotently."""
+    """PRIVATE: Register the tight-binding certification handshake
+    idempotently.
+
+    Notes
+    -----
+    Returns without effect when a handshake for the
+    ``org.diffpes.tightb`` owner already exists. Otherwise registers the
+    owner's versioned Bloch, eigensystem, density-of-states, and Fermi
+    level transformation references together with the named
+    tight-binding evidence identities.
+    """
     owner_id: str = "org.diffpes.tightb"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
@@ -390,7 +422,17 @@ def _register_tightb_handshake() -> None:
 
 
 def _register_slab_surface_handshakes() -> None:
-    """Register the slab carrier and surface handshakes."""
+    """PRIVATE: Register the slab carrier and surface handshakes.
+
+    Notes
+    -----
+    Reads the existing owner set once, then registers the
+    ``org.diffpes.slab`` handshake (depth-carrier transformation and
+    depth evidence) and the ``org.diffpes.surface`` handshake (slab
+    construction and surface-projection transformations with the
+    surface evidence identities), each only when its owner is not
+    present.
+    """
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if "org.diffpes.slab" not in existing:
         register_handshake(
@@ -440,12 +482,22 @@ def _register_slab_surface_handshakes() -> None:
 
 
 def _register_matrixel_handshake() -> None:
-    """Register the matrix-element evidence handshake."""
+    """PRIVATE: Register the matrix-element evidence handshake.
+
+    Notes
+    -----
+    Returns without effect when a handshake for the
+    ``org.diffpes.matrixel`` owner already exists. Otherwise registers
+    the owner's versioned amplitude, polarization, and depth-carrier
+    transformation references together with the verification,
+    derivative, scaling, and lifecycle evidence identities of the
+    matrix-element work.
+    """
     owner_id: str = "org.diffpes.matrixel"
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if owner_id in existing:
         return
-    verification_evidence: tuple[str, ...] = (
+    verification_evidence: Tuple[str, ...] = (
         "org.diffpes.evidence.matrixel.spherical_bessel_values_derivatives",
         "org.diffpes.evidence.matrixel.radial_integral_dipole_measure",
         "org.diffpes.evidence.matrixel.real_gaunt_dipole_table",
@@ -465,7 +517,7 @@ def _register_matrixel_handshake() -> None:
         "org.diffpes.evidence.matrixel.band_group_weight_sensitivity",
         "org.diffpes.evidence.matrixel.orbital_position_vacuum_momentum",
     )
-    derivative_evidence: tuple[str, ...] = (
+    derivative_evidence: Tuple[str, ...] = (
         "org.diffpes.evidence.matrixel.radial_parameter_gradients",
         "org.diffpes.evidence.matrixel.photon_energy_kinematics_gradients",
         "org.diffpes.evidence.matrixel.polarization_geometry_gradients",
@@ -480,7 +532,7 @@ def _register_matrixel_handshake() -> None:
         "org.diffpes.evidence.matrixel.dipole_gauge_gradients",
         "org.diffpes.evidence.matrixel.hermite_acceleration_not_applicable",
     )
-    scaling_evidence: tuple[str, ...] = (
+    scaling_evidence: Tuple[str, ...] = (
         "org.diffpes.evidence.matrixel.orbital_channel_compile_scaling",
         "org.diffpes.evidence.matrixel.chunk_memory_allocation",
         "org.diffpes.evidence.matrixel.late_polarization_performance",

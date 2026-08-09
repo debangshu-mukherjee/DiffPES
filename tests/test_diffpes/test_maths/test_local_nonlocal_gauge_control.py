@@ -11,6 +11,7 @@ from pathlib import Path
 import chex
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, Int64
 from numpy.typing import NDArray
 
@@ -32,7 +33,26 @@ _REFERENCE_SHA256 = (
 def _derivative_sixth(
     values: Float64[NDArray, " n_node"], spacing: float
 ) -> Float64[NDArray, " n_node"]:
-    """Differentiate with the frozen seven-point sixth-order stencils."""
+    """PRIVATE: Differentiate with the frozen seven-point sixth-order stencils.
+
+    Parameters
+    ----------
+    values : Float64[NDArray, " n_node"]
+        Samples on a uniform grid.
+    spacing : float
+        Uniform grid spacing in Bohr.
+
+    Returns
+    -------
+    derivative : Float64[NDArray, " n_node"]
+        First-derivative samples at every node.
+
+    Notes
+    -----
+    For each node, clamps a seven-point window inside the grid, solves
+    the Vandermonde moment system for the first-derivative weights at
+    that offset, and applies the weights to the windowed samples.
+    """
     derivative: Float64[NDArray, " n_node"] = np.empty_like(values)
     index: int
     for index in range(values.size):
@@ -54,8 +74,35 @@ def _public_reduced_gauges(
     radial_grid: Float64[NDArray, " n_node"],
     radial_weights: Float64[NDArray, " n_node"],
     states: Float64[NDArray, "2 n_node"],
-) -> tuple[Array, Array]:
-    """Pass the exact radial angular reduction through both public APIs."""
+) -> Tuple[Array, Array]:
+    """PRIVATE: Pass the exact radial angular reduction through public APIs.
+
+    Parameters
+    ----------
+    radial_grid : Float64[NDArray, " n_node"]
+        Uniform radial nodes in Bohr.
+    radial_weights : Float64[NDArray, " n_node"]
+        Radial quadrature weights in Bohr.
+    states : Float64[NDArray, "2 n_node"]
+        Reduced s and p radial states in rows 0 and 1.
+
+    Returns
+    -------
+    length : Array
+        Length-gauge s-to-p amplitude for z polarization.
+    momentum : Array
+        Momentum-gauge s-to-p amplitude for z polarization.
+
+    Implementation Logic
+    --------------------
+    Divides each reduced state by the radius (zero at the origin) to
+    recover the radial functions, differentiates the s state with the
+    frozen stencils and applies the quotient rule for the radial
+    derivative, folds the exact angular factor 1/sqrt(3) into the
+    position and gradient z components, and evaluates both public
+    Cartesian gauge contractions with weights r**2 times the radial
+    weights.
+    """
     state_s: Float64[NDArray, " n_node"] = states[0]
     state_p: Float64[NDArray, " n_node"] = states[1]
     radial_initial: Float64[NDArray, " n_node"] = np.divide(

@@ -1,6 +1,6 @@
 """Shared numerical scaffolding for the preproduction KK candidate study.
 
-This module is test tooling, not WP7.4 production code.  It contains analytic
+This module is test tooling, not production code.  It contains analytic
 fixtures, independently checks the committed reference archive, and implements
 the frozen semi-infinite tail quadrature used by the candidate sweep.
 """
@@ -136,6 +136,25 @@ def load_analytic_reference(
 
 
 def _softplus(raw: Any) -> Any:
+    """PRIVATE: Compute the softplus of one raw tail parameter.
+
+    Parameters
+    ----------
+    raw : Any
+        Unconstrained real scalar or array of curvature offsets.
+
+    Returns
+    -------
+    positive_margin : Any
+        ``log(1 + exp(raw))`` as a strictly positive float64 value.
+
+    Notes
+    -----
+    The function casts ``raw`` to float64 and evaluates
+    ``jnp.logaddexp(raw, 0.0)``, which avoids overflow for large
+    arguments. The caller adds the result to ``alpha**2 / 4`` so the
+    power2 tail denominator stays free of real roots.
+    """
     return jnp.logaddexp(jnp.asarray(raw, dtype=jnp.float64), 0.0)
 
 
@@ -257,6 +276,25 @@ def semi_infinite_tail_contribution(
 
 
 def _jsonable(value: Any) -> Any:
+    """PRIVATE: Convert one nested value into JSON-serializable builtins.
+
+    Parameters
+    ----------
+    value : Any
+        Mapping, sequence, NumPy or JAX array, NumPy scalar, or plain
+        Python value.
+
+    Returns
+    -------
+    converted : Any
+        The same structure with string keys, lists, and Python scalars.
+
+    Implementation Logic
+    --------------------
+    The function recurses through mappings and list-like sequences. It
+    converts arrays with ``np.asarray(...).tolist()``, unwraps NumPy
+    scalars with ``.item()``, and returns every other value unchanged.
+    """
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -307,6 +345,22 @@ def write_sweep_report(
 
 
 def _run_self_tests() -> None:
+    """PRIVATE: Run the module self-checks against SciPy quadrature.
+
+    Raises
+    ------
+    AssertionError
+        If a seam value, a seam derivative, or the tail integral moves
+        outside its pinned tolerance.
+
+    Implementation Logic
+    --------------------
+    The check builds one power2 tail spec from symmetric edge data and
+    asserts the C1 seam values and derivatives match the inputs. It then
+    compares ``semi_infinite_tail_contribution`` at one query against
+    adaptive ``scipy.integrate.quad`` on both semi-infinite sides and
+    prints the observed errors.
+    """
     from scipy.integrate import quad
 
     amplitude = 0.7

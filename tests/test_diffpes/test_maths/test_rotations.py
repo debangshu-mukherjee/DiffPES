@@ -12,6 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import linalg, special
@@ -30,8 +31,28 @@ from tests._gradients import gradient_gate
 
 def _angular_momentum_matrices(
     l: int,
-) -> tuple[Complex128[NDArray, "dim dim"], Complex128[NDArray, "dim dim"]]:
-    """Construct independent ascending-order Jz and Jy matrices."""
+) -> Tuple[Complex128[NDArray, "dim dim"], Complex128[NDArray, "dim dim"]]:
+    """PRIVATE: Construct independent ascending-order Jz and Jy matrices.
+
+    Parameters
+    ----------
+    l : int
+        Angular momentum quantum number.
+
+    Returns
+    -------
+    angular_z : Complex128[NDArray, "dim dim"]
+        Diagonal Jz generator in the ascending-m basis.
+    angular_y : Complex128[NDArray, "dim dim"]
+        Jy generator from the ladder-operator difference.
+
+    Notes
+    -----
+    Builds the raising operator with elements sqrt(l(l+1) - m(m+1)) one
+    step below the diagonal, takes the lowering operator as its
+    conjugate transpose, and forms Jy = (J+ - J-) / (2i) and Jz =
+    diag(m).
+    """
     magnetic_numbers: Float64[NDArray, " dim"] = np.arange(
         -l, l + 1, dtype=np.float64
     )
@@ -58,7 +79,29 @@ def _external_wigner_d(
     beta: float,
     gamma: float,
 ) -> Complex128[NDArray, "dim dim"]:
-    """Construct an external Wigner matrix from independent generators."""
+    """PRIVATE: Build an external Wigner matrix from independent generators.
+
+    Parameters
+    ----------
+    l : int
+        Angular momentum quantum number.
+    alpha : float
+        First z Euler angle in radians.
+    beta : float
+        Middle y Euler angle in radians.
+    gamma : float
+        Last z Euler angle in radians.
+
+    Returns
+    -------
+    matrix : Complex128[NDArray, "dim dim"]
+        Wigner D-matrix in the ascending-m basis.
+
+    Notes
+    -----
+    Exponentiates the independent generators with SciPy as
+    expm(-i alpha Jz) @ expm(-i beta Jy) @ expm(-i gamma Jz).
+    """
     angular_z: Complex128[NDArray, "dim dim"]
     angular_y: Complex128[NDArray, "dim dim"]
     angular_z, angular_y = _angular_momentum_matrices(l)
@@ -90,7 +133,7 @@ class TestRodriguesRotation(chex.TestCase):
         Compare each float64 matrix with ``Rotation.from_rotvec``. Use
         ``rtol=1e-12`` and ``atol=1e-12``.
         """
-        cases: tuple[tuple[list[float], float], ...] = (
+        cases: Tuple[Tuple[list[float], float], ...] = (
             ([1.0, 0.0, 0.0], 0.37),
             ([0.0, -2.0, 0.0], -0.82),
             ([1.2, -0.7, 2.1], 1.13),
@@ -238,7 +281,7 @@ class TestRodriguesRotation(chex.TestCase):
         )
 
         def loss(
-            parameters: tuple[Float64[Array, "3"], Float64[Array, ""]],
+            parameters: Tuple[Float64[Array, "3"], Float64[Array, ""]],
         ) -> Float64[Array, ""]:
             candidate_axis: Float64[Array, "3"]
             candidate_angle: Float64[Array, ""]
@@ -272,7 +315,7 @@ class TestWignerSmallD(chex.TestCase):
         Compare every float64 entry for ``l=0..4`` at ``0``, ``0.37``,
         ``pi/2``, and ``pi`` with relative and absolute tolerance ``1e-13``.
         """
-        beta_values: tuple[float, ...] = (0.0, 0.37, np.pi / 2.0, np.pi)
+        beta_values: Tuple[float, ...] = (0.0, 0.37, np.pi / 2.0, np.pi)
         l: int
         beta: float
         for l in range(5):
@@ -746,7 +789,7 @@ class TestBondAngles(chex.TestCase):
         Evaluate under JIT and differentiate the two-angle vector with respect
         to each bond component. Require exact values and finite Jacobians.
         """
-        cases: tuple[tuple[list[float], list[float]], ...] = (
+        cases: Tuple[Tuple[list[float], list[float]], ...] = (
             ([0.0, 0.0, 2.0], [0.0, 0.0]),
             ([0.0, 0.0, -3.0], [np.pi, 0.0]),
             ([0.0, 0.0, 0.0], [0.0, 0.0]),

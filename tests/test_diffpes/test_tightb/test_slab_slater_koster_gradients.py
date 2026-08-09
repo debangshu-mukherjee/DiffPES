@@ -39,7 +39,27 @@ def _graphene_context() -> tuple[
     SlaterKosterParams,
     Array,
 ]:
-    """Return a complete-p-shell nearest-neighbor graphene SK context."""
+    """PRIVATE: Return a complete-p-shell nearest-neighbor graphene SK
+    context.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Hexagonal two-carbon cell with lattice constant 2.46 Angstrom.
+    basis : OrbitalBasis
+        Six-orbital complete-p basis on the two sublattices.
+    sk_params : SlaterKosterParams
+        The ``C-C:pp_sigma`` and ``C-C:pp_pi`` integrals
+        ``(1.1, -2.7)`` eV.
+    onsite : Array
+        Six generic onsite energies in eV.
+
+    Notes
+    -----
+    The complete p shell on both sublattices activates the sigma and
+    pi channels together. A slab loss on this context therefore
+    responds to each fundamental SK integral.
+    """
     lattice_constant: float = 2.46
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.asarray(
@@ -84,7 +104,33 @@ def _complete_p_soc_context() -> tuple[
     Array,
     tuple[int, ...],
 ]:
-    """Return a two-site complete-p spinor SK model with atomic SOC."""
+    """PRIVATE: Return a two-site complete-p spinor SK model context with
+    atomic SOC.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Orthorhombic cell with an X atom and a Y atom on an oblique
+        bond.
+    basis : OrbitalBasis
+        Twelve-orbital spinful complete-p basis.
+    sk_params : SlaterKosterParams
+        The ``X-Y:pp_sigma`` and ``X-Y:pp_pi`` integrals
+        ``(-1.17, 0.43)`` eV.
+    onsite : Array
+        Twelve onsite energies in eV.
+    soc : Array
+        The two atomic SOC strengths ``(0.29, 0.17)`` eV.
+    shell_index : tuple[int, ...]
+        Per-orbital SOC shell assignment.
+
+    Notes
+    -----
+    The oblique X--Y bond direction has three nonzero components and
+    both atoms carry distinct SOC shells. Slab losses on this context
+    therefore respond to every SK, onsite, and SOC coordinate through
+    generic direction cosines.
+    """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.diag(jnp.asarray((2.2, 2.5, 4.0))),
         positions=jnp.asarray(
@@ -127,7 +173,25 @@ def _complete_p_soc_context() -> tuple[
 
 
 def _broadened_spectral_moment(bands: DiagonalizedBands) -> Array:
-    """Evaluate a smooth registered spectral invariant."""
+    """PRIVATE: Evaluate a smooth registered spectral invariant.
+
+    Parameters
+    ----------
+    bands : DiagonalizedBands
+        Diagonalized slab eigensystem.
+
+    Returns
+    -------
+    moment : Array
+        Scalar contraction of Gaussian profiles of width 0.41 eV around
+        five fixed probe energies in eV with fixed signed coefficients.
+
+    Notes
+    -----
+    The moment depends only on eigenvalues, so it is gauge invariant
+    and smooth through the eigensolver even near degeneracies. It
+    serves as the common scalar loss for the SK gradient gates.
+    """
     probes: Array = jnp.asarray((-1.31, -0.44, 0.18, 0.76, 1.42))
     coefficients: Array = jnp.asarray((0.7, -0.3, 0.9, 0.2, -0.5))
     width: float = 0.41
@@ -139,7 +203,28 @@ def _broadened_spectral_moment(bands: DiagonalizedBands) -> Array:
 
 
 def _graphene_sk_gate() -> tuple[Array, Callable[[Array], Array]]:
-    """Create the true-SK graphene slab loss and its active coordinate."""
+    """PRIVATE: Create the true-SK graphene slab loss and its active
+    coordinates.
+
+    Returns
+    -------
+    active : Array
+        The two active SK integrals in eV.
+    loss : Callable[[Array], Array]
+        Scalar spectral-moment loss over the active SK integrals.
+
+    Notes
+    -----
+    Builds the graphene context directly and through
+    :func:`sk_model_parameter_view`, asserts that both routes yield
+    identical hoppings, and freezes a (001) slab topology of thickness
+    10 Angstrom. The loss splices the candidate SK values into the
+    frozen parameter vector. It rebuilds the bulk from fundamentals,
+    rebuilds the slab, diagonalizes on five generic k-points, and
+    evaluates :func:`_broadened_spectral_moment`. Its gradient
+    therefore flows from the spectrum back to the fundamental SK
+    integrals.
+    """
     geometry: CrystalGeometry
     basis: OrbitalBasis
     sk_params: SlaterKosterParams
@@ -200,7 +285,29 @@ def _soc_sk_gate() -> tuple[
     Callable[[Array], Array],
     Callable[[Array], Array],
 ]:
-    """Create the complete-shell SOC slab SK and group-trace losses."""
+    """PRIVATE: Create the complete-shell SOC slab SK and group-trace losses.
+
+    Returns
+    -------
+    active : Array
+        The two active SK integrals in eV.
+    combined_loss : Callable[[Array], Array]
+        Spectral moment plus 0.23 times the summed fixed-group trace.
+    group_loss : Callable[[Array], Array]
+        The isolated fixed-group trace loss.
+    imaginary_norm : Callable[[Array], Array]
+        The imaginary-part norm of one slab Bloch Hamiltonian.
+
+    Notes
+    -----
+    Builds the spinor SOC context directly and through
+    :func:`sk_model_parameter_view`, asserts hopping equality, and
+    freezes a (001) slab topology of thickness 3.9 Angstrom. Every
+    loss splices the candidate SK values into the frozen parameter
+    vector and rebuilds bulk and slab before evaluation. The imaginary
+    norm certifies that genuinely complex matrix structure survives
+    the rebuild path.
+    """
     geometry: CrystalGeometry
     basis: OrbitalBasis
     sk_params: SlaterKosterParams

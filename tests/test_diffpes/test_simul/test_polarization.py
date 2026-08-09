@@ -15,7 +15,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Complex128, Float64
@@ -1068,7 +1068,7 @@ class TestFrameSemantics(chex.TestCase):
             dtype=jnp.float64,
         ).reshape((2, 2, 3))
 
-        def loss(arguments: tuple[Array, Array, Array, Array]) -> Array:
+        def loss(arguments: Tuple[Array, Array, Array, Array]) -> Array:
             """Reduce fixed-beam and detector-axis frame outputs."""
             candidate_polarization: Array
             candidate_tx: Array

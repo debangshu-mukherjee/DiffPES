@@ -165,7 +165,7 @@ import re
 from types import MappingProxyType
 
 import jax.numpy as jnp
-from beartype.typing import Final
+from beartype.typing import Final, Tuple
 from jaxtyping import Array, Float64
 
 ATTR_AUX: Final[str] = "_aux_data_json"
@@ -258,7 +258,7 @@ PHASE_LOSS_MESSAGE: Final[str] = (
     "interference are approximate."
 )
 PARAMETER_KEY_PARTS: Final[int] = 2
-PRESET_NAMES: Final[tuple[str, ...]] = (
+PRESET_NAMES: Final[Tuple[str, ...]] = (
     "s",
     "py",
     "pz",

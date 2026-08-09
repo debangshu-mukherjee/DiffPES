@@ -26,7 +26,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -70,11 +70,11 @@ def mapping_artifact_resolver(
     """
     frozen: dict[str, Any] = dict(artifacts)
 
-    def resolver(reference: ArtifactRef) -> tuple[Any, bytes | None]:
+    def resolver(reference: ArtifactRef) -> Tuple[Any, bytes | None]:
         if reference.artifact_id not in frozen:
             msg: str = f"unresolved artifact: {reference.artifact_id}"
             raise KeyError(msg)
-        result: tuple[Any, bytes | None] = (
+        result: Tuple[Any, bytes | None] = (
             frozen[reference.artifact_id],
             None,
         )
@@ -86,7 +86,7 @@ def mapping_artifact_resolver(
 @jaxtyped(typechecker=beartype)
 def filesystem_artifact_resolver(
     reference: ArtifactRef,
-) -> tuple[bytes, bytes]:
+) -> Tuple[bytes, bytes]:
     """Resolve a byte-valued artifact from its local locator.
 
     The resolver returns normalized bytes and exact source bytes separately.
@@ -108,7 +108,7 @@ def filesystem_artifact_resolver(
 
     Returns
     -------
-    resolved : tuple[bytes, bytes]
+    resolved : Tuple[bytes, bytes]
         Normalized byte value and the same exact source bytes.
 
     Raises
@@ -120,7 +120,7 @@ def filesystem_artifact_resolver(
         msg: str = "artifact has no filesystem locator"
         raise ValueError(msg)
     data: bytes = Path(reference.locator).read_bytes()
-    resolved: tuple[bytes, bytes] = (data, data)
+    resolved: Tuple[bytes, bytes] = (data, data)
     return resolved
 
 
@@ -189,7 +189,7 @@ def resolve_artifact(
 @jaxtyped(typechecker=beartype)
 def verify_evidence(
     reference: EvidenceRef,
-    artifacts: tuple[ArtifactRef, ...],
+    artifacts: Tuple[ArtifactRef, ...],
     resolver: ArtifactResolver,
 ) -> EvidenceReport:
     """Verify referenced artifacts and recorded numerical residuals.
@@ -211,7 +211,7 @@ def verify_evidence(
     ----------
     reference : EvidenceRef
         Numerical evidence and the artifact IDs that support it.
-    artifacts : tuple[ArtifactRef, ...]
+    artifacts : Tuple[ArtifactRef, ...]
         Available artifact records.
     resolver : ArtifactResolver
         Eager resolver for normalized artifact content.

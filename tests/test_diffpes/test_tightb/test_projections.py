@@ -34,7 +34,24 @@ from tests._gradients import gradient_gate
 
 
 def _basis(n_orbitals: int) -> OrbitalBasis:
-    """Build static s-orbital metadata for a test eigensystem."""
+    """PRIVATE: Build static s-orbital metadata for a test eigensystem.
+
+    Parameters
+    ----------
+    n_orbitals : int
+        Number of synthetic orbitals.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        One-atom basis of ``n_orbitals`` s orbitals labeled ``o0`` to
+        ``o{n_orbitals - 1}``.
+
+    Notes
+    -----
+    The projection tests need only a size-consistent basis carrier; the
+    all-s quantum numbers carry no physics.
+    """
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * n_orbitals,
         n=(1,) * n_orbitals,
@@ -50,7 +67,29 @@ def _bands(
     eigenvectors: Array,
     basis: OrbitalBasis | None = None,
 ) -> DiagonalizedBands:
-    """Attach minimal geometry to a supplied band-major eigensystem."""
+    """PRIVATE: Attach minimal geometry to a supplied band-major eigensystem.
+
+    Parameters
+    ----------
+    eigenvalues : Array
+        Band energies in eV, cast to float64.
+    eigenvectors : Array
+        Band-major eigenvector rows, cast to complex128.
+    basis : OrbitalBasis | None
+        Optional explicit basis; ``None`` builds an all-s basis sized
+        by the last eigenvector axis.
+
+    Returns
+    -------
+    bands : DiagonalizedBands
+        Carrier with the supplied eigensystem, zero k-points, and a
+        one-site cubic placeholder geometry.
+
+    Notes
+    -----
+    Centralizes carrier assembly, so each projection test states only
+    the eigensystem it certifies.
+    """
     resolved_basis: OrbitalBasis = (
         _basis(eigenvectors.shape[-1]) if basis is None else basis
     )

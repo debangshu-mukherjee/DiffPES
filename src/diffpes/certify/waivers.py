@@ -18,6 +18,7 @@ Routine Listings
 from datetime import UTC, datetime
 
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -29,7 +30,34 @@ from diffpes.types import (
 
 
 def _parse_utc(value: str, name: str) -> datetime:
-    """Parse one absolute UTC timestamp with a terminal Z marker."""
+    """PRIVATE: Parse one absolute UTC timestamp with a terminal Z
+    marker.
+
+    Parameters
+    ----------
+    value : str
+        Timestamp text, for example ``"2026-01-01T00:00:00Z"``.
+    name : str
+        Field label used in error messages.
+
+    Returns
+    -------
+    parsed : datetime
+        Timezone-aware UTC datetime.
+
+    Raises
+    ------
+    ValueError
+        If the text does not end in ``Z``, does not parse as an ISO
+        timestamp, or does not resolve to UTC.
+
+    Notes
+    -----
+    Replaces the terminal ``Z`` with an explicit ``+00:00`` offset for
+    :func:`datetime.fromisoformat`, then verifies the parsed zone is
+    UTC. Waiver interval comparisons therefore never mix naive and
+    aware datetimes.
+    """
     error: ValueError
     if not value.endswith("Z"):
         message: str = f"{name} must be an absolute UTC timestamp ending in Z"
@@ -123,10 +151,10 @@ def validate_waiver(
 
 @jaxtyped(typechecker=beartype)
 def validate_waivers(
-    waivers: tuple[WaiverRecord, ...],
+    waivers: Tuple[WaiverRecord, ...],
     *,
     as_of_utc: str,
-) -> tuple[WaiverReport, ...]:
+) -> Tuple[WaiverReport, ...]:
     """Validate multiple waivers against one explicit absolute UTC time.
 
     The function rejects duplicate identities. It then validates each interval.
@@ -146,14 +174,14 @@ def validate_waivers(
 
     Parameters
     ----------
-    waivers : tuple[WaiverRecord, ...]
+    waivers : Tuple[WaiverRecord, ...]
         Static waiver declarations.
     as_of_utc : str
         Absolute UTC evaluation time ending in ``Z``.
 
     Returns
     -------
-    reports : tuple[WaiverReport, ...]
+    reports : Tuple[WaiverReport, ...]
         Validation reports in input order.
 
     Raises
@@ -161,10 +189,10 @@ def validate_waivers(
     ValueError
         If waiver identities contain duplicates.
     """
-    waiver_ids: tuple[str, ...] = tuple(waiver.waiver_id for waiver in waivers)
+    waiver_ids: Tuple[str, ...] = tuple(waiver.waiver_id for waiver in waivers)
     if len(waiver_ids) != len(set(waiver_ids)):
         raise ValueError("waiver identities must be unique")
-    reports: tuple[WaiverReport, ...] = tuple(
+    reports: Tuple[WaiverReport, ...] = tuple(
         validate_waiver(waiver, as_of_utc=as_of_utc) for waiver in waivers
     )
     return reports
@@ -172,7 +200,7 @@ def validate_waivers(
 
 @jaxtyped(typechecker=beartype)
 def require_active_waivers(
-    waivers: tuple[WaiverRecord, ...],
+    waivers: Tuple[WaiverRecord, ...],
     *,
     as_of_utc: str,
 ) -> None:
@@ -184,7 +212,7 @@ def require_active_waivers(
 
     Parameters
     ----------
-    waivers : tuple[WaiverRecord, ...]
+    waivers : Tuple[WaiverRecord, ...]
         Static waiver declarations.
     as_of_utc : str
         Absolute UTC evaluation time ending in ``Z``.
@@ -199,11 +227,11 @@ def require_active_waivers(
     Successful validation records the waiver only. It does not change any
     failed, unchecked, or out-of-domain claim.
     """
-    reports: tuple[WaiverReport, ...] = validate_waivers(
+    reports: Tuple[WaiverReport, ...] = validate_waivers(
         waivers,
         as_of_utc=as_of_utc,
     )
-    failures: tuple[str, ...] = tuple(
+    failures: Tuple[str, ...] = tuple(
         f"{report.waiver_id}: {', '.join(report.errors)}"
         for report in reports
         if not bool(report.valid) or not bool(report.active)

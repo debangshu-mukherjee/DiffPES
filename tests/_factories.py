@@ -36,7 +36,24 @@ from diffpes.types.aliases import ScalarFloat
 
 
 def _assert_finite(tree: object) -> None:
-    """Require every numerical leaf in a toy carrier to be finite."""
+    """PRIVATE: Require every numerical leaf in a toy carrier to be finite.
+
+    Parameters
+    ----------
+    tree : object
+        Toy carrier or any other PyTree of numerical leaves.
+
+    Raises
+    ------
+    AssertionError
+        If any leaf holds a non-finite value, from
+        ``chex.assert_tree_all_finite``.
+
+    Notes
+    -----
+    ``jax.tree.leaves`` collects the leaves first, so every factory
+    output passes through one uniform finiteness check.
+    """
     leaves: tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
 

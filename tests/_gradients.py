@@ -63,13 +63,45 @@ def fd_step(
 
 
 def _path_name(path: tuple[object, ...]) -> str:
-    """Render a JAX key path in the stable tree-path notation."""
+    """PRIVATE: Render a JAX key path in the stable tree-path notation.
+
+    Parameters
+    ----------
+    path : tuple[object, ...]
+        Key-path entries from JAX tree traversal.
+
+    Returns
+    -------
+    path_name : str
+        Stable bracketed path string from ``jax.tree_util.keystr``.
+
+    Notes
+    -----
+    ``jax.tree_util.keystr`` formats every entry in traversal order,
+    so error messages name the exact failing leaf.
+    """
     path_name: str = jax.tree_util.keystr(path)
     return path_name
 
 
 def _as_jax_arrays(tree: PyTree) -> PyTree:
-    """Normalize numerical-check inputs before runtime type validation."""
+    """PRIVATE: Normalize numerical-check inputs before type validation.
+
+    Parameters
+    ----------
+    tree : PyTree
+        Arbitrary tree of array-like numerical leaves.
+
+    Returns
+    -------
+    normalized : PyTree
+        The same tree with every leaf as a JAX array.
+
+    Notes
+    -----
+    ``jax.tree.map`` applies ``jnp.asarray`` to every leaf, which
+    gives later checks one uniform array type.
+    """
     normalized: PyTree = jax.tree.map(jnp.asarray, tree)
     return normalized
 
@@ -81,7 +113,36 @@ def _central_leaf_grad(
     leaf_index: int,
     scale_floor: ScalarFloat,
 ) -> Array:
-    """Differentiate one numerical leaf by elementwise central differences."""
+    """PRIVATE: Differentiate one leaf by elementwise central differences.
+
+    Parameters
+    ----------
+    jitted_fn : ScalarLoss
+        Jitted scalar loss over the full tree.
+    treedef : jax.tree_util.PyTreeDef
+        Tree definition for reassembly of perturbed leaves.
+    leaves : list[Array]
+        All numerical leaves in flattening order.
+    leaf_index : int
+        Index of the differentiated leaf.
+    scale_floor : ScalarFloat
+        Lower bound for the finite-difference scale.
+
+    Returns
+    -------
+    gradient : Array
+        Gradient with the leaf shape; complex leaves follow the
+        ``d/dRe - 1j*d/dIm`` convention.
+
+    Implementation Logic
+    --------------------
+    The helper perturbs one flattened component at a time along an
+    identity basis and evaluates symmetric differences under
+    ``jax.vmap``. Real leaves need one diagonal; complex leaves also
+    perturb the imaginary component and combine both diagonals as
+    ``d/dRe - 1j*d/dIm``. Step sizes come from :func:`fd_step` on the
+    real part.
+    """
     leaf: Array = jnp.asarray(leaves[leaf_index])
     steps: Array = fd_step(jnp.real(leaf), scale_floor=scale_floor)
     flat_leaf: Array = jnp.ravel(leaf)

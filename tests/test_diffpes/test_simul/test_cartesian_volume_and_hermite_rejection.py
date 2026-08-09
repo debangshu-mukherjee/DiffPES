@@ -16,6 +16,7 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy.special import gamma
@@ -46,7 +47,28 @@ def _normalized_sto(
     zeta: float,
     radius: Float64[NDArray, " n_r"],
 ) -> Float64[NDArray, " n_r"]:
-    """Evaluate one independently normalized integer-n Slater row."""
+    """PRIVATE: Evaluate one independently normalized integer-n Slater row.
+
+    Parameters
+    ----------
+    principal : int
+        Principal quantum number n.
+    zeta : float
+        Slater exponent in 1/Bohr.
+    radius : Float64[NDArray, " n_r"]
+        Radial samples in Bohr.
+
+    Returns
+    -------
+    values : Float64[NDArray, " n_r"]
+        Normalized Slater radial function samples.
+
+    Notes
+    -----
+    Computes the closed-form normalization sqrt((2 zeta)**(2n + 1) /
+    (2n)!) through the gamma function and multiplies r**(n - 1) times
+    exp(-zeta r).
+    """
     normalization: float = math.sqrt(
         (2.0 * zeta) ** (2 * principal + 1) / gamma(2 * principal + 1)
     )
@@ -61,8 +83,38 @@ def _spatial_volume_amplitude(
     direction_cart: Float64[NDArray, " 3"],
     polarization_cart: Complex128[NDArray, " 3"],
     coefficients: Complex128[NDArray, " 2"],
-) -> tuple[complex, float]:
-    """Integrate the normalized mixed s-plus-pz orbital in Cartesian space."""
+) -> Tuple[complex, float]:
+    """PRIVATE: Integrate the mixed s-plus-pz orbital over the full volume.
+
+    Parameters
+    ----------
+    momentum_bohr_inv : float
+        Plane-wave momentum magnitude in 1/Bohr.
+    direction_cart : Float64[NDArray, " 3"]
+        Cartesian emission direction; normalized inside.
+    polarization_cart : Complex128[NDArray, " 3"]
+        Cartesian complex polarization.
+    coefficients : Complex128[NDArray, " 2"]
+        Mixing coefficients of the s and p_z components.
+
+    Returns
+    -------
+    amplitude : complex
+        Length-gauge plane-wave dipole amplitude of the mixed orbital.
+    norm : float
+        Squared norm of the mixed orbital under the same quadrature.
+
+    Implementation Logic
+    --------------------
+    Builds a product quadrature from 400 Gauss-Legendre radial nodes
+    mapped to [0, 50] Bohr, 72 Gauss-Legendre nodes in the polar
+    cosine, and 144 uniform azimuth nodes. The orbital combines the
+    normalized n=1, zeta=1.1 s row and the n=2, zeta=0.9 p row with
+    the real harmonics. Each radial shell accumulates the plane-wave
+    phase factor times the polarization projection times the orbital,
+    with volume factor r**3 for the dipole radius and r**2 for the
+    norm.
+    """
     radial_abscissa: Float64[NDArray, " n_r"]
     radial_weights_raw: Float64[NDArray, " n_r"]
     radial_abscissa, radial_weights_raw = np.polynomial.legendre.leggauss(400)
@@ -157,7 +209,36 @@ def _production_amplitude(
     basis: OrbitalBasis,
     params: MatrixElementParams,
 ) -> complex:
-    """Assemble the production mixed-parity amplitude from supplied branches."""
+    """PRIVATE: Assemble the production mixed-parity amplitude from branches.
+
+    Parameters
+    ----------
+    radial_values : Complex128[NDArray, "n_orb 2"]
+        Radial transition integrals for the two dipole branches of each
+        orbital.
+    direction_cart : Float64[NDArray, " 3"]
+        Unit Cartesian final-momentum direction for one detector point.
+    polarization_cart : Complex128[NDArray, " 3"]
+        Cartesian complex polarization.
+    coefficients : Complex128[NDArray, " n_orb"]
+        Orbital mixing coefficients of the bound state.
+    basis : OrbitalBasis
+        Orbital metadata for the sampled basis.
+    params : MatrixElementParams
+        Matrix-element parameter carrier for the basis.
+
+    Returns
+    -------
+    amplitude : complex
+        Coefficient-weighted polarized transition amplitude.
+
+    Implementation Logic
+    --------------------
+    Evaluates the production channel assembly at one k-point with zero
+    positions and depths and a 9 Angstrom mean free path, contracts the
+    Cartesian channels with the polarization, and sums the per-orbital
+    amplitudes against the supplied coefficients.
+    """
     channels: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
         jnp.zeros((1, 3)),
         jnp.asarray(direction_cart[None, :]),
@@ -249,10 +330,10 @@ def test_full_cartesian_volume_matches_production() -> None:
     np.testing.assert_allclose(spatial_norm, 1.0, rtol=0.0, atol=1.0e-12)
     np.testing.assert_allclose(actual, expected, rtol=1.0e-12, atol=1.0e-13)
 
-    final_degrees: tuple[tuple[int, int], ...] = ((-1, 1), (0, 2))
+    final_degrees: Tuple[Tuple[int, int], ...] = ((-1, 1), (0, 2))
     phase_free: Complex128[NDArray, "n_orb 2"] = np.zeros_like(correct_radial)
     orbital: int
-    degrees: tuple[int, int]
+    degrees: Tuple[int, int]
     branch: int
     final_degree: int
     for orbital, degrees in enumerate(final_degrees):

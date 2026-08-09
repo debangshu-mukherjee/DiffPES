@@ -31,7 +31,28 @@ from diffpes.types import (
 
 
 def _graphene_model(hopping: float = -1.0) -> TBModel:
-    """Return nearest-neighbour graphene in a three-dimensional carrier."""
+    """PRIVATE: Return nearest-neighbour graphene in a three-dimensional
+    carrier.
+
+    Parameters
+    ----------
+    hopping : float
+        Nearest-neighbor hopping amplitude in eV.
+
+    Returns
+    -------
+    model : TBModel
+        Two-atom honeycomb model with three forward bonds and their
+        reverse partners, all at the same hopping, and zero onsite
+        energies.
+
+    Notes
+    -----
+    The lattice places the honeycomb plane in x--z with bond length one
+    and puts the 10 Angstrom vacuum axis along y. A (100) cut of this
+    orientation produces the zigzag nanoribbon of the Nakada edge-state
+    gate.
+    """
     basis: Any
     geometry: Any
     root_three: float = math.sqrt(3.0)
@@ -90,7 +111,27 @@ def _dense_block_records(
     list[tuple[int, int, int]],
     list[complex],
 ]:
-    """Flatten one dense real-space block into model records."""
+    """PRIVATE: Flatten one dense real-space block into model records.
+
+    Parameters
+    ----------
+    cell : tuple[int, int, int]
+        Integer lattice cell shared by every record of the block.
+    block : Complex128[NDArray, "n_orb n_orb"]
+        Dense hopping block in eV.
+
+    Returns
+    -------
+    records : tuple[list[tuple[int, int]], list[tuple[int, int, int]],
+        list[complex]]
+        Parallel lists of orbital pairs, repeated cells, and complex
+        amplitudes, one entry per block element in row-major order.
+
+    Notes
+    -----
+    The builder consumes flat parallel record lists, so this expansion
+    lets tests state models as dense matrices per cell.
+    """
     column: Any
     row: Any
     pairs: list[tuple[int, int]] = []
@@ -105,7 +146,26 @@ def _dense_block_records(
 
 
 def _inversion_bulk_model() -> tuple[TBModel, Int64[NDArray, " n_orb"]]:
-    """Build a generic-complex model with a nontrivial inversion action."""
+    """PRIVATE: Build a generic-complex model with a nontrivial inversion
+    action.
+
+    Returns
+    -------
+    model_and_permutation : tuple[TBModel, Int64[NDArray, " n_orb"]]
+        A four-atom model and the orbital permutation ``(2, 3, 0, 1)``
+        that represents the inversion.
+
+    Notes
+    -----
+    Starts from generic complex trial matrices and symmetrizes them
+    with the permutation representation ``P``. The x-direction block
+    becomes ``(T + P T^dagger P) / 2`` and the onsite block becomes
+    ``(T + P T P) / 2``. The model is therefore exactly inversion
+    symmetric but otherwise generic. Atom positions come in two pairs
+    that map onto each other through the inversion centre. The z
+    hoppings are a scalar ``-0.4`` eV identity. The off-diagonal
+    onsite entries enter as home-cell hopping records.
+    """
     basis: Any
     block: Any
     block_amplitudes: Any
@@ -202,7 +262,29 @@ def _assert_inversion_witness(
     permutation: Int64[NDArray, " n_orb"],
     centre: Float64[NDArray, " 3"],
 ) -> None:
-    """Validate positions, depths, signatures, and Hamiltonian covariance."""
+    """PRIVATE: Validate positions, depths, signatures, and Hamiltonian
+    covariance.
+
+    Parameters
+    ----------
+    model : TBModel
+        Slab model that claims the inversion symmetry.
+    permutation : Int64[NDArray, " n_orb"]
+        Orbital permutation that represents the inversion.
+    centre : Float64[NDArray, " 3"]
+        Fractional inversion centre.
+
+    Notes
+    -----
+    Asserts four independent witnesses. The permutation is a bijection
+    whose atom images match ``2*centre - position`` modulo in-plane
+    lattice vectors. Quantum-number signatures and species stay fixed
+    under the permutation. Permuted depths in Angstrom mirror onto
+    ``max(depth) - depth``. At two generic k-points the permuted Bloch
+    Hamiltonian equals the Hamiltonian at ``-k`` within 1e-12.
+    Together these witnesses certify that the slab inherits the bulk
+    inversion.
+    """
     kpoint: Any
     assert model.depths is not None
     np.testing.assert_array_equal(
@@ -254,7 +336,22 @@ def _assert_inversion_witness(
 
 
 def _oblique_long_range_model() -> TBModel:
-    """Return an oblique one-orbital model with a long in-plane bond."""
+    """PRIVATE: Return an oblique one-orbital model with a long in-plane
+    bond.
+
+    Returns
+    -------
+    model : TBModel
+        One-site fully oblique model whose only conjugate hopping pair
+        of ``-0.7`` eV spans the distant cell ``(7, -5, 1)``.
+
+    Notes
+    -----
+    The large integer cell offset makes the bond reach across many
+    surface cells after extrusion. This stresses the in-plane
+    reindexing and normal-range bookkeeping of the slab generator on a
+    lattice without any orthogonal axis.
+    """
     basis: Any
     geometry: Any
     geometry = make_crystal_geometry(

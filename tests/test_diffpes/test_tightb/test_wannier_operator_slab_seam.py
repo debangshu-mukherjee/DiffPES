@@ -42,7 +42,28 @@ def _exact_inverse(
         tuple[int, int, int],
     ],
 ) -> Int64[NDArray, "3 3"]:
-    """Return a unimodular integer inverse from its exact adjugate."""
+    """PRIVATE: Return a unimodular integer inverse from its exact adjugate.
+
+    Parameters
+    ----------
+    rows : tuple[tuple[int, int, int], tuple[int, int, int],
+        tuple[int, int, int]]
+        Rows of an integer three-by-three matrix with determinant plus
+        or minus one.
+
+    Returns
+    -------
+    inverse : Int64[NDArray, "3 3"]
+        The exact integer inverse, the transposed cofactor matrix
+        divided by the determinant.
+
+    Notes
+    -----
+    Expands the determinant and all nine cofactors in integer
+    arithmetic and asserts unimodularity, so the seam tests obtain
+    exact cell-coordinate transforms without any floating-point
+    inversion.
+    """
     matrix: Int64[NDArray, "3 3"] = np.asarray(rows, dtype=np.int64)
     determinant: int = int(
         matrix[0, 0]
@@ -77,7 +98,28 @@ def _exact_inverse(
 
 
 def _long_range_model(maximum_range: int) -> TBModel:
-    """Build a one-orbital model with registered normal ranges 1..R."""
+    """PRIVATE: Build a one-orbital model with registered normal ranges 1..R.
+
+    Parameters
+    ----------
+    maximum_range : int
+        Largest normal-direction cell distance ``R``.
+
+    Returns
+    -------
+    model : TBModel
+        One-orbital cubic model with one conjugate hopping pair per
+        distance ``d`` from one to ``R``, amplitude
+        ``-0.13*d + 0.017j*d`` eV on the forward cell
+        ``(d % 2, -(d // 2), d)``.
+
+    Notes
+    -----
+    Every distance carries a distinct complex amplitude and a distinct
+    in-plane offset. The slab gather tests can therefore verify
+    amplitude, cell, and range bookkeeping against an independent
+    integer enumeration.
+    """
     forward_cells: tuple[tuple[int, int, int], ...] = tuple(
         (distance % 2, -(distance // 2), distance)
         for distance in range(1, maximum_range + 1)
@@ -115,7 +157,25 @@ def _long_range_model(maximum_range: int) -> TBModel:
 
 
 def _p_shell_operator_fixture() -> tuple[TBModel, WannierOperatorData]:
-    """Build a complete p shell with generic complex position blocks."""
+    """PRIVATE: Build a complete p shell with generic complex position
+    blocks.
+
+    Returns
+    -------
+    fixture : tuple[TBModel, WannierOperatorData]
+        A hopping-free one-atom complete-p model and matching Wannier
+        position-operator data with home, forward ``(1, 2, -1)``, and
+        reverse cells.
+
+    Notes
+    -----
+    The home-cell block is Hermitian by construction with the declared
+    Cartesian centres in Angstrom on its diagonal. The reverse block
+    is the conjugate transpose of the generic forward block. The
+    operator data therefore satisfies the exact seam symmetry that
+    slab propagation must preserve. Deterministic integer-seeded
+    entries keep the fixture reproducible.
+    """
     basis: Any
     geometry: Any
     geometry = make_crystal_geometry(
@@ -181,7 +241,22 @@ def _p_shell_operator_fixture() -> tuple[TBModel, WannierOperatorData]:
 
 
 def _graphene_model() -> TBModel:
-    """Return nearest-neighbour graphene for the N=30 edge-state gate."""
+    """PRIVATE: Return nearest-neighbour graphene for the N=30 edge-state
+    gate.
+
+    Returns
+    -------
+    model : TBModel
+        Two-atom honeycomb model with all six hopping records at
+        ``-1.0`` eV and zero onsite energies.
+
+    Notes
+    -----
+    The lattice places the honeycomb plane in x--z with bond length
+    one and the 10 Angstrom vacuum axis along y. A (100) cut therefore
+    yields the zigzag nanoribbon whose flat edge band anchors the seam
+    gate.
+    """
     basis: Any
     geometry: Any
     root_three: float = math.sqrt(3.0)

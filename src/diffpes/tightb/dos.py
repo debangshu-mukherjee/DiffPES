@@ -47,7 +47,37 @@ def _validate_spectrum_inputs(
     *,
     context: str,
 ) -> tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]:
-    """Normalize arrays and enforce the shared weighted-spectrum contract."""
+    """PRIVATE: Normalize arrays and enforce the weighted-spectrum contract.
+
+    Parameters
+    ----------
+    eigenvalues : Float64[Array, "n_k n_bands"]
+        Band energies in eV.
+    k_weights : Float64[Array, " n_k"]
+        Candidate k-point weights.
+    context : str
+        Caller name used as the error-message prefix.
+
+    Returns
+    -------
+    result : tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]
+        Float64 energies and weights renormalized to an exact unit sum.
+
+    Raises
+    ------
+    ValueError
+        If ``eigenvalues`` is not two-dimensional, ``k_weights`` is not
+        one-dimensional, the k-point counts disagree, or the spectrum
+        holds no state.
+
+    Notes
+    -----
+    Static checks fix ranks and shapes before tracing. Chained
+    :func:`equinox.error_if` guards then raise ``EquinoxRuntimeError``
+    for non-finite energies or weights, a negative weight, or a weight
+    sum away from one beyond ``EPS``. Division by the checked sum makes
+    the returned weights sum to one exactly.
+    """
     energies: Float64[Array, "n_k n_bands"] = jnp.asarray(
         eigenvalues,
         dtype=jnp.float64,
@@ -195,7 +225,29 @@ def _filling_residual(
         Float64[Array, ""],
     ],
 ) -> Float64[Array, ""]:
-    """Evaluate the weighted occupation minus the requested filling."""
+    """PRIVATE: Evaluate the weighted occupation minus the requested filling.
+
+    Parameters
+    ----------
+    chemical_potential : Float64[Array, ""]
+        Trial chemical potential in eV.
+    arguments : tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
+" n_k"], Float64[Array, ""], Float64[Array, ""]]
+        Band energies in eV, unit-sum k-point weights, electronic
+        temperature in kelvin, and target electron count per cell.
+
+    Returns
+    -------
+    residual : Float64[Array, ""]
+        Weighted Fermi--Dirac occupation sum minus the electron count.
+
+    Notes
+    -----
+    :func:`jax.vmap` evaluates :func:`diffpes.simul.fermi_dirac` over the
+    flattened spectrum. A k-weighted sum over all states gives the
+    occupation. The root of this residual in ``chemical_potential`` is
+    the finite-temperature Fermi level.
+    """
     eigenvalues: Float64[Array, "n_k n_bands"]
     k_weights: Float64[Array, " n_k"]
     temperature_k: Float64[Array, ""]
@@ -229,7 +281,34 @@ def _solve_filling(
     *,
     tolerance: float,
 ) -> Float64[Array, ""]:
-    """Compute one validated filling root at a static tolerance."""
+    """PRIVATE: Compute one validated filling root at a static tolerance.
+
+    Parameters
+    ----------
+    arguments : tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
+" n_k"], Float64[Array, ""], Float64[Array, ""]]
+        Band energies in eV, unit-sum k-point weights, electronic
+        temperature in kelvin, and target electron count per cell.
+    lower : Float64[Array, ""]
+        Lower bracket edge for the Fermi level in eV.
+    upper : Float64[Array, ""]
+        Upper bracket edge for the Fermi level in eV.
+    tolerance : float
+        Static absolute and relative bisection tolerance in eV.
+
+    Returns
+    -------
+    chemical_potential : Float64[Array, ""]
+        Converged root of ``_filling_residual`` in eV.
+
+    Notes
+    -----
+    A non-expanding Optimistix ``Bisection`` solve starts from the
+    bracket midpoint and keeps every iterate inside ``[lower, upper]``.
+    ``throw=True`` raises through Equinox when 2048 steps do not reach
+    the tolerance. Optimistix differentiates the converged filling
+    equation implicitly instead of unrolling bisection iterations.
+    """
     midpoint: Float64[Array, ""] = lower + 0.5 * (upper - lower)
     solver: optx.Bisection = optx.Bisection(
         rtol=tolerance,

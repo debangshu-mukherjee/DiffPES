@@ -103,7 +103,23 @@ def dense_value_rows(
 
 
 def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
-    """Serialize one NumPy array without filesystem timestamp metadata."""
+    """PRIVATE: Serialize one NumPy array without timestamp metadata.
+
+    Parameters
+    ----------
+    array : Shaped[NDArray, "..."]
+        Array to serialize.
+
+    Returns
+    -------
+    payload : bytes
+        The exact ``.npy`` byte stream for the array.
+
+    Notes
+    -----
+    ``np.lib.format.write_array`` writes into an in-memory buffer with
+    pickle disabled, so equal arrays always produce equal bytes.
+    """
     output = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
     return output.getvalue()
@@ -113,7 +129,21 @@ def _write_deterministic_npz(
     path: Path,
     arrays: dict[str, Shaped[NDArray, "..."]],
 ) -> None:
-    """Write an NPZ whose members have stable order and timestamps."""
+    """PRIVATE: Write an NPZ whose members have stable order and dates.
+
+    Parameters
+    ----------
+    path : Path
+        Destination NPZ path.
+    arrays : dict[str, Shaped[NDArray, "..."]]
+        Named arrays to store.
+
+    Notes
+    -----
+    Members enter in sorted name order with the fixed 1980-01-01 ZIP
+    timestamp, a fixed file mode, and DEFLATE level 9, so identical
+    arrays always produce byte-identical archives.
+    """
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -138,12 +168,52 @@ def _write_deterministic_npz(
 
 
 def _sha256(path: Path) -> str:
-    """Return one frozen artifact checksum."""
+    """PRIVATE: Return one frozen artifact checksum.
+
+    Parameters
+    ----------
+    path : Path
+        File to digest.
+
+    Returns
+    -------
+    digest : str
+        Lowercase hexadecimal SHA-256 of the file bytes.
+
+    Notes
+    -----
+    The function reads the complete file into memory before hashing;
+    every evidence file stays small enough for that.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _git_head(root: Path) -> str:
-    """Return the source revision used by the offline generator."""
+    """PRIVATE: Return the source revision of the offline generator run.
+
+    Parameters
+    ----------
+    root : Path
+        Repository root for the ``git rev-parse`` call.
+
+    Returns
+    -------
+    revision : str
+        Full HEAD commit hash.
+
+    Raises
+    ------
+    RuntimeError
+        If no ``git`` executable exists on the path.
+    subprocess.CalledProcessError
+        If ``git rev-parse HEAD`` exits nonzero, propagated by
+        ``check=True``.
+
+    Notes
+    -----
+    The revision enters the manifest as evidence provenance only; no
+    consumer recomputes it.
+    """
     git: str | None = shutil.which("git")
     if git is None:
         message = "git is required to record Coulomb evidence provenance"

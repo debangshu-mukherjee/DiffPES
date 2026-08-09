@@ -56,7 +56,7 @@ from diffpes.types import (
 def _prepare_plot_arrays(
     spectrum: ArpesSpectrum,
 ) -> Tuple[Float64[NDArray, "K E"], Float64[NDArray, " E"]]:
-    """Convert and validate spectrum arrays for plotting.
+    """PRIVATE: Convert and validate spectrum arrays for plotting.
 
     Extended Summary
     ----------------
@@ -482,7 +482,32 @@ def list_band_scatter_presets() -> tuple[str, ...]:
 def _prepare_band_arrays(
     bands: BandStructure,
 ) -> tuple[Float64[NDArray, "K B"], float]:
-    """Convert and validate band arrays for scatter plotting."""
+    """PRIVATE: Convert and validate band arrays for scatter plotting.
+
+    Parameters
+    ----------
+    bands : BandStructure
+        Band-structure carrier with ``eigenvalues`` in eV and
+        ``fermi_energy`` in eV.
+
+    Returns
+    -------
+    eigenvalues : Float64[NDArray, "K B"]
+        Band energies in eV as a NumPy array of shape ``(K, B)``.
+    fermi : float
+        Fermi energy in eV as a host float.
+
+    Raises
+    ------
+    ValueError
+        If ``bands.eigenvalues`` is not two dimensional.
+
+    Notes
+    -----
+    Converts both fields with :func:`np.asarray` to ``float64`` and
+    checks only the eigenvalue rank; downstream plotting relies on the
+    ``(K, B)`` layout.
+    """
     eigenvalues: Float64[NDArray, "K B"] = np.asarray(
         bands.eigenvalues, dtype=np.float64
     )
@@ -502,7 +527,28 @@ def _subset_atom_axis(
     data: Float64[NDArray, "K B A C"],
     atom_indices: Optional[list[int]],
 ) -> Float64[NDArray, "K B A2 C"]:
-    """Subset an array on atom axis when the caller provides atom indices."""
+    """PRIVATE: Subset an array on atom axis when the caller provides atom
+    indices.
+
+    Parameters
+    ----------
+    data : Float64[NDArray, "K B A C"]
+        Projection data with the atom axis in position two.
+    atom_indices : Optional[list[int]]
+        Zero-based atom indices to keep, or ``None`` for all atoms.
+
+    Returns
+    -------
+    subset : Float64[NDArray, "K B A2 C"]
+        The input array unchanged for ``None``, otherwise the selected
+        atom rows in the requested order.
+
+    Notes
+    -----
+    Fancy-indexes axis two with an ``int32`` index array; repeated
+    indices duplicate rows and out-of-range indices raise the NumPy
+    ``IndexError``.
+    """
     if atom_indices is None:
         subset: Float64[NDArray, "K B A2 C"] = data
     else:
@@ -517,7 +563,7 @@ def _weights_from_preset(  # noqa: PLR0912
     preset: str,
     atom_indices: Optional[list[int]],
 ) -> tuple[Float64[NDArray, "K B"], bool]:
-    """Resolve a band-weight matrix from a preset name.
+    """PRIVATE: Resolve a band-weight matrix from a preset name.
 
     Parameters
     ----------

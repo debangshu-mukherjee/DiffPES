@@ -39,7 +39,28 @@ def _validate_selection(
     *,
     name: str,
 ) -> None:
-    """Validate a static tuple of unique array indices."""
+    """PRIVATE: Validate a static tuple of unique array indices.
+
+    Parameters
+    ----------
+    selection : tuple[int, ...]
+        Candidate static index tuple.
+    upper_bound : int
+        Exclusive upper bound for every index.
+    name : str
+        Argument name used in error messages.
+
+    Raises
+    ------
+    ValueError
+        If the selection is not a tuple, is empty, holds a non-integer,
+        indexes outside ``[0, upper_bound)``, or repeats an index.
+
+    Notes
+    -----
+    All checks run on static Python values before tracing, so the
+    validated selection participates in the JAX trace signature.
+    """
     if type(selection) is not tuple:
         message: str = f"{name} must be a tuple"
         raise ValueError(message)
@@ -63,7 +84,34 @@ def _checked_operator(
     *,
     context: str,
 ) -> Complex128[Array, "n_orb n_orb"]:
-    """Validate the static shape and traced Hermitian-operator contract."""
+    """PRIVATE: Validate the static shape and traced Hermitian contract.
+
+    Parameters
+    ----------
+    operator : Complex128[Array, "n_orb n_orb"]
+        Candidate operator in the model orbital basis.
+    n_orbitals : int
+        Required static operator dimension.
+    context : str
+        Caller name used in error messages.
+
+    Returns
+    -------
+    checked : Complex128[Array, "n_orb n_orb"]
+        The unchanged operator with both runtime checks threaded through.
+
+    Raises
+    ------
+    ValueError
+        If the operator is not a square matrix of the required size.
+
+    Notes
+    -----
+    The shape check is static. Chained :func:`equinox.error_if` guards
+    then raise ``EquinoxRuntimeError`` for a non-finite entry or a
+    deviation from the conjugate transpose beyond the absolute ``EPS``
+    tolerance.
+    """
     if operator.ndim != MATRIX_NDIM or operator.shape != (
         n_orbitals,
         n_orbitals,

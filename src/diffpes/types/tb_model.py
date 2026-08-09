@@ -40,7 +40,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import (
     Array,
     Complex128,
@@ -68,7 +68,28 @@ def _validate_depths_shape(
     depths: Optional[Float64[Array, " n_depth"]],
     n_orbitals: int,
 ) -> None:
-    """Validate the optional orbital-depth axis."""
+    """PRIVATE: Validate the optional orbital-depth axis.
+
+    Parameters
+    ----------
+    depths : Optional[Float64[Array, " n_depth"]]
+        Orbital depths in Angstrom below the top surface, or ``None``
+        for a bulk model.
+    n_orbitals : int
+        Number of orbitals the depth axis must match.
+
+    Raises
+    ------
+    ValueError
+        If ``depths`` is present and is not one-dimensional with one
+        entry per orbital. This is the static construction-time
+        contract.
+
+    Notes
+    -----
+    ``None`` passes untouched. Only static shape metadata is checked
+    here; the nonnegativity of the values stays traced in the factory.
+    """
     if depths is not None and (
         depths.ndim != 1 or depths.shape[0] != n_orbitals
     ):
@@ -77,10 +98,29 @@ def _validate_depths_shape(
 
 
 def _validate_integer_triple(
-    values: tuple[int, int, int],
+    values: Tuple[int, int, int],
     name: str,
 ) -> None:
-    """Validate one exact integer coefficient triple."""
+    """PRIVATE: Validate one exact integer coefficient triple.
+
+    Parameters
+    ----------
+    values : Tuple[int, int, int]
+        Candidate integer coefficient triple.
+    name : str
+        Field name used in the static error message.
+
+    Raises
+    ------
+    ValueError
+        If ``values`` is not a tuple of exactly three Python integers.
+        This is the static construction-time contract.
+
+    Notes
+    -----
+    Use exact ``type`` comparisons so that bools and NumPy integers are
+    rejected and the triple stays exact under integer arithmetic.
+    """
     if (
         type(values) is not tuple
         or len(values) != _CELL_COMPONENTS
@@ -91,10 +131,28 @@ def _validate_integer_triple(
 
 
 def _integer_dot(
-    left: tuple[int, int, int],
-    right: tuple[int, int, int],
+    left: Tuple[int, int, int],
+    right: Tuple[int, int, int],
 ) -> int:
-    """Return an exact dot product between integer triples."""
+    """PRIVATE: Return an exact dot product between integer triples.
+
+    Parameters
+    ----------
+    left : Tuple[int, int, int]
+        First integer triple.
+    right : Tuple[int, int, int]
+        Second integer triple.
+
+    Returns
+    -------
+    result : int
+        Exact integer dot product of the two triples.
+
+    Notes
+    -----
+    Sum the three componentwise products in Python integer arithmetic,
+    which is exact at any magnitude.
+    """
     result: int = sum(
         left[index] * right[index] for index in range(_CELL_COMPONENTS)
     )
@@ -102,16 +160,33 @@ def _integer_dot(
 
 
 def _integer_determinant(
-    rows: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
-        tuple[int, int, int],
+    rows: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ],
 ) -> int:
-    """Return the exact determinant of three integer row vectors."""
-    first: tuple[int, int, int]
-    second: tuple[int, int, int]
-    third: tuple[int, int, int]
+    """PRIVATE: Return the exact determinant of three integer row vectors.
+
+    Parameters
+    ----------
+    rows : Tuple[Tuple[int, int, int], Tuple[int, int, int], \
+Tuple[int, int, int]]
+        Three integer row vectors of the coefficient matrix.
+
+    Returns
+    -------
+    determinant : int
+        Exact integer determinant of the 3 x 3 coefficient matrix.
+
+    Notes
+    -----
+    Expand the determinant along the first row in Python integer
+    arithmetic, which is exact at any magnitude.
+    """
+    first: Tuple[int, int, int]
+    second: Tuple[int, int, int]
+    third: Tuple[int, int, int]
     first, second, third = rows
     determinant: int = (
         first[0] * (second[1] * third[2] - second[2] * third[1])
@@ -126,14 +201,51 @@ def _validate_surface_cell_structure(
     stacking_vector: Float64[Array, " 3"],
     rotation: Float64[Array, "3 3"],
     interlayer_spacing_ang: Float64[Array, ""],
-    miller: tuple[int, int, int],
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    miller: Tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ],
-    stacking_coeffs: tuple[int, int, int],
+    stacking_coeffs: Tuple[int, int, int],
 ) -> None:
-    """Validate surface-cell shapes and exact integer invariants."""
+    """PRIVATE: Validate surface-cell shapes and exact integer invariants.
+
+    Implementation Logic
+    --------------------
+    Check the traced arrays only through ``ndim`` and ``shape``. Then
+    check the integer metadata with ``_validate_integer_triple``,
+    ``_integer_dot``, and ``_integer_determinant``, which stay exact at
+    any magnitude.
+
+    Parameters
+    ----------
+    in_plane_vectors : Float64[Array, "2 3"]
+        Cartesian in-plane surface vectors in Angstrom, as rows.
+    stacking_vector : Float64[Array, " 3"]
+        Cartesian stacking vector in Angstrom.
+    rotation : Float64[Array, "3 3"]
+        Active Cartesian rotation from the bulk to the surface frame.
+    interlayer_spacing_ang : Float64[Array, ""]
+        Interlayer spacing in Angstrom.
+    miller : Tuple[int, int, int]
+        GCD-reduced Miller tuple.
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+        Exact bulk-lattice coefficients of the in-plane vectors.
+    stacking_coeffs : Tuple[int, int, int]
+        Exact bulk-lattice coefficients of the stacking vector.
+
+    Raises
+    ------
+    ValueError
+        If ``in_plane_vectors``, ``stacking_vector``, ``rotation``, or
+        ``interlayer_spacing_ang`` has the wrong shape; if ``miller``,
+        ``in_plane_coeffs``, or ``stacking_coeffs`` is not built from
+        exact integer triples; if an in-plane coefficient row does not
+        lie in the Miller plane; if ``miller`` dotted with
+        ``stacking_coeffs`` does not equal one; or if the three
+        coefficient rows are linearly dependent. This is the static
+        construction-time contract.
+    """
     if (
         in_plane_vectors.ndim != _SURFACE_VECTOR_COUNT
         or in_plane_vectors.shape != (_SURFACE_VECTOR_COUNT, _CELL_COMPONENTS)
@@ -180,10 +292,10 @@ def _validate_surface_cell_structure(
             "must equal one"
         )
         raise ValueError(message)
-    coefficient_rows: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
-        tuple[int, int, int],
+    coefficient_rows: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ] = (
         in_plane_coeffs[0],
         in_plane_coeffs[1],
@@ -200,13 +312,52 @@ def _validate_slab_spec_structure(
     surface_cell: "SurfaceCell",
     thickness_ang: float,
     vacuum_ang: float,
-    fine: tuple[float, float],
-    termination: tuple[str, str],
+    fine: Tuple[float, float],
+    termination: Tuple[str, str],
     n_layers: int,
-    bulk_atom_of_slab_atom: tuple[int, ...],
-    layer_of_slab_atom: tuple[int, ...],
+    bulk_atom_of_slab_atom: Tuple[int, ...],
+    layer_of_slab_atom: Tuple[int, ...],
 ) -> None:
-    """Validate static slab provenance and selection metadata."""
+    """PRIVATE: Validate static slab provenance and selection metadata.
+
+    Implementation Logic
+    --------------------
+    Use exact ``type`` comparisons on the plain Python metadata and
+    ``math.isfinite`` on the float choices. The two provenance tuples
+    must agree elementwise on length so each slab atom keeps one bulk
+    atom and one layer.
+
+    Parameters
+    ----------
+    surface_cell : "SurfaceCell"
+        Validated surface-frame carrier.
+    thickness_ang : float
+        Requested slab thickness in Angstrom.
+    vacuum_ang : float
+        Vacuum padding in Angstrom.
+    fine : Tuple[float, float]
+        Top and bottom cut shifts in Angstrom.
+    termination : Tuple[str, str]
+        Top and bottom species labels.
+    n_layers : int
+        Number of slab layers.
+    bulk_atom_of_slab_atom : Tuple[int, ...]
+        Bulk-atom provenance index for each slab atom.
+    layer_of_slab_atom : Tuple[int, ...]
+        Layer index for each slab atom.
+
+    Raises
+    ------
+    ValueError
+        If ``surface_cell`` is not a ``SurfaceCell``; if
+        ``thickness_ang`` or ``vacuum_ang`` is not a finite nonnegative
+        float; if ``fine`` is not a pair of finite floats; if
+        ``termination`` is not a pair of species labels; if ``n_layers``
+        is not a positive integer; or if the provenance maps are not
+        equal-length tuples of nonnegative integers with layer entries
+        in ``[0, n_layers)``. This is the static construction-time
+        contract.
+    """
     if not isinstance(surface_cell, SurfaceCell):
         message: str = "surface_cell must be a SurfaceCell"
         raise ValueError(message)
@@ -265,7 +416,28 @@ def _validate_basis_geometry(
     basis: OrbitalBasis,
     geometry: CrystalGeometry,
 ) -> None:
-    """Validate the orbital-to-atom mapping against a geometry."""
+    """PRIVATE: Validate the orbital-to-atom mapping against a geometry.
+
+    Parameters
+    ----------
+    basis : OrbitalBasis
+        Orbital metadata whose ``atom_indices`` are checked.
+    geometry : CrystalGeometry
+        Crystal geometry that provides the atomic position rows.
+
+    Raises
+    ------
+    ValueError
+        If any ``basis.atom_indices`` entry is not a valid row index of
+        ``geometry.positions``. This is the static construction-time
+        contract.
+
+    Notes
+    -----
+    Compare each index against the static atom count
+    ``geometry.positions.shape[0]``. Nonnegativity is already
+    guaranteed by the ``OrbitalBasis`` invariants.
+    """
     n_atoms: int = geometry.positions.shape[0]
     if any(index >= n_atoms for index in basis.atom_indices):
         message: str = (
@@ -275,14 +447,47 @@ def _validate_basis_geometry(
 
 
 def _validate_hopping_metadata(
-    hopping_pairs: tuple[tuple[int, int], ...],
-    hopping_cells: tuple[tuple[int, int, int], ...],
+    hopping_pairs: Tuple[Tuple[int, int], ...],
+    hopping_cells: Tuple[Tuple[int, int, int], ...],
     n_orbitals: int,
-) -> tuple[int, ...]:
-    """Validate exact connectivity and derive its closure permutation."""
-    keys: list[tuple[int, int, tuple[int, int, int]]] = []
-    pair: tuple[int, int]
-    cell: tuple[int, int, int]
+) -> Tuple[int, ...]:
+    """PRIVATE: Validate exact connectivity and derive its closure permutation.
+
+    Implementation Logic
+    --------------------
+    Build the ``(i, j, R)`` key of every record, then bucket record
+    indices by key. For every key require a reversed-key bucket of
+    equal size and map matching occurrences positionally. The resulting
+    permutation lets the factory compare each amplitude with the
+    conjugate of its Hermitian partner.
+
+    Parameters
+    ----------
+    hopping_pairs : Tuple[Tuple[int, int], ...]
+        Directed orbital pairs ``(i, j)``, one per hopping record.
+    hopping_cells : Tuple[Tuple[int, int, int], ...]
+        Exact integer lattice translations ``R``, one per record.
+    n_orbitals : int
+        Number of orbitals that bounds the pair indices.
+
+    Returns
+    -------
+    closure_permutation : Tuple[int, ...]
+        Index of the ``(j, i, -R)`` partner record for every
+        ``(i, j, R)`` record.
+
+    Raises
+    ------
+    ValueError
+        If a pair is not a tuple of two integers; if a cell is not an
+        exact integer triple; if a pair index lies outside
+        ``[0, n_orbitals)``; if a ``(i, j, R)`` record is duplicated; or
+        if any record has no ``(j, i, -R)`` partner. This is the static
+        construction-time contract.
+    """
+    keys: list[Tuple[int, int, Tuple[int, int, int]]] = []
+    pair: Tuple[int, int]
+    cell: Tuple[int, int, int]
     for pair, cell in zip(hopping_pairs, hopping_cells, strict=True):
         if (
             type(pair) is not tuple
@@ -308,11 +513,11 @@ def _validate_hopping_metadata(
         raise ValueError(message)
 
     buckets: dict[
-        tuple[int, int, tuple[int, int, int]],
+        Tuple[int, int, Tuple[int, int, int]],
         list[int],
     ] = {}
     index: int
-    key: tuple[int, int, tuple[int, int, int]]
+    key: Tuple[int, int, Tuple[int, int, int]]
     for index, key in enumerate(keys):
         buckets.setdefault(key, []).append(index)
 
@@ -322,7 +527,7 @@ def _validate_hopping_metadata(
         orbital_i: int
         orbital_j: int
         orbital_i, orbital_j, cell = key
-        reverse_key: tuple[int, int, tuple[int, int, int]] = (
+        reverse_key: Tuple[int, int, Tuple[int, int, int]] = (
             orbital_j,
             orbital_i,
             (-cell[0], -cell[1], -cell[2]),
@@ -337,16 +542,42 @@ def _validate_hopping_metadata(
         occurrence: int
         for occurrence, index in enumerate(indices):
             closure[index] = reverse_indices[occurrence]
-    closure_permutation: tuple[int, ...] = tuple(closure)
+    closure_permutation: Tuple[int, ...] = tuple(closure)
     return closure_permutation
 
 
 def _validate_shell_metadata(
     soc_lambdas: Float64[Array, " n_shells"],
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
 ) -> None:
-    """Validate contiguous atomic-shell identifiers and their groups."""
+    """PRIVATE: Validate contiguous atomic-shell identifiers and their groups.
+
+    Implementation Logic
+    --------------------
+    Walk every orbital with a nonnegative shell and record its
+    ``(atom_index, n, l)`` group in two dictionaries. Reject a shell
+    that mixes groups and a group that is split across shells. Spin
+    copies of one group therefore share one ``soc_lambdas`` entry.
+
+    Parameters
+    ----------
+    soc_lambdas : Float64[Array, " n_shells"]
+        Atomic spin-orbit couplings in eV, one per shell.
+    basis : OrbitalBasis
+        Orbital metadata that provides ``(atom, n, l)`` per orbital.
+    shell_index : Tuple[int, ...]
+        Orbital-to-SOC-shell map; ``-1`` denotes no shell.
+
+    Raises
+    ------
+    ValueError
+        If a ``shell_index`` entry is not an integer of at least ``-1``;
+        if ``soc_lambdas`` does not have ``max(shell_index) + 1``
+        entries; if the nonnegative identifiers are not contiguous from
+        0; or if shells and ``(atom, n, l)`` groups do not map
+        one-to-one. This is the static construction-time contract.
+    """
     if any(type(index) is not int or index < -1 for index in shell_index):
         message: str = (
             "shell_index entries must be integers greater than or equal to -1"
@@ -364,19 +595,19 @@ def _validate_shell_metadata(
         message = "nonnegative shell_index IDs must be contiguous from 0"
         raise ValueError(message)
 
-    shell_groups: dict[int, tuple[int, int, int]] = {}
-    group_shells: dict[tuple[int, int, int], int] = {}
+    shell_groups: dict[int, Tuple[int, int, int]] = {}
+    group_shells: dict[Tuple[int, int, int], int] = {}
     orbital: int
     shell: int
     for orbital, shell in enumerate(shell_index):
         if shell < 0:
             continue
-        group: tuple[int, int, int] = (
+        group: Tuple[int, int, int] = (
             basis.atom_indices[orbital],
             basis.n[orbital],
             basis.l[orbital],
         )
-        existing_group: tuple[int, int, int] | None = shell_groups.get(shell)
+        existing_group: Tuple[int, int, int] | None = shell_groups.get(shell)
         if existing_group is not None and existing_group != group:
             message = "each shell_index ID must map to one (atom, n, l) group"
             raise ValueError(message)
@@ -394,14 +625,64 @@ def _validate_tb_structure(  # noqa: PLR0913
     soc_lambdas: Float64[Array, " n_shells"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
-    hopping_pairs: tuple[tuple[int, int], ...],
-    hopping_cells: tuple[tuple[int, int, int], ...],
-    shell_index: tuple[int, ...],
+    hopping_pairs: Tuple[Tuple[int, int], ...],
+    hopping_cells: Tuple[Tuple[int, int, int], ...],
+    shell_index: Tuple[int, ...],
     spinor: bool,
     orbital_positions: Optional[Float64[Array, "n_orb 3"]],
     depths: Optional[Float64[Array, " n_depth"]],
-) -> tuple[int, ...]:
-    """Validate static tight-binding structure and return reverse indices."""
+) -> Tuple[int, ...]:
+    """PRIVATE: Validate tight-binding structure and return its closure.
+
+    Implementation Logic
+    --------------------
+    Check types, ranks, and axis agreements first. Then delegate to
+    ``_validate_basis_geometry``, ``_validate_depths_shape``,
+    ``_validate_shell_metadata``, and ``_validate_hopping_metadata``,
+    and return the closure permutation of the last one.
+
+    Parameters
+    ----------
+    hopping_amplitudes : Complex128[Array, " n_hop"]
+        Complex hopping amplitudes in eV, one per hopping record.
+    onsite_energies : Float64[Array, " n_orb"]
+        Onsite orbital energies in eV.
+    soc_lambdas : Float64[Array, " n_shells"]
+        Atomic spin-orbit couplings in eV, one per shell.
+    geometry : CrystalGeometry
+        Differentiable lattice and atomic positions.
+    basis : OrbitalBasis
+        Orbital-to-atom and quantum-number metadata.
+    hopping_pairs : Tuple[Tuple[int, int], ...]
+        Directed orbital pairs ``(i, j)``, one per record.
+    hopping_cells : Tuple[Tuple[int, int, int], ...]
+        Exact integer lattice translations ``R``, one per record.
+    shell_index : Tuple[int, ...]
+        Orbital-to-SOC-shell map; ``-1`` denotes no shell.
+    spinor : bool
+        Whether the basis carries explicit spin channels.
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]]
+        Explicit fractional orbital centres, or ``None``.
+    depths : Optional[Float64[Array, " n_depth"]]
+        Orbital depths in Angstrom, or ``None`` for a bulk model.
+
+    Returns
+    -------
+    closure : Tuple[int, ...]
+        Hermitian-closure permutation: the index of the ``(j, i, -R)``
+        partner record for every hopping record.
+
+    Raises
+    ------
+    ValueError
+        If ``geometry`` or ``basis`` has the wrong type; if the
+        connectivity metadata fields are not tuples; if a numerical
+        array is not one-dimensional; if the hopping, orbital, or shell
+        axes disagree on length; if ``orbital_positions`` does not have
+        shape ``(n_orbitals, 3)``; if ``spinor`` is not a bool; or if
+        the spin channels contradict the ``spinor`` flag. The delegated
+        validators raise ``ValueError`` for their own static contracts.
+    """
     if not isinstance(geometry, CrystalGeometry):
         message: str = "geometry must be a CrystalGeometry"
         raise ValueError(message)
@@ -463,7 +744,7 @@ def _validate_tb_structure(  # noqa: PLR0913
         message = "spinless models require an empty basis spin tuple"
         raise ValueError(message)
 
-    closure: tuple[int, ...] = _validate_hopping_metadata(
+    closure: Tuple[int, ...] = _validate_hopping_metadata(
         hopping_pairs,
         hopping_cells,
         n_orbitals,
@@ -474,7 +755,29 @@ def _validate_tb_structure(  # noqa: PLR0913
 def _checked_geometry(
     geometry: CrystalGeometry, context: str
 ) -> CrystalGeometry:
-    """Attach finite-value runtime checks to every geometry array leaf."""
+    """PRIVATE: Attach finite-value runtime checks to every geometry leaf.
+
+    Parameters
+    ----------
+    geometry : CrystalGeometry
+        Geometry whose ``lattice``, ``reciprocal``, and ``positions``
+        leaves are guarded.
+    context : str
+        Caller name used as the prefix of each traced error message.
+
+    Returns
+    -------
+    checked : CrystalGeometry
+        The same geometry with the runtime checks attached.
+
+    Notes
+    -----
+    Attach one traced ``eqx.error_if`` guard per array leaf instead of
+    raising a static ``ValueError``. Each guard fails at run time under
+    JIT when its leaf contains a nonfinite element. Rebuild the carrier
+    with ``eqx.tree_at`` so that the guarded leaves replace the
+    originals.
+    """
     lattice: Float64[Array, "3 3"] = eqx.error_if(
         geometry.lattice,
         ~jnp.all(jnp.isfinite(geometry.lattice)),
@@ -592,13 +895,13 @@ class TBModel(eqx.Module):
     basis : OrbitalBasis
         Orbital-to-atom and quantum-number metadata (**static** -- changing it
         triggers retracing).
-    hopping_pairs : tuple[tuple[int, int], ...]
+    hopping_pairs : Tuple[Tuple[int, int], ...]
         Directed orbital pairs ``(i, j)`` (**static** -- changing them triggers
         retracing).
-    hopping_cells : tuple[tuple[int, int, int], ...]
+    hopping_cells : Tuple[Tuple[int, int, int], ...]
         Exact integer translations ``R`` (**static** -- changing them triggers
         retracing).
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Orbital-to-SOC-shell mapping; ``-1`` means no shell. Nonnegative IDs
         are contiguous and map one-to-one to ``(atom, n, l)`` groups, with
         spin copies sharing an ID (**static** -- changing it triggers
@@ -633,9 +936,9 @@ class TBModel(eqx.Module):
     soc_lambdas: Float64[Array, " n_shells"]
     geometry: CrystalGeometry
     basis: OrbitalBasis = eqx.field(static=True)
-    hopping_pairs: tuple[tuple[int, int], ...] = eqx.field(static=True)
-    hopping_cells: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
-    shell_index: tuple[int, ...] = eqx.field(static=True)
+    hopping_pairs: Tuple[Tuple[int, int], ...] = eqx.field(static=True)
+    hopping_cells: Tuple[Tuple[int, int, int], ...] = eqx.field(static=True)
+    shell_index: Tuple[int, ...] = eqx.field(static=True)
     spinor: bool = eqx.field(static=True)
     orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None
     depths: Optional[Float64[Array, " n_orb"]] = None
@@ -666,22 +969,22 @@ class SlabTopology(eqx.Module):
     :see: :class:`~.test_tb_model.TestSlabTopology`
     """
 
-    miller: tuple[int, int, int] = eqx.field(static=True)
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    miller: Tuple[int, int, int] = eqx.field(static=True)
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ] = eqx.field(static=True)
-    stacking_coeffs: tuple[int, int, int] = eqx.field(static=True)
-    atom_shifts: tuple[tuple[int, int, int], ...] = eqx.field(static=True)
-    bulk_atom_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
-    layer_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
-    termination: tuple[str, str] = eqx.field(static=True)
+    stacking_coeffs: Tuple[int, int, int] = eqx.field(static=True)
+    atom_shifts: Tuple[Tuple[int, int, int], ...] = eqx.field(static=True)
+    bulk_atom_of_slab_atom: Tuple[int, ...] = eqx.field(static=True)
+    layer_of_slab_atom: Tuple[int, ...] = eqx.field(static=True)
+    termination: Tuple[str, str] = eqx.field(static=True)
     thickness_ang: float = eqx.field(static=True)
     vacuum_ang: float = eqx.field(static=True)
-    fine: tuple[float, float] = eqx.field(static=True)
+    fine: Tuple[float, float] = eqx.field(static=True)
     n_layers: int = eqx.field(static=True)
     bulk_atom_count: int = eqx.field(static=True)
-    basis_atom_indices: tuple[int, ...] = eqx.field(static=True)
+    basis_atom_indices: Tuple[int, ...] = eqx.field(static=True)
 
 
 class SurfaceCell(eqx.Module):
@@ -702,12 +1005,12 @@ class SurfaceCell(eqx.Module):
         Active Cartesian rotation from bulk to surface frame.
     interlayer_spacing_ang : Float64[Array, ""]
         Positive interlayer spacing in Angstrom.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         GCD-reduced Miller tuple (**static** -- changing it triggers
         retracing).
-    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
         Exact bulk-lattice coefficients of the in-plane vectors (**static**).
-    stacking_coeffs : tuple[int, int, int]
+    stacking_coeffs : Tuple[int, int, int]
         Exact bulk-lattice coefficients of the stacking vector (**static**).
 
     Notes
@@ -720,12 +1023,12 @@ class SurfaceCell(eqx.Module):
     stacking_vector: Float64[Array, " 3"]
     rotation: Float64[Array, "3 3"]
     interlayer_spacing_ang: Float64[Array, ""]
-    miller: tuple[int, int, int] = eqx.field(static=True)
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    miller: Tuple[int, int, int] = eqx.field(static=True)
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ] = eqx.field(static=True)
-    stacking_coeffs: tuple[int, int, int] = eqx.field(static=True)
+    stacking_coeffs: Tuple[int, int, int] = eqx.field(static=True)
 
     def __check_init__(self) -> None:
         """Validate exact surface-cell structure on direct construction."""
@@ -756,26 +1059,26 @@ class SlabSpec(eqx.Module):
         Requested slab thickness in Angstrom (**static**).
     vacuum_ang : float
         Vacuum padding in Angstrom (**static**).
-    fine : tuple[float, float]
+    fine : Tuple[float, float]
         Top and bottom cut shifts in Angstrom (**static**).
-    termination : tuple[str, str]
+    termination : Tuple[str, str]
         Top and bottom species labels (**static**).
     n_layers : int
         Number of slab layers (**static**).
-    bulk_atom_of_slab_atom : tuple[int, ...]
+    bulk_atom_of_slab_atom : Tuple[int, ...]
         Bulk-atom provenance for each slab atom (**static**).
-    layer_of_slab_atom : tuple[int, ...]
+    layer_of_slab_atom : Tuple[int, ...]
         Layer index for each slab atom (**static**).
     """
 
     surface_cell: SurfaceCell
     thickness_ang: float = eqx.field(static=True)
     vacuum_ang: float = eqx.field(static=True)
-    fine: tuple[float, float] = eqx.field(static=True)
-    termination: tuple[str, str] = eqx.field(static=True)
+    fine: Tuple[float, float] = eqx.field(static=True)
+    termination: Tuple[str, str] = eqx.field(static=True)
     n_layers: int = eqx.field(static=True)
-    bulk_atom_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
-    layer_of_slab_atom: tuple[int, ...] = eqx.field(static=True)
+    bulk_atom_of_slab_atom: Tuple[int, ...] = eqx.field(static=True)
+    layer_of_slab_atom: Tuple[int, ...] = eqx.field(static=True)
 
     def __check_init__(self) -> None:
         """Validate slab metadata invariants on direct construction."""
@@ -801,7 +1104,45 @@ def _validate_diagonalized_structure(
     orbital_positions: Optional[Float64[Array, "n_orb 3"]],
     depths: Optional[Float64[Array, " n_depth"]],
 ) -> None:
-    """Validate static eigensystem shapes and context."""
+    """PRIVATE: Validate static eigensystem shapes and context.
+
+    Implementation Logic
+    --------------------
+    Check types, ranks, and axis agreements through static shape
+    metadata only. Then delegate the depth axis to
+    ``_validate_depths_shape`` and the orbital-to-atom map to
+    ``_validate_basis_geometry``.
+
+    Parameters
+    ----------
+    eigenvalues : Float64[Array, "n_k_e n_bands_e"]
+        Band energies in eV.
+    eigenvectors : Complex128[Array, "n_k_v n_bands_v n_orb"]
+        Complex orbital coefficients per k-point and band.
+    kpoints : Float64[Array, "n_k_p 3"]
+        Fractional reciprocal-space coordinates.
+    fermi_energy : Float64[Array, ""]
+        Fermi energy in eV.
+    geometry : CrystalGeometry
+        Differentiable lattice and atomic positions.
+    basis : OrbitalBasis
+        Orbital-to-atom and quantum-number metadata.
+    orbital_positions : Optional[Float64[Array, "n_orb 3"]]
+        Explicit fractional orbital centres, or ``None``.
+    depths : Optional[Float64[Array, " n_depth"]]
+        Orbital depths in Angstrom, or ``None`` for a bulk model.
+
+    Raises
+    ------
+    ValueError
+        If ``geometry`` or ``basis`` has the wrong type; if
+        ``eigenvalues``, ``eigenvectors``, ``kpoints``, or
+        ``fermi_energy`` has the wrong rank or shape; if the axes
+        disagree on ``n_k``, ``n_bands``, or the orbital count; or if
+        ``orbital_positions`` does not have shape ``(n_orbitals, 3)``.
+        The delegated validators raise ``ValueError`` for their own
+        static contracts.
+    """
     if not isinstance(geometry, CrystalGeometry):
         message: str = "geometry must be a CrystalGeometry"
         raise ValueError(message)
@@ -1003,9 +1344,9 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
     soc_lambdas: Float64[Array, "n_shells"],
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
-    hopping_pairs: tuple[tuple[int, int], ...],
-    hopping_cells: tuple[tuple[int, int, int], ...],
-    shell_index: tuple[int, ...],
+    hopping_pairs: Tuple[Tuple[int, int], ...],
+    hopping_cells: Tuple[Tuple[int, int, int], ...],
+    shell_index: Tuple[int, ...],
     spinor: bool = False,
     orbital_positions: Optional[Float64[Array, "n_orb 3"]] = None,
     depths: Optional[Float64[Array, " n_depth"]] = None,
@@ -1030,13 +1371,13 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
     basis : OrbitalBasis
         Orbital-to-atom and quantum-number metadata (**static** -- changing it
         triggers retracing).
-    hopping_pairs : tuple[tuple[int, int], ...]
+    hopping_pairs : Tuple[Tuple[int, int], ...]
         Directed ``(i, j)`` orbital pairs (**static** -- changing them
         triggers retracing).
-    hopping_cells : tuple[tuple[int, int, int], ...]
+    hopping_cells : Tuple[Tuple[int, int, int], ...]
         Exact integer translations ``R`` (**static** -- changing them triggers
         retracing).
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Orbital-to-SOC-shell map with ``-1`` denoting no shell (**static** --
         changing it triggers retracing).
     spinor : bool, optional
@@ -1104,7 +1445,7 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
     depth_array: Optional[Float64[Array, " n_depth"]] = None
     if depths is not None:
         depth_array = jnp.asarray(depths, dtype=jnp.float64)
-    closure: tuple[int, ...] = _validate_tb_structure(
+    closure: Tuple[int, ...] = _validate_tb_structure(
         hopping_array,
         onsite_array,
         soc_array,
@@ -1191,12 +1532,12 @@ def make_surface_cell(  # noqa: DOC502, DOC503
     stacking_vector: Float64[Array, " 3"],
     rotation: Float64[Array, "3 3"],
     interlayer_spacing_ang: ScalarNumeric,
-    miller: tuple[int, int, int],
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    miller: Tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ],
-    stacking_coeffs: tuple[int, int, int],
+    stacking_coeffs: Tuple[int, int, int],
 ) -> SurfaceCell:
     """Create a validated Cartesian surface-cell carrier.
 
@@ -1215,11 +1556,11 @@ def make_surface_cell(  # noqa: DOC502, DOC503
         Active Cartesian rotation from bulk to surface frame.
     interlayer_spacing_ang : ScalarNumeric
         Positive interlayer spacing in Angstrom.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         GCD-reduced Miller tuple.
-    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
         Exact integer coefficients for the in-plane vectors.
-    stacking_coeffs : tuple[int, int, int]
+    stacking_coeffs : Tuple[int, int, int]
         Exact integer coefficients for the stacking vector.
 
     Returns
@@ -1313,11 +1654,11 @@ def make_slab_spec(
     geometry: CrystalGeometry,
     thickness_ang: float,
     vacuum_ang: float,
-    fine: tuple[float, float],
-    termination: tuple[str, str],
+    fine: Tuple[float, float],
+    termination: Tuple[str, str],
     n_layers: int,
-    bulk_atom_of_slab_atom: tuple[int, ...],
-    layer_of_slab_atom: tuple[int, ...],
+    bulk_atom_of_slab_atom: Tuple[int, ...],
+    layer_of_slab_atom: Tuple[int, ...],
 ) -> SlabSpec:
     """Create a validated slab-construction sidecar.
 
@@ -1339,15 +1680,15 @@ def make_slab_spec(
         Nonnegative requested minimum slab span in Angstrom.
     vacuum_ang : float
         Nonnegative vacuum padding in Angstrom.
-    fine : tuple[float, float]
+    fine : Tuple[float, float]
         Finite top and bottom cut shifts in Angstrom.
-    termination : tuple[str, str]
+    termination : Tuple[str, str]
         Top and bottom species labels.
     n_layers : int
         Positive number of slab layers.
-    bulk_atom_of_slab_atom : tuple[int, ...]
+    bulk_atom_of_slab_atom : Tuple[int, ...]
         Bulk-atom index for each slab atom.
-    layer_of_slab_atom : tuple[int, ...]
+    layer_of_slab_atom : Tuple[int, ...]
         Layer index for each slab atom.
 
     Returns

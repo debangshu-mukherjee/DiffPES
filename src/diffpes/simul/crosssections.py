@@ -48,7 +48,12 @@ def _load_data() -> tuple[
     Float64[NDArray, " n_packed"],
     dict[tuple[int, int, int], int],
 ]:
-    """Load and cache the immutable packed table arrays."""
+    """PRIVATE: Load and cache the immutable packed table arrays.
+
+    Notes
+    -----
+    One cached load serves every later table lookup.
+    """
     data_resource: Traversable = resources.files("diffpes.simul").joinpath(
         "data",
         "yeh_lindau_1985.npz",
@@ -98,7 +103,12 @@ def _table_slice(
     principal_quantum_number: int,
     angular_momentum: int,
 ) -> slice:
-    """Resolve a static subshell key to its packed-data slice."""
+    """PRIVATE: Resolve a static subshell key to its packed-data slice.
+
+    Notes
+    -----
+    The slice comes from the static subshell index table.
+    """
     key: tuple[int, int, int] = (
         atomic_number,
         principal_quantum_number,
@@ -198,7 +208,12 @@ def _interval_index(
     sigma_nodes: Float64[Array, " node"],
     slope_nodes: Float64[Array, " node"],
 ) -> tuple[Int32[Array, ""], Float64[Array, ""]]:
-    """Select a positive interval, including either exact endpoint."""
+    """PRIVATE: Select a positive interval, including either exact endpoint.
+
+    Notes
+    -----
+    The search clamps to the tabulated photon-energy range.
+    """
     count: int = energy_nodes.shape[0]
     right_index: Int32[Array, ""] = jnp.clip(
         jnp.searchsorted(energy_nodes, photon_energy_ev, side="right") - 1,
