@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Array, Int64
 from numpy.typing import NDArray
 
@@ -94,13 +94,13 @@ def _complete_p_model() -> TBModel:
         ),
         dtype=jnp.complex128,
     )
-    hopping_pairs: tuple[tuple[int, int], ...] = tuple(
+    hopping_pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column)
         for _cell in range(2)
         for row in range(3)
         for column in range(3)
     )
-    hopping_cells: tuple[tuple[int, int, int], ...] = tuple(
+    hopping_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (1, 0, 0) if cell == 0 else (-1, 0, 0)
         for cell in range(2)
         for _row in range(3)
@@ -194,7 +194,7 @@ class TestFindSurfaceCell:
     )
     def test_cubic_external_truth(
         self,
-        miller: tuple[int, int, int],
+        miller: Tuple[int, int, int],
         expected_spacing: float,
     ) -> None:
         """Match cubic interplanar spacing and exact integer identities.
@@ -271,7 +271,7 @@ class TestFindSurfaceCell:
     )
     def test_rejects_invalid_miller(
         self,
-        miller: tuple[int, int, int],
+        miller: Tuple[int, int, int],
     ) -> None:
         """Reject zero and nonprimitive integer Miller tuples.
 

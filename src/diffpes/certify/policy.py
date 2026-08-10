@@ -19,7 +19,7 @@ Routine Listings
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Iterable, Tuple
+from beartype.typing import Any, Dict, Iterable, Tuple
 from jaxtyping import Array, jaxtyped
 
 from diffpes.types import (
@@ -311,7 +311,7 @@ def evaluate_policy(
             level_passed = jnp.all(valid_claim[jnp.asarray(indices)])
         cumulative = cumulative & level_passed
         achieved_values.append(cumulative)
-    id_to_index: dict[str, int] = {
+    id_to_index: Dict[str, int] = {
         claim.claim_id: index for index, claim in enumerate(claim_tuple)
     }
     required_indices: Array = jnp.asarray(
@@ -325,10 +325,10 @@ def evaluate_policy(
         "org.diffpes.policy.publication.v1",
         "org.diffpes.policy.parity.v1",
     }:
-        evidence_by_id: dict[str, EvidenceRef] = {
+        evidence_by_id: Dict[str, EvidenceRef] = {
             item.evidence_id: item for item in evidence
         }
-        reports_by_id: dict[str, EvidenceReport] = {
+        reports_by_id: Dict[str, EvidenceReport] = {
             item.evidence_id: item for item in evidence_reports
         }
         independent_claims: Tuple[CertificationClaim, ...] = tuple(

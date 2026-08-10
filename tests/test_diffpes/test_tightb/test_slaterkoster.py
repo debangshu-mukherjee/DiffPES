@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
@@ -34,7 +35,7 @@ from diffpes.types import (
 from tests._gradients import assert_grad_matches_fd, assert_nonzero_grad
 
 _TABLE_DIRECTIONS: int = 50
-_ALL_SK_KEYS: tuple[str, ...] = (
+_ALL_SK_KEYS: Tuple[str, ...] = (
     "X-X:ss_sigma",
     "X-X:sp_sigma",
     "X-X:sd_sigma",
@@ -103,7 +104,7 @@ def _reference_d_tensors() -> Float64[Array, "5 3 3"]:
 def _table_i_blocks(
     direction: Float64[Array, " 3"],
     values: Float64[Array, " 10"],
-) -> dict[tuple[int, int], Float64[Array, "m1 m2"]]:
+) -> Dict[Tuple[int, int], Float64[Array, "m1 m2"]]:
     """PRIVATE: Evaluate the direction-cosine polynomials for all ten
     channels.
 
@@ -167,7 +168,7 @@ def _table_i_blocks(
     )
     d_identity: Float64[Array, "5 5"] = jnp.eye(5, dtype=jnp.float64)
 
-    blocks: dict[tuple[int, int], Float64[Array, "m1 m2"]] = {
+    blocks: Dict[Tuple[int, int], Float64[Array, "m1 m2"]] = {
         (0, 0): values[0:1, None],
         (0, 1): values[1] * p_direction[None, :],
         (0, 2): values[2] * d_sigma[None, :],
@@ -279,7 +280,7 @@ class TestSkBlock:
             (0.37, -1.1, 0.83, 2.3, -0.61, 1.7, -0.42, 3.1, -0.91, 0.28),
             dtype=jnp.float64,
         )
-        channel_vectors: dict[tuple[int, int], Float64[Array, " n_m"]] = {
+        channel_vectors: Dict[Tuple[int, int], Float64[Array, " n_m"]] = {
             (0, 0): values[0:1],
             (0, 1): values[1:2],
             (0, 2): values[2:3],
@@ -294,10 +295,10 @@ class TestSkBlock:
                 direction,
                 dtype=jnp.float64,
             )
-            references: dict[tuple[int, int], Float64[Array, "m1 m2"]] = (
+            references: Dict[Tuple[int, int], Float64[Array, "m1 m2"]] = (
                 _table_i_blocks(bond, values)
             )
-            angular_pair: tuple[int, int]
+            angular_pair: Tuple[int, int]
             integrals: Float64[Array, " n_m"]
             for angular_pair, integrals in channel_vectors.items():
                 actual: Float64[Array, "m1 m2"] = sk_block(
@@ -464,8 +465,8 @@ class TestNeighborShells:
         Also derive every fractional displacement from its exact integer cell.
         """
         geometry: CrystalGeometry = _graphene_geometry()
-        atom_pairs: tuple[tuple[int, int], ...]
-        cells: tuple[tuple[int, int, int], ...]
+        atom_pairs: Tuple[Tuple[int, int], ...]
+        cells: Tuple[Tuple[int, int, int], ...]
         displacements: Float64[Array, "3 3"]
         distances: Float64[Array, " 3"]
         atom_pairs, cells, displacements, distances = neighbor_shells(
@@ -515,8 +516,8 @@ class TestNeighborShells:
             jnp.zeros((1, 3), dtype=jnp.float64),
             ("Cu",),
         )
-        atom_pairs: tuple[tuple[int, int], ...]
-        cells: tuple[tuple[int, int, int], ...]
+        atom_pairs: Tuple[Tuple[int, int], ...]
+        cells: Tuple[Tuple[int, int, int], ...]
         distances: Float64[Array, " 6"]
         atom_pairs, cells, _, distances = neighbor_shells(
             geometry,
@@ -547,8 +548,8 @@ class TestNeighborShells:
             jnp.zeros((1, 3), dtype=jnp.float64),
             ("X",),
         )
-        atom_pairs: tuple[tuple[int, int], ...]
-        cells: tuple[tuple[int, int, int], ...]
+        atom_pairs: Tuple[Tuple[int, int], ...]
+        cells: Tuple[Tuple[int, int, int], ...]
         distances: Float64[Array, " 3"]
         atom_pairs, cells, _, distances = neighbor_shells(geometry, 1.25)
 
@@ -584,7 +585,7 @@ class TestNeighborShells:
             jnp.zeros((1, 3), dtype=jnp.float64),
             ("X",),
         )
-        cells: tuple[tuple[int, int, int], ...]
+        cells: Tuple[Tuple[int, int, int], ...]
         distances: Float64[Array, " n_bond"]
         _, cells, _, distances = neighbor_shells(geometry, 0.31)
 
@@ -655,7 +656,7 @@ class TestBuildSkModel:
             (-1,),
             2.1,
         )
-        by_cell: dict[tuple[int, int, int], complex] = dict(
+        by_cell: Dict[Tuple[int, int, int], complex] = dict(
             zip(
                 model.hopping_cells,
                 np.asarray(model.hopping_amplitudes),

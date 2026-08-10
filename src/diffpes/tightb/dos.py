@@ -27,6 +27,7 @@ import jax
 import jax.numpy as jnp
 import optimistix as optx
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.simul import fermi_dirac
@@ -46,7 +47,7 @@ def _validate_spectrum_inputs(
     k_weights: Float64[Array, " n_k"],
     *,
     context: str,
-) -> tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]:
+) -> Tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]:
     """PRIVATE: Normalize arrays and enforce the weighted-spectrum contract.
 
     Parameters
@@ -60,7 +61,7 @@ def _validate_spectrum_inputs(
 
     Returns
     -------
-    result : tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]
+    result : Tuple[Float64[Array, "n_k n_bands"], Float64[Array, " n_k"]]
         Float64 energies and weights renormalized to an exact unit sum.
 
     Raises
@@ -120,7 +121,7 @@ def _validate_spectrum_inputs(
         f"{context}: k_weights must sum to one",
     )
     weights = weights / weight_sum
-    result: tuple[
+    result: Tuple[
         Float64[Array, "n_k n_bands"],
         Float64[Array, " n_k"],
     ] = (energies, weights)
@@ -218,7 +219,7 @@ def dos_gaussian(  # noqa: DOC502, DOC503 -- traced validation raises under JAX.
 
 def _filling_residual(
     chemical_potential: Float64[Array, ""],
-    arguments: tuple[
+    arguments: Tuple[
         Float64[Array, "n_k n_bands"],
         Float64[Array, " n_k"],
         Float64[Array, ""],
@@ -231,7 +232,7 @@ def _filling_residual(
     ----------
     chemical_potential : Float64[Array, ""]
         Trial chemical potential in eV.
-    arguments : tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
+    arguments : Tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
 " n_k"], Float64[Array, ""], Float64[Array, ""]]
         Band energies in eV, unit-sum k-point weights, electronic
         temperature in kelvin, and target electron count per cell.
@@ -270,7 +271,7 @@ def _filling_residual(
 
 
 def _solve_filling(
-    arguments: tuple[
+    arguments: Tuple[
         Float64[Array, "n_k n_bands"],
         Float64[Array, " n_k"],
         Float64[Array, ""],
@@ -285,7 +286,7 @@ def _solve_filling(
 
     Parameters
     ----------
-    arguments : tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
+    arguments : Tuple[Float64[Array, "n_k n_bands"], Float64[Array, \
 " n_k"], Float64[Array, ""], Float64[Array, ""]]
         Band energies in eV, unit-sum k-point weights, electronic
         temperature in kelvin, and target electron count per cell.
@@ -428,7 +429,7 @@ def fermi_level_from_filling(  # noqa: DOC502
     upper: Float64[Array, ""] = (
         jnp.max(energies) + thermal_energy * upper_logit
     )
-    arguments: tuple[
+    arguments: Tuple[
         Float64[Array, "n_k n_bands"],
         Float64[Array, " n_k"],
         Float64[Array, ""],

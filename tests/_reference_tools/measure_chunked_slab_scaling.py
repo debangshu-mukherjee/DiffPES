@@ -22,6 +22,7 @@ from typing import Any
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from beartype.typing import Dict, Tuple
 
 from diffpes.tightb import (
     eigvalsh_bands,
@@ -75,16 +76,16 @@ def _bulk_model() -> TBModel:
         m=(0,) * 4,
         labels=("s1", "s2", "s3", "s4"),
     )
-    pairs: tuple[tuple[int, int], ...] = tuple(
+    pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column) for row in range(4) for column in range(4)
     )
     seed: jax.Array = jnp.arange(16, dtype=jnp.float64).reshape(4, 4)
-    blocks: tuple[jax.Array, ...] = tuple(
+    blocks: Tuple[jax.Array, ...] = tuple(
         scale
         * (jnp.sin(seed + phase) + 1j * jnp.cos(0.7 * seed + 0.3 * phase))
         for scale, phase in ((0.11, 0.2), (0.08, 0.7), (0.19, 1.1))
     )
-    directed_blocks: tuple[jax.Array, ...] = (
+    directed_blocks: Tuple[jax.Array, ...] = (
         blocks[0],
         blocks[0].conj().T,
         blocks[1],
@@ -92,7 +93,7 @@ def _bulk_model() -> TBModel:
         blocks[2],
         blocks[2].conj().T,
     )
-    cells: tuple[tuple[int, int, int], ...] = (
+    cells: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 0),
         (-1, 0, 0),
         (0, 1, 0),
@@ -118,7 +119,7 @@ def _slab_model(
     n_layers: int,
     *,
     spinor: bool = False,
-) -> tuple[TBModel, SlabSpec]:
+) -> Tuple[TBModel, SlabSpec]:
     """PRIVATE: Extrude one actual four-orbital-per-layer slab design.
 
     Parameters
@@ -207,8 +208,8 @@ def _termination_bulk_model() -> TBModel:
 
 def _termination_slab(
     thickness_ang: float,
-    termination: tuple[str, str],
-) -> tuple[TBModel, SlabSpec]:
+    termination: Tuple[str, str],
+) -> Tuple[TBModel, SlabSpec]:
     """PRIVATE: Extrude one actual alternating-species termination design.
 
     Parameters
@@ -263,7 +264,7 @@ def _kpoints(n_kpoints: int) -> jax.Array:
     )
 
 
-def _statistics_dict(statistics: Any) -> dict[str, int]:
+def _statistics_dict(statistics: Any) -> Dict[str, int]:
     """PRIVATE: Normalize the backend's compiler-memory record.
 
     Parameters
@@ -282,7 +283,7 @@ def _statistics_dict(statistics: Any) -> dict[str, int]:
     ``getattr`` with a zero default absorbs backend differences in
     which counters exist.
     """
-    fields: tuple[str, ...] = (
+    fields: Tuple[str, ...] = (
         "argument_size_in_bytes",
         "output_size_in_bytes",
         "alias_size_in_bytes",
@@ -310,7 +311,7 @@ def _maximum_rss_bytes() -> int:
     return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
 
 
-def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> dict:
+def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> Dict:
     """PRIVATE: Compare rematerialized and ordinary band-loss derivatives.
 
     Parameters
@@ -378,7 +379,7 @@ def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> dict:
 def _compile_count(
     kpoints: jax.Array,
     chunk_size: int,
-) -> dict:
+) -> Dict:
     """PRIVATE: Count traces across padded lengths and design changes.
 
     Parameters
@@ -426,7 +427,7 @@ def _compile_count(
         80 * 1.3,
         ("Y", "X"),
     )
-    lengths: tuple[int, ...] = (
+    lengths: Tuple[int, ...] = (
         kpoints.shape[0] // 4,
         kpoints.shape[0] // 2,
         kpoints.shape[0],
@@ -511,7 +512,7 @@ def main() -> None:
         raise RuntimeError(
             "active JAX backend did not report memory statistics"
         )
-    memory: dict[str, int] = _statistics_dict(statistics)
+    memory: Dict[str, int] = _statistics_dict(statistics)
     run_start: float = time.perf_counter()
     values: jax.Array = executable(kpoints)
     values.block_until_ready()
@@ -526,7 +527,7 @@ def main() -> None:
     chunk_hamiltonian_bytes: int = (
         arguments.chunk_size * n_orbitals * n_orbitals * _COMPLEX128_BYTES
     )
-    result: dict[str, Any] = {
+    result: Dict[str, Any] = {
         "gate": "chunked-slab-forward-memory and chunked-slab-gradient-retracing",
         "backend": jax.default_backend(),
         "jax_version": jax.__version__,

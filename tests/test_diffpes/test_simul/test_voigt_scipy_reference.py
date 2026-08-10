@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jax import test_util
 from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
@@ -53,7 +53,7 @@ _DERIVATIVE_RTL: float = 1.0e-6
 _DERIVATIVE_ATL: float = 2.0e-10
 
 
-def _load_npz(path: Path) -> dict[str, Float64[NDArray, "..."]]:
+def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Load one inert NPZ into ordinary arrays without pickle.
 
     Parameters
@@ -225,7 +225,7 @@ class TestVoigtScipyEvidence:
         assert "diffpes" not in imported_roots
         assert "jax" not in imported_roots
 
-        manifest: dict[str, Any] = json.loads(
+        manifest: Dict[str, Any] = json.loads(
             _MANIFEST_PATH.read_text(encoding="utf-8")
         )
         assert manifest["schema"] == "diffpes.voigt-scipy-reference.v1"
@@ -243,7 +243,7 @@ class TestVoigtScipyEvidence:
             assert manifest["archives"][archive_key]["sha256"] == _sha256(
                 archive_path
             )
-            arrays: dict[str, Float64[NDArray, "..."]] = _load_npz(
+            arrays: Dict[str, Float64[NDArray, "..."]] = _load_npz(
                 archive_path
             )
             assert arrays
@@ -266,7 +266,7 @@ class TestVoigtScipyEvidence:
         Evaluate each width row with SciPy, reconstruct its complex
         coordinates, and check value finiteness and nonnegativity.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         widths: Float64[NDArray, "n_positive 2"] = reference["positive_widths"]
@@ -307,7 +307,7 @@ class TestVoigtScipyEvidence:
         Reconstruct each normalized coordinate, evaluate its analytic density,
         and compare the resulting arrays exactly.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         rows: list[Float64[NDArray, " n_q"]] = []
@@ -346,7 +346,7 @@ class TestVoigtScipyEvidence:
         Recompute every rung, require strict error decay, and bound successive
         ratios for both endpoint directions.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         actual: Float64[NDArray, "n_onesided n_q"] = np.stack(
@@ -381,7 +381,7 @@ class TestVoigtScipyEvidence:
         Apply the scaled tangent map, include its Jacobian, and compare both
         mass estimates with the committed reference.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         widths: Float64[NDArray, "n_norm 2"] = reference[
@@ -443,7 +443,7 @@ class TestVoigtScipyEvidence:
         Map energies back to complex arguments, select each row maximum, and
         compare against the registered radii.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         sigma: float
@@ -479,7 +479,7 @@ class TestVoigtScipyEvidence:
         Apply the Faddeeva ODE derivative, contract each probe, and inspect the
         median and spread of all stencil rungs.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         probes: Float64[NDArray, "n_probe 3"] = reference["d1_probes"]
@@ -564,10 +564,10 @@ class TestVoigtScipyEvidence:
         Load frozen eigenvalues and weights, broaden every band, and reduce the
         contributions over the band axis.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        novice: dict[str, Float64[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
+        novice: Dict[str, Float64[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
         eigenvalues: Float64[NDArray, "nkpt nband"] = reference[
             "novice_eigenvalues"
         ]
@@ -617,7 +617,7 @@ class TestVoigtProduction:
         Evaluate each frozen energy row and compare every element with its
         independent SciPy value.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         energy: Float64[NDArray, " n_q"]
@@ -652,7 +652,7 @@ class TestVoigtProduction:
         Evaluate each endpoint row and apply the dedicated mixed endpoint
         tolerance without invoking any derivative transform.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         energy: Float64[NDArray, " n_q"]
@@ -688,7 +688,7 @@ class TestVoigtProduction:
         Collect every positive profile, measure endpoint errors, and bound
         their successive ratios after strict decay checks.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         actual_values: list[Float64[NDArray, " n_q"]] = []
@@ -751,7 +751,7 @@ class TestVoigtProduction:
         Evaluate production on both scaled tangent grids, apply quadrature
         weights, and check each mass and order delta.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         widths: Float64[NDArray, "n_norm 2"] = reference[
@@ -803,7 +803,7 @@ class TestVoigtProduction:
         Exercise interior and closed-boundary rows in both modes, then plant
         isolated offenders and require the registered diagnostic.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         sigma: float
@@ -954,7 +954,7 @@ class TestVoigtProduction:
         dimensionless parameters, and apply the preregistered comparison
         budget.
         """
-        reference: dict[str, Float64[NDArray, "..."]] = _load_npz(
+        reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
         weights: Array = jnp.asarray(reference["d1_weights"])
@@ -1030,7 +1030,7 @@ class TestVoigtProduction:
             toy_simulation_params(fidelity=512),
             15.0,
         )
-        desired: dict[str, Float64[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
+        desired: Dict[str, Float64[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
         np.testing.assert_allclose(
             np.asarray(spectrum.intensity),
             desired["leaf_000_intensity"],

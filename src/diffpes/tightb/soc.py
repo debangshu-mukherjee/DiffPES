@@ -36,7 +36,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.maths import real_harmonic_unitary
@@ -74,7 +74,7 @@ def _validate_angular_momentum(l: int) -> None:
 
 def _validate_soc_structure(
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
     soc_lambdas: Float64[Array, " n_shells"],
 ) -> None:
     """PRIVATE: Validate static shell membership for SOC construction.
@@ -83,7 +83,7 @@ def _validate_soc_structure(
     ----------
     basis : OrbitalBasis
         Orbital basis whose metadata defines the shell groups.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Candidate orbital-to-shell IDs with ``-1`` for excluded orbitals.
     soc_lambdas : Float64[Array, " n_shells"]
         Shell coupling energies in eV; the check reads only the static
@@ -137,13 +137,13 @@ def _validate_soc_structure(
 
     shell: int
     for shell in range(expected_shells):
-        orbitals: tuple[int, ...] = tuple(
+        orbitals: Tuple[int, ...] = tuple(
             orbital
             for orbital, candidate in enumerate(shell_index)
             if candidate == shell
         )
         reference: int = orbitals[0]
-        group: tuple[int, int, int] = (
+        group: Tuple[int, int, int] = (
             basis.atom_indices[reference],
             basis.n[reference],
             basis.l[reference],
@@ -160,12 +160,12 @@ def _validate_soc_structure(
             message = "each SOC shell must map to one (atom, n, l) group"
             raise ValueError(message)
 
-        down_m: tuple[int, ...] = tuple(
+        down_m: Tuple[int, ...] = tuple(
             basis.m[orbital]
             for orbital in orbitals
             if basis.spin[orbital] == -1
         )
-        up_m: tuple[int, ...] = tuple(
+        up_m: Tuple[int, ...] = tuple(
             basis.m[orbital]
             for orbital in orbitals
             if basis.spin[orbital] == 1
@@ -185,23 +185,23 @@ def _validate_soc_structure(
 
 def _shell_maps(
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
     shell: int,
-) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+) -> Tuple[Tuple[int, ...], Tuple[int, ...], int]:
     """PRIVATE: Resolve one SOC shell to global and canonical block indices.
 
     Parameters
     ----------
     basis : OrbitalBasis
         Validated spinor basis with real-harmonic metadata.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Static orbital-to-shell IDs.
     shell : int
         Nonnegative shell ID to resolve.
 
     Returns
     -------
-    result : tuple[tuple[int, ...], tuple[int, ...], int]
+    result : Tuple[Tuple[int, ...], Tuple[int, ...], int]
         Global basis positions of the shell orbitals, their matching
         rows in the canonical down--up full-shell block, and the shell
         angular momentum.
@@ -214,20 +214,20 @@ def _shell_maps(
     subsets such as ``t2g`` select only their own rows, so both index
     tuples can be shorter than the full shell.
     """
-    global_indices: tuple[int, ...] = tuple(
+    global_indices: Tuple[int, ...] = tuple(
         orbital
         for orbital, candidate in enumerate(shell_index)
         if candidate == shell
     )
     angular_momentum: int = basis.l[global_indices[0]]
     shell_size: int = 2 * angular_momentum + 1
-    local_indices: tuple[int, ...] = tuple(
+    local_indices: Tuple[int, ...] = tuple(
         (0 if basis.spin[orbital] == -1 else shell_size)
         + basis.m[orbital]
         + angular_momentum
         for orbital in global_indices
     )
-    result: tuple[tuple[int, ...], tuple[int, ...], int] = (
+    result: Tuple[Tuple[int, ...], Tuple[int, ...], int] = (
         global_indices,
         local_indices,
         angular_momentum,
@@ -238,7 +238,7 @@ def _shell_maps(
 @jaxtyped(typechecker=beartype)
 def l_matrices(  # noqa: DOC502 -- validation is shared.
     l: int,  # noqa: E741
-) -> tuple[
+) -> Tuple[
     Complex128[Array, "m1 m2"],
     Complex128[Array, "m1 m2"],
     Complex128[Array, "m1 m2"],
@@ -297,7 +297,7 @@ def l_matrices(  # noqa: DOC502 -- validation is shared.
         coefficient: float = math.sqrt(l * (l + 1) - magnetic * (magnetic + 1))
         raising = raising.at[row, column].set(coefficient)
     lowering: Complex128[Array, "m1 m2"] = raising.conj().T
-    result: tuple[
+    result: Tuple[
         Complex128[Array, "m1 m2"],
         Complex128[Array, "m1 m2"],
         Complex128[Array, "m1 m2"],
@@ -462,7 +462,7 @@ def spin_double_model(model: TBModel) -> TBModel:
         message: str = "spin_double_model requires a spinless model"
         raise ValueError(message)
     n_orbitals: int = len(model.basis.n)
-    shifted_pairs: tuple[tuple[int, int], ...] = tuple(
+    shifted_pairs: Tuple[Tuple[int, int], ...] = tuple(
         (orbital_i + n_orbitals, orbital_j + n_orbitals)
         for orbital_i, orbital_j in model.hopping_pairs
     )
@@ -501,7 +501,7 @@ def spin_double_model(model: TBModel) -> TBModel:
 @jaxtyped(typechecker=beartype)
 def soc_matrix(  # noqa: DOC502 -- validation is shared.
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
     soc_lambdas: Float64[Array, " n_shells"],
 ) -> Complex128[Array, "n_so n_so"]:
     """Assemble shell-resolved atomic SOC in an arbitrary spinor basis.
@@ -519,7 +519,7 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
     basis : OrbitalBasis
         Orbital basis with explicit ``-1`` and ``+1`` spin metadata whenever
         an active shell is present.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Orbital-to-shell IDs. ``-1`` excludes an orbital from atomic SOC.
     soc_lambdas : Float64[Array, "n_shells"]
         Differentiable shell coupling energies in eV.
@@ -560,8 +560,8 @@ def soc_matrix(  # noqa: DOC502 -- validation is shared.
     )
     shell: int
     for shell in range(lambda_array.shape[0]):
-        global_tuple: tuple[int, ...]
-        local_tuple: tuple[int, ...]
+        global_tuple: Tuple[int, ...]
+        local_tuple: Tuple[int, ...]
         angular_momentum: int
         global_tuple, local_tuple, angular_momentum = _shell_maps(
             basis,

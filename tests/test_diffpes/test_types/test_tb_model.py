@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from absl.testing import parameterized
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -92,7 +92,7 @@ def _basis(
     return basis
 
 
-def _model_arguments() -> dict[str, object]:
+def _model_arguments() -> Dict[str, object]:
     """PRIVATE: Return a minimal complex Hermitian-closed model argument mapping.
 
     Returns
@@ -108,7 +108,7 @@ def _model_arguments() -> dict[str, object]:
     pairing, so tests can mutate single entries to break exactly one
     validation rule at a time.
     """
-    arguments: dict[str, object] = {
+    arguments: Dict[str, object] = {
         "hopping_amplitudes": jnp.array(
             [1.0 + 2.0j, 1.0 - 2.0j],
             dtype=jnp.complex128,
@@ -438,7 +438,7 @@ class TestMakeTBModel(chex.TestCase):
         -----
         Match the public factory diagnostic for each static defect.
         """
-        arguments: dict[str, object] = _model_arguments()
+        arguments: Dict[str, object] = _model_arguments()
         if defect == "open":
             arguments["hopping_amplitudes"] = jnp.array(
                 [1.0 + 0.0j],
@@ -543,7 +543,7 @@ class TestMakeTBModel(chex.TestCase):
         -----
         Use the shared eager and compiled rejection helper for every case.
         """
-        arguments: dict[str, object] = _model_arguments()
+        arguments: Dict[str, object] = _model_arguments()
         if defect == "amplitudes":
             arguments["hopping_amplitudes"] = jnp.array(
                 [1.0 + 2.0j, 1.0 - 3.0j],
@@ -573,7 +573,7 @@ class TestMakeTBModel(chex.TestCase):
         -----
         Require the raw module constructor to emit the closure diagnostic.
         """
-        arguments: dict[str, object] = _model_arguments()
+        arguments: Dict[str, object] = _model_arguments()
         arguments["hopping_amplitudes"] = jnp.array(
             [1.0 + 0.0j],
             dtype=jnp.complex128,
@@ -643,7 +643,7 @@ class TestMakeTBModel(chex.TestCase):
         hopping_pairs: Tuple[Tuple[int, int], ...] = ((0, 0),) * (
             2 * n_hoppings
         )
-        arguments: dict[str, object] = _model_arguments()
+        arguments: Dict[str, object] = _model_arguments()
         arguments["hopping_amplitudes"] = amplitudes
         arguments["hopping_pairs"] = hopping_pairs
         arguments["hopping_cells"] = hopping_cells

@@ -15,7 +15,7 @@ import equinox as eqx
 import jax
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Dict, Tuple
 from jaxtyping import PyTree, Shaped, jaxtyped
 from numpy.typing import NDArray
 
@@ -26,8 +26,8 @@ _REFERENCE_DIRECTORY: Path = (
 
 def _assert_rejection(
     fn: Callable[..., Any],
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     match: str,
 ) -> None:
     """PRIVATE: Assert one call raises the expected validation error.
@@ -131,7 +131,7 @@ def assert_tree_finite(tree: PyTree) -> None:
     Delegates recursively to Chex so nested production carriers and ordinary
     array collections share one NaN and infinity gate.
     """
-    leaves: tuple[object, ...] = tuple(jax.tree.leaves(tree))
+    leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
 
 
@@ -169,10 +169,10 @@ def assert_matches_reference(
     reference_path: Path = _REFERENCE_DIRECTORY / f"{name}.npz"
     archive: Any
     with np.load(reference_path, allow_pickle=False) as archive:
-        desired_leaves: tuple[Shaped[NDArray, "..."], ...] = tuple(
+        desired_leaves: Tuple[Shaped[NDArray, "..."], ...] = tuple(
             archive[key] for key in archive.files
         )
-    actual_leaves: tuple[object, ...] = tuple(jax.tree.leaves(tree))
+    actual_leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     if len(actual_leaves) != len(desired_leaves):
         message = (
             "reference leaf count differs: "

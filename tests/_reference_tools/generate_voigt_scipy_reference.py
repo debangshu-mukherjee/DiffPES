@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 import scipy
+from beartype.typing import Dict, Tuple
 from scipy import special
 
 CENTER: float = 0.137
@@ -34,7 +35,7 @@ EPSILONS: np.ndarray = np.asarray(
     [2.0**-8, 2.0**-10, 2.0**-12],
     dtype=np.float64,
 )
-QUADRATURE_ORDERS: tuple[int, int] = (256, 512)
+QUADRATURE_ORDERS: Tuple[int, int] = (256, 512)
 NORMALIZATION_WIDTHS: np.ndarray = np.asarray(
     [
         (1.0e-6, 1.0e-6),
@@ -220,7 +221,7 @@ def _array_bytes(array: np.ndarray) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, np.ndarray],
+    arrays: Dict[str, np.ndarray],
 ) -> None:
     """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
 
@@ -282,7 +283,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _positive_payload() -> dict[str, np.ndarray]:
+def _positive_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Build the complete positive-width SciPy value table.
 
     Returns
@@ -331,7 +332,7 @@ def _positive_payload() -> dict[str, np.ndarray]:
     }
 
 
-def _endpoint_payload() -> dict[str, np.ndarray]:
+def _endpoint_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Build the exact Gaussian and Cauchy endpoint rows.
 
     Returns
@@ -346,7 +347,7 @@ def _endpoint_payload() -> dict[str, np.ndarray]:
     and one pure-Cauchy row ``(0, anchor)``; both closed forms come
     from their textbook normalized expressions.
     """
-    width_rows: list[tuple[float, float]] = []
+    width_rows: list[Tuple[float, float]] = []
     energies: list[np.ndarray] = []
     values: list[np.ndarray] = []
     anchor: float
@@ -367,7 +368,7 @@ def _endpoint_payload() -> dict[str, np.ndarray]:
     }
 
 
-def _one_sided_payload() -> dict[str, np.ndarray]:
+def _one_sided_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Build positive rungs and endpoint-convergence rates.
 
     Returns
@@ -391,7 +392,7 @@ def _one_sided_payload() -> dict[str, np.ndarray]:
     shrinks gamma toward the Gaussian endpoint at first order
     (differences shrink 4x).
     """
-    width_rows: list[tuple[float, float]] = []
+    width_rows: list[Tuple[float, float]] = []
     energies: list[np.ndarray] = []
     values: list[np.ndarray] = []
     endpoint_values: list[np.ndarray] = []
@@ -496,7 +497,7 @@ def _profile(
     return special.voigt_profile(displacement, sigma, gamma)
 
 
-def _normalization_payload() -> dict[str, np.ndarray]:
+def _normalization_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Evaluate the frozen scaled full-line quadrature battery.
 
     Returns
@@ -573,7 +574,7 @@ def _normalization_payload() -> dict[str, np.ndarray]:
     }
 
 
-def _envelope_payload() -> dict[str, np.ndarray]:
+def _envelope_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Build the three closed-envelope boundary rows.
 
     Returns
@@ -712,7 +713,7 @@ def _five_point_derivative(
     ) / (12.0 * step)
 
 
-def _d1_payload() -> dict[str, np.ndarray]:
+def _d1_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Build analytic point derivatives and contracted D1 truth.
 
     Returns
@@ -849,7 +850,7 @@ def _stable_fermi(energy: np.ndarray) -> np.ndarray:
     return occupation
 
 
-def _novice_payload() -> dict[str, np.ndarray]:
+def _novice_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Assemble the fixed-seed true-Voigt novice spectrum.
 
     Returns
@@ -881,7 +882,7 @@ def _novice_payload() -> dict[str, np.ndarray]:
     }
 
 
-def _reference_payload() -> dict[str, np.ndarray]:
+def _reference_payload() -> Dict[str, np.ndarray]:
     """PRIVATE: Assemble every G2/D1 reference table into one payload.
 
     Returns
@@ -895,7 +896,7 @@ def _reference_payload() -> dict[str, np.ndarray]:
     Later payloads share no keys with earlier ones, so the update
     sequence never overwrites an entry.
     """
-    payload: dict[str, np.ndarray] = {
+    payload: Dict[str, np.ndarray] = {
         "anchors": ANCHORS,
         "center": np.asarray(CENTER, dtype=np.float64),
         "novice_band_weights": NOVICE_BAND_WEIGHTS,
@@ -922,15 +923,15 @@ def main() -> None:
     historical_path: Path = data_directory / "novice_toy_pseudo_voigt.npz"
     manifest_path: Path = data_directory / "voigt_scipy_manifest.json"
 
-    reference_payload: dict[str, np.ndarray] = _reference_payload()
-    novice_payload: dict[str, np.ndarray] = _novice_payload()
+    reference_payload: Dict[str, np.ndarray] = _reference_payload()
+    novice_payload: Dict[str, np.ndarray] = _novice_payload()
     _write_deterministic_npz(reference_path, reference_payload)
     _write_deterministic_npz(novice_path, novice_payload)
     if _sha256(historical_path) != HISTORICAL_PSEUDO_VOIGT_SHA256:
         raise RuntimeError("historical pseudo-Voigt archive digest changed")
 
     generator_path: Path = Path(__file__).resolve()
-    manifest: dict[str, Any] = {
+    manifest: Dict[str, Any] = {
         "archives": {
             "historical_pseudo_voigt": {
                 "classification": (

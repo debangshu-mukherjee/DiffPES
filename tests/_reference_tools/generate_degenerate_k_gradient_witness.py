@@ -49,20 +49,21 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 
-DIRAC_K: tuple[float, float, float] = (2.0 / 3.0, 1.0 / 3.0, 0.0)
-KRAMERS_K: tuple[float, float, float] = (0.173, -0.219, 0.083)
+DIRAC_K: Tuple[float, float, float] = (2.0 / 3.0, 1.0 / 3.0, 0.0)
+KRAMERS_K: Tuple[float, float, float] = (0.173, -0.219, 0.083)
 GRAPHENE_HOPPING_EV: float = -2.7
 ONE_BOND_VIEW_INDEX: int = 0
-SCALE_VIEW_INDICES: tuple[int, int, int] = (0, 2, 4)
-GRAPHENE_SOURCE: tuple[complex, complex] = (0.6 + 0.35j, -0.45 + 0.8j)
+SCALE_VIEW_INDICES: Tuple[int, int, int] = (0, 2, 4)
+GRAPHENE_SOURCE: Tuple[complex, complex] = (0.6 + 0.35j, -0.45 + 0.8j)
 GRAPHENE_OMEGA_EV: float = 0.15
 GRAPHENE_ETA_EV: float = 0.05
 T2G_COUPLING_EV: float = 0.4
-CRYSTAL_FIELD_VIEW_INDICES: tuple[int, int] = (0, 3)
+CRYSTAL_FIELD_VIEW_INDICES: Tuple[int, int] = (0, 3)
 CRYSTAL_FIELD_CHECK_DELTA_EV: float = 0.3
-T2G_SOURCE: tuple[complex, ...] = (
+T2G_SOURCE: Tuple[complex, ...] = (
     0.31 - 0.44j,
     -0.52 + 0.17j,
     0.23 + 0.61j,
@@ -72,7 +73,7 @@ T2G_SOURCE: tuple[complex, ...] = (
 )
 T2G_OMEGA_EV: float = 0.1
 T2G_GAMMA_EV: float = 0.06
-FD_STEPS: tuple[float, float, float] = (2.0**-12, 2.0**-14, 2.0**-16)
+FD_STEPS: Tuple[float, float, float] = (2.0**-12, 2.0**-14, 2.0**-16)
 
 
 def _sha256(path: Path) -> str:
@@ -210,7 +211,7 @@ def _central_fd_ladder(
     return derivatives
 
 
-def _graphene_payload(factories: Any) -> dict[str, Any]:
+def _graphene_payload(factories: Any) -> Dict[str, Any]:
     """PRIVATE: Measure the graphene one-bond witness and its negative control.
 
     Parameters
@@ -408,7 +409,7 @@ def _graphene_payload(factories: Any) -> dict[str, Any]:
     }
 
 
-def _t2g_payload(factories: Any) -> dict[str, Any]:
+def _t2g_payload(factories: Any) -> Dict[str, Any]:
     """PRIVATE: Measure the t2g spin--orbit Kramers crystal-field witness.
 
     Parameters
@@ -563,7 +564,7 @@ def main() -> None:
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
     data_directory.mkdir(parents=True, exist_ok=True)
     fixture_path: Path = data_directory / "degenerate_k_gradient_witness.json"
-    payload: dict[str, Any] = {
+    payload: Dict[str, Any] = {
         "fixture": "degenerate_k_gradient_witness",
         "requirement": "degenerate-k-gradient-witness",
         "witness_registry": (

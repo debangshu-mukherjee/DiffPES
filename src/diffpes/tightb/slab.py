@@ -49,6 +49,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
@@ -76,7 +77,7 @@ from diffpes.types import (
 )
 
 
-def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
+def _extended_gcd(first: int, second: int) -> Tuple[int, int, int]:
     """PRIVATE: Return nonnegative gcd and signed Bezout coefficients.
 
     Parameters
@@ -88,7 +89,7 @@ def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
 
     Returns
     -------
-    result : tuple[int, int, int]
+    result : Tuple[int, int, int]
         Values ``(g, x, y)`` with nonnegative ``g = gcd(first, second)``
         and exactly ``x * first + y * second == g``.
 
@@ -118,7 +119,7 @@ def _extended_gcd(first: int, second: int) -> tuple[int, int, int]:
         old_other, other = other, old_other - quotient * other
     signed_first: int = old_coefficient if first >= 0 else -old_coefficient
     signed_second: int = old_other if second >= 0 else -old_other
-    result: tuple[int, int, int] = (
+    result: Tuple[int, int, int] = (
         old_remainder,
         signed_first,
         signed_second,
@@ -161,18 +162,18 @@ def _determinant_3x3(matrix: Int64[NDArray, "3 3"]) -> int:
 
 
 def _primitive_integer_frame(
-    miller: tuple[int, int, int],
-) -> tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]:
+    miller: Tuple[int, int, int],
+) -> Tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]:
     """PRIVATE: Construct an oriented integer kernel basis and unit advance.
 
     Parameters
     ----------
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Primitive (gcd-reduced) Miller indices.
 
     Returns
     -------
-    result : tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]
+    result : Tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]]
         Two integer lattice vectors spanning the Miller plane and one
         stacking vector that advances exactly one plane.
 
@@ -247,7 +248,7 @@ def _primitive_integer_frame(
         raise ValueError(message)
     if determinant < 0:
         kernel[1] *= -1
-    result: tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]] = (
+    result: Tuple[Int64[NDArray, "2 3"], Int64[NDArray, " 3"]] = (
         kernel,
         stacking,
     )
@@ -373,12 +374,12 @@ def _closest_stacking_vector(
                 dtype=np.int64,
             )
             candidate_norm: float = perpendicular_norm_squared(coefficients)
-            candidate_key: tuple[float, int, int] = (
+            candidate_key: Tuple[float, int, int] = (
                 candidate_norm,
                 first_coefficient,
                 second_coefficient,
             )
-            best_key: tuple[float, int, int] = (
+            best_key: Tuple[float, int, int] = (
                 best_norm,
                 int(best_coefficients[0]),
                 int(best_coefficients[1]),
@@ -391,18 +392,18 @@ def _closest_stacking_vector(
 
 
 def _validate_miller(
-    miller: tuple[int, int, int],
-) -> tuple[int, int, int]:
+    miller: Tuple[int, int, int],
+) -> Tuple[int, int, int]:
     """PRIVATE: Validate a static primitive Miller tuple.
 
     Parameters
     ----------
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Candidate Miller indices.
 
     Returns
     -------
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         The unchanged, validated tuple.
 
     Raises
@@ -505,12 +506,12 @@ def _surface_rotation(
 
 def _assemble_surface_cell(
     geometry: CrystalGeometry,
-    miller: tuple[int, int, int],
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    miller: Tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ],
-    stacking_coeffs: tuple[int, int, int],
+    stacking_coeffs: Tuple[int, int, int],
 ) -> SurfaceCell:
     """PRIVATE: Assemble continuous surface geometry from frozen topology.
 
@@ -518,11 +519,11 @@ def _assemble_surface_cell(
     ----------
     geometry : CrystalGeometry
         Differentiable bulk geometry.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Static primitive Miller indices.
-    in_plane_coeffs : tuple[tuple[int, int, int], tuple[int, int, int]]
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
         Frozen integer coefficients of the two in-plane vectors.
-    stacking_coeffs : tuple[int, int, int]
+    stacking_coeffs : Tuple[int, int, int]
         Frozen integer coefficients of the one-plane stacking vector.
 
     Returns
@@ -570,7 +571,7 @@ def _assemble_surface_cell(
 @jaxtyped(typechecker=beartype)
 def find_surface_cell(  # noqa: DOC502
     geometry: CrystalGeometry,
-    miller: tuple[int, int, int],
+    miller: Tuple[int, int, int],
 ) -> SurfaceCell:
     """Build an exact primitive surface cell for one Miller plane.
 
@@ -584,7 +585,7 @@ def find_surface_cell(  # noqa: DOC502
     geometry : CrystalGeometry
         Bulk geometry. Continuous lattice leaves support differentiation
         within one selected integer surface topology.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Primitive Miller indices. The factory rejects nonprimitive tuples.
 
     Returns
@@ -610,7 +611,7 @@ def find_surface_cell(  # noqa: DOC502
 
     :see: :class:`~.test_slab.TestFindSurfaceCell`
     """
-    primitive_miller: tuple[int, int, int] = _validate_miller(miller)
+    primitive_miller: Tuple[int, int, int] = _validate_miller(miller)
     lattice_snapshot: Float64[NDArray, "3 3"] = np.asarray(
         geometry.lattice,
         dtype=np.float64,
@@ -624,14 +625,14 @@ def find_surface_cell(  # noqa: DOC502
         kernel,
         lattice_snapshot,
     )
-    in_plane_coeffs: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ] = (
         tuple(int(value) for value in kernel[0]),
         tuple(int(value) for value in kernel[1]),
     )
-    stacking_coeffs: tuple[int, int, int] = tuple(
+    stacking_coeffs: Tuple[int, int, int] = tuple(
         int(value) for value in stacking
     )
     surface_cell: SurfaceCell = _assemble_surface_cell(
@@ -645,7 +646,7 @@ def find_surface_cell(  # noqa: DOC502
 
 def _shell_groups(
     model: TBModel,
-) -> dict[tuple[int, int, int, int], list[int]]:
+) -> Dict[Tuple[int, int, int, int], list[int]]:
     """PRIVATE: Compute orbital groups by site, principal shell, l, and spin.
 
     Parameters
@@ -655,7 +656,7 @@ def _shell_groups(
 
     Returns
     -------
-    groups : dict[tuple[int, int, int, int], list[int]]
+    groups : Dict[Tuple[int, int, int, int], list[int]]
         Map from ``(atom, n, l, spin)`` to the basis positions of that
         shell's orbitals.
 
@@ -665,7 +666,7 @@ def _shell_groups(
     so each spatial shell forms one group. The groups are the units on
     which Wigner rotation blocks act.
     """
-    groups: dict[tuple[int, int, int, int], list[int]] = {}
+    groups: Dict[Tuple[int, int, int, int], list[int]] = {}
     orbital: int
     atom: int
     principal: int
@@ -691,9 +692,9 @@ def _shell_groups(
 
 def _missing_magnetic_numbers(
     model: TBModel,
-) -> dict[
-    tuple[int, int, int, int],
-    tuple[int, ...],
+) -> Dict[
+    Tuple[int, int, int, int],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Return missing m values for every incomplete shell.
 
@@ -704,7 +705,7 @@ def _missing_magnetic_numbers(
 
     Returns
     -------
-    missing : dict[tuple[int, int, int, int], tuple[int, ...]]
+    missing : Dict[Tuple[int, int, int, int], Tuple[int, ...]]
         Map from every incomplete ``(atom, n, l, spin)`` shell to its
         absent magnetic numbers. Complete shells do not appear.
 
@@ -716,14 +717,14 @@ def _missing_magnetic_numbers(
     callers must test dictionary membership, not tuple truth. Only
     complete shells support a covariant Wigner rotation.
     """
-    missing: dict[tuple[int, int, int, int], tuple[int, ...]] = {}
-    key: tuple[int, int, int, int]
+    missing: Dict[Tuple[int, int, int, int], Tuple[int, ...]] = {}
+    key: Tuple[int, int, int, int]
     indices: list[int]
     for key, indices in _shell_groups(model).items():
         angular: int = key[2]
         present: list[int] = [model.basis.m[index] for index in indices]
         expected: set[int] = set(range(-angular, angular + 1))
-        absent: tuple[int, ...] = tuple(sorted(expected - set(present)))
+        absent: Tuple[int, ...] = tuple(sorted(expected - set(present)))
         duplicated: bool = len(present) != len(set(present))
         if absent or duplicated or len(present) != 2 * angular + 1:
             missing[key] = absent
@@ -732,7 +733,7 @@ def _missing_magnetic_numbers(
 
 def _rotation_euler_zyz(
     rotation: Float64[Array, "3 3"],
-) -> tuple[Float64[Array, ""], Float64[Array, ""], Float64[Array, ""]]:
+) -> Tuple[Float64[Array, ""], Float64[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Convert one active Cartesian rotation to guarded z-y-z angles.
 
     Parameters
@@ -789,7 +790,7 @@ def _rotation_euler_zyz(
         generic_gamma,
         0.0,
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, ""],
         Float64[Array, ""],
         Float64[Array, ""],
@@ -927,7 +928,7 @@ def _orbital_rotation(
         (n_orbitals, n_orbitals),
         dtype=jnp.complex128,
     )
-    angular_matrices: dict[int, Complex128[Array, "m1 m2"]] = {
+    angular_matrices: Dict[int, Complex128[Array, "m1 m2"]] = {
         angular: _real_wigner(angular, alpha, beta, gamma)
         for angular in set(model.basis.l)
     }
@@ -967,7 +968,7 @@ def _orbital_rotation(
 
 def _translation_blocks(
     model: TBModel,
-) -> tuple[tuple[tuple[int, int, int], ...], Complex128[Array, "n_r n_o n_o"]]:
+) -> Tuple[Tuple[Tuple[int, int, int], ...], Complex128[Array, "n_r n_o n_o"]]:
     """PRIVATE: Materialize translation blocks with diagonal onsite terms.
 
     Parameters
@@ -990,8 +991,8 @@ def _translation_blocks(
     conjugation rotate arbitrary onsite and hopping structure without
     assuming shell degeneracy.
     """
-    zero_cell: tuple[int, int, int] = (0, 0, 0)
-    cells: tuple[tuple[int, int, int], ...] = tuple(
+    zero_cell: Tuple[int, int, int] = (0, 0, 0)
+    cells: Tuple[Tuple[int, int, int], ...] = tuple(
         sorted(set(model.hopping_cells) | {zero_cell})
     )
     n_orbitals: int = len(model.basis.n)
@@ -999,12 +1000,12 @@ def _translation_blocks(
         (len(cells), n_orbitals, n_orbitals),
         dtype=jnp.complex128,
     )
-    cell_lookup: dict[tuple[int, int, int], int] = {
+    cell_lookup: Dict[Tuple[int, int, int], int] = {
         cell: index for index, cell in enumerate(cells)
     }
     hopping: int
-    pair: tuple[int, int]
-    cell: tuple[int, int, int]
+    pair: Tuple[int, int]
+    cell: Tuple[int, int, int]
     for hopping, (pair, cell) in enumerate(
         zip(model.hopping_pairs, model.hopping_cells, strict=True)
     ):
@@ -1017,8 +1018,8 @@ def _translation_blocks(
     blocks = blocks.at[cell_lookup[zero_cell], diagonal, diagonal].add(
         model.onsite_energies
     )
-    result: tuple[
-        tuple[tuple[int, int, int], ...],
+    result: Tuple[
+        Tuple[Tuple[int, int, int], ...],
         Complex128[Array, "n_r n_o n_o"],
     ] = (cells, blocks)
     return result
@@ -1064,9 +1065,9 @@ def rotate_tb_model(  # noqa: DOC503
         rotation,
         dtype=jnp.float64,
     )
-    missing: dict[
-        tuple[int, int, int, int],
-        tuple[int, ...],
+    missing: Dict[
+        Tuple[int, int, int, int],
+        Tuple[int, ...],
     ] = _missing_magnetic_numbers(model)
     if missing:
         error: TypeError
@@ -1116,7 +1117,7 @@ def rotate_tb_model(  # noqa: DOC503
         model,
         rotation_array,
     )
-    cells: tuple[tuple[int, int, int], ...]
+    cells: Tuple[Tuple[int, int, int], ...]
     blocks: Complex128[Array, "n_r n_o n_o"]
     cells, blocks = _translation_blocks(model)
     rotated_blocks: Complex128[Array, "n_r n_o n_o"] = (
@@ -1125,13 +1126,13 @@ def rotate_tb_model(  # noqa: DOC503
         @ representation.conj().T[None, :, :]
     )
     n_orbitals: int = len(model.basis.n)
-    hopping_pairs: tuple[tuple[int, int], ...] = tuple(
+    hopping_pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column)
         for _cell in cells
         for row in range(n_orbitals)
         for column in range(n_orbitals)
     )
-    hopping_cells: tuple[tuple[int, int, int], ...] = tuple(
+    hopping_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         cell
         for cell in cells
         for _row in range(n_orbitals)
@@ -1266,7 +1267,7 @@ def _inverse_integer_matrix(
 def _base_surface_coordinates(
     geometry: CrystalGeometry,
     inverse_coefficients: Int64[NDArray, "3 3"],
-) -> tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]:
+) -> Tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]:
     """PRIVATE: Compute atom representatives and integer surface-cell shifts.
 
     Parameters
@@ -1278,7 +1279,7 @@ def _base_surface_coordinates(
 
     Returns
     -------
-    result : tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]
+    result : Tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]]
         Surface fractional representatives in ``[0, 1)`` and the exact
         integer shifts removed from every atom.
 
@@ -1298,7 +1299,7 @@ def _base_surface_coordinates(
     ).astype(np.int64)
     base: Float64[NDArray, "n_atom 3"] = surface_coordinates - shifts
     base[np.isclose(base, 1.0, atol=1e-10)] = 0.0
-    result: tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]] = (
+    result: Tuple[Float64[NDArray, "n_atom 3"], Int64[NDArray, "n_atom 3"]] = (
         base,
         shifts,
     )
@@ -1311,8 +1312,8 @@ def _natural_atom_copies(
     surface_vectors: Float64[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
-    fine: tuple[float, float],
-) -> tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]:
+    fine: Tuple[float, float],
+) -> Tuple[Tuple[int, ...], Tuple[int, ...], Tuple[str, str]]:
     """PRIVATE: Select the smallest natural stack meeting the minimum span.
 
     Parameters
@@ -1327,12 +1328,12 @@ def _natural_atom_copies(
         Starting number of stacked one-plane layers.
     thickness_ang : float
         Minimum retained material span in Angstrom.
-    fine : tuple[float, float]
+    fine : Tuple[float, float]
         Inward ``(top, bottom)`` cut shifts in Angstrom.
 
     Returns
     -------
-    result : tuple[tuple[int, ...], tuple[int, ...], tuple[str, str]]
+    result : Tuple[Tuple[int, ...], Tuple[int, ...], Tuple[str, str]]
         Bulk atom index and normalized layer of every retained copy, and
         the resolved ``(top, bottom)`` termination species.
 
@@ -1365,7 +1366,7 @@ def _natural_atom_copies(
     )
     extra_span: float = max(abs(fine[0]), abs(fine[1]))
     padding: int = int(math.ceil(extra_span / spacing)) + 1
-    candidates: list[tuple[float, int, int]] = []
+    candidates: list[Tuple[float, int, int]] = []
     expanded_layers: int
     for expanded_layers in range(
         n_layers,
@@ -1395,32 +1396,32 @@ def _natural_atom_copies(
         )
         raise ValueError(message)
     candidates.sort(key=lambda row: (row[2], row[1]))
-    unique_layers: tuple[int, ...] = tuple(
+    unique_layers: Tuple[int, ...] = tuple(
         sorted({row[2] for row in candidates})
     )
-    layer_map: dict[int, int] = {
+    layer_map: Dict[int, int] = {
         original: normalized
         for normalized, original in enumerate(unique_layers)
     }
-    bulk_atoms: tuple[int, ...] = tuple(row[1] for row in candidates)
-    layers: tuple[int, ...] = tuple(layer_map[row[2]] for row in candidates)
+    bulk_atoms: Tuple[int, ...] = tuple(row[1] for row in candidates)
+    layers: Tuple[int, ...] = tuple(layer_map[row[2]] for row in candidates)
     heights: Float64[NDArray, " n_candidate"] = np.asarray(
         [row[0] for row in candidates],
         dtype=np.float64,
     )
     bottom_index: int = int(np.argmin(heights))
     top_index: int = int(np.argmax(heights))
-    species: tuple[str, ...] = geometry.species
+    species: Tuple[str, ...] = geometry.species
     if not species:
         species = tuple("X" for _ in range(geometry.positions.shape[0]))
-    termination: tuple[str, str] = (
+    termination: Tuple[str, str] = (
         species[candidates[top_index][1]],
         species[candidates[bottom_index][1]],
     )
-    result: tuple[
-        tuple[int, ...],
-        tuple[int, ...],
-        tuple[str, str],
+    result: Tuple[
+        Tuple[int, ...],
+        Tuple[int, ...],
+        Tuple[str, str],
     ] = (bulk_atoms, layers, termination)
     return result
 
@@ -1431,9 +1432,9 @@ def _terminated_atom_copies(  # noqa: PLR0913
     surface_vectors: Float64[NDArray, "3 3"],
     n_layers: int,
     thickness_ang: float,
-    termination: tuple[str, str],
-    fine: tuple[float, float],
-) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    termination: Tuple[str, str],
+    fine: Tuple[float, float],
+) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
     """PRIVATE: Compute a post-fine stack with requested endpoint species.
 
     Parameters
@@ -1448,14 +1449,14 @@ def _terminated_atom_copies(  # noqa: PLR0913
         Starting number of stacked one-plane layers.
     thickness_ang : float
         Minimum retained material span in Angstrom.
-    termination : tuple[str, str]
+    termination : Tuple[str, str]
         Requested ``(top, bottom)`` species.
-    fine : tuple[float, float]
+    fine : Tuple[float, float]
         Inward ``(top, bottom)`` cut shifts in Angstrom.
 
     Returns
     -------
-    result : tuple[tuple[int, ...], tuple[int, ...]]
+    result : Tuple[Tuple[int, ...], Tuple[int, ...]]
         Bulk atom index and normalized layer of every retained copy.
 
     Raises
@@ -1491,7 +1492,7 @@ def _terminated_atom_copies(  # noqa: PLR0913
     )
     extra_span: float = max(abs(fine[0]), abs(fine[1]))
     padding: int = int(math.ceil(extra_span / spacing)) + 2
-    kept: list[tuple[float, int, int, str]] = []
+    kept: list[Tuple[float, int, int, str]] = []
     expanded_layers: int
     for expanded_layers in range(
         n_layers,
@@ -1500,7 +1501,7 @@ def _terminated_atom_copies(  # noqa: PLR0913
         baseline_top: float = base_top + (expanded_layers - 1) * spacing
         bottom_cut: float = baseline_bottom + fine[1]
         top_cut: float = baseline_top - fine[0]
-        candidates: list[tuple[float, int, int, str]] = []
+        candidates: list[Tuple[float, int, int, str]] = []
         layer: int
         atom: int
         for layer in range(-padding, expanded_layers + padding):
@@ -1510,19 +1511,19 @@ def _terminated_atom_copies(  # noqa: PLR0913
                     candidates.append(
                         (height, atom, layer, geometry.species[atom])
                     )
-        bottom_rows: tuple[tuple[float, int, int, str], ...] = tuple(
+        bottom_rows: Tuple[Tuple[float, int, int, str], ...] = tuple(
             row for row in candidates if row[3] == bottom_species
         )
-        top_rows: tuple[tuple[float, int, int, str], ...] = tuple(
+        top_rows: Tuple[Tuple[float, int, int, str], ...] = tuple(
             row for row in candidates if row[3] == top_species
         )
         if not bottom_rows or not top_rows:
             continue
-        bottom: tuple[float, int, int, str] = min(
+        bottom: Tuple[float, int, int, str] = min(
             bottom_rows,
             key=lambda row: (row[0], row[2], row[1]),
         )
-        top: tuple[float, int, int, str] = max(
+        top: Tuple[float, int, int, str] = max(
             top_rows,
             key=lambda row: (row[0], row[2], row[1]),
         )
@@ -1541,25 +1542,25 @@ def _terminated_atom_copies(  # noqa: PLR0913
         )
         raise ValueError(message)
     kept.sort(key=lambda row: (row[2], row[1]))
-    unique_layers: tuple[int, ...] = tuple(sorted({row[2] for row in kept}))
-    layer_map: dict[int, int] = {
+    unique_layers: Tuple[int, ...] = tuple(sorted({row[2] for row in kept}))
+    layer_map: Dict[int, int] = {
         original: normalized
         for normalized, original in enumerate(unique_layers)
     }
-    bulk_atoms: tuple[int, ...] = tuple(row[1] for row in kept)
-    layers: tuple[int, ...] = tuple(layer_map[row[2]] for row in kept)
-    result: tuple[tuple[int, ...], tuple[int, ...]] = (bulk_atoms, layers)
+    bulk_atoms: Tuple[int, ...] = tuple(row[1] for row in kept)
+    layers: Tuple[int, ...] = tuple(layer_map[row[2]] for row in kept)
+    result: Tuple[Tuple[int, ...], Tuple[int, ...]] = (bulk_atoms, layers)
     return result
 
 
 def _orbital_copy_metadata(
     basis: OrbitalBasis,
-    bulk_atom_of_slab_atom: tuple[int, ...],
-    layer_of_slab_atom: tuple[int, ...],
-) -> tuple[
-    tuple[int, ...],
-    tuple[int, ...],
-    tuple[int, ...],
+    bulk_atom_of_slab_atom: Tuple[int, ...],
+    layer_of_slab_atom: Tuple[int, ...],
+) -> Tuple[
+    Tuple[int, ...],
+    Tuple[int, ...],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Compute each slab orbital's bulk, atom, and layer mapping.
 
@@ -1567,14 +1568,14 @@ def _orbital_copy_metadata(
     ----------
     basis : OrbitalBasis
         Bulk orbital basis.
-    bulk_atom_of_slab_atom : tuple[int, ...]
+    bulk_atom_of_slab_atom : Tuple[int, ...]
         Frozen bulk atom index of every slab atom.
-    layer_of_slab_atom : tuple[int, ...]
+    layer_of_slab_atom : Tuple[int, ...]
         Frozen layer of every slab atom.
 
     Returns
     -------
-    result : tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]
+    result : Tuple[Tuple[int, ...], Tuple[int, ...], Tuple[int, ...]]
         Bulk orbital, slab atom index, and layer for every slab orbital.
 
     Notes
@@ -1583,7 +1584,7 @@ def _orbital_copy_metadata(
     atom's orbitals in bulk basis order. The slab orbital ordering is
     therefore deterministic and reproducible from the topology alone.
     """
-    orbitals_by_atom: dict[int, list[int]] = {}
+    orbitals_by_atom: Dict[int, list[int]] = {}
     bulk_orbital: int
     for bulk_orbital, atom in enumerate(basis.atom_indices):
         orbitals_by_atom.setdefault(atom, []).append(bulk_orbital)
@@ -1605,10 +1606,10 @@ def _orbital_copy_metadata(
             slab_to_bulk.append(bulk_orbital)
             slab_atom_indices.append(slab_atom)
             slab_layers.append(layer)
-    result: tuple[
-        tuple[int, ...],
-        tuple[int, ...],
-        tuple[int, ...],
+    result: Tuple[
+        Tuple[int, ...],
+        Tuple[int, ...],
+        Tuple[int, ...],
     ] = (
         tuple(slab_to_bulk),
         tuple(slab_atom_indices),
@@ -1619,9 +1620,9 @@ def _orbital_copy_metadata(
 
 def _slab_basis(
     basis: OrbitalBasis,
-    slab_to_bulk: tuple[int, ...],
-    slab_atom_indices: tuple[int, ...],
-    slab_layers: tuple[int, ...],
+    slab_to_bulk: Tuple[int, ...],
+    slab_atom_indices: Tuple[int, ...],
+    slab_layers: Tuple[int, ...],
 ) -> OrbitalBasis:
     """PRIVATE: Create static orbital metadata for one frozen slab topology.
 
@@ -1629,11 +1630,11 @@ def _slab_basis(
     ----------
     basis : OrbitalBasis
         Bulk orbital basis.
-    slab_to_bulk : tuple[int, ...]
+    slab_to_bulk : Tuple[int, ...]
         Bulk orbital behind every slab orbital.
-    slab_atom_indices : tuple[int, ...]
+    slab_atom_indices : Tuple[int, ...]
         Slab atom index of every slab orbital.
-    slab_layers : tuple[int, ...]
+    slab_layers : Tuple[int, ...]
         Layer of every slab orbital.
 
     Returns
@@ -1648,11 +1649,11 @@ def _slab_basis(
     for an unlabeled bulk basis, so every layer copy keeps a distinct
     name.
     """
-    labels: tuple[str, ...] = tuple(
+    labels: Tuple[str, ...] = tuple(
         f"{basis.labels[bulk] if basis.labels else f'orb{bulk}'}@L{layer}"
         for bulk, layer in zip(slab_to_bulk, slab_layers, strict=True)
     )
-    spin: tuple[int, ...] = (
+    spin: Tuple[int, ...] = (
         tuple(basis.spin[bulk] for bulk in slab_to_bulk) if basis.spin else ()
     )
     slab_basis: OrbitalBasis = make_orbital_basis(
@@ -1668,23 +1669,23 @@ def _slab_basis(
 
 def _slab_shell_metadata(
     model: TBModel,
-    slab_to_bulk: tuple[int, ...],
-    slab_atom_indices: tuple[int, ...],
-) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    slab_to_bulk: Tuple[int, ...],
+    slab_atom_indices: Tuple[int, ...],
+) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
     """PRIVATE: Create SOC shell IDs and their bulk-shell gather.
 
     Parameters
     ----------
     model : TBModel
         Bulk model carrying the original shell map.
-    slab_to_bulk : tuple[int, ...]
+    slab_to_bulk : Tuple[int, ...]
         Bulk orbital behind every slab orbital.
-    slab_atom_indices : tuple[int, ...]
+    slab_atom_indices : Tuple[int, ...]
         Slab atom index of every slab orbital.
 
     Returns
     -------
-    result : tuple[tuple[int, ...], tuple[int, ...]]
+    result : Tuple[Tuple[int, ...], Tuple[int, ...]]
         Contiguous slab shell ID per orbital, with ``-1`` preserved for
         excluded orbitals, and the bulk shell behind every new ID.
 
@@ -1695,7 +1696,7 @@ def _slab_shell_metadata(
     rebuild index bulk ``soc_lambdas``, so each atom copy keeps its bulk
     coupling strength.
     """
-    shell_lookup: dict[tuple[int, int], int] = {}
+    shell_lookup: Dict[Tuple[int, int], int] = {}
     slab_shells: list[int] = []
     bulk_shell_gather: list[int] = []
     slab_orbital: int
@@ -1705,7 +1706,7 @@ def _slab_shell_metadata(
         if bulk_shell < 0:
             slab_shells.append(-1)
             continue
-        key: tuple[int, int] = (
+        key: Tuple[int, int] = (
             slab_atom_indices[slab_orbital],
             bulk_shell,
         )
@@ -1713,7 +1714,7 @@ def _slab_shell_metadata(
             shell_lookup[key] = len(shell_lookup)
             bulk_shell_gather.append(bulk_shell)
         slab_shells.append(shell_lookup[key])
-    result: tuple[tuple[int, ...], tuple[int, ...]] = (
+    result: Tuple[Tuple[int, ...], Tuple[int, ...]] = (
         tuple(slab_shells),
         tuple(bulk_shell_gather),
     )
@@ -1723,11 +1724,11 @@ def _slab_shell_metadata(
 def _orbital_lookup(
     model: TBModel,
     spec: SlabSpec,
-) -> tuple[
-    tuple[int, ...],
-    tuple[int, ...],
-    tuple[int, ...],
-    dict[tuple[int, int], int],
+) -> Tuple[
+    Tuple[int, ...],
+    Tuple[int, ...],
+    Tuple[int, ...],
+    Dict[Tuple[int, int], int],
 ]:
     """PRIVATE: Create deterministic slab-orbital lookup metadata.
 
@@ -1750,25 +1751,25 @@ def _orbital_lookup(
     ``_orbital_copy_metadata``, so hopping propagation resolves a target
     orbital copy in constant time.
     """
-    slab_to_bulk: tuple[int, ...]
-    slab_atom_indices: tuple[int, ...]
-    slab_layers: tuple[int, ...]
+    slab_to_bulk: Tuple[int, ...]
+    slab_atom_indices: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
     slab_to_bulk, slab_atom_indices, slab_layers = _orbital_copy_metadata(
         model.basis,
         spec.bulk_atom_of_slab_atom,
         spec.layer_of_slab_atom,
     )
-    lookup: dict[tuple[int, int], int] = {
+    lookup: Dict[Tuple[int, int], int] = {
         (bulk, layer): slab
         for slab, (bulk, layer) in enumerate(
             zip(slab_to_bulk, slab_layers, strict=True)
         )
     }
-    result: tuple[
-        tuple[int, ...],
-        tuple[int, ...],
-        tuple[int, ...],
-        dict[tuple[int, int], int],
+    result: Tuple[
+        Tuple[int, ...],
+        Tuple[int, ...],
+        Tuple[int, ...],
+        Dict[Tuple[int, int], int],
     ] = (slab_to_bulk, slab_atom_indices, slab_layers, lookup)
     return result
 
@@ -1777,11 +1778,11 @@ def _propagate_hoppings_with_shifts(
     rotated_bulk: TBModel,
     spec: SlabSpec,
     atom_shifts: Int64[NDArray, "n_atom 3"],
-) -> tuple[
+) -> Tuple[
     Complex128[Array, " n_hop_slab"],
-    tuple[tuple[int, int], ...],
-    tuple[tuple[int, int, int], ...],
-    tuple[int, ...],
+    Tuple[Tuple[int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Propagate exact bulk hoppings through one frozen topology.
 
@@ -1815,23 +1816,23 @@ def _propagate_hoppings_with_shifts(
         spec.surface_cell
     )
     inverse: Int64[NDArray, "3 3"] = _inverse_integer_matrix(coefficients)
-    slab_to_bulk: tuple[int, ...]
-    slab_atom_indices: tuple[int, ...]
-    slab_layers: tuple[int, ...]
-    lookup: dict[tuple[int, int], int]
+    slab_to_bulk: Tuple[int, ...]
+    slab_atom_indices: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
+    lookup: Dict[Tuple[int, int], int]
     (
         slab_to_bulk,
         slab_atom_indices,
         slab_layers,
         lookup,
     ) = _orbital_lookup(rotated_bulk, spec)
-    pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
+    pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
     gather: list[int] = []
     slab_source: int
     bulk_source: int
-    pair: tuple[int, int]
-    bulk_cell: tuple[int, int, int]
+    pair: Tuple[int, int]
+    bulk_cell: Tuple[int, int, int]
     for slab_source, bulk_source in enumerate(slab_to_bulk):
         source_atom: int = rotated_bulk.basis.atom_indices[bulk_source]
         source_layer: int = slab_layers[slab_source]
@@ -1870,7 +1871,7 @@ def _propagate_hoppings_with_shifts(
             slab_target: int | None = lookup.get((bulk_target, target_layer))
             if slab_target is None:
                 continue
-            slab_cell: tuple[int, int, int] = (
+            slab_cell: Tuple[int, int, int] = (
                 int(target_surface_cell[0] + atom_shifts[target_atom, 0]),
                 int(target_surface_cell[1] + atom_shifts[target_atom, 1]),
                 0,
@@ -1878,16 +1879,16 @@ def _propagate_hoppings_with_shifts(
             pairs.append((slab_source, slab_target))
             cells.append(slab_cell)
             gather.append(hopping_index)
-    gather_tuple: tuple[int, ...] = tuple(gather)
+    gather_tuple: Tuple[int, ...] = tuple(gather)
     gather_array: Array = jnp.asarray(gather_tuple, dtype=jnp.int32)
     amplitudes: Complex128[Array, " n_hop_slab"] = (
         rotated_bulk.hopping_amplitudes[gather_array]
     )
-    result: tuple[
+    result: Tuple[
         Complex128[Array, " n_hop_slab"],
-        tuple[tuple[int, int], ...],
-        tuple[tuple[int, int, int], ...],
-        tuple[int, ...],
+        Tuple[Tuple[int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
+        Tuple[int, ...],
     ] = (amplitudes, tuple(pairs), tuple(cells), gather_tuple)
     return result
 
@@ -1896,11 +1897,11 @@ def _propagate_hoppings_with_shifts(
 def _propagate_hoppings(
     rotated_bulk: TBModel,
     spec: SlabSpec,
-) -> tuple[
+) -> Tuple[
     Complex128[Array, " n_hop_slab"],
-    tuple[tuple[int, int], ...],
-    tuple[tuple[int, int, int], ...],
-    tuple[int, ...],
+    Tuple[Tuple[int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Propagate hoppings after eagerly selecting representatives.
 
@@ -1933,11 +1934,11 @@ def _propagate_hoppings(
         rotated_bulk.geometry,
         inverse,
     )
-    result: tuple[
+    result: Tuple[
         Complex128[Array, " n_hop_slab"],
-        tuple[tuple[int, int], ...],
-        tuple[tuple[int, int, int], ...],
-        tuple[int, ...],
+        Tuple[Tuple[int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
+        Tuple[int, ...],
     ] = _propagate_hoppings_with_shifts(
         rotated_bulk,
         spec,
@@ -1961,8 +1962,8 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
     then searches the unfolded connected component for a top-to-bottom path
     carrying a nonzero accumulated image and reports the exact edge witness.
     """
-    offending: tuple[
-        tuple[int, tuple[int, int], tuple[int, int, int]],
+    offending: Tuple[
+        Tuple[int, Tuple[int, int], Tuple[int, int, int]],
         ...,
     ] = tuple(
         (index, pair, cell)
@@ -1971,13 +1972,13 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
         )
         if cell[2] != 0
     )
-    adjacency: dict[
+    adjacency: Dict[
         int,
-        list[tuple[int, int, int]],
+        list[Tuple[int, int, int]],
     ] = {}
     index: int
-    pair: tuple[int, int]
-    cell: tuple[int, int, int]
+    pair: Tuple[int, int]
+    cell: Tuple[int, int, int]
     for index, (pair, cell) in enumerate(
         zip(model.hopping_pairs, model.hopping_cells, strict=True)
     ):
@@ -1995,7 +1996,7 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
         )[:, 2]
         top_height: float = float(np.max(orbital_heights))
         bottom_height: float = float(np.min(orbital_heights))
-        top_orbitals: tuple[int, ...] = tuple(
+        top_orbitals: Tuple[int, ...] = tuple(
             int(index)
             for index in np.flatnonzero(
                 np.isclose(
@@ -2018,28 +2019,28 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
             )
         }
         maximum_steps: int = max(1, len(model.basis.n) - 1)
-        witness: tuple[int, ...] | None = None
+        witness: Tuple[int, ...] | None = None
         root: int
         source: int
         normal_image: int
-        path: tuple[int, ...]
+        path: Tuple[int, ...]
         edge_index: int
         target: int
         delta: int
         for root in top_orbitals:
-            queue: list[tuple[int, int, tuple[int, ...]]] = [(root, 0, ())]
-            visited: set[tuple[int, int]] = {(root, 0)}
+            queue: list[Tuple[int, int, Tuple[int, ...]]] = [(root, 0, ())]
+            visited: set[Tuple[int, int]] = {(root, 0)}
             while queue and witness is None:
                 source, normal_image, path = queue.pop(0)
                 if len(path) >= maximum_steps:
                     continue
                 for edge_index, target, delta in adjacency.get(source, ()):
                     target_image: int = normal_image + delta
-                    target_path: tuple[int, ...] = (*path, edge_index)
+                    target_path: Tuple[int, ...] = (*path, edge_index)
                     if target in bottom_orbitals and target_image != 0:
                         witness = target_path
                         break
-                    state: tuple[int, int] = (target, target_image)
+                    state: Tuple[int, int] = (target, target_image)
                     if state not in visited:
                         visited.add(state)
                         queue.append((target, target_image, target_path))
@@ -2061,13 +2062,13 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
     surface_cell: SurfaceCell,
     inverse_coefficients: Int64[NDArray, "3 3"],
     atom_shifts: Int64[NDArray, "n_atom 3"],
-    bulk_atoms: tuple[int, ...],
-    atom_layers: tuple[int, ...],
-    slab_to_bulk: tuple[int, ...],
-    slab_atom_indices: tuple[int, ...],
+    bulk_atoms: Tuple[int, ...],
+    atom_layers: Tuple[int, ...],
+    slab_to_bulk: Tuple[int, ...],
+    slab_atom_indices: Tuple[int, ...],
     n_layers: int,
     vacuum_ang: float,
-) -> tuple[
+) -> Tuple[
     CrystalGeometry,
     Float64[Array, " n_orb"],
     Float64[Array, "n_orb 3"] | None,
@@ -2084,13 +2085,13 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
         Exact inverse of the bulk-to-surface integer frame.
     atom_shifts : Int64[NDArray, "n_atom 3"]
         Frozen integer surface-cell shifts of the bulk atoms.
-    bulk_atoms : tuple[int, ...]
+    bulk_atoms : Tuple[int, ...]
         Frozen bulk atom index of every slab atom.
-    atom_layers : tuple[int, ...]
+    atom_layers : Tuple[int, ...]
         Frozen layer of every slab atom.
-    slab_to_bulk : tuple[int, ...]
+    slab_to_bulk : Tuple[int, ...]
         Bulk orbital behind every slab orbital.
-    slab_atom_indices : tuple[int, ...]
+    slab_atom_indices : Tuple[int, ...]
         Slab atom index of every slab orbital.
     n_layers : int
         Frozen number of stacked one-plane layers.
@@ -2166,12 +2167,12 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
     atom_fractional = atom_fractional.at[:, :2].set(
         jnp.mod(atom_fractional[:, :2], 1.0)
     )
-    species_source: tuple[str, ...] = rotated_bulk.geometry.species
+    species_source: Tuple[str, ...] = rotated_bulk.geometry.species
     if not species_source:
         species_source = tuple(
             "X" for _ in range(rotated_bulk.geometry.positions.shape[0])
         )
-    slab_species: tuple[str, ...] = tuple(
+    slab_species: Tuple[str, ...] = tuple(
         species_source[index] for index in bulk_atoms
     )
     slab_geometry: CrystalGeometry = make_crystal_geometry(
@@ -2235,7 +2236,7 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
     depths: Float64[Array, " n_orb"] = (
         jnp.max(depth_coordinates) - depth_coordinates
     )
-    result: tuple[
+    result: Tuple[
         CrystalGeometry,
         Float64[Array, " n_orb"],
         Float64[Array, "n_orb 3"] | None,
@@ -2246,11 +2247,11 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
 @jaxtyped(typechecker=beartype)
 def freeze_slab_topology(  # noqa: PLR0913
     bulk_model: TBModel,
-    miller: tuple[int, int, int],
+    miller: Tuple[int, int, int],
     thickness_ang: float,
     vacuum_ang: float,
-    termination: tuple[str, str] | None = None,
-    fine: tuple[float, float] = (0.0, 0.0),
+    termination: Tuple[str, str] | None = None,
+    fine: Tuple[float, float] = (0.0, 0.0),
 ) -> SlabTopology:
     """Freeze every discrete choice required to rebuild one slab.
 
@@ -2310,9 +2311,9 @@ def freeze_slab_topology(  # noqa: PLR0913
     n_layers: int = (
         int(math.ceil(thickness_ang / spacing_snapshot - 1e-12)) + 1
     )
-    bulk_atoms: tuple[int, ...]
-    atom_layers: tuple[int, ...]
-    resolved_termination: tuple[str, str]
+    bulk_atoms: Tuple[int, ...]
+    atom_layers: Tuple[int, ...]
+    resolved_termination: Tuple[str, str]
     if termination is None:
         (
             bulk_atoms,
@@ -2363,7 +2364,7 @@ def freeze_slab_topology(  # noqa: PLR0913
 def rebuild_slab(
     bulk_model: TBModel,
     topology: SlabTopology,
-) -> tuple[TBModel, SlabSpec]:
+) -> Tuple[TBModel, SlabSpec]:
     """Construct a slab from frozen topology using only JAX geometry.
 
     The function contains no host conversion of a traced model leaf. It is
@@ -2412,9 +2413,9 @@ def rebuild_slab(
         bulk_atom_of_slab_atom=topology.bulk_atom_of_slab_atom,
         layer_of_slab_atom=topology.layer_of_slab_atom,
     )
-    slab_to_bulk: tuple[int, ...]
-    slab_atom_indices: tuple[int, ...]
-    slab_layers: tuple[int, ...]
+    slab_to_bulk: Tuple[int, ...]
+    slab_atom_indices: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
     slab_to_bulk, slab_atom_indices, slab_layers = _orbital_copy_metadata(
         rotated_bulk.basis,
         topology.bulk_atom_of_slab_atom,
@@ -2426,8 +2427,8 @@ def rebuild_slab(
         slab_atom_indices,
         slab_layers,
     )
-    slab_shells: tuple[int, ...]
-    shell_gather: tuple[int, ...]
+    slab_shells: Tuple[int, ...]
+    shell_gather: Tuple[int, ...]
     slab_shells, shell_gather = _slab_shell_metadata(
         rotated_bulk,
         slab_to_bulk,
@@ -2449,9 +2450,9 @@ def rebuild_slab(
         topology.vacuum_ang,
     )
     amplitudes: Complex128[Array, " n_hop_slab"]
-    hopping_pairs: tuple[tuple[int, int], ...]
-    hopping_cells: tuple[tuple[int, int, int], ...]
-    _gather: tuple[int, ...]
+    hopping_pairs: Tuple[Tuple[int, int], ...]
+    hopping_cells: Tuple[Tuple[int, int, int], ...]
+    _gather: Tuple[int, ...]
     (
         amplitudes,
         hopping_pairs,
@@ -2484,19 +2485,19 @@ def rebuild_slab(
         depths=depths,
     )
     validate_open_surface_adjacency(slab_model)
-    result: tuple[TBModel, SlabSpec] = (slab_model, spec)
+    result: Tuple[TBModel, SlabSpec] = (slab_model, spec)
     return result
 
 
 @jaxtyped(typechecker=beartype)
 def gen_slab(  # noqa: DOC105, DOC502, PLR0913, PLR0915
     bulk_model: TBModel,
-    miller: tuple[int, int, int],
+    miller: Tuple[int, int, int],
     thickness_ang: float,
     vacuum_ang: float,
-    termination: tuple[str, str] | None = None,
-    fine: tuple[float, float] = (0.0, 0.0),
-) -> tuple[TBModel, SlabSpec]:
+    termination: Tuple[str, str] | None = None,
+    fine: Tuple[float, float] = (0.0, 0.0),
+) -> Tuple[TBModel, SlabSpec]:
     """Construct a finite Miller-index slab with exact open-normal topology.
 
     Eager input selects discrete atoms, orbitals, and hoppings. Every assembled
@@ -2508,22 +2509,22 @@ def gen_slab(  # noqa: DOC105, DOC502, PLR0913, PLR0915
     ----------
     bulk_model : TBModel
         Validated bulk tight-binding model.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Primitive Miller indices (**static**).
     thickness_ang : float
         Nonnegative minimum material span in Angstrom (**static**). Zero
         requests the one-plane limiting slab.
     vacuum_ang : float
         Nonnegative vacuum padding in Angstrom (**static**).
-    termination : tuple[str, str] or None, optional
+    termination : Tuple[str, str] or None, optional
         Requested ``(top, bottom)`` species. ``None`` retains a natural
         complete stack. Default is ``None``.
-    fine : tuple[float, float], optional
+    fine : Tuple[float, float], optional
         Static ``(top, bottom)`` inward cut shifts in Angstrom.
 
     Returns
     -------
-    result : tuple[TBModel, SlabSpec]
+    result : Tuple[TBModel, SlabSpec]
         Slab model and its immutable construction provenance.
 
     Raises
@@ -2610,7 +2611,7 @@ def gen_slab(  # noqa: DOC105, DOC502, PLR0913, PLR0915
         termination=termination,
         fine=fine,
     )
-    result: tuple[TBModel, SlabSpec] = rebuild_slab(bulk_model, topology)
+    result: Tuple[TBModel, SlabSpec] = rebuild_slab(bulk_model, topology)
     return result
 
 
@@ -2661,8 +2662,8 @@ def _slab_operator_centres(
         bulk_model.geometry,
         inverse,
     )
-    slab_to_bulk: tuple[int, ...]
-    slab_layers: tuple[int, ...]
+    slab_to_bulk: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
     slab_to_bulk, _, slab_layers, _ = _orbital_lookup(bulk_model, spec)
     inverse_array: Float64[Array, "3 3"] = jnp.asarray(
         inverse,
@@ -2774,7 +2775,7 @@ def _propagated_operator_cells(
     bulk_model: TBModel,
     operator_data: WannierOperatorData,
     spec: SlabSpec,
-) -> tuple[tuple[int, int, int], ...]:
+) -> Tuple[Tuple[int, int, int], ...]:
     """PRIVATE: Compute an operator cell grid for the exact slab topology.
 
     Parameters
@@ -2788,7 +2789,7 @@ def _propagated_operator_cells(
 
     Returns
     -------
-    result : tuple[tuple[int, int, int], ...]
+    result : Tuple[Tuple[int, int, int], ...]
         Sorted in-plane slab cells, all with a zero normal component,
         reachable from any retained orbital copy.
 
@@ -2810,14 +2811,14 @@ def _propagated_operator_cells(
         bulk_model.geometry,
         inverse,
     )
-    slab_to_bulk: tuple[int, ...]
-    slab_layers: tuple[int, ...]
-    lookup: dict[tuple[int, int], int]
+    slab_to_bulk: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
+    lookup: Dict[Tuple[int, int], int]
     slab_to_bulk, _, slab_layers, lookup = _orbital_lookup(
         bulk_model,
         spec,
     )
-    cells: set[tuple[int, int, int]] = set()
+    cells: set[Tuple[int, int, int]] = set()
     slab_source: int
     bulk_source: int
     for slab_source, bulk_source in enumerate(slab_to_bulk):
@@ -2831,7 +2832,7 @@ def _propagated_operator_cells(
             ),
             dtype=np.int64,
         )
-        bulk_cell: tuple[int, int, int]
+        bulk_cell: Tuple[int, int, int]
         for bulk_cell in operator_data.cells:
             transformed_cell: Int64[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
@@ -2860,7 +2861,7 @@ def _propagated_operator_cells(
                         0,
                     )
                 )
-    result: tuple[tuple[int, int, int], ...] = tuple(sorted(cells))
+    result: Tuple[Tuple[int, int, int], ...] = tuple(sorted(cells))
     return result
 
 
@@ -2869,9 +2870,9 @@ def _propagate_position_matrices(  # noqa: PLR0915
     operator_data: WannierOperatorData,
     spec: SlabSpec,
     slab_centres_cart: Float64[Array, "n_orb_slab 3"],
-) -> tuple[
+) -> Tuple[
     Complex128[Array, "n_R n_orb n_orb 3"],
-    tuple[tuple[int, int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
 ]:
     """PRIVATE: Propagate real-space position matrices with exact bookkeeping.
 
@@ -2910,9 +2911,9 @@ def _propagate_position_matrices(  # noqa: PLR0915
     if operator_data.position_matrices is None:
         message: str = "position-matrix propagation requires tb data"
         raise ValueError(message)
-    missing_shells: dict[
-        tuple[int, int, int, int],
-        tuple[int, ...],
+    missing_shells: Dict[
+        Tuple[int, int, int, int],
+        Tuple[int, ...],
     ] = _missing_magnetic_numbers(bulk_model)
     identity_rotation: bool = bool(
         np.allclose(
@@ -2959,16 +2960,16 @@ def _propagate_position_matrices(  # noqa: PLR0915
         bulk_model.geometry,
         inverse,
     )
-    slab_to_bulk: tuple[int, ...]
-    slab_layers: tuple[int, ...]
-    lookup: dict[tuple[int, int], int]
+    slab_to_bulk: Tuple[int, ...]
+    slab_layers: Tuple[int, ...]
+    lookup: Dict[Tuple[int, int], int]
     slab_to_bulk, _, slab_layers, lookup = _orbital_lookup(
         bulk_model,
         spec,
     )
     emitted: list[
-        tuple[
-            tuple[int, int, int],
+        Tuple[
+            Tuple[int, int, int],
             int,
             int,
             int,
@@ -2990,7 +2991,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
             dtype=np.int64,
         )
         cell_index: int
-        bulk_cell: tuple[int, int, int]
+        bulk_cell: Tuple[int, int, int]
         for cell_index, bulk_cell in enumerate(operator_data.cells):
             transformed_cell: Int64[NDArray, " 3"] = (
                 np.asarray(bulk_cell, dtype=np.int64) @ inverse
@@ -3009,7 +3010,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
                 )
                 if slab_target is None:
                     continue
-                slab_cell: tuple[int, int, int] = (
+                slab_cell: Tuple[int, int, int] = (
                     int(target_surface_cell[0] + atom_shifts[target_atom, 0]),
                     int(target_surface_cell[1] + atom_shifts[target_atom, 1]),
                     0,
@@ -3024,10 +3025,10 @@ def _propagate_position_matrices(  # noqa: PLR0915
                         bulk_target,
                     )
                 )
-    cells: tuple[tuple[int, int, int], ...] = tuple(
+    cells: Tuple[Tuple[int, int, int], ...] = tuple(
         sorted({record[0] for record in emitted})
     )
-    cell_lookup: dict[tuple[int, int, int], int] = {
+    cell_lookup: Dict[Tuple[int, int, int], int] = {
         cell: index for index, cell in enumerate(cells)
     }
     n_slab_orbitals: int = len(slab_to_bulk)
@@ -3035,8 +3036,8 @@ def _propagate_position_matrices(  # noqa: PLR0915
         (len(cells), n_slab_orbitals, n_slab_orbitals, 3),
         dtype=jnp.complex128,
     )
-    record: tuple[
-        tuple[int, int, int],
+    record: Tuple[
+        Tuple[int, int, int],
         int,
         int,
         int,
@@ -3090,9 +3091,9 @@ def _propagate_position_matrices(  # noqa: PLR0915
             diagonal,
             diagonal,
         ].set(current_diagonal + translation)
-    result: tuple[
+    result: Tuple[
         Complex128[Array, "n_R n_orb n_orb 3"],
-        tuple[tuple[int, int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
     ] = (matrices, cells)
     return result
 
@@ -3101,12 +3102,12 @@ def _propagate_position_matrices(  # noqa: PLR0915
 def gen_slab_with_operators(  # noqa: DOC105, PLR0913
     bulk_model: TBModel,
     operator_data: WannierOperatorData,
-    miller: tuple[int, int, int],
+    miller: Tuple[int, int, int],
     thickness_ang: float,
     vacuum_ang: float,
-    termination: tuple[str, str] | None = None,
-    fine: tuple[float, float] = (0.0, 0.0),
-) -> tuple[TBModel, SlabSpec, WannierOperatorData]:
+    termination: Tuple[str, str] | None = None,
+    fine: Tuple[float, float] = (0.0, 0.0),
+) -> Tuple[TBModel, SlabSpec, WannierOperatorData]:
     """Construct a slab while preserving its Wannier operator sidecar.
 
     The Hamiltonian and operator paths share one frozen atom, orbital, layer,
@@ -3120,20 +3121,20 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
         Validated bulk tight-binding model.
     operator_data : WannierOperatorData
         Paired Wannier centres and optional real-space position matrices.
-    miller : tuple[int, int, int]
+    miller : Tuple[int, int, int]
         Primitive Miller indices.
     thickness_ang : float
         Nonnegative minimum post-fine material span in Angstrom.
     vacuum_ang : float
         Nonnegative vacuum padding in Angstrom.
-    termination : tuple[str, str] or None, optional
+    termination : Tuple[str, str] or None, optional
         Requested top and bottom species, or ``None`` for a natural cut.
-    fine : tuple[float, float], optional
+    fine : Tuple[float, float], optional
         Static top and bottom inward cut shifts in Angstrom.
 
     Returns
     -------
-    result : tuple[TBModel, SlabSpec, WannierOperatorData]
+    result : Tuple[TBModel, SlabSpec, WannierOperatorData]
         Slab model, construction provenance, and propagated operator data.
 
     Raises
@@ -3156,7 +3157,7 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
             "operator_data centres must match the bulk orbital count"
         )
         raise ValueError(message)
-    missing_cells: set[tuple[int, int, int]] = set(
+    missing_cells: set[Tuple[int, int, int]] = set(
         bulk_model.hopping_cells
     ) - set(operator_data.cells)
     if missing_cells:
@@ -3209,7 +3210,7 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
         depths=operator_depths,
     )
     position_matrices: Complex128[Array, "n_R n_orb n_orb 3"] | None
-    cells: tuple[tuple[int, int, int], ...]
+    cells: Tuple[Tuple[int, int, int], ...]
     source_format: str
     if operator_data.position_matrices is None:
         position_matrices = None
@@ -3235,7 +3236,7 @@ def gen_slab_with_operators(  # noqa: DOC105, PLR0913
         spin_layout=operator_data.spin_layout,
         source_format=source_format,
     )
-    result: tuple[TBModel, SlabSpec, WannierOperatorData] = (
+    result: Tuple[TBModel, SlabSpec, WannierOperatorData] = (
         slab_model,
         spec,
         propagated,

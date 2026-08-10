@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Complex128, Float64
 
@@ -189,7 +189,7 @@ class TestMakeExperimentGeometry:
         The test changes one default input and delegates both execution modes
         to the shared rejection assertion.
         """
-        arguments: dict[str, object] = {
+        arguments: Dict[str, object] = {
             "photon_energy_ev": 21.2,
             "polarization": jnp.array([1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j]),
         }

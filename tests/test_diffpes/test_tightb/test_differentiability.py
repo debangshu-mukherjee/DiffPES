@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
@@ -49,7 +50,7 @@ _GENERIC_K: Float64[Array, " 3"] = jnp.asarray(
     (0.173, -0.219, 0.083),
     dtype=jnp.float64,
 )
-_GRAPHENE_CELLS: tuple[tuple[int, int, int], ...] = (
+_GRAPHENE_CELLS: Tuple[Tuple[int, int, int], ...] = (
     (0, 0, 0),
     (-1, 0, 0),
     (0, -1, 0),
@@ -148,7 +149,7 @@ def _pz_honeycomb_model(
         ("X-X:pp_sigma", "X-X:pp_pi"),
     )
     forward: list[Float64[Array, ""]] = []
-    cell: tuple[int, int, int]
+    cell: Tuple[int, int, int]
     for cell in _GRAPHENE_CELLS:
         displacement: Float64[Array, " 3"] = (
             jnp.asarray(cell, dtype=jnp.float64)
@@ -176,10 +177,10 @@ def _pz_honeycomb_model(
             spin=(-1, -1, 1, 1),
             labels=("A_down", "B_down", "A_up", "B_up"),
         )
-        pairs: tuple[tuple[int, int], ...] = (
+        pairs: Tuple[Tuple[int, int], ...] = (
             ((0, 1),) * 3 + ((1, 0),) * 3 + ((2, 3),) * 3 + ((3, 2),) * 3
         )
-        cells: tuple[tuple[int, int, int], ...] = (
+        cells: Tuple[Tuple[int, int, int], ...] = (
             _GRAPHENE_CELLS
             + tuple(
                 tuple(-component for component in item)
@@ -205,7 +206,7 @@ def _pz_honeycomb_model(
             ),
             dtype=jnp.float64,
         )
-        shell_index: tuple[int, ...] = (-1,) * 4
+        shell_index: Tuple[int, ...] = (-1,) * 4
     else:
         basis = make_orbital_basis(
             atom_indices=(0, 1),
@@ -678,7 +679,7 @@ class TestG8GaugeInvariance:
         transformed: DiagonalizedBands = _minimal_bands(energies, rotated)
 
         for start in range(0, n_orbitals, group_size):
-            group: tuple[int, ...] = (start, start + 1)
+            group: Tuple[int, ...] = (start, start + 1)
             reference_projector: Array = group_projector(baseline, group)
             actual_projector: Array = group_projector(transformed, group)
             projector_budget: float = _normwise_roundoff_budget(

@@ -26,7 +26,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Optional, Tuple
+from beartype.typing import Any, Dict, Optional, Tuple
 from jax import core
 from jax.experimental import checkify
 from jaxtyping import Array, Float, PyTree, jaxtyped
@@ -751,7 +751,7 @@ def certify_forward_checked(
 
 def _claim_is_consistent(
     claim: CertificationClaim,
-    domains: dict[str, DomainResult],
+    domains: Dict[str, DomainResult],
 ) -> bool:
     """PRIVATE: Return whether one claim agrees with its continuous
     evidence.
@@ -771,7 +771,7 @@ def _claim_is_consistent(
     ----------
     claim : CertificationClaim
         Recorded claim under verification.
-    domains : dict[str, DomainResult]
+    domains : Dict[str, DomainResult]
         Recorded domain results keyed by predicate identity.
 
     Returns
@@ -822,7 +822,7 @@ def _claim_is_consistent(
 
 def _external_claim_matches_evidence(
     claim: CertificationClaim,
-    evidence_by_id: dict[str, EvidenceRef],
+    evidence_by_id: Dict[str, EvidenceRef],
 ) -> bool:
     """PRIVATE: Return whether an external claim mirrors its attached
     evidence.
@@ -831,7 +831,7 @@ def _external_claim_matches_evidence(
     ----------
     claim : CertificationClaim
         Recorded claim under verification.
-    evidence_by_id : dict[str, EvidenceRef]
+    evidence_by_id : Dict[str, EvidenceRef]
         Certificate evidence records keyed by evidence identity.
 
     Returns
@@ -904,10 +904,10 @@ def verify_certificate(
     Verification recomputes recorded relations only. It does not rerun the
     forward model or convert bookkeeping checksums into scientific evidence.
     """
-    domains: dict[str, DomainResult] = {
+    domains: Dict[str, DomainResult] = {
         domain.predicate_id: domain for domain in certificate.domains
     }
-    evidence_by_id: dict[str, EvidenceRef] = {
+    evidence_by_id: Dict[str, EvidenceRef] = {
         evidence.evidence_id: evidence for evidence in certificate.evidence
     }
     claims_consistent: bool = all(

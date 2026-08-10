@@ -26,7 +26,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -68,7 +68,7 @@ def mapping_artifact_resolver(
     resolver : ArtifactResolver
         Resolver that returns normalized values without source bytes.
     """
-    frozen: dict[str, Any] = dict(artifacts)
+    frozen: Dict[str, Any] = dict(artifacts)
 
     def resolver(reference: ArtifactRef) -> Tuple[Any, bytes | None]:
         if reference.artifact_id not in frozen:
@@ -221,7 +221,7 @@ def verify_evidence(
     report : EvidenceReport
         Resolution, compatibility, and numerical tolerance outcome.
     """
-    by_id: dict[str, ArtifactRef] = {
+    by_id: Dict[str, ArtifactRef] = {
         artifact.artifact_id: artifact for artifact in artifacts
     }
     resolved: bool = True

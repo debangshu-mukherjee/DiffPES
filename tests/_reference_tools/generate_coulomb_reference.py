@@ -23,12 +23,13 @@ from typing import Any
 
 import mpmath as mp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
-ORDERS: tuple[int, ...] = tuple(range(5))
-ETAS: tuple[float, ...] = (-3.0, -1.0, -0.25, 0.0, 0.25, 1.0, 3.0)
-RHOS: tuple[float, ...] = (
+ORDERS: Tuple[int, ...] = tuple(range(5))
+ETAS: Tuple[float, ...] = (-3.0, -1.0, -0.25, 0.0, 0.25, 1.0, 3.0)
+RHOS: Tuple[float, ...] = (
     1.0e-4,
     3.0e-4,
     1.0e-3,
@@ -40,10 +41,10 @@ RHOS: tuple[float, ...] = (
     20.0,
     40.0,
 )
-DENSE_ETAS: tuple[float, ...] = tuple(
+DENSE_ETAS: Tuple[float, ...] = tuple(
     float(value) for value in np.linspace(-3.0, 3.0, 25)
 )
-DENSE_RHOS: tuple[float, ...] = tuple(
+DENSE_RHOS: Tuple[float, ...] = tuple(
     float(value) for value in np.geomspace(1.0e-4, 40.0, 257)
 )
 REFERENCE_DPS: int = 80
@@ -53,7 +54,7 @@ def coulomb_rows(
     order: int,
     eta: mp.mpf,
     rho: mp.mpf,
-) -> tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf]:
+) -> Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf]:
     """Evaluate F, G, and rho derivatives from the order recurrence."""
     regular: mp.mpf = mp.coulombf(order, eta, rho)
     irregular: mp.mpf = mp.coulombg(order, eta, rho)
@@ -67,7 +68,7 @@ def coulomb_rows(
     irregular_derivative: mp.mpf = (
         coefficient * irregular - scale * irregular_next
     ) / (order + 1)
-    result: tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
+    result: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
         regular,
         irregular,
         regular_derivative,
@@ -78,7 +79,7 @@ def coulomb_rows(
 
 def dense_value_rows(
     order: int,
-) -> tuple[
+) -> Tuple[
     int,
     Float64[NDArray, "n_eta n_rho"],
     Float64[NDArray, "n_eta n_rho"],
@@ -127,7 +128,7 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, Shaped[NDArray, "..."]],
+    arrays: Dict[str, Shaped[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write an NPZ whose members have stable order and dates.
 
@@ -231,8 +232,8 @@ def _git_head(root: Path) -> str:
 def main() -> None:
     """Write dense and sparse 80-digit references plus their provenance."""
     mp.mp.dps = REFERENCE_DPS
-    shape: tuple[int, int, int] = (len(ORDERS), len(ETAS), len(RHOS))
-    values: dict[str, Float64[NDArray, "n_order n_eta n_rho"]] = {
+    shape: Tuple[int, int, int] = (len(ORDERS), len(ETAS), len(RHOS))
+    values: Dict[str, Float64[NDArray, "n_order n_eta n_rho"]] = {
         name: np.empty(shape, dtype=np.float64)
         for name in (
             "f",
@@ -264,18 +265,18 @@ def main() -> None:
             )
             for rho_index, rho_float in enumerate(RHOS):
                 rho = mp.mpf(str(rho_float))
-                rows: tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = coulomb_rows(
+                rows: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = coulomb_rows(
                     order,
                     eta,
                     rho,
                 )
-                rows_plus: tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
+                rows_plus: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
                     coulomb_rows(order, eta + eta_step, rho)
                 )
-                rows_minus: tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
+                rows_minus: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = (
                     coulomb_rows(order, eta - eta_step, rho)
                 )
-                eta_rows: tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = tuple(
+                eta_rows: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = tuple(
                     (plus - minus) / (2 * eta_step)
                     for plus, minus in zip(rows_plus, rows_minus, strict=True)
                 )
@@ -317,7 +318,7 @@ def main() -> None:
     )
     dense_irregular = np.empty_like(dense_regular)
     with ProcessPoolExecutor(max_workers=len(ORDERS)) as executor:
-        dense_rows: tuple[
+        dense_rows: Tuple[
             int,
             Float64[NDArray, "n_eta n_rho"],
             Float64[NDArray, "n_eta n_rho"],
@@ -333,7 +334,7 @@ def main() -> None:
     )
     target_directory.mkdir(parents=True, exist_ok=True)
     target: Path = target_directory / "coulomb_mpmath_80digit.npz"
-    arrays: dict[str, Shaped[NDArray, "..."]] = {
+    arrays: Dict[str, Shaped[NDArray, "..."]] = {
         "orders": np.asarray(ORDERS, dtype=np.int64),
         "etas": np.asarray(ETAS, dtype=np.float64),
         "rhos": np.asarray(RHOS, dtype=np.float64),
@@ -351,7 +352,7 @@ def main() -> None:
     manifest_path: Path = (
         target_directory / "coulomb_mpmath_80digit.manifest.json"
     )
-    manifest: dict[str, Any] = {
+    manifest: Dict[str, Any] = {
         "schema": "diffpes.coulomb-mpmath-reference.v2",
         "gates": ["coulomb-mpmath-reference", "coulomb-assembly-gradient"],
         "source_revision": _git_head(root),
@@ -394,7 +395,7 @@ def main() -> None:
         encoding="utf-8",
     )
     checksums_path: Path = target_directory / "coulomb_SHA256SUMS"
-    checksum_paths: tuple[Path, ...] = (
+    checksum_paths: Tuple[Path, ...] = (
         generator_path,
         manifest_path,
         target,

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import mpmath as mp
 import numpy as np
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jaxtyping import Float
 from numpy.typing import NDArray
 
@@ -201,7 +201,7 @@ def _semicircle_pv_real(omega_ev: mp.mpf) -> mp.mpf:
     return result_ev
 
 
-def _verify_principal_values() -> dict[str, str]:
+def _verify_principal_values() -> Dict[str, str]:
     """PRIVATE: Verify both closed forms against independent PV quadrature.
 
     Returns
@@ -223,7 +223,7 @@ def _verify_principal_values() -> dict[str, str]:
     principal value with the closed-form real part for both models.
     Tracks the per-model maxima before it renders them.
     """
-    maximum_errors: dict[str, mp.mpf] = {
+    maximum_errors: Dict[str, mp.mpf] = {
         "pole_max_abs_error_ev": mp.mpf("0"),
         "semicircle_max_abs_error_ev": mp.mpf("0"),
     }
@@ -247,13 +247,13 @@ def _verify_principal_values() -> dict[str, str]:
         raise RuntimeError(
             f"principal-value verification failed: {maximum_errors}"
         )
-    rendered_errors: dict[str, str] = {
+    rendered_errors: Dict[str, str] = {
         name: mp.nstr(error, 12) for name, error in maximum_errors.items()
     }
     return rendered_errors
 
 
-def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
+def _build_arrays() -> Dict[str, Float[NDArray, "..."]]:
     """PRIVATE: Build the six frozen float64 arrays from mpmath values.
 
     Returns
@@ -294,7 +294,7 @@ def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
         semicircle_real.append(float(semicircle_real_ev))
         semicircle_imaginary.append(float(semicircle_imaginary_ev))
     omega: Float[NDArray, "..."] = np.asarray(omega_mp, dtype=np.float64)
-    arrays: dict[str, Float[NDArray, "..."]] = {
+    arrays: Dict[str, Float[NDArray, "..."]] = {
         "pole_omega": omega,
         "pole_sigma_real": np.asarray(pole_real, dtype=np.float64),
         "pole_sigma_imag": np.asarray(pole_imaginary, dtype=np.float64),
@@ -308,7 +308,7 @@ def _build_arrays() -> dict[str, Float[NDArray, "..."]]:
 
 
 def _write_deterministic_npz(
-    archive_path: Path, arrays: dict[str, Float[NDArray, "..."]]
+    archive_path: Path, arrays: Dict[str, Float[NDArray, "..."]]
 ) -> None:
     """PRIVATE: Write arrays in a deterministic uncompressed NumPy archive.
 
@@ -344,14 +344,14 @@ def _write_deterministic_npz(
 def main() -> None:
     """Generate the archive and its provenance manifest."""
     mp.mp.dps = _DECIMAL_DIGITS
-    pv_errors: dict[str, str] = _verify_principal_values()
-    arrays: dict[str, Float[NDArray, "..."]] = _build_arrays()
+    pv_errors: Dict[str, str] = _verify_principal_values()
+    arrays: Dict[str, Float[NDArray, "..."]] = _build_arrays()
     output_directory: Path = Path(__file__).resolve().parent
     archive_path: Path = output_directory / "kk_reference.npz"
     manifest_path: Path = output_directory / "manifest.json"
     _write_deterministic_npz(archive_path, arrays)
     archive_sha256: str = hashlib.sha256(archive_path.read_bytes()).hexdigest()
-    manifest: dict[str, object] = {
+    manifest: Dict[str, object] = {
         "schema": "diffpes.kk-analytic-reference.v1",
         "archive": archive_path.name,
         "archive_sha256": archive_sha256,

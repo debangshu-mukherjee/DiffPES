@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jaxtyping import Complex128, Float64, Int64
 from numpy.typing import NDArray
 
@@ -79,12 +79,12 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
         m=(0, 0),
         labels=("pz-A", "pz-B"),
     )
-    forward_cells: tuple[tuple[int, int, int], ...] = (
+    forward_cells: Tuple[Tuple[int, int, int], ...] = (
         (0, 0, 0),
         (-1, 0, 0),
         (0, -1, 0),
     )
-    reverse_cells: tuple[tuple[int, int, int], ...] = tuple(
+    reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (-cell[0], -cell[1], -cell[2]) for cell in forward_cells
     )
     return make_tb_model(
@@ -104,11 +104,11 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
 
 
 def _dense_block_records(
-    cell: tuple[int, int, int],
+    cell: Tuple[int, int, int],
     block: Complex128[NDArray, "n_orb n_orb"],
-) -> tuple[
-    list[tuple[int, int]],
-    list[tuple[int, int, int]],
+) -> Tuple[
+    list[Tuple[int, int]],
+    list[Tuple[int, int, int]],
     list[complex],
 ]:
     """PRIVATE: Flatten one dense real-space block into model records.
@@ -134,8 +134,8 @@ def _dense_block_records(
     """
     column: Any
     row: Any
-    pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
+    pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
     amplitudes: list[complex] = []
     for row in range(block.shape[0]):
         for column in range(block.shape[1]):
@@ -145,7 +145,7 @@ def _dense_block_records(
     return pairs, cells, amplitudes
 
 
-def _inversion_bulk_model() -> tuple[TBModel, Int64[NDArray, " n_orb"]]:
+def _inversion_bulk_model() -> Tuple[TBModel, Int64[NDArray, " n_orb"]]:
     """PRIVATE: Build a generic-complex model with a nontrivial inversion
     action.
 
@@ -201,8 +201,8 @@ def _inversion_bulk_model() -> tuple[TBModel, Int64[NDArray, " n_orb"]]:
     onsite_block: Complex128[NDArray, "4 4"] = (
         onsite_trial + inversion @ onsite_trial @ inversion
     ) / 2.0
-    pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
+    pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
     amplitudes: list[complex] = []
     for cell, block in (
         ((1, 0, 0), x_block),
@@ -300,11 +300,11 @@ def _assert_inversion_witness(
     image_residual[:, :2] -= np.rint(image_residual[:, :2])
     np.testing.assert_allclose(image_residual, 0.0, atol=1e-12, rtol=0.0)
 
-    signatures: tuple[tuple[int, int, int], ...] = tuple(
+    signatures: Tuple[Tuple[int, int, int], ...] = tuple(
         zip(model.basis.n, model.basis.l, model.basis.m, strict=True)
     )
     assert tuple(signatures[index] for index in permutation) == signatures
-    orbital_species: tuple[str, ...] = tuple(
+    orbital_species: Tuple[str, ...] = tuple(
         model.geometry.species[atom] for atom in model.basis.atom_indices
     )
     assert tuple(orbital_species[index] for index in permutation) == (

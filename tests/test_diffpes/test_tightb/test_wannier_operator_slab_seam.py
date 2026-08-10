@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Int64
 from numpy.typing import NDArray
 
@@ -36,10 +36,10 @@ from diffpes.types import (
 
 
 def _exact_inverse(
-    rows: tuple[
-        tuple[int, int, int],
-        tuple[int, int, int],
-        tuple[int, int, int],
+    rows: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+        Tuple[int, int, int],
     ],
 ) -> Int64[NDArray, "3 3"]:
     """PRIVATE: Return a unimodular integer inverse from its exact adjugate.
@@ -120,11 +120,11 @@ def _long_range_model(maximum_range: int) -> TBModel:
     amplitude, cell, and range bookkeeping against an independent
     integer enumeration.
     """
-    forward_cells: tuple[tuple[int, int, int], ...] = tuple(
+    forward_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (distance % 2, -(distance // 2), distance)
         for distance in range(1, maximum_range + 1)
     )
-    reverse_cells: tuple[tuple[int, int, int], ...] = tuple(
+    reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         tuple(-component for component in cell) for cell in forward_cells
     )
     forward: jax.Array = jnp.asarray(
@@ -156,7 +156,7 @@ def _long_range_model(maximum_range: int) -> TBModel:
     )
 
 
-def _p_shell_operator_fixture() -> tuple[TBModel, WannierOperatorData]:
+def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
     """PRIVATE: Build a complete p shell with generic complex position
     blocks.
 
@@ -208,7 +208,7 @@ def _p_shell_operator_fixture() -> tuple[TBModel, WannierOperatorData]:
         ),
         dtype=jnp.float64,
     )
-    cells: tuple[tuple[int, int, int], ...] = (
+    cells: Tuple[Tuple[int, int, int], ...] = (
         (0, 0, 0),
         (1, 2, -1),
         (-1, -2, 1),
@@ -282,12 +282,12 @@ def _graphene_model() -> TBModel:
         m=(0, 0),
         labels=("pz-A", "pz-B"),
     )
-    forward_cells: tuple[tuple[int, int, int], ...] = (
+    forward_cells: Tuple[Tuple[int, int, int], ...] = (
         (0, 0, 0),
         (-1, 0, 0),
         (0, -1, 0),
     )
-    reverse_cells: tuple[tuple[int, int, int], ...] = tuple(
+    reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         tuple(-component for component in cell) for cell in forward_cells
     )
     return make_tb_model(
@@ -349,8 +349,8 @@ class TestExactLongRangeGather:
             spec.surface_cell.stacking_coeffs,
         )
         inverse: Int64[NDArray, "3 3"] = _exact_inverse(frame)
-        expected_pairs: list[tuple[int, int]] = []
-        expected_cells: list[tuple[int, int, int]] = []
+        expected_pairs: list[Tuple[int, int]] = []
+        expected_cells: list[Tuple[int, int, int]] = []
         expected_gather: list[int] = []
         for source_layer in range(n_layers):
             for hopping, bulk_cell in enumerate(rotated.hopping_cells):
@@ -418,7 +418,7 @@ class TestExactLongRangeGather:
                 spec.surface_cell.stacking_coeffs,
             )
         )
-        expected_cells: tuple[tuple[int, int, int], ...] = tuple(
+        expected_cells: Tuple[Tuple[int, int, int], ...] = tuple(
             sorted(
                 {
                     (
@@ -524,7 +524,7 @@ class TestCompleteShellOperatorPropagation:
                 spec.surface_cell.stacking_coeffs,
             )
         )
-        cell_lookup: dict[tuple[int, int, int], int] = {
+        cell_lookup: Dict[Tuple[int, int, int], int] = {
             cell: index for index, cell in enumerate(propagated.cells)
         }
         expected: jax.Array = jnp.zeros_like(propagated.position_matrices)
@@ -536,7 +536,7 @@ class TestCompleteShellOperatorPropagation:
                 target_layer: int = source_layer + int(transformed[2])
                 if not 0 <= target_layer < spec.n_layers:
                     continue
-                slab_cell: tuple[int, int, int] = (
+                slab_cell: Tuple[int, int, int] = (
                     int(transformed[0]),
                     int(transformed[1]),
                     0,
@@ -699,7 +699,7 @@ class TestZigzagEdgeSurfaceLocalization:
             slab,
             jnp.asarray(((0.5, 0.0, 0.0),), dtype=jnp.float64),
         )
-        zero_group: tuple[int, int] = (n_chains - 1, n_chains)
+        zero_group: Tuple[int, int] = (n_chains - 1, n_chains)
         surface_trace: jax.Array = layer_resolved_group_traces(
             bands,
             (zero_group,),

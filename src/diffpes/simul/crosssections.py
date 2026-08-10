@@ -34,6 +34,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Bool, Float64, Int16, Int32, jaxtyped
 from numpy.typing import NDArray
 
@@ -41,12 +42,12 @@ from diffpes.types import OrbitalBasis, ScalarFloat
 
 
 @cache
-def _load_data() -> tuple[
+def _load_data() -> Tuple[
     Int32[NDArray, " n_row_plus_one"],
     Float64[NDArray, " n_packed"],
     Float64[NDArray, " n_packed"],
     Float64[NDArray, " n_packed"],
-    dict[tuple[int, int, int], int],
+    Dict[Tuple[int, int, int], int],
 ]:
     """PRIVATE: Load and cache the immutable packed table arrays.
 
@@ -78,16 +79,16 @@ def _load_data() -> tuple[
             archive["log_slopes"],
             dtype=np.float64,
         )
-    key_to_row: dict[tuple[int, int, int], int] = {
+    key_to_row: Dict[Tuple[int, int, int], int] = {
         tuple(int(value) for value in key): index
         for index, key in enumerate(keys)
     }
-    loaded: tuple[
+    loaded: Tuple[
         Int32[NDArray, " n_row_plus_one"],
         Float64[NDArray, " n_packed"],
         Float64[NDArray, " n_packed"],
         Float64[NDArray, " n_packed"],
-        dict[tuple[int, int, int], int],
+        Dict[Tuple[int, int, int], int],
     ] = (
         offsets,
         energy_nodes,
@@ -109,13 +110,13 @@ def _table_slice(
     -----
     The slice comes from the static subshell index table.
     """
-    key: tuple[int, int, int] = (
+    key: Tuple[int, int, int] = (
         atomic_number,
         principal_quantum_number,
         angular_momentum,
     )
     offsets: Int32[NDArray, " n_row_plus_one"]
-    key_to_row: dict[tuple[int, int, int], int]
+    key_to_row: Dict[Tuple[int, int, int], int]
     offsets, _, _, _, key_to_row = _load_data()
     if key not in key_to_row:
         message: str = (
@@ -136,7 +137,7 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
     atomic_number: int,
     n: int,
     l: int,  # noqa: E741
-) -> tuple[
+) -> Tuple[
     Float64[NDArray, " node"],
     Float64[NDArray, " node"],
     Float64[NDArray, " node"],
@@ -190,7 +191,7 @@ def yeh_lindau_cross_section_table(  # noqa: DOC502
     ].copy()
     sigma_megabarn: Float64[NDArray, " node"] = sigma_nodes[table_slice].copy()
     log_slopes: Float64[NDArray, " node"] = slope_nodes[table_slice].copy()
-    table: tuple[
+    table: Tuple[
         Float64[NDArray, " node"],
         Float64[NDArray, " node"],
         Float64[NDArray, " node"],
@@ -207,7 +208,7 @@ def _interval_index(
     energy_nodes: Float64[Array, " node"],
     sigma_nodes: Float64[Array, " node"],
     slope_nodes: Float64[Array, " node"],
-) -> tuple[Int32[Array, ""], Float64[Array, ""]]:
+) -> Tuple[Int32[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Select a positive interval, including either exact endpoint.
 
     Notes
@@ -248,7 +249,7 @@ def _interval_index(
         ~valid,
         "photon energy lies outside the positive Yeh--Lindau intervals",
     )
-    selected: tuple[Int32[Array, ""], Float64[Array, ""]] = (
+    selected: Tuple[Int32[Array, ""], Float64[Array, ""]] = (
         selected_index,
         checked_energy,
     )
@@ -353,7 +354,7 @@ def yeh_lindau_cross_section(  # noqa: DOC502
 def yeh_lindau_orbital_weights(
     photon_energy_ev: ScalarFloat,
     basis: OrbitalBasis,
-    atomic_numbers: tuple[int, ...],
+    atomic_numbers: Tuple[int, ...],
 ) -> Float64[Array, " n_orb"]:
     """Return Yeh--Lindau weights for every orbital in a basis.
 
@@ -372,7 +373,7 @@ def yeh_lindau_orbital_weights(
         Photon energy in eV.
     basis : OrbitalBasis
         Static orbital-to-atom mapping and ``(n,l)`` quantum numbers.
-    atomic_numbers : tuple[int, ...]
+    atomic_numbers : Tuple[int, ...]
         Atomic number for every atom row referenced by
         ``basis.atom_indices``.
 
@@ -392,7 +393,7 @@ def yeh_lindau_orbital_weights(
     ):
         message: str = "atomic_numbers does not cover every basis atom index"
         raise ValueError(message)
-    values: tuple[Float64[Array, ""], ...] = tuple(
+    values: Tuple[Float64[Array, ""], ...] = tuple(
         yeh_lindau_cross_section(
             photon_energy_ev,
             atomic_numbers[atom_index],

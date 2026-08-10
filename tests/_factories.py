@@ -12,6 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, PRNGKeyArray, jaxtyped
 
 from diffpes.tightb import (
@@ -54,7 +55,7 @@ def _assert_finite(tree: object) -> None:
     ``jax.tree.leaves`` collects the leaves first, so every factory
     output passes through one uniform finiteness check.
     """
-    leaves: tuple[object, ...] = tuple(jax.tree.leaves(tree))
+    leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
 
 
@@ -210,11 +211,11 @@ def make_rashba_model(
         dtype=jnp.complex128,
     )
     amplitudes: list[Complex128[Array, ""]] = []
-    pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
-    cell: tuple[int, int, int]
+    pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
+    cell: Tuple[int, int, int]
     spin: int
-    nearest_cells: tuple[tuple[int, int, int], ...] = (
+    nearest_cells: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 0),
         (-1, 0, 0),
         (0, 1, 0),
@@ -225,7 +226,7 @@ def make_rashba_model(
             amplitudes.append(hopping_value)
             pairs.append((spin, spin))
             cells.append(cell)
-    forward_amplitudes: tuple[Complex128[Array, ""], ...] = (
+    forward_amplitudes: Tuple[Complex128[Array, ""], ...] = (
         -0.5 * rashba_value,
         0.5 * rashba_value,
         -0.5j * rashba_value,
@@ -401,7 +402,7 @@ def toy_simulation_params(fidelity: int = 512) -> SimulationParams:
 @jaxtyped(typechecker=beartype)
 def toy_graphene_diagonalized(
     n_k: int = 12,
-) -> tuple[TBModel, DiagonalizedBands]:
+) -> Tuple[TBModel, DiagonalizedBands]:
     """Diagonalize the native graphene model on a fixed Gamma-to-K path.
 
     Uses the production -2.7 eV nearest-neighbor model and an
@@ -417,14 +418,14 @@ def toy_graphene_diagonalized(
     )
     bands: DiagonalizedBands = diagonalize_tb(model, kpoints)
     _assert_finite((model, bands))
-    result: tuple[TBModel, DiagonalizedBands] = (model, bands)
+    result: Tuple[TBModel, DiagonalizedBands] = (model, bands)
     return result
 
 
 @jaxtyped(typechecker=beartype)
 def toy_chain_diagonalized(
     n_k: int = 16,
-) -> tuple[TBModel, DiagonalizedBands]:
+) -> Tuple[TBModel, DiagonalizedBands]:
     """Diagonalize the native one-dimensional chain on a fixed k-path.
 
     Uses the production -1 eV hopping and an endpoint-inclusive fractional
@@ -439,5 +440,5 @@ def toy_chain_diagonalized(
     )
     bands: DiagonalizedBands = diagonalize_tb(model, kpoints)
     _assert_finite((model, bands))
-    result: tuple[TBModel, DiagonalizedBands] = (model, bands)
+    result: Tuple[TBModel, DiagonalizedBands] = (model, bands)
     return result

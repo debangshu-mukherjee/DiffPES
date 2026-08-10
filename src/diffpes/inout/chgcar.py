@@ -109,7 +109,7 @@ def read_chgcar(
     with path.open("r") as fid:
         lattice: Float64[NDArray, "3 3"]
         coords: Float64[NDArray, "N 3"]
-        symbols: tuple[str, ...]
+        symbols: Tuple[str, ...]
         atom_counts: list[int]
         lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
         rest_lines: list[str] = [line.rstrip("\n") for line in fid]
@@ -127,7 +127,7 @@ def read_chgcar(
         raise ValueError(msg)
 
     first_grid_idx: Optional[int]
-    grid_shape: tuple[int, int, int]
+    grid_shape: Tuple[int, int, int]
     first_grid_idx, grid_shape = _find_next_grid_line(rest_lines, 0)
     if first_grid_idx is None:
         msg: str = "Could not locate CHGCAR charge-density grid dimensions."
@@ -149,7 +149,7 @@ def read_chgcar(
     scan_idx: int = end_idx
     while len(mag_grids) < N_SOC_MAG_BLOCKS:
         next_idx: Optional[int]
-        next_shape: tuple[int, int, int]
+        next_shape: Tuple[int, int, int]
         next_idx, next_shape = _find_next_grid_line(rest_lines, scan_idx)
         if next_idx is None:
             break
@@ -210,7 +210,7 @@ def _read_poscar_header(
 ) -> Tuple[
     Float64[NDArray, "3 3"],
     Float64[NDArray, "N 3"],
-    tuple[str, ...],
+    Tuple[str, ...],
     list[int],
 ]:
     """PRIVATE: Read the POSCAR-like header section at the start of a CHGCAR
@@ -254,7 +254,7 @@ def _read_poscar_header(
         Scaled lattice vectors, shape ``(3, 3)``.
     coords : Float64[NDArray, "N 3"]
         Fractional atomic coordinates, shape ``(natoms, 3)``.
-    symbols : tuple[str, ...]
+    symbols : Tuple[str, ...]
         Element symbols (empty tuple for VASP-4 style files).
     atom_counts : list[int]
         Number of atoms per species.
@@ -284,7 +284,7 @@ def _read_poscar_header(
     lattice = lattice * scale
 
     line: str = fid.readline().strip()
-    symbols: tuple[str, ...] = ()
+    symbols: Tuple[str, ...] = ()
     if line and not any(char.isdigit() for char in line):
         symbols = tuple(line.split())
         line = fid.readline().strip()
@@ -313,7 +313,7 @@ def _read_poscar_header(
     header_data: Tuple[
         Float64[NDArray, "3 3"],
         Float64[NDArray, "N 3"],
-        tuple[str, ...],
+        Tuple[str, ...],
         list[int],
     ] = (lattice, coords, symbols, atom_counts)
     return header_data
@@ -355,7 +355,7 @@ def _find_next_grid_line(
     -------
     idx : int or None
         Line index of the grid header, or ``None`` if not found.
-    grid_shape : tuple[int, int, int]
+    grid_shape : Tuple[int, int, int]
         ``(NGX, NGY, NGZ)`` grid dimensions, or ``(0, 0, 0)`` if
         not found.
     """
@@ -369,7 +369,7 @@ def _find_next_grid_line(
         if len(parts) != SCALAR_LINE_COMPONENTS:
             continue
         try:
-            values: tuple[int, int, int] = (
+            values: Tuple[int, int, int] = (
                 int(parts[0]),
                 int(parts[1]),
                 int(parts[2]),
@@ -377,7 +377,7 @@ def _find_next_grid_line(
         except ValueError:
             continue
         if values[0] > 0 and values[1] > 0 and values[2] > 0:
-            grid_line: Tuple[Optional[int], tuple[int, int, int]] = (
+            grid_line: Tuple[Optional[int], Tuple[int, int, int]] = (
                 idx,
                 values,
             )

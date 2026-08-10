@@ -26,6 +26,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import (
     Array,
     Complex128,
@@ -61,7 +62,7 @@ def _reverse_hopping_indices(model: TBModel) -> Int32[Array, " n_hop"]:
     the permutation stays fixed at trace time. The model factory
     guarantees that each reverse partner exists.
     """
-    records: tuple[tuple[int, int, tuple[int, int, int]], ...] = tuple(
+    records: Tuple[Tuple[int, int, Tuple[int, int, int]], ...] = tuple(
         (pair[0], pair[1], cell)
         for pair, cell in zip(
             model.hopping_pairs,
@@ -69,10 +70,10 @@ def _reverse_hopping_indices(model: TBModel) -> Int32[Array, " n_hop"]:
             strict=True,
         )
     )
-    lookup: dict[tuple[int, int, tuple[int, int, int]], int] = {
+    lookup: Dict[Tuple[int, int, Tuple[int, int, int]], int] = {
         record: index for index, record in enumerate(records)
     }
-    reverse: tuple[int, ...] = tuple(
+    reverse: Tuple[int, ...] = tuple(
         lookup[(orbital_j, orbital_i, (-cell[0], -cell[1], -cell[2]))]
         for orbital_i, orbital_j, cell in records
     )

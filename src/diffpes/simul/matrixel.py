@@ -74,7 +74,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Callable
+from beartype.typing import Callable, Dict, Tuple
 from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
@@ -105,14 +105,14 @@ from .polarization import (
 )
 
 
-def _basis_key(basis: OrbitalBasis) -> tuple[tuple[object, ...], ...]:
+def _basis_key(basis: OrbitalBasis) -> Tuple[Tuple[object, ...], ...]:
     """PRIVATE: Return the exact static identity of an orbital basis.
 
     Notes
     -----
     The identity hashes only static basis structure, never values.
     """
-    key: tuple[tuple[object, ...], ...] = (
+    key: Tuple[Tuple[object, ...], ...] = (
         basis.atom_indices,
         basis.n,
         basis.l,
@@ -123,7 +123,7 @@ def _basis_key(basis: OrbitalBasis) -> tuple[tuple[object, ...], ...]:
     return key
 
 
-def _spin_layout(basis: OrbitalBasis) -> tuple[int, int]:
+def _spin_layout(basis: OrbitalBasis) -> Tuple[int, int]:
     """PRIVATE: Validate and return ``(n_spin, n_orbitals_per_spin)``.
 
     Notes
@@ -132,17 +132,17 @@ def _spin_layout(basis: OrbitalBasis) -> tuple[int, int]:
     """
     n_orbitals: int = len(basis.n)
     if not basis.spin:
-        layout: tuple[int, int] = (1, n_orbitals)
+        layout: Tuple[int, int] = (1, n_orbitals)
         return layout
     if n_orbitals % ISPIN2_BLOCKS != 0:
         message: str = "a spinor basis must contain two equal spin blocks"
         raise ValueError(message)
     n_spatial: int = n_orbitals // ISPIN2_BLOCKS
-    expected_spin: tuple[int, ...] = (-1,) * n_spatial + (1,) * n_spatial
+    expected_spin: Tuple[int, ...] = (-1,) * n_spatial + (1,) * n_spatial
     if basis.spin != expected_spin:
         message = "spinor basis must use block-down then block-up ordering"
         raise ValueError(message)
-    paired_fields: tuple[tuple[object, ...], ...] = (
+    paired_fields: Tuple[Tuple[object, ...], ...] = (
         basis.atom_indices,
         basis.n,
         basis.l,
@@ -221,18 +221,18 @@ def _solid_harmonic_component(
 
 def _orbital_phase_indices(
     me_params: MatrixElementParams,
-) -> tuple[tuple[int, int], ...]:
+) -> Tuple[Tuple[int, int], ...]:
     """PRIVATE: Return each branch phase index or its zero sentinel.
 
     Notes
     -----
     A zero sentinel marks the branch without a free phase.
     """
-    compact_index: dict[tuple[int, int], int] = {
+    compact_index: Dict[Tuple[int, int], int] = {
         key: index for index, key in enumerate(me_params.phase_channel_keys)
     }
     zero_sentinel: int = len(me_params.phase_channel_keys)
-    result: tuple[tuple[int, int], ...] = tuple(
+    result: Tuple[Tuple[int, int], ...] = tuple(
         (
             compact_index.get(
                 (shell, angular - 1),
@@ -253,14 +253,14 @@ def _active_parameter_tree(
     radial: RadialSpec,
     me_params: MatrixElementParams,
     mean_free_path_ang: Float64[Array, ""],
-) -> dict[str, Array]:
+) -> Dict[str, Array]:
     """PRIVATE: Collect the mode-active matrix-element parameter leaves.
 
     Notes
     -----
     The mode string selects which leaves stay active.
     """
-    active: dict[str, Array] = {}
+    active: Dict[str, Array] = {}
     if radial.mode == "slater":
         active["zeta_shell"] = radial.zeta_shell
         active["coefficients_shell"] = radial.coefficients_shell
@@ -276,11 +276,11 @@ def _active_parameter_tree(
 
 
 def _pack_active_tree(
-    active: dict[str, Array],
-) -> tuple[
+    active: Dict[str, Array],
+) -> Tuple[
     Float64[Array, " n_theta"],
     PyTreeDef,
-    tuple[tuple[tuple[int, ...], bool], ...],
+    Tuple[Tuple[Tuple[int, ...], bool], ...],
 ]:
     """PRIVATE: Pack one active tree with stacked complex coordinates.
 
@@ -292,11 +292,11 @@ def _pack_active_tree(
     tree_definition: PyTreeDef
     leaves, tree_definition = jax.tree_util.tree_flatten(active)
     packed_leaves: list[Float64[Array, " n_leaf"]] = []
-    metadata: list[tuple[tuple[int, ...], bool]] = []
+    metadata: list[Tuple[Tuple[int, ...], bool]] = []
     leaf: Array
     for leaf in leaves:
         is_complex: bool = bool(jnp.iscomplexobj(leaf))
-        shape: tuple[int, ...] = tuple(leaf.shape)
+        shape: Tuple[int, ...] = tuple(leaf.shape)
         packed_leaf: Float64[Array, " n_leaf"] = (
             pack_complex(leaf).reshape(-1)
             if is_complex
@@ -305,20 +305,20 @@ def _pack_active_tree(
         packed_leaves.append(packed_leaf)
         metadata.append((shape, is_complex))
     flat: Float64[Array, " n_theta"] = jnp.concatenate(packed_leaves)
-    packing_metadata: tuple[tuple[tuple[int, ...], bool], ...] = tuple(
+    packing_metadata: Tuple[Tuple[Tuple[int, ...], bool], ...] = tuple(
         metadata
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, " n_theta"],
         PyTreeDef,
-        tuple[tuple[tuple[int, ...], bool], ...],
+        Tuple[Tuple[Tuple[int, ...], bool], ...],
     ] = (flat, tree_definition, packing_metadata)
     return result
 
 
 def _validate_band_groups(
     bands: DiagonalizedBands,
-    band_groups: tuple[tuple[int, ...], ...],
+    band_groups: Tuple[Tuple[int, ...], ...],
 ) -> None:
     """PRIVATE: Validate complete groups against each eigenspectrum.
 
@@ -332,7 +332,7 @@ def _validate_band_groups(
     n_bands: int = bands.eigenvalues.shape[1]
     occupied: set[int] = set()
     energies: Float64[NDArray, "nkpt nband"] = np.asarray(bands.eigenvalues)
-    group: tuple[int, ...]
+    group: Tuple[int, ...]
     for group in band_groups:
         if (
             type(group) is not tuple
@@ -347,7 +347,7 @@ def _validate_band_groups(
             message = "band groups must not overlap"
             raise ValueError(message)
         occupied.update(group)
-        complement: tuple[int, ...] = tuple(
+        complement: Tuple[int, ...] = tuple(
             index for index in range(n_bands) if index not in group
         )
         if not complement:
@@ -368,10 +368,10 @@ def pack_matrixel_params(
     radial: RadialSpec,
     me_params: MatrixElementParams,
     mean_free_path_ang: Float64[Array, ""],
-) -> tuple[
+) -> Tuple[
     Float64[Array, " n_theta"],
     PyTreeDef,
-    tuple[tuple[tuple[int, ...], bool], ...],
+    Tuple[Tuple[Tuple[int, ...], bool], ...],
 ]:
     """Pack active matrix-element parameters into one real vector.
 
@@ -400,7 +400,7 @@ def pack_matrixel_params(
         Flat real optimizer coordinates.
     tree_definition : PyTreeDef
         Active parameter-tree definition.
-    packing_metadata : tuple[tuple[tuple[int, ...], bool], ...]
+    packing_metadata : Tuple[Tuple[Tuple[int, ...], bool], ...]
         Original leaf shapes and complex flags.
 
     Raises
@@ -423,15 +423,15 @@ def pack_matrixel_params(
     if mean_free_path_ang.ndim != 0:
         message = "mean_free_path_ang must be scalar"
         raise ValueError(message)
-    active: dict[str, Array] = _active_parameter_tree(
+    active: Dict[str, Array] = _active_parameter_tree(
         radial,
         me_params,
         mean_free_path_ang,
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, " n_theta"],
         PyTreeDef,
-        tuple[tuple[tuple[int, ...], bool], ...],
+        Tuple[Tuple[Tuple[int, ...], bool], ...],
     ] = _pack_active_tree(active)
     return result
 
@@ -440,10 +440,10 @@ def pack_matrixel_params(
 def unpack_matrixel_params(
     flat: Float64[Array, " n_theta"],
     tree_definition: PyTreeDef,
-    packing_metadata: tuple[tuple[tuple[int, ...], bool], ...],
+    packing_metadata: Tuple[Tuple[Tuple[int, ...], bool], ...],
     radial_template: RadialSpec,
     me_params_template: MatrixElementParams,
-) -> tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]]:
+) -> Tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]]:
     """Construct active matrix-element parameters from one real vector.
 
     Reuse static metadata and excluded calibration leaves from the templates.
@@ -461,7 +461,7 @@ def unpack_matrixel_params(
         Flat real optimizer coordinates.
     tree_definition : PyTreeDef
         Tree definition returned by :func:`pack_matrixel_params`.
-    packing_metadata : tuple[tuple[tuple[int, ...], bool], ...]
+    packing_metadata : Tuple[Tuple[Tuple[int, ...], bool], ...]
         Leaf shapes and complex flags returned by packing.
     radial_template : RadialSpec
         Radial template that retains static and excluded leaves.
@@ -494,7 +494,7 @@ def unpack_matrixel_params(
         raise ValueError(message)
     leaves: list[Array] = []
     offset: int = 0
-    shape: tuple[int, ...]
+    shape: Tuple[int, ...]
     is_complex: bool
     for shape, is_complex in packing_metadata:
         scalar_count: int = math.prod(shape)
@@ -514,7 +514,7 @@ def unpack_matrixel_params(
     if offset != flat.shape[0]:
         message = "flat vector is longer than its packing metadata"
         raise ValueError(message)
-    active: dict[str, Array] = jax.tree_util.tree_unflatten(
+    active: Dict[str, Array] = jax.tree_util.tree_unflatten(
         tree_definition,
         leaves,
     )
@@ -548,7 +548,7 @@ def unpack_matrixel_params(
         ),
     )
     mean_free_path_ang: Float64[Array, ""] = active["mean_free_path_ang"]
-    result: tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]] = (
+    result: Tuple[RadialSpec, MatrixElementParams, Float64[Array, ""]] = (
         radial,
         me_params,
         mean_free_path_ang,
@@ -692,8 +692,8 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
     ],
     bands: DiagonalizedBands,
     experiment: ExperimentGeometry,
-    band_groups: tuple[tuple[int, ...], ...],
-) -> tuple[
+    band_groups: Tuple[Tuple[int, ...], ...],
+) -> Tuple[
     Float64[Array, "n_k n_group"],
     Float64[Array, "n_theta n_k n_group"],
 ]:
@@ -719,7 +719,7 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
         Eigensystem whose energies define complete isolated groups.
     experiment : ExperimentGeometry
         Experiment carrier passed unchanged to ``rebuild``.
-    band_groups : tuple[tuple[int, ...], ...]
+    band_groups : Tuple[Tuple[int, ...], ...]
         Nonoverlapping static complete band groups.
 
     Returns
@@ -782,7 +782,7 @@ def band_group_weight_sensitivity(  # noqa: DOC105, DOC502
         -1,
         0,
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, "n_k n_group"],
         Float64[Array, "n_theta n_k n_group"],
     ] = (band_group_weights, weight_jacobian)
@@ -794,7 +794,7 @@ def log_band_group_weight_sensitivity(
     band_group_weights: Float64[Array, " ..."],
     weight_jacobian: Float64[Array, "n_theta ..."],
     min_band_group_weight: float,
-) -> tuple[Float64[Array, "n_theta ..."], Bool[Array, " ..."]]:
+) -> Tuple[Float64[Array, "n_theta ..."], Bool[Array, " ..."]]:
     """Convert positive group-weight derivatives to logarithmic derivatives.
 
     Mark dark or sub-floor weights invalid without dividing by them.
@@ -851,7 +851,7 @@ def log_band_group_weight_sensitivity(
         weight_jacobian / safe_weights[None, ...],
         0.0,
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, "n_theta ..."],
         Bool[Array, " ..."],
     ] = (log_weight_jacobian, valid)

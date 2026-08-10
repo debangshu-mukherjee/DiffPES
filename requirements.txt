@@ -525,7 +525,7 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.15.4
+ruff==0.16.2
     # via diffpes
 scipy==1.17.1
     # via

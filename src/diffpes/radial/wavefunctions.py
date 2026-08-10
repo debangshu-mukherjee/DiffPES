@@ -21,6 +21,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, Integer, jaxtyped
 
 from diffpes.types import RadialSpec, ScalarFloat
@@ -107,15 +108,15 @@ def _associated_laguerre(
 
     def _recurrence_step(
         current_order: Integer[Array, ""],
-        state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        state: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    ) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
         r"""PRIVATE: Apply one step of the Laguerre recurrence.
 
         Parameters
         ----------
         current_order : Integer[Array, ""]
             Order ``n`` of the polynomial this step produces.
-        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+        state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
             Pair :math:`(L_{n-2}^\alpha, L_{n-1}^\alpha)` of the two
             preceding polynomials.
 
@@ -146,7 +147,7 @@ def _associated_laguerre(
         laguerre_curr: Float64[Array, " ..."] = (
             prefactor * laguerre_prev - correction
         )
-        recurrence_state: tuple[
+        recurrence_state: Tuple[
             Float64[Array, " ..."], Float64[Array, " ..."]
         ] = (
             laguerre_prev,
@@ -154,7 +155,7 @@ def _associated_laguerre(
         )
         return recurrence_state
 
-    recurrence_result: tuple[
+    recurrence_result: Tuple[
         Float64[Array, " ..."], Float64[Array, " ..."]
     ] = jax.lax.fori_loop(
         2,
@@ -517,7 +518,7 @@ def evaluate_radial(  # noqa: DOC503
         "r must contain finite nonnegative radii",
     )
     n_shells: int = max(spec.radial_shell_index, default=-1) + 1
-    representatives: tuple[int, ...] = tuple(
+    representatives: Tuple[int, ...] = tuple(
         spec.radial_shell_index.index(shell_index)
         for shell_index in range(n_shells)
     )

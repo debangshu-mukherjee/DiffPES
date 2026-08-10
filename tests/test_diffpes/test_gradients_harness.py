@@ -12,6 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jax import test_util
 from jaxtyping import Array, Complex, Float
 
@@ -54,9 +55,9 @@ def _wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
 
 @_wrong_sine.defjvp
 def _wrong_sine_jvp(
-    primals: tuple[Float[Array, "..."], ...],
-    tangents: tuple[Float[Array, "..."], ...],
-) -> tuple[Float[Array, "..."], Float[Array, "..."]]:
+    primals: Tuple[Float[Array, "..."], ...],
+    tangents: Tuple[Float[Array, "..."], ...],
+) -> Tuple[Float[Array, "..."], Float[Array, "..."]]:
     """PRIVATE: Plant a tangent scaled by 1.1 for harness-defect detection.
 
     Parameters
@@ -83,7 +84,7 @@ def _wrong_sine_jvp(
     (x_tangent,) = tangents
     primal: Float[Array, "..."] = _wrong_sine(x)
     tangent: Float[Array, "..."] = 1.1 * jnp.cos(x) * x_tangent
-    result: tuple[Float[Array, "..."], Float[Array, "..."]] = (
+    result: Tuple[Float[Array, "..."], Float[Array, "..."]] = (
         primal,
         tangent,
     )
@@ -116,9 +117,9 @@ def _near_wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
 
 @_near_wrong_sine.defjvp
 def _near_wrong_sine_jvp(
-    primals: tuple[Float[Array, "..."], ...],
-    tangents: tuple[Float[Array, "..."], ...],
-) -> tuple[Float[Array, "..."], Float[Array, "..."]]:
+    primals: Tuple[Float[Array, "..."], ...],
+    tangents: Tuple[Float[Array, "..."], ...],
+) -> Tuple[Float[Array, "..."], Float[Array, "..."]]:
     """PRIVATE: Plant a tangent scaled by 1.00001 to pin the detection floor.
 
     Parameters
@@ -145,7 +146,7 @@ def _near_wrong_sine_jvp(
     (x_tangent,) = tangents
     primal: Float[Array, "..."] = _near_wrong_sine(x)
     tangent: Float[Array, "..."] = 1.00001 * jnp.cos(x) * x_tangent
-    result: tuple[Float[Array, "..."], Float[Array, "..."]] = (
+    result: Tuple[Float[Array, "..."], Float[Array, "..."]] = (
         primal,
         tangent,
     )
@@ -179,9 +180,9 @@ def _tiny_linear(x: Float[Array, ""]) -> Float[Array, ""]:
 
 @_tiny_linear.defjvp
 def _tiny_linear_jvp(
-    primals: tuple[Float[Array, ""], ...],
-    tangents: tuple[Float[Array, ""], ...],
-) -> tuple[Float[Array, ""], Float[Array, ""]]:
+    primals: Tuple[Float[Array, ""], ...],
+    tangents: Tuple[Float[Array, ""], ...],
+) -> Tuple[Float[Array, ""], Float[Array, ""]]:
     """PRIVATE: Plant an exactly zero tangent for the nonzero linear primal.
 
     Parameters
@@ -206,7 +207,7 @@ def _tiny_linear_jvp(
     (x,) = primals
     primal: Float[Array, ""] = _tiny_linear(x)
     tangent: Float[Array, ""] = jnp.zeros_like(x)
-    result: tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    result: Tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
     return result
 
 
@@ -238,9 +239,9 @@ def _mixed_scale_linear(x: Float[Array, "2"]) -> Float[Array, ""]:
 
 @_mixed_scale_linear.defjvp
 def _mixed_scale_linear_jvp(
-    primals: tuple[Float[Array, "2"], ...],
-    tangents: tuple[Float[Array, "2"], ...],
-) -> tuple[Float[Array, ""], Float[Array, ""]]:
+    primals: Tuple[Float[Array, "2"], ...],
+    tangents: Tuple[Float[Array, "2"], ...],
+) -> Tuple[Float[Array, ""], Float[Array, ""]]:
     """PRIVATE: Plant zero for only the large parameter's resolvable tangent.
 
     Parameters
@@ -268,7 +269,7 @@ def _mixed_scale_linear_jvp(
     (x_tangent,) = tangents
     primal: Float[Array, ""] = _mixed_scale_linear(x)
     tangent: Float[Array, ""] = 1e-4 * x_tangent[0]
-    result: tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    result: Tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
     return result
 
 

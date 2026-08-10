@@ -29,7 +29,7 @@ them for analysis visualizations. Do not include them in functions that
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Literal, Optional, Tuple, Union
+from beartype.typing import Dict, Literal, Optional, Tuple, Union
 from jaxtyping import Float64, Int32, jaxtyped
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
@@ -122,7 +122,7 @@ def plot_arpes_spectrum(
     ax: Optional[Axes] = None,
     cmap: str = "gray",
     colorbar: bool = True,
-    clim: Optional[tuple[float, float]] = None,
+    clim: Optional[Tuple[float, float]] = None,
     interpolation: str = "nearest",
     aspect: Literal["equal", "auto"] = "auto",
     xlabel: str = "k-point index",
@@ -176,7 +176,7 @@ def plot_arpes_spectrum(
         Matplotlib colormap name. Default is ``"gray"``.
     colorbar : bool, optional
         If True, add a colorbar labeled ``"Intensity (a.u.)"``.
-    clim : Optional[tuple[float, float]], optional
+    clim : Optional[Tuple[float, float]], optional
         Optional ``(vmin, vmax)`` color limits.
     interpolation : str, optional
         Image interpolation mode. Default is ``"nearest"``.
@@ -330,13 +330,13 @@ def apply_kpath_ticks(
 
 
 @jaxtyped(typechecker=beartype)
-def plot_arpes_with_kpath(  # noqa: PLR0913
+def plot_arpes_with_kpath(  # noqa: PLR0913, PLR0917
     spectrum: ArpesSpectrum,
     kpath: KPathInfo,
     ax: Optional[Axes] = None,
     cmap: str = "gray",
     colorbar: bool = True,
-    clim: Optional[tuple[float, float]] = None,
+    clim: Optional[Tuple[float, float]] = None,
     interpolation: str = "nearest",
     aspect: Literal["equal", "auto"] = "auto",
     xlabel: str = "Momentum (k)",
@@ -398,7 +398,7 @@ def plot_arpes_with_kpath(  # noqa: PLR0913
         Matplotlib colormap name. Default is ``"gray"``.
     colorbar : bool, optional
         If True, add a colorbar.
-    clim : Optional[tuple[float, float]], optional
+    clim : Optional[Tuple[float, float]], optional
         Optional ``(vmin, vmax)`` color limits.
     interpolation : str, optional
         Image interpolation mode for ``imshow``.
@@ -456,7 +456,7 @@ def plot_arpes_with_kpath(  # noqa: PLR0913
 
 
 @jaxtyped(typechecker=beartype)
-def list_band_scatter_presets() -> tuple[str, ...]:
+def list_band_scatter_presets() -> Tuple[str, ...]:
     """Return supported preset names for projected band scatter plots.
 
     Returns the canonical immutable names accepted by the projected-band
@@ -466,7 +466,7 @@ def list_band_scatter_presets() -> tuple[str, ...]:
 
     Returns
     -------
-    presets : tuple[str, ...]
+    presets : Tuple[str, ...]
         Available preset names accepted by
         :func:`plot_band_scatter_preset`.
 
@@ -474,14 +474,14 @@ def list_band_scatter_presets() -> tuple[str, ...]:
     -----
     The function returns the tuple without allocating or reordering it.
     """
-    presets: tuple[str, ...] = PRESET_NAMES
+    presets: Tuple[str, ...] = PRESET_NAMES
     return presets
 
 
 @beartype
 def _prepare_band_arrays(
     bands: BandStructure,
-) -> tuple[Float64[NDArray, "K B"], float]:
+) -> Tuple[Float64[NDArray, "K B"], float]:
     """PRIVATE: Convert and validate band arrays for scatter plotting.
 
     Parameters
@@ -515,7 +515,7 @@ def _prepare_band_arrays(
         msg: str = "Expected bands.eigenvalues to have shape (K, B)."
         raise ValueError(msg)
     fermi: float = float(np.asarray(bands.fermi_energy, dtype=np.float64))
-    band_arrays: tuple[Float64[NDArray, "K B"], float] = (
+    band_arrays: Tuple[Float64[NDArray, "K B"], float] = (
         eigenvalues,
         fermi,
     )
@@ -562,7 +562,7 @@ def _weights_from_preset(  # noqa: PLR0912
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     preset: str,
     atom_indices: Optional[list[int]],
-) -> tuple[Float64[NDArray, "K B"], bool]:
+) -> Tuple[Float64[NDArray, "K B"], bool]:
     """PRIVATE: Resolve a band-weight matrix from a preset name.
 
     Parameters
@@ -592,7 +592,7 @@ def _weights_from_preset(  # noqa: PLR0912
         atom_indices,
     )
 
-    orbital_shells: dict[str, slice] = {
+    orbital_shells: Dict[str, slice] = {
         "p": slice(1, 4),
         "d": slice(4, 9),
         "non_s": slice(1, 9),
@@ -614,7 +614,7 @@ def _weights_from_preset(  # noqa: PLR0912
             np.asarray(orb_proj.spin, dtype=np.float64),
             atom_indices,
         )
-    spin_channel: dict[str, int] = {
+    spin_channel: Dict[str, int] = {
         "spin_x_up": 0,
         "spin_x_down": 1,
         "spin_y_up": 2,
@@ -622,7 +622,7 @@ def _weights_from_preset(  # noqa: PLR0912
         "spin_z_up": 4,
         "spin_z_down": 5,
     }
-    spin_net: dict[str, tuple[int, int]] = {
+    spin_net: Dict[str, Tuple[int, int]] = {
         "spin_x": (0, 1),
         "spin_y": (2, 3),
         "spin_z": (4, 5),
@@ -651,7 +651,7 @@ def _weights_from_preset(  # noqa: PLR0912
             np.asarray(orb_proj.oam, dtype=np.float64),
             atom_indices,
         )
-    oam_component: dict[str, int] = {
+    oam_component: Dict[str, int] = {
         "oam_p": 0,
         "oam_d": 1,
         "oam_total": 2,
@@ -671,12 +671,12 @@ def _weights_from_preset(  # noqa: PLR0912
         presets: str = ", ".join(PRESET_NAMES)
         msg = f"Unknown preset '{preset}'. Available presets: {presets}."
         raise ValueError(msg)
-    preset_weights: tuple[Float64[NDArray, "K B"], bool] = (weights, signed)
+    preset_weights: Tuple[Float64[NDArray, "K B"], bool] = (weights, signed)
     return preset_weights
 
 
 @jaxtyped(typechecker=beartype)
-def plot_band_scatter_preset(  # noqa: PLR0913
+def plot_band_scatter_preset(  # noqa: PLR0913, PLR0917
     bands: BandStructure,
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     preset: str = "p",
@@ -692,7 +692,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913
     xlabel: str = "Momentum (k)",
     ylabel: str = "Energy (eV)",
     title: str = "Projected Band Scatter",
-) -> tuple[Union[Figure, SubFigure], Axes, PathCollection]:
+) -> Tuple[Union[Figure, SubFigure], Axes, PathCollection]:
     """Plot projected bands as marker-size-weighted scatter points.
 
     Builds a fat-band style scatter plot from a named preset. Marker
@@ -833,7 +833,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    plot_result: tuple[Union[Figure, SubFigure], Axes, PathCollection] = (
+    plot_result: Tuple[Union[Figure, SubFigure], Axes, PathCollection] = (
         fig,
         ax,
         scatter,
@@ -842,7 +842,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913
 
 
 @jaxtyped(typechecker=beartype)
-def plot_band_scatter_with_kpath(  # noqa: PLR0913
+def plot_band_scatter_with_kpath(  # noqa: PLR0913, PLR0917
     bands: BandStructure,
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     kpath: KPathInfo,
@@ -860,7 +860,7 @@ def plot_band_scatter_with_kpath(  # noqa: PLR0913
     ylabel: str = "Energy (eV)",
     title: str = "Projected Band Scatter",
     draw_symmetry_lines: bool = True,
-) -> tuple[Union[Figure, SubFigure], Axes, PathCollection]:
+) -> Tuple[Union[Figure, SubFigure], Axes, PathCollection]:
     """Plot projected band scatter and annotate x-axis with k-path labels.
 
     Combines a projected-band scatter plot with the symmetry labels from
@@ -983,7 +983,7 @@ def plot_band_scatter_with_kpath(  # noqa: PLR0913
         line_color="black",
         line_alpha=0.35,
     )
-    plot_result: tuple[Union[Figure, SubFigure], Axes, PathCollection] = (
+    plot_result: Tuple[Union[Figure, SubFigure], Axes, PathCollection] = (
         fig,
         ax,
         scatter,

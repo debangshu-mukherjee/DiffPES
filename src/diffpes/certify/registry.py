@@ -58,7 +58,7 @@ from functools import cache
 from importlib import resources
 
 from beartype import beartype
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, Dict, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -493,7 +493,7 @@ def list_models() -> Tuple[ForwardModelSpec, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           models: tuple[ForwardModelSpec, ...] = tuple(
+           models: Tuple[ForwardModelSpec, ...] = tuple(
                        entry.spec for entry in state.models
                    )
 
@@ -527,7 +527,7 @@ def list_registered_models() -> Tuple[RegisteredModel, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           models: tuple[RegisteredModel, ...] = state.models
+           models: Tuple[RegisteredModel, ...] = state.models
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -557,7 +557,7 @@ def list_transformations() -> Tuple[TransformationContract, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           transformations: tuple[TransformationContract, ...] = tuple(
+           transformations: Tuple[TransformationContract, ...] = tuple(
                        entry.contract for entry in state.transformations
                    )
 
@@ -713,7 +713,7 @@ def validate_handshake(
 
 
 @jaxtyped(typechecker=beartype)
-def registry_manifest() -> dict[str, Any]:
+def registry_manifest() -> Dict[str, Any]:
     """Read the packaged registry manifest.
 
     The manifest records generated model and transformation identities.
@@ -730,7 +730,7 @@ def registry_manifest() -> dict[str, Any]:
 
     Returns
     -------
-    manifest : dict[str, Any]
+    manifest : Dict[str, Any]
         Parsed manifest with generated model and transformation identities.
 
     Raises
@@ -861,16 +861,16 @@ def validate_registry_manifest() -> Tuple[str, ...]:
     errors : Tuple[str, ...]
         Sorted missing-entry and generated-card drift messages.
     """
-    manifest: dict[str, Any] = registry_manifest()
+    manifest: Dict[str, Any] = registry_manifest()
     errors: list[str] = []
-    models: dict[Tuple[str, str], ForwardModelSpec] = {
+    models: Dict[Tuple[str, str], ForwardModelSpec] = {
         (item.model_id, item.model_version): item for item in list_models()
     }
     transformations: set[Tuple[str, str]] = {
         (item.transformation_id, item.transformation_version)
         for item in list_transformations()
     }
-    handshakes: dict[str, RegistrationHandshake] = {
+    handshakes: Dict[str, RegistrationHandshake] = {
         item.owner_id: item for item in list_handshakes()
     }
     entry: Any

@@ -45,6 +45,7 @@ import math
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -194,7 +195,7 @@ def polarization_real_to_cart(
 @jaxtyped(typechecker=beartype)
 def channel_tables(
     basis: OrbitalBasis,
-) -> tuple[
+) -> Tuple[
     Float64[Array, "n_orb 2 3 n_y"],
     Float64[Array, "n_orb 2 3 n_y"],
 ]:
@@ -292,7 +293,7 @@ def channel_tables(
         coupling_numpy
     )
     channel_valid: Float64[Array, "n_orb 2 3 n_y"] = jnp.asarray(valid_numpy)
-    tables: tuple[
+    tables: Tuple[
         Float64[Array, "n_orb 2 3 n_y"],
         Float64[Array, "n_orb 2 3 n_y"],
     ] = (coupling_coeffs, channel_valid)

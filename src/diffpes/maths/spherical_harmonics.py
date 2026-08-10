@@ -33,6 +33,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, Int64, jaxtyped
 
 
@@ -175,15 +176,15 @@ def _associated_legendre_plm(
 
     def _step(
         idx: Int64[Array, ""],
-        state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        state: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    ) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
         """PRIVATE: Compute one upward Legendre recurrence step in degree.
 
         Parameters
         ----------
         idx : Int64[Array, ""]
             Current target degree ``l`` supplied by ``fori_loop``.
-        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+        state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
             Values ``(P(idx - 2), P(idx - 1))`` at fixed order ``m``.
 
         Returns
@@ -205,7 +206,7 @@ def _associated_legendre_plm(
         p_curr: Float64[Array, " ..."] = (
             (2.0 * idx_f - 1.0) * x * p_prev1 - (idx_f + m_f - 1.0) * p_prev2
         ) / (idx_f - m_f)
-        recurrence_state: tuple[
+        recurrence_state: Tuple[
             Float64[Array, " ..."], Float64[Array, " ..."]
         ] = (
             p_prev1,
@@ -213,7 +214,7 @@ def _associated_legendre_plm(
         )
         return recurrence_state
 
-    recurrence_result: tuple[
+    recurrence_result: Tuple[
         Float64[Array, " ..."], Float64[Array, " ..."]
     ] = jax.lax.fori_loop(m + 2, l + 1, _step, (pmm, pmm1))
     plm: Float64[Array, " ..."] = recurrence_result[1]

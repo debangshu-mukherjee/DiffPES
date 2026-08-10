@@ -6,7 +6,7 @@ The tests exercise slab numerical and structural contracts.
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 
 from diffpes.tightb import bloch_hamiltonian
 from diffpes.tightb.slab import (
@@ -292,7 +292,7 @@ class TestGenSlab:
     )
     def test_post_fine_natural_span_remains_a_minimum(
         self,
-        fine: tuple[float, float],
+        fine: Tuple[float, float],
     ) -> None:
         """Expand a natural stack before its fine-shifted planes are cut.
 

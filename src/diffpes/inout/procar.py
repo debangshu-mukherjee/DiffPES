@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Literal, Optional, TextIO, Union
+from beartype.typing import Dict, Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -148,7 +148,7 @@ def read_procar(
     with path.open("r") as fid:
         content: str = fid.read()
 
-    blocks: list[dict] = _parse_procar_blocks(content)
+    blocks: list[Dict] = _parse_procar_blocks(content)
 
     if not blocks:
         msg: str = "No valid PROCAR blocks found."
@@ -216,7 +216,7 @@ def read_procar(
 
 def _parse_procar_blocks(
     content: str,
-) -> list[dict]:
+) -> list[Dict]:
     """PRIVATE: Parse all PROCAR blocks from the full file content string.
 
     Extended Summary
@@ -278,7 +278,7 @@ def _parse_procar_blocks(
     b: int
     a: int
 
-    blocks: list[dict] = []
+    blocks: list[Dict] = []
     lines: list[str] = content.splitlines()
     i: int = 0
 

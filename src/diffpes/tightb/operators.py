@@ -25,6 +25,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import (
@@ -64,10 +65,10 @@ def _validate_spin_pairs(basis: OrbitalBasis) -> None:
     if len(basis.spin) != n_orbitals:
         message: str = "spin_operator requires an explicit spinor basis"
         raise ValueError(message)
-    groups: dict[tuple[int, int, int, int], list[int]] = {}
+    groups: Dict[Tuple[int, int, int, int], list[int]] = {}
     orbital: int
     for orbital in range(n_orbitals):
-        key: tuple[int, int, int, int] = (
+        key: Tuple[int, int, int, int] = (
             basis.atom_indices[orbital],
             basis.n[orbital],
             basis.l[orbital],
@@ -84,7 +85,7 @@ def _validate_spin_pairs(basis: OrbitalBasis) -> None:
 
 def _validate_orbital_selection(
     basis: OrbitalBasis,
-    orbital_select: tuple[int, ...],
+    orbital_select: Tuple[int, ...],
 ) -> None:
     """PRIVATE: Validate one static orbital selection.
 
@@ -92,7 +93,7 @@ def _validate_orbital_selection(
     ----------
     basis : OrbitalBasis
         Model basis that defines the valid index range.
-    orbital_select : tuple[int, ...]
+    orbital_select : Tuple[int, ...]
         Candidate static orbital indices.
 
     Raises
@@ -125,14 +126,14 @@ def _validate_orbital_selection(
 
 
 def _validate_fixed_groups(
-    fixed_groups: tuple[tuple[int, ...], ...],
+    fixed_groups: Tuple[Tuple[int, ...], ...],
     n_bands: int,
 ) -> None:
     """PRIVATE: Validate static, disjoint registered band groups.
 
     Parameters
     ----------
-    fixed_groups : tuple[tuple[int, ...], ...]
+    fixed_groups : Tuple[Tuple[int, ...], ...]
         Candidate static band-index groups.
     n_bands : int
         Number of bands that bounds every index.
@@ -159,7 +160,7 @@ def _validate_fixed_groups(
         message = "fixed_groups must contain at least one group"
         raise ValueError(message)
     selected: set[int] = set()
-    group: tuple[int, ...]
+    group: Tuple[int, ...]
     for group in fixed_groups:
         if type(group) is not tuple:
             message = "fixed_groups must contain tuples"
@@ -271,7 +272,7 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
         "spin_operator: axis must be a unit vector",
     )
 
-    keys: tuple[tuple[int, int, int, int], ...] = tuple(
+    keys: Tuple[Tuple[int, int, int, int], ...] = tuple(
         (
             basis.atom_indices[index],
             basis.n[index],
@@ -319,7 +320,7 @@ def spin_operator(  # noqa: DOC502 -- validation is delegated.
 @jaxtyped(typechecker=beartype)
 def ls_operator(  # noqa: DOC502 -- validation is delegated.
     basis: OrbitalBasis,
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
 ) -> Complex128[Array, "n_so n_so"]:
     r"""Construct unit-strength atomic :math:`L\cdot S` by shell.
 
@@ -332,7 +333,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
     ----------
     basis : OrbitalBasis
         Real-harmonic spinor basis.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Static orbital-to-shell IDs. ``-1`` excludes an orbital; nonnegative
         IDs must follow the :func:`diffpes.tightb.soc.soc_matrix` contract.
 
@@ -368,7 +369,7 @@ def ls_operator(  # noqa: DOC502 -- validation is delegated.
 @jaxtyped(typechecker=beartype)
 def orbital_projector(  # noqa: DOC502 -- validation is delegated.
     basis: OrbitalBasis,
-    orbital_select: tuple[int, ...],
+    orbital_select: Tuple[int, ...],
 ) -> Complex128[Array, "n n"]:
     """Construct a diagonal projector onto selected basis orbitals.
 
@@ -381,7 +382,7 @@ def orbital_projector(  # noqa: DOC502 -- validation is delegated.
     ----------
     basis : OrbitalBasis
         Model basis defining the operator dimension.
-    orbital_select : tuple[int, ...]
+    orbital_select : Tuple[int, ...]
         Fixed unique orbital indices (**static** -- changing them retraces).
 
     Returns
@@ -545,7 +546,7 @@ def layer_resolved_weights(
 @jaxtyped(typechecker=beartype)
 def layer_resolved_group_traces(  # noqa: DOC502, DOC503
     bands: DiagonalizedBands,
-    fixed_groups: tuple[tuple[int, ...], ...],
+    fixed_groups: Tuple[Tuple[int, ...], ...],
     intensity_escape_length_ang: ScalarFloat,
 ) -> Float64[Array, "n_k n_group"]:
     r"""Compute surface traces over complete, isolated fixed band groups.
@@ -560,7 +561,7 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
     ----------
     bands : DiagonalizedBands
         Band eigensystem carrying non-``None`` orbital ``depths``.
-    fixed_groups : tuple[tuple[int, ...], ...]
+    fixed_groups : Tuple[Tuple[int, ...], ...]
         Static, nonempty, disjoint groups of unique band indices. Changing
         membership retraces and defines a new evidence identity.
     intensity_escape_length_ang : ScalarFloat
@@ -600,9 +601,9 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
     )
     all_bands: set[int] = set(range(n_bands))
     group_index: int
-    group: tuple[int, ...]
+    group: Tuple[int, ...]
     for group_index, group in enumerate(fixed_groups):
-        complement: tuple[int, ...] = tuple(
+        complement: Tuple[int, ...] = tuple(
             sorted(all_bands.difference(group))
         )
         if not complement:

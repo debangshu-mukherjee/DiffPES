@@ -8,6 +8,7 @@ from collections.abc import Callable
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array
 
 from diffpes.tightb import (
@@ -33,7 +34,7 @@ from diffpes.types import (
 from tests._gradients import gradient_gate
 
 
-def _graphene_context() -> tuple[
+def _graphene_context() -> Tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
@@ -96,13 +97,13 @@ def _graphene_context() -> tuple[
     return geometry, basis, sk_params, onsite
 
 
-def _complete_p_soc_context() -> tuple[
+def _complete_p_soc_context() -> Tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
     Array,
     Array,
-    tuple[int, ...],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Return a two-site complete-p spinor SK model context with
     atomic SOC.
@@ -168,7 +169,7 @@ def _complete_p_soc_context() -> tuple[
         (0.13, -0.21, 0.47) * 2 + (-0.34, 0.26, 0.71) * 2
     )
     soc: Array = jnp.asarray((0.29, 0.17))
-    shell_index: tuple[int, ...] = (0,) * 6 + (1,) * 6
+    shell_index: Tuple[int, ...] = (0,) * 6 + (1,) * 6
     return geometry, basis, sk_params, onsite, soc, shell_index
 
 
@@ -202,7 +203,7 @@ def _broadened_spectral_moment(bands: DiagonalizedBands) -> Array:
     return jnp.sum(profiles * coefficients[None, None, :])
 
 
-def _graphene_sk_gate() -> tuple[Array, Callable[[Array], Array]]:
+def _graphene_sk_gate() -> Tuple[Array, Callable[[Array], Array]]:
     """PRIVATE: Create the true-SK graphene slab loss and its active
     coordinates.
 
@@ -279,7 +280,7 @@ def _graphene_sk_gate() -> tuple[Array, Callable[[Array], Array]]:
     return active, loss
 
 
-def _soc_sk_gate() -> tuple[
+def _soc_sk_gate() -> Tuple[
     Array,
     Callable[[Array], Array],
     Callable[[Array], Array],
@@ -313,7 +314,7 @@ def _soc_sk_gate() -> tuple[
     sk_params: SlaterKosterParams
     onsite: Array
     soc: Array
-    shell_index: tuple[int, ...]
+    shell_index: Tuple[int, ...]
     geometry, basis, sk_params, onsite, soc, shell_index = (
         _complete_p_soc_context()
     )

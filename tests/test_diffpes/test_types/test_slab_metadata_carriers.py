@@ -12,7 +12,7 @@ import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array
 
 from diffpes.inout import load_from_h5, save_to_h5
@@ -207,7 +207,7 @@ class TestDepthCarrier:
         depths: Array
         match: str
         for depths, match in cases:
-            arguments: dict[str, object] = {
+            arguments: Dict[str, object] = {
                 "hopping_amplitudes": jnp.zeros(
                     (0,),
                     dtype=jnp.complex128,
@@ -465,7 +465,7 @@ class TestSlabSpec:
         path: Path = tmp_path / "slab_metadata.h5"
 
         save_to_h5(path, model=model, bands=bands, slab_spec=slab_spec)
-        restored: dict[str, eqx.Module] = load_from_h5(path)
+        restored: Dict[str, eqx.Module] = load_from_h5(path)
 
         assert eqx.tree_equal(restored["model"], model)
         assert eqx.tree_equal(restored["bands"], bands)

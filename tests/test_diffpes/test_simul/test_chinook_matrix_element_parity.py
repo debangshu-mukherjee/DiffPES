@@ -15,7 +15,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Any
+from beartype.typing import Any, Dict
 from jaxtyping import Bool, Complex128, Float64, Int64, Shaped
 from numpy.typing import NDArray
 
@@ -265,7 +265,7 @@ def test_graphene_pointwise_map_and_valley_orientation() -> None:
     """
     archive: Any
     with np.load(_REFERENCE_DIRECTORY / "chinook_reference.npz") as archive:
-        reference: dict[str, Shaped[NDArray, "..."]] = {
+        reference: Dict[str, Shaped[NDArray, "..."]] = {
             key: archive[key] for key in archive.files
         }
     measured: Complex128[NDArray, "n_state 3"] = (
@@ -325,7 +325,7 @@ def test_polarization_intensities_and_ratios() -> None:
     """
     archive: Any
     with np.load(_REFERENCE_DIRECTORY / "chinook_reference.npz") as archive:
-        reference: dict[str, Shaped[NDArray, "..."]] = {
+        reference: Dict[str, Shaped[NDArray, "..."]] = {
             key: archive[key] for key in archive.files
         }
     band_channels: jax.Array = _transition_band_channels(
@@ -364,7 +364,7 @@ def test_chinook_artifact_provenance_and_digest() -> None:
     Hash both tracked files before inspecting the provenance fields.
     """
     manifest_path: Path = _REFERENCE_DIRECTORY / "manifest.json"
-    manifest: dict[str, Any] = json.loads(
+    manifest: Dict[str, Any] = json.loads(
         manifest_path.read_text(encoding="utf-8")
     )
     archive_path: Path = _REFERENCE_DIRECTORY / str(manifest["archive"])

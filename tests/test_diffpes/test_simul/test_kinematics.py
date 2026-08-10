@@ -13,7 +13,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, Dict, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Bool, Complex128, Float64
@@ -397,8 +397,8 @@ class TestKzFromInnerPotential(chex.TestCase):
             / "kspace"
             / "kz_energy_dependence_reference.json"
         )
-        reference: dict[str, Any] = json.loads(reference_path.read_text())
-        inputs: dict[str, Any] = reference["inputs"]
+        reference: Dict[str, Any] = json.loads(reference_path.read_text())
+        inputs: Dict[str, Any] = reference["inputs"]
         omega: Float64[Array, " 5"] = jnp.asarray(inputs["omega_rel_fermi_ev"])
         k_parallel: Float64[Array, " 5"] = jnp.full(
             (5,),
@@ -627,8 +627,8 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             / "kspace"
             / "kz_kpt_reference.json"
         )
-        document: dict[str, Any] = json.loads(reference_path.read_text())
-        records: list[dict[str, float]] = document["records"]
+        document: Dict[str, Any] = json.loads(reference_path.read_text())
+        records: list[Dict[str, float]] = document["records"]
         self.assertEqual(document["requirement"], "kz-kinematics-reference")
         self.assertEqual(
             document["metadata"]["chinook_commit"],

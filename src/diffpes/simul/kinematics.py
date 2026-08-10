@@ -482,7 +482,7 @@ def kpar_to_detector_angles(
     if slit not in {"H", "V"}:
         message: str = "slit must be 'H' or 'V'"
         raise ValueError(message)
-    target_shape: tuple[int, ...] = jnp.broadcast_shapes(
+    target_shape: Tuple[int, ...] = jnp.broadcast_shapes(
         k_par_inv_ang.shape[:-1],
         kinetic_energy_ev.shape,
     )

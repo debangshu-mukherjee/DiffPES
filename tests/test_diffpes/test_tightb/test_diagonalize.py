@@ -12,7 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jaxtyping import Array
 
 import diffpes
@@ -126,7 +126,7 @@ class TestEighSafe:
             [[0.2, 0.1 + 0.3j], [0.1 - 0.3j, -0.2]],
             dtype=jnp.complex128,
         )
-        tangents: tuple[Array, Array]
+        tangents: Tuple[Array, Array]
         _, tangents = jax.jvp(eigh_safe, (hamiltonian,), (direction,))
         assert jnp.all(jnp.isfinite(tangents[0]))
         assert jnp.all(jnp.isfinite(tangents[1]))
@@ -142,7 +142,7 @@ class TestEighSafe:
         Exercise one NaN matrix and one finite matrix with unequal conjugate
         off-diagonal entries through both execution modes.
         """
-        cases: tuple[tuple[Array, str], ...] = (
+        cases: Tuple[Tuple[Array, str], ...] = (
             (
                 jnp.asarray(
                     [[jnp.nan, 0.0], [0.0, 1.0]],
@@ -162,7 +162,7 @@ class TestEighSafe:
         hamiltonian: Array
         expected_message: str
         for under_jit in (False, True):
-            solver: Callable[[Array], tuple[Array, Array]] = (
+            solver: Callable[[Array], Tuple[Array, Array]] = (
                 eqx.filter_jit(eigh_safe) if under_jit else eigh_safe
             )
             for hamiltonian, expected_message in cases:
@@ -204,7 +204,7 @@ class TestEighSafe:
 
         def loss(theta: Array) -> Array:
             """Return a real expectation of the lowest-group projector."""
-            eigensystem: tuple[Array, Array] = eigh_safe(
+            eigensystem: Tuple[Array, Array] = eigh_safe(
                 base + theta * direction
             )
             eigenvectors: Array = eigensystem[1]

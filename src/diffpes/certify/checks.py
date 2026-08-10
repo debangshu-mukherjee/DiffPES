@@ -20,19 +20,19 @@ Routine Listings
 from functools import cache
 
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import CheckFunction
 
 
 @cache
-def _check_registry() -> dict[str, CheckFunction]:
+def _check_registry() -> Dict[str, CheckFunction]:
     """PRIVATE: Return process-local pure-JAX check bindings.
 
     Returns
     -------
-    registry : dict[str, CheckFunction]
+    registry : Dict[str, CheckFunction]
         The single mutable mapping from stable predicate identifiers to
         registered pure JAX predicates.
 
@@ -42,7 +42,7 @@ def _check_registry() -> dict[str, CheckFunction]:
     process-local singleton. :func:`register_check` mutates the returned
     mapping in place; :func:`get_check` and :func:`list_checks` read it.
     """
-    registry: dict[str, CheckFunction] = {}
+    registry: Dict[str, CheckFunction] = {}
     return registry
 
 
@@ -76,7 +76,7 @@ def register_check(check_id: str, check_fn: CheckFunction) -> None:
     if not check_id or not check_id.startswith("org.diffpes."):
         msg: str = "check_id must be a stable org.diffpes identifier"
         raise ValueError(msg)
-    checks: dict[str, CheckFunction] = _check_registry()
+    checks: Dict[str, CheckFunction] = _check_registry()
     if check_id in checks:
         msg: str = f"duplicate certification check: {check_id}"
         raise ValueError(msg)
@@ -139,7 +139,7 @@ def list_checks() -> Tuple[str, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           checks: tuple[str, ...] = tuple(sorted(_check_registry()))
+           checks: Tuple[str, ...] = tuple(sorted(_check_registry()))
 
        The function validates and transforms the inputs before it binds the
        documented output.

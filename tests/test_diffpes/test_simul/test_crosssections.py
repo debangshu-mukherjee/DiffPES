@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Bool, Float64, Int, Int32
 from numpy.typing import NDArray
 
@@ -49,7 +49,7 @@ class TestYehLindauCrossSectionTable:
         sigma: Float64[NDArray, " node"]
         slopes: Float64[NDArray, " node"]
         energies, sigma, slopes = yeh_lindau_cross_section_table(6, 2, 1)
-        indices: dict[float, int] = {
+        indices: Dict[float, int] = {
             float(value): index for index, value in enumerate(energies)
         }
         assert sigma[indices[21.2]] == pytest.approx(6.128)
@@ -65,7 +65,7 @@ class TestYehLindauCrossSectionTable:
             / "data"
             / "yeh_lindau_1985.json"
         )
-        manifest: dict[str, Any] = json.loads(
+        manifest: Dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         assert manifest["units"]["cross_section"] == "megabarn"
@@ -123,7 +123,7 @@ class TestYehLindauCrossSectionTable:
             / "_reference_tools"
             / "generate_yeh_lindau_data.py"
         )
-        manifest: dict[str, Any] = json.loads(
+        manifest: Dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         assert (
@@ -146,7 +146,7 @@ class TestYehLindauCrossSectionTable:
                 "photon_energy_ev"
             ]
             sigma: Float64[NDArray, " n_packed"] = archive["sigma_megabarn"]
-        derived_domains: dict[str, list[list[float]]] = {}
+        derived_domains: Dict[str, list[list[float]]] = {}
         row_index: int
         key: Int[NDArray, " 3"]
         for row_index, key in enumerate(keys):
@@ -180,11 +180,11 @@ class TestYehLindauCrossSectionTable:
             derived_domains[key_string] = intervals
         assert manifest["supported_domains_ev"] == derived_domains
 
-        spot_checks: list[dict[str, Any]] = manifest[
+        spot_checks: list[Dict[str, Any]] = manifest[
             "digitisation_replay_spot_checks"
         ]
         assert len(spot_checks) >= 4
-        check: dict[str, Any]
+        check: Dict[str, Any]
         for check in spot_checks:
             table_energies: Float64[NDArray, " node"]
             table_sigma: Float64[NDArray, " node"]
@@ -207,7 +207,7 @@ class TestYehLindauCrossSectionTable:
                 "Regoutz-group source workbook replay"
             )
 
-        primary_locator: dict[str, Any] = manifest["primary_source_locator"]
+        primary_locator: Dict[str, Any] = manifest["primary_source_locator"]
         assert primary_locator["page_range"] == "1-155"
         assert primary_locator["table_identifiers"] is None
         assert "versioned Figshare dataset" in str(
@@ -217,7 +217,7 @@ class TestYehLindauCrossSectionTable:
         assert "not claimed" in str(
             primary_locator["independent_primary_spot_check_status"]
         )
-        authority: dict[str, Any] = manifest["reference_authority"]
+        authority: Dict[str, Any] = manifest["reference_authority"]
         assert "Figshare workbook" in str(authority["numerical_authority"])
         assert "file ID and SHA-256" in str(authority["authentication"])
         assert "internal peer review" in str(authority["review"])
@@ -241,7 +241,7 @@ class TestYehLindauCrossSectionTable:
             hashlib.sha256(project_path.read_bytes()).hexdigest()
             == authority["project_page_sha256"]
         )
-        figshare: dict[str, Any] = json.loads(
+        figshare: Dict[str, Any] = json.loads(
             figshare_path.read_text(encoding="utf-8")
         )
         assert figshare["doi"] == manifest["digitisation_doi"]

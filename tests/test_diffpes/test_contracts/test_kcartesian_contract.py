@@ -10,6 +10,8 @@ import ast
 import re
 from pathlib import Path
 
+from beartype.typing import Dict
+
 _FRACTIONAL_K_NAME: re.Pattern[str] = re.compile(
     r"^(?:k_frac|kpoints_frac|k_crystal|kpoints)$"
 )
@@ -119,7 +121,7 @@ def test_fractional_momentum_is_converted_before_normalization() -> None:
     """
     repository_root: Path = Path(__file__).resolve().parents[3]
     source_root: Path = repository_root / "src" / "diffpes"
-    findings: dict[Path, set[int]] = {}
+    findings: Dict[Path, set[int]] = {}
     source_path: Path
     for source_path in source_root.rglob("*.py"):
         tree: ast.AST = ast.parse(source_path.read_text(encoding="utf-8"))

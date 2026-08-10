@@ -40,7 +40,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Tuple
+from beartype.typing import Dict, Optional, Tuple
 from jaxtyping import (
     Array,
     Complex128,
@@ -512,7 +512,7 @@ def _validate_hopping_metadata(
         message = "duplicate (i, j, R) hopping records are not allowed"
         raise ValueError(message)
 
-    buckets: dict[
+    buckets: Dict[
         Tuple[int, int, Tuple[int, int, int]],
         list[int],
     ] = {}
@@ -595,8 +595,8 @@ def _validate_shell_metadata(
         message = "nonnegative shell_index IDs must be contiguous from 0"
         raise ValueError(message)
 
-    shell_groups: dict[int, Tuple[int, int, int]] = {}
-    group_shells: dict[Tuple[int, int, int], int] = {}
+    shell_groups: Dict[int, Tuple[int, int, int]] = {}
+    group_shells: Dict[Tuple[int, int, int], int] = {}
     orbital: int
     shell: int
     for orbital, shell in enumerate(shell_index):
@@ -619,7 +619,7 @@ def _validate_shell_metadata(
         group_shells[group] = shell
 
 
-def _validate_tb_structure(  # noqa: PLR0913
+def _validate_tb_structure(  # noqa: PLR0913, PLR0917
     hopping_amplitudes: Complex128[Array, " n_hop"],
     onsite_energies: Float64[Array, " n_orb"],
     soc_lambdas: Float64[Array, " n_shells"],
@@ -1338,7 +1338,7 @@ def make_diagonalized_bands(  # noqa: DOC502, DOC503
 
 
 @jaxtyped(typechecker=beartype)
-def make_tb_model(  # noqa: DOC502, DOC503, PLR0913
+def make_tb_model(  # noqa: DOC502, DOC503, PLR0913, PLR0917
     hopping_amplitudes: Complex128[Array, "n_hop"],
     onsite_energies: Float64[Array, "n_orb"],
     soc_lambdas: Float64[Array, "n_shells"],

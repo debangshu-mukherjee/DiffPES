@@ -36,6 +36,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -56,7 +57,7 @@ from .slaterkoster import (
 )
 
 
-def _reverse_indices(model: TBModel) -> tuple[int, ...]:
+def _reverse_indices(model: TBModel) -> Tuple[int, ...]:
     """PRIVATE: Derive the exact reverse-hopping permutation.
 
     Parameters
@@ -66,7 +67,7 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
 
     Returns
     -------
-    reverse : tuple[int, ...]
+    reverse : Tuple[int, ...]
         Position of the reversed record ``(j, i, -R)`` for every hopping
         record ``(i, j, R)``.
 
@@ -77,7 +78,7 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
     stays a static tuple, so the conjugate-pair packing layout never
     enters tracing.
     """
-    records: tuple[tuple[int, int, tuple[int, int, int]], ...] = tuple(
+    records: Tuple[Tuple[int, int, Tuple[int, int, int]], ...] = tuple(
         (pair[0], pair[1], cell)
         for pair, cell in zip(
             model.hopping_pairs,
@@ -85,10 +86,10 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
             strict=True,
         )
     )
-    lookup: dict[tuple[int, int, tuple[int, int, int]], int] = {
+    lookup: Dict[Tuple[int, int, Tuple[int, int, int]], int] = {
         record: index for index, record in enumerate(records)
     }
-    reverse: tuple[int, ...] = tuple(
+    reverse: Tuple[int, ...] = tuple(
         lookup[(orbital_j, orbital_i, (-cell[0], -cell[1], -cell[2]))]
         for orbital_i, orbital_j, cell in records
     )
@@ -97,7 +98,7 @@ def _reverse_indices(model: TBModel) -> tuple[int, ...]:
 
 def _require_exact_closure(
     model: TBModel,
-    reverse_indices: tuple[int, ...],
+    reverse_indices: Tuple[int, ...],
 ) -> Complex128[NDArray, " n_hop"]:
     """PRIVATE: Require lossless, not tolerance-projected, Hermitian closure.
 
@@ -105,7 +106,7 @@ def _require_exact_closure(
     ----------
     model : TBModel
         Materialized tight-binding model to pack.
-    reverse_indices : tuple[int, ...]
+    reverse_indices : Tuple[int, ...]
         Static reverse-hopping permutation from ``_reverse_indices``.
 
     Returns
@@ -195,7 +196,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     model: TBModel,
     include_positions: bool = False,
     include_lattice: bool = False,
-) -> tuple[
+) -> Tuple[
     Float64[Array, " n_par"],
     Callable[[Float64[Array, " n_par"]], TBModel],
 ]:
@@ -260,17 +261,17 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
     if type(include_lattice) is not bool:
         message = "include_lattice must be a bool"
         raise ValueError(message)
-    reverse_indices: tuple[int, ...] = _reverse_indices(model)
+    reverse_indices: Tuple[int, ...] = _reverse_indices(model)
     host_amplitudes: Complex128[NDArray, " n_hop"] = _require_exact_closure(
         model,
         reverse_indices,
     )
-    representatives: tuple[int, ...] = tuple(
+    representatives: Tuple[int, ...] = tuple(
         index
         for index, reverse in enumerate(reverse_indices)
         if index <= reverse
     )
-    self_reverse: tuple[bool, ...] = tuple(
+    self_reverse: Tuple[bool, ...] = tuple(
         representative == reverse_indices[representative]
         for representative in representatives
     )
@@ -394,7 +395,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         )
         return rebuilt
 
-    result: tuple[
+    result: Tuple[
         Float64[Array, " n_par"],
         Callable[[Float64[Array, " n_par"]], TBModel],
     ] = (parameters, rebuild)
@@ -408,11 +409,11 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
     sk_params: SlaterKosterParams,
     onsite_energies: Float64[Array, " n_orb"],
     soc_lambdas: Float64[Array, " n_shells"],
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
     cutoff: float,
     include_positions: bool = False,
     include_lattice: bool = False,
-) -> tuple[
+) -> Tuple[
     Float64[Array, " n_par"],
     Callable[[Float64[Array, " n_par"]], TBModel],
 ]:
@@ -435,7 +436,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         Onsite orbital energies in eV.
     soc_lambdas : Float64[Array, " n_shells"]
         Atomic spin--orbit strengths in eV.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Static orbital-to-SOC-shell mapping.
     cutoff : float
         Static neighbor cutoff in angstroms.
@@ -504,9 +505,9 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         cutoff,
         spinor=spinor,
     )
-    atom_pairs: tuple[tuple[int, int], ...]
-    cells: tuple[tuple[int, int, int], ...]
-    shell_numbers: tuple[int, ...]
+    atom_pairs: Tuple[Tuple[int, int], ...]
+    cells: Tuple[Tuple[int, int, int], ...]
+    shell_numbers: Tuple[int, ...]
     atom_pairs, cells, shell_numbers = _freeze_neighbor_topology(
         geometry,
         cutoff,
@@ -588,7 +589,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         )
         return rebuilt
 
-    result: tuple[
+    result: Tuple[
         Float64[Array, " n_par"],
         Callable[[Float64[Array, " n_par"]], TBModel],
     ] = (parameters, rebuild)

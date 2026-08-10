@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import mpmath as mp
+from beartype.typing import Dict, Tuple
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class RadialCase:
     k_bohr_inv: str
 
 
-CASES: tuple[RadialCase, ...] = (
+CASES: Tuple[RadialCase, ...] = (
     RadialCase("sto_1s", "slater", 1, 0, "0.75", 1, "0.25"),
     RadialCase("sto_2p_to_s", "slater", 2, 1, "1.30", 0, "0.80"),
     RadialCase("sto_3p_to_d", "slater", 3, 1, "2.10", 2, "1.70"),
@@ -249,7 +250,7 @@ def _direct_quadrature(case: RadialCase) -> mp.mpf:
 def generate(output: Path) -> None:
     """Write the frozen reference CSV."""
     mp.mp.dps = 80
-    rows: list[dict[str, str]] = []
+    rows: list[Dict[str, str]] = []
     case: RadialCase
     for case in CASES:
         if case.mode == "slater":

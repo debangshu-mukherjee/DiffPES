@@ -34,6 +34,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jax import lax
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
@@ -96,7 +97,7 @@ def _complex_log_gamma_shifted(
         - shifted
         + 0.5 * math.log(2.0 * math.pi)
     )
-    bernoulli_values: tuple[float, ...] = (
+    bernoulli_values: Tuple[float, ...] = (
         1.0 / 6.0,
         -1.0 / 30.0,
         1.0 / 42.0,
@@ -232,7 +233,7 @@ def _regular_origin_state(
     order: int,
     eta: Float64[Array, " ..."],
     rho: Float64[Array, " ..."],
-) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     r"""PRIVATE: Evaluate regular origin series and its rho derivative.
 
     Parameters
@@ -246,7 +247,7 @@ def _regular_origin_state(
 
     Returns
     -------
-    result : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    result : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair of :math:`F_l(\eta,\rho)` and its :math:`\rho`
         derivative.
 
@@ -289,7 +290,7 @@ def _regular_origin_state(
     derivative: Float64[Array, " ..."] = (
         normalization * unnormalized_derivative
     )
-    result: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+    result: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
         value,
         derivative,
     )
@@ -301,7 +302,7 @@ def _irregular_origin_state(
     eta: Float64[Array, " ..."],
     rho: Float64[Array, " ..."],
     matched_irregular: Float64[Array, " ..."],
-) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     r"""PRIVATE: Evaluate the logarithmic irregular Frobenius row near the
     origin.
 
@@ -319,7 +320,7 @@ def _irregular_origin_state(
 
     Returns
     -------
-    result : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    result : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair of :math:`G_l(\eta,\rho)` and its :math:`\rho`
         derivative.
 
@@ -427,7 +428,7 @@ def _irregular_origin_state(
         regular_derivative * combined_primitive
         + regular * primitive_derivative
     )
-    result: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+    result: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
         value,
         derivative,
     )
@@ -438,7 +439,7 @@ def _outgoing_asymptotic_state(
     order: int,
     eta: Float64[Array, " ..."],
     rho: Float64[Array, " ..."],
-) -> tuple[Complex128[Array, " ..."], Complex128[Array, " ..."]]:
+) -> Tuple[Complex128[Array, " ..."], Complex128[Array, " ..."]]:
     r"""PRIVATE: Evaluate outgoing H+ and its rho derivative by
     inverse-radius series.
 
@@ -453,7 +454,7 @@ def _outgoing_asymptotic_state(
 
     Returns
     -------
-    result : tuple[Complex128[Array, " ..."], Complex128[Array, " ..."]]
+    result : Tuple[Complex128[Array, " ..."], Complex128[Array, " ..."]]
         Pair of the outgoing Coulomb--Hankel function
         :math:`H^+_l(\eta,\rho)` and its :math:`\rho` derivative.
 
@@ -510,7 +511,7 @@ def _outgoing_asymptotic_state(
     derivative: Complex128[Array, " ..."] = phase_factor * (
         1j * phase_derivative * amplitude + amplitude_derivative
     )
-    result: tuple[
+    result: Tuple[
         Complex128[Array, " ..."],
         Complex128[Array, " ..."],
     ] = (value, derivative)
@@ -582,13 +583,13 @@ def _numerov_endpoint(
 
     def body(
         index: Array,
-        state: tuple[
+        state: Tuple[
             Float64[Array, " ..."],
             Float64[Array, " ..."],
             Float64[Array, " ..."],
             Float64[Array, " ..."],
         ],
-    ) -> tuple[
+    ) -> Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -607,7 +608,7 @@ def _numerov_endpoint(
             2.0 * (1.0 - 5.0 * step**2 * q_current / 12.0) * current
             - (1.0 + step**2 * q_previous / 12.0) * previous
         ) / (1.0 + step**2 * q_next / 12.0)
-        next_state: tuple[
+        next_state: Tuple[
             Float64[Array, " ..."],
             Float64[Array, " ..."],
             Float64[Array, " ..."],
@@ -615,7 +616,7 @@ def _numerov_endpoint(
         ] = (current, next_value, q_current, q_next)
         return next_state
 
-    initial_state: tuple[
+    initial_state: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -626,7 +627,7 @@ def _numerov_endpoint(
         potential_previous,
         potential_current,
     )
-    final_state: tuple[
+    final_state: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -1254,9 +1255,9 @@ def _accurate_coulomb_values(
 @_accurate_coulomb_values.defjvp
 def _accurate_coulomb_values_jvp(
     order: int,
-    primals: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    tangents: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-) -> tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
+    primals: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    tangents: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+) -> Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
     """PRIVATE: Differentiate adaptive values through the fixed Numerov
     solver.
 
@@ -1264,14 +1265,14 @@ def _accurate_coulomb_values_jvp(
     ----------
     order : int
         Static angular momentum from 0 through 5.
-    primals : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    primals : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair ``(eta, rho)`` of primal arguments.
-    tangents : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    tangents : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair of the matching input tangents.
 
     Returns
     -------
-    result : tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
+    result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Primal rows and their joint tangent rows.
 
     Implementation Logic
@@ -1318,7 +1319,7 @@ def _accurate_coulomb_values_jvp(
     tangent_values: Float64[Array, "4 ..."] = (
         eta_derivative * eta_tangent + rho_derivative * rho_tangent
     )
-    result: tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
+    result: Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
         values,
         tangent_values,
     )
@@ -1328,7 +1329,7 @@ def _accurate_coulomb_values_jvp(
 def _plane_coulomb_rows(
     order: int,
     rho: Float64[Array, " ..."],
-) -> tuple[
+) -> Tuple[
     Float64[Array, " ..."],
     Float64[Array, " ..."],
     Float64[Array, " ..."],
@@ -1384,7 +1385,7 @@ def _plane_coulomb_rows(
             irregular = irregular_next
         irregular_next = (2 * order + 1) * irregular / rho - irregular_previous
         irregular_derivative = (order + 1) * irregular / rho - irregular_next
-    result: tuple[
+    result: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -1444,23 +1445,23 @@ def _accurate_coulomb_values_with_plane_limit(
 @_accurate_coulomb_values_with_plane_limit.defjvp
 def _accurate_coulomb_values_with_plane_limit_jvp(
     order: int,
-    primals: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    tangents: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-) -> tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
+    primals: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    tangents: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+) -> Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
     """PRIVATE: Preserve eta tangents and exact plane-limit rho tangents.
 
     Parameters
     ----------
     order : int
         Static angular momentum from 0 through 5.
-    primals : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    primals : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair ``(eta, rho)`` of primal arguments.
-    tangents : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    tangents : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair of the matching input tangents.
 
     Returns
     -------
-    result : tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
+    result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Selected primal rows and their selected tangent rows.
 
     Implementation Logic
@@ -1521,7 +1522,7 @@ def _accurate_coulomb_values_with_plane_limit_jvp(
         plane_limit_tangent,
         values_tangent,
     )
-    result: tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
+    result: Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
         result_values,
         result_tangent,
     )
@@ -1627,12 +1628,12 @@ def _normalized_coulomb_rows(
 @partial(_normalized_coulomb_rows.defjvp, symbolic_zeros=True)
 def _normalized_coulomb_rows_jvp(
     order: int,
-    primals: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    tangents: tuple[
+    primals: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    tangents: Tuple[
         Float64[Array, " ..."] | jax.custom_derivatives.SymbolicZero,
         Float64[Array, " ..."] | jax.custom_derivatives.SymbolicZero,
     ],
-) -> tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
+) -> Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
     """PRIVATE: Differentiate eta numerically and rho through the exact ODE
     system.
 
@@ -1640,9 +1641,9 @@ def _normalized_coulomb_rows_jvp(
     ----------
     order : int
         Static angular momentum from 0 through 5.
-    primals : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    primals : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair ``(eta, rho)`` of primal arguments.
-    tangents : tuple[Float64[Array, " ..."] | \
+    tangents : Tuple[Float64[Array, " ..."] | \
 jax.custom_derivatives.SymbolicZero, Float64[Array, " ..."] | \
 jax.custom_derivatives.SymbolicZero]
         Pair of input tangents; symbolic zeros mark inactive
@@ -1650,7 +1651,7 @@ jax.custom_derivatives.SymbolicZero]
 
     Returns
     -------
-    result : tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
+    result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Primal rows and their joint tangent rows.
 
     Implementation Logic
@@ -1708,7 +1709,7 @@ jax.custom_derivatives.SymbolicZero]
     tangent_values: Float64[Array, "4 ..."] = (
         eta_contribution + rho_contribution
     )
-    result: tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
+    result: Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]] = (
         values,
         tangent_values,
     )
@@ -1767,7 +1768,7 @@ def coulomb_fg(  # noqa: DOC503
     order: int,
     eta: Float64[Array, " ..."],
     rho: Float64[Array, " ..."],
-) -> tuple[
+) -> Tuple[
     Float64[Array, " ..."],
     Float64[Array, " ..."],
     Float64[Array, " ..."],
@@ -1839,7 +1840,7 @@ def coulomb_fg(  # noqa: DOC503
     irregular: Float64[Array, " ..."] = values[1]
     regular_derivative: Float64[Array, " ..."] = values[2]
     irregular_derivative: Float64[Array, " ..."] = values[3]
-    result: tuple[
+    result: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],

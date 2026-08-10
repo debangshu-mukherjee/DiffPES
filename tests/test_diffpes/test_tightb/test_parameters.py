@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.tightb import (
@@ -92,7 +93,7 @@ def _materialized_model(
     return model
 
 
-def _graphene_context() -> tuple[
+def _graphene_context() -> Tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
@@ -155,7 +156,7 @@ def _graphene_context() -> tuple[
     return geometry, basis, params, onsite
 
 
-def _sp_context() -> tuple[
+def _sp_context() -> Tuple[
     CrystalGeometry,
     OrbitalBasis,
     SlaterKosterParams,
@@ -825,7 +826,7 @@ class TestSKModelParameterView:
 
         def loss_with_model(
             vector: Float64[Array, " 18"],
-        ) -> tuple[Float64[Array, ""], TBModel]:
+        ) -> Tuple[Float64[Array, ""], TBModel]:
             """Return the spectral invariant and rebuilt auxiliary model."""
             model: TBModel = rebuild(vector)
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(

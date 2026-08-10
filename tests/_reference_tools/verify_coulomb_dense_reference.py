@@ -10,6 +10,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict
 from jaxtyping import Float64
 from numpy.typing import NDArray
 from scipy.special import loggamma
@@ -196,7 +197,7 @@ def main() -> None:  # noqa: PLR0915
             / (1.0e-12 + 1.0e-10 * np.abs(reference_irregular))
         )
     )
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "order": order,
         "dense_shape": list(eta_grid.shape),
         "regular_mixed_budget_ratio": regular_mixed_error,

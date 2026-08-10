@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 from scipy.integrate import quad
@@ -38,7 +39,7 @@ from diffpes.types import (
 def _node_doubling_with_parameter_gradient(
     base: RadialSpec,
     parameter_getter: Callable[[RadialSpec], Array],
-    directions: tuple[Array, ...] | None = None,
+    directions: Tuple[Array, ...] | None = None,
 ) -> None:
     """PRIVATE: Compare profile values and selected parameter tangents.
 
@@ -86,7 +87,7 @@ def _node_doubling_with_parameter_gradient(
         rtol=1.0e-10,
         atol=1.0e-12,
     )
-    selected_directions: tuple[Array, ...] = (
+    selected_directions: Tuple[Array, ...] = (
         (jnp.ones_like(parameter),) if directions is None else directions
     )
     tangent: Array
@@ -205,7 +206,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
     assert hydrogenic_tail <= 1.04e-11
     assert hydrogenic_tail >= 1.03e-11
 
-    tail_momenta: tuple[float, ...] = (
+    tail_momenta: Tuple[float, ...] = (
         0.0,
         1.0e-4,
         0.1,
@@ -407,7 +408,7 @@ def test_g16_hydrogenic_sharp_and_high_angular_gradient_battery() -> None:
     -----
     Exercise n=1, l=0 at decay four and n=7, l=4 at decay one half.
     """
-    quantum_numbers: tuple[tuple[int, int, float], ...] = (
+    quantum_numbers: Tuple[Tuple[int, int, float], ...] = (
         (1, 0, 4.0),
         (7, 4, 3.5),
     )
@@ -442,7 +443,7 @@ def test_g16_all_boundary_quantum_numbers_and_compact_modes() -> None:
     -----
     It enumerates certified boundaries and compares both registered profiles.
     """
-    n_star_values: tuple[float, ...] = (1.0, 2.0, 3.0, 3.7, 4.0, 4.2)
+    n_star_values: Tuple[float, ...] = (1.0, 2.0, 3.0, 3.7, 4.0, 4.2)
     principal: int
     n_star: float
     basis: OrbitalBasis

@@ -33,7 +33,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 import equinox as eqx
 from beartype import beartype
-from beartype.typing import Any, Tuple, cast
+from beartype.typing import Any, Dict, Tuple, cast
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -204,7 +204,7 @@ def _record_errors(  # noqa: PLR0912
     external_inputs: Tuple[str, ...],
 ) -> Tuple[
     list[str],
-    dict[str, int],
+    Dict[str, int],
     set[str],
     Tuple[str, ...],
 ]:
@@ -229,7 +229,7 @@ def _record_errors(  # noqa: PLR0912
 
     Returns
     -------
-    result : Tuple[list[str], dict[str, int], set[str], Tuple[str, ...]]
+    result : Tuple[list[str], Dict[str, int], set[str], Tuple[str, ...]]
         Deterministic error messages, the producer-record index per
         output identity, the set of consumed node identities, and the
         sorted orphaned external inputs.
@@ -238,7 +238,7 @@ def _record_errors(  # noqa: PLR0912
     record: Any
     output_id: Any
     errors: list[str] = []
-    producer: dict[str, int] = {}
+    producer: Dict[str, int] = {}
     consumed: set[str] = set()
     all_outputs: list[str] = []
     for index, record in enumerate(records):
@@ -303,7 +303,7 @@ def _record_errors(  # noqa: PLR0912
         errors.append(
             "declared external inputs are not consumed: " + ", ".join(orphaned)
         )
-    result: Tuple[list[str], dict[str, int], set[str], Tuple[str, ...]] = (
+    result: Tuple[list[str], Dict[str, int], set[str], Tuple[str, ...]] = (
         errors,
         producer,
         consumed,
@@ -427,7 +427,7 @@ def _propagate_information(
     """
     index: Any
     output_id: Any
-    state: dict[str, InformationState] = {
+    state: Dict[str, InformationState] = {
         node_id: make_information_state(
             node_id=node_id,
             active_semantics=semantics,
@@ -519,13 +519,13 @@ def _analyze(
     analysis, so the two paths cannot disagree.
     """
     record_analysis: Tuple[
-        list[str], dict[str, int], set[str], Tuple[str, ...]
+        list[str], Dict[str, int], set[str], Tuple[str, ...]
     ] = _record_errors(
         records,
         external_inputs,
     )
     errors: list[str] = record_analysis[0]
-    producer: dict[str, int] = record_analysis[1]
+    producer: Dict[str, int] = record_analysis[1]
     consumed: set[str] = record_analysis[2]
     orphaned: Tuple[str, ...] = record_analysis[3]
     topology: Tuple[Tuple[int, ...], bool] = _topological_indices(
@@ -796,7 +796,7 @@ def invalidated_claims(
     --------------------
     1. **Bind the documented output**::
 
-           claims: tuple[str, ...] = effective_information(
+           claims: Tuple[str, ...] = effective_information(
                    graph,
                    output_id,
                ).invalidated_claims
@@ -838,7 +838,7 @@ def lineage(graph: ProvenanceGraph, output_id: str) -> Tuple[str, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           result: tuple[str, ...] = tuple(sorted(ancestors))
+           result: Tuple[str, ...] = tuple(sorted(ancestors))
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -861,7 +861,7 @@ def lineage(graph: ProvenanceGraph, output_id: str) -> Tuple[str, ...]:
         If ``output_id`` is absent from the graph.
     """
     parent_id: Any
-    producer: dict[str, TransformationRecord] = {
+    producer: Dict[str, TransformationRecord] = {
         produced: record
         for record in graph.records
         for produced in record.output_ids

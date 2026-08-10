@@ -25,7 +25,7 @@ import pytest
 import yaml
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, List, Tuple
+from beartype.typing import Any, Dict, List, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, jaxtyped
 from numpy.typing import NDArray
 
@@ -252,10 +252,10 @@ class TestMetadata(chex.TestCase):
         project_file: Path = (
             Path(__file__).resolve().parents[1] / "pyproject.toml"
         )
-        configuration: dict[str, Any] = tomllib.loads(project_file.read_text())
-        project: dict[str, Any] = configuration["project"]
+        configuration: Dict[str, Any] = tomllib.loads(project_file.read_text())
+        project: Dict[str, Any] = configuration["project"]
         runtime_dependencies: list[str] = project["dependencies"]
-        optional_dependencies: dict[str, list[str]] = project[
+        optional_dependencies: Dict[str, list[str]] = project[
             "optional-dependencies"
         ]
         dependency_groups: Tuple[str, ...] = tuple(
@@ -277,12 +277,12 @@ class TestMetadata(chex.TestCase):
             for dependency in runtime_dependencies
             if re.match(r"^jax(?:\[|[<>=!~]|$)", dependency) is not None
         ]
-        tool_configuration: dict[str, Any] = configuration["tool"]
-        pytest_options: dict[str, Any] = tool_configuration["pytest"][
+        tool_configuration: Dict[str, Any] = configuration["tool"]
+        pytest_options: Dict[str, Any] = tool_configuration["pytest"][
             "ini_options"
         ]
-        ruff_configuration: dict[str, Any] = tool_configuration["ruff"]
-        interrogate_configuration: dict[str, Any] = tool_configuration[
+        ruff_configuration: Dict[str, Any] = tool_configuration["ruff"]
+        interrogate_configuration: Dict[str, Any] = tool_configuration[
             "interrogate"
         ]
 
@@ -329,7 +329,7 @@ class TestCI(chex.TestCase):
         """
         repository_root: Path = Path(__file__).resolve().parents[1]
         workflow_path: Path = repository_root / ".github/workflows/tests.yml"
-        workflow: dict[str, Any] = yaml.safe_load(workflow_path.read_text())
+        workflow: Dict[str, Any] = yaml.safe_load(workflow_path.read_text())
         triggers: list[str] = workflow["on"]
         python_versions: list[str] = workflow["jobs"]["test"]["strategy"][
             "matrix"
@@ -341,7 +341,7 @@ class TestCI(chex.TestCase):
             ["push", "pull_request", "workflow_dispatch"],
         )
         chex.assert_equal(python_versions, ["3.12", "3.13", "3.14"])
-        docs_job: dict[str, Any] = workflow["jobs"]["docs"]
+        docs_job: Dict[str, Any] = workflow["jobs"]["docs"]
         docs_commands: Tuple[str, ...] = tuple(
             step["run"] for step in docs_job["steps"] if "run" in step
         )
@@ -355,7 +355,7 @@ class TestCI(chex.TestCase):
         )
 
         rtd_path: Path = repository_root / ".readthedocs.yaml"
-        rtd: dict[str, Any] = yaml.safe_load(rtd_path.read_text())
+        rtd: Dict[str, Any] = yaml.safe_load(rtd_path.read_text())
         self.assertIs(rtd["sphinx"]["fail_on_warning"], True)
 
         tutorial: Path = (
@@ -384,8 +384,8 @@ class TestCI(chex.TestCase):
         """
         repository_root: Path = Path(__file__).resolve().parents[1]
         workflow_path: Path = repository_root / ".github/workflows/release.yml"
-        workflow: dict[str, Any] = yaml.safe_load(workflow_path.read_text())
-        publish_job: dict[str, Any] = workflow["jobs"]["publish"]
+        workflow: Dict[str, Any] = yaml.safe_load(workflow_path.read_text())
+        publish_job: Dict[str, Any] = workflow["jobs"]["publish"]
         run_commands: Tuple[str, ...] = tuple(
             step["run"] for step in publish_job["steps"] if "run" in step
         )
@@ -686,7 +686,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         return exports
 
     @staticmethod
-    def _routine_listing_summaries(docstring: str) -> dict[str, str]:
+    def _routine_listing_summaries(docstring: str) -> Dict[str, str]:
         """PRIVATE: Return public names and summaries from one Routine Listings block.
 
         Parameters
@@ -707,7 +707,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         line and strips any leading module path from the captured
         name.
         """
-        summaries: dict[str, str] = {}
+        summaries: Dict[str, str] = {}
         lines: list[str] = docstring.splitlines()
         index: int
         line: str
@@ -1399,20 +1399,22 @@ class TestRepositoryArchitecture(chex.TestCase):
                     )
         self.assertEqual(violations, [])
 
-    def test_annotations_use_beartype_tuple(self) -> None:
-        """Require ``beartype.typing.Tuple`` in every tuple annotation.
+    def test_annotations_use_beartype_tuple_and_dict(self) -> None:
+        """Require beartype ``Tuple`` and ``Dict`` annotation generics.
 
-        The test confirms no annotation expression uses the builtin
-        ``tuple`` generic and no module imports charter-owned typing
-        constructs from the stdlib ``typing`` module.
+        The test confirms no annotation or type-alias expression uses the
+        builtin ``tuple`` or ``dict`` generic, that ``Tuple`` and ``Dict``
+        come from ``beartype.typing``, and that no module imports
+        charter-owned typing constructs from the stdlib ``typing`` module.
 
         Notes
         -----
         The test walks every argument, return, and variable annotation in
         the production and complete test trees. It reports one row per
         offending annotation as a path, line, and reason. Runtime uses of
-        ``tuple`` (calls, ``isinstance`` checks, literals) stay valid; the
-        gate reads annotation expressions only.
+        ``tuple`` and ``dict`` (calls, ``isinstance`` checks, and literals)
+        stay valid; the gate reads annotation and type-alias expressions
+        only.
         """
         banned_typing_names: Tuple[str, ...] = (
             "Dict",
@@ -1429,6 +1431,14 @@ class TestRepositoryArchitecture(chex.TestCase):
         for path, module in (
             self._production_modules() + self._test_tree_modules()
         ):
+            imported_beartype_names: set[str] = {
+                alias.name
+                for statement in module.body
+                if isinstance(statement, ast.ImportFrom)
+                and statement.module == "beartype.typing"
+                for alias in statement.names
+            }
+            required_beartype_names: Dict[str, int] = {}
             for node in ast.walk(module):
                 annotations: List[Tuple[int, ast.AST]] = []
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1455,8 +1465,19 @@ class TestRepositoryArchitecture(chex.TestCase):
                             )
                     if node.returns is not None:
                         annotations.append((node.lineno, node.returns))
+                elif isinstance(node, ast.TypeAlias):
+                    annotations.append((node.lineno, node.value))
                 elif isinstance(node, ast.AnnAssign):
                     annotations.append((node.lineno, node.annotation))
+                    is_type_alias: bool = (
+                        isinstance(node.annotation, ast.Name)
+                        and node.annotation.id == "TypeAlias"
+                    ) or (
+                        isinstance(node.annotation, ast.Attribute)
+                        and node.annotation.attr == "TypeAlias"
+                    )
+                    if is_type_alias and node.value is not None:
+                        annotations.append((node.lineno, node.value))
                 elif isinstance(node, ast.ImportFrom):
                     if node.module == "typing":
                         imported_banned: List[str] = sorted(
@@ -1472,13 +1493,36 @@ class TestRepositoryArchitecture(chex.TestCase):
                 lineno: int
                 annotation: ast.AST
                 for lineno, annotation in annotations:
-                    if any(
-                        isinstance(inner, ast.Name) and inner.id == "tuple"
+                    inner: ast.AST
+                    builtin_names: set[str] = {
+                        inner.id
                         for inner in ast.walk(annotation)
-                    ):
+                        if isinstance(inner, ast.Name)
+                        and inner.id in {"dict", "tuple"}
+                    }
+                    builtin_name: str
+                    for builtin_name in sorted(builtin_names):
                         violations.append(
-                            f"{path}:{lineno}:builtin-tuple-annotation"
+                            f"{path}:{lineno}:"
+                            f"builtin-{builtin_name}-annotation"
                         )
+                    for inner in ast.walk(annotation):
+                        if isinstance(inner, ast.Name) and inner.id in {
+                            "Dict",
+                            "Tuple",
+                        }:
+                            required_beartype_names.setdefault(
+                                inner.id, lineno
+                            )
+            required_name: str
+            for required_name in sorted(required_beartype_names):
+                if required_name not in imported_beartype_names:
+                    violations.append(
+                        f"{path}:"
+                        f"{required_beartype_names[required_name]}:"
+                        "missing-beartype-typing-import:"
+                        f"{required_name}"
+                    )
         self.assertEqual(violations, [])
 
     def test_legacy_pytree_carriers_are_forbidden(self) -> None:
@@ -1580,7 +1624,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test parses module-level assignments and compares them with the narrow
         allowlist for version, registry, generated table, and polynomial data.
         """
-        allowed: dict[str, set[str]] = {
+        allowed: Dict[str, set[str]] = {
             "__init__.py": {"__version__"},
             "inout/hdf5.py": {"_PYTREE_REGISTRY"},
             "maths/gaunt.py": {"GAUNT_TABLE"},
@@ -2107,7 +2151,7 @@ class TestRepositoryArchitecture(chex.TestCase):
             listed_modules: set[str] = set(
                 re.findall(r"- :mod:`([^`]+)`", module_docstring)
             )
-            listed_descriptions: dict[str, str] = dict(
+            listed_descriptions: Dict[str, str] = dict(
                 re.findall(
                     r"(?m)^- :mod:`([^`]+)`\n    ([^\n]+)$",
                     module_docstring,
@@ -2147,8 +2191,8 @@ class TestRepositoryArchitecture(chex.TestCase):
         parsed_modules: Tuple[Tuple[Path, ast.Module], ...] = (
             self._production_modules()
         )
-        module_records: dict[
-            Path, Tuple[ast.Module, set[str], dict[str, str]]
+        module_records: Dict[
+            Path, Tuple[ast.Module, set[str], Dict[str, str]]
         ] = {}
         violations: list[str] = []
         path: Path
@@ -2159,13 +2203,13 @@ class TestRepositoryArchitecture(chex.TestCase):
                 ast.get_docstring(module, clean=False) or ""
             )
             exports: set[str] = self._literal_exports(module)
-            listings: dict[str, str] = self._routine_listing_summaries(
+            listings: Dict[str, str] = self._routine_listing_summaries(
                 module_docstring
             )
             module_records[path] = (module, exports, listings)
             if path.name == "__init__.py":
                 continue
-            public_definitions: dict[str, str] = {
+            public_definitions: Dict[str, str] = {
                 node.name: (ast.get_docstring(node) or "").splitlines()[0]
                 for node in module.body
                 if isinstance(
@@ -2197,13 +2241,13 @@ class TestRepositoryArchitecture(chex.TestCase):
                 continue
             package_module: ast.Module
             package_exports: set[str]
-            package_listings: dict[str, str]
+            package_listings: Dict[str, str]
             package_module, package_exports, package_listings = module_records[
                 init_path
             ]
             del package_module
             submodule_exports: set[str] = set()
-            submodule_summaries: dict[str, str] = {}
+            submodule_summaries: Dict[str, str] = {}
             for path, (_, exports, listings) in module_records.items():
                 if path.parent == package_path and path.name != "__init__.py":
                     submodule_exports.update(exports)
@@ -2342,7 +2386,7 @@ class TestRepositoryArchitecture(chex.TestCase):
             test_path: Path = (
                 tests_root / f"test_{subpackage}" / f"test_{source_path.name}"
             )
-            test_classes: dict[str, ast.ClassDef] = {}
+            test_classes: Dict[str, ast.ClassDef] = {}
             if test_path.is_file():
                 test_module: ast.Module = ast.parse(
                     test_path.read_text(encoding="utf-8")
@@ -2607,7 +2651,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test reads literal ``__all__`` entries from each first-level subpackage and
         reports names claimed by more than one owner.
         """
-        owners: dict[str, list[str]] = {}
+        owners: Dict[str, list[str]] = {}
         path: Path
         module: ast.Module
         node: ast.stmt

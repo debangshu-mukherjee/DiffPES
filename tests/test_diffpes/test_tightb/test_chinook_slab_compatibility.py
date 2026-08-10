@@ -9,7 +9,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Any
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
@@ -41,7 +41,7 @@ _COMPATIBILITY_RTOL: float = 1e-8
 _COMPATIBILITY_ATOL_EV: float = 1e-8
 
 
-def _reference() -> dict[str, Any]:
+def _reference() -> Dict[str, Any]:
     """PRIVATE: Load and authenticate the inert numeric compatibility artifact.
 
     Returns
@@ -71,8 +71,8 @@ def _reference() -> dict[str, Any]:
             "Chinook slab artifact checksum differs from its pinned digest"
         )
         raise ValueError(message)
-    payload: dict[str, Any] = json.loads(encoded)
-    metadata: dict[str, Any] = payload["metadata"]
+    payload: Dict[str, Any] = json.loads(encoded)
+    metadata: Dict[str, Any] = payload["metadata"]
     if (
         metadata["requirements"]
         != ["chinook-slab-band-parity", "chinook-surface-state-parity"]
@@ -83,7 +83,7 @@ def _reference() -> dict[str, Any]:
     return payload
 
 
-def _bulk_model(specification: dict[str, Any]) -> TBModel:
+def _bulk_model(specification: Dict[str, Any]) -> TBModel:
     """PRIVATE: Build the native side of the implementation-neutral model.
 
     Parameters
@@ -124,7 +124,7 @@ def _bulk_model(specification: dict[str, Any]) -> TBModel:
         m=(0,),
         labels=tuple(specification["basis"]),
     )
-    hopping: dict[str, float] = specification["nearest_neighbor_hopping_ev"]
+    hopping: Dict[str, float] = specification["nearest_neighbor_hopping_ev"]
     amplitudes: Array = jnp.asarray(
         (
             hopping["x"],
@@ -136,7 +136,7 @@ def _bulk_model(specification: dict[str, Any]) -> TBModel:
         ),
         dtype=jnp.complex128,
     )
-    cells: tuple[tuple[int, int, int], ...] = (
+    cells: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 0),
         (-1, 0, 0),
         (0, 1, 0),
@@ -160,8 +160,8 @@ def _bulk_model(specification: dict[str, Any]) -> TBModel:
 
 
 def _native_slab(
-    payload: dict[str, Any],
-) -> tuple[TBModel, SlabSpec]:
+    payload: Dict[str, Any],
+) -> Tuple[TBModel, SlabSpec]:
     """PRIVATE: Construct the native slab from the frozen specification.
 
     Parameters
@@ -181,7 +181,7 @@ def _native_slab(
     :func:`gen_slab` on top of :func:`_bulk_model`, so the native slab
     derives only from implementation-neutral numbers.
     """
-    specification: dict[str, Any] = payload["model_specification"]
+    specification: Dict[str, Any] = payload["model_specification"]
     return gen_slab(
         bulk_model=_bulk_model(specification),
         miller=tuple(specification["miller"]),
@@ -256,8 +256,8 @@ class TestChinookSlabCompatibility:
         Compare outputs with declared numerical or structural references.
         """
         slab: Any
-        payload: dict[str, Any] = _reference()
-        reference: dict[str, Any] = payload["chinook_reference"]
+        payload: Dict[str, Any] = _reference()
+        reference: Dict[str, Any] = payload["chinook_reference"]
         slab, _ = _native_slab(payload)
         native_vectors: Float64[NDArray, "2 3"] = np.asarray(
             slab.geometry.lattice[:2],
@@ -297,9 +297,9 @@ class TestChinookSlabCompatibility:
         Compare outputs with declared numerical or structural references.
         """
         bands: Any
-        payload: dict[str, Any] = _reference()
-        specification: dict[str, Any] = payload["model_specification"]
-        reference: dict[str, Any] = payload["chinook_reference"]
+        payload: Dict[str, Any] = _reference()
+        specification: Dict[str, Any] = payload["model_specification"]
+        reference: Dict[str, Any] = payload["chinook_reference"]
         slab: TBModel
         slab_spec: SlabSpec
         slab, slab_spec = _native_slab(payload)
@@ -337,9 +337,9 @@ class TestChinookSlabCompatibility:
         """
         bands: Any
         slab: Any
-        payload: dict[str, Any] = _reference()
-        specification: dict[str, Any] = payload["model_specification"]
-        reference: dict[str, Any] = payload["chinook_reference"]
+        payload: Dict[str, Any] = _reference()
+        specification: Dict[str, Any] = payload["model_specification"]
+        reference: Dict[str, Any] = payload["chinook_reference"]
         slab, _ = _native_slab(payload)
         escape_length: float = specification[
             "intensity_escape_length_angstrom"

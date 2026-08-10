@@ -8,6 +8,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
@@ -17,10 +18,10 @@ ETA_MIN: float = -3.0
 ETA_MAX: float = 3.0
 RHO_MIN: float = 1.0e-4
 RHO_MAX: float = 40.0
-ETA_FD_EXPONENTS: tuple[int, ...] = (12, 14, 16)
-ETA_FIVE_POINT_FD_EXPONENTS: tuple[int, ...] = (8, 10, 12)
+ETA_FD_EXPONENTS: Tuple[int, ...] = (12, 14, 16)
+ETA_FIVE_POINT_FD_EXPONENTS: Tuple[int, ...] = (8, 10, 12)
 ETA_FIVE_POINT_FD_MULTIPLIER: float = 2.0**0.5
-RHO_FD_EXPONENTS: tuple[int, ...] = (8, 10, 12)
+RHO_FD_EXPONENTS: Tuple[int, ...] = (8, 10, 12)
 REGULAR_RHO_FD_SCALE_FLOOR: float = 2.0**-5
 IRREGULAR_RHO_FD_SCALE_FLOOR: float = 2.0**-9
 RHO_FD_SCALE_RULE: str = (
@@ -72,7 +73,7 @@ def main() -> None:  # noqa: PLR0915
         / "coulomb_mpmath_80digit.npz"
     )
     with np.load(path) as archive:
-        reference: dict[str, Shaped[NDArray, "..."]] = {
+        reference: Dict[str, Shaped[NDArray, "..."]] = {
             name: archive[name] for name in archive.files
         }
     eta_grid_numpy: Float64[NDArray, "n_eta n_rho"]
@@ -92,7 +93,7 @@ def main() -> None:  # noqa: PLR0915
 
     actual: jax.Array = values(eta_grid, rho_grid)
     jax.block_until_ready(actual)
-    names: tuple[str, ...] = ("f", "g", "df_drho", "dg_drho")
+    names: Tuple[str, ...] = ("f", "g", "df_drho", "dg_drho")
     name: str
     row: jax.Array
     for name, row in zip(names, actual, strict=True):
@@ -126,13 +127,13 @@ def main() -> None:  # noqa: PLR0915
     eta_tangent: jax.Array = eta_forward(eta_grid, rho_grid)
     rho_tangent: jax.Array = rho_forward(eta_grid, rho_grid)
     jax.block_until_ready((eta_tangent, rho_tangent))
-    eta_names: tuple[str, ...] = (
+    eta_names: Tuple[str, ...] = (
         "df_deta",
         "dg_deta",
         "d_df_drho_deta",
         "d_dg_drho_deta",
     )
-    rho_names: tuple[str, ...] = (
+    rho_names: Tuple[str, ...] = (
         "df_drho",
         "dg_drho",
         "d2f_drho2",
@@ -334,7 +335,7 @@ def main() -> None:  # noqa: PLR0915
 
     def rho_fd_rows_for_step(
         rho_step: jax.Array,
-    ) -> tuple[jax.Array, jax.Array]:
+    ) -> Tuple[jax.Array, jax.Array]:
         """Return second- and fourth-order rows for one global step field."""
         plus_one: jax.Array = values(
             eta_grid,
@@ -534,7 +535,7 @@ def main() -> None:  # noqa: PLR0915
         axis=0,
     )
     rho_best_ratio: float = float(jnp.max(rho_elementwise_best))
-    rho_worst_index: tuple[int, ...] = tuple(
+    rho_worst_index: Tuple[int, ...] = tuple(
         int(value)
         for value in jnp.unravel_index(
             jnp.argmax(rho_elementwise_best),
@@ -556,7 +557,7 @@ def main() -> None:  # noqa: PLR0915
     eta_five_point_error_ratio: jax.Array = jnp.abs(
         eta_five_point_richardson - eta_reference
     ) / (1.0e-10 + 1.0e-7 * jnp.abs(eta_reference))
-    eta_five_point_worst_index: tuple[int, ...] = tuple(
+    eta_five_point_worst_index: Tuple[int, ...] = tuple(
         int(value)
         for value in jnp.unravel_index(
             jnp.argmax(eta_five_point_error_ratio),
@@ -574,7 +575,7 @@ def main() -> None:  # noqa: PLR0915
     rho_five_point_error_ratio: jax.Array = jnp.abs(
         rho_five_point_richardson - rho_reference
     ) / (1.0e-10 + 1.0e-7 * jnp.abs(rho_reference))
-    rho_five_point_worst_index: tuple[int, ...] = tuple(
+    rho_five_point_worst_index: Tuple[int, ...] = tuple(
         int(value)
         for value in jnp.unravel_index(
             jnp.argmax(rho_five_point_error_ratio),
@@ -595,7 +596,7 @@ def main() -> None:  # noqa: PLR0915
         rtol=0.0,
         atol=1.0e-10,
     )
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "order": order,
         "eta_forward_budget_ratio": _mixed_budget_ratio(
             eta_tangent,

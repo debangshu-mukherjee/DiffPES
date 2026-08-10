@@ -15,6 +15,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64, Shaped
 from numpy.typing import NDArray
 
@@ -27,7 +28,7 @@ from diffpes.radial import (
 from diffpes.types import FinalStateSpec, make_final_state_spec
 
 
-def _reference() -> dict[str, Shaped[NDArray, "..."]]:
+def _reference() -> Dict[str, Shaped[NDArray, "..."]]:
     """PRIVATE: Load the frozen 80-digit Coulomb value and derivative artifact.
 
     Returns
@@ -47,7 +48,7 @@ def _reference() -> dict[str, Shaped[NDArray, "..."]]:
         Path(__file__).with_name("data") / "coulomb_mpmath_80digit.npz"
     )
     archive: np.lib.npyio.NpzFile = np.load(path)
-    result: dict[str, Shaped[NDArray, "..."]] = {
+    result: Dict[str, Shaped[NDArray, "..."]] = {
         name: archive[name] for name in archive.files
     }
     return result
@@ -65,7 +66,7 @@ class TestCoulombPhaseShift:
         -----
         It compares production outputs with stored arbitrary-precision values.
         """
-        reference: dict[str, Shaped[NDArray, "..."]] = _reference()
+        reference: Dict[str, Shaped[NDArray, "..."]] = _reference()
         etas: Float64[Array, " n_eta"] = jnp.asarray(reference["etas"])
         order: int
         for order in range(5):
@@ -114,7 +115,7 @@ class TestCoulombFg:
         manifest_path: Path = (
             data_directory / "coulomb_mpmath_80digit.manifest.json"
         )
-        manifest: dict[str, Any] = json.loads(
+        manifest: Dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         assert manifest["schema"] == "diffpes.coulomb-mpmath-reference.v2"
@@ -239,7 +240,7 @@ class TestCoulombFg:
             eta_argument: Float64[Array, " n_probe"],
             rho_argument: Float64[Array, " n_probe"],
         ) -> Float64[Array, "4 n_probe"]:
-            rows: tuple[Float64[Array, " n_probe"], ...] = coulomb_fg(
+            rows: Tuple[Float64[Array, " n_probe"], ...] = coulomb_fg(
                 2,
                 eta_argument,
                 rho_argument,
@@ -284,8 +285,8 @@ class TestCoulombFg:
         """
         eta: Float64[Array, " n"] = jnp.asarray([-0.5, 0.0, 0.5])
         rho: Float64[Array, " n"] = jnp.asarray([0.2, 1.0, 3.0])
-        eager: tuple[Float64[Array, " n"], ...] = coulomb_fg(1, eta, rho)
-        compiled: tuple[Float64[Array, " n"], ...] = jax.jit(
+        eager: Tuple[Float64[Array, " n"], ...] = coulomb_fg(1, eta, rho)
+        compiled: Tuple[Float64[Array, " n"], ...] = jax.jit(
             lambda first, second: coulomb_fg(1, first, second)
         )(eta, rho)
         chex.assert_trees_all_close(

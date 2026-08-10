@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from beartype.typing import Dict
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -260,7 +261,7 @@ class TestSelfEnergyModel:
         floor and gradient-liveness cases below own the extreme-coordinate
         contract.
         """
-        counts: dict[str, int] = {
+        counts: Dict[str, int] = {
             "constant": 1,
             "poly": 4,
             "grid": 4,
@@ -508,7 +509,7 @@ class TestMakeSelfEnergyModel:
         nodes: jax.Array | None = (
             jnp.array([-1.0, 1.0]) if mode == "grid" else None
         )
-        common: dict[str, object] = {
+        common: Dict[str, object] = {
             "mode": mode,
             "coefficients": coefficients,
             "energy_nodes_rel_fermi_ev": nodes,

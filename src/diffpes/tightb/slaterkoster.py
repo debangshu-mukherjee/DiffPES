@@ -41,6 +41,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jax import core
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
@@ -429,9 +430,9 @@ def sk_block(  # noqa: DOC502, DOC503
 def _candidate_topology(
     n_atoms: int,
     supercell_radius: int,
-) -> tuple[
-    tuple[tuple[int, int], ...],
-    tuple[tuple[int, int, int], ...],
+) -> Tuple[
+    Tuple[Tuple[int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
 ]:
     """PRIVATE: Build one canonical representative of every undirected bond.
 
@@ -456,8 +457,8 @@ def _candidate_topology(
     ``(j, i, -R)`` lexicographically. Every undirected bond therefore
     appears exactly once.
     """
-    atom_pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
+    atom_pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
     cell_x: int
     cell_y: int
     cell_z: int
@@ -466,19 +467,19 @@ def _candidate_topology(
     for cell_x in range(-supercell_radius, supercell_radius + 1):
         for cell_y in range(-supercell_radius, supercell_radius + 1):
             for cell_z in range(-supercell_radius, supercell_radius + 1):
-                cell: tuple[int, int, int] = (cell_x, cell_y, cell_z)
+                cell: Tuple[int, int, int] = (cell_x, cell_y, cell_z)
                 for atom_i in range(n_atoms):
                     for atom_j in range(n_atoms):
                         if atom_i == atom_j and cell == (0, 0, 0):
                             continue
-                        record: tuple[int, int, int, int, int] = (
+                        record: Tuple[int, int, int, int, int] = (
                             atom_i,
                             atom_j,
                             cell_x,
                             cell_y,
                             cell_z,
                         )
-                        reverse: tuple[int, int, int, int, int] = (
+                        reverse: Tuple[int, int, int, int, int] = (
                             atom_j,
                             atom_i,
                             -cell_x,
@@ -488,9 +489,9 @@ def _candidate_topology(
                         if record < reverse:
                             atom_pairs.append((atom_i, atom_j))
                             cells.append(cell)
-    topology: tuple[
-        tuple[tuple[int, int], ...],
-        tuple[tuple[int, int, int], ...],
+    topology: Tuple[
+        Tuple[Tuple[int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
     ] = (tuple(atom_pairs), tuple(cells))
     return topology
 
@@ -572,23 +573,23 @@ def _certified_supercell_radius(
 
 def _displacements_and_distances(
     geometry: CrystalGeometry,
-    atom_pairs: tuple[tuple[int, int], ...],
-    cells: tuple[tuple[int, int, int], ...],
-) -> tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]:
+    atom_pairs: Tuple[Tuple[int, int], ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+) -> Tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]:
     """PRIVATE: Derive differentiable fractional bonds and Cartesian lengths.
 
     Parameters
     ----------
     geometry : CrystalGeometry
         Crystal lattice and fractional atom positions.
-    atom_pairs : tuple[tuple[int, int], ...]
+    atom_pairs : Tuple[Tuple[int, int], ...]
         Static ordered atom pairs.
-    cells : tuple[tuple[int, int, int], ...]
+    cells : Tuple[Tuple[int, int, int], ...]
         Exact integer cell translations for every pair.
 
     Returns
     -------
-    result : tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]
+    result : Tuple[Float64[Array, "n_bond 3"], Float64[Array, " n_bond"]]
         Fractional displacements ``R + tau_j - tau_i`` and their
         Cartesian lengths in angstroms.
 
@@ -608,7 +609,7 @@ def _displacements_and_distances(
             (0,),
             dtype=geometry.positions.dtype,
         )
-        empty_result: tuple[
+        empty_result: Tuple[
             Float64[Array, "0 3"],
             Float64[Array, " 0"],
         ] = (empty_displacements, empty_distances)
@@ -633,7 +634,7 @@ def _displacements_and_distances(
         cartesian,
         axis=1,
     )
-    result: tuple[
+    result: Tuple[
         Float64[Array, "n_bond 3"],
         Float64[Array, " n_bond"],
     ] = (displacements, distances)
@@ -741,9 +742,9 @@ def neighbor_shells(  # noqa: DOC502
     geometry: CrystalGeometry,
     cutoff: float,
     supercell_radius: int | None = None,
-) -> tuple[
-    tuple[tuple[int, int], ...],
-    tuple[tuple[int, int, int], ...],
+) -> Tuple[
+    Tuple[Tuple[int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
     Float64[Array, "n_bond 3"],
     Float64[Array, " n_bond"],
 ]:
@@ -767,9 +768,9 @@ def neighbor_shells(  # noqa: DOC502
 
     Returns
     -------
-    atom_pairs : tuple[tuple[int, int], ...]
+    atom_pairs : Tuple[Tuple[int, int], ...]
         Canonical undirected atom pairs. Every physical bond appears once.
-    cells : tuple[tuple[int, int, int], ...]
+    cells : Tuple[Tuple[int, int, int], ...]
         Exact integer cell translations from the first atom to the second.
     displacements : Float64[Array, "n_bond 3"]
         Fractional displacements ``R + tau_j - tau_i``.
@@ -815,8 +816,8 @@ def neighbor_shells(  # noqa: DOC502
     search_radius: int = (
         certified_radius if supercell_radius is None else supercell_radius
     )
-    candidates: tuple[tuple[int, int], ...]
-    candidate_cells: tuple[tuple[int, int, int], ...]
+    candidates: Tuple[Tuple[int, int], ...]
+    candidate_cells: Tuple[Tuple[int, int, int], ...]
     candidates, candidate_cells = _candidate_topology(
         geometry.positions.shape[0],
         search_radius,
@@ -838,13 +839,13 @@ def neighbor_shells(  # noqa: DOC502
         message = "neighbor_shells encountered a zero-length atom pair"
         raise ValueError(message)
     keep: Bool[NDArray, " n_candidate"] = host_distances <= cutoff
-    kept_indices: tuple[int, ...] = tuple(
+    kept_indices: Tuple[int, ...] = tuple(
         int(index) for index in np.flatnonzero(keep)
     )
-    atom_pairs: tuple[tuple[int, int], ...] = tuple(
+    atom_pairs: Tuple[Tuple[int, int], ...] = tuple(
         candidates[index] for index in kept_indices
     )
-    cells: tuple[tuple[int, int, int], ...] = tuple(
+    cells: Tuple[Tuple[int, int, int], ...] = tuple(
         candidate_cells[index] for index in kept_indices
     )
     displacements: Float64[Array, "n_bond 3"]
@@ -854,9 +855,9 @@ def neighbor_shells(  # noqa: DOC502
         atom_pairs,
         cells,
     )
-    result: tuple[
-        tuple[tuple[int, int], ...],
-        tuple[tuple[int, int, int], ...],
+    result: Tuple[
+        Tuple[Tuple[int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
         Float64[Array, "n_bond 3"],
         Float64[Array, " n_bond"],
     ] = (atom_pairs, cells, displacements, distances)
@@ -864,18 +865,18 @@ def neighbor_shells(  # noqa: DOC502
 
 
 def _parse_parameter_keys(
-    keys: tuple[str, ...],
-) -> dict[tuple[str | None, int | None, str], int]:
+    keys: Tuple[str, ...],
+) -> Dict[Tuple[str | None, int | None, str], int]:
     """PRIVATE: Parse material, optional shell, and channel identifiers.
 
     Parameters
     ----------
-    keys : tuple[str, ...]
+    keys : Tuple[str, ...]
         Static Slater--Koster parameter keys.
 
     Returns
     -------
-    parsed : dict[tuple[str | None, int | None, str], int]
+    parsed : Dict[Tuple[str | None, int | None, str], int]
         Map from ``(species_pair, shell, channel)`` to the position of
         the key in ``keys``. Generic entries store ``None`` for the
         missing parts.
@@ -894,7 +895,7 @@ def _parse_parameter_keys(
     the one-based distance-shell form ``"<A>-<B>@<shell>:<channel>"``.
     Channels must belong to the types-owned ``KNOWN_CHANNELS`` set.
     """
-    parsed: dict[tuple[str | None, int | None, str], int] = {}
+    parsed: Dict[Tuple[str | None, int | None, str], int] = {}
     index: int
     key: str
     for index, key in enumerate(keys):
@@ -932,20 +933,20 @@ def _parse_parameter_keys(
 
 def _species_pair(
     geometry: CrystalGeometry,
-    atom_pair: tuple[int, int],
-) -> tuple[str | None, str | None]:
+    atom_pair: Tuple[int, int],
+) -> Tuple[str | None, str | None]:
     """PRIVATE: Return forward and reversed material-pair identifiers.
 
     Parameters
     ----------
     geometry : CrystalGeometry
         Geometry that may carry species labels.
-    atom_pair : tuple[int, int]
+    atom_pair : Tuple[int, int]
         Static ordered atom pair.
 
     Returns
     -------
-    pairs : tuple[str | None, str | None]
+    pairs : Tuple[str | None, str | None]
         Strings ``"A-B"`` and ``"B-A"`` for the two atom species, or
         ``(None, None)`` when the geometry declares no species.
 
@@ -955,11 +956,11 @@ def _species_pair(
     key written for either direction of the same bond.
     """
     if not geometry.species:
-        empty_pairs: tuple[str | None, str | None] = (None, None)
+        empty_pairs: Tuple[str | None, str | None] = (None, None)
         return empty_pairs
     species_i: str = geometry.species[atom_pair[0]]
     species_j: str = geometry.species[atom_pair[1]]
-    pairs: tuple[str | None, str | None] = (
+    pairs: Tuple[str | None, str | None] = (
         f"{species_i}-{species_j}",
         f"{species_j}-{species_i}",
     )
@@ -968,23 +969,23 @@ def _species_pair(
 
 def _shell_numbers(
     geometry: CrystalGeometry,
-    atom_pairs: tuple[tuple[int, int], ...],
+    atom_pairs: Tuple[Tuple[int, int], ...],
     distances: Float64[Array, " n_bond"],
-) -> tuple[int, ...]:
+) -> Tuple[int, ...]:
     """PRIVATE: Create one-based distance-shell numbers per species pair.
 
     Parameters
     ----------
     geometry : CrystalGeometry
         Geometry that may carry species labels.
-    atom_pairs : tuple[tuple[int, int], ...]
+    atom_pairs : Tuple[Tuple[int, int], ...]
         Static ordered atom pairs.
     distances : Float64[Array, " n_bond"]
         Cartesian bond lengths in angstroms.
 
     Returns
     -------
-    result : tuple[int, ...]
+    result : Tuple[int, ...]
         One-based distance-shell number for every bond.
 
     Notes
@@ -997,13 +998,13 @@ def _shell_numbers(
     never enters tracing.
     """
     host_distances: Float64[NDArray, " n_bond"] = np.asarray(distances)
-    grouped: dict[tuple[str, str], list[float]] = {}
-    pair_groups: list[tuple[str, str]] = []
-    atom_pair: tuple[int, int]
+    grouped: Dict[Tuple[str, str], list[float]] = {}
+    pair_groups: list[Tuple[str, str]] = []
+    atom_pair: Tuple[int, int]
     distance: np.float64
     for atom_pair in atom_pairs:
         if geometry.species:
-            group: tuple[str, str] = tuple(
+            group: Tuple[str, str] = tuple(
                 sorted(
                     (
                         geometry.species[atom_pair[0]],
@@ -1016,7 +1017,7 @@ def _shell_numbers(
         pair_groups.append(group)
         grouped.setdefault(group, [])
 
-    group: tuple[str, str]
+    group: Tuple[str, str]
     values: list[float]
     for group in grouped:
         group_distances: list[float] = sorted(
@@ -1057,12 +1058,12 @@ def _shell_numbers(
             )
         ]
         shell_numbers.append(matching[0] + 1)
-    result: tuple[int, ...] = tuple(shell_numbers)
+    result: Tuple[int, ...] = tuple(shell_numbers)
     return result
 
 
 def _parameter_index(
-    lookup: dict[tuple[str | None, int | None, str], int],
+    lookup: Dict[Tuple[str | None, int | None, str], int],
     forward_pair: str | None,
     reverse_pair: str | None,
     shell: int,
@@ -1072,7 +1073,7 @@ def _parameter_index(
 
     Parameters
     ----------
-    lookup : dict[tuple[str | None, int | None, str], int]
+    lookup : Dict[Tuple[str | None, int | None, str], int]
         Parsed key map from ``_parse_parameter_keys``.
     forward_pair : str | None
         Species pair ``"A-B"`` in bond order, or ``None``.
@@ -1095,14 +1096,14 @@ def _parameter_index(
     shell, reverse pair with shell, then both pairs without shell. The
     generic channel-only key comes last, and the first hit wins.
     """
-    candidates: Sequence[tuple[str | None, int | None, str]] = (
+    candidates: Sequence[Tuple[str | None, int | None, str]] = (
         (forward_pair, shell, channel),
         (reverse_pair, shell, channel),
         (forward_pair, None, channel),
         (reverse_pair, None, channel),
         (None, None, channel),
     )
-    candidate: tuple[str | None, int | None, str]
+    candidate: Tuple[str | None, int | None, str]
     for candidate in candidates:
         if candidate in lookup:
             index: int | None = lookup[candidate]
@@ -1113,19 +1114,19 @@ def _parameter_index(
 
 def _integral_vector(
     sk_params: SlaterKosterParams,
-    lookup: dict[tuple[str | None, int | None, str], int],
+    lookup: Dict[Tuple[str | None, int | None, str], int],
     forward_pair: str | None,
     reverse_pair: str | None,
     shell: int,
-    channels: tuple[str, ...],
-) -> tuple[Float64[Array, " n_m"], bool]:
+    channels: Tuple[str, ...],
+) -> Tuple[Float64[Array, " n_m"], bool]:
     """PRIVATE: Collect channel values, treating omitted channels as zero.
 
     Parameters
     ----------
     sk_params : SlaterKosterParams
         Differentiable fundamental integral values and static keys.
-    lookup : dict[tuple[str | None, int | None, str], int]
+    lookup : Dict[Tuple[str | None, int | None, str], int]
         Parsed key map from ``_parse_parameter_keys``.
     forward_pair : str | None
         Species pair in bond order, or ``None``.
@@ -1133,12 +1134,12 @@ def _integral_vector(
         Reversed species pair, or ``None``.
     shell : int
         One-based distance-shell number of the bond.
-    channels : tuple[str, ...]
+    channels : Tuple[str, ...]
         Sigma, pi, and delta channel names for the angular pair.
 
     Returns
     -------
-    result : tuple[Float64[Array, " n_m"], bool]
+    result : Tuple[Float64[Array, " n_m"], bool]
         Stacked integral vector in eV ordered as the channels, and a
         flag that is ``True`` when at least one channel has a key.
 
@@ -1165,17 +1166,17 @@ def _integral_vector(
             values.append(sk_params.values[index])
             found_any = True
     vector: Float64[Array, " n_m"] = jnp.stack(values)
-    result: tuple[Float64[Array, " n_m"], bool] = (vector, found_any)
+    result: Tuple[Float64[Array, " n_m"], bool] = (vector, found_any)
     return result
 
 
 def _freeze_neighbor_topology(
     geometry: CrystalGeometry,
     cutoff: float,
-) -> tuple[
-    tuple[tuple[int, int], ...],
-    tuple[tuple[int, int, int], ...],
-    tuple[int, ...],
+) -> Tuple[
+    Tuple[Tuple[int, int], ...],
+    Tuple[Tuple[int, int, int], ...],
+    Tuple[int, ...],
 ]:
     """PRIVATE: Certify and freeze atom pairs, cells, and distance shells.
 
@@ -1201,8 +1202,8 @@ def _freeze_neighbor_topology(
     closures reuse this frozen topology and never repeat discrete
     neighbor selection.
     """
-    atom_pairs: tuple[tuple[int, int], ...]
-    cells: tuple[tuple[int, int, int], ...]
+    atom_pairs: Tuple[Tuple[int, int], ...]
+    cells: Tuple[Tuple[int, int, int], ...]
     atom_pairs, cells, _, _ = neighbor_shells(geometry, cutoff)
     with jax.ensure_compile_time_eval():
         distances: Float64[Array, " n_bond"]
@@ -1211,15 +1212,15 @@ def _freeze_neighbor_topology(
             atom_pairs,
             cells,
         )
-        shell_numbers: tuple[int, ...] = _shell_numbers(
+        shell_numbers: Tuple[int, ...] = _shell_numbers(
             geometry,
             atom_pairs,
             distances,
         )
-    result: tuple[
-        tuple[tuple[int, int], ...],
-        tuple[tuple[int, int, int], ...],
-        tuple[int, ...],
+    result: Tuple[
+        Tuple[Tuple[int, int], ...],
+        Tuple[Tuple[int, int, int], ...],
+        Tuple[int, ...],
     ] = (atom_pairs, cells, shell_numbers)
     return result
 
@@ -1230,10 +1231,10 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
     sk_params: SlaterKosterParams,
     onsite_energies: Float64[Array, " n_orb"],
     soc_lambdas: Float64[Array, " n_shells"],
-    shell_index: tuple[int, ...],
-    atom_pairs: tuple[tuple[int, int], ...],
-    cells: tuple[tuple[int, int, int], ...],
-    shell_numbers: tuple[int, ...],
+    shell_index: Tuple[int, ...],
+    atom_pairs: Tuple[Tuple[int, int], ...],
+    cells: Tuple[Tuple[int, int, int], ...],
+    shell_numbers: Tuple[int, ...],
     *,
     spinor: bool,
 ) -> TBModel:
@@ -1251,13 +1252,13 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         Onsite orbital energies in eV.
     soc_lambdas : Float64[Array, " n_shells"]
         Atomic spin--orbit strengths in eV.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Orbital-to-SOC-shell map passed to the model factory.
-    atom_pairs : tuple[tuple[int, int], ...]
+    atom_pairs : Tuple[Tuple[int, int], ...]
         Certified canonical atom pairs.
-    cells : tuple[tuple[int, int, int], ...]
+    cells : Tuple[Tuple[int, int, int], ...]
         Certified exact integer cell translations.
-    shell_numbers : tuple[int, ...]
+    shell_numbers : Tuple[int, ...]
         Certified one-based distance-shell numbers.
     spinor : bool
         Whether the basis carries explicit spin channels.
@@ -1279,7 +1280,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
     derive from the traced geometry, so amplitudes keep position and
     lattice derivatives on the frozen topology.
     """
-    lookup: dict[tuple[str | None, int | None, str], int] = (
+    lookup: Dict[Tuple[str | None, int | None, str], int] = (
         _parse_parameter_keys(sk_params.keys)
     )
     displacements: Float64[Array, "n_bond 3"]
@@ -1288,7 +1289,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         atom_pairs,
         cells,
     )
-    orbitals_by_atom: tuple[tuple[int, ...], ...] = tuple(
+    orbitals_by_atom: Tuple[Tuple[int, ...], ...] = tuple(
         tuple(
             orbital
             for orbital, atom in enumerate(basis.atom_indices)
@@ -1297,11 +1298,11 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         for atom_index in range(geometry.positions.shape[0])
     )
     amplitudes: list[Complex128[Array, ""]] = []
-    hopping_pairs: list[tuple[int, int]] = []
-    hopping_cells: list[tuple[int, int, int]] = []
+    hopping_pairs: list[Tuple[int, int]] = []
+    hopping_cells: list[Tuple[int, int, int]] = []
     bond_index: int
-    atom_pair: tuple[int, int]
-    cell: tuple[int, int, int]
+    atom_pair: Tuple[int, int]
+    cell: Tuple[int, int, int]
     for bond_index, (atom_pair, cell) in enumerate(
         zip(atom_pairs, cells, strict=True)
     ):
@@ -1311,7 +1312,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         cartesian_bond: Float64[Array, " 3"] = (
             displacements[bond_index] @ geometry.lattice
         )
-        block_cache: dict[tuple[int, int], Float64[Array, "m1 m2"]] = {}
+        block_cache: Dict[Tuple[int, int], Float64[Array, "m1 m2"]] = {}
         orbital_i: int
         orbital_j: int
         for orbital_i in orbitals_by_atom[atom_pair[0]]:
@@ -1320,8 +1321,8 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
                     continue
                 l1: int = basis.l[orbital_i]
                 l2: int = basis.l[orbital_j]
-                angular_pair: tuple[int, int] = tuple(sorted((l1, l2)))
-                channels: tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
+                angular_pair: Tuple[int, int] = tuple(sorted((l1, l2)))
+                channels: Tuple[str, ...] = CHANNELS_BY_PAIR[angular_pair]
                 integral_vector: Float64[Array, " n_m"]
                 found_any: bool
                 integral_vector, found_any = _integral_vector(
@@ -1334,7 +1335,7 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
                 )
                 if not found_any:
                     continue
-                cache_key: tuple[int, int] = (l1, l2)
+                cache_key: Tuple[int, int] = (l1, l2)
                 if cache_key not in block_cache:
                     block_cache[cache_key] = sk_block(
                         l1,
@@ -1389,7 +1390,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
     sk_params: SlaterKosterParams,
     onsite_energies: Float64[Array, " n_orb"],
     soc_lambdas: Float64[Array, " n_shells"],
-    shell_index: tuple[int, ...],
+    shell_index: Tuple[int, ...],
     cutoff: float,
     spinor: bool = False,
 ) -> TBModel:
@@ -1412,7 +1413,7 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
         Onsite orbital energies in eV.
     soc_lambdas : Float64[Array, " n_shells"]
         Atomic spin--orbit strengths in eV.
-    shell_index : tuple[int, ...]
+    shell_index : Tuple[int, ...]
         Orbital-to-SOC-shell map passed to the tight-binding carrier.
     cutoff : float
         Positive inclusive neighbor cutoff in angstroms.
@@ -1467,9 +1468,9 @@ def build_sk_model(  # noqa: DOC502, DOC503, PLR0912, PLR0915
             "traced geometry; freeze topology before compilation"
         )
         raise ValueError(message)
-    atom_pairs: tuple[tuple[int, int], ...]
-    cells: tuple[tuple[int, int, int], ...]
-    shell_numbers: tuple[int, ...]
+    atom_pairs: Tuple[Tuple[int, int], ...]
+    cells: Tuple[Tuple[int, int, int], ...]
+    shell_numbers: Tuple[int, ...]
     (
         atom_pairs,
         cells,

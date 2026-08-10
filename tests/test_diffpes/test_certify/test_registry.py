@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 import pytest
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 
 from diffpes.certify import (
     freeze_registry,
@@ -534,8 +534,8 @@ class TestValidateHandshake:
         The test reads evidence IDs from the packaged handshake declaration.
         """
         register_builtin_models()
-        manifest: dict[str, Any] = registry_manifest()
-        declaration: dict[str, Any] = manifest["handshakes"][0]
+        manifest: Dict[str, Any] = registry_manifest()
+        declaration: Dict[str, Any] = manifest["handshakes"][0]
         handshake: Any = next(
             item
             for item in list_handshakes()
@@ -589,8 +589,8 @@ class TestValidateHandshake:
         assert list_transformations() == transformations_before
         assert list_handshakes() == handshakes_before
 
-        manifest: dict[str, Any] = registry_manifest()
-        declaration: dict[str, Any] = next(
+        manifest: Dict[str, Any] = registry_manifest()
+        declaration: Dict[str, Any] = next(
             item
             for item in manifest["handshakes"]
             if item["owner_id"] == "org.diffpes.tightb"
@@ -682,11 +682,11 @@ class TestValidateHandshake:
         then validate each handshake using only its own declared evidence.
         """
         register_builtin_models()
-        manifest: dict[str, Any] = registry_manifest()
-        declarations: dict[str, dict[str, Any]] = {
+        manifest: Dict[str, Any] = registry_manifest()
+        declarations: Dict[str, Dict[str, Any]] = {
             item["owner_id"]: item for item in manifest["handshakes"]
         }
-        handshakes: dict[str, Any] = {
+        handshakes: Dict[str, Any] = {
             item.owner_id: item for item in list_handshakes()
         }
         carrier_owner: str = "org.diffpes.slab"
@@ -742,7 +742,7 @@ class TestValidateHandshake:
         transformation_refs: Tuple[str, ...]
         evidence_ids: Tuple[str, ...]
         for owner, transformation_refs, evidence_ids in expected:
-            declaration: dict[str, Any] = declarations[owner]
+            declaration: Dict[str, Any] = declarations[owner]
             handshake: Any = handshakes[owner]
             assert handshake.model_refs == ()
             assert handshake.convention_refs == ()
@@ -829,7 +829,7 @@ class TestRegistryManifest:
         -----
         Compare manifest identities before validating the complete live drift.
         """
-        manifest: dict[str, Any] = registry_manifest()
+        manifest: Dict[str, Any] = registry_manifest()
         assert manifest["schema_version"] == "1.0.0"
         assert manifest["models"] == []
         owners: Tuple[str, ...] = tuple(
@@ -837,7 +837,7 @@ class TestRegistryManifest:
         )
         assert owners == tuple(sorted(owners))
         assert "org.diffpes.matrixel" in owners
-        matrix_element: dict[str, Any] = next(
+        matrix_element: Dict[str, Any] = next(
             item
             for item in manifest["handshakes"]
             if item["owner_id"] == "org.diffpes.matrixel"

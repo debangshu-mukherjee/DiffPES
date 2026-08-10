@@ -17,7 +17,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, TextIO
+from beartype.typing import Optional, TextIO, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from diffpes.types import (
@@ -192,7 +192,7 @@ def read_kpoints(  # noqa: PLR0915
 def _parse_explicit_kpoints(
     lines: list[str],
     num_kpoints: int,
-) -> tuple[list[list[float]], list[float]]:
+) -> Tuple[list[list[float]], list[float]]:
     """PRIVATE: Parse explicit-mode k-point coordinates and optional weights.
 
     Extended Summary
@@ -255,7 +255,7 @@ def _parse_explicit_kpoints(
             weights.append(parts[WEIGHT_COMPONENT_INDEX])
         else:
             weights.append(1.0)
-    explicit_kpoints: tuple[list[list[float]], list[float]] = (
+    explicit_kpoints: Tuple[list[list[float]], list[float]] = (
         points,
         weights,
     )

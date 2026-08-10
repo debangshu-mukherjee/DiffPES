@@ -23,7 +23,7 @@ et al. (2003) and the JAX advanced-autodiff cookbook.
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable, Optional
+from beartype.typing import Any, Callable, Dict, Optional, Tuple
 from jax import test_util
 from jaxtyping import (
     Array,
@@ -38,7 +38,7 @@ from diffpes.types import ScalarFloat
 from tests._assertions import assert_tree_finite
 from tests._types import GradRegime, ScalarLoss
 
-RTOL_LADDER: dict[GradRegime, float] = {
+RTOL_LADDER: Dict[GradRegime, float] = {
     "smooth": 1e-6,
     "stiff": 1e-5,
     "singular": 1e-4,
@@ -62,7 +62,7 @@ def fd_step(
     return step
 
 
-def _path_name(path: tuple[object, ...]) -> str:
+def _path_name(path: Tuple[object, ...]) -> str:
     """PRIVATE: Render a JAX key path in the stable tree-path notation.
 
     Parameters
@@ -214,7 +214,7 @@ def assert_grad_matches_fd(
     atol: Optional[ScalarFloat] = None,
     directional_atol: Optional[ScalarFloat] = None,
     scale_floor: ScalarFloat = 1e-3,
-    modes: tuple[str, ...] = ("fwd", "rev"),
+    modes: Tuple[str, ...] = ("fwd", "rev"),
 ) -> None:
     """Assert autodiff agrees with directional and elementwise FD checks.
 
@@ -263,7 +263,7 @@ def assert_grad_matches_fd(
     finite_difference: PyTree = central_fd_grad(
         fn, theta, scale_floor=scale_floor
     )
-    automatic_paths: list[tuple[tuple[object, ...], Array]]
+    automatic_paths: list[Tuple[Tuple[object, ...], Array]]
     automatic_treedef: jax.tree_util.PyTreeDef
     automatic_paths, automatic_treedef = jax.tree_util.tree_flatten_with_path(
         automatic
@@ -280,7 +280,7 @@ def assert_grad_matches_fd(
         or automatic_treedef != step_treedef
     ):
         raise AssertionError("autodiff and finite-difference trees differ")
-    path: tuple[object, ...]
+    path: Tuple[object, ...]
     actual: Array
     expected: Array
     step: Array
@@ -314,7 +314,7 @@ def assert_nonzero_grad(
     fn: ScalarLoss,
     theta: PyTree,
     *,
-    sensitive_paths: Optional[tuple[str, ...]] = None,
+    sensitive_paths: Optional[Tuple[str, ...]] = None,
     min_norm: ScalarFloat = 1e-12,
     elementwise: bool = False,
 ) -> None:
@@ -328,7 +328,7 @@ def assert_nonzero_grad(
     for contracts that explicitly register every coordinate as sensitive.
     """
     gradient: PyTree = jax.grad(fn)(theta)
-    path_leaves: list[tuple[tuple[object, ...], Array]]
+    path_leaves: list[Tuple[Tuple[object, ...], Array]]
     path_leaves, _ = jax.tree_util.tree_flatten_with_path(gradient)
     available_paths: set[str] = {_path_name(path) for path, _ in path_leaves}
     selected_paths: set[str] = (
@@ -340,7 +340,7 @@ def assert_nonzero_grad(
             f"unknown sensitive gradient paths: {sorted(missing_paths)}"
         )
         raise ValueError(message)
-    path: tuple[object, ...]
+    path: Tuple[object, ...]
     leaf: Array
     for path, leaf in path_leaves:
         path_name: str = _path_name(path)
@@ -379,7 +379,7 @@ def gradient_gate(
     theta: PyTree,
     *,
     regime: GradRegime = "smooth",
-    sensitive_paths: Optional[tuple[str, ...]] = None,
+    sensitive_paths: Optional[Tuple[str, ...]] = None,
     elementwise: bool = False,
     **kwargs: Any,
 ) -> None:
@@ -403,7 +403,7 @@ def gradient_gate(
 @jaxtyped(typechecker=beartype)
 def random_generic_complex(
     key: PRNGKeyArray,
-    shape: tuple[int, ...],
+    shape: Tuple[int, ...],
     *,
     scale: ScalarFloat = 1.0,
 ) -> Complex128[Array, "..."]:

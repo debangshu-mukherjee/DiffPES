@@ -186,7 +186,7 @@ class KGrid(eqx.Module):
 
 
 @jaxtyped(typechecker=beartype)
-def make_kpath_info(  # noqa: DOC503, PLR0913
+def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
     num_kpoints: Union[int, Int32[Array, " "]],
     label_indices: Union[Int32[Array, " L"], "list[int]"],
     points_per_segment: Union[int, Int32[Array, " "]] = 0,

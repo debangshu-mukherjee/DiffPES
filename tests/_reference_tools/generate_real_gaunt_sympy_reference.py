@@ -12,6 +12,8 @@ import importlib
 from pathlib import Path
 from typing import Any
 
+from beartype.typing import Dict
+
 
 def generate(output: Path, l_max: int = 4) -> None:
     """Write exact and 50-digit real-Gaunt values over the dense domain."""
@@ -27,7 +29,7 @@ def generate(output: Path, l_max: int = 4) -> None:
         raise RuntimeError(message) from error
     real_gaunt: Any = wigner.real_gaunt
 
-    rows: list[dict[str, str]] = []
+    rows: list[Dict[str, str]] = []
     l_initial: int
     m_initial: int
     q_value: int

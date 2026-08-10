@@ -17,6 +17,7 @@ from typing import Any
 
 import mpmath as mp
 import numpy as np
+from beartype.typing import Dict, Tuple
 
 REFERENCE_DPS: int = 100
 RADII: np.ndarray = np.concatenate(
@@ -65,10 +66,10 @@ def _reference_points() -> np.ndarray:
     radial_points = radial_points * scales
     combined: np.ndarray = np.concatenate((radial_points, EXPLICIT_POINTS))
     unique: list[complex] = []
-    seen: set[tuple[float, float]] = set()
+    seen: set[Tuple[float, float]] = set()
     value: complex
     for value in combined:
-        key: tuple[float, float] = (float(value.real), float(value.imag))
+        key: Tuple[float, float] = (float(value.real), float(value.imag))
         if key not in seen:
             seen.add(key)
             unique.append(value)
@@ -102,7 +103,7 @@ def _array_bytes(array: np.ndarray) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, np.ndarray],
+    arrays: Dict[str, np.ndarray],
 ) -> None:
     """PRIVATE: Write an NPZ whose members have stable order and dates.
 
@@ -197,7 +198,7 @@ def main() -> None:
         },
     )
     generator_path: Path = Path(__file__).resolve()
-    manifest: dict[str, Any] = {
+    manifest: Dict[str, Any] = {
         "archive": archive_path.name,
         "archive_sha256": _sha256(archive_path),
         "componentwise_value_bound": {

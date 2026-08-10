@@ -11,7 +11,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Tuple
+from beartype.typing import Dict, Optional, Tuple
 from jaxtyping import Array, Float, Float64, jaxtyped
 
 from .aliases import ScalarFloat
@@ -91,7 +91,7 @@ class SelfEnergyModel(eqx.Module):
             )
         if self.coefficients.ndim != 1:
             raise ValueError("coefficients must be a one-dimensional array")
-        expected: dict[str, int | None] = {
+        expected: Dict[str, int | None] = {
             "constant": 1,
             "poly": None,
             "grid": None,

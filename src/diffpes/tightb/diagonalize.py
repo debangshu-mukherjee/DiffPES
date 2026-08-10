@@ -34,7 +34,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Callable, Literal
+from beartype.typing import Callable, Dict, Literal, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.maths import safe_divide, safe_norm, safe_sqrt
@@ -103,7 +103,7 @@ def _checked_hermitian(
 @jaxtyped(typechecker=beartype)
 def eigh_safe(  # noqa: DOC502 -- validation is delegated to a traced helper.
     hamiltonian: Complex128[Array, "n n"],
-) -> tuple[Float64[Array, " n"], Complex128[Array, "n n"]]:
+) -> Tuple[Float64[Array, " n"], Complex128[Array, "n n"]]:
     r"""Diagonalize a Hermitian matrix with a regularized eigenvector JVP.
 
     The function preserves standard Hermitian eigenpairs while regularizing
@@ -118,7 +118,7 @@ def eigh_safe(  # noqa: DOC502 -- validation is delegated to a traced helper.
 
     Returns
     -------
-    eigensystem : tuple[Float64[Array, " n"], Complex128[Array, "n n"]]
+    eigensystem : Tuple[Float64[Array, " n"], Complex128[Array, "n n"]]
         Ascending eigenvalues and corresponding eigenvector columns.
 
     Raises
@@ -144,7 +144,7 @@ def eigh_safe(  # noqa: DOC502 -- validation is delegated to a traced helper.
     eigenvalues: Float64[Array, " n"]
     eigenvectors: Complex128[Array, "n n"]
     eigenvalues, eigenvectors = jnp.linalg.eigh(checked_hamiltonian)
-    eigensystem: tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
+    eigensystem: Tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
         eigenvalues,
         eigenvectors,
     )
@@ -153,24 +153,26 @@ def eigh_safe(  # noqa: DOC502 -- validation is delegated to a traced helper.
 
 @eigh_safe.defjvp
 def _eigh_safe_jvp(
-    primals: tuple[Complex128[Array, "n n"]],
-    tangents: tuple[Complex128[Array, "n n"]],
-) -> tuple[
-    tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
-    tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
+    primals: Tuple[Complex128[Array, "n n"]],
+    tangents: Tuple[Complex128[Array, "n n"]],
+) -> Tuple[
+    Tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
+    Tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
 ]:
     r"""PRIVATE: Apply the Lorentzian-regularized Hermitian eigensystem JVP.
 
     Parameters
     ----------
-    primals : tuple[Complex128[Array, "n n"]]
+    primals : Tuple[Complex128[Array, "n n"]]
         One-element tuple holding the Hermitian input matrix in eV.
-    tangents : tuple[Complex128[Array, "n n"]]
+    tangents : Tuple[Complex128[Array, "n n"]]
         One-element tuple holding the input tangent matrix in eV.
 
     Returns
     -------
-    result : tuple
+    result : Tuple[Tuple[Float64[Array, " n"], \
+        Complex128[Array, "n n"]], Tuple[Float64[Array, " n"], \
+        Complex128[Array, "n n"]]]
         Pair ``(primal_output, tangent_output)``. Each member is an
         ``(eigenvalues, eigenvectors)`` tuple with shapes ``(n,)`` and
         ``(n, n)``.
@@ -210,19 +212,19 @@ def _eigh_safe_jvp(
     eigenvector_tangent: Complex128[Array, "n n"] = eigenvectors @ (
         inverse_gaps * projected
     )
-    primal_output: tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
+    primal_output: Tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
         eigenvalues,
         eigenvectors,
     )
-    tangent_output: tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
+    tangent_output: Tuple[Float64[Array, " n"], Complex128[Array, "n n"]] = (
         eigenvalue_tangent,
         eigenvector_tangent,
     )
-    result: tuple[
-        tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
-        tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
+    result: Tuple[
+        Tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
+        Tuple[Float64[Array, " n"], Complex128[Array, "n n"]],
     ] = (primal_output, tangent_output)
-    return result  # noqa: RET504 -- assign-before-return is required.
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -373,8 +375,8 @@ def eigvalsh_bands_chunked(  # noqa: DOC502, DOC503
     def scan_body(
         carry: None,
         points: Float64[Array, "chunk_size 3"],
-    ) -> tuple[None, Float64[Array, "chunk_size n_bands"]]:
-        output: tuple[None, Float64[Array, "chunk_size n_bands"]] = (
+    ) -> Tuple[None, Float64[Array, "chunk_size n_bands"]]:
+        output: Tuple[None, Float64[Array, "chunk_size n_bands"]] = (
             carry,
             checkpointed_chunk(points),
         )
@@ -424,12 +426,12 @@ def diagonalize_tb(
 
     def diagonalize_point(
         point: Float64[Array, " 3"],
-    ) -> tuple[Float64[Array, " n_bands"], Complex128[Array, "n_orb n_bands"]]:
+    ) -> Tuple[Float64[Array, " n_bands"], Complex128[Array, "n_orb n_bands"]]:
         hamiltonian: Complex128[Array, "n_orb n_orb"] = bloch_hamiltonian(
             model,
             point,
         )
-        eigensystem: tuple[
+        eigensystem: Tuple[
             Float64[Array, " n_bands"], Complex128[Array, "n_orb n_bands"]
         ] = eigh_safe(hamiltonian)
         return eigensystem  # noqa: RET504 -- assign-before-return is required.
@@ -547,7 +549,7 @@ def vasp_to_diagonalized(  # noqa: DOC503 -- traced checks raise indirectly.
         message = "orbital basis atom_indices exceed the projection atom axis"
         raise ValueError(message)
 
-    vasp_lm_to_index: dict[tuple[int, int], int] = {
+    vasp_lm_to_index: Dict[Tuple[int, int], int] = {
         (0, 0): 0,
         (1, -1): 1,
         (1, 0): 2,

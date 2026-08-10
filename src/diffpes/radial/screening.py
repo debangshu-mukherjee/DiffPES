@@ -17,10 +17,11 @@ Routine Listings
 """
 
 from beartype import beartype
+from beartype.typing import Dict, Tuple
 from jaxtyping import jaxtyped
 
 
-def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
+def _aufbau_configuration(atomic_number: int) -> Dict[Tuple[int, int], int]:
     """PRIVATE: Return the Madelung sequence with ground-state exceptions.
 
     Parameters
@@ -30,7 +31,7 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
 
     Returns
     -------
-    configuration : dict[tuple[int, int], int]
+    configuration : Dict[Tuple[int, int], int]
         Occupancy for each occupied ``(n, l)`` subshell.
 
     Implementation Logic
@@ -41,7 +42,7 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
     5d anomalies, and the lanthanide and actinide rows.  An override
     occupancy of zero removes the subshell.
     """
-    orbitals: tuple[tuple[int, int, int], ...] = (
+    orbitals: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 2),
         (2, 0, 2),
         (2, 1, 6),
@@ -63,7 +64,7 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
         (7, 1, 6),
     )
     remaining: int = atomic_number
-    configuration: dict[tuple[int, int], int] = {}
+    configuration: Dict[Tuple[int, int], int] = {}
     principal: int
     angular: int
     capacity: int
@@ -75,7 +76,7 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
         if remaining == 0:
             break
 
-    exceptions: dict[int, dict[tuple[int, int], int]] = {
+    exceptions: Dict[int, Dict[Tuple[int, int], int]] = {
         24: {(4, 0): 1, (3, 2): 5},
         29: {(4, 0): 1, (3, 2): 10},
         41: {(5, 0): 1, (4, 2): 4},
@@ -97,10 +98,10 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
         96: {(5, 3): 7, (6, 2): 1, (7, 0): 2},
         103: {(5, 3): 14, (6, 2): 0, (7, 0): 2, (7, 1): 1},
     }
-    override: dict[tuple[int, int], int]
+    override: Dict[Tuple[int, int], int]
     if atomic_number in exceptions:
         override = exceptions[atomic_number]
-        key: tuple[int, int]
+        key: Tuple[int, int]
         occupancy: int
         for key, occupancy in override.items():
             if occupancy == 0:
@@ -113,7 +114,7 @@ def _aufbau_configuration(atomic_number: int) -> dict[tuple[int, int], int]:
 @jaxtyped(typechecker=beartype)
 def electron_configuration(
     atomic_number: int,
-) -> tuple[tuple[int, int, int], ...]:
+) -> Tuple[Tuple[int, int, int], ...]:
     """Return the neutral ground-state subshell configuration.
 
     The function fills the Madelung sequence and applies the measured
@@ -129,7 +130,7 @@ def electron_configuration(
 
     Returns
     -------
-    configuration : tuple[tuple[int, int, int], ...]
+    configuration : Tuple[Tuple[int, int, int], ...]
         Occupied ``(n, l, occupancy)`` rows in increasing ``(n+l, n)`` order.
 
     Raises
@@ -147,8 +148,8 @@ def electron_configuration(
     ):
         message: str = "atomic_number must be an integer from 1 through 103"
         raise ValueError(message)
-    occupied: dict[tuple[int, int], int] = _aufbau_configuration(atomic_number)
-    configuration: tuple[tuple[int, int, int], ...] = tuple(
+    occupied: Dict[Tuple[int, int], int] = _aufbau_configuration(atomic_number)
+    configuration: Tuple[Tuple[int, int, int], ...] = tuple(
         (principal, angular, occupied[(principal, angular)])
         for principal, angular in sorted(
             occupied,
@@ -201,10 +202,10 @@ def slater_zeff(
     Decimal screening factors represent exact rules rather than fitted
     floating-point data.
     """
-    configuration: tuple[tuple[int, int, int], ...] = electron_configuration(
+    configuration: Tuple[Tuple[int, int, int], ...] = electron_configuration(
         atomic_number
     )
-    occupancies: dict[tuple[int, int], int] = {
+    occupancies: Dict[Tuple[int, int], int] = {
         (principal, angular): occupancy
         for principal, angular, occupancy in configuration
     }
@@ -280,7 +281,7 @@ def slater_zeta(  # noqa: DOC502
     ValueError
         If the requested subshell is invalid or unoccupied.
     """
-    effective_principal_values: tuple[float, ...] = (
+    effective_principal_values: Tuple[float, ...] = (
         1.0,
         2.0,
         3.0,

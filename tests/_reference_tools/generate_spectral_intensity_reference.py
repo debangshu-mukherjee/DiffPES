@@ -28,6 +28,7 @@ from typing import Any
 
 import numpy as np
 import scipy
+from beartype.typing import Dict, Tuple
 from jaxtyping import Bool, Complex128, Float64, Shaped
 from numpy.typing import NDArray
 
@@ -77,7 +78,7 @@ ADJOINT_DIRECTIONS: Complex128[NDArray, "n_direction n_orb n_orb"] = (
         dtype=np.complex128,
     )
 )
-ADJOINT_COORDINATES: tuple[str, ...] = (
+ADJOINT_COORDINATES: Tuple[str, ...] = (
     "h00_real",
     "h11_real",
     "h01_real",
@@ -85,8 +86,8 @@ ADJOINT_COORDINATES: tuple[str, ...] = (
 )
 
 # --- sum-rule window and quadrature ------------------------------------------
-SUM_RULE_WINDOW: tuple[float, float] = (-2.0, 2.0)
-SUM_RULE_QUADRATURE_ORDERS: tuple[int, int] = (256, 512)
+SUM_RULE_WINDOW: Tuple[float, float] = (-2.0, 2.0)
+SUM_RULE_QUADRATURE_ORDERS: Tuple[int, int] = (256, 512)
 
 # --- regulator-limit eta-ladder fixture --------------------------------------
 ETA_LADDER_LEVEL_EV: float = 0.10
@@ -134,7 +135,7 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, Shaped[NDArray, "..."]],
+    arrays: Dict[str, Shaped[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
 
@@ -312,7 +313,7 @@ def _eigen_intensity(
 def _window_mass(
     center: float,
     gamma_total: float,
-    window: tuple[float, float],
+    window: Tuple[float, float],
 ) -> float:
     """PRIVATE: Evaluate the exact finite-window arctangent mass.
 
@@ -388,7 +389,7 @@ def _fullline_mass(center: float, gamma_total: float, order: int) -> float:
 def _quadratic_peak(
     values: Float64[NDArray, " n_omega"],
     omega: Float64[NDArray, " n_omega"],
-) -> tuple[float, float, int]:
+) -> Tuple[float, float, int]:
     """PRIVATE: Locate the quadratic-interpolated peak on the frozen grid.
 
     Parameters
@@ -509,7 +510,7 @@ def _stable_fermi(
     return occupation
 
 
-def _two_pole_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _two_pole_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the two-pole closed form and its degenerate limit.
 
     Returns
@@ -612,7 +613,7 @@ def _two_pole_payload() -> dict[str, Float64[NDArray, "..."]]:
 def _adjoint_truth(
     hamiltonian: Complex128[NDArray, "n_orb n_orb"],
     gamma_total: float,
-) -> dict[str, Float64[NDArray, "..."]]:
+) -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the adjoint and Richardson FD derivative truth.
 
     Parameters
@@ -720,8 +721,8 @@ def _adjoint_truth(
     }
 
 
-def _hermitian_payload() -> tuple[
-    dict[str, Float64[NDArray, "..."]],
+def _hermitian_payload() -> Tuple[
+    Dict[str, Float64[NDArray, "..."]],
     Float64[NDArray, " n_orb"],
     Float64[NDArray, " n_orb"],
 ]:
@@ -784,7 +785,7 @@ def _hermitian_payload() -> tuple[
         raise RuntimeError(
             "Hermitian eigendecomposition disagrees with the solve"
         )
-    payload: dict[str, Float64[NDArray, "..."]] = {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "hermitian_band_weights": band_weights,
         "hermitian_eigenvalues": eigenvalues,
         "hermitian_eta": np.asarray(HERMITIAN_ETA),
@@ -806,8 +807,8 @@ def _hermitian_payload() -> tuple[
 def _sum_rule_rows(
     hermitian_eigenvalues: Float64[NDArray, " n_orb"],
     hermitian_band_weights: Float64[NDArray, " n_orb"],
-) -> tuple[
-    tuple[str, ...],
+) -> Tuple[
+    Tuple[str, ...],
     Float64[NDArray, " n_row"],
     Float64[NDArray, " n_row"],
     Float64[NDArray, " n_row"],
@@ -882,7 +883,7 @@ def _sum_rule_rows(
 def _sum_rule_payload(
     hermitian_eigenvalues: Float64[NDArray, " n_orb"],
     hermitian_band_weights: Float64[NDArray, " n_orb"],
-) -> tuple[dict[str, Float64[NDArray, "..."]], tuple[str, ...]]:
+) -> Tuple[Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]]:
     """PRIVATE: Build the window masses and full-line quadrature masses.
 
     Parameters
@@ -909,7 +910,7 @@ def _sum_rule_payload(
     Window masses use the exact arctangent form; full-line masses use
     the frozen tan-map Gauss-Legendre rule at both registered orders.
     """
-    labels: tuple[str, ...]
+    labels: Tuple[str, ...]
     centers: Float64[NDArray, " n_row"]
     gammas: Float64[NDArray, " n_row"]
     weights: Float64[NDArray, " n_row"]
@@ -940,7 +941,7 @@ def _sum_rule_payload(
     )
     if np.max(order_deltas) > 1.0e-12:
         raise RuntimeError("full-line 256-to-512 order delta is unstable")
-    payload: dict[str, Float64[NDArray, "..."]] = {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "sum_rule_centers": centers,
         "sum_rule_fullline_masses": fullline,
         "sum_rule_fullline_order_deltas": order_deltas,
@@ -957,7 +958,7 @@ def _sum_rule_payload(
     return payload, labels
 
 
-def _eta_ladder_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the eta ladder, HWHM, ratios, and extrapolation.
 
     Returns
@@ -982,7 +983,7 @@ def _eta_ladder_payload() -> dict[str, Float64[NDArray, "..."]]:
     so halving eta halves them; the two smallest rungs extrapolate
     linearly to eta zero.
     """
-    window: tuple[float, float] = (
+    window: Tuple[float, float] = (
         float(ETA_LADDER_OMEGA[0]),
         float(ETA_LADDER_OMEGA[-1]),
     )
@@ -1088,7 +1089,7 @@ def _eta_ladder_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _fermi_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the sampled-omega Fermi-occupation counterexample.
 
     Returns
@@ -1150,8 +1151,8 @@ def _fermi_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _reference_payload() -> tuple[
-    dict[str, Float64[NDArray, "..."]], tuple[str, ...]
+def _reference_payload() -> Tuple[
+    Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]
 ]:
     """PRIVATE: Assemble every spectral-intensity table into one payload.
 
@@ -1166,17 +1167,17 @@ def _reference_payload() -> tuple[
     Later payloads share no keys with earlier ones, so the update
     sequence never overwrites an entry.
     """
-    payload: dict[str, Float64[NDArray, "..."]] = {}
+    payload: Dict[str, Float64[NDArray, "..."]] = {}
     payload.update(_two_pole_payload())
-    hermitian_payload: dict[str, Float64[NDArray, "..."]]
+    hermitian_payload: Dict[str, Float64[NDArray, "..."]]
     hermitian_eigenvalues: Float64[NDArray, " n_orb"]
     hermitian_band_weights: Float64[NDArray, " n_orb"]
     hermitian_payload, hermitian_eigenvalues, hermitian_band_weights = (
         _hermitian_payload()
     )
     payload.update(hermitian_payload)
-    sum_rule_payload: dict[str, Float64[NDArray, "..."]]
-    sum_rule_labels: tuple[str, ...]
+    sum_rule_payload: Dict[str, Float64[NDArray, "..."]]
+    sum_rule_labels: Tuple[str, ...]
     sum_rule_payload, sum_rule_labels = _sum_rule_payload(
         hermitian_eigenvalues, hermitian_band_weights
     )
@@ -1189,8 +1190,8 @@ def _reference_payload() -> tuple[
 def _manifest(
     reference_path: Path,
     generator_path: Path,
-    sum_rule_labels: tuple[str, ...],
-) -> dict[str, Any]:
+    sum_rule_labels: Tuple[str, ...],
+) -> Dict[str, Any]:
     """PRIVATE: Assemble the provenance manifest with every constant.
 
     Parameters
@@ -1406,13 +1407,13 @@ def main() -> None:
     reference_path: Path = data_directory / "spectral_intensity_reference.npz"
     manifest_path: Path = data_directory / "spectral_intensity_manifest.json"
 
-    payload: dict[str, Float64[NDArray, "..."]]
-    sum_rule_labels: tuple[str, ...]
+    payload: Dict[str, Float64[NDArray, "..."]]
+    sum_rule_labels: Tuple[str, ...]
     payload, sum_rule_labels = _reference_payload()
     _write_deterministic_npz(reference_path, payload)
 
     generator_path: Path = Path(__file__).resolve()
-    manifest: dict[str, Any] = _manifest(
+    manifest: Dict[str, Any] = _manifest(
         reference_path,
         generator_path,
         sum_rule_labels,

@@ -30,7 +30,7 @@ from functools import cache
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable, Optional, Tuple
+from beartype.typing import Any, Callable, Dict, Optional, Tuple
 from jax import core
 from jaxtyping import Array, Float, PyTree, jaxtyped
 
@@ -49,7 +49,7 @@ class _DependencyCacheState:
     """Store eager structural analyses for static model configurations."""
 
     def __init__(self) -> None:
-        self.entries: dict[Tuple[Any, ...], Tuple[PyTree, Array]] = {}
+        self.entries: Dict[Tuple[Any, ...], Tuple[PyTree, Array]] = {}
         self.hits: int = 0
         self.misses: int = 0
         self.lock = threading.RLock()
@@ -173,7 +173,7 @@ def _structural_dependencies(
     closed: Any = jax.make_jaxpr(forward_fn)(inputs)
     jaxpr: Any = closed.jaxpr
     n_inputs: int = len(jaxpr.invars)
-    dependency: dict[Any, frozenset[int]] = {
+    dependency: Dict[Any, frozenset[int]] = {
         var: frozenset((index,)) for index, var in enumerate(jaxpr.invars)
     }
     for constvar in jaxpr.constvars:

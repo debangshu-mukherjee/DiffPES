@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from jax.extend.core import ClosedJaxpr, Jaxpr, Literal
 from jaxtyping import Array
 
@@ -118,19 +118,19 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
         ),
         dtype=jnp.complex128,
     )
-    blocks: tuple[Array, ...] = (
+    blocks: Tuple[Array, ...] = (
         x_block,
         x_block.conj().T,
         z_block,
         z_block.conj().T,
     )
-    cells: tuple[tuple[int, int, int], ...] = (
+    cells: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 0),
         (-1, 0, 0),
         (0, 0, 1),
         (0, 0, -1),
     )
-    pairs_one_block: tuple[tuple[int, int], ...] = tuple(
+    pairs_one_block: Tuple[Tuple[int, int], ...] = tuple(
         (row, column) for row in range(3) for column in range(3)
     )
     spinless: TBModel = make_tb_model(
@@ -442,7 +442,7 @@ def _diagonal_model(n_orbitals: int) -> TBModel:
         m=(0,) * n_orbitals,
         labels=tuple(f"s{index}" for index in range(n_orbitals)),
     )
-    pairs: tuple[tuple[int, int], ...] = tuple(
+    pairs: Tuple[Tuple[int, int], ...] = tuple(
         (index, index) for index in range(n_orbitals)
     )
     forward: Array = jnp.linspace(-0.31, -0.07, n_orbitals).astype(
@@ -502,20 +502,20 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
         m=(0,) * 4,
         labels=("s1", "s2", "s3", "s4"),
     )
-    pairs: tuple[tuple[int, int], ...] = tuple(
+    pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column) for row in range(4) for column in range(4)
     )
     seed: Array = jnp.arange(16, dtype=jnp.float64).reshape(4, 4)
     forward: Array = 0.13 * (
         jnp.sin(seed + 0.2) + 1j * jnp.cos(0.7 * seed + 0.1)
     )
-    cells: tuple[tuple[int, int, int], ...] = (
+    cells: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 0),
         (-1, 0, 0),
         (0, 0, 1),
         (0, 0, -1),
     )
-    blocks: tuple[Array, ...] = (
+    blocks: Tuple[Array, ...] = (
         forward,
         forward.conj().T,
         1.3 * forward,
@@ -569,7 +569,7 @@ def _scaling_slab(n_layers: int) -> TBModel:
     return slab
 
 
-def _collect_shapes(value: object, shapes: list[tuple[int, ...]]) -> None:
+def _collect_shapes(value: object, shapes: list[Tuple[int, ...]]) -> None:
     """PRIVATE: Collect shaped variables recursively from one JAXPR.
 
     Parameters
@@ -944,7 +944,7 @@ class TestSlabScaling:
                 chunk_size,
             )
         )(kpoints)
-        shapes: list[tuple[int, ...]] = []
+        shapes: list[Tuple[int, ...]] = []
         _collect_shapes(jaxpr, shapes)
 
         assert (chunk_size, n_orbitals, n_orbitals) in shapes

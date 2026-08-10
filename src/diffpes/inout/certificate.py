@@ -46,7 +46,7 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Shaped, UInt8, jaxtyped
 from numpy.typing import NDArray
 
@@ -97,12 +97,12 @@ from diffpes.types import (
 )
 
 
-def _module_factories() -> dict[type[Any], Callable[..., Any]]:
+def _module_factories() -> Dict[type[Any], Callable[..., Any]]:
     """PRIVATE: Return types-owned carrier factories for the codec.
 
     Returns
     -------
-    factories : dict[type[Any], Callable[..., Any]]
+    factories : Dict[type[Any], Callable[..., Any]]
         Concrete carrier types mapped to their validating factories.
 
     Notes
@@ -110,7 +110,7 @@ def _module_factories() -> dict[type[Any], Callable[..., Any]]:
     The codec reconstructs every certification carrier through its
     types-owned factory, so loading repeats the validation contract.
     """
-    factories: dict[type[Any], Callable[..., Any]] = {
+    factories: Dict[type[Any], Callable[..., Any]] = {
         ArtifactRef: make_artifact_ref,
         CertificationClaim: make_certification_claim,
         ConventionRef: make_convention_ref,
@@ -133,12 +133,12 @@ def _module_factories() -> dict[type[Any], Callable[..., Any]]:
     return factories
 
 
-def _module_types() -> dict[str, type[Any]]:
+def _module_types() -> Dict[str, type[Any]]:
     """PRIVATE: Return persisted carrier names mapped to concrete types.
 
     Returns
     -------
-    module_types : dict[str, type[Any]]
+    module_types : Dict[str, type[Any]]
         Persisted class names mapped to their carrier types.
 
     Notes
@@ -146,7 +146,7 @@ def _module_types() -> dict[str, type[Any]]:
     The mapping derives from the factory table, so both directions of
     the codec share one carrier inventory.
     """
-    module_types: dict[str, type[Any]] = {
+    module_types: Dict[str, type[Any]] = {
         module_type.__name__: module_type
         for module_type in _module_factories()
     }
@@ -221,7 +221,7 @@ def _normalize_json_value(value: Any) -> Any:
         normalized_value = [_normalize_json_value(item) for item in value]
         return normalized_value  # noqa: RET504
     if isinstance(value, Mapping):
-        normalized: dict[str, Any] = {}
+        normalized: Dict[str, Any] = {}
         for key, item in value.items():
             if not isinstance(key, str):
                 msg: str = "certificate JSON object keys must be strings"
@@ -294,14 +294,14 @@ def _storage_checksum(document: Mapping[str, Any]) -> str:
     detects accidental storage corruption only; it is not an
     authentication or certification mechanism.
     """
-    payload: dict[str, Any] = dict(document)
+    payload: Dict[str, Any] = dict(document)
     payload.pop("consistency_checksum", None)
     value: int = zlib.crc32(_json_bytes(payload, newline=False))
     checksum: str = f"crc32:certificate-json-v1:{value & 0xFFFFFFFF:08x}"
     return checksum
 
 
-def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
+def _identity_payload(document: Mapping[str, Any]) -> Dict[str, Any]:
     """PRIVATE: Return canonical scientific fields without audit-only
     identities.
 
@@ -312,7 +312,7 @@ def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
 
     Returns
     -------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Document copy restricted to the identity-relevant fields.
 
     Notes
@@ -323,15 +323,15 @@ def _identity_payload(document: Mapping[str, Any]) -> dict[str, Any]:
     self-reference and the audit-only manifest fields
     ``execution_id`` and ``started_at_utc``.
     """
-    payload: dict[str, Any] = {
+    payload: Dict[str, Any] = {
         "format": document["format"],
         "schema_version": document["schema_version"],
         "certificate": json.loads(json.dumps(document["certificate"])),
         "extensions": document["extensions"],
     }
-    fields_node: dict[str, Any] = payload["certificate"]["fields"]
+    fields_node: Dict[str, Any] = payload["certificate"]["fields"]
     fields_node.pop("certificate_checksum", None)
-    manifest_fields: dict[str, Any] = fields_node["manifest"]["fields"]
+    manifest_fields: Dict[str, Any] = fields_node["manifest"]["fields"]
     manifest_fields.pop("execution_id", None)
     manifest_fields.pop("started_at_utc", None)
     return payload
@@ -371,7 +371,7 @@ def _document_identity(document: Mapping[str, Any]) -> str:
     return identity
 
 
-def _encode_array(value: object) -> dict[str, Any]:
+def _encode_array(value: object) -> Dict[str, Any]:
     """PRIVATE: Encode one concrete numerical leaf without decimal
     conversion.
 
@@ -388,7 +388,7 @@ def _encode_array(value: object) -> dict[str, Any]:
 
     Returns
     -------
-    result : dict[str, Any]
+    result : Dict[str, Any]
         Array record with ``kind``, ``dtype``, ``shape``,
         ``byte_order``, ``order``, ``encoding``, and base64 ``data``.
 
@@ -421,7 +421,7 @@ def _encode_array(value: object) -> dict[str, Any]:
     payload: str = base64.b64encode(canonical.tobytes(order="C")).decode(
         "ascii"
     )
-    result: dict[str, Any] = {
+    result: Dict[str, Any] = {
         "kind": "array",
         "dtype": canonical.dtype.str,
         "shape": list(canonical.shape),
@@ -456,7 +456,7 @@ def _is_array(value: object) -> bool:
     if isinstance(value, np.ndarray | np.generic):
         is_array: bool = True
         return is_array
-    attributes: tuple[str, ...] = ("__array__", "dtype", "shape")
+    attributes: Tuple[str, ...] = ("__array__", "dtype", "shape")
     is_array: bool = all(hasattr(value, attr) for attr in attributes)
     return is_array
 
@@ -537,7 +537,7 @@ def _encode_value(  # noqa: PLR0911
         return encoded  # noqa: RET504
     value_type: type[Any] = type(value)
     if value_type in _module_factories() and is_dataclass(value):
-        encoded_fields: dict[str, Any] = {}
+        encoded_fields: Dict[str, Any] = {}
         for field in fields(value):
             if root and field.name == "extensions_json":
                 continue
@@ -554,7 +554,7 @@ def _encode_value(  # noqa: PLR0911
     raise ValueError(msg)
 
 
-def _parse_extensions(certificate: ForwardCertificate) -> dict[str, Any]:
+def _parse_extensions(certificate: ForwardCertificate) -> Dict[str, Any]:
     """PRIVATE: Parse and normalize the certificate extension object.
 
     Parameters
@@ -565,7 +565,7 @@ def _parse_extensions(certificate: ForwardCertificate) -> dict[str, Any]:
 
     Returns
     -------
-    normalized : dict[str, Any]
+    normalized : Dict[str, Any]
         NFC-normalized extension mapping.
 
     Raises
@@ -626,7 +626,7 @@ def certificate_identity(certificate: ForwardCertificate) -> str:
     """
     schema_version: str = certificate.manifest.schema_version
     _parse_schema_version(schema_version)
-    document: dict[str, Any] = {
+    document: Dict[str, Any] = {
         "format": CERTIFICATE_FORMAT,
         "schema_version": schema_version,
         "certificate": _encode_value(certificate, root=True),
@@ -688,7 +688,7 @@ def finalize_certificate(
     return result
 
 
-def _certificate_document(certificate: ForwardCertificate) -> dict[str, Any]:
+def _certificate_document(certificate: ForwardCertificate) -> Dict[str, Any]:
     """PRIVATE: Build the complete portable document for one certificate.
 
     Parameters
@@ -698,7 +698,7 @@ def _certificate_document(certificate: ForwardCertificate) -> dict[str, Any]:
 
     Returns
     -------
-    document : dict[str, Any]
+    document : Dict[str, Any]
         Mapping with ``format``, ``schema_version``, the encoded
         ``certificate``, ``extensions``, and the storage checksum.
 
@@ -711,7 +711,7 @@ def _certificate_document(certificate: ForwardCertificate) -> dict[str, Any]:
     finalized: ForwardCertificate = finalize_certificate(certificate)
     schema_version: str = finalized.manifest.schema_version
     _parse_schema_version(schema_version)
-    document: dict[str, Any] = {
+    document: Dict[str, Any] = {
         "format": CERTIFICATE_FORMAT,
         "schema_version": schema_version,
         "certificate": _encode_value(finalized, root=True),
@@ -743,17 +743,17 @@ def _reject_json_constant(value: str) -> None:
     raise ValueError(msg)
 
 
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _unique_object(pairs: list[Tuple[str, Any]]) -> Dict[str, Any]:
     """PRIVATE: Build a JSON object while rejecting duplicate names.
 
     Parameters
     ----------
-    pairs : list[tuple[str, Any]]
+    pairs : list[Tuple[str, Any]]
         Key-value pairs of one JSON object in document order.
 
     Returns
     -------
-    result : dict[str, Any]
+    result : Dict[str, Any]
         Mapping with every pair inserted exactly once.
 
     Raises
@@ -768,7 +768,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """
     key: Any
     value: Any
-    result: dict[str, Any] = {}
+    result: Dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
             msg: str = f"duplicate certificate JSON key: {key!r}"
@@ -777,7 +777,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_document(data: bytes) -> dict[str, Any]:
+def _read_document(data: bytes) -> Dict[str, Any]:
     """PRIVATE: Parse, structurally validate, and checksum one JSON
     document.
 
@@ -798,7 +798,7 @@ def _read_document(data: bytes) -> dict[str, Any]:
 
     Returns
     -------
-    normalized : dict[str, Any]
+    normalized : Dict[str, Any]
         Validated, normalized document mapping.
 
     Raises
@@ -827,7 +827,7 @@ def _read_document(data: bytes) -> dict[str, Any]:
     if decoded["format"] != CERTIFICATE_FORMAT:
         msg: str = f"unsupported certificate format: {decoded['format']!r}"
         raise ValueError(msg)
-    parsed_schema: tuple[int, int] = _parse_schema_version(
+    parsed_schema: Tuple[int, int] = _parse_schema_version(
         decoded["schema_version"]
     )
     minor: int = parsed_schema[1]
@@ -849,7 +849,7 @@ def _read_document(data: bytes) -> dict[str, Any]:
     return normalized
 
 
-def _parse_schema_version(value: object) -> tuple[int, int]:
+def _parse_schema_version(value: object) -> Tuple[int, int]:
     """PRIVATE: Parse a schema version and reject unsupported major
     versions.
 
@@ -860,7 +860,7 @@ def _parse_schema_version(value: object) -> tuple[int, int]:
 
     Returns
     -------
-    parsed : tuple[int, int]
+    parsed : Tuple[int, int]
         Pair of the major and minor version numbers.
 
     Raises
@@ -891,7 +891,7 @@ def _parse_schema_version(value: object) -> tuple[int, int]:
             f"reader supports {CERTIFICATE_SCHEMA_MAJOR}.x"
         )
         raise ValueError(msg)
-    parsed: tuple[int, int] = (major, minor)
+    parsed: Tuple[int, int] = (major, minor)
     return parsed
 
 
@@ -952,7 +952,7 @@ def _decode_array(node: Mapping[str, Any]) -> Any:
     ):
         msg: str = "certificate array shape must contain nonnegative integers"
         raise ValueError(msg)
-    shape: tuple[int, ...] = tuple(shape_value)
+    shape: Tuple[int, ...] = tuple(shape_value)
     data_value: Any = node["data"]
     if not isinstance(data_value, str):
         msg: str = "certificate array data must be base64 text"
@@ -983,7 +983,7 @@ def _decode_value(
     node: Any,
     *,
     schema_minor: int,
-    extensions: dict[str, Any],
+    extensions: Dict[str, Any],
     path: str,
 ) -> Any:
     """PRIVATE: Decode one schema node through the registered carrier
@@ -995,7 +995,7 @@ def _decode_value(
         Encoded scalar or ``kind``-tagged record.
     schema_minor : int
         Minor schema version of the document.
-    extensions : dict[str, Any]
+    extensions : Dict[str, Any]
         Mutable extension mapping that collects unknown fields.
     path : str
         Dotted location for diagnostics.
@@ -1075,20 +1075,20 @@ def _decode_value(
 
 
 def _record_unknown_fields(
-    extensions: dict[str, Any],
+    extensions: Dict[str, Any],
     path: str,
-    values: dict[str, Any],
+    values: Dict[str, Any],
 ) -> None:
     """PRIVATE: Retain fields introduced by a newer compatible minor schema.
 
     Parameters
     ----------
-    extensions : dict[str, Any]
+    extensions : Dict[str, Any]
         Mutable extension mapping for the certificate under
         reconstruction.
     path : str
         Dotted module location that owns the unknown fields.
-    values : dict[str, Any]
+    values : Dict[str, Any]
         Encoded unknown fields at that location.
 
     Raises
@@ -1114,7 +1114,7 @@ def _decode_module(
     node: Mapping[str, Any],
     *,
     schema_minor: int,
-    extensions: dict[str, Any],
+    extensions: Dict[str, Any],
     path: str,
 ) -> Any:
     """PRIVATE: Decode one whitelisted Equinox carrier via its validation
@@ -1138,7 +1138,7 @@ def _decode_module(
         Encoded ``module`` record.
     schema_minor : int
         Minor schema version of the document.
-    extensions : dict[str, Any]
+    extensions : Dict[str, Any]
         Mutable extension mapping that collects unknown fields.
     path : str
         Dotted location for diagnostics.
@@ -1160,7 +1160,7 @@ def _decode_module(
         raise ValueError(msg)
     type_name: Any = node["type"]
     encoded_fields: Any = node["fields"]
-    module_types: dict[str, type[Any]] = _module_types()
+    module_types: Dict[str, type[Any]] = _module_types()
     if not isinstance(type_name, str) or type_name not in module_types:
         msg: str = (
             f"unsupported certificate module type at {path}: {type_name!r}"
@@ -1190,7 +1190,7 @@ def _decode_module(
             path,
             {name: encoded_fields[name] for name in sorted(unknown)},
         )
-    values: dict[str, Any] = {
+    values: Dict[str, Any] = {
         name: _decode_value(
             encoded_fields[name],
             schema_minor=schema_minor,
@@ -1216,7 +1216,7 @@ def _decode_module(
     return result
 
 
-def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
+def _certificate_from_document(document: Dict[str, Any]) -> ForwardCertificate:
     """PRIVATE: Construct a validated certificate from a parsed document.
 
     Implementation Logic
@@ -1231,7 +1231,7 @@ def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
 
     Parameters
     ----------
-    document : dict[str, Any]
+    document : Dict[str, Any]
         Validated document from :func:`_read_document`.
 
     Returns
@@ -1245,7 +1245,7 @@ def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
         If the identity is absent or mismatched, decoding fails, the
         root is not a certificate, or the schema versions disagree.
     """
-    parsed_schema: tuple[int, int] = _parse_schema_version(
+    parsed_schema: Tuple[int, int] = _parse_schema_version(
         document["schema_version"]
     )
     minor: int = parsed_schema[1]
@@ -1265,8 +1265,8 @@ def _certificate_from_document(document: dict[str, Any]) -> ForwardCertificate:
     ):
         msg = "certificate canonical identity mismatch"
         raise ValueError(msg)
-    extensions: dict[str, Any] = dict(document["extensions"])
-    extra: dict[str, Any] = {
+    extensions: Dict[str, Any] = dict(document["extensions"])
+    extra: Dict[str, Any] = {
         key: value
         for key, value in document.items()
         if key not in CERTIFICATE_DOCUMENT_KEYS
@@ -1314,7 +1314,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
     """
     stream: Any
     path.parent.mkdir(parents=False, exist_ok=True)
-    temporary_record: tuple[int, str] = tempfile.mkstemp(
+    temporary_record: Tuple[int, str] = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
         dir=path.parent,
@@ -1368,7 +1368,7 @@ def save_certificate_json(
     path : str | Path
         Destination JSON path. Its parent directory must already exist.
     """
-    document: dict[str, Any] = _certificate_document(certificate)
+    document: Dict[str, Any] = _certificate_document(certificate)
     data: bytes = _json_bytes(document, newline=True)
     _atomic_write(Path(path), data)
 
@@ -1410,7 +1410,7 @@ def load_certificate_json(path: str | Path) -> ForwardCertificate:
         arrays.
     """
     data: bytes = Path(path).read_bytes()
-    document: dict[str, Any] = _read_document(data)
+    document: Dict[str, Any] = _read_document(data)
     certificate: ForwardCertificate = _certificate_from_document(document)
     return certificate
 
@@ -1469,7 +1469,7 @@ def _write_h5_record(
     storage checksum for quick inspection.
     """
     file: Any
-    document: dict[str, Any] = _read_document(data)
+    document: Dict[str, Any] = _read_document(data)
     with h5py.File(path, "a") as file:
         root: h5py.Group = file.require_group(CERTIFICATE_H5_GROUP)
         if name in root:
@@ -1544,9 +1544,9 @@ def attach_certificate_h5(
     _validate_h5_name(name)
     destination: Path = Path(path)
     destination.parent.mkdir(parents=False, exist_ok=True)
-    document: dict[str, Any] = _certificate_document(certificate)
+    document: Dict[str, Any] = _certificate_document(certificate)
     data: bytes = _json_bytes(document, newline=True)
-    temporary_record: tuple[int, str] = tempfile.mkstemp(
+    temporary_record: Tuple[int, str] = tempfile.mkstemp(
         prefix=f".{destination.name}.",
         suffix=".tmp",
         dir=destination.parent,
@@ -1645,9 +1645,9 @@ def load_certificate_h5(
             )
             raise ValueError(msg)
         data: bytes = stored.tobytes()
-        document: dict[str, Any] = _read_document(data)
+        document: Dict[str, Any] = _read_document(data)
         certificate: ForwardCertificate = _certificate_from_document(document)
-        expected_attrs: dict[str, str] = {
+        expected_attrs: Dict[str, str] = {
             "format": CERTIFICATE_FORMAT,
             "schema_version": certificate.manifest.schema_version,
             "model_id": certificate.model.model_id,

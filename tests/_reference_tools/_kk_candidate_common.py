@@ -16,6 +16,7 @@ from typing import Any, NamedTuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jax import core
 from jaxtyping import Float64
 from numpy.typing import NDArray
@@ -51,7 +52,7 @@ class ZeroTailSpec(NamedTuple):
 def retarded_pole_fixture(
     points_ev: Any,
     subtraction_point_ev: Any = 0.0,
-) -> tuple[Any, Any]:
+) -> Tuple[Any, Any]:
     """Return analytic ``(Sigma'', subtracted Sigma')`` for the frozen pole."""
     points = jnp.asarray(points_ev, dtype=jnp.float64)
     subtraction_point = jnp.asarray(subtraction_point_ev, dtype=jnp.float64)
@@ -72,7 +73,7 @@ def retarded_pole_fixture(
 def wigner_semicircle_fixture(
     points_ev: Any,
     subtraction_point_ev: Any = 0.0,
-) -> tuple[Any, Any]:
+) -> Tuple[Any, Any]:
     """Return analytic ``(Sigma'', subtracted Sigma')`` for the frozen Wigner fixture."""
     points = jnp.asarray(points_ev, dtype=jnp.float64)
     subtraction_point = jnp.asarray(subtraction_point_ev, dtype=jnp.float64)
@@ -93,7 +94,7 @@ def wigner_semicircle_fixture(
 
 def load_analytic_reference(
     reference_directory: str | Path = REFERENCE_DIRECTORY,
-) -> dict[str, Float64[NDArray, "..."]]:
+) -> Dict[str, Float64[NDArray, "..."]]:
     """Load the committed reference after verifying its manifest SHA-256 and schema."""
     directory = Path(reference_directory)
     manifest_path = directory / "manifest.json"

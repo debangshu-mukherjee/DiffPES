@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from absl.testing import parameterized
+from beartype.typing import Dict
 
 from diffpes.types import (
     OrbitalBasis,
@@ -241,7 +242,7 @@ class TestMakeOrbitalBasis(chex.TestCase):
         -----
         Route every case through the shared eager and compiled rejection gate.
         """
-        arguments: dict[str, object] = {
+        arguments: Dict[str, object] = {
             "atom_indices": (0,),
             "n": (1,),
             "l": (0,),

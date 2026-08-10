@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from beartype.typing import Tuple
 from jax import Array
 
 jax.config.update("jax_enable_x64", True)
@@ -167,7 +168,7 @@ def core_pv_transform(
     return result_ev
 
 
-def _wigner_calibration(node_count: int) -> tuple[float, float]:
+def _wigner_calibration(node_count: int) -> Tuple[float, float]:
     """PRIVATE: Measure maximum Wigner value and query-derivative errors.
 
     Parameters

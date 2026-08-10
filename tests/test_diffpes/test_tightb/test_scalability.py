@@ -23,7 +23,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Tuple
 from jax.extend.core import ClosedJaxpr, Jaxpr, Literal
 from jaxtyping import Array, Complex128, Float64
 
@@ -42,7 +42,7 @@ from diffpes.types import (
 )
 from tests._gradients import complex_step_derivative
 
-_HOPPING_SWEEP: tuple[int, ...] = (10, 100, 1_000, 10_000)
+_HOPPING_SWEEP: Tuple[int, ...] = (10, 100, 1_000, 10_000)
 _PRODUCTION_BATCH_N_K: int = 10_000
 _PRODUCTION_BATCH_N_SO: int = 64
 _PRODUCTION_DIAGONALIZE_N_K: int = 4_096
@@ -52,7 +52,7 @@ _FLOAT64_BYTES: int = 8
 _MIB: int = 2**20
 
 
-def _one_atom_basis(n_orbitals: int) -> tuple[CrystalGeometry, OrbitalBasis]:
+def _one_atom_basis(n_orbitals: int) -> Tuple[CrystalGeometry, OrbitalBasis]:
     """PRIVATE: Build static one-atom metadata with ``n_orbitals`` channels.
 
     Parameters
@@ -119,10 +119,10 @@ def _make_hopping_count_model(n_hoppings: int) -> TBModel:
     basis: OrbitalBasis
     geometry, basis = _one_atom_basis(1)
     half_count: int = n_hoppings // 2
-    forward_cells: tuple[tuple[int, int, int], ...] = tuple(
+    forward_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (cell, 0, 0) for cell in range(1, half_count + 1)
     )
-    reverse_cells: tuple[tuple[int, int, int], ...] = tuple(
+    reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (-cell, 0, 0) for cell in range(1, half_count + 1)
     )
     forward: Float64[Array, " n_half"] = -1.0 / jnp.arange(
@@ -173,10 +173,10 @@ def _make_dispersive_diagonal_model(n_orbitals: int) -> TBModel:
     geometry: CrystalGeometry
     basis: OrbitalBasis
     geometry, basis = _one_atom_basis(n_orbitals)
-    pairs: tuple[tuple[int, int], ...] = tuple(
+    pairs: Tuple[Tuple[int, int], ...] = tuple(
         (orbital, orbital) for orbital in range(n_orbitals)
     )
-    cells: tuple[tuple[int, int, int], ...] = ((1, 0, 0),) * n_orbitals + (
+    cells: Tuple[Tuple[int, int, int], ...] = ((1, 0, 0),) * n_orbitals + (
         (-1, 0, 0),
     ) * n_orbitals
     forward: Float64[Array, " n_orb"] = jnp.linspace(
@@ -282,7 +282,7 @@ def _count_jaxpr_equations(value: object) -> int:
 
 def _collect_jaxpr_shapes(
     value: object,
-    shapes: list[tuple[int, ...]],
+    shapes: list[Tuple[int, ...]],
 ) -> None:
     """PRIVATE: Collect every shaped array variable from nested JAXPRs.
 
@@ -375,9 +375,9 @@ def _memory_analysis(executable: Any) -> Any:
 
 
 @pytest.fixture(scope="module")
-def hopping_sweep_models() -> tuple[TBModel, ...]:
+def hopping_sweep_models() -> Tuple[TBModel, ...]:
     """Build the four exact hopping-shape cases once per module."""
-    models: tuple[TBModel, ...] = tuple(
+    models: Tuple[TBModel, ...] = tuple(
         _make_hopping_count_model(n_hoppings) for n_hoppings in _HOPPING_SWEEP
     )
     return models
@@ -388,7 +388,7 @@ class TestBlochAssemblyScalability:
 
     def test_jaxpr_op_count_is_constant_across_hopping_sweep(
         self,
-        hopping_sweep_models: tuple[TBModel, ...],
+        hopping_sweep_models: Tuple[TBModel, ...],
     ) -> None:
         """Keep the recursive JAXPR equation count exactly shape-independent.
 
@@ -420,7 +420,7 @@ class TestBlochAssemblyScalability:
 
     def test_one_trace_per_static_hopping_shape(
         self,
-        hopping_sweep_models: tuple[TBModel, ...],
+        hopping_sweep_models: Tuple[TBModel, ...],
     ) -> None:
         """Compile once for each shape and reuse it for dynamic leaf changes.
 
@@ -724,7 +724,7 @@ class TestEigenvalueReverseScalability:
             initial,
             large_kpoints,
         )
-        shapes: list[tuple[int, ...]] = []
+        shapes: list[Tuple[int, ...]] = []
         _collect_jaxpr_shapes(reverse_jaxpr, shapes)
         largest_array: int = max(math.prod(shape) for shape in shapes)
         assert largest_array <= large_n_k * n_orbitals**2

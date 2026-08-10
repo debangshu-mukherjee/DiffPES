@@ -12,6 +12,7 @@ from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict
 from jaxtyping import Array
 
 from diffpes.tightb import eigvalsh_bands
@@ -34,7 +35,7 @@ _COMPATIBILITY_RTOL: float = 1e-8
 _COMPATIBILITY_ATOL: float = 2e-12
 
 
-def _reference() -> dict[str, Any]:
+def _reference() -> Dict[str, Any]:
     """PRIVATE: Load and authenticate the inert numeric compatibility artifact.
 
     Returns
@@ -63,7 +64,7 @@ def _reference() -> dict[str, Any]:
             "Chinook artifact checksum differs from its pinned digest"
         )
         raise ValueError(message)
-    payload: dict[str, Any] = json.loads(encoded)
+    payload: Dict[str, Any] = json.loads(encoded)
     if (
         payload["metadata"]["requirement"] != "chinook-tightbinding-parity"
         or payload["metadata"]["classification"]
@@ -86,7 +87,7 @@ class TestChinookCompatibility:
         -----
         Compare the complete registered k-point path after native construction.
         """
-        reference: dict[str, Any] = _reference()["graphene"]
+        reference: Dict[str, Any] = _reference()["graphene"]
         kpoints: Array = jnp.asarray(reference["kpoints_fractional"])
         model: TBModel = make_graphene_model(
             t=reference["conventions"]["hopping_ev"]
@@ -109,8 +110,8 @@ class TestChinookCompatibility:
         -----
         Compare every frozen band after native model construction.
         """
-        reference: dict[str, Any] = _reference()["rashba"]
-        conventions: dict[str, Any] = reference["conventions"]
+        reference: Dict[str, Any] = _reference()["rashba"]
+        conventions: Dict[str, Any] = reference["conventions"]
         model: TBModel = make_rashba_model(
             hopping=conventions["kinetic_ev"],
             rashba=conventions["rashba_ev"],
@@ -136,7 +137,7 @@ class TestChinookCompatibility:
         -----
         Compare the complete frozen multiplet after native SOC construction.
         """
-        reference: dict[str, Any] = _reference()["t2g_soc"]
+        reference: Dict[str, Any] = _reference()["t2g_soc"]
         model: TBModel = make_t2g_soc_model(
             coupling=reference["conventions"]["lambda_ev"],
         )

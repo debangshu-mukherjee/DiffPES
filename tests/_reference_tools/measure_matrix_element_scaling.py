@@ -27,6 +27,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jax.extend.core import ClosedJaxpr, Jaxpr
 from jaxtyping import Array, Complex128, Float64, Shaped
 from numpy.typing import NDArray
@@ -167,7 +168,7 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
     coordinates, so the fixture is bit-reproducible without a seed.
     """
     basis: OrbitalBasis = _basis(n_orbitals)
-    shell_index: tuple[int, ...] = tuple(range(n_orbitals))
+    shell_index: Tuple[int, ...] = tuple(range(n_orbitals))
     matrix_params: MatrixElementParams = make_matrix_element_params(
         basis,
         shell_index,
@@ -386,7 +387,7 @@ def _scan_function(basis: OrbitalBasis) -> Any:
         def body(
             carry: Float64[Array, ""],
             scale: Float64[Array, ""],
-        ) -> tuple[Float64[Array, ""], Float64[Array, "n_k n_group"]]:
+        ) -> Tuple[Float64[Array, ""], Float64[Array, "n_k n_group"]]:
             scaled_final: Float64[Array, "n_k 3"] = dynamic.final_momentum.at[
                 :, 2
             ].multiply(scale)
@@ -443,7 +444,7 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
         dynamic: DynamicInputs,
         eigenvectors: Complex128[Array, "n_k n_band n_orb"],
         polarization: Complex128[Array, " 3"],
-    ) -> tuple[
+    ) -> Tuple[
         Float64[Array, "n_k n_group"],
         Float64[Array, " n_shell"],
     ]:
@@ -541,7 +542,7 @@ def _time_call(function: Any, *arguments: object) -> float:
 
 def _time_six(
     function: Any,
-    arguments: tuple[object, ...],
+    arguments: Tuple[object, ...],
     pols: Array,
 ) -> float:
     """PRIVATE: Time six independently synchronized polarization calls.
@@ -575,7 +576,7 @@ def _time_six(
     return elapsed
 
 
-def _compile(function: Any, *arguments: object) -> tuple[Any, float]:
+def _compile(function: Any, *arguments: object) -> Tuple[Any, float]:
     """PRIVATE: Lower and compile while recording compilation time.
 
     Parameters
@@ -602,7 +603,7 @@ def _compile(function: Any, *arguments: object) -> tuple[Any, float]:
     return compiled, elapsed
 
 
-def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
+def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
     """PRIVATE: Extract the compiler-live allocation authority record.
 
     Parameters
@@ -623,7 +624,7 @@ def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
     the verdict compares against the 2 GiB limit.
     """
     analysis: Any = compiled.memory_analysis()
-    required: tuple[str, ...] = (
+    required: Tuple[str, ...] = (
         "argument_size_in_bytes",
         "output_size_in_bytes",
         "temp_size_in_bytes",
@@ -643,7 +644,7 @@ def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
     live_bytes: int = (
         argument_bytes + output_bytes + temporary_bytes - alias_bytes
     )
-    record: dict[str, int | bool | str] = {
+    record: Dict[str, int | bool | str] = {
         "authority_available": True,
         "argument_size_bytes": argument_bytes,
         "output_size_bytes": output_bytes,
@@ -656,7 +657,7 @@ def _memory_record(compiled: Any) -> dict[str, int | bool | str]:
     return record
 
 
-def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
+def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
     """PRIVATE: Extract numeric array dimensions from retained IR text.
 
     Parameters
@@ -675,10 +676,10 @@ def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
     (any bracketed list counts); the forbidden-shape check only needs
     the parsed set to be a superset of real array shapes.
     """
-    shapes: set[tuple[int, ...]] = set()
+    shapes: set[Tuple[int, ...]] = set()
     match: re.Match[str]
     for match in re.finditer(r"\[([0-9,\s]+)\]", ir_text):
-        dimensions: tuple[int, ...] = tuple(
+        dimensions: Tuple[int, ...] = tuple(
             int(value) for value in match.group(1).split(",") if value.strip()
         )
         if dimensions:
@@ -686,7 +687,7 @@ def _array_shapes(ir_text: str) -> set[tuple[int, ...]]:
     return shapes
 
 
-def _s1() -> dict[str, object]:
+def _s1() -> Dict[str, object]:
     """PRIVATE: Measure equation-count scaling and compile reuse.
 
     Returns
@@ -703,7 +704,7 @@ def _s1() -> dict[str, object]:
     grow the jit cache, and six fixed-shape polarization sweeps must
     trace exactly once.
     """
-    orbital_counts: tuple[int, ...] = (9, 18, 36)
+    orbital_counts: Tuple[int, ...] = (9, 18, 36)
     equation_counts: list[int] = []
     n_orbitals: int
     for n_orbitals in orbital_counts:
@@ -777,7 +778,7 @@ def _s1() -> dict[str, object]:
 def _s2(
     fixture: Fixture,
     artifact_directory: Path,
-) -> tuple[dict[str, object], Any]:
+) -> Tuple[Dict[str, object], Any]:
     """PRIVATE: Compile the literal scan and record IR and allocation.
 
     Parameters
@@ -803,14 +804,14 @@ def _s2(
     authority for both programs.
     """
     scan_function = _scan_function(fixture.basis)
-    scan_arguments: tuple[object, ...] = (
+    scan_arguments: Tuple[object, ...] = (
         fixture.dynamic,
         fixture.eigenvectors,
         fixture.energy_scales,
         fixture.polarizations[0],
     )
     scalar_function = _scalar_gradient_function(fixture.basis)
-    scalar_arguments: tuple[object, ...] = (
+    scalar_arguments: Tuple[object, ...] = (
         fixture.dynamic,
         fixture.eigenvectors,
         fixture.polarizations[0],
@@ -853,10 +854,10 @@ def _s2(
     scalar_groups: Array = scalar_output[0]
     sigma_gradient: Array = scalar_output[1]
     groups: Array = scan_output
-    parsed_shapes: set[tuple[int, ...]] = _array_shapes(
+    parsed_shapes: set[Tuple[int, ...]] = _array_shapes(
         f"{jaxpr_text}\n{hlo_text}"
     )
-    forbidden_dimensions: tuple[int, int, int] = (
+    forbidden_dimensions: Tuple[int, int, int] = (
         N_ENERGY,
         N_K,
         N_ORBITALS,
@@ -870,10 +871,10 @@ def _s2(
         ]
     )
     forbidden_present: bool = bool(forbidden_shapes)
-    scalar_memory: dict[str, int | bool | str] = _memory_record(
+    scalar_memory: Dict[str, int | bool | str] = _memory_record(
         scalar_compiled
     )
-    scan_memory: dict[str, int | bool | str] = _memory_record(scan_compiled)
+    scan_memory: Dict[str, int | bool | str] = _memory_record(scan_compiled)
     authority_available: bool = bool(
         scalar_memory.get("authority_available")
         and scan_memory.get("authority_available")
@@ -886,7 +887,7 @@ def _s2(
         int(scalar_memory.get("argument_size_bytes", 0)),
         int(scan_memory.get("argument_size_bytes", 0)),
     )
-    record: dict[str, object] = {
+    record: Dict[str, object] = {
         "n_k": N_K,
         "n_orb": N_ORBITALS,
         "n_energy": N_ENERGY,
@@ -942,7 +943,7 @@ def _s2(
     return record, scan_compiled
 
 
-def _s3(fixture: Fixture) -> dict[str, object]:
+def _s3(fixture: Fixture) -> Dict[str, object]:
     """PRIVATE: Record synchronized seven-repetition timing evidence.
 
     Parameters
@@ -1117,27 +1118,27 @@ def main() -> None:
         )
     )
     host_setup_seconds: float = time.perf_counter() - host_setup_start
-    s1: dict[str, object] = _s1()
-    s2: dict[str, object]
+    s1: Dict[str, object] = _s1()
+    s2: Dict[str, object]
     s2, _ = _s2(fixture, arguments.artifact_directory)
-    s3: dict[str, object] = _s3(fixture)
+    s3: Dict[str, object] = _s3(fixture)
     peak_rss_raw: int = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     peak_rss_bytes: int = (
         peak_rss_raw if sys.platform == "darwin" else peak_rss_raw * 1024
     )
     repository_root: Path = Path(__file__).resolve().parents[2]
-    bound_source_paths: tuple[Path, ...] = (
+    bound_source_paths: Tuple[Path, ...] = (
         Path(__file__).resolve(),
         repository_root / "src/diffpes/simul/matrixel.py",
         repository_root / "src/diffpes/types/radial_params.py",
     )
-    source_sha256: dict[str, str] = {
+    source_sha256: Dict[str, str] = {
         str(path.relative_to(repository_root)): hashlib.sha256(
             path.read_bytes()
         ).hexdigest()
         for path in bound_source_paths
     }
-    artifact: dict[str, object] = {
+    artifact: Dict[str, object] = {
         "schema": "diffpes.matrix-element-scalability.v2",
         "gates": [
             "matrix-element-forward-scaling",

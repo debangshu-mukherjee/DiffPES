@@ -44,6 +44,7 @@ import math
 
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import L_MAX, ScalarFloat
@@ -302,7 +303,7 @@ def real_harmonic_unitary(  # noqa: DOC502 -- validation is shared in _validate_
 @jaxtyped(typechecker=beartype)
 def bond_angles(
     bond_cart: Float64[Array, " 3"],
-) -> tuple[Float64[Array, ""], Float64[Array, ""]]:
+) -> Tuple[Float64[Array, ""], Float64[Array, ""]]:
     r"""Convert a Cartesian bond to safe polar and azimuthal angles.
 
     The function returns the polar angle from positive z followed by the
@@ -341,7 +342,7 @@ def bond_angles(
     )
     beta: Float64[Array, ""] = safe_arccos(cosine_beta)
     alpha: Float64[Array, ""] = safe_arctan2(bond_cart[1], bond_cart[0])
-    angles: tuple[Float64[Array, ""], Float64[Array, ""]] = (beta, alpha)
+    angles: Tuple[Float64[Array, ""], Float64[Array, ""]] = (beta, alpha)
     return angles
 
 

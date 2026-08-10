@@ -12,6 +12,7 @@ from typing import TextIO
 
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict
 from jaxtyping import Array
 
 from diffpes.radial.integrate import gauss_legendre_nodes, radial_integral
@@ -42,14 +43,14 @@ class TestGradshteynRyzhikReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert {row["mode"] for row in rows} == {"slater", "hydrogenic"}
         assert len(rows) == 9
         nodes: Array
         weights: Array
         nodes, weights = gauss_legendre_nodes(1024, 120.0)
-        row: dict[str, str]
+        row: Dict[str, str]
         for row in rows:
             n_value: int = int(row["n"])
             angular_momentum: int = int(row["angular_momentum"])
@@ -106,9 +107,9 @@ class TestGradshteynRyzhikReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
 
-        row: dict[str, str]
+        row: Dict[str, str]
         for row in rows:
             assert row["authority"] == "Gradshteyn-Ryzhik 6.621.3"
             assert int(row["working_digits"]) >= 50

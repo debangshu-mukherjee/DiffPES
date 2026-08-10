@@ -13,7 +13,7 @@ from pathlib import Path
 import chex
 import equinox as eqx
 import jax.numpy as jnp
-from beartype.typing import Any, Callable
+from beartype.typing import Any, Callable, Dict
 from jaxtyping import Array
 
 import diffpes
@@ -46,7 +46,7 @@ from diffpes.types.wannier import make_wannier_operator_data
 from tests._factories import make_1d_chain_model
 
 
-def _all_carriers() -> dict[str, eqx.Module]:
+def _all_carriers() -> Dict[str, eqx.Module]:
     """PRIVATE: Construct one deterministic instance of every carrier class.
 
     Returns
@@ -105,7 +105,7 @@ def _all_carriers() -> dict[str, eqx.Module]:
         orbital_positions=orbital_positions,
     )
     charge = jnp.ones((2, 2, 2), dtype=jnp.float64)
-    carriers: dict[str, eqx.Module] = {
+    carriers: Dict[str, eqx.Module] = {
         "arpes": make_arpes_spectrum(jnp.ones((2, 2)), energy),
         "bands": bands,
         "spin_bands": make_spin_band_structure(
@@ -201,11 +201,11 @@ def test_all_carriers_round_trip_bitwise() -> None:
     name: str
     carrier: eqx.Module
 
-    carriers: dict[str, eqx.Module] = _all_carriers()
+    carriers: Dict[str, eqx.Module] = _all_carriers()
     with tempfile.TemporaryDirectory() as temporary_directory:
         path: Path = Path(temporary_directory) / "all_carriers.h5"
         save_to_h5(path, **carriers)
-        loaded: dict[str, eqx.Module] = load_from_h5(path)
+        loaded: Dict[str, eqx.Module] = load_from_h5(path)
 
     chex.assert_equal(set(loaded), set(carriers))
     for name, carrier in carriers.items():

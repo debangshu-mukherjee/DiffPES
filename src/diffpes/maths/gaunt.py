@@ -33,6 +33,7 @@ from functools import cache
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -312,7 +313,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 
     sqrt2: float = math.sqrt(2.0)
 
-    def _real_to_complex_coeffs(ll: int, mm: int) -> list[tuple[complex, int]]:
+    def _real_to_complex_coeffs(ll: int, mm: int) -> list[Tuple[complex, int]]:
         r"""PRIVATE: Return real-to-complex expansion coefficients.
 
         The helper computes the unitary transformation coefficients
@@ -336,7 +337,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
             List of ``(coefficient, mu)`` pairs.
         """
         if mm > 0:
-            coeffs: list[tuple[complex, int]] = [
+            coeffs: list[Tuple[complex, int]] = [
                 (complex(1.0 / sqrt2), -mm),
                 (complex((-1) ** mm / sqrt2), mm),
             ]
@@ -350,10 +351,10 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
             ]
         return coeffs
 
-    dip_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(1, q)
+    dip_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(1, q)
 
-    init_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(l, m)
-    final_coeffs: list[tuple[complex, int]] = _real_to_complex_coeffs(lp, mp)
+    init_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(l, m)
+    final_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(lp, mp)
 
     total: complex = 0.0 + 0.0j
     for c_init, mu in init_coeffs:

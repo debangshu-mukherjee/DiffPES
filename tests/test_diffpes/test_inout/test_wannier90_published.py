@@ -11,7 +11,7 @@ from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
@@ -119,7 +119,7 @@ def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     hr_path: Path = tmp_path / "wse2_soc_11bnd_hr.dat"
     hr_path.write_bytes(source)
 
-    reference: dict[str, Any] = json.loads(reference_payload)
+    reference: Dict[str, Any] = json.loads(reference_payload)
     assert reference["metadata"]["requirement"] == "wannier90-wse2-parity"
     assert reference["metadata"]["source_sha256"] == _SOURCE_SHA256
     n_wannier: int = int(reference["num_wann"])

@@ -66,6 +66,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
@@ -93,21 +94,21 @@ class GridConfig(NamedTuple):
 
 
 OMEGA_S_EV: float = 0.0
-POLE_PARAMS: tuple[float, float, float] = (0.35, 0.20, 0.12)
-POLE_PARAM_NAMES: tuple[str, str, str] = ("omega0", "gamma", "g")
-WIGNER_PARAMS: tuple[float, float] = (1.50, 0.20)
-WIGNER_PARAM_NAMES: tuple[str, str] = ("half_width", "g")
-FIXTURE_PARAMS: dict[str, tuple[float, ...]] = {
+POLE_PARAMS: Tuple[float, float, float] = (0.35, 0.20, 0.12)
+POLE_PARAM_NAMES: Tuple[str, str, str] = ("omega0", "gamma", "g")
+WIGNER_PARAMS: Tuple[float, float] = (1.50, 0.20)
+WIGNER_PARAM_NAMES: Tuple[str, str] = ("half_width", "g")
+FIXTURE_PARAMS: Dict[str, Tuple[float, ...]] = {
     "pole": POLE_PARAMS,
     "wigner": WIGNER_PARAMS,
 }
-FIXTURE_PARAM_NAMES: dict[str, tuple[str, ...]] = {
+FIXTURE_PARAM_NAMES: Dict[str, Tuple[str, ...]] = {
     "pole": POLE_PARAM_NAMES,
     "wigner": WIGNER_PARAM_NAMES,
 }
 BASE_N_KK: int = 4096
 EXTENSION_SHIFT_CELLS: int = 2048
-CONFIGS: dict[str, GridConfig] = {
+CONFIGS: Dict[str, GridConfig] = {
     "base": GridConfig(-8.0, 8.0, 4096, 256, "uniform"),
     "grid8192": GridConfig(-8.0, 8.0, 8192, 256, "uniform"),
     "domain_extension": GridConfig(
@@ -116,11 +117,11 @@ CONFIGS: dict[str, GridConfig] = {
     "tail512": GridConfig(-8.0, 8.0, 4096, 512, "uniform"),
     "grid16384": GridConfig(-8.0, 8.0, 16384, 256, "uniform"),
 }
-FIXTURE_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
+FIXTURE_CONFIG_KEYS: Dict[str, Tuple[str, ...]] = {
     "pole": ("base", "grid8192", "domain_extension", "tail512"),
     "wigner": ("base", "grid8192", "domain_extension", "grid16384"),
 }
-CANDIDATE_MODULES: dict[str, Any] = {
+CANDIDATE_MODULES: Dict[str, Any] = {
     "pwquadratic": _kk_candidate_piecewise_quadratic,
     "pwcubic": _kk_candidate_piecewise_cubic,
 }
@@ -142,10 +143,10 @@ RAW_DELTA_BETA_FLOOR: float = -30.0
 FD_STEP: float = 2.0**-12
 RAW_FD_STEP: float = 2.0**-4
 DIRECTIONAL_FD_STEP: float = 2.0**-14
-JVP_SPOT_CHECK_INDICES: tuple[int, int, int] = (100, 500, 900)
+JVP_SPOT_CHECK_INDICES: Tuple[int, int, int] = (100, 500, 900)
 IDENTITY_SPOT_RTOL: float = 1.0e-9
-CARRIER_BREAK_INDICES: tuple[int, ...] = (0, 512, 1600, 2100, 2600, 3300, 4095)
-CARRIER_BREAK_VALUES_EV: tuple[float, ...] = (
+CARRIER_BREAK_INDICES: Tuple[int, ...] = (0, 512, 1600, 2100, 2600, 3300, 4095)
+CARRIER_BREAK_VALUES_EV: Tuple[float, ...] = (
     -0.05,
     -0.12,
     -0.35,
@@ -274,7 +275,7 @@ def _edge_slopes(
     candidate_key: str,
     values: Float64[Array, " n_kk"],
     spacing_ev: Float64[Array, ""],
-) -> tuple[Float64[Array, ""], Float64[Array, ""]]:
+) -> Tuple[Float64[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Return the one-sided edge slopes of the core interpolant.
 
     Parameters
@@ -330,7 +331,7 @@ def _edge_slopes(
 def _pole_tail_raw_parameters(
     candidate_key: str,
     grid: Float64[NDArray, " n_kk"],
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """PRIVATE: Select frozen ``raw_delta_beta`` values for the pole tails.
 
     Parameters
@@ -370,7 +371,7 @@ def _pole_tail_raw_parameters(
             candidate_key, jnp.asarray(values), jnp.float64(spacing)
         )
     )
-    record: dict[str, Any] = {}
+    record: Dict[str, Any] = {}
     raws: list[float] = []
     for side, edge, slope in (
         ("left", float(grid[0]), slope_left),
@@ -407,7 +408,7 @@ def _sigma_prime_unsubtracted(
     fixture_key: str,
     config: GridConfig,
     params: Float64[Array, " n_params"],
-    raws: tuple[float, float] | None,
+    raws: Tuple[float, float] | None,
     queries_ev: Float64[Array, " n_query"],
 ) -> Float64[Array, " n_query"]:
     """PRIVATE: Evaluate one candidate's unsubtracted Sigma' at queries.
@@ -481,7 +482,7 @@ def _composite_query_derivative(
     candidate_key: str,
     config: GridConfig,
     params: Float64[Array, " n_params"],
-    raws: tuple[float, float],
+    raws: Tuple[float, float],
     queries_ev: Float64[Array, " n_query"],
 ) -> Float64[NDArray, " n_query"]:
     """PRIVATE: Evaluate the pole query derivative via the composite route.
@@ -560,10 +561,10 @@ def _evaluate_scenario(
     candidate_key: str,
     fixture_key: str,
     config: GridConfig,
-    raws: tuple[float, float] | None,
+    raws: Tuple[float, float] | None,
     queries: Float64[NDArray, " n_query"],
     values_only: bool = False,
-) -> dict[str, Float64[NDArray, " n_query"]]:
+) -> Dict[str, Float64[NDArray, " n_query"]]:
     """PRIVATE: Compute subtracted values, query derivatives, and JVPs.
 
     Parameters
@@ -644,7 +645,7 @@ def _evaluate_scenario(
         return total[:-1] - total[-1]
 
     sigma_sub = np.asarray(subtracted_of_scale(jnp.ones(n_params)))
-    result: dict[str, Float64[NDArray, " n_query"]] = {
+    result: Dict[str, Float64[NDArray, " n_query"]] = {
         "sigma_sub_ev": sigma_sub
     }
     if values_only:
@@ -694,7 +695,7 @@ def _five_point_fd(
     candidate_key: str,
     fixture_key: str,
     config: GridConfig,
-    raws: tuple[float, float] | None,
+    raws: Tuple[float, float] | None,
     queries: Float64[NDArray, " n_query"],
     param_index: int,
 ) -> Float64[NDArray, " n_query"]:
@@ -788,7 +789,7 @@ def _five_point_scalar_fd(
 
 def _analytic_truth(
     queries: Float64[NDArray, " n_query"],
-) -> dict[str, Float64[NDArray, " n_query"]]:
+) -> Dict[str, Float64[NDArray, " n_query"]]:
     """PRIVATE: Return closed-form query-derivative truths for both fixtures.
 
     Parameters
@@ -830,7 +831,7 @@ def _mixed_criterion_statistics(
     observed: Float64[NDArray, " n_query"],
     truth: Float64[NDArray, " n_query"],
     queries: Float64[NDArray, " n_query"],
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """PRIVATE: Evaluate the analytic-pair-truth mixed criterion per row.
 
     Parameters
@@ -868,10 +869,10 @@ def _mixed_criterion_statistics(
 
 
 def _refinement_deltas(
-    base: dict[str, Float64[NDArray, " n_query"]],
-    refined: dict[str, Float64[NDArray, " n_query"]],
-    param_names: tuple[str, ...],
-) -> dict[str, Any]:
+    base: Dict[str, Float64[NDArray, " n_query"]],
+    refined: Dict[str, Float64[NDArray, " n_query"]],
+    param_names: Tuple[str, ...],
+) -> Dict[str, Any]:
     """PRIVATE: Return the raw maximum-absolute refinement deltas.
 
     Parameters
@@ -894,7 +895,7 @@ def _refinement_deltas(
     Every delta is ``max |refined - base|`` over the shared query grid;
     missing rows on either side drop out silently.
     """
-    deltas: dict[str, Any] = {
+    deltas: Dict[str, Any] = {
         "max_delta_sigma_ev": float(
             np.max(np.abs(refined["sigma_sub_ev"] - base["sigma_sub_ev"]))
         )
@@ -922,8 +923,8 @@ def _refinement_deltas(
 
 
 def _pole_refinement_metrics(
-    deltas: dict[str, Any], is_tail_refinement: bool
-) -> dict[str, Any]:
+    deltas: Dict[str, Any], is_tail_refinement: bool
+) -> Dict[str, Any]:
     """PRIVATE: Attach PASS/FAIL verdicts to one pole refinement row.
 
     Parameters
@@ -965,7 +966,7 @@ def _pole_refinement_metrics(
     return metrics
 
 
-def _wigner_refinement_metrics(deltas: dict[str, Any]) -> dict[str, Any]:
+def _wigner_refinement_metrics(deltas: Dict[str, Any]) -> Dict[str, Any]:
     """PRIVATE: Attach the stress-witness verdicts to one Wigner row.
 
     Parameters
@@ -1020,7 +1021,7 @@ def _verify_wigner_zero_edges() -> None:
 
 def _carrier_consistency(
     queries: Float64[NDArray, " n_query"],
-) -> tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]:
+) -> Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]:
     """PRIVATE: Measure the grid-mode carrier contract on a hat fixture.
 
     Parameters
@@ -1132,7 +1133,7 @@ def _carrier_consistency(
     )
     slope_scale = max(1.0, abs(hat_slope_left), abs(hat_slope_right))
 
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "requirement": "kk-carrier-consistency",
         "fixture": {
             "break_node_indices": list(CARRIER_BREAK_INDICES),
@@ -1166,8 +1167,8 @@ def _carrier_consistency(
 
 
 def _smooth_seam_consistency(
-    raw_records: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+    raw_records: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
     """PRIVATE: Measure tail edge-slope consistency for the smooth route.
 
     Parameters
@@ -1205,7 +1206,7 @@ def _smooth_seam_consistency(
             / (shifted * shifted + gamma * gamma) ** 2
         )
 
-    result: dict[str, Any] = {"requirement": "kk-carrier-consistency"}
+    result: Dict[str, Any] = {"requirement": "kk-carrier-consistency"}
     for candidate_key in ("pwlinear", "pwquadratic", "pwcubic"):
         slope_left, slope_right = (
             float(x)
@@ -1214,7 +1215,7 @@ def _smooth_seam_consistency(
             )
         )
         record = raw_records.get(candidate_key, {}).get("base_domain")
-        seam: dict[str, Any] = {
+        seam: Dict[str, Any] = {
             "edge_slope_error_left": abs(
                 slope_left - analytic_slope(float(grid[0]))
             ),
@@ -1252,9 +1253,9 @@ def _smooth_seam_consistency(
 def _reverse_mode_evidence(
     candidate_module: Any,
     candidate_key: str,
-    raws: tuple[float, float],
+    raws: Tuple[float, float],
     queries: Float64[NDArray, " n_query"],
-) -> tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]:
+) -> Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]:
     """PRIVATE: Measure reverse-mode gradients of a scalar contraction.
 
     Parameters
@@ -1339,7 +1340,7 @@ def _reverse_mode_evidence(
             weights * subtracted_from(values, raw_values, queries_jnp)
         )
 
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "requirement": "kk-reverse-mode-consistency",
         "rules": (
             "forward-versus-reverse identities at roundoff scale; "
@@ -1416,7 +1417,7 @@ def _reverse_mode_evidence(
     }
 
     grad_raws = jax.grad(contract_raws)(raws_vec)
-    raw_rows: dict[str, Any] = {}
+    raw_rows: Dict[str, Any] = {}
     raw_pass = True
     for coordinate, name in enumerate(("raw_left", "raw_right")):
         direction = jnp.zeros(2).at[coordinate].set(1.0)
@@ -1574,8 +1575,8 @@ def _quadratic_peak_ev(
 
 
 def _spectral_observable_rows(
-    raw_records: dict[str, dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]:
+    raw_records: Dict[str, Dict[str, Any]],
+) -> Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]:
     """PRIVATE: Measure the two-band spectral observable stability rows.
 
     Parameters
@@ -1604,7 +1605,7 @@ def _spectral_observable_rows(
     offset = omega - omega0
     sigma_imag = -coupling * gamma / (offset * offset + gamma * gamma)
 
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "requirement": "kk-spectral-observable-stability",
         "sigma_model": (
             "retarded-pole fixture: Sigma'' analytic, Sigma' from the "
@@ -1618,10 +1619,10 @@ def _spectral_observable_rows(
         "eta_ev": SPECTRAL_ETA_EV,
         "n_omega": SPECTRAL_N_OMEGA,
     }
-    arrays: dict[str, Float64[NDArray, "..."]] = {"spectral_omega_ev": omega}
+    arrays: Dict[str, Float64[NDArray, "..."]] = {"spectral_omega_ev": omega}
     spacing = omega[1] - omega[0]
     for candidate_key, module in CANDIDATE_MODULES.items():
-        intensities: dict[str, Float64[NDArray, " n_omega"]] = {}
+        intensities: Dict[str, Float64[NDArray, " n_omega"]] = {}
         for config_key in FIXTURE_CONFIG_KEYS["pole"]:
             config = CONFIGS[config_key]
             domain_key = (
@@ -1655,7 +1656,7 @@ def _spectral_observable_rows(
         base_weight = float(np.trapezoid(base_intensity, dx=spacing))
         base_shape = base_intensity / base_weight
         base_peak = _quadratic_peak_ev(base_intensity, omega)
-        candidate_rows: dict[str, Any] = {"base_peak_ev": base_peak}
+        candidate_rows: Dict[str, Any] = {"base_peak_ev": base_peak}
         for config_key in FIXTURE_CONFIG_KEYS["pole"][1:]:
             refined = intensities[config_key]
             weight = float(np.trapezoid(refined, dx=spacing))
@@ -1704,7 +1705,7 @@ def _array_bytes(array: Float64[NDArray, "..."]) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, Float64[NDArray, "..."]],
+    arrays: Dict[str, Float64[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write an NPZ whose members have stable order and dates.
 
@@ -1763,7 +1764,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _executable_input_provenance() -> dict[str, Any]:
+def _executable_input_provenance() -> Dict[str, Any]:
     """PRIVATE: Record the digest of every evidence-shaping executable.
 
     Returns
@@ -1795,7 +1796,7 @@ def _executable_input_provenance() -> dict[str, Any]:
             _TOOLS_DIRECTORY / "_kk_control_opposite_parity_maclaurin.py"
         ),
     }
-    provenance: dict[str, Any] = {
+    provenance: Dict[str, Any] = {
         key: {
             "path": f"tests/_reference_tools/{path.name}",
             "sha256": _sha256(path),
@@ -1829,7 +1830,7 @@ def main() -> None:
         raise RuntimeError("truth archive query grids disagree")
     _verify_wigner_zero_edges()
 
-    truth: dict[str, Float64[NDArray, " n_query"]] = {
+    truth: Dict[str, Float64[NDArray, " n_query"]] = {
         "truth_pole_sigma_real_sub_ev": reference["pole_sigma_real"],
         "truth_wigner_sigma_real_sub_ev": reference["semicircle_sigma_real"],
     }
@@ -1843,12 +1844,12 @@ def main() -> None:
     embedding_mismatches = int(np.sum(embedded != base_grid))
     query_node_collisions = int(np.intersect1d(queries, base_grid).size)
 
-    arrays: dict[str, Float64[NDArray, "..."]] = {
+    arrays: Dict[str, Float64[NDArray, "..."]] = {
         "queries_ev": queries,
         **truth,
     }
-    metrics: dict[str, Any] = {}
-    raw_records: dict[str, dict[str, Any]] = {}
+    metrics: Dict[str, Any] = {}
+    raw_records: Dict[str, Dict[str, Any]] = {}
     for candidate_key in (*CANDIDATE_MODULES, "pwlinear"):
         raw_records[candidate_key] = {
             "base_domain": _pole_tail_raw_parameters(candidate_key, base_grid),
@@ -1857,18 +1858,18 @@ def main() -> None:
             ),
         }
 
-    def pole_raws(candidate_key: str, domain_key: str) -> tuple[float, float]:
+    def pole_raws(candidate_key: str, domain_key: str) -> Tuple[float, float]:
         record = raw_records[candidate_key][domain_key]
         return (record["raw_left"], record["raw_right"])
 
-    scenario_values: dict[
-        tuple[str, str, str], dict[str, Float64[NDArray, " n_query"]]
+    scenario_values: Dict[
+        Tuple[str, str, str], Dict[str, Float64[NDArray, " n_query"]]
     ] = {}
     for candidate_key, module in CANDIDATE_MODULES.items():
         for fixture_key in ("pole", "wigner"):
             for config_key in FIXTURE_CONFIG_KEYS[fixture_key]:
                 config = CONFIGS[config_key]
-                raws: tuple[float, float] | None = None
+                raws: Tuple[float, float] | None = None
                 if fixture_key == "pole":
                     domain_key = (
                         "extended_domain"
@@ -1917,7 +1918,7 @@ def main() -> None:
     metrics["candidates"] = {}
     for candidate_key, module in CANDIDATE_MODULES.items():
         pole_base = scenario_values[(candidate_key, "pole", "base")]
-        pole_metrics: dict[str, Any] = {
+        pole_metrics: Dict[str, Any] = {
             "analytic_pair_truth": {"requirement": "kk-analytic-pair-truth"},
             "derivative_composite": {
                 "requirement": "kk-derivative-composite-route"
@@ -2001,7 +2002,7 @@ def main() -> None:
             > value_errors["grid8192"]
             > value_errors["grid16384"]
         )
-        wigner_metrics: dict[str, Any] = {
+        wigner_metrics: Dict[str, Any] = {
             "stress_witness": {
                 "requirement": "kk-singularity-stress-witness",
                 "value_error_ev": value_errors,
@@ -2040,7 +2041,7 @@ def main() -> None:
             ("pole", pole_metrics),
             ("wigner", wigner_metrics),
         ):
-            fd_agreement: dict[str, float] = {}
+            fd_agreement: Dict[str, float] = {}
             fixture_raws = (
                 pole_raws(candidate_key, "base_domain")
                 if fixture_key == "pole"
@@ -2157,7 +2158,7 @@ def main() -> None:
             "maclaurin_control": CONTROL_MODULE,
         }.items()
     }
-    manifest: dict[str, Any] = {
+    manifest: Dict[str, Any] = {
         "schema": "diffpes.kk-operator-selection.v1",
         "purpose": (
             "preproduction Kramers-Kronig operator selection: candidate "

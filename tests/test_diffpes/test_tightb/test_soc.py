@@ -11,6 +11,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128
 
 from diffpes.maths import real_harmonic_unitary
@@ -83,7 +84,7 @@ def _make_atomic_shell_model(
     ``-lambda*(l + 1)/2``. The multiplet tests compare against these
     degeneracies and energies.
     """
-    magnetic_numbers: tuple[int, ...] = tuple(
+    magnetic_numbers: Tuple[int, ...] = tuple(
         range(-angular_momentum, angular_momentum + 1)
     )
     shell_size: int = 2 * angular_momentum + 1
@@ -139,10 +140,10 @@ def _make_dispersive_p_model(coupling: float = 0.37) -> TBModel:
         m=(-1, 0, 1),
         labels=("p_y", "p_z", "p_x"),
     )
-    hopping_values: tuple[float, ...] = (-0.7, -1.1, -1.6)
+    hopping_values: Tuple[float, ...] = (-0.7, -1.1, -1.6)
     amplitudes: list[complex] = []
-    pairs: list[tuple[int, int]] = []
-    cells: list[tuple[int, int, int]] = []
+    pairs: list[Tuple[int, int]] = []
+    cells: list[Tuple[int, int, int]] = []
     orbital: int
     hopping: float
     for orbital, hopping in enumerate(hopping_values):
@@ -438,7 +439,7 @@ class TestSocMatrix:
             labels=("a_py", "a_pz", "a_px", "b_py", "b_pz", "b_px"),
         )
         basis: OrbitalBasis = spin_double_basis(spinless_basis)
-        shell_index: tuple[int, ...] = (0, 0, 0, 1, 1, 1) * 2
+        shell_index: Tuple[int, ...] = (0, 0, 0, 1, 1, 1) * 2
         lambdas: Array = jnp.asarray([0.2, -0.35], dtype=jnp.float64)
         actual: Array = soc_matrix(basis, shell_index, lambdas)
         block: Array = soc_shell_block(1)

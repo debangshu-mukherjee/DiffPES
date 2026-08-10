@@ -12,7 +12,7 @@ import chex
 import h5py
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Dict
 
 from diffpes.inout import (
     attach_certificate_h5,
@@ -271,7 +271,7 @@ def sample_certificate(
     )
 
 
-def _read_json(path: Path) -> dict:
+def _read_json(path: Path) -> Dict:
     """PRIVATE: Load one certificate JSON document from disk.
 
     Parameters
@@ -291,7 +291,7 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _write_document(path: Path, document: dict) -> None:
+def _write_document(path: Path, document: Dict) -> None:
     """PRIVATE: Write one mutated certificate document back to disk.
 
     Parameters
@@ -520,7 +520,7 @@ class TestLoadCertificateJson:
         """
         path: Path = tmp_path / "identity.json"
         save_certificate_json(sample_certificate(), path)
-        document: dict[str, Any] = _read_json(path)
+        document: Dict[str, Any] = _read_json(path)
         document["certificate"]["fields"]["certificate_checksum"] = (
             "sha256:1:certificate:"
             "0000000000000000000000000000000000000000000000000000000000000000"
@@ -542,7 +542,7 @@ class TestLoadCertificateJson:
         """
         path: Path = tmp_path / "legacy-identity.json"
         save_certificate_json(sample_certificate(), path)
-        document: dict[str, Any] = _read_json(path)
+        document: Dict[str, Any] = _read_json(path)
         document["certificate"]["fields"]["certificate_checksum"] = (
             "crc32:canonical-1:certificate:00000000"
         )

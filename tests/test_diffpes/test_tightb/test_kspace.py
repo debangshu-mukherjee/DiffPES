@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, Dict, Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 
@@ -567,11 +567,11 @@ class TestFirstBzMask:
         artifact_path: Path = (
             tests_root / "data" / "kspace" / "mesh_reduce_reference.json"
         )
-        reference: dict[str, Any] = json.loads(
+        reference: Dict[str, Any] = json.loads(
             artifact_path.read_text(encoding="utf-8")
         )
-        metadata: dict[str, Any] = reference["metadata"]
-        expected_metadata: dict[str, str] = {
+        metadata: Dict[str, Any] = reference["metadata"]
+        expected_metadata: Dict[str, str] = {
             "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
             "diffpes_commit": "afe36cfbb703510f01de6da376b35627eaac8d4d",
             "environment_sha256": (

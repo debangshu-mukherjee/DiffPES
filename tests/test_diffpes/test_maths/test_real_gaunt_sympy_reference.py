@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TextIO
 
 import numpy as np
+from beartype.typing import Dict
 
 from diffpes.maths.gaunt import gaunt_lookup
 
@@ -35,12 +36,12 @@ class TestSympyGauntReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert len(rows) == 2700
         zero_count: int = 0
         nonzero_count: int = 0
-        row: dict[str, str]
+        row: Dict[str, str]
         for row in rows:
             actual: float = gaunt_lookup(
                 int(row["l"]),
@@ -79,7 +80,7 @@ class TestSympyGauntReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[dict[str, str]] = list(csv.DictReader(stream))
+            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert {row["sympy_version"] for row in rows} == {"1.14.0"}
         assert {row["authority"] for row in rows} == {

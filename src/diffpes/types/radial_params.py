@@ -47,7 +47,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Tuple
+from beartype.typing import Dict, Optional, Tuple
 from jaxtyping import Array, Float, Float64, jaxtyped
 
 _ARRAY_MATRIX_NDIM: int = 2
@@ -61,7 +61,7 @@ _RADIAL_MODES: Tuple[str, ...] = (
 _FINAL_STATE_MODES: Tuple[str, ...] = ("plane_wave", "coulomb")
 _RADIAL_ACCELERATORS: Tuple[str, ...] = ("direct", "hermite")
 _HERMITE_TABLE_POINTS: Tuple[int, ...] = (257, 513, 1025, 2049)
-_CERTIFIED_RADIAL_PROFILES: dict[
+_CERTIFIED_RADIAL_PROFILES: Dict[
     str,
     Tuple[
         int,
@@ -523,8 +523,8 @@ def _validate_radial_shell_structure(
     if set(radial_shell_index) != set(range(n_shells)):
         message = "radial_shell_index must use contiguous shell identifiers"
         raise ValueError(message)
-    shell_quantum_numbers: dict[int, Tuple[int, int, int]] = {}
-    quantum_number_shells: dict[Tuple[int, int, int], int] = {}
+    shell_quantum_numbers: Dict[int, Tuple[int, int, int]] = {}
+    quantum_number_shells: Dict[Tuple[int, int, int], int] = {}
     orbital_index: int
     shell_index: int
     for orbital_index, shell_index in enumerate(radial_shell_index):
@@ -1074,7 +1074,7 @@ def make_orbital_basis(  # noqa: DOC502
 
 
 @jaxtyped(typechecker=beartype)
-def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
+def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915, PLR0917
     basis: OrbitalBasis,
     radial_shell_index: Tuple[int, ...],
     mode: str = "slater",

@@ -108,7 +108,7 @@ class ExperimentGeometry(eqx.Module):
 
 
 @jaxtyped(typechecker=beartype)
-def make_experiment_geometry(  # noqa: DOC503, PLR0913
+def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
     photon_energy_ev: ScalarFloat,
     polarization: Complex128[Array, "3"],
     incidence_theta: ScalarFloat = 0.0,

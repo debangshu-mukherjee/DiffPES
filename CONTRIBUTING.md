@@ -188,11 +188,15 @@ def simulate_spectrum(
 
 #### Type Hinting Rules:
 - Annotate all parameters and return values.
-- Use `beartype.typing.Tuple[...]` for multiple returns.
-- **Never use the builtin `tuple[...]` generic in an annotation.** This rule
+- Use `beartype.typing.Tuple[...]` and `beartype.typing.Dict[...]` for tuple
+  and dictionary annotations.
+- **Never use the builtin `tuple[...]` or `dict[...]` generic in an
+  annotation.** This rule
   covers every annotation position: parameters, returns, and annotated
-  variables, at any nesting depth. Import `Tuple` from `beartype.typing`.
-  Runtime uses of `tuple` (calls, literals, `isinstance` checks) stay valid.
+  variables, at any nesting depth. Import `Tuple` and `Dict` from
+  `beartype.typing`.
+  Runtime uses of `tuple` and `dict` (calls, literals, `isinstance` checks)
+  stay valid.
   The repository floor enforces this rule with an AST gate, which also
   rejects stdlib `typing` imports of the charter-owned constructs.
 - Annotate intermediate variables inside function bodies too — e.g.

@@ -124,7 +124,7 @@ def build_kpath(  # noqa: DOC503, PLR2004
     anchors: Float64[Array, "n_anchor 3"],
     geometry: CrystalGeometry,
     n_per_segment: int,
-    labels: tuple[str, ...],
+    labels: Tuple[str, ...],
     anchor_units: str = "fractional",
 ) -> KPath:
     """Build a labeled path between k-space anchors.
@@ -163,7 +163,7 @@ def build_kpath(  # noqa: DOC503, PLR2004
     n_per_segment : int
         Points in each segment, including both endpoints. This value is
         **static**. A change causes retracing.
-    labels : tuple[str, ...]
+    labels : Tuple[str, ...]
         One label for each anchor. This value is **static**. A change causes
         retracing.
     anchor_units : str, optional
@@ -222,7 +222,7 @@ def build_kpath(  # noqa: DOC503, PLR2004
     )
     kpoints: Float64[Array, "n_k 3"] = jnp.reshape(segments, (-1, 3))
     last_index: int = kpoints.shape[0] - 1
-    label_indices: tuple[int, ...] = tuple(
+    label_indices: Tuple[int, ...] = tuple(
         anchor_index * n_per_segment
         if anchor_index < anchors.shape[0] - 1
         else last_index

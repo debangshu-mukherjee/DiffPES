@@ -41,7 +41,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
@@ -170,7 +170,7 @@ _KINK_PARAMETERS_PHYSICAL: Tuple[float, float, float, float] = (
     0.02,
 )
 
-_COMMITTED_MODULE_CACHE: dict[str, ModuleType] = {}
+_COMMITTED_MODULE_CACHE: Dict[str, ModuleType] = {}
 
 
 def _sha256(path: Path) -> str:
@@ -183,7 +183,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _load_npz(path: Path) -> dict[str, Float64[NDArray, "..."]]:
+def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Load one inert NPZ into ordinary arrays without pickle.
 
     Notes
@@ -195,7 +195,7 @@ def _load_npz(path: Path) -> dict[str, Float64[NDArray, "..."]]:
         return {name: archive[name] for name in archive.files}
 
 
-def _authenticated_json(path: Path, digest: str) -> dict[str, Any]:
+def _authenticated_json(path: Path, digest: str) -> Dict[str, Any]:
     """PRIVATE: Load one manifest after its SHA-256 digest matches the pin.
 
     Notes
@@ -208,7 +208,7 @@ def _authenticated_json(path: Path, digest: str) -> dict[str, Any]:
 
 def _authenticated_npz(
     path: Path, digest: str
-) -> dict[str, Float64[NDArray, "..."]]:
+) -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Load one archive after its SHA-256 digest matches the pin.
 
     Notes
@@ -713,13 +713,13 @@ class TestKramersKronigEvidence(chex.TestCase):
         generators, and the committed instrument modules. It then compares
         the registered budget constants against the frozen module values.
         """
-        selection: dict[str, Any] = _authenticated_json(
+        selection: Dict[str, Any] = _authenticated_json(
             _SELECTION_MANIFEST_PATH, _SELECTION_MANIFEST_SHA256
         )
         assert selection["schema"] == "diffpes.kk-operator-selection.v1"
         assert selection["archive_sha256"] == _SELECTION_ARCHIVE_SHA256
         assert _sha256(_SELECTION_ARCHIVE_PATH) == _SELECTION_ARCHIVE_SHA256
-        executable: dict[str, Any] = selection["executable_inputs"]
+        executable: Dict[str, Any] = selection["executable_inputs"]
         assert executable["generator"]["sha256"] == _SELECTION_GENERATOR_SHA256
         assert executable["common"]["sha256"] == _COMMON_MODULE_SHA256
         assert executable["piecewise_cubic"]["sha256"] == _CUBIC_MODULE_SHA256
@@ -728,7 +728,7 @@ class TestKramersKronigEvidence(chex.TestCase):
         )
         assert selection["production_imports"] == []
 
-        analytic: dict[str, Any] = _authenticated_json(
+        analytic: Dict[str, Any] = _authenticated_json(
             _ANALYTIC_DIRECTORY / "manifest.json", _ANALYTIC_MANIFEST_SHA256
         )
         assert analytic["schema"] == "diffpes.kk-analytic-reference.v1"
@@ -743,7 +743,7 @@ class TestKramersKronigEvidence(chex.TestCase):
         )
         assert int(analytic["arbiter"]["decimal_digits"]) == 80
 
-        models: dict[str, Any] = _authenticated_json(
+        models: Dict[str, Any] = _authenticated_json(
             _MODELS_MANIFEST_PATH, _MODELS_MANIFEST_SHA256
         )
         assert models["schema"] == "diffpes.self-energy-models-reference.v1"
@@ -756,7 +756,7 @@ class TestKramersKronigEvidence(chex.TestCase):
         zeros: list[str] = models["derivatives"]["structural_zeros"]
         assert any("dSigma'/dGamma0" in entry for entry in zeros)
 
-        budgets: dict[str, float] = selection["registered_budgets"]
+        budgets: Dict[str, float] = selection["registered_budgets"]
         assert budgets["pair_truth_atol_ev"] == _PAIR_TRUTH_ATOL_EV
         assert budgets["pair_truth_rtol"] == _PAIR_TRUTH_RTOL
         assert budgets["pole_tail_only_max_delta_sigma_ev"] == _TAIL_RULE_BOUND
@@ -779,10 +779,10 @@ class TestKramersKronigEvidence(chex.TestCase):
         compares it against the recorded manifest number. It also checks
         the 256-to-512 tail rule deltas against the ``1e-13`` budget.
         """
-        selection: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
-        analytic: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        analytic: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _ANALYTIC_DIRECTORY / "kk_reference.npz",
             _ANALYTIC_ARCHIVE_SHA256,
         )
@@ -868,7 +868,7 @@ class TestKramersKronigEvidence(chex.TestCase):
         NumPy. It then compares the results against the archive rows and
         checks the recorded complex-step cross-check scalars.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         fl_raw: Float64[NDArray, " three"] = models["fl_parameters_raw"]
@@ -966,7 +966,7 @@ class TestKramersKronigEvidence(chex.TestCase):
         coordinates and the committed edge stencils. It then compares both
         instrument outputs against the frozen arrays at ``1e-15``.
         """
-        selection: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
         common: ModuleType
@@ -1083,7 +1083,7 @@ class TestEvaluateSelfEnergy(chex.TestCase):
         default committed geometry. It then applies the registered mixed
         criterion per row.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         queries: Float64[Array, " n"] = jnp.asarray(
@@ -1128,7 +1128,7 @@ class TestEvaluateSelfEnergy(chex.TestCase):
         evaluates the analytic pole pair on the frozen grid. It compares
         both parts against the archive rows.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         queries: Float64[Array, " n"] = jnp.asarray(
@@ -1352,7 +1352,7 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
         mode through the summed real part. It rebuilds the composite truth
         from the authenticated instrument modules.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         queries: Float64[Array, " n"] = jnp.asarray(
@@ -1436,7 +1436,7 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
         coordinates and differentiates the public map per column. It then
         compares real and imaginary rows against the archive.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         cases: Tuple[Tuple[str, str, int], ...] = (
@@ -1516,7 +1516,7 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
         coordinate for both fixtures. It then requires an exactly zero
         real tangent row.
         """
-        models: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        models: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _MODELS_ARCHIVE_PATH, _MODELS_ARCHIVE_SHA256
         )
         fixture: str
@@ -1611,7 +1611,7 @@ class TestKkTransformSeam(chex.TestCase):
         """
         import diffpes.simul.spectral as spectral
 
-        selection: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
         common: ModuleType
@@ -1666,7 +1666,7 @@ class TestKkTransformSeam(chex.TestCase):
         """
         import diffpes.simul.spectral as spectral
 
-        selection: dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
+        selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
         common: ModuleType

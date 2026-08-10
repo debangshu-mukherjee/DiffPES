@@ -18,7 +18,7 @@ Routine Listings
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import (
@@ -41,7 +41,7 @@ def _build_inputs(
     eigenbands: Float64[Array, "K B"],
     surface_orb: Float64[Array, "K B A 9"],
     ef: ScalarFloat,
-) -> tuple[BandStructure, OrbitalProjection]:
+) -> Tuple[BandStructure, OrbitalProjection]:
     """PRIVATE: Convert plain arrays into validated spectrum input carriers.
 
     Notes
@@ -68,7 +68,7 @@ def _build_inputs(
     projection: OrbitalProjection = make_orbital_projection(
         projections=projection_array,
     )
-    inputs: tuple[BandStructure, OrbitalProjection] = (bands, projection)
+    inputs: Tuple[BandStructure, OrbitalProjection] = (bands, projection)
     return inputs
 
 
@@ -144,7 +144,7 @@ def simulate_basic_expanded(
     temperature: ScalarFloat,
     photon_energy: ScalarFloat,
     basis: OrbitalBasis,
-    atomic_numbers: tuple[int, ...],
+    atomic_numbers: Tuple[int, ...],
 ) -> ArpesSpectrum:
     """Run the Yeh--Lindau-weighted incoherent tier from plain arrays.
 
@@ -171,7 +171,7 @@ def simulate_basic_expanded(
         Photon energy in eV for Yeh--Lindau interpolation.
     basis : OrbitalBasis
         Atom-major subshell identity for every projection channel.
-    atomic_numbers : tuple[int, ...]
+    atomic_numbers : Tuple[int, ...]
         Atomic number for every projection atom.
 
     Returns
@@ -205,7 +205,7 @@ def simulate_basic_expanded(
 
 
 @jaxtyped(typechecker=beartype)
-def simulate_expanded(  # noqa: PLR0913
+def simulate_expanded(  # noqa: PLR0913, PLR0917
     level: str,
     eigenbands: Float64[Array, "K B"],
     surface_orb: Float64[Array, "K B A 9"],
@@ -216,7 +216,7 @@ def simulate_expanded(  # noqa: PLR0913
     temperature: ScalarFloat = 15.0,
     photon_energy: ScalarFloat = 21.2,
     basis: Optional[OrbitalBasis] = None,
-    atomic_numbers: Optional[tuple[int, ...]] = None,
+    atomic_numbers: Optional[Tuple[int, ...]] = None,
 ) -> ArpesSpectrum:
     """Dispatch one of the two retained incoherent simulation tiers.
 
@@ -247,7 +247,7 @@ def simulate_expanded(  # noqa: PLR0913
         Photon energy in eV.
     basis : Optional[OrbitalBasis], optional
         Required for the basic tier.
-    atomic_numbers : Optional[tuple[int, ...]], optional
+    atomic_numbers : Optional[Tuple[int, ...]], optional
         Required for the basic tier.
 
     Returns

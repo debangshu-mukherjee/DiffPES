@@ -8,6 +8,7 @@ principal-number conversion.
 """
 
 import pytest
+from beartype.typing import Dict, Tuple
 
 from diffpes.radial.screening import (
     electron_configuration,
@@ -31,21 +32,21 @@ class TestElectronConfiguration:
         """
         atomic_number: int
         for atomic_number in range(1, 104):
-            configuration: tuple[tuple[int, int, int], ...] = (
+            configuration: Tuple[Tuple[int, int, int], ...] = (
                 electron_configuration(atomic_number)
             )
             assert sum(row[2] for row in configuration) == atomic_number
 
-        chromium: dict[tuple[int, int], int] = {
+        chromium: Dict[Tuple[int, int], int] = {
             row[:2]: row[2] for row in electron_configuration(24)
         }
-        palladium: dict[tuple[int, int], int] = {
+        palladium: Dict[Tuple[int, int], int] = {
             row[:2]: row[2] for row in electron_configuration(46)
         }
-        gadolinium: dict[tuple[int, int], int] = {
+        gadolinium: Dict[Tuple[int, int], int] = {
             row[:2]: row[2] for row in electron_configuration(64)
         }
-        lawrencium: dict[tuple[int, int], int] = {
+        lawrencium: Dict[Tuple[int, int], int] = {
             row[:2]: row[2] for row in electron_configuration(103)
         }
         assert chromium[(3, 2)] == 5

@@ -20,6 +20,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, Integer, jaxtyped
 
 
@@ -135,7 +136,7 @@ def _origin_series_derivative(
 
 def _analytic_anchors(
     x: Float64[Array, " ..."],
-) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     """PRIVATE: Evaluate analytic nonzero-argument anchors j0 and j1.
 
     Parameters
@@ -145,7 +146,7 @@ def _analytic_anchors(
 
     Returns
     -------
-    anchors : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+    anchors : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
         Pair ``(j0, j1)`` with ``j0 = sin(x)/x`` and
         ``j1 = sin(x)/x**2 - cos(x)/x``.
 
@@ -156,7 +157,7 @@ def _analytic_anchors(
     """
     j0: Float64[Array, " ..."] = jnp.sin(x) / x
     j1: Float64[Array, " ..."] = jnp.sin(x) / (x * x) - jnp.cos(x) / x
-    anchors: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (j0, j1)
+    anchors: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (j0, j1)
     return anchors
 
 
@@ -194,20 +195,20 @@ def _upward_recurrence(
 
     def _step(
         index: Integer[Array, ""],
-        state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
-    ) -> tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
+        state: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]],
+    ) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
         """PRIVATE: Apply one step of the upward recurrence.
 
         Parameters
         ----------
         index : Integer[Array, ""]
             Order ``l`` of the current leading value.
-        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+        state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
             Consecutive pair ``(j_(l-1), j_l)``.
 
         Returns
         -------
-        next_state : tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
+        next_state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]
             Shifted pair ``(j_l, j_(l+1))``.
 
         Notes
@@ -221,13 +222,13 @@ def _upward_recurrence(
         following: Float64[Array, " ..."] = (
             2.0 * index_float + 1.0
         ) * current / x - previous
-        next_state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+        next_state: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
             current,
             following,
         )
         return next_state
 
-    final_state: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+    final_state: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
         jax.lax.fori_loop(1, order, _step, (j0, j1))
     )
     values: Float64[Array, " ..."] = final_state[1]
@@ -273,12 +274,12 @@ def _downward_miller(
 
     def _step(
         iteration: Integer[Array, ""],
-        state: tuple[
+        state: Tuple[
             Float64[Array, " ..."],
             Float64[Array, " ..."],
             Float64[Array, " ..."],
         ],
-    ) -> tuple[
+    ) -> Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -290,14 +291,14 @@ def _downward_miller(
         iteration : Integer[Array, ""]
             Loop counter; the active order is
             ``start_order - iteration``.
-        state : tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
+        state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
 Float64[Array, " ..."]]
             Triple ``(j_(l+1), j_l, target)`` of unnormalized values
             and the recorded target-order value.
 
         Returns
         -------
-        next_state : tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
+        next_state : Tuple[Float64[Array, " ..."], Float64[Array, " ..."], \
 Float64[Array, " ..."]]
             Shifted triple ``(j_l, j_(l-1), target)``.
 
@@ -316,19 +317,19 @@ Float64[Array, " ..."]]
             2.0 * ell_float + 1.0
         ) * current / x - following
         target = jnp.where(ell - 1 == order, previous, target)
-        next_state: tuple[
+        next_state: Tuple[
             Float64[Array, " ..."],
             Float64[Array, " ..."],
             Float64[Array, " ..."],
         ] = (current, previous, target)
         return next_state
 
-    initial_state: tuple[
+    initial_state: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
     ] = (jnp.zeros_like(x), jnp.ones_like(x), target_seed)
-    miller_state: tuple[
+    miller_state: Tuple[
         Float64[Array, " ..."],
         Float64[Array, " ..."],
         Float64[Array, " ..."],
@@ -401,7 +402,7 @@ def spherical_bessel_jl(
     use_series: Float64[Array, " ..."] = jnp.abs(x_array) < series_threshold
     safe_x: Float64[Array, " ..."] = jnp.where(use_series, 1.0, x_array)
     series_values: Float64[Array, " ..."] = _origin_series(order, x_array)
-    anchors: tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
+    anchors: Tuple[Float64[Array, " ..."], Float64[Array, " ..."]] = (
         _analytic_anchors(safe_x)
     )
     j0: Float64[Array, " ..."] = anchors[0]

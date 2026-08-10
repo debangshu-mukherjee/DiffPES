@@ -5,6 +5,7 @@ identity and semantic-term rejection rules owned by ``diffpes.types``.
 """
 
 import pytest
+from beartype.typing import Dict
 
 from diffpes.types import (
     CompositionReport,
@@ -130,7 +131,7 @@ class TestMakeTransformationContract:
     )
     def test_rejects_invalid_contracts(
         self,
-        kwargs: dict[str, object],
+        kwargs: Dict[str, object],
         message: str,
     ) -> None:
         """Reject every malformed static contract declaration.

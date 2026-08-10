@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from beartype.typing import Dict
+
 from diffpes.radial.screening import slater_zeff
 
 REFERENCE_PATH: Path = (
@@ -31,14 +33,14 @@ class TestChinookScreeningReference:
         -----
         It loads inert JSON and compares public Slater screening results.
         """
-        artifact: dict[str, Any] = json.loads(
+        artifact: Dict[str, Any] = json.loads(
             REFERENCE_PATH.read_text(encoding="utf-8")
         )
         assert artifact["requirement"] == "chinook-screening-reference"
         digits: int = int(artifact["round_digits"])
-        samples: list[dict[str, Any]] = artifact["samples"]
+        samples: list[Dict[str, Any]] = artifact["samples"]
         assert len(samples) == 6
-        sample: dict[str, Any]
+        sample: Dict[str, Any]
         for sample in samples:
             actual: float = slater_zeff(
                 int(sample["atomic_number"]),
@@ -56,7 +58,7 @@ class TestChinookScreeningReference:
         -----
         It reads each provenance field directly from the frozen JSON.
         """
-        artifact: dict[str, Any] = json.loads(
+        artifact: Dict[str, Any] = json.loads(
             REFERENCE_PATH.read_text(encoding="utf-8")
         )
         assert artifact["chinook_commit"] == (

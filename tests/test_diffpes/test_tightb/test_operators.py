@@ -7,6 +7,7 @@ texture.
 
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from jaxtyping import Array
 
 from diffpes.tightb import expectation_path
@@ -50,7 +51,7 @@ def _spin_basis() -> OrbitalBasis:
     return basis
 
 
-def _rashba_bands() -> tuple[DiagonalizedBands, Array]:
+def _rashba_bands() -> Tuple[DiagonalizedBands, Array]:
     """PRIVATE: Diagonalize analytic two-band Rashba matrices away from Gamma.
 
     Returns
@@ -262,7 +263,7 @@ class TestOrbitalProjector:
     @pytest.mark.parametrize("selection", ((), (0, 0), (-1,), (4,)))
     def test_orbital_projector_rejects_invalid_selection(
         self,
-        selection: tuple[int, ...],
+        selection: Tuple[int, ...],
     ) -> None:
         """Reject empty, duplicated, and out-of-range orbital selections.
 

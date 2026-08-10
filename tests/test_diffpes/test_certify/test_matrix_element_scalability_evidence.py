@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 
 ARTIFACT_DIRECTORY: Path = (
     Path(__file__).parents[1]
@@ -26,7 +26,7 @@ ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 REPOSITORY_ROOT: Path = Path(__file__).parents[3]
 
 
-def _artifact() -> dict[str, Any]:
+def _artifact() -> Dict[str, Any]:
     """PRIVATE: Load the committed literal-shape benchmark record.
 
     Returns
@@ -38,7 +38,7 @@ def _artifact() -> dict[str, Any]:
     -----
     Reads the UTF-8 JSON file at the committed artifact path.
     """
-    artifact: dict[str, Any] = json.loads(
+    artifact: Dict[str, Any] = json.loads(
         ARTIFACT_PATH.read_text(encoding="utf-8")
     )
     return artifact
@@ -105,7 +105,7 @@ class TestMatrixElementScalabilityEvidence:
         -----
         It loads the JSON artifact and compares exact structural counters.
         """
-        artifact: dict[str, Any] = _artifact()
+        artifact: Dict[str, Any] = _artifact()
         assert artifact["schema"] == "diffpes.matrix-element-scalability.v2"
         relative_path: str
         digest: str
@@ -113,7 +113,7 @@ class TestMatrixElementScalabilityEvidence:
             source_path: Path = REPOSITORY_ROOT / relative_path
             assert _sha256(source_path) == digest
         assert artifact["process_peak_rss_bytes_non_authoritative"] > 0
-        s1: dict[str, Any] = artifact["s1"]
+        s1: Dict[str, Any] = artifact["s1"]
         orbital_counts: list[int] = s1["orbital_counts"]
         equation_counts: list[int] = s1["recursive_jaxpr_equation_counts"]
         assert orbital_counts == [9, 18, 36]
@@ -145,18 +145,18 @@ class TestMatrixElementScalabilityEvidence:
         -----
         It recomputes live bytes and verifies both compressed artifact hashes.
         """
-        s2: dict[str, Any] = _artifact()["s2"]
+        s2: Dict[str, Any] = _artifact()["s2"]
         assert (s2["n_k"], s2["n_orb"], s2["n_energy"]) == (4096, 18, 8)
         assert s2["output_shape"] == [8, 4096, 6]
         assert s2["scalar_output_shape"] == [4096, 6]
         assert s2["gradient_shape"] == [18]
         assert s2["forbidden_k_e_b_shape_present"] is False
-        memory: dict[str, Any] = s2["memory_analysis"]
+        memory: Dict[str, Any] = s2["memory_analysis"]
         assert memory["authority_available"] is True
         live_values: list[int] = []
         name: str
         for name in ("scalar_value_and_gradient", "reduced_scan"):
-            record: dict[str, Any] = memory[name]
+            record: Dict[str, Any] = memory[name]
             assert record["authority_available"] is True
             assert record["argument_size_bytes"] > 1_000_000
             recomputed_live: int = (
@@ -207,12 +207,12 @@ class TestMatrixElementScalabilityEvidence:
         -----
         It derives each statistic directly from the four raw timing series.
         """
-        s3: dict[str, Any] = _artifact()["s3"]
+        s3: Dict[str, Any] = _artifact()["s3"]
         assert s3["warmups"] == 2
         assert s3["repetitions"] == 7
         assert s3["synchronized"] is True
-        raw: dict[str, list[float]] = s3["raw_seconds"]
-        medians: dict[str, float] = s3["median_seconds"]
+        raw: Dict[str, list[float]] = s3["raw_seconds"]
+        medians: Dict[str, float] = s3["median_seconds"]
         name: str
         values: list[float]
         for name, values in raw.items():

@@ -89,7 +89,7 @@ def validate_contract(contract: TransformationContract) -> Tuple[str, ...]:
     --------------------
     1. **Bind the documented output**::
 
-           result: tuple[str, ...] = tuple(errors)
+           result: Tuple[str, ...] = tuple(errors)
 
        The function validates and transforms the inputs before it binds the
        documented output.

@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import TextIO
+from beartype.typing import TextIO, Tuple
 from jaxtyping import Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -130,7 +130,7 @@ def read_poscar(
             scale = (abs(raw_scale) / raw_volume) ** (1.0 / 3.0)
         lattice = lattice * scale
         line: str = fid.readline().strip()
-        symbols: tuple[str, ...] = ()
+        symbols: Tuple[str, ...] = ()
         if not any(c.isdigit() for c in line):
             symbols = tuple(line.split())
             line = fid.readline().strip()
@@ -151,7 +151,7 @@ def read_poscar(
         if cartesian:
             coords = coords * scale
             coords = np.linalg.solve(lattice.T, coords.T).T
-    species: tuple[str, ...] = ()
+    species: Tuple[str, ...] = ()
     if symbols:
         species = tuple(
             symbol

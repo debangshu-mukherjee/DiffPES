@@ -33,6 +33,7 @@ from typing import Any
 
 import numpy as np
 import scipy
+from beartype.typing import Dict, Tuple
 from jaxtyping import Bool, Complex128, Float64, Shaped
 from numpy.typing import NDArray
 from scipy import integrate
@@ -49,7 +50,7 @@ KINK_WIDTH_EV: float = 0.02
 
 EVAL_GRID_POINTS: int = 2001
 EVAL_GRID_HALF_WIDTH_EV: float = 1.5
-KK_DOMAIN_EV: tuple[float, float] = (-8.0, 8.0)
+KK_DOMAIN_EV: Tuple[float, float] = (-8.0, 8.0)
 RAW_COORDINATE_BOUND: float = 30.0
 SOFTPLUS_ROUNDTRIP_RTOL: float = 1.0e-14
 
@@ -135,7 +136,7 @@ KINK_MOMENT_FREQUENCIES_EV: Float64[NDArray, " n_moment"] = np.asarray(
     [25.0, 50.0, 100.0, 200.0, 400.0],
     dtype=np.float64,
 )
-MOMENT_RATIO_BOUNDS: tuple[float, float] = (3.9, 4.1)
+MOMENT_RATIO_BOUNDS: Tuple[float, float] = (3.9, 4.1)
 
 
 def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
@@ -163,7 +164,7 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: dict[str, Shaped[NDArray, "..."]],
+    arrays: Dict[str, Shaped[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
 
@@ -536,7 +537,7 @@ def _pv_real_part(
     dynamic_imag: Callable[[float], float],
     omega: float,
     cauchy_half_width: float | None,
-) -> tuple[float, float]:
+) -> Tuple[float, float]:
     """PRIVATE: Evaluate the retarded KK real part by adaptive quadrature.
 
     Parameters
@@ -588,9 +589,9 @@ def _pv_real_part(
     lower_edge: float
     upper_edge: float
     lower_edge, upper_edge = KK_DOMAIN_EV
-    smooth_segments: list[tuple[float, float]]
+    smooth_segments: list[Tuple[float, float]]
     if cauchy_half_width is None:
-        cauchy_segment: tuple[float, float] = (lower_edge, upper_edge)
+        cauchy_segment: Tuple[float, float] = (lower_edge, upper_edge)
         smooth_segments = []
     else:
         cauchy_segment = (
@@ -624,7 +625,7 @@ def _pv_real_part(
         )
         total += value
         error += estimate
-        segment: tuple[float, float]
+        segment: Tuple[float, float]
         for segment in smooth_segments:
             value, estimate = integrate.quad(
                 _shifted,
@@ -639,7 +640,7 @@ def _pv_real_part(
     return total / np.pi, error / np.pi
 
 
-def _parameters_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _parameters_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Record physical parameters, raw coordinates, and grids.
 
     Returns
@@ -678,7 +679,7 @@ def _parameters_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _fermi_liquid_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the Fermi-liquid grid, quadrature, and causality rows.
 
     Returns
@@ -760,7 +761,7 @@ def _fermi_liquid_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _bosonic_kink_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _bosonic_kink_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build the exact bosonic-kink grid values and causality row.
 
     Returns
@@ -805,7 +806,7 @@ def _bosonic_kink_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _bosonic_kink_kk_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _bosonic_kink_kk_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Check pole-pair KK self-consistency by PV quadrature.
 
     Returns
@@ -854,7 +855,7 @@ def _bosonic_kink_kk_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _bosonic_kink_moment_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _bosonic_kink_moment_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Record the first-moment asymptotic identity of the pair.
 
     Returns
@@ -949,7 +950,7 @@ def _complex_step_column(
 def _check_derivative_matrix(
     step_matrix: Float64[NDArray, "n_probe n_param"],
     analytic_matrix: Float64[NDArray, "n_probe n_param"],
-    structural_zero_columns: tuple[int, ...],
+    structural_zero_columns: Tuple[int, ...],
 ) -> float:
     """PRIVATE: Certify one dimensionless derivative truth matrix.
 
@@ -1009,7 +1010,7 @@ def _check_derivative_matrix(
     return float(np.max(deviation))
 
 
-def _fermi_liquid_derivative_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _fermi_liquid_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build Fermi-liquid dimensionless derivative truths.
 
     Returns
@@ -1127,7 +1128,7 @@ def _fermi_liquid_derivative_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _bosonic_kink_derivative_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _bosonic_kink_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Build bosonic-kink dimensionless derivative truths.
 
     Returns
@@ -1268,7 +1269,7 @@ def _bosonic_kink_derivative_payload() -> dict[str, Float64[NDArray, "..."]]:
     }
 
 
-def _reference_payload() -> dict[str, Float64[NDArray, "..."]]:
+def _reference_payload() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Assemble every self-energy truth table into one payload.
 
     Returns
@@ -1282,7 +1283,7 @@ def _reference_payload() -> dict[str, Float64[NDArray, "..."]]:
     Later payloads share no keys with earlier ones, so the update
     sequence never overwrites an entry.
     """
-    payload: dict[str, Float64[NDArray, "..."]] = {}
+    payload: Dict[str, Float64[NDArray, "..."]] = {}
     payload.update(_parameters_payload())
     payload.update(_fermi_liquid_payload())
     payload.update(_fermi_liquid_derivative_payload())
@@ -1301,11 +1302,11 @@ def main() -> None:
     reference_path: Path = data_directory / "self_energy_models_reference.npz"
     manifest_path: Path = data_directory / "self_energy_models_manifest.json"
 
-    payload: dict[str, Float64[NDArray, "..."]] = _reference_payload()
+    payload: Dict[str, Float64[NDArray, "..."]] = _reference_payload()
     _write_deterministic_npz(reference_path, payload)
 
     generator_path: Path = Path(__file__).resolve()
-    manifest: dict[str, Any] = {
+    manifest: Dict[str, Any] = {
         "archives": {
             "self_energy_models_reference": {
                 "filename": reference_path.name,

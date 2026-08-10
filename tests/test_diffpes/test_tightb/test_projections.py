@@ -8,6 +8,7 @@ and differentiation of a rotating degenerate projector.
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype.typing import Tuple
 from hypothesis import assume, given, settings, strategies
 from jaxtyping import Array
 
@@ -308,7 +309,7 @@ class TestGroupProjector:
     @pytest.mark.parametrize("group", ((), (0, 0), (-1,), (3,)))
     def test_rejects_invalid_fixed_groups(
         self,
-        group: tuple[int, ...],
+        group: Tuple[int, ...],
     ) -> None:
         """Reject empty, duplicated, and out-of-range group metadata.
 

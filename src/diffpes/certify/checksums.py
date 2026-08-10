@@ -329,7 +329,7 @@ def parse_checksum(checksum: str) -> Tuple[str, str, str, str]:
     --------------------
     1. **Bind the documented output**::
 
-           parsed: tuple[str, str, str, str] = (
+           parsed: Tuple[str, str, str, str] = (
                    CHECKSUM_ALGORITHM,
                    match.group("canonical"),
                    match.group("kind"),

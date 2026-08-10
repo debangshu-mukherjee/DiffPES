@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
@@ -89,7 +90,7 @@ OMEGA_POINTS = 261
 N_ORBITALS = 2
 
 RAW_ARCHIVE_NAME = "chinook_spectral_raw.npz"
-REFERENCE_KEYS: tuple[str, ...] = (
+REFERENCE_KEYS: Tuple[str, ...] = (
     "kx_axis_inverse_angstrom",
     "ky_axis_inverse_angstrom",
     "omega_rel_ev",
@@ -166,7 +167,7 @@ def _sha256(path: Path) -> str:
     return _sha256_bytes(path.read_bytes())
 
 
-def _expected_axes() -> dict[str, Float64[NDArray, "..."]]:
+def _expected_axes() -> Dict[str, Float64[NDArray, "..."]]:
     """PRIVATE: Reconstruct the frozen momentum and relative-energy axes.
 
     Returns
@@ -225,7 +226,7 @@ def _require(condition: bool, message: str) -> None:
         raise SystemExit(f"validation failed: {message}")
 
 
-def _validate_provenance(raw_dir: Path) -> dict[str, Any]:
+def _validate_provenance(raw_dir: Path) -> Dict[str, Any]:
     """PRIVATE: Authenticate the offline run's environment and pins.
 
     Parameters
@@ -292,7 +293,7 @@ def _validate_provenance(raw_dir: Path) -> dict[str, Any]:
     return metadata
 
 
-def _validate_arrays(raw: dict[str, Shaped[NDArray, "..."]]) -> None:
+def _validate_arrays(raw: Dict[str, Shaped[NDArray, "..."]]) -> None:
     """PRIVATE: Revalidate every frozen model and axis parameter.
 
     Parameters
@@ -416,7 +417,7 @@ def _validate_arrays(raw: dict[str, Shaped[NDArray, "..."]]) -> None:
     )
 
 
-def _model_parameters() -> dict[str, Any]:
+def _model_parameters() -> Dict[str, Any]:
     """PRIVATE: Return the frozen model and axis parameters.
 
     Returns
@@ -507,7 +508,7 @@ def _model_parameters() -> dict[str, Any]:
     }
 
 
-def _forensic_section(metadata: dict[str, Any]) -> dict[str, Any]:
+def _forensic_section(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """PRIVATE: Return the non-gating sign-convention forensic record.
 
     Parameters

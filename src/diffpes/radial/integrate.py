@@ -32,6 +32,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -180,7 +181,7 @@ def _simpson_weights(
 def gauss_legendre_nodes(
     n_nodes: int,
     r_max_bohr: float,
-) -> tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]]:
+) -> Tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]]:
     """Construct Gauss--Legendre nodes and weights on ``[0, r_max_bohr]``.
 
     Host-side setup maps canonical nodes onto the requested finite interval.
@@ -217,7 +218,7 @@ def gauss_legendre_nodes(
     if not np.isfinite(r_max_bohr) or r_max_bohr <= 0.0:
         message = "r_max_bohr must be finite and positive"
         raise ValueError(message)
-    canonical_pair: tuple[
+    canonical_pair: Tuple[
         Float64[NDArray, " n_r"], Float64[NDArray, " n_r"]
     ] = np.polynomial.legendre.leggauss(n_nodes)
     canonical_nodes: Float64[NDArray, " n_r"] = canonical_pair[0]
@@ -225,7 +226,7 @@ def gauss_legendre_nodes(
     scale: float = 0.5 * r_max_bohr
     shifted_nodes: Float64[NDArray, " n_r"] = scale * (canonical_nodes + 1.0)
     shifted_weights: Float64[NDArray, " n_r"] = scale * canonical_weights
-    quadrature: tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]] = (
+    quadrature: Tuple[Float64[Array, " n_r"], Float64[Array, " n_r"]] = (
         jnp.asarray(shifted_nodes, dtype=jnp.float64),
         jnp.asarray(shifted_weights, dtype=jnp.float64),
     )
@@ -508,7 +509,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         spec.radial_shell_index, dtype=jnp.int32
     )
     n_shells: int = max(spec.radial_shell_index, default=-1) + 1
-    representatives: tuple[int, ...] = tuple(
+    representatives: Tuple[int, ...] = tuple(
         spec.radial_shell_index.index(shell) for shell in range(n_shells)
     )
 

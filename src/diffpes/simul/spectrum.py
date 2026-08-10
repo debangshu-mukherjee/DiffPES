@@ -19,6 +19,7 @@ Routine Listings
 import jax
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.types import (
@@ -54,7 +55,7 @@ def _validate_projection_basis(
             f"projection channel ({orbital_count} rows required)"
         )
         raise ValueError(message)
-    expected_atoms: tuple[int, ...] = tuple(
+    expected_atoms: Tuple[int, ...] = tuple(
         atom_index
         for atom_index in range(atom_count)
         for _ in range(projections.shape[3])
@@ -64,8 +65,8 @@ def _validate_projection_basis(
             "basis.atom_indices must follow the atom-major projection order"
         )
         raise ValueError(message)
-    vasp_angular_order: tuple[int, ...] = (0, 1, 1, 1, 2, 2, 2, 2, 2)
-    expected_angular: tuple[int, ...] = vasp_angular_order * atom_count
+    vasp_angular_order: Tuple[int, ...] = (0, 1, 1, 1, 2, 2, 2, 2, 2)
+    expected_angular: Tuple[int, ...] = vasp_angular_order * atom_count
     if basis.l != expected_angular:
         message = "basis.l must follow the atom-major VASP orbital order"
         raise ValueError(message)
@@ -73,10 +74,10 @@ def _validate_projection_basis(
     channel_offset: int
     for atom_index in range(atom_count):
         channel_offset = atom_index * projections.shape[3]
-        p_principals: tuple[int, ...] = basis.n[
+        p_principals: Tuple[int, ...] = basis.n[
             channel_offset + 1 : channel_offset + 4
         ]
-        d_principals: tuple[int, ...] = basis.n[
+        d_principals: Tuple[int, ...] = basis.n[
             channel_offset + 4 : channel_offset + 9
         ]
         if len(set(p_principals)) != 1 or len(set(d_principals)) != 1:
@@ -177,7 +178,7 @@ def simulate_basic(
     orb_proj: OrbitalProjection,
     params: SimulationParams,
     basis: OrbitalBasis,
-    atomic_numbers: tuple[int, ...],
+    atomic_numbers: Tuple[int, ...],
     temperature: ScalarFloat,
     photon_energy: ScalarFloat,
 ) -> ArpesSpectrum:
@@ -202,7 +203,7 @@ def simulate_basic(
     basis : OrbitalBasis
         One atom-major row per projection channel, carrying the subshell
         ``(n, l)`` identity needed by the Yeh--Lindau table.
-    atomic_numbers : tuple[int, ...]
+    atomic_numbers : Tuple[int, ...]
         Atomic number for every atom axis in ``orb_proj``.
     temperature : ScalarFloat
         Positive sample temperature in kelvin.

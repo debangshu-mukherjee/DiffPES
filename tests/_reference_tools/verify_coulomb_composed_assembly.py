@@ -9,6 +9,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
@@ -39,7 +40,7 @@ from diffpes.types import (
     make_radial_spec,
 )
 
-type Fixture = tuple[
+type Fixture = Tuple[
     DiagonalizedBands,
     RadialSpec,
     MatrixElementParams,
@@ -49,7 +50,7 @@ type Fixture = tuple[
 
 _EFFECTIVE_CHARGE_DERIVATIVE_FLOOR = 1.0e-5
 _PHOTON_ENERGY_DERIVATIVE_FLOOR = 1.0e-6
-_FD_STEP_LADDERS: tuple[tuple[float, ...], ...] = (
+_FD_STEP_LADDERS: Tuple[Tuple[float, ...], ...] = (
     (4.0e-3, 2.0e-3, 1.0e-3),
     (4.0e-2, 2.0e-2, 1.0e-2),
 )
@@ -320,7 +321,7 @@ def main() -> None:
     if bool(jnp.any(plateau_spread > 1.0)):
         message = f"composed D11 FD plateau failed: {plateau_spread}"
         raise AssertionError(message)
-    metrics: dict[str, Any] = {
+    metrics: Dict[str, Any] = {
         "forward_derivative": [float(value) for value in forward],
         "reverse_derivative": [float(value) for value in reverse],
         "fd_step_ladders": [list(values) for values in _FD_STEP_LADDERS],

@@ -17,6 +17,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+from beartype.typing import Dict, Tuple
 from jaxtyping import Float64
 from numpy.typing import NDArray
 
@@ -33,8 +34,8 @@ _PAPER_DOI = "10.1016/0092-640X(85)90016-6"
 _SOURCE_FILE_ID = "22867790"
 _SOURCE_FILENAME = "Excel_Yeh_Lindau_1985_PICS.xlsx"
 _MIN_INTERPOLATION_NODES = 2
-_DIGITISATION_REPLAY_SPOT_CHECKS: tuple[
-    tuple[int, int, int, float, float], ...
+_DIGITISATION_REPLAY_SPOT_CHECKS: Tuple[
+    Tuple[int, int, int, float, float], ...
 ] = (
     (6, 2, 1, 21.2, 6.128),
     (6, 2, 1, 40.8, 1.875),
@@ -210,8 +211,8 @@ def _pchip_slopes(
 def _workbook_rows(
     source: Path,
 ) -> list[
-    tuple[
-        tuple[int, int, int],
+    Tuple[
+        Tuple[int, int, int],
         Float64[NDArray, " n_node"],
         Float64[NDArray, " n_node"],
     ]
@@ -242,8 +243,8 @@ def _workbook_rows(
     subshells with fewer than two positive finite values drop out.
     """
     rows: list[
-        tuple[
-            tuple[int, int, int],
+        Tuple[
+            Tuple[int, int, int],
             Float64[NDArray, " n_node"],
             Float64[NDArray, " n_node"],
         ]
@@ -281,7 +282,7 @@ def _workbook_rows(
             if len(xml_rows) < _MIN_INTERPOLATION_NODES:
                 continue
 
-            headers: dict[int, tuple[int, int]] = {}
+            headers: Dict[int, Tuple[int, int]] = {}
             for cell in xml_rows[0]:
                 raw_header = _cell_value(cell, strings)
                 if raw_header is None:
@@ -294,7 +295,7 @@ def _workbook_rows(
                 headers[_cell_column(cell.attrib["r"])] = (principal, angular)
 
             energies: list[float] = []
-            column_values: dict[int, list[float]] = {
+            column_values: Dict[int, list[float]] = {
                 column: [] for column in headers
             }
             for xml_row in xml_rows[1:17]:
@@ -337,7 +338,7 @@ def generate(source: Path, output_directory: Path) -> None:
     energy_parts: list[Float64[NDArray, " n_node"]] = []
     sigma_parts: list[Float64[NDArray, " n_node"]] = []
     slope_parts: list[Float64[NDArray, " n_node"]] = []
-    domains: dict[str, list[list[float]]] = {}
+    domains: Dict[str, list[list[float]]] = {}
     for key, energies, sigmas in rows:
         log_energies = np.log(energies)
         positive = np.isfinite(sigmas) & (sigmas > 0.0)

@@ -190,7 +190,7 @@ class ArtifactRef(eqx.Module):
     role: str = eqx.field(static=True)
 
 
-type ArtifactResolver = Callable[[ArtifactRef], tuple[Any, Optional[bytes]]]
+type ArtifactResolver = Callable[[ArtifactRef], Tuple[Any, Optional[bytes]]]
 
 
 class ConventionRef(eqx.Module):
@@ -2486,7 +2486,7 @@ def make_evidence_ref(
 
 
 @jaxtyped(typechecker=beartype)
-def make_certification_claim(  # noqa: PLR0913
+def make_certification_claim(  # noqa: PLR0913, PLR0917
     claim_id: str,
     subject_id: str,
     predicate_id: str,
@@ -2602,7 +2602,7 @@ def make_certification_claim(  # noqa: PLR0913
 
 
 @jaxtyped(typechecker=beartype)
-def make_derivative_evidence(  # noqa: PLR0913
+def make_derivative_evidence(  # noqa: PLR0913, PLR0917
     input_paths: Tuple[str, ...],
     output_projection_ids: Tuple[str, ...],
     method: str,
@@ -3251,7 +3251,7 @@ def _unique_module_ids(values: Tuple[Any, ...], attribute: str) -> bool:
 
 
 @jaxtyped(typechecker=beartype)
-def make_forward_certificate(  # noqa: PLR0913
+def make_forward_certificate(  # noqa: PLR0913, PLR0917
     manifest: ExecutionManifest,
     model: ForwardModelSpec,
     artifacts: Tuple[ArtifactRef, ...],

@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Complex128, Float64, Int64
 from numpy.typing import NDArray
 from scipy.integrate import lebedev_rule
@@ -422,7 +422,7 @@ def _radial_second_derivative(
     operator: lil_matrix = lil_matrix(
         (interior_count, interior_count), dtype=np.float64
     )
-    coefficients: dict[int, float] = {
+    coefficients: Dict[int, float] = {
         -3: 1.0 / 90.0,
         -2: -3.0 / 20.0,
         -1: 3.0 / 2.0,

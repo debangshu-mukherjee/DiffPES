@@ -16,7 +16,7 @@ import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy.special import gamma
@@ -342,7 +342,7 @@ def test_full_cartesian_volume_matches_production() -> None:
                 phase_free[orbital, branch] = correct_radial[
                     orbital, branch
                 ] / (1j**final_degree)
-    controls: dict[str, Complex128[NDArray, "n_orb 2"]] = {
+    controls: Dict[str, Complex128[NDArray, "n_orb 2"]] = {
         "omitted": phase_free,
         "flipped": np.asarray(
             [
@@ -398,8 +398,8 @@ def test_hermite_rejection_makes_derivative_path_inactive() -> None:
         / "_reference_data"
         / "radial_hermite_rejection.json"
     )
-    evidence: dict[str, object] = json.loads(reference_path.read_text())
-    decision: dict[str, object] = evidence["decision"]
+    evidence: Dict[str, object] = json.loads(reference_path.read_text())
+    decision: Dict[str, object] = evidence["decision"]
     ratio: float = float(evidence["next_rung_value_budget_ratio"])
     threshold: float = float(evidence["next_rung_fraction_limit"])
     assert evidence["schema"] == "diffpes.radial-hermite-rejection.v1"

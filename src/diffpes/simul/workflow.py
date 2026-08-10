@@ -22,7 +22,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal, Optional, cast
+from beartype.typing import Literal, Optional, Tuple, cast
 from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.inout import (
@@ -280,7 +280,7 @@ def _kpath_distances(
 
 
 @jaxtyped(typechecker=beartype)
-def simulate_context(  # noqa: PLR0913
+def simulate_context(  # noqa: PLR0913, PLR0917
     context: WorkflowContext,
     level: str = "novice",
     atom_indices: Optional[list[int]] = None,
@@ -293,7 +293,7 @@ def simulate_context(  # noqa: PLR0913
     temperature: ScalarFloat = 15.0,
     photon_energy: ScalarFloat = 21.2,
     basis: Optional[OrbitalBasis] = None,
-    atomic_numbers: Optional[tuple[int, ...]] = None,
+    atomic_numbers: Optional[Tuple[int, ...]] = None,
 ) -> ArpesSpectrum:
     """Run a level-dispatched simulation from a loaded workflow context.
 
@@ -356,7 +356,7 @@ def simulate_context(  # noqa: PLR0913
         Incident photon energy in eV.
     basis : Optional[OrbitalBasis], optional
         Atom-major subshell basis required by the basic tier.
-    atomic_numbers : Optional[tuple[int, ...]], optional
+    atomic_numbers : Optional[Tuple[int, ...]], optional
         Atomic numbers required by the basic tier.
 
     Returns
@@ -400,7 +400,7 @@ def simulate_context(  # noqa: PLR0913
 
 
 @jaxtyped(typechecker=beartype)
-def run_vasp_workflow(  # noqa: PLR0913
+def run_vasp_workflow(  # noqa: PLR0913, PLR0917
     level: str = "novice",
     directory: str = ".",
     eigenval_file: str = "EIGENVAL",
@@ -421,7 +421,7 @@ def run_vasp_workflow(  # noqa: PLR0913
     temperature: ScalarFloat = 15.0,
     photon_energy: ScalarFloat = 21.2,
     basis: Optional[OrbitalBasis] = None,
-    atomic_numbers: Optional[tuple[int, ...]] = None,
+    atomic_numbers: Optional[Tuple[int, ...]] = None,
 ) -> ArpesSpectrum:
     """Run an end-to-end VASP-to-ARPES workflow in one call.
 
@@ -485,7 +485,7 @@ def run_vasp_workflow(  # noqa: PLR0913
         Incident photon energy in eV.
     basis : Optional[OrbitalBasis], optional
         Atom-major subshell basis required by the basic tier.
-    atomic_numbers : Optional[tuple[int, ...]], optional
+    atomic_numbers : Optional[Tuple[int, ...]], optional
         Atomic numbers required by the basic tier.
 
     Returns

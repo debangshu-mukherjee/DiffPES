@@ -15,7 +15,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, Dict, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Complex128, Float64
@@ -669,10 +669,10 @@ class TestDetectorRotation(chex.TestCase):
         artifact_path: Path = (
             tests_root / "data" / "kspace" / "tilt_polarization_reference.json"
         )
-        reference: dict[str, Any] = json.loads(
+        reference: Dict[str, Any] = json.loads(
             artifact_path.read_text(encoding="utf-8")
         )
-        expected_mapping: dict[str, dict[str, str]] = {
+        expected_mapping: Dict[str, Dict[str, str]] = {
             "H": {
                 "active_rotation": "Rx(diffpes_ty) @ Ry(diffpes_tx)",
                 "tilt_k_mesh": (
@@ -700,7 +700,7 @@ class TestDetectorRotation(chex.TestCase):
                 reference["mapping"][slit]["tilt_k_mesh"],
                 expected_mapping[slit]["tilt_k_mesh"],
             )
-            records: list[dict[str, Any]] = [
+            records: list[Dict[str, Any]] = [
                 record
                 for record in reference["records"]
                 if record["slit"] == slit

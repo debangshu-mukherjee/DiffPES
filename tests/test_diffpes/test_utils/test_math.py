@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, Dict, Tuple
 from jax.test_util import check_grads
 from jaxtyping import Array, Complex128, Float64, Shaped, jaxtyped
 from numpy.typing import NDArray
@@ -31,7 +31,7 @@ from diffpes.utils import (
 )
 
 
-def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
+def _faddeeva_reference() -> Dict[str, Shaped[NDArray, "..."]]:
     """PRIVATE: Load the frozen arbitrary-precision Faddeeva value and derivative reference.
 
     Returns
@@ -53,7 +53,7 @@ def _faddeeva_reference() -> dict[str, Shaped[NDArray, "..."]]:
     )
     archive: np.lib.npyio.NpzFile
     with np.load(path, allow_pickle=False) as archive:
-        result: dict[str, Shaped[NDArray, "..."]] = {
+        result: Dict[str, Shaped[NDArray, "..."]] = {
             name: archive[name] for name in archive.files
         }
     return result
@@ -132,7 +132,7 @@ class TestFaddeeva(chex.TestCase):
             root / "tests" / "test_diffpes" / "_reference_data"
         )
         manifest_path: Path = data_directory / "faddeeva_mpmath_manifest.json"
-        manifest: dict[str, Any] = json.loads(
+        manifest: Dict[str, Any] = json.loads(
             manifest_path.read_text(encoding="utf-8")
         )
         archive_path: Path = data_directory / manifest["archive"]
@@ -147,7 +147,7 @@ class TestFaddeeva(chex.TestCase):
             hashlib.sha256(generator_path.read_bytes()).hexdigest()
             == manifest["generator_sha256"]
         )
-        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
+        reference: Dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
         scipy_values: Complex128[NDArray, " n"] = wofz(reference["points"])
         np.testing.assert_allclose(
             scipy_values,
@@ -167,7 +167,7 @@ class TestFaddeeva(chex.TestCase):
         It applies the frozen componentwise mixed bound independently to the
         real and imaginary output rows.
         """
-        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
+        reference: Dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
         points: Complex128[Array, " n"] = jnp.asarray(reference["points"])
         expected: Complex128[NDArray, " n"] = reference["values"]
         actual: Complex128[NDArray, " n"] = np.asarray(
@@ -199,7 +199,7 @@ class TestFaddeeva(chex.TestCase):
         It forms the cancellation-sensitive ODE truth in mpmath before the
         artifact rounds it to complex128.
         """
-        reference: dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
+        reference: Dict[str, Shaped[NDArray, "..."]] = _faddeeva_reference()
         points: Complex128[Array, " n"] = jnp.asarray(reference["points"])
         derivatives: Complex128[NDArray, " n"] = reference["derivatives"]
         direction: complex

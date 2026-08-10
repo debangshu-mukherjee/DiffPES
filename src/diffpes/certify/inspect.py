@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Bool, Shaped, jaxtyped
 from numpy.typing import NDArray
 
@@ -347,7 +347,7 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
                     f"    invalidates: {', '.join(item.invalidates_claims)}"
                 )
 
-    status_counts: dict[str, int] = {
+    status_counts: Dict[str, int] = {
         "passed": 0,
         "failed": 0,
         "not_checked": 0,
@@ -457,7 +457,7 @@ def explain_claim(
         msg: str = f"Claim '{claim_id}' is not present in this certificate."
         raise KeyError(msg)
     claim: Any = matching[0]
-    evidence_by_id: dict[str, Any] = {
+    evidence_by_id: Dict[str, Any] = {
         item.evidence_id: item for item in certificate.evidence
     }
     artifact_ids: Tuple[str, ...] = tuple(

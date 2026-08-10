@@ -26,6 +26,7 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
+from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
@@ -34,7 +35,7 @@ from .operators import orbital_projector
 
 
 def _validate_selection(
-    selection: tuple[int, ...],
+    selection: Tuple[int, ...],
     upper_bound: int,
     *,
     name: str,
@@ -43,7 +44,7 @@ def _validate_selection(
 
     Parameters
     ----------
-    selection : tuple[int, ...]
+    selection : Tuple[int, ...]
         Candidate static index tuple.
     upper_bound : int
         Exclusive upper bound for every index.
@@ -202,7 +203,7 @@ def band_projectors(
 @jaxtyped(typechecker=beartype)
 def group_projector(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
-    group: tuple[int, ...],
+    group: Tuple[int, ...],
 ) -> Complex128[Array, "n_k n_orb n_orb"]:
     r"""Construct the projector onto one registered, fixed band group.
 
@@ -215,7 +216,7 @@ def group_projector(  # noqa: DOC502 -- validation is delegated.
     ----------
     bands : DiagonalizedBands
         Geometry-bearing, band-major eigensystem.
-    group : tuple[int, ...]
+    group : Tuple[int, ...]
         Fixed unique band indices (**static** -- changing them retraces).
 
     Returns
@@ -253,7 +254,7 @@ def group_projector(  # noqa: DOC502 -- validation is delegated.
 def group_trace(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
     operator: Complex128[Array, "n_orb n_orb"],
-    group: tuple[int, ...],
+    group: Tuple[int, ...],
 ) -> Float64[Array, " n_k"]:
     r"""Trace a Hermitian operator over one fixed band group.
 
@@ -269,7 +270,7 @@ def group_trace(  # noqa: DOC502 -- validation is delegated.
         Geometry-bearing, band-major eigensystem.
     operator : Complex128[Array, "n_orb n_orb"]
         Finite Hermitian operator in the model basis.
-    group : tuple[int, ...]
+    group : Tuple[int, ...]
         Fixed unique band indices (**static** -- changing them retraces).
 
     Returns
@@ -395,7 +396,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
 @jaxtyped(typechecker=beartype)
 def fat_bands(  # noqa: DOC502 -- validation is delegated.
     bands: DiagonalizedBands,
-    orbital_select: tuple[int, ...],
+    orbital_select: Tuple[int, ...],
 ) -> Float64[Array, "n_k n_bands"]:
     """Compute degeneracy-averaged weights of selected model orbitals.
 
@@ -408,7 +409,7 @@ def fat_bands(  # noqa: DOC502 -- validation is delegated.
     ----------
     bands : DiagonalizedBands
         Geometry-bearing, band-major eigensystem.
-    orbital_select : tuple[int, ...]
+    orbital_select : Tuple[int, ...]
         Fixed unique orbital indices (**static** -- changing them retraces).
 
     Returns

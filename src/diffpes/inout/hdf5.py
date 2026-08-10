@@ -37,7 +37,7 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Mapping, Optional, Union
+from beartype.typing import Any, Dict, Mapping, Optional, Tuple, Union
 from jaxtyping import Shaped, jaxtyped
 from numpy.typing import NDArray
 
@@ -75,12 +75,12 @@ from diffpes.types import (
 )
 
 
-def _pytree_classes() -> tuple[type[eqx.Module], ...]:
+def _pytree_classes() -> Tuple[type[eqx.Module], ...]:
     """PRIVATE: Return the complete carrier class set used by the codec.
 
     Returns
     -------
-    classes : tuple[type[eqx.Module], ...]
+    classes : Tuple[type[eqx.Module], ...]
         Every registered Equinox carrier class the HDF5 codec can
         serialize.
 
@@ -90,7 +90,7 @@ def _pytree_classes() -> tuple[type[eqx.Module], ...]:
     this tuple to its serialization metadata.  Registering a new
     carrier means listing it here.
     """
-    classes: tuple[type[eqx.Module], ...] = (
+    classes: Tuple[type[eqx.Module], ...] = (
         ArpesSpectrum,
         BandStructure,
         CrystalGeometry,
@@ -200,7 +200,7 @@ def _decode_static(value: Any) -> Any:  # noqa: ANN401
     elif isinstance(value, dict) and "__module__" in value:
         class_name: str = str(value["__module__"])
         module_class: type[eqx.Module] = _PYTREE_REGISTRY[class_name]["cls"]
-        module_fields: dict[str, Any] = {
+        module_fields: Dict[str, Any] = {
             str(name): _decode_static(item)
             for name, item in value["fields"].items()
         }
@@ -292,13 +292,13 @@ def _module_meta(module_class: type[eqx.Module]) -> Mapping[str, Any]:
     group.  A ``MappingProxyType`` wraps the result, so registry
     entries stay immutable.
     """
-    module_fields: tuple[Any, ...] = fields(module_class)
-    children_fields: tuple[str, ...] = tuple(
+    module_fields: Tuple[Any, ...] = fields(module_class)
+    children_fields: Tuple[str, ...] = tuple(
         field.name
         for field in module_fields
         if not bool(field.metadata.get("static", False))
     )
-    static_fields: tuple[str, ...] = tuple(
+    static_fields: Tuple[str, ...] = tuple(
         field.name
         for field in module_fields
         if bool(field.metadata.get("static", False))
@@ -349,8 +349,8 @@ def _dataset_write_kwargs(
     compression_opts: Any,  # noqa: ANN401
     shuffle: bool,
     fletcher32: bool,
-    chunks: Optional[Union[bool, tuple[int, ...]]],
-) -> dict[str, Any]:
+    chunks: Optional[Union[bool, Tuple[int, ...]]],
+) -> Dict[str, Any]:
     """PRIVATE: Build ``h5py.create_dataset`` keyword arguments for one
     child array.
 
@@ -382,17 +382,17 @@ def _dataset_write_kwargs(
         Whether to enable the HDF5 byte-shuffle filter.
     fletcher32 : bool
         Whether to enable the Fletcher32 checksum filter.
-    chunks : Optional[Union[bool, tuple[int, ...]]]
+    chunks : Optional[Union[bool, Tuple[int, ...]]]
         Chunking policy: ``True`` for auto-chunking, or an explicit
         chunk shape tuple.
 
     Returns
     -------
-    dict[str, Any]
+    Dict[str, Any]
         Keyword arguments to pass to ``h5py.Group.create_dataset``.
         Empty dict for scalar datasets.
     """
-    kwargs: dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}
     if data.ndim != 0:
         if compression is not None:
             kwargs["compression"] = compression
@@ -416,7 +416,7 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
     compression_opts: Any = None,  # noqa: ANN401
     shuffle: bool = False,
     fletcher32: bool = False,
-    chunks: Optional[Union[bool, tuple[int, ...]]] = None,
+    chunks: Optional[Union[bool, Tuple[int, ...]]] = None,
     **pytrees: Any,  # noqa: ANN401
 ) -> None:
     """Save one or more named PyTrees to an HDF5 file.
@@ -462,7 +462,7 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
         If True, enable HDF5 shuffle filter on non-scalar datasets.
     fletcher32 : bool, optional
         If True, enable HDF5 Fletcher32 checksum on non-scalar datasets.
-    chunks : Optional[Union[bool, tuple[int, ...]]], optional
+    chunks : Optional[Union[bool, Tuple[int, ...]]], optional
         Chunking policy for non-scalar datasets. ``True`` enables
         auto-chunking, or provide an explicit chunk-shape tuple.
     **pytrees : Any
@@ -531,7 +531,7 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
             msg: str = f"Unsupported PyTree type: {type_name}"
             raise TypeError(msg)
         meta: Mapping[str, Any] = _PYTREE_REGISTRY[type_name]
-        static_values: tuple[Any, ...] = tuple(
+        static_values: Tuple[Any, ...] = tuple(
             getattr(pytree, field_name) for field_name in meta["static_fields"]
         )
         aux_data: Any = None
@@ -552,7 +552,7 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
                 _write_module(child_group, child)
             else:
                 child_arr: Shaped[NDArray, "..."] = np.asarray(child)
-                ds_kwargs: dict[str, Any] = _dataset_write_kwargs(
+                ds_kwargs: Dict[str, Any] = _dataset_write_kwargs(
                     data=child_arr,
                     compression=compression,
                     compression_opts=compression_opts,
@@ -615,7 +615,7 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
 
     Returns
     -------
-    loaded : PyTree or dict[str, PyTree]
+    loaded : PyTree or Dict[str, PyTree]
         One PyTree when ``name`` identifies a group. Otherwise, a dictionary
         that maps group names to PyTree instances.
 
@@ -690,10 +690,10 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
                 arr: Shaped[NDArray, "..."] = grp[field_name][()]
                 children.append(jnp.asarray(arr))
 
-        constructor_fields: dict[str, Any] = dict(
+        constructor_fields: Dict[str, Any] = dict(
             zip(meta["children_fields"], children, strict=True)
         )
-        static_values: tuple[Any, ...]
+        static_values: Tuple[Any, ...]
         if not meta["static_fields"]:
             static_values = ()
         elif len(meta["static_fields"]) == 1:
@@ -715,10 +715,10 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
             loaded: Any = _load_group(f[name])
             return loaded
 
-        result: dict[str, Any] = {}
+        result: Dict[str, Any] = {}
         for group_name in f:
             result[group_name] = _load_group(f[group_name])
-        loaded: dict[str, Any] = result
+        loaded: Dict[str, Any] = result
         return loaded
 
 
