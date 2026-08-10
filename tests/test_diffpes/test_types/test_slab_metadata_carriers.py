@@ -22,6 +22,7 @@ from diffpes.types import (
     CrystalGeometry,
     DiagonalizedBands,
     OrbitalBasis,
+    PyTreeDef,
     SlabSpec,
     SurfaceCell,
     TBModel,
@@ -331,7 +332,7 @@ class TestSurfaceCell:
         """
         surface_cell: SurfaceCell = _surface_cell()
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(surface_cell)
         restored: SurfaceCell = jax.tree_util.tree_unflatten(tree, leaves)
 

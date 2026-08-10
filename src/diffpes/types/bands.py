@@ -280,6 +280,13 @@ def make_spin_orbital_projection(  # noqa: DOC503
         )
 
     def validate_and_create() -> SpinOrbitalProjection:
+        """Validate traced leaves and construct the spin projection.
+
+        Returns
+        -------
+        projection : SpinOrbitalProjection
+            Validated spin-resolved orbital projection.
+        """
         nonlocal proj_arr, spin_arr
         proj_arr = eqx.error_if(
             proj_arr,
@@ -488,6 +495,13 @@ def make_spin_band_structure(  # noqa: DOC503
         )
 
     def validate_and_create() -> SpinBandStructure:
+        """Validate traced leaves and construct the spin bands.
+
+        Returns
+        -------
+        bands : SpinBandStructure
+            Validated two-channel band structure.
+        """
         nonlocal down_arr, kpts_arr, up_arr, weights_arr
         up_arr = eqx.error_if(
             up_arr,
@@ -813,6 +827,13 @@ def make_band_structure(  # noqa: DOC503
         )
 
     def validate_and_create() -> BandStructure:
+        """Validate traced leaves and construct the band structure.
+
+        Returns
+        -------
+        bands : BandStructure
+            Validated scalar-channel band structure.
+        """
         nonlocal eigenvalues_arr, kpoints_arr, weights_arr
         eigenvalues_arr = eqx.error_if(
             eigenvalues_arr,
@@ -951,6 +972,13 @@ def make_orbital_projection(  # noqa: DOC503
         )
 
     def validate_and_create() -> OrbitalProjection:
+        """Validate traced leaves and construct the orbital projection.
+
+        Returns
+        -------
+        projection : OrbitalProjection
+            Validated orbital projection with optional observables.
+        """
         nonlocal proj_arr, spin_arr
         proj_arr = eqx.error_if(
             proj_arr,
@@ -1056,6 +1084,13 @@ def make_arpes_cube(  # noqa: DOC503
         raise ValueError("make_arpes_cube: unknown Cartesian frame identifier")
 
     def validate_and_create() -> ArpesCube:
+        """Validate traced leaves and construct the source cube.
+
+        Returns
+        -------
+        cube : ArpesCube
+            Validated Cartesian source-density cube.
+        """
         nonlocal energy_arr, intensity_arr, kx_arr, ky_arr
         intensity_arr = eqx.error_if(
             intensity_arr,
@@ -1176,6 +1211,13 @@ def make_arpes_spectrum(  # noqa: DOC503
         )
 
     def validate_and_create() -> ArpesSpectrum:
+        """Validate traced leaves and construct the source spectrum.
+
+        Returns
+        -------
+        spectrum : ArpesSpectrum
+            Validated self-describing path spectrum.
+        """
         nonlocal energy_arr, intensity_arr, k_axis_arr, kpoints_arr
         intensity_arr = eqx.error_if(
             intensity_arr,
@@ -1332,6 +1374,13 @@ def make_detector_raster(  # noqa: DOC503
         raise ValueError("make_detector_raster: unknown coordinate system")
 
     def validate_and_create() -> DetectorRaster:
+        """Validate traced leaves and construct the detector raster.
+
+        Returns
+        -------
+        raster : DetectorRaster
+            Validated native-coordinate expected-count raster.
+        """
         nonlocal counts_arr, energy_arr, quantization_arr, u_arr, v_arr
         counts_arr = eqx.error_if(
             counts_arr,
@@ -1477,6 +1526,13 @@ def make_detector_calibration(  # noqa: DOC503
         )
 
     def validate_and_create() -> DetectorCalibration:
+        """Validate traced leaves and construct the calibration.
+
+        Returns
+        -------
+        calibration : DetectorCalibration
+            Validated detector-bin and response calibration.
+        """
         nonlocal energy_edges, fwhm_energy, fwhm_u, fwhm_v
         nonlocal transmission_domain, u_edges, v_edges
         u_edges = eqx.error_if(

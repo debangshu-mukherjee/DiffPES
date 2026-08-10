@@ -11,7 +11,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Tuple
-from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.maths import (
@@ -30,6 +29,7 @@ from diffpes.simul import (
 from diffpes.types import (
     MatrixElementParams,
     OrbitalBasis,
+    PyTreeDef,
     RadialSpec,
     make_final_state_spec,
     make_matrix_element_params,

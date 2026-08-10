@@ -38,6 +38,11 @@ Validation and regression tests for :mod:`diffpes.types`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_types.test_detector_effects
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_types.test_experiment
    :members:
    :undoc-members:
@@ -54,11 +59,6 @@ Validation and regression tests for :mod:`diffpes.types`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_types.test_kpath
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tests.test_diffpes.test_types.test_params
    :members:
    :undoc-members:
    :show-inheritance:

@@ -14,7 +14,11 @@ from beartype.typing import Dict, Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Complex128, Float64
 
-from diffpes.types import ExperimentGeometry, make_experiment_geometry
+from diffpes.types import (
+    ExperimentGeometry,
+    PyTreeDef,
+    make_experiment_geometry,
+)
 from tests._assertions import assert_rejects
 from tests._gradients import gradient_gate
 
@@ -46,7 +50,7 @@ class TestExperimentGeometry:
             21.2, polarization, sample_azimuth=0.2, slit="V"
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree.flatten(geometry)
         restored: ExperimentGeometry = jax.tree.unflatten(tree, leaves)
 
@@ -54,7 +58,7 @@ class TestExperimentGeometry:
         chex.assert_equal(restored.slit, "V")
 
     def test_keeps_only_the_slit_out_of_the_numerical_leaves(self) -> None:
-        """Keep all 11 numerical fields in the traced partition.
+        """Keep all nine numerical fields in the traced partition.
 
         The static slit must not appear among the leaves that JAX transforms.
 
@@ -71,7 +75,7 @@ class TestExperimentGeometry:
         dynamic, static = eqx.partition(geometry, eqx.is_array)
         leaves: list[Array] = jax.tree.leaves(dynamic)
 
-        chex.assert_equal(len(leaves), 11)
+        chex.assert_equal(len(leaves), 9)
         chex.assert_equal(dynamic.slit, "V")
         chex.assert_equal(static.slit, "V")
 
@@ -167,12 +171,6 @@ class TestMakeExperimentGeometry:
             ("inner_potential_ev", -1.0, "inner_potential_ev"),
             ("temperature_k", -1.0, "temperature_k"),
             ("temperature_k", 0.0, "temperature_k"),
-            ("energy_resolution_ev", -1.0, "energy_resolution_ev"),
-            (
-                "momentum_resolution_inv_ang",
-                -1.0,
-                "momentum_resolution_inv_ang",
-            ),
             ("mean_free_path_ang", 0.0, "mean_free_path_ang"),
         ],
     )
@@ -348,15 +346,15 @@ class TestMakeExperimentGeometry:
 
         Notes
         -----
-        A weighted scalar loss reads all ten scalar fields. The shared gate
+        A weighted scalar loss reads all eight scalar fields. The shared gate
         checks reverse mode, finite differences, and every gradient entry.
         """
-        values: Float64[Array, "10"] = jnp.array(
-            [30.0, 0.2, -0.3, 0.1, 4.5, 12.0, 20.0, 0.03, 0.02, 8.0]
+        values: Float64[Array, "8"] = jnp.array(
+            [30.0, 0.2, -0.3, 0.1, 4.5, 12.0, 20.0, 8.0]
         )
-        weights: Float64[Array, "10"] = jnp.arange(1.0, 11.0)
+        weights: Float64[Array, "8"] = jnp.arange(1.0, 9.0)
 
-        def loss(candidate: Float64[Array, "10"]) -> Float64[Array, ""]:
+        def loss(candidate: Float64[Array, "8"]) -> Float64[Array, ""]:
             """Read all scalar fields from one constructed carrier."""
             polarization: Complex128[Array, "3"] = jnp.asarray(
                 [
@@ -375,11 +373,9 @@ class TestMakeExperimentGeometry:
                 work_function_ev=candidate[4],
                 inner_potential_ev=candidate[5],
                 temperature_k=candidate[6],
-                energy_resolution_ev=candidate[7],
-                momentum_resolution_inv_ang=candidate[8],
-                mean_free_path_ang=candidate[9],
+                mean_free_path_ang=candidate[7],
             )
-            fields: Float64[Array, "10"] = jnp.stack(
+            fields: Float64[Array, "8"] = jnp.stack(
                 (
                     geometry.photon_energy_ev,
                     geometry.incidence_theta,
@@ -388,8 +384,6 @@ class TestMakeExperimentGeometry:
                     geometry.work_function_ev,
                     geometry.inner_potential_ev,
                     geometry.temperature_k,
-                    geometry.energy_resolution_ev,
-                    geometry.momentum_resolution_inv_ang,
                     geometry.mean_free_path_ang,
                 )
             )

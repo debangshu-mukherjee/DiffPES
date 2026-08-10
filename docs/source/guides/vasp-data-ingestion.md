@@ -124,8 +124,8 @@ spd = reduce_orbitals(projection.projections)  # [K, B, A, 3] s/p/d totals
 
 ## Prepare Inputs for Coherent Assembly
 
-The retained workflow helpers stop at the input boundary. They support
-inspection, selection, and reuse of parsed VASP data:
+The input helpers support inspection, selection, and reuse of parsed VASP
+data:
 
 ```python
 from diffpes.simul import load_vasp_context, prepare_projection
@@ -145,11 +145,12 @@ prepared = prepare_projection(context.orb_proj, atom_indices=[0, 1],
 and KPOINTS files. The function resolves the Fermi energy as described above.
 With `check_dimensions=True`, it checks the k-point and band counts before
 returning the context. `PROCAR` probabilities cannot reconstruct complex
-orbital or atomic-centre phase, so the package does not turn this context into
-a quantitative spectrum. Use a `DiagonalizedBands` source with complex
-coefficients, the coherent matrix-element primitives, and the resolvent/eigen
-spectral APIs. Plan 08a will add the single detector/count driver after that
-intrinsic boundary.
+orbital or atomic-centre phase. The rebuilt `run_vasp_workflow` therefore
+requires a caller-owned, phase-complete Hamiltonian and every coherent
+matrix-element, self-energy, geometry, calibration, and detector-effect
+carrier. It uses VASP eigenvalues and projections only as path and basis
+metadata, then calls `simulate_arpes_cut`; it never reconstructs a hidden
+Hamiltonian from projection weights.
 
 ## HDF5 Round-Trip
 

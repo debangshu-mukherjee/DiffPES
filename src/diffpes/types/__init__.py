@@ -4,11 +4,9 @@ Extended Summary
 ----------------
 This package provides PyTree-compatible data structures and their factory
 functions for ARPES simulation data. The data includes crystal geometry,
-band structures, orbital projections, simulation parameters, and experiment
-geometry. JAX stores fields that participate in autodiff as array children.
-It stores shape values, such as ``SimulationParams.fidelity``, as auxiliary
-data. These values remain concrete during tracing, and changes to them
-trigger recompilation.
+band structures, orbital projections, experiment geometry, and detector
+calibration. JAX stores fields that participate in autodiff as array children
+and static topology or selector values as auxiliary data.
 
 The package contains these submodules:
 
@@ -28,8 +26,6 @@ The package contains these submodules:
     Define crystal-geometry data structures for VASP crystal structures.
 - :mod:`kpath`
     Define k-space path and grid data structures.
-- :mod:`params`
-    Define simulation-parameter data structures.
 - :mod:`radial_params`
     Define radial-wavefunction parameter structures.
 - :mod:`self_energy`
@@ -178,7 +174,7 @@ Routine Listings
 :class:`ExecutionManifest`
     Store software and execution identity prepared at the I/O boundary.
 :class:`ExperimentGeometry`
-    Store the geometry and resolution of an ARPES experiment.
+    Store the geometry of an ARPES experiment.
 :class:`ForwardCertificate`
     Store the complete assurance record for one forward execution.
 :class:`ForwardModelSpec`
@@ -417,8 +413,6 @@ Routine Listings
     Create a validated ``DetectorRaster`` instance.
 :func:`make_diagonalized_bands`
     Create a validated ``DiagonalizedBands`` instance.
-:func:`make_expanded_simulation_params`
-    Build simulation parameters with auto-derived energy window.
 :func:`make_full_density_of_states`
     Create a validated ``FullDensityOfStates`` instance.
 :func:`make_experiment_geometry`
@@ -447,8 +441,6 @@ Routine Listings
     Create a validated shell-shared radial specification.
 :func:`make_self_energy_model`
     Create a validated self-energy model.
-:func:`make_simulation_params`
-    Create a validated SimulationParams instance.
 :func:`make_slab_spec`
     Create a validated slab-construction sidecar.
 :func:`make_slater_koster_params`
@@ -521,6 +513,8 @@ Routine Listings
     Recognized band-scatter plotting preset names.
 :obj:`ProjectionType`
     Supported orbital-projection containers.
+:obj:`PyTreeDef`
+    Runtime pytree definition with a typed static-analysis stand-in.
 :obj:`S_IDX`
     Index of the s orbital.
 :obj:`SCALAR_LINE_COMPONENTS`
@@ -537,8 +531,6 @@ Routine Listings
     Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
 :class:`SelfEnergyModel`
     Store a causal self-energy parameterization as a JAX PyTree.
-:class:`SimulationParams`
-    Store ARPES simulation parameters in a JAX PyTree.
 :class:`SlabSpec`
     Store static slab construction choices and provenance.
 :class:`SlabTopology`
@@ -591,6 +583,7 @@ metadata use ``equinox.field(static=True)``.
 
 from .aliases import (
     NonJaxNumber,
+    PyTreeDef,
     ScalarBool,
     ScalarComplex,
     ScalarFloat,
@@ -819,11 +812,6 @@ from .kpath import (
     make_kpath,
     make_kpath_info,
 )
-from .params import (
-    SimulationParams,
-    make_expanded_simulation_params,
-    make_simulation_params,
-)
 from .provenance import (
     InformationState,
     ProvenanceGraph,
@@ -1014,7 +1002,6 @@ __all__: list[str] = [
     "make_dependency_map",
     "make_derivative_evidence",
     "make_diagonalized_bands",
-    "make_expanded_simulation_params",
     "make_final_state_spec",
     "make_domain_predicate",
     "make_domain_result",
@@ -1048,7 +1035,6 @@ __all__: list[str] = [
     "make_registration_handshake",
     "make_reproduction_report",
     "make_self_energy_model",
-    "make_simulation_params",
     "make_slab_spec",
     "make_sensitivity_map",
     "make_slater_koster_params",
@@ -1090,6 +1076,7 @@ __all__: list[str] = [
     "ProjectionType",
     "ProvenanceGraph",
     "ProvenanceReport",
+    "PyTreeDef",
     "RegisteredModel",
     "RegisteredTransformation",
     "RegistrationHandshake",
@@ -1105,7 +1092,6 @@ __all__: list[str] = [
     "ScalarNumeric",
     "SelfEnergyModel",
     "SensitivityMap",
-    "SimulationParams",
     "SlabSpec",
     "SlabTopology",
     "SlaterKosterParams",

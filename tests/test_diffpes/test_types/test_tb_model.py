@@ -18,6 +18,7 @@ from diffpes.types import (
     CrystalGeometry,
     DiagonalizedBands,
     OrbitalBasis,
+    PyTreeDef,
     SlabTopology,
     TBModel,
     make_crystal_geometry,
@@ -147,7 +148,7 @@ class TestDiagonalizedBands(chex.TestCase):
             basis=basis,
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: DiagonalizedBands = jax.tree_util.tree_unflatten(
             tree,
@@ -174,7 +175,7 @@ class TestTBModel(chex.TestCase):
         """
         model: TBModel = make_tb_model(**_model_arguments())
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(model)
         restored: TBModel = jax.tree_util.tree_unflatten(tree, leaves)
 

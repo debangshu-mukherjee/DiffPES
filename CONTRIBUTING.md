@@ -246,6 +246,23 @@ def simulate_spectrum(
   scalar arguments. These unions accept Python scalars and zero-dimensional JAX
   arrays.
 - Import shared types from `diffpes.types`, not by re-defining them.
+- **Import `PyTreeDef` from `diffpes.types` only.** Do not import it from
+  `jax.tree_util`. Do not write `jax.tree_util.PyTreeDef` in an annotation.
+  The runtime class lives in the compiled `jaxlib` extension module. That
+  module has no type stubs. A static analyzer therefore sees the jax name as
+  a variable and rejects it in a type expression. The `diffpes.types` name
+  binds the genuine jax class at runtime, so beartype checks stay exact. For
+  static analysis, `types/aliases.py` declares a typed stand-in class with
+  the members that diffpes uses, such as `num_leaves` and `unflatten`.
+  Extend the stand-in when code uses a new member of the real class.
+
+  ```python
+  # ❌ Wrong - static analyzers reject the unstubbed jax name in annotations
+  from jax.tree_util import PyTreeDef
+
+  # ✅ Correct - typed stand-in for analysis, genuine jax class at runtime
+  from diffpes.types import PyTreeDef
+  ```
 - **Cross-subpackage imports are public and go through the subpackage.**
   Apply two requirements to each cross-subpackage import. First, the source
   subpackage must export the name publicly. The module `Routine Listings`,

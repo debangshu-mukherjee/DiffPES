@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 
 from diffpes.types import (
+    PyTreeDef,
     SOCVolumetricData,
     VolumetricData,
     make_soc_volumetric_data,
@@ -45,7 +46,7 @@ class TestVolumetricData:
             symbols=("Fe", "Co"),
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(volume)
         restored: VolumetricData = jax.tree_util.tree_unflatten(tree, leaves)
 
@@ -84,7 +85,7 @@ class TestSOCVolumetricData:
             symbols=("Fe",),
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(volume)
         restored: SOCVolumetricData = jax.tree_util.tree_unflatten(
             tree, leaves

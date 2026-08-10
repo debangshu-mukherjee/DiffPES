@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from diffpes.types import PyTreeDef
 from diffpes.types.wannier import (
     WannierOperatorData,
     make_wannier_operator_data,
@@ -36,7 +37,7 @@ class TestWannierOperatorData:
             source_format="hr",
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree.flatten(data)
         restored: WannierOperatorData = jax.tree.unflatten(tree, leaves)
 

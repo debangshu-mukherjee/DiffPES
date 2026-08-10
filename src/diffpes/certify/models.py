@@ -18,6 +18,7 @@ from beartype.typing import Any, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
+    RegistrationHandshake,
     TransformationContract,
     make_registration_handshake,
     make_transformation_contract,
@@ -179,6 +180,127 @@ def _register_transformations() -> None:
             invalidates_claims=(
                 "claim.occupation.evaluated_at_band_eigenvalue",
                 "claim.spectral.instrument_broadened",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.detector.source_density_map",
+            "1.0.0",
+            requires=(
+                "self_describing_source_density",
+                "registered_sample_cartesian_frame",
+                "experiment_geometry",
+                "explicit_detector_calibration",
+            ),
+            produces=("detector_native_coordinate_density",),
+            preserves=(
+                "relative_energy_reference",
+                "in_aperture_integrated_flux",
+                "domain_identity_until_detector_space_mixture",
+            ),
+            introduces=(
+                "active_zyz_domain_rotation",
+                "active_sample_to_laboratory_azimuth_rotation",
+                "projected_rotation_absolute_determinant_density_factor",
+                "analytic_detector_inverse_jacobian",
+                "four_point_gauss_legendre_finite_volume_map",
+                "signed_diagonal_antidiagonal_boundary_seam_splitting",
+                "clamped_linear_exterior_half_source_cells",
+                "explicit_boundary_loss_captured_fraction",
+                "general_rotation_strict_source_enclosure",
+                "general_rotation_four_vs_eight_node_convergence",
+                "enclosed_smooth_interior_coordinate_derivative_only",
+                "slit_line_density_integrated_over_declared_v_aperture",
+            ),
+            destroys=("source_grid_sample_identity",),
+            invalidates_claims=(
+                "claim.detector.source_array_is_detector_raster",
+                "claim.detector.target_inferred_from_source_extrema",
+                "claim.detector.boundary_loss_renormalized",
+                "claim.detector.general_rotation_boundary_intersection_certified",
+                "claim.detector.general_rotation_support_crossing_accepted",
+                "claim.detector.coordinate_map_topology_switch_differentiable",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.instrument.transmission_fixed_domain",
+            "1.0.0",
+            requires=(
+                "true_kinetic_energy",
+                "transmission_raw_slopes",
+                "fixed_transmission_calibration_domain",
+            ),
+            produces=("transmission_weighted_detector_density",),
+            preserves=(
+                "detector_native_coordinates",
+                "relative_energy_reference",
+                "calibration_domain_mean_response",
+            ),
+            introduces=(
+                "monotone_integrated_bernstein_log_response",
+                "softplus_slope_coordinates",
+                "fixed_64_point_gauss_legendre_normalization",
+                "fixed_domain_mean_one_response",
+                "caller_crop_invariant_transmission",
+            ),
+            invalidates_claims=(
+                "claim.instrument.transmission_normalized_on_query_crop",
+                "claim.instrument.transmission_applied_after_resolution",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.instrument.native_detector_resolution",
+            "1.0.0",
+            requires=(
+                "detector_native_coordinate_density",
+                "explicit_detector_bin_edges",
+                "positive_native_fwhm_widths",
+            ),
+            produces=("native_resolution_broadened_detector_density",),
+            preserves=(
+                "detector_coordinate_units",
+                "relative_energy_reference",
+                "finite_window_flux_accounting",
+            ),
+            introduces=(
+                "piecewise_constant_finite_volume_psf",
+                "analytic_gaussian_bin_integrals",
+                "separable_native_u_v_energy_resolution",
+                "fwhm_to_sigma_single_owner_conversion",
+                "boundary_loss_without_row_renormalization",
+            ),
+            destroys=("sub_psf_detector_structure",),
+            invalidates_claims=(
+                "claim.instrument.cartesian_k_psf_is_native_angular_psf",
+                "claim.instrument.boundary_flux_preserved_by_renormalization",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.detector.expected_counts",
+            "1.0.0",
+            requires=(
+                "post_resolution_detector_density",
+                "detector_effects_parameters",
+                "explicit_native_bin_volumes",
+            ),
+            produces=("detector_expected_counts",),
+            preserves=(
+                "detector_channel_identity",
+                "native_detector_bin_identity",
+                "nonnegative_rate_domain",
+            ),
+            introduces=(
+                "softmax_detector_space_domain_mixture",
+                "nonnegative_detector_background",
+                "volume_mean_one_detector_sensitivity",
+                "explicit_exposure_and_native_bin_volume",
+                "optional_calibrated_post_count_response",
+                "explicit_poisson_or_fixed_total_acquisition_mode",
+            ),
+            destroys=("pre_count_detector_density_units",),
+            invalidates_claims=(
+                "claim.detector.source_space_domain_mixture",
+                "claim.detector.omitted_native_bin_volume",
+                "claim.detector.display_normalization_is_likelihood",
             ),
         ),
         make_transformation_contract(
@@ -654,20 +776,15 @@ def _register_matrixel_handshake() -> None:
     register_handshake(handshake)
 
 
-def _register_spectral_handshake() -> None:
-    """PRIVATE: Register the spectral transformation and evidence handshake.
+def _spectral_handshake() -> RegistrationHandshake:
+    """PRIVATE: Construct the exact spectral owner handshake.
 
     Notes
     -----
-    Returns without effect when ``org.diffpes.spectral`` is already present.
-    Otherwise records the causal self-energy, resolvent, and sampled-energy
-    occupation transformations together with every verification,
-    differentiability, scalability, and upstream-handoff evidence identity.
+    Centralizes the immutable upstream identity used both by spectral
+    registration and by the detector owner's hard dependency check.
     """
     owner_id: str = "org.diffpes.spectral"
-    existing: set[str] = {item.owner_id for item in list_handshakes()}
-    if owner_id in existing:
-        return
     evidence_ids: Tuple[str, ...] = (
         "org.diffpes.evidence.spectral.faddeeva.full_envelope",
         "org.diffpes.evidence.spectral.voigt.shared_guard",
@@ -697,13 +814,102 @@ def _register_spectral_handshake() -> None:
         "org.diffpes.evidence.spectral.scaling.complex128_solve",
         "org.diffpes.evidence.spectral.handoff.matrix_element_transition_rows",
     )
+    handshake: RegistrationHandshake = make_registration_handshake(
+        owner_id=owner_id,
+        transformation_refs=(
+            "org.diffpes.transform.self_energy.kk_causal@1.0.0",
+            "org.diffpes.transform.spectral.resolvent@1.0.0",
+            "org.diffpes.transform.occupation.fermi_at_omega@1.0.0",
+        ),
+        evidence_ids=evidence_ids,
+    )
+    return handshake
+
+
+def _register_spectral_handshake() -> None:
+    """PRIVATE: Register the spectral transformation and evidence handshake.
+
+    Notes
+    -----
+    Returns without effect when ``org.diffpes.spectral`` is already present.
+    Otherwise records the exact immutable handshake consumed by the detector
+    owner.
+    """
+    handshake: RegistrationHandshake = _spectral_handshake()
+    existing: set[str] = {item.owner_id for item in list_handshakes()}
+    if handshake.owner_id in existing:
+        return
+    register_handshake(handshake)
+
+
+def _register_detector_handshake() -> None:
+    """PRIVATE: Register the detector-chain evidence handshake.
+
+    Notes
+    -----
+    Requires the exact ``org.diffpes.spectral`` owner handshake before doing
+    anything else. Returns without effect when ``org.diffpes.detector`` already
+    exists. Otherwise binds conservative detector mapping, fixed-domain
+    transmission, native finite-volume resolution, and expected-count
+    construction to the complete detector evidence wall.
+    """
+    expected_upstream: RegistrationHandshake = _spectral_handshake()
+    upstream: RegistrationHandshake | None = next(
+        (
+            item
+            for item in list_handshakes()
+            if item.owner_id == expected_upstream.owner_id
+        ),
+        None,
+    )
+    if upstream != expected_upstream:
+        msg: str = (
+            "org.diffpes.detector requires the exact "
+            "org.diffpes.spectral handshake"
+        )
+        raise RuntimeError(msg)
+    owner_id: str = "org.diffpes.detector"
+    existing: set[str] = {item.owner_id for item in list_handshakes()}
+    if owner_id in existing:
+        return
+    evidence_ids: Tuple[str, ...] = (
+        "org.diffpes.evidence.detector.resolution.sampled_scipy_parity",
+        "org.diffpes.evidence.detector.resolution.finite_volume_energy",
+        "org.diffpes.evidence.detector.resolution.finite_volume_angular",
+        "org.diffpes.evidence.detector.resolution.finite_volume_path",
+        "org.diffpes.evidence.detector.manufactured.source_cube",
+        "org.diffpes.evidence.detector.manufactured.complete_chain",
+        "org.diffpes.evidence.detector.chinook.compatibility",
+        "org.diffpes.evidence.detector.slicer.interpolation",
+        "org.diffpes.evidence.detector.map.signed_permutation_boundary_seams",
+        "org.diffpes.evidence.detector.map.general_rotation_strict_enclosure",
+        "org.diffpes.evidence.detector.acquisition.moments",
+        "org.diffpes.evidence.detector.transmission.fixed_domain",
+        "org.diffpes.evidence.detector.derivative.resolution_widths",
+        "org.diffpes.evidence.detector.derivative.source_temperature",
+        "org.diffpes.evidence.detector.derivative.source_geometry",
+        "org.diffpes.evidence.detector.derivative.slicer_queries",
+        "org.diffpes.evidence.detector.derivative.transmission_coefficients",
+        "org.diffpes.evidence.detector.derivative.effects_parameters",
+        "org.diffpes.evidence.detector.derivative.coordinate_map_enclosed_interior",
+        "org.diffpes.evidence.detector.scaling.driver_memory",
+        "org.diffpes.evidence.detector.scaling.rematerialization",
+        "org.diffpes.evidence.detector.scaling.compile_count",
+        "org.diffpes.evidence.detector.scaling.vmap",
+        "org.diffpes.evidence.detector.counterexample.battery",
+        "org.diffpes.evidence.detector.lifecycle.zero_legacy",
+        "org.diffpes.evidence.detector.lifecycle.documentation_wall",
+        "org.diffpes.evidence.detector.handoff.spectral",
+        "org.diffpes.evidence.detector.driver.coherent_composition",
+    )
     register_handshake(
         make_registration_handshake(
             owner_id=owner_id,
             transformation_refs=(
-                "org.diffpes.transform.self_energy.kk_causal@1.0.0",
-                "org.diffpes.transform.spectral.resolvent@1.0.0",
-                "org.diffpes.transform.occupation.fermi_at_omega@1.0.0",
+                "org.diffpes.transform.detector.source_density_map@1.0.0",
+                "org.diffpes.transform.instrument.transmission_fixed_domain@1.0.0",
+                "org.diffpes.transform.instrument.native_detector_resolution@1.0.0",
+                "org.diffpes.transform.detector.expected_counts@1.0.0",
             ),
             evidence_ids=evidence_ids,
         )
@@ -729,6 +935,7 @@ def register_builtin_models() -> None:
     _register_matrixel_handshake()
     _register_slab_surface_handshakes()
     _register_spectral_handshake()
+    _register_detector_handshake()
     _register_tightb_handshake()
 
 

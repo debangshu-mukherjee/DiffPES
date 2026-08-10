@@ -34,7 +34,7 @@ from jaxtyping import (
     jaxtyped,
 )
 
-from diffpes.types import ScalarFloat
+from diffpes.types import PyTreeDef, ScalarFloat
 from tests._assertions import assert_tree_finite
 from tests._types import GradRegime, ScalarLoss
 
@@ -108,7 +108,7 @@ def _as_jax_arrays(tree: PyTree) -> PyTree:
 
 def _central_leaf_grad(
     jitted_fn: ScalarLoss,
-    treedef: jax.tree_util.PyTreeDef,
+    treedef: PyTreeDef,
     leaves: list[Array],
     leaf_index: int,
     scale_floor: ScalarFloat,
@@ -119,7 +119,7 @@ def _central_leaf_grad(
     ----------
     jitted_fn : ScalarLoss
         Jitted scalar loss over the full tree.
-    treedef : jax.tree_util.PyTreeDef
+    treedef : PyTreeDef
         Tree definition for reassembly of perturbed leaves.
     leaves : list[Array]
         All numerical leaves in flattening order.
@@ -191,7 +191,7 @@ def central_fd_grad(
     parameter. This cost restricts the helper to toy-model gates.
     """
     leaves: list[Any]
-    treedef: jax.tree_util.PyTreeDef
+    treedef: PyTreeDef
     leaves, treedef = jax.tree_util.tree_flatten(theta)
     array_leaves: list[Array] = [jnp.asarray(leaf) for leaf in leaves]
     jitted_fn: ScalarLoss = jax.jit(fn)
@@ -264,16 +264,16 @@ def assert_grad_matches_fd(
         fn, theta, scale_floor=scale_floor
     )
     automatic_paths: list[Tuple[Tuple[object, ...], Array]]
-    automatic_treedef: jax.tree_util.PyTreeDef
+    automatic_treedef: PyTreeDef
     automatic_paths, automatic_treedef = jax.tree_util.tree_flatten_with_path(
         automatic
     )
     finite_leaves: list[Array]
-    finite_treedef: jax.tree_util.PyTreeDef
+    finite_treedef: PyTreeDef
     finite_leaves, finite_treedef = jax.tree_util.tree_flatten(
         finite_difference
     )
-    step_treedef: jax.tree_util.PyTreeDef
+    step_treedef: PyTreeDef
     step_treedef = jax.tree_util.tree_structure(theta)
     if (
         automatic_treedef != finite_treedef

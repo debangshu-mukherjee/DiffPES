@@ -10,7 +10,7 @@ the detector convention.
 Routine Listings
 ----------------
 :class:`ExperimentGeometry`
-    Store the geometry and resolution of an ARPES experiment.
+    Store the geometry of an ARPES experiment.
 :func:`make_experiment_geometry`
     Create a validated geometry for an ARPES experiment.
 
@@ -35,7 +35,7 @@ _TRANSVERSALITY_ATOL: float = 1.0e-10
 
 
 class ExperimentGeometry(eqx.Module):
-    """Store the geometry and resolution of an ARPES experiment.
+    """Store the geometry of an ARPES experiment.
 
     This PyTree groups the traced quantities that define one ARPES
     measurement. JAX differentiates every numerical field. The static slit
@@ -63,11 +63,6 @@ class ExperimentGeometry(eqx.Module):
         Inner potential in eV.
     temperature_k : Float64[Array, ""]
         Strictly positive sample temperature in kelvin.
-    energy_resolution_ev : Float64[Array, ""]
-        Full width at half maximum of the energy resolution in eV.
-    momentum_resolution_inv_ang : Float64[Array, ""]
-        Full width at half maximum of the momentum resolution in
-        1/Angstrom.
     mean_free_path_ang : Float64[Array, ""]
         Mean free path of the photoelectron in Angstrom.
     slit : str
@@ -101,8 +96,6 @@ class ExperimentGeometry(eqx.Module):
     work_function_ev: Float64[Array, ""]
     inner_potential_ev: Float64[Array, ""]
     temperature_k: Float64[Array, ""]
-    energy_resolution_ev: Float64[Array, ""]
-    momentum_resolution_inv_ang: Float64[Array, ""]
     mean_free_path_ang: Float64[Array, ""]
     slit: str = eqx.field(static=True)
 
@@ -117,8 +110,6 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
     work_function_ev: ScalarFloat = 4.0,
     inner_potential_ev: ScalarFloat = 10.0,
     temperature_k: ScalarFloat = 10.0,
-    energy_resolution_ev: ScalarFloat = 0.02,
-    momentum_resolution_inv_ang: ScalarFloat = 0.01,
     mean_free_path_ang: ScalarFloat = 10.0,
     slit: str = "H",
 ) -> ExperimentGeometry:
@@ -178,10 +169,6 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
         Inner potential in eV. Default is 10.0.
     temperature_k : ScalarFloat, optional
         Strictly positive sample temperature in kelvin. Default is 10.0.
-    energy_resolution_ev : ScalarFloat, optional
-        Energy-resolution width in eV. Default is 0.02.
-    momentum_resolution_inv_ang : ScalarFloat, optional
-        Momentum-resolution width in 1/Angstrom. Default is 0.01.
     mean_free_path_ang : ScalarFloat, optional
         Mean free path in Angstrom. Default is 10.0.
     slit : str, optional
@@ -234,12 +221,6 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
     )
     temperature: Float64[Array, ""] = jnp.asarray(
         temperature_k, dtype=jnp.float64
-    )
-    energy_resolution: Float64[Array, ""] = jnp.asarray(
-        energy_resolution_ev, dtype=jnp.float64
-    )
-    momentum_resolution: Float64[Array, ""] = jnp.asarray(
-        momentum_resolution_inv_ang, dtype=jnp.float64
     )
     mean_free_path: Float64[Array, ""] = jnp.asarray(
         mean_free_path_ang, dtype=jnp.float64
@@ -317,16 +298,6 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
         ~jnp.isfinite(temperature) | (temperature <= 0.0),
         "temperature_k must be finite and positive",
     )
-    energy_resolution = eqx.error_if(
-        energy_resolution,
-        ~jnp.isfinite(energy_resolution) | (energy_resolution < 0.0),
-        "energy_resolution_ev must be finite and nonnegative",
-    )
-    momentum_resolution = eqx.error_if(
-        momentum_resolution,
-        ~jnp.isfinite(momentum_resolution) | (momentum_resolution < 0.0),
-        "momentum_resolution_inv_ang must be finite and nonnegative",
-    )
     mean_free_path = eqx.error_if(
         mean_free_path,
         ~jnp.isfinite(mean_free_path) | (mean_free_path <= 0.0),
@@ -342,8 +313,6 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
         work_function_ev=work_function,
         inner_potential_ev=inner_potential,
         temperature_k=temperature,
-        energy_resolution_ev=energy_resolution,
-        momentum_resolution_inv_ang=momentum_resolution,
         mean_free_path_ang=mean_free_path,
         slit=slit,
     )

@@ -34,6 +34,31 @@
 
 ## Artifacts
 
+### `detector_chain_manufactured_reference.npz`
+
+- Classification: independent C-type manufactured detector-chain truth
+- Single mutable generator authority:
+  `diffpes-plans/verification/detector_chain_manufactured/generate_detector_chain_manufactured_reference.py`
+- Generator SHA-256:
+  `9789939629293cdaa039f98cdaa9119014b3bfa7d9abad7389847c2ea1c758d6`
+- Artifact SHA-256:
+  `04e41d5f0fa2fe6111718bdc039f49344f48689d74ef0783408585cac76b55c3`
+- Provenance and tolerance metadata:
+  `diffpes-plans/verification/detector_chain_manufactured/manifest.json`
+- Metadata SHA-256:
+  `e783075d4b68086582e53153587a1baf744880148d601a4edf29b26eef5f32fc`
+- Truth boundary: NumPy/SciPy only; the generator imports neither DiffPES nor
+  JAX and evaluates no production detector routine
+- Mapping truth: analytic secondary-momentum integration plus 96-node
+  Gauss--Legendre integration on every recorded smooth seam cell
+- Downstream truth: independent fixed-domain transmission, Gaussian
+  finite-volume matrices, smooth sensitivity, background, exposure, and
+  native-bin volumes
+- Archive contract: 17 named float64 arrays with deterministic ZIP metadata
+  and pickle disabled
+- Registered tolerances: mapping seams `rtol=1e-9`, final expected counts
+  `rtol=1e-8`, and captured-fraction absolute error at most `1e-10`
+
 ### Voigt evidence
 
 - Classification: `voigt-scipy-reference` and `spectral-broadening-gradient`, independent SciPy/analytic

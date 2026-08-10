@@ -1,11 +1,12 @@
-"""Load and prepare VASP projection data for coherent ARPES workflows.
+"""Load VASP metadata and compose the explicit-H coherent cut workflow.
 
 Extended Summary
 ----------------
-The module combines the retained input-boundary tasks: loading VASP outputs,
-selecting atoms, and attaching OAM channels. Physical spectral assembly uses
-the coherent APIs in :mod:`diffpes.simul.spectral`. Plan 08a defines the
-canonical detector/count driver after completing its effects chain.
+The module owns the file-system boundary for VASP outputs. It also provides
+one honest compatibility workflow: EIGENVAL and PROCAR supply metadata, while
+an explicit Hermitian Hamiltonian raster supplies all resolvent values and
+inversion derivatives. PROCAR has no complex phases, so its manufactured band
+vectors never become Hamiltonian or inversion authority.
 
 Routine Listings
 ----------------
@@ -13,13 +14,16 @@ Routine Listings
     Load a simulation-ready context from VASP output files.
 :func:`prepare_projection`
     Prepare orbital projections for simulation.
+:func:`run_vasp_workflow`
+    Run the explicit-H coherent cut workflow with VASP metadata.
 """
 
 from pathlib import Path
 
+import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal, Optional, cast
-from jaxtyping import Array, Float64, jaxtyped
+from beartype.typing import Literal, Optional, Tuple, cast
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.inout import (
     check_consistency,
@@ -29,20 +33,37 @@ from diffpes.inout import (
     read_procar,
     select_atoms,
 )
+from diffpes.tightb import vasp_to_diagonalized
 from diffpes.types import (
     BandStructure,
+    CrystalGeometry,
+    DetectorCalibration,
+    DetectorEffects,
+    DetectorRaster,
+    DiagonalizedBands,
     DosType,
+    ExperimentGeometry,
+    FinalStateSpec,
+    KPath,
     KPathInfo,
+    MatrixElementParams,
+    OrbitalBasis,
+    OrbitalProjection,
     ProjectionType,
+    RadialQuadratureSpec,
+    RadialSpec,
     ScalarFloat,
+    SelfEnergyModel,
     SpinOrbitalProjection,
     WorkflowContext,
+    make_kpath,
     make_orbital_projection,
     make_spin_orbital_projection,
     make_workflow_context,
 )
 
 from .oam import compute_oam
+from .spectrum import simulate_arpes_cut
 
 
 @jaxtyped(typechecker=beartype)
@@ -251,7 +272,291 @@ def prepare_projection(
     return prepared
 
 
+def _context_kpath(
+    context: WorkflowContext,
+    crystal_geometry: CrystalGeometry,
+) -> KPath:
+    """PRIVATE: Build a fixed-kz path from parsed VASP coordinates.
+
+    Parameters
+    ----------
+    context : WorkflowContext
+        Parsed EIGENVAL coordinates and optional KPOINTS metadata.
+    crystal_geometry : CrystalGeometry
+        Crystal reciprocal basis for the explicit Cartesian ``kz`` value.
+
+    Returns
+    -------
+    kpath : KPath
+        Parsed fractional points with verified labels or no labels.
+
+    Notes
+    -----
+    KPOINTS labels survive only for reciprocal line-mode metadata whose point
+    count, nonempty labels, indices, and anchor coordinates match EIGENVAL.
+    Invalid or incomplete plotting metadata does not invalidate the physical
+    EIGENVAL path; the path remains available without labels.
+    """
+    kpoints: Float64[Array, "n_k 3"] = context.bands.kpoints
+    kpoints_cart: Float64[Array, "n_k 3"] = (
+        kpoints @ crystal_geometry.reciprocal
+    )
+    labels: Tuple[str, ...] = ()
+    label_indices: Tuple[int, ...] = ()
+    n_per_segment: int = 1
+    metadata: Optional[KPathInfo] = context.kpath
+    if metadata is not None and metadata.mode == "Line-mode":
+        candidate_labels: Tuple[str, ...] = tuple(
+            label.strip() for label in metadata.labels
+        )
+        candidate_indices: Tuple[int, ...] = tuple(
+            int(index) for index in metadata.label_indices.tolist()
+        )
+        points_per_segment: int = int(metadata.points_per_segment)
+        coordinate_mode: str = metadata.coordinate_mode.casefold()
+        endpoints_match: bool = False
+        if (
+            metadata.kpoints is not None
+            and metadata.kpoints.shape == (len(candidate_indices), 3)
+            and len(candidate_indices) > 0
+            and all(
+                0 <= index < kpoints.shape[0] for index in candidate_indices
+            )
+        ):
+            endpoints_match = bool(
+                jnp.allclose(
+                    metadata.kpoints,
+                    kpoints[jnp.asarray(candidate_indices)],
+                    rtol=1.0e-10,
+                    atol=1.0e-12,
+                )
+            )
+        metadata_valid: bool = (
+            int(metadata.num_kpoints) == kpoints.shape[0]
+            and points_per_segment > 0
+            and coordinate_mode.startswith(("reciprocal", "direct"))
+            and len(candidate_labels) == len(candidate_indices)
+            and bool(candidate_labels)
+            and all(candidate_labels)
+            and all(
+                next_index > index
+                for index, next_index in zip(
+                    candidate_indices,
+                    candidate_indices[1:],
+                    strict=False,
+                )
+            )
+            and endpoints_match
+        )
+        if metadata_valid:
+            labels = candidate_labels
+            label_indices = candidate_indices
+            n_per_segment = points_per_segment
+
+    kpath: KPath = make_kpath(
+        kpoints=kpoints,
+        labels=labels,
+        label_indices=label_indices,
+        n_per_segment=n_per_segment,
+        kz=kpoints_cart[0, 2],
+    )
+    return kpath
+
+
+@jaxtyped(typechecker=beartype)
+def run_vasp_workflow(  # noqa: DOC502, DOC503, PLR0913
+    hamiltonians_ev: Complex128[Array, "n_k n_orb n_orb"],
+    *,
+    crystal_geometry: CrystalGeometry,
+    orbital_basis: OrbitalBasis,
+    radial_spec: RadialSpec,
+    matrix_element_params: MatrixElementParams,
+    radial_quadrature: RadialQuadratureSpec,
+    final_state: FinalStateSpec,
+    experiment_geometry: ExperimentGeometry,
+    self_energy: SelfEnergyModel,
+    energy_axis: Float64[Array, " n_e"],
+    detector_calibration: DetectorCalibration,
+    detector_effects: DetectorEffects,
+    directory: str = ".",
+    eigenval_file: str = "EIGENVAL",
+    procar_file: str = "PROCAR",
+    doscar_file: Optional[str] = "DOSCAR",
+    kpoints_file: Optional[str] = "KPOINTS",
+    fermi_energy: Optional[ScalarFloat] = None,
+    phase_loss: Literal["warn", "ignore", "error"] = "warn",
+    check_dimensions: bool = True,
+    eta: ScalarFloat = 1.0e-4,
+    k_chunk: int = 32,
+    energy_chunk: int = 32,
+    checkpoint: bool = True,
+) -> DetectorRaster:
+    """Run the explicit-H coherent cut workflow with VASP metadata.
+
+    This compatibility boundary loads EIGENVAL, PROCAR, and optional path and
+    Fermi-level metadata. It invokes :func:`vasp_to_diagonalized` to attach the
+    requested crystal and orbital metadata, then calls
+    :func:`simulate_arpes_cut` with every Plan-06/07/08 carrier explicit.
+
+    PROCAR stores orbital weights, not complex coefficients. The adapter's
+    positive square roots are therefore phase-dead and cannot support
+    interference claims. They remain metadata in this workflow. Only
+    ``hamiltonians_ev`` supplies the coherent resolvent and its inversion
+    derivatives; this function never reconstructs it from VASP eigenpairs.
+
+    :see: :class:`~.test_workflow.TestRunVaspWorkflow`
+
+    Implementation Logic
+    --------------------
+    1. **Load weight-only VASP metadata**::
+
+           context = load_vasp_context(..., procar_mode="legacy")
+
+       The legacy parser shape is the explicit phase-dead PROCAR carrier.
+    2. **Bind the explicit Hamiltonian axes**::
+
+           hamiltonians_ev.shape == (n_k, n_orb, n_orb)
+
+       A mismatch is rejected before any spectral or detector computation.
+    3. **Construct the metadata carrier and path**::
+
+           bands = vasp_to_diagonalized(..., phase_loss=phase_loss)
+           kpath = _context_kpath(context, crystal_geometry)
+
+       Valid KPOINTS labels survive; incomplete labels become an unlabeled
+       self-describing path.
+    4. **Execute the one coherent effects chain**::
+
+           raster = simulate_arpes_cut(...)
+
+       The caller-owned Hamiltonian and all physical carriers reach the
+       canonical driver unchanged.
+
+    Parameters
+    ----------
+    hamiltonians_ev : Complex128[Array, "n_k n_orb n_orb"]
+        Explicit absolute-energy Hermitian Hamiltonians in eV. This tensor is
+        the sole Hamiltonian and inversion authority.
+    crystal_geometry : CrystalGeometry
+        Crystal geometry associated with the VASP calculation.
+    orbital_basis : OrbitalBasis
+        Static atom and orbital registration for PROCAR projection metadata.
+    radial_spec : RadialSpec
+        Shell-shared radial-wavefunction parameters.
+    matrix_element_params : MatrixElementParams
+        Shell scales and coherent channel phases.
+    radial_quadrature : RadialQuadratureSpec
+        Fixed radial quadrature contract.
+    final_state : FinalStateSpec
+        Explicit photoelectron final-state model.
+    experiment_geometry : ExperimentGeometry
+        Traced beam, sample, and detector geometry.
+    self_energy : SelfEnergyModel
+        Causal intrinsic self-energy model.
+    energy_axis : Float64[Array, " n_e"]
+        Caller-owned sampled energies relative to the Fermi level in eV.
+    detector_calibration : DetectorCalibration
+        Native detector bins, point-spread widths, and transmission domain.
+    detector_effects : DetectorEffects
+        Domain, transmission, background, sensitivity, and exposure state.
+    directory : str, optional
+        Directory containing VASP files. Default is current directory.
+    eigenval_file : str, optional
+        EIGENVAL filename relative to ``directory``.
+    procar_file : str, optional
+        PROCAR filename relative to ``directory``.
+    doscar_file : Optional[str], optional
+        DOSCAR filename for Fermi-level inference, or ``None``.
+    kpoints_file : Optional[str], optional
+        KPOINTS filename for plotting metadata, or ``None``.
+    fermi_energy : Optional[ScalarFloat], optional
+        Explicit Fermi energy in eV, or ``None`` to infer it.
+    phase_loss : Literal["warn", "ignore", "error"], optional
+        Policy passed to the phase-lossy PROCAR adapter. Default is ``"warn"``.
+    check_dimensions : bool, optional
+        Whether to validate shared VASP file axes. Default is ``True``.
+    eta : ScalarFloat, optional
+        Positive resolvent regulator in eV. Default is ``1e-4``.
+    k_chunk : int, optional
+        Positive static momentum chunk size. Default is 32.
+    energy_chunk : int, optional
+        Positive static energy chunk size. Default is 32.
+    checkpoint : bool, optional
+        Rematerialize live chunks in reverse mode. Default is ``True``.
+
+    Returns
+    -------
+    raster : DetectorRaster
+        Native-coordinate expected detector counts.
+
+    Raises
+    ------
+    ValueError
+        If VASP inputs disagree, the explicit Hamiltonian axes mismatch the
+        parsed path or orbital basis, or the phase-loss policy requests an
+        error.
+    EquinoxRuntimeError
+        If a traced Hamiltonian, physical carrier, or detector contract fails.
+
+    Notes
+    -----
+    This wrapper has no tier, fidelity, hidden energy-axis construction,
+    normalization, or momentum-broadening selector. PROCAR-derived
+    coefficients have no D4/D5/S4 or inversion authority.
+    """
+    context: WorkflowContext = load_vasp_context(
+        directory=directory,
+        eigenval_file=eigenval_file,
+        procar_file=procar_file,
+        doscar_file=doscar_file,
+        kpoints_file=kpoints_file,
+        fermi_energy=fermi_energy,
+        procar_mode="legacy",
+        doscar_mode="legacy",
+        check_dimensions=check_dimensions,
+    )
+    n_k: int = context.bands.kpoints.shape[0]
+    n_orb: int = len(orbital_basis.n)
+    if hamiltonians_ev.shape != (n_k, n_orb, n_orb):
+        raise ValueError(
+            "run_vasp_workflow: hamiltonians_ev must have shape "
+            "(VASP n_k, basis n_orb, basis n_orb)"
+        )
+    if not isinstance(context.orb_proj, OrbitalProjection):
+        raise TypeError(
+            "run_vasp_workflow requires the weight-only PROCAR carrier"
+        )
+    bands: DiagonalizedBands = vasp_to_diagonalized(
+        context.bands,
+        context.orb_proj,
+        crystal_geometry,
+        orbital_basis,
+        phase_loss=phase_loss,
+    )
+    kpath: KPath = _context_kpath(context, crystal_geometry)
+    raster: DetectorRaster = simulate_arpes_cut(
+        hamiltonians_by_domain=(hamiltonians_ev,),
+        bands_by_domain=(bands,),
+        radial_spec=radial_spec,
+        matrix_element_params=matrix_element_params,
+        radial_quadrature=radial_quadrature,
+        final_state=final_state,
+        geometry=experiment_geometry,
+        self_energy=self_energy,
+        kpath=kpath,
+        energy_axis=energy_axis,
+        detector_calibration=detector_calibration,
+        detector_effects=detector_effects,
+        eta=eta,
+        k_chunk=k_chunk,
+        energy_chunk=energy_chunk,
+        checkpoint=checkpoint,
+    )
+    return raster
+
+
 __all__: list[str] = [
     "load_vasp_context",
     "prepare_projection",
+    "run_vasp_workflow",
 ]

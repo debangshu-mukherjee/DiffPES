@@ -18,7 +18,37 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_simul.test_chinook_resolution_parity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_detector_chain
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_detector_map
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_detector_reference_authentication
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_detector_scientific_counterexamples
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_simul.test_kinematics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_manufactured_arpes_cube
    :members:
    :undoc-members:
    :show-inheritance:
@@ -29,11 +59,6 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_simul.test_polarization
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tests.test_diffpes.test_simul.test_resolution
    :members:
    :undoc-members:
    :show-inheritance:
@@ -49,6 +74,11 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_simul.test_spectral_wp75_gates
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_spectrum
    :members:
    :undoc-members:
    :show-inheritance:

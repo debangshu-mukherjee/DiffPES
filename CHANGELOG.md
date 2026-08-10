@@ -23,11 +23,14 @@ and the project uses calendar versioning.
   `diffpes.simul.build_efield`. Construct explicit complex Cartesian fields
   with `diffpes.simul.polarization_from_angles` and store experiment geometry
   with `diffpes.types.ExperimentGeometry`.
-- `SimulationParams` no longer stores `temperature` or `photon_energy`.
-  `ExperimentGeometry.temperature_k` and
-  `ExperimentGeometry.photon_energy_ev` own those experiment properties.
-  The carrier remains available while Plan 08a defines the canonical
-  detector/count parameter boundary.
+- `SimulationParams`, `make_simulation_params`,
+  `make_expanded_simulation_params`, and `types.params` are removed. Callers
+  now own the sampled energy axis explicitly; lifetime structure belongs to
+  `SelfEnergyModel`, and native resolution belongs to `DetectorCalibration`.
+- `ExperimentGeometry.energy_resolution_ev` and
+  `ExperimentGeometry.momentum_resolution_inv_ang` are removed so
+  `DetectorCalibration` is the sole authority for native detector PSF
+  widths.
 - The obsolete coherent prototype is removed:
   `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
   matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.
@@ -43,13 +46,14 @@ and the project uses calendar versioning.
 - All projection-probability spectrum tiers and the level-string dispatcher
   are removed without compatibility shims. This includes
   `diffpes.simul.simulate_novice`, `diffpes.simul.simulate_basic`, every
-  expanded wrapper, `diffpes.simul.simulate_expanded`, and the
-  `simul.spectrum` and `simul.expanded` modules. Use the coherent
-  `spectral_intensity_resolvent` or `spectral_intensity_eigen` path instead.
-- `diffpes.simul.simulate_context` and `diffpes.simul.run_vasp_workflow` are
-  removed. `diffpes.simul.workflow` now contains only the VASP input-boundary
-  helpers `load_vasp_context` and `prepare_projection`. Plan 08a will supply
-  the canonical detector/count driver after its effects chain is certified.
+  expanded wrapper, `diffpes.simul.simulate_expanded`, the former
+  `simul.spectrum` implementation, and the `simul.expanded` module. The
+  rebuilt `simul.spectrum` module now exposes only the coherent
+  `simulate_arpes` and `simulate_arpes_cut` drivers.
+- `diffpes.simul.simulate_context` is removed. The old implicit-H,
+  projection-probability `run_vasp_workflow` signature is also removed. Its
+  rebuilt coherent API requires an explicit Hamiltonian. It also requires
+  every physical carrier named by the canonical detector/count driver.
 - The tests and expanded-wrapper guide dedicated only to the removed tiers
   are deleted. The frozen true- and pseudo-Voigt novice archives remain as
   non-live historical provenance and are checked for integrity, not replayed
@@ -64,6 +68,12 @@ and the project uses calendar versioning.
   `make_radial_spec`.
 
 ### Changed
+
+- **Breaking:** `run_vasp_workflow` now uses VASP files only for parsed path,
+  Fermi-level, crystal, and projection metadata. Callers must supply the
+  phase-complete Hamiltonian plus all radial, matrix-element, self-energy,
+  geometry, calibration, and detector-effect carriers. PROCAR weights never
+  become a hidden coherent Hamiltonian or inversion coordinate.
 
 - **Breaking:** `ArpesSpectrum` now requires cumulative Cartesian path
   distance, every Cartesian path vector, and the registered sample-frame ID.
@@ -187,6 +197,27 @@ and the project uses calendar versioning.
   Workflow Fermi energies remain traced scalar leaves instead of host floats.
 
 ### Added
+
+- Plan 08a adds one coherent single-kz forward surface. `simulate_arpes`
+  accepts separable Cartesian source rasters. `simulate_arpes_cut` accepts
+  self-describing momentum paths. The rebuilt `run_vasp_workflow` requires an
+  explicit Hamiltonian. The drivers stream block-local Plan-06
+  transition sources through the degeneracy-safe Plan-07 resolvent, then call
+  one shared detector chain. `map_source_to_detector` performs conservative
+  native-bin density mapping before detector-space domain mixing.
+  `apply_detector_effects` applies fixed-domain analyser transmission,
+  finite-volume native-coordinate resolution, nonnegative backgrounds,
+  normalized sensitivity, exposure, explicit bin volumes, and an optional
+  calibrated post-count response. Poisson and fixed-total acquisition remain
+  explicit-key operations outside the differentiable expected-rate graph.
+  Boundary-intersecting cube maps are supported only when the projected
+  rotation is signed diagonal or antidiagonal. General rotations require the
+  complete inverse detector target to lie strictly inside the source support.
+  A path cut is a slit-integrated line density with one declared transverse
+  aperture, not an inferred two-dimensional source density.
+  The frozen RM-2 Chinook comparison is K-only response compatibility. It
+  replays a test-only matched Gaussian adapter on a common authenticated raw
+  cut and makes no production-driver, conservation, or absolute-scale claim.
 
 - The coherent intrinsic spectral seam now joins matrix-element sources and
   causal self-energy models. `spectral_intensity_resolvent` uses a complex128

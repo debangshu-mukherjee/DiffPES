@@ -38,7 +38,6 @@ from diffpes.types import (
     make_radial_quadrature_spec,
     make_radial_spec,
     make_self_energy_model,
-    make_simulation_params,
     make_soc_volumetric_data,
     make_spin_band_structure,
     make_spin_orbital_projection,
@@ -181,7 +180,6 @@ def _all_carriers() -> Dict[str, eqx.Module]:
         ),
         "kgrid": make_kgrid(kpoints, mesh_shape=(1, 2)),
         "kpath": make_kpath_info(2, [0, 1], segments=1, labels=("G", "X")),
-        "simulation": make_simulation_params(fidelity=16),
         "basis": basis,
         "radial": make_radial_spec(basis, (0,)),
         "matrix_element": make_matrix_element_params(

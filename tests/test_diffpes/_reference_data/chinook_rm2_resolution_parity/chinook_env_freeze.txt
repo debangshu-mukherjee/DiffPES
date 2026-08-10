@@ -1,0 +1,15 @@
+chinook @ git+https://github.com/qmlab-ubc-ca/chinook@24913de8cc5b8c162f7c1b4acc64bd1b54dd548b
+contourpy==1.3.3
+cycler==0.12.1
+fonttools==4.63.0
+kiwisolver==1.5.0
+matplotlib==3.8.4
+numpy==1.26.4
+packaging==26.2
+pillow==12.3.0
+pip==24.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+scipy==1.11.4
+setuptools==65.5.0
+six==1.17.0

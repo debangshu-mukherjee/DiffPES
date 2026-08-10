@@ -37,10 +37,13 @@ degeneracy-safe path. `spectral_intensity_eigen` is a faster path for
 gauge-invariant band weights away from degeneracies. Both consume the causal
 self-energy returned by `evaluate_self_energy`.
 
-Detector mapping, resolution, transmission, and counts are intentionally
-outside this intrinsic spectral boundary. Plan 08a is constructing the single
-canonical detector/count driver; there is currently no level-string workflow
-or projection-probability compatibility dispatcher.
+`diffpes.simul.simulate_arpes` and `simulate_arpes_cut` compose that intrinsic
+observable with the canonical single-kz detector chain. They require explicit
+Hamiltonians and the complete matrix-element carriers. Each source domain is
+conservatively mapped into `DetectorCalibration` bins. Domains are mixed in
+detector space before transmission, native-coordinate resolution, background,
+sensitivity, exposure, and bin-volume conversion. There is no level-string
+workflow or projection-probability compatibility dispatcher.
 
 ### Python indexing conventions
 

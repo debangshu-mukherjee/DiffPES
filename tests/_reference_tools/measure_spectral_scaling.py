@@ -172,14 +172,16 @@ def _allocation_model(
     The blocking S1 criterion remains exactly
     ``16 * n_k * omega_chunk * n_orb**2`` and its registered ``1.5x``
     ceiling. Other terms explain the measured executable but do not enlarge
-    that acceptance ceiling after observation.
+    that acceptance ceiling after observation. The kinematics diagnostic is
+    the compact ``k_i[K,3] + final_norm[E] + energy_valid[E]`` carrier; final
+    momenta are reconstructed only inside a live block.
     """
     solve_tape: int = COMPLEX128_BYTES * n_k * omega_chunk * n_orb**2
     ceiling: int = int(BOUND_FACTOR * solve_tape)
     kinematics: int = (
         FLOAT64_BYTES * n_k * 3
-        + FLOAT64_BYTES * n_k * n_omega * 3
-        + BOOL_BYTES * n_k * n_omega
+        + FLOAT64_BYTES * n_omega
+        + BOOL_BYTES * n_omega
     )
     block_bvals: int = COMPLEX128_BYTES * k_chunk * omega_chunk * n_orb * 2
     block_channels: int = COMPLEX128_BYTES * k_chunk * omega_chunk * n_orb * 3
@@ -276,18 +278,8 @@ def _fixture(
         ),
         axis=-1,
     )
-    final_z: Float64[Array, "n_k n_omega"] = (
-        1.0
-        + 5.0e-4 * jnp.arange(n_k, dtype=jnp.float64)[:, None]
-        + 2.0e-4 * jnp.arange(n_omega, dtype=jnp.float64)[None, :]
-    )
-    k_f: Float64[Array, "n_k n_omega 3"] = jnp.stack(
-        (
-            jnp.broadcast_to(k_i[:, 0, None], final_z.shape),
-            jnp.zeros_like(final_z),
-            final_z,
-        ),
-        axis=-1,
+    final_norm: Float64[Array, " n_omega"] = 1.0 + 2.0e-4 * jnp.arange(
+        n_omega, dtype=jnp.float64
     )
     basis: Any = make_orbital_basis(
         atom_indices=(0,) * n_orb,
@@ -312,8 +304,8 @@ def _fixture(
     )
     schedule: _TransitionSourceSchedule = _TransitionSourceSchedule(
         k_i_cart=k_i,
-        k_f_cart=k_f,
-        emission_valid=jnp.ones((n_k, n_omega), dtype=jnp.bool_),
+        final_norm=final_norm,
+        emission_energy_valid=jnp.ones(n_omega, dtype=jnp.bool_),
         positions_cart=positions,
         depths=jnp.linspace(0.0, 4.0, n_orb),
         polarization_sample_cart=jnp.asarray(
@@ -384,8 +376,29 @@ def _reference_comparison() -> Dict[str, float | bool]:
         REFERENCE_N_ORB,
         numerical_kk=False,
     )
-    mask: Array = (
-        k_valid[:, None] & omega_valid[None, :] & schedule.emission_valid
+    parallel_sq: Float64[Array, " n_k"] = jnp.sum(
+        schedule.k_i_cart[:, :2] ** 2, axis=-1
+    )
+    normal_sq: Float64[Array, "n_k n_omega"] = (
+        schedule.final_norm[None, :] ** 2 - parallel_sq[:, None]
+    )
+    emission_valid: Array = schedule.emission_energy_valid[None, :] & (
+        normal_sq > 0.0
+    )
+    mask: Array = k_valid[:, None] & omega_valid[None, :] & emission_valid
+    safe_normal_sq: Float64[Array, "n_k n_omega"] = jnp.where(
+        mask, normal_sq, 1.0
+    )
+    final_kz: Float64[Array, "n_k n_omega"] = jnp.where(
+        mask, jnp.sqrt(safe_normal_sq), 0.0
+    )
+    k_f_cart: Float64[Array, "n_k n_omega 3"] = jnp.stack(
+        (
+            jnp.broadcast_to(schedule.k_i_cart[:, 0, None], final_kz.shape),
+            jnp.broadcast_to(schedule.k_i_cart[:, 1, None], final_kz.shape),
+            final_kz,
+        ),
+        axis=-1,
     )
 
     def stream_values(
@@ -407,7 +420,7 @@ def _reference_comparison() -> Dict[str, float | bool]:
         _transition_sources_for_block(
             schedule,
             schedule.k_i_cart,
-            schedule.k_f_cart,
+            k_f_cart,
             mask,
         )
     )

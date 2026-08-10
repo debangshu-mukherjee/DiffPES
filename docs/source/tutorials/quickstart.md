@@ -17,9 +17,8 @@ Build an intrinsic ARPES spectrum from gauge-invariant matrix-element
 weights, a causal self-energy, and sampled-energy Fermi occupation. The
 degeneracy-safe resolvent path is introduced alongside the faster eigen path.
 
-Detector mapping, transmission, resolution, and expected counts are separate
-from this intrinsic observable. Plan 08a is constructing their single
-canonical driver.
+The final section maps this intrinsic observable into explicit native detector
+bins and applies the same effects chain used by the canonical coherent driver.
 
 ```{code-cell} ipython3
 import diffpes
@@ -140,6 +139,70 @@ resolvent_value = diffpes.simul.spectral_intensity_resolvent(
     1.0e-4,
 )
 print(float(resolvent_value))
+```
+
+## Map into Native Detector Counts
+
+Attach explicit experiment, calibration, and nuisance state. The public
+effects chain maps the self-describing source path into native angular and
+recorded-energy bins before applying transmission, resolution, background,
+sensitivity, exposure, and bin-volume conversion.
+
+```{code-cell} ipython3
+experiment = diffpes.types.make_experiment_geometry(
+    photon_energy_ev=50.0,
+    polarization=jnp.array([1.0 + 0.0j, 0.0j, 0.0j]),
+    work_function_ev=4.0,
+    temperature_k=30.0,
+    slit="H",
+)
+calibration = diffpes.types.make_detector_calibration(
+    u_bin_edges=jnp.linspace(-0.24, 0.24, 49),
+    v_bin_edges=jnp.array([-0.04, 0.04]),
+    energy_bin_edges_ev=jnp.linspace(-1.35, 0.65, 81),
+    psf_fwhm_u=0.012,
+    psf_fwhm_v=0.010,
+    psf_fwhm_energy_ev=0.040,
+    transmission_reference_domain_ev=jnp.array([44.0, 47.0]),
+)
+effects = diffpes.types.make_detector_effects(
+    domain_logits=jnp.array([0.0]),
+    domain_euler_angles_rad=jnp.zeros((1, 3)),
+    transmission_raw_slopes=jnp.array([-0.4, 0.2]),
+    background_coefficients=jnp.array([-8.0]),
+    sensitivity_coefficients=jnp.array([]),
+    exposure=100.0,
+    background_mode="flat",
+    sensitivity_mode="constant",
+    domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
+)
+detector = diffpes.simul.apply_detector_effects(
+    (spectrum,), experiment, calibration, effects
+)
+print(detector.expected_counts.shape, detector.channel_labels)
+```
+
+The result stays on native detector coordinates. It is not relabeled as a
+Cartesian momentum raster.
+
+```{code-cell} ipython3
+fig, ax = plt.subplots(figsize=(6.5, 3.8))
+ax.imshow(
+    detector.expected_counts[0, :, 0, :].T,
+    origin="lower",
+    aspect="auto",
+    extent=(
+        float(detector.detector_u_axis[0]),
+        float(detector.detector_u_axis[-1]),
+        float(detector.energy_axis[0]),
+        float(detector.energy_axis[-1]),
+    ),
+    cmap="magma",
+)
+ax.set_xlabel(r"native detector $u$ (rad)")
+ax.set_ylabel(r"recorded $E-E_F$ (eV)")
+ax.set_title("expected detector counts")
+plt.show()
 ```
 
 ## Differentiate a Spectral Observable

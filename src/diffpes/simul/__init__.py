@@ -11,12 +11,14 @@ sampled-energy Fermi occupation.
 
 The following list describes the submodules:
 
+- :mod:`_detector_map`
+    Compute conservative source-to-detector finite-volume maps.
 - :mod:`broadening`
     Compute energy broadening functions for ARPES simulations.
 - :mod:`crosssections`
     Interpolate authenticated Yeh--Lindau photoionization cross sections.
 - :mod:`effects`
-    Assemble detector-coordinate backgrounds and expected counts.
+    Apply calibrated instrument effects and assemble expected counts.
 - :mod:`kinematics`
     Compute free-electron photoemission kinematics.
 - :mod:`matrixel`
@@ -25,19 +27,23 @@ The following list describes the submodules:
     Compute orbital angular momentum.
 - :mod:`polarization`
     Compute photon polarization and explicit frame transformations.
-- :mod:`resolution`
-    Apply momentum resolution broadening to ARPES simulations.
+- :mod:`spectrum`
+    Compose the coherent single-:math:`k_z` ARPES forward driver.
 - :mod:`spectral`
     Evaluate the complex retarded self-energy through the certified KK map.
 - :mod:`workflow`
-    Load and prepare VASP projection data for coherent ARPES workflows.
+    Load VASP metadata and compose the explicit-H coherent cut workflow.
 
 Routine Listings
 ----------------
-:func:`apply_momentum_broadening`
-    Convolve I(k, E) with a Gaussian in k-space.
+:func:`apply_detector_effects`
+    Apply the complete deterministic source-to-count detector chain.
 :func:`apply_post_count_response`
     Convolve expected counts along the recorded-energy index.
+:func:`apply_resolution`
+    Apply analytic finite-volume resolution in native detector coordinates.
+:func:`apply_transmission`
+    Apply analyser transmission to intensity at true kinetic energy.
 :func:`assemble_spectral_intensity_bands_chunk`
     Assemble occupied intrinsic intensity from eigenvalues and band weights.
 :func:`assemble_spectral_intensity_chunk`
@@ -54,6 +60,12 @@ Routine Listings
     Compute explicit native detector-bin volumes.
 :func:`compute_oam`
     Compute orbital angular momentum z-component.
+:func:`convolve_energy`
+    Convolve a uniform energy axis with the sampled parity stencil.
+:func:`convolve_kpath`
+    Convolve physical-k path-cell densities with analytic boundary loss.
+:func:`convolve_momentum_map`
+    Convolve a uniform Cartesian momentum map with sampled stencils.
 :func:`evaluate_self_energy`
     Evaluate the complex retarded self-energy for one causal model.
 :func:`expected_counts`
@@ -68,6 +80,8 @@ Routine Listings
     Normalize all detector rates to one event-probability tensor.
 :func:`gaussian`
     Compute normalized Gaussian broadening profile.
+:func:`gaussian_kernel_1d`
+    Build a sampled, sum-normalized Gaussian stencil.
 :func:`kinetic_energy_ev`
     Compute signed photoelectron kinetic energy and its validity mask.
 :func:`assemble_orbital_transition_channels`
@@ -90,12 +104,16 @@ Routine Listings
     Load a simulation-ready context from VASP output files.
 :func:`matrix_element_intensity`
     Sum outgoing-spin modulus squares exactly once.
+:func:`normalize_intensity`
+    Return an explicit display-only normalization of carrier values.
 :func:`background_density`
     Evaluate a nonnegative detector-coordinate background.
 :func:`log_band_group_weight_sensitivity`
     Convert positive group-weight derivatives to logarithmic derivatives.
 :func:`matrix_element_phase_gauge_direction`
     Build the unit overall-phase tangent in packed coordinates.
+:func:`map_source_to_detector`
+    Convert one source density to native detector bins conservatively.
 :func:`orbital_transition_channels`
     Assemble coherent orbital transition channels.
 :func:`pack_matrixel_params`
@@ -120,6 +138,8 @@ Routine Listings
     Resolve orbital centres in Cartesian Angstrom coordinates.
 :func:`rotate_frame_vectors`
     Rotate a detector-fixed real axis across a detector-angle grid.
+:func:`run_vasp_workflow`
+    Run the explicit-H coherent cut workflow with VASP metadata.
 :func:`sample_azimuth_rotation`
     Build the active sample-to-laboratory azimuth rotation.
 :func:`sample_fixed_total_counts`
@@ -128,12 +148,18 @@ Routine Listings
     Generate independent Poisson counts for a rate tensor.
 :func:`sensitivity_field`
     Evaluate the positive normalized detector sensitivity field.
+:func:`simulate_arpes`
+    Simulate the canonical coherent single-kz detector raster.
+:func:`simulate_arpes_cut`
+    Simulate the canonical coherent single-kz path-cut detector raster.
 :func:`spectral_intensity_eigen`
     Evaluate spectral intensity from eigenvalues and invariant weights.
 :func:`spectral_intensity_resolvent`
     Evaluate degeneracy-safe spectral intensity through a linear solve.
 :func:`transition_source`
     Build conjugated outgoing-spin rows as full source kets.
+:func:`transmission_shape`
+    Evaluate positive monotone analyser transmission with fixed mean one.
 :func:`unpack_matrixel_params`
     Construct active matrix-element parameters from one real vector.
 :func:`voigt`
@@ -158,14 +184,23 @@ from .crosssections import (
     yeh_lindau_orbital_weights,
 )
 from .effects import (
+    apply_detector_effects,
     apply_post_count_response,
+    apply_resolution,
+    apply_transmission,
     background_density,
+    convolve_energy,
+    convolve_kpath,
+    convolve_momentum_map,
     detector_bin_volumes,
     expected_counts,
     fixed_total_probabilities,
+    gaussian_kernel_1d,
+    map_source_to_detector,
     sample_fixed_total_counts,
     sample_poisson_counts,
     sensitivity_field,
+    transmission_shape,
 )
 from .kinematics import (
     detector_angles_to_kpar,
@@ -205,7 +240,6 @@ from .polarization import (
     rotate_frame_vectors,
     sample_azimuth_rotation,
 )
-from .resolution import apply_momentum_broadening
 from .spectral import (
     assemble_spectral_intensity_bands_chunk,
     assemble_spectral_intensity_chunk,
@@ -214,14 +248,18 @@ from .spectral import (
     spectral_intensity_eigen,
     spectral_intensity_resolvent,
 )
+from .spectrum import normalize_intensity, simulate_arpes, simulate_arpes_cut
 from .workflow import (
     load_vasp_context,
     prepare_projection,
+    run_vasp_workflow,
 )
 
 __all__: list[str] = [
-    "apply_momentum_broadening",
+    "apply_detector_effects",
     "apply_post_count_response",
+    "apply_resolution",
+    "apply_transmission",
     "assemble_orbital_transition_channels",
     "assemble_spectral_intensity_bands_chunk",
     "assemble_spectral_intensity_chunk",
@@ -229,6 +267,9 @@ __all__: list[str] = [
     "background_density",
     "build_polarization_vectors",
     "compute_oam",
+    "convolve_energy",
+    "convolve_kpath",
+    "convolve_momentum_map",
     "contract_experiment_polarization",
     "contract_polarization",
     "detector_angles_to_kpar",
@@ -242,6 +283,7 @@ __all__: list[str] = [
     "final_state_k_inv_ang",
     "fixed_total_probabilities",
     "gaussian",
+    "gaussian_kernel_1d",
     "kinetic_energy_ev",
     "lab_polarization_to_sample",
     "kpar_to_detector_angles",
@@ -251,6 +293,8 @@ __all__: list[str] = [
     "log_band_group_weight_sensitivity",
     "matrix_element_intensity",
     "matrix_element_phase_gauge_direction",
+    "map_source_to_detector",
+    "normalize_intensity",
     "orbital_transition_channels",
     "photon_wavevector",
     "pack_matrixel_params",
@@ -263,13 +307,17 @@ __all__: list[str] = [
     "real_spherical_harmonics_cartesian_all",
     "resolve_orbital_positions_cart",
     "rotate_frame_vectors",
+    "run_vasp_workflow",
     "sample_azimuth_rotation",
     "sample_fixed_total_counts",
     "sample_poisson_counts",
     "sensitivity_field",
+    "simulate_arpes",
+    "simulate_arpes_cut",
     "spectral_intensity_eigen",
     "spectral_intensity_resolvent",
     "transition_source",
+    "transmission_shape",
     "unpack_matrixel_params",
     "voigt",
     "yeh_lindau_cross_section",

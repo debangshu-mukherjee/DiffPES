@@ -522,6 +522,39 @@ class TestValidateHandshake:
         assert missing.missing_ids == ("evidence-registration",)
         assert bool(complete.complete)
 
+    def test_detector_rejects_drifted_spectral_owner(self) -> None:
+        """Require the exact upstream spectral handshake before detector registration.
+
+        A matching owner label without the spectral transformations and evidence
+        wall must not satisfy the detector lifecycle dependency.
+
+        Notes
+        -----
+        Isolate the append-only process registry, preempt the spectral owner with
+        an empty declaration, and require public builtin registration to fail.
+        """
+        program: str = """
+from diffpes.certify import register_builtin_models, register_handshake
+from diffpes.types import make_registration_handshake
+register_handshake(make_registration_handshake('org.diffpes.spectral'))
+try:
+    register_builtin_models()
+except RuntimeError as exc:
+    assert str(exc) == (
+        'org.diffpes.detector requires the exact '
+        'org.diffpes.spectral handshake'
+    )
+else:
+    raise AssertionError('detector accepted a drifted spectral handshake')
+"""
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            [sys.executable, "-c", program],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stderr
+
     def test_kinematics_handshake_is_green_with_declared_evidence(
         self,
     ) -> None:
@@ -535,7 +568,11 @@ class TestValidateHandshake:
         """
         register_builtin_models()
         manifest: Dict[str, Any] = registry_manifest()
-        declaration: Dict[str, Any] = manifest["handshakes"][0]
+        declaration: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.kspace"
+        )
         handshake: Any = next(
             item
             for item in list_handshakes()
@@ -780,6 +817,92 @@ class TestValidateHandshake:
         assert bool(report.complete), report.missing_ids
         assert report.missing_ids == ()
 
+    def test_detector_handshake_records_complete_semantic_identity(
+        self,
+    ) -> None:
+        """Validate the detector transformations and complete evidence wall.
+
+        The owner binds conservative mapping, fixed-domain transmission,
+        native resolution, and expected-count construction.
+
+        Notes
+        -----
+        Compare the packaged declaration with the live handshake. Inspect
+        each transformation contract and validate all declared evidence IDs.
+        """
+        register_builtin_models()
+        manifest: Dict[str, Any] = registry_manifest()
+        declaration: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.detector"
+        )
+        handshake: Any = next(
+            item
+            for item in list_handshakes()
+            if item.owner_id == "org.diffpes.detector"
+        )
+        expected_refs: Tuple[str, ...] = (
+            "org.diffpes.transform.detector.source_density_map@1.0.0",
+            "org.diffpes.transform.instrument.transmission_fixed_domain@1.0.0",
+            "org.diffpes.transform.instrument.native_detector_resolution@1.0.0",
+            "org.diffpes.transform.detector.expected_counts@1.0.0",
+        )
+        assert handshake.transformation_refs == expected_refs
+        assert tuple(declaration["transformation_refs"]) == expected_refs
+        evidence_ids: Tuple[str, ...] = tuple(declaration["evidence_ids"])
+        assert handshake.evidence_ids == evidence_ids
+        assert len(evidence_ids) == 28
+        assert len(set(evidence_ids)) == 28
+        assert all(
+            item.startswith("org.diffpes.evidence.detector.")
+            for item in evidence_ids
+        )
+        source_map: Any = get_transformation(
+            "org.diffpes.transform.detector.source_density_map",
+            "1.0.0",
+        ).contract
+        transmission: Any = get_transformation(
+            "org.diffpes.transform.instrument.transmission_fixed_domain",
+            "1.0.0",
+        ).contract
+        resolution: Any = get_transformation(
+            "org.diffpes.transform.instrument.native_detector_resolution",
+            "1.0.0",
+        ).contract
+        counts: Any = get_transformation(
+            "org.diffpes.transform.detector.expected_counts",
+            "1.0.0",
+        ).contract
+        assert {
+            "active_zyz_domain_rotation",
+            "analytic_detector_inverse_jacobian",
+            "explicit_boundary_loss_captured_fraction",
+            "signed_diagonal_antidiagonal_boundary_seam_splitting",
+            "general_rotation_strict_source_enclosure",
+            "general_rotation_four_vs_eight_node_convergence",
+            "enclosed_smooth_interior_coordinate_derivative_only",
+        } <= set(source_map.introduces)
+        assert {
+            "claim.detector.general_rotation_boundary_intersection_certified",
+            "claim.detector.general_rotation_support_crossing_accepted",
+            "claim.detector.coordinate_map_topology_switch_differentiable",
+        } <= set(source_map.invalidates_claims)
+        assert {
+            "org.diffpes.evidence.detector.map.signed_permutation_boundary_seams",
+            "org.diffpes.evidence.detector.map.general_rotation_strict_enclosure",
+            "org.diffpes.evidence.detector.derivative.coordinate_map_enclosed_interior",
+        } <= set(evidence_ids)
+        assert "caller_crop_invariant_transmission" in transmission.introduces
+        assert "analytic_gaussian_bin_integrals" in resolution.introduces
+        assert "explicit_exposure_and_native_bin_volume" in counts.introduces
+        report: Any = validate_handshake(
+            handshake,
+            evidence_ids=evidence_ids,
+        )
+        assert bool(report.complete), report.missing_ids
+        assert report.missing_ids == ()
+
     def test_slab_split_handshakes_are_complete_and_acyclic(self) -> None:
         """Validate the separate carrier and full-slab lifecycle records.
 
@@ -948,6 +1071,7 @@ class TestRegistryManifest:
             item["owner_id"] for item in manifest["handshakes"]
         )
         assert owners == tuple(sorted(owners))
+        assert "org.diffpes.detector" in owners
         assert "org.diffpes.matrixel" in owners
         assert "org.diffpes.spectral" in owners
         matrix_element: Dict[str, Any] = next(
@@ -976,6 +1100,13 @@ class TestRegistryManifest:
         )
         assert len(spectral["transformation_refs"]) == 3
         assert len(spectral["evidence_ids"]) == 27
+        detector: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.detector"
+        )
+        assert len(detector["transformation_refs"]) == 4
+        assert len(detector["evidence_ids"]) == 28
 
 
 class TestRenderModelCard:

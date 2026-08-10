@@ -13,6 +13,7 @@ from beartype.typing import Dict
 
 from diffpes.types import (
     OrbitalBasis,
+    PyTreeDef,
     make_orbital_basis,
 )
 from diffpes.types.radial_params import (
@@ -75,7 +76,7 @@ class TestOrbitalBasis(chex.TestCase):
             labels=("a_px_up", "a_pz_up", "b_px_dn", "b_pz_dn"),
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(basis)
         restored: OrbitalBasis = jax.tree_util.tree_unflatten(tree, leaves)
 

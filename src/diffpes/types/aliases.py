@@ -10,6 +10,8 @@ Routine Listings
 ----------------
 :obj:`NonJaxNumber`
     Union of ``int``, ``float``, and ``complex``.
+:obj:`PyTreeDef`
+    Runtime pytree definition with a typed static-analysis stand-in.
 :obj:`ScalarBool`
     Union of ``bool`` and ``Bool[Array, " "]``.
 :obj:`ScalarComplex`
@@ -27,8 +29,47 @@ These aliases mirror those in ``janssen.types`` to maintain a
 consistent type annotation style across JAX-based projects.
 """
 
-from beartype.typing import TypeAlias, Union
+from beartype.typing import TYPE_CHECKING, TypeAlias, Union
 from jaxtyping import Array, Bool, Complex, Float, Int, Num
+
+if TYPE_CHECKING:
+    from beartype.typing import Any, Iterable, List
+
+    class PyTreeDef:
+        """Represent the unstubbed jaxlib pytree definition statically.
+
+        Notes
+        -----
+        The runtime name binds the genuine class from
+        :mod:`jax.tree_util`, which lives in a compiled extension module
+        without type stubs and therefore cannot appear in static type
+        expressions.  This stand-in mirrors the members DiffPES uses.
+        """
+
+        @property
+        def num_leaves(self) -> int:
+            """Return the number of leaves in the flattened pytree."""
+            ...
+
+        @property
+        def num_nodes(self) -> int:
+            """Return the number of nodes in the pytree."""
+            ...
+
+        def unflatten(self, leaves: Iterable[Any]) -> Any:
+            """Build a pytree from this definition and its leaves."""
+            ...
+
+        def children(self) -> List["PyTreeDef"]:
+            """Return the definitions of the direct subtrees."""
+            ...
+
+        def flatten_up_to(self, xs: Any) -> List[Any]:
+            """Flatten ``xs`` down to the depth of this definition."""
+            ...
+
+else:
+    from jax.tree_util import PyTreeDef
 
 NonJaxNumber: TypeAlias = Union[int, float, complex]
 ScalarBool: TypeAlias = Union[bool, Bool[Array, " "]]
@@ -39,6 +80,7 @@ ScalarNumeric: TypeAlias = Union[int, float, complex, Num[Array, " "]]
 
 __all__: list[str] = [
     "NonJaxNumber",
+    "PyTreeDef",
     "ScalarBool",
     "ScalarComplex",
     "ScalarFloat",

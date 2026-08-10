@@ -8,11 +8,11 @@
     "matrix-element-compiled-graph-scaling",
     "matrix-element-gradient-scaling"
   ],
-  "host_setup_seconds": 1.6716803880408406,
+  "host_setup_seconds": 1.7331537669997488,
   "jax_version": "0.9.0.1",
   "numpy_version": "2.4.2",
-  "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 887209984,
+  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
+  "process_peak_rss_bytes_non_authoritative": 922439680,
   "s1": {
     "compile_cache_sizes": [
       0,
@@ -52,8 +52,8 @@
   },
   "s2": {
     "compilation_seconds": {
-      "reduced_scan": 0.5600490479264408,
-      "scalar_value_and_gradient": 0.697305517969653
+      "reduced_scan": 0.5581576669992501,
+      "scalar_value_and_gradient": 0.6844185010013462
     },
     "forbidden_k_e_b_shape_present": false,
     "forbidden_k_e_b_shapes": [],
@@ -61,7 +61,7 @@
       18
     ],
     "hlo_gzip": "channel_scan_hlo.txt.gz",
-    "hlo_gzip_sha256": "5d88a8905baf6415d23d25a2a5d20807cbf0f2ead9141ad1e4feeca2da976a3e",
+    "hlo_gzip_sha256": "d0bb5787e8f4f2814f36249bd37db87153443e0a2e587c8425013fc2b64c0e5a",
     "jaxpr_gzip": "channel_scan_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
@@ -112,59 +112,59 @@
   },
   "s3": {
     "compilation_seconds": {
-      "batch_contraction": 0.07926047197543085,
-      "channel": 0.5958606860367581,
-      "late_reuse_pipeline": 0.5691248050425202,
-      "single_contraction": 0.06385928194504231,
-      "single_rebuild_pipeline": 0.5727318340213969
+      "batch_contraction": 0.08375131300090288,
+      "channel": 0.596235553999577,
+      "late_reuse_pipeline": 0.5926548010011174,
+      "single_contraction": 0.07934134400056791,
+      "single_rebuild_pipeline": 0.5858378470002208
     },
-    "contraction_ratio": 0.20654833708294243,
+    "contraction_ratio": 0.2119567385712042,
     "median_seconds": {
-      "batched_contraction": 0.0009376970119774342,
-      "late_reuse_pipeline": 0.014031853061169386,
-      "six_rebuild_pipelines": 0.05568519001826644,
-      "six_sequential_contractions": 0.004539842950180173
+      "batched_contraction": 0.0009773410001798766,
+      "late_reuse_pipeline": 0.014371567998750834,
+      "six_rebuild_pipelines": 0.05708645400045498,
+      "six_sequential_contractions": 0.0046110400016914355
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.2519853673223798,
+    "pipeline_ratio": 0.2517509319923128,
     "raw_seconds": {
       "batched_contraction": [
-        0.0009376970119774342,
-        0.0009135720320045948,
-        0.0008712050039321184,
-        0.0009241160005331039,
-        0.0009728430304676294,
-        0.000953905051574111,
-        0.0009657519403845072
+        0.0009349060001113685,
+        0.0010835840002982877,
+        0.0009773410001798766,
+        0.001007423001283314,
+        0.0010426650005683769,
+        0.0009073670007637702,
+        0.0009236870009772247
       ],
       "late_reuse_pipeline": [
-        0.014888994977809489,
-        0.013815233018249273,
-        0.014165846048854291,
-        0.014031853061169386,
-        0.013519203057512641,
-        0.013818513951264322,
-        0.01507633295841515
+        0.014397545000974787,
+        0.014662950999991153,
+        0.013050696999926004,
+        0.015666716999476193,
+        0.014251221000449732,
+        0.014371567998750834,
+        0.014259634999689297
       ],
       "six_rebuild_pipelines": [
-        0.055065935011953115,
-        0.05568519001826644,
-        0.056002493016421795,
-        0.05419334501493722,
-        0.05611122795380652,
-        0.055696697905659676,
-        0.05263373500201851
+        0.05673091600147018,
+        0.05633664900051372,
+        0.05724311199992371,
+        0.059940728000583476,
+        0.057678117000250495,
+        0.05708645400045498,
+        0.05561522500102001
       ],
       "six_sequential_contractions": [
-        0.004462969023734331,
-        0.004539842950180173,
-        0.004603457055054605,
-        0.004039656021632254,
-        0.004780629999004304,
-        0.004285078030079603,
-        0.013697871938347816
+        0.003007639999850653,
+        0.0047309199999290286,
+        0.004824625999390264,
+        0.0046110400016914355,
+        0.00488591599969368,
+        0.004455401000086567,
+        0.0024661949992150767
       ]
     },
     "repetitions": 7,
@@ -174,7 +174,7 @@
   },
   "schema": "diffpes.matrix-element-scalability.v2",
   "source_sha256": {
-    "src/diffpes/simul/matrixel.py": "586ab25752cd8d32624ccb932872007e5468e561a43d0615981f7ab20210c2eb",
+    "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
     "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
     "tests/_reference_tools/measure_matrix_element_scaling.py": "0eea4d9dac585d2d005de75c5fc3d15f3aa8d49931687f1ef719bd6d6e39f871"
   }

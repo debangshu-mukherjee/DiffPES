@@ -11,19 +11,23 @@ stores outputs only in its cache.
 quickstart
 certified-forward-model
 geometry-and-kinematics
+coherent-detector-paper-path
 tight-binding-models
 slabs-and-surfaces
 matrix-element-sensitivity
 ```
 
 - [Quickstart](quickstart.md): Assemble a coherent intrinsic spectrum through
-  the eigen and resolvent paths, then differentiate a spectral observable
-  with `jax.grad`.
+  the eigen and resolvent paths, map it into native expected counts, then
+  differentiate a spectral observable with `jax.grad`.
 - [Inspect and persist a certified forward run](certified-forward-model.md):
   Read bounded claims and differentiable evidence. Save canonical JSON and
   attach the same record to an HDF5 result.
 - [Geometry and kinematics](geometry-and-kinematics.ipynb): Build k-space rasters,
   detector frames, inner-potential scans, and a geometry Jacobian.
+- [Coherent tight-binding model to detector counts](coherent-detector-paper-path.ipynb):
+  Build a coherent ARPES cube, inspect its Fermi-surface map, fit analyser
+  transmission, and run the canonical native-detector count driver.
 - [Native tight-binding models](tight-binding-models.md): Build graphene by
   hand and with Slater--Koster parameters. Add spin--orbit coupling, then
   inspect fat bands, spin texture, and density of states.
@@ -36,7 +40,6 @@ matrix-element-sensitivity
 The project is developing more complete examples:
 
 - Loading phase-complete electronic-structure inputs for coherent ARPES
-- Applying the Plan 08a detector/count driver once that chain is certified
 - Polarization-dependent matrix element effects
 - Gradient-based recovery of band-structure parameters from spectra
 

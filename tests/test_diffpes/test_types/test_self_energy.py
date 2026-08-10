@@ -17,7 +17,7 @@ from beartype.typing import Dict
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from diffpes.types import SelfEnergyModel, make_self_energy_model
+from diffpes.types import PyTreeDef, SelfEnergyModel, make_self_energy_model
 from tests._assertions import assert_rejects
 
 _DOMAIN: jax.Array = jnp.array([-4.0, 4.0])
@@ -215,7 +215,7 @@ class TestSelfEnergyModel:
             "grid", jnp.array([-1.0, 0.0, 1.0])
         )
         leaves: list[object]
-        treedef: jax.tree_util.PyTreeDef
+        treedef: PyTreeDef
         leaves, treedef = jax.tree_util.tree_flatten(model)
         restored: SelfEnergyModel = jax.tree_util.tree_unflatten(
             treedef, leaves

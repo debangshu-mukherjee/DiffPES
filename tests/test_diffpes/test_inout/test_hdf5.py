@@ -35,7 +35,6 @@ from diffpes.types import (
     make_kpath_info,
     make_orbital_projection,
     make_self_energy_model,
-    make_simulation_params,
 )
 
 
@@ -398,57 +397,6 @@ class TestOrbitalProjection(chex.TestCase):
         )
         chex.assert_trees_all_close(loaded.spin, orb.spin, atol=1e-12)
         chex.assert_trees_all_close(loaded.oam, orb.oam, atol=1e-12)
-
-
-class TestSimulationParams(chex.TestCase):
-    """Round-trip tests for SimulationParams HDF5 serialization.
-
-    Verifies that all four float children and the integer
-    ``fidelity`` aux_data survive the cycle.
-
-    :see: :func:`~diffpes.inout.save_to_h5`
-    :see: :func:`~diffpes.inout.load_from_h5`
-    """
-
-    def test_round_trip(self) -> None:
-        """Verify SimulationParams survives HDF5 round-trip.
-
-        The test establishes the round trip contract for simulation params with the
-        concrete values and array shapes described below.
-
-        Notes
-        -----
-        1. **Create** with non-default values for all fields.
-        2. **Save** and **load** via HDF5.
-
-        **Expected assertions**
-
-        All float fields match, and the integer fidelity matches.
-        """
-        td: str
-
-        params: diffpes.types.SimulationParams
-        path: Path
-        loaded: Any
-
-        params = make_simulation_params(
-            energy_min=-5.0,
-            energy_max=2.0,
-            fidelity=500,
-            sigma=0.08,
-            gamma=0.15,
-        )
-        with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "params.h5"
-            save_to_h5(path, params=params)
-            loaded = load_from_h5(path, name="params")
-        chex.assert_trees_all_close(
-            loaded.energy_min,
-            params.energy_min,
-            atol=1e-12,
-        )
-        chex.assert_trees_all_close(loaded.sigma, params.sigma, atol=1e-12)
-        assert loaded.fidelity == 500
 
 
 class TestKPathInfo(chex.TestCase):
@@ -935,7 +883,7 @@ class TestDatasetFlags(chex.TestCase):
         Notes
         -----
         1. **Create** an ArpesSpectrum (array datasets) and
-           SimulationParams (scalar datasets).
+           BandStructure (including a scalar Fermi-energy dataset).
         2. **Save** both with compression/chunk/checksum flags.
         3. **Inspect** HDF5 dataset properties directly.
         4. **Round-trip load** to verify numerical integrity.
@@ -950,7 +898,7 @@ class TestDatasetFlags(chex.TestCase):
         f: h5py.File
 
         spectrum: diffpes.types.ArpesSpectrum
-        params: diffpes.types.SimulationParams
+        bands: diffpes.types.BandStructure
         path: Path
         ds: h5py.Dataset
         scalar_ds: h5py.Dataset
@@ -962,10 +910,10 @@ class TestDatasetFlags(chex.TestCase):
             k_axis=_cartesian_path(12)[0],
             kpoints_cart_inv_ang=_cartesian_path(12)[1],
         )
-        params = make_simulation_params(
-            fidelity=30,
-            sigma=0.04,
-            gamma=0.1,
+        bands = make_band_structure(
+            eigenvalues=jnp.asarray([[-1.0, 0.5]]),
+            kpoints=jnp.zeros((1, 3)),
+            fermi_energy=0.25,
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "flags.h5"
@@ -977,7 +925,7 @@ class TestDatasetFlags(chex.TestCase):
                 fletcher32=True,
                 chunks=True,
                 spectrum=spectrum,
-                params=params,
+                bands=bands,
             )
             with h5py.File(path, "r") as f:
                 ds = f["spectrum"]["intensity"]
@@ -987,7 +935,7 @@ class TestDatasetFlags(chex.TestCase):
                 assert ds.fletcher32
                 assert ds.chunks is not None
 
-                scalar_ds = f["params"]["energy_min"]
+                scalar_ds = f["bands"]["fermi_energy"]
                 assert scalar_ds.shape == ()
                 assert scalar_ds.compression is None
             loaded = load_from_h5(path, name="spectrum")

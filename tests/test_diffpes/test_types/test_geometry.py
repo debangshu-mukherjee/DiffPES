@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float64
 
-from diffpes.types import CrystalGeometry, make_crystal_geometry
+from diffpes.types import CrystalGeometry, PyTreeDef, make_crystal_geometry
 from tests._assertions import assert_rejects
 
 
@@ -41,7 +41,7 @@ class TestCrystalGeometry:
             species=("Si",),
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree.flatten(geometry)
         restored: CrystalGeometry = jax.tree.unflatten(tree, leaves)
 

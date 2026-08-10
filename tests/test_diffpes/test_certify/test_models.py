@@ -42,6 +42,7 @@ class TestRegisterBuiltinModels:
         )
         assert len(transformations) == len(set(transformations))
         assert len(owner_ids) == len(set(owner_ids))
+        assert "org.diffpes.detector" in owner_ids
         assert "org.diffpes.matrixel" in owner_ids
         assert "org.diffpes.spectral" in owner_ids
         matrix_element: RegistrationHandshake = next(
@@ -100,6 +101,29 @@ class TestRegisterBuiltinModels:
         assert (
             "org.diffpes.evidence.spectral.kk.singularity_stress_witness"
             in spectral.evidence_ids
+        )
+        detector: RegistrationHandshake = next(
+            item
+            for item in handshakes
+            if item.owner_id == "org.diffpes.detector"
+        )
+        assert len(detector.transformation_refs) == 4
+        assert len(detector.evidence_ids) == 28
+        assert (
+            "org.diffpes.evidence.detector.manufactured.complete_chain"
+            in detector.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.detector.derivative.coordinate_map_enclosed_interior"
+            in detector.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.detector.map.signed_permutation_boundary_seams"
+            in detector.evidence_ids
+        )
+        assert (
+            "org.diffpes.evidence.detector.map.general_rotation_strict_enclosure"
+            in detector.evidence_ids
         )
         destroyed: set[str] = {
             loss

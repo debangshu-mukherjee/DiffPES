@@ -44,23 +44,39 @@ Self-energy and broadening do not create orbital coherence. If an input
 consists only of projection probabilities, applying a more elaborate
 lineshape cannot restore phase-sensitive matrix elements.
 
-## Momentum Resolution
+## Instrument Transmission and Resolution
 
-`apply_momentum_broadening` convolves an intensity array along a one-
-dimensional k-path:
+`apply_transmission` evaluates the calibrated analyser response at true
+kinetic energy. Its monotone log-polynomial shape is normalized over the fixed
+`DetectorCalibration.transmission_reference_domain_ev`, so caller crops and
+padding cannot alter retained values. Apply it before detector resolution.
+
+`apply_resolution` then convolves detector-bin densities in native `(u, v, E)`
+coordinates. It integrates the continuous Gaussian over explicit source and
+target bin edges. The calibration owns the FWHM values. The result includes
+the blurred density and captured-flux fractions under the `loss` policy:
 
 ```python
-broadened = diffpes.simul.apply_momentum_broadening(
-    spectrum.intensity,
-    k_dist,
-    dk=0.02,
+transmitted = diffpes.simul.apply_transmission(
+    detector_density,
+    kinetic_energy_axis_ev,
+    raw_transmission_slopes,
+    calibration,
+)
+blurred, captured_fractions, valid = diffpes.simul.apply_resolution(
+    transmitted,
+    calibration,
 )
 ```
 
-This is a narrow Cartesian-path parity helper, not the canonical detector
-resolution stage. Plan 08a is constructing native-coordinate resolution and
-the detector/count driver; no current high-level workflow applies this helper
-implicitly. The energy axis does not change.
+`convolve_energy` and `convolve_momentum_map` are sampled, uniform-grid
+SciPy/Chinook parity approximations. The latter requires explicit Cartesian
+momentum axes in inverse angstroms; it never interprets fractional `KGrid`
+coordinates as physical spacings. `convolve_kpath` is the physical-k cut
+operator for nonuniform path cells. It uses the same analytic finite-volume
+semantics as native resolution and reports escaped boundary mass rather than
+renormalizing rows. A calibrated angular width should always use
+`apply_resolution` after the detector map.
 
 ## Combining Spectral and Coherent Physics
 
@@ -122,9 +138,12 @@ resolution, normalization, background, transmission, or count conversion.
 
 `band_group_weight_sensitivity` returns derivatives of the matrix-element
 weights before spectral, exposure, background, or detector factors.
-`expected_counts` now converts an already mapped detector density into counts
-on explicit `DetectorCalibration` bins. Plan 08a still owns the canonical
-source-to-detector mapping and driver.
+`map_source_to_detector` converts a self-describing source carrier into an
+explicit `DetectorCalibration` target and reports captured boundary flux.
+`apply_detector_effects` performs the complete deterministic detector chain,
+while `simulate_arpes` and `simulate_arpes_cut` join that chain to the coherent
+resolvent source assembly. `expected_counts` remains the narrower
+post-resolution density-to-count primitive.
 
 ## Numerical Guidance
 
@@ -155,22 +174,24 @@ source-to-detector mapping and driver.
 
 The WP7.6 CPU gate compiled the literal `256 k x 512 omega x 32 orbital`
 spinless value-and-Hamiltonian-gradient target with static `32 x 32` chunks,
-checkpointing, `n_kk=4096`, and `n_tail=256`. XLA reported `7,483,224` argument
-bytes, `4,194,328` output bytes, `48,595,264` temporary bytes, and zero aliased
-bytes: `60,272,816` compiler-live bytes in total. This is below the registered
+checkpointing, `n_kk=4096`, and `n_tail=256`. XLA reported `4,211,032` argument
+bytes, `4,194,328` output bytes, `50,186,720` temporary bytes, and zero aliased
+bytes: `58,592,080` compiler-live bytes in total. This is below the registered
 spinless solve-tape estimate of `134,217,728` bytes and its `1.5x` ceiling of
 `201,326,592` bytes. The target was compiled for allocation analysis but was
 not executed; that fact is explicit in the authenticated artifact. Host RSS
-(`478,945,280` to `693,555,200` bytes) is diagnostic only.
+(`463,216,640` to `688,885,760` bytes) is diagnostic only. Its compact
+`k_i[K,3] + final_norm[E] + valid[E]` carrier uses `10,752` diagnostic bytes;
+final momenta are reconstructed only within each live spectral block.
 
 The companion comparison matched an unchunked production assembly to
-`4.336808689942018e-19` maximum absolute value error and exactly zero maximum
+`5.9164567891575885e-31` maximum absolute value error and exactly zero maximum
 Hamiltonian-gradient error. Three active shapes inside one padded schedule
 produced one trace, and the lowered Lineax operator, RHS, and solution were all
 complex128. The reproducible record is
 `tests/test_diffpes/_reference_data/spectral_scalability/cpu_benchmark.json`.
 Its committed SHA-256 is
-`3b4248a9498281f09fe9152f4fcc2db42ed92e2d82dedf93cf12cf229e352bca`.
+`cb5469eb67f36cd40c577c9d61581d965767cb6fd9e36f7c1985cb735c597b00`.
 
 See [Simulation Tiers and the Coherent Pipeline](simulation-levels.md) for
 the model boundary and

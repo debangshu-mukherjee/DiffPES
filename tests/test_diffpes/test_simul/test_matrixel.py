@@ -17,7 +17,6 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Tuple
-from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
 
@@ -47,6 +46,7 @@ from diffpes.types import (
     FinalStateSpec,
     MatrixElementParams,
     OrbitalBasis,
+    PyTreeDef,
     RadialQuadratureSpec,
     RadialSpec,
     make_crystal_geometry,

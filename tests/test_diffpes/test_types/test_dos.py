@@ -13,6 +13,7 @@ from jaxtyping import Array, Float64
 from diffpes.types import (
     DensityOfStates,
     FullDensityOfStates,
+    PyTreeDef,
     make_density_of_states,
     make_full_density_of_states,
 )
@@ -80,7 +81,7 @@ class TestFullDensityOfStates:
             fermi_energy=-0.5,
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(full_dos)
         restored: FullDensityOfStates = jax.tree_util.tree_unflatten(
             tree, leaves

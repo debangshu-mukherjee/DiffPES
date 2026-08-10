@@ -41,7 +41,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "3b4248a9498281f09fe9152f4fcc2db42ed92e2d82dedf93cf12cf229e352bca"
+    "cb5469eb67f36cd40c577c9d61581d965767cb6fd9e36f7c1985cb735c597b00"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -119,7 +119,7 @@ class TestSpectralScalabilityEvidence:
             memory["temporary_size_bytes"],
             memory["alias_size_bytes"],
             memory["compiler_live_allocation_bytes"],
-        ) == (7_483_224, 4_194_328, 48_595_264, 0, 60_272_816)
+        ) == (4_211_032, 4_194_328, 50_186_720, 0, 58_592_080)
         live: int = (
             memory["argument_size_bytes"]
             + memory["output_size_bytes"]
@@ -136,6 +136,9 @@ class TestSpectralScalabilityEvidence:
         assert measured_model["registered_ceiling_bytes"] == int(
             1.5 * registered_bound
         )
+        assert measured_model["padded_kinematics_bytes_diagnostic"] == (
+            8 * 256 * 3 + 8 * 512 + 512
+        )
         assert measurement["passes_registered_1p5x_bound"] is True
         assert live <= measured_model["registered_ceiling_bytes"]
         assert (
@@ -144,7 +147,7 @@ class TestSpectralScalabilityEvidence:
         assert (
             measurement["process_peak_rss_before_bytes_non_authoritative"],
             measurement["process_peak_rss_after_bytes_non_authoritative"],
-        ) == (478_945_280, 693_555_200)
+        ) == (463_216_640, 688_885_760)
         assert (
             measurement["process_peak_rss_after_bytes_non_authoritative"]
             >= measurement["process_peak_rss_before_bytes_non_authoritative"]
@@ -171,7 +174,7 @@ class TestSpectralScalabilityEvidence:
             assert reference[name] is True
         assert reference["maximum_reference_gradient"] > 1.0e-8
         assert reference["maximum_value_absolute_error"] == pytest.approx(
-            4.336808689942018e-19,
+            5.9164567891575885e-31,
             rel=0.0,
             abs=0.0,
         )
@@ -242,23 +245,13 @@ class TestSpectralStreamRuntimeScaling:
             ),
             axis=-1,
         )
-        final_z: Float64[Array, "4 8"] = (
-            1.1
-            + 0.01 * jnp.arange(4, dtype=jnp.float64)[:, None]
-            + 0.02 * jnp.arange(8, dtype=jnp.float64)[None, :]
-        )
-        k_f: Float64[Array, "4 8 3"] = jnp.stack(
-            (
-                jnp.broadcast_to(k_i[:, 0, None], final_z.shape),
-                jnp.zeros_like(final_z),
-                final_z,
-            ),
-            axis=-1,
+        final_norm: Float64[Array, " 8"] = 1.1 + 0.02 * jnp.arange(
+            8, dtype=jnp.float64
         )
         schedule: Any = spectral._TransitionSourceSchedule(
             k_i_cart=k_i,
-            k_f_cart=k_f,
-            emission_valid=jnp.ones((4, 8), dtype=jnp.bool_),
+            final_norm=final_norm,
+            emission_energy_valid=jnp.ones(8, dtype=jnp.bool_),
             positions_cart=jnp.asarray([[0.0, 0.0, 0.0], [0.23, 0.07, 0.02]]),
             depths=jnp.asarray([0.0, 0.4]),
             polarization_sample_cart=jnp.asarray(
@@ -308,14 +301,37 @@ class TestSpectralStreamRuntimeScaling:
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
         )
-        mask: Array = (
-            k_valid[:, None] & omega_valid[None, :] & schedule.emission_valid
+        parallel_sq: Float64[Array, " 4"] = jnp.sum(
+            schedule.k_i_cart[:, :2] ** 2, axis=-1
+        )
+        normal_sq: Float64[Array, "4 8"] = (
+            schedule.final_norm[None, :] ** 2 - parallel_sq[:, None]
+        )
+        emission_valid: Array = schedule.emission_energy_valid[None, :] & (
+            normal_sq > 0.0
+        )
+        mask: Array = k_valid[:, None] & omega_valid[None, :] & emission_valid
+        safe_normal_sq: Float64[Array, "4 8"] = jnp.where(mask, normal_sq, 1.0)
+        final_kz: Float64[Array, "4 8"] = jnp.where(
+            mask, jnp.sqrt(safe_normal_sq), 0.0
+        )
+        k_f_cart: Float64[Array, "4 8 3"] = jnp.stack(
+            (
+                jnp.broadcast_to(
+                    schedule.k_i_cart[:, 0, None], final_kz.shape
+                ),
+                jnp.broadcast_to(
+                    schedule.k_i_cart[:, 1, None], final_kz.shape
+                ),
+                final_kz,
+            ),
+            axis=-1,
         )
         sources: Complex128[Array, "4 8 n_out 2"] = (
             spectral._transition_sources_for_block(
                 schedule,
                 schedule.k_i_cart,
-                schedule.k_f_cart,
+                k_f_cart,
                 mask,
             )
         )

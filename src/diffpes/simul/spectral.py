@@ -2866,19 +2866,20 @@ def assemble_spectral_intensity_bands_chunk(  # noqa: DOC502 -- traced guards.
 class _TransitionSourceSchedule(eqx.Module):
     """PRIVATE: Store traced Plan-06 inputs for block-local source assembly.
 
-    The carrier contains kinematics and energy-independent matrix-element
-    state, never a precomputed ``(K, E, B)`` transition tensor. The streamed
-    driver slices the padded kinematics and constructs source kets only for
-    the live ``(k_chunk, omega_chunk)`` block.
+    The carrier contains compact Plan-03 kinematics and energy-independent
+    matrix-element state, never a precomputed ``(K, E, 3)`` final-momentum or
+    ``(K, E, B)`` transition tensor. The streamed driver reconstructs final
+    momenta and source kets only for the live
+    ``(k_chunk, omega_chunk)`` block.
 
     Attributes
     ----------
     k_i_cart : Float64[Array, "n_k_max 3"]
         Initial sample-frame crystal momenta in inverse Angstrom.
-    k_f_cart : Float64[Array, "n_k_max n_omega_max 3"]
-        Explicit vacuum final momenta from the Plan-03 kinematic seam.
-    emission_valid : Bool[Array, "n_k_max n_omega_max"]
-        Physical emission mask paired with ``k_f_cart``.
+    final_norm : Float64[Array, "n_omega_max"]
+        Vacuum final-momentum magnitude for each sampled energy.
+    emission_energy_valid : Bool[Array, "n_omega_max"]
+        Positive kinetic-energy and final-state-momentum mask.
     positions_cart : Float64[Array, "n_orb 3"]
         Orbital or Wannier centres in Cartesian Angstrom.
     depths : Float64[Array, "n_orb"]
@@ -2898,8 +2899,8 @@ class _TransitionSourceSchedule(eqx.Module):
     """
 
     k_i_cart: Float64[Array, "n_k_max 3"]
-    k_f_cart: Float64[Array, "n_k_max n_omega_max 3"]
-    emission_valid: Bool[Array, "n_k_max n_omega_max"]
+    final_norm: Float64[Array, " n_omega_max"]
+    emission_energy_valid: Bool[Array, " n_omega_max"]
     positions_cart: Float64[Array, "n_orb 3"]
     depths: Float64[Array, " n_orb"]
     polarization_sample_cart: Complex128[Array, " 3"]
@@ -2926,8 +2927,8 @@ def _validate_transition_source_schedule(
     """
     if (
         schedule.k_i_cart.shape != (n_k_max, 3)
-        or schedule.k_f_cart.shape != (n_k_max, n_omega_max, 3)
-        or schedule.emission_valid.shape != (n_k_max, n_omega_max)
+        or schedule.final_norm.shape != (n_omega_max,)
+        or schedule.emission_energy_valid.shape != (n_omega_max,)
         or schedule.positions_cart.shape != (n_orb, 3)
         or schedule.depths.shape != (n_orb,)
         or schedule.polarization_sample_cart.shape != (3,)
@@ -3135,6 +3136,17 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         n_omega_max=n_omega_max,
         n_orb=n_orb,
     )
+    checked_final_norm: Float64[Array, " n_omega_max"] = eqx.error_if(
+        transition_schedule.final_norm,
+        ~jnp.all(jnp.isfinite(transition_schedule.final_norm))
+        | jnp.any(transition_schedule.final_norm < 0.0)
+        | jnp.any(
+            transition_schedule.emission_energy_valid
+            & (transition_schedule.final_norm == 0.0)
+        ),
+        "streamed final-momentum magnitudes must be finite and nonnegative; "
+        "active magnitudes must be strictly positive",
+    )
     if n_k_max % k_chunk:
         raise ValueError("k_chunk must divide the padded k axis")
     if n_omega_max % omega_chunk:
@@ -3151,23 +3163,17 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         transition_schedule.k_i_cart,
         (n_k_blocks, k_chunk, 3),
     )
-    final_blocks: Float64[
-        Array, "n_k_block n_omega_block k_chunk omega_chunk 3"
-    ] = jnp.transpose(
+    final_norm_blocks: Float64[Array, "n_omega_block omega_chunk"] = (
         jnp.reshape(
-            transition_schedule.k_f_cart,
-            (n_k_blocks, k_chunk, n_omega_blocks, omega_chunk, 3),
-        ),
-        (0, 2, 1, 3, 4),
+            checked_final_norm,
+            (n_omega_blocks, omega_chunk),
+        )
     )
-    emission_blocks: Bool[
-        Array, "n_k_block n_omega_block k_chunk omega_chunk"
-    ] = jnp.transpose(
+    emission_energy_blocks: Bool[Array, "n_omega_block omega_chunk"] = (
         jnp.reshape(
-            transition_schedule.emission_valid,
-            (n_k_blocks, k_chunk, n_omega_blocks, omega_chunk),
-        ),
-        (0, 2, 1, 3),
+            transition_schedule.emission_energy_valid,
+            (n_omega_blocks, omega_chunk),
+        )
     )
     omega_blocks: Float64[Array, "n_omega_block omega_chunk"] = jnp.reshape(
         omega_rel_fermi_ev,
@@ -3185,11 +3191,45 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
     def assemble_block(
         hamiltonian_block: Complex128[Array, "k_chunk n_orb n_orb"],
         k_i_block: Float64[Array, "k_chunk 3"],
-        k_f_block: Float64[Array, "k_chunk omega_chunk 3"],
-        valid_block: Bool[Array, "k_chunk omega_chunk"],
+        final_norm_block: Float64[Array, " omega_chunk"],
+        emission_energy_block: Bool[Array, " omega_chunk"],
+        k_mask: Bool[Array, " k_chunk"],
+        omega_mask: Bool[Array, " omega_chunk"],
         omega_block: Float64[Array, " omega_chunk"],
     ) -> Float64[Array, "k_chunk omega_chunk"]:
-        """Build sources, solve, and spin-reduce one live block."""
+        """Compute one live block from reconstructed kinematics and solves."""
+        parallel_sq: Float64[Array, " k_chunk"] = jnp.sum(
+            k_i_block[:, :2] * k_i_block[:, :2], axis=-1
+        )
+        normal_sq: Float64[Array, "k_chunk omega_chunk"] = (
+            final_norm_block[None, :] * final_norm_block[None, :]
+            - parallel_sq[:, None]
+        )
+        emission_valid: Bool[Array, "k_chunk omega_chunk"] = (
+            emission_energy_block[None, :] & (normal_sq > 0.0)
+        )
+        valid_block: Bool[Array, "k_chunk omega_chunk"] = (
+            k_mask[:, None] & omega_mask[None, :] & emission_valid
+        )
+        safe_normal_sq: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
+            valid_block,
+            normal_sq,
+            1.0,
+        )
+        final_kz: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
+            valid_block,
+            jnp.sqrt(safe_normal_sq),
+            0.0,
+        )
+        final_kx: Float64[Array, "k_chunk omega_chunk"] = jnp.broadcast_to(
+            k_i_block[:, 0, None], final_kz.shape
+        )
+        final_ky: Float64[Array, "k_chunk omega_chunk"] = jnp.broadcast_to(
+            k_i_block[:, 1, None], final_kz.shape
+        )
+        k_f_block: Float64[Array, "k_chunk omega_chunk 3"] = jnp.stack(
+            (final_kx, final_ky, final_kz), axis=-1
+        )
         sources: Complex128[Array, "k_chunk omega_chunk n_spin n_orb"] = (
             _transition_sources_for_block(
                 transition_schedule,
@@ -3225,8 +3265,6 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         arguments: Tuple[
             Complex128[Array, "k_chunk n_orb n_orb"],
             Float64[Array, "k_chunk 3"],
-            Float64[Array, "n_omega_block k_chunk omega_chunk 3"],
-            Bool[Array, "n_omega_block k_chunk omega_chunk"],
             Bool[Array, " k_chunk"],
         ],
     ) -> Tuple[
@@ -3236,14 +3274,10 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         """Stream every energy block for one k block."""
         hamiltonian_block: Complex128[Array, "k_chunk n_orb n_orb"]
         k_i_block: Float64[Array, "k_chunk 3"]
-        final_for_k: Float64[Array, "n_omega_block k_chunk omega_chunk 3"]
-        emission_for_k: Bool[Array, "n_omega_block k_chunk omega_chunk"]
         k_mask: Bool[Array, " k_chunk"]
         (
             hamiltonian_block,
             k_i_block,
-            final_for_k,
-            emission_for_k,
             k_mask,
         ) = arguments
 
@@ -3251,25 +3285,29 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
             inner_carry: None,
             inner_arguments: Tuple[
                 Float64[Array, " omega_chunk"],
-                Float64[Array, "k_chunk omega_chunk 3"],
-                Bool[Array, "k_chunk omega_chunk"],
+                Float64[Array, " omega_chunk"],
+                Bool[Array, " omega_chunk"],
                 Bool[Array, " omega_chunk"],
             ],
         ) -> Tuple[None, Float64[Array, "k_chunk omega_chunk"]]:
             """Construct, assemble, and mask one omega block."""
             omega_block: Float64[Array, " omega_chunk"]
-            k_f_block: Float64[Array, "k_chunk omega_chunk 3"]
-            emission_mask: Bool[Array, "k_chunk omega_chunk"]
+            final_norm_block: Float64[Array, " omega_chunk"]
+            emission_energy_block: Bool[Array, " omega_chunk"]
             omega_mask: Bool[Array, " omega_chunk"]
-            omega_block, k_f_block, emission_mask, omega_mask = inner_arguments
-            valid_block: Bool[Array, "k_chunk omega_chunk"] = (
-                k_mask[:, None] & omega_mask[None, :] & emission_mask
-            )
+            (
+                omega_block,
+                final_norm_block,
+                emission_energy_block,
+                omega_mask,
+            ) = inner_arguments
             values: Float64[Array, "k_chunk omega_chunk"] = block_function(
                 hamiltonian_block,
                 k_i_block,
-                k_f_block,
-                valid_block,
+                final_norm_block,
+                emission_energy_block,
+                k_mask,
+                omega_mask,
                 omega_block,
             )
             result: Tuple[None, Float64[Array, "k_chunk omega_chunk"]] = (
@@ -3284,8 +3322,8 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
             None,
             (
                 omega_blocks,
-                final_for_k,
-                emission_for_k,
+                final_norm_blocks,
+                emission_energy_blocks,
                 omega_mask_blocks,
             ),
         )
@@ -3302,8 +3340,6 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         (
             hamiltonian_blocks,
             initial_blocks,
-            final_blocks,
-            emission_blocks,
             k_mask_blocks,
         ),
     )

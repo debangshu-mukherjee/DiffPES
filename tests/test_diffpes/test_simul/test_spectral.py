@@ -35,10 +35,12 @@ from types import ModuleType
 from typing import Any, Callable
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from absl.testing import parameterized
 from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
@@ -4018,23 +4020,13 @@ class TestStreamSpectralIntensity(chex.TestCase):
             ),
             axis=-1,
         )
-        final_z: Float64[Array, "4 8"] = (
-            1.1
-            + 0.01 * jnp.arange(4, dtype=jnp.float64)[:, None]
-            + 0.02 * jnp.arange(8, dtype=jnp.float64)[None, :]
-        )
-        k_f: Float64[Array, "4 8 3"] = jnp.stack(
-            (
-                jnp.broadcast_to(k_i[:, 0, None], final_z.shape),
-                jnp.zeros_like(final_z),
-                final_z,
-            ),
-            axis=-1,
+        final_norm: Float64[Array, " 8"] = 1.1 + 0.02 * jnp.arange(
+            8, dtype=jnp.float64
         )
         schedule: Any = spectral._TransitionSourceSchedule(
             k_i_cart=k_i,
-            k_f_cart=k_f,
-            emission_valid=jnp.ones((4, 8), dtype=jnp.bool_),
+            final_norm=final_norm,
+            emission_energy_valid=jnp.ones(8, dtype=jnp.bool_),
             positions_cart=jnp.asarray([[0.0, 0.0, 0.0], [0.23, 0.07, 0.02]]),
             depths=jnp.asarray([0.0, 0.4]),
             polarization_sample_cart=jnp.asarray(
@@ -4185,3 +4177,157 @@ class TestStreamSpectralIntensity(chex.TestCase):
         )
         jax.block_until_ready((first, second))
         assert trace_count[0] == 1
+
+    def test_block_local_aperture_masks_column_and_gradients(self) -> None:
+        """Verify exact masking outside the vacuum aperture.
+
+        The check targets one energy-valid physical column.
+
+        Notes
+        -----
+        The planted final-state magnitude is smaller than every live
+        in-plane momentum. The streamed block derives the aperture mask
+        locally. It returns exact zeros for the physical column and both
+        complete gradients.
+        """
+        import diffpes.simul.spectral as spectral
+
+        hamiltonians: Complex128[Array, "4 2 2"]
+        schedule: Any
+        omega: Float64[Array, " 8"]
+        k_valid: Array
+        omega_valid: Array
+        model: SelfEnergyModel
+        hamiltonians, schedule, omega, k_valid, omega_valid, model = (
+            self._fixture()
+        )
+        aperture_column: int = 2
+        planted_norms: Float64[Array, " 8"] = schedule.final_norm.at[
+            aperture_column
+        ].set(0.05)
+        planted_schedule: Any = eqx.tree_at(
+            lambda item: item.final_norm,
+            schedule,
+            planted_norms,
+        )
+        assert bool(planted_schedule.emission_energy_valid[aperture_column])
+        assert bool(
+            jnp.all(
+                planted_norms[aperture_column]
+                < jnp.linalg.norm(
+                    planted_schedule.k_i_cart[k_valid, :2], axis=-1
+                )
+            )
+        )
+
+        def streamed(
+            candidate_hamiltonians: Complex128[Array, "4 2 2"],
+            candidate_norms: Float64[Array, " 8"],
+        ) -> Float64[Array, "4 8"]:
+            """Evaluate one compact schedule with dynamic final norms."""
+            candidate_schedule: Any = eqx.tree_at(
+                lambda item: item.final_norm,
+                planted_schedule,
+                candidate_norms,
+            )
+            return spectral._stream_spectral_intensity(
+                candidate_hamiltonians,
+                omega,
+                k_valid,
+                omega_valid,
+                candidate_schedule,
+                model,
+                jnp.asarray(0.03),
+                20.0,
+                1.0e-4,
+                k_chunk=2,
+                omega_chunk=4,
+                checkpoint=True,
+            )
+
+        values: Float64[Array, "4 8"] = streamed(hamiltonians, planted_norms)
+
+        def column_loss(
+            candidate_hamiltonians: Complex128[Array, "4 2 2"],
+            candidate_norms: Float64[Array, " 8"],
+        ) -> Float64[Array, ""]:
+            """Reduce only the planted outside-aperture column."""
+            return jnp.sum(
+                streamed(candidate_hamiltonians, candidate_norms)[
+                    :, aperture_column
+                ]
+            )
+
+        hamiltonian_gradient: Complex128[Array, "4 2 2"]
+        norm_gradient: Float64[Array, " 8"]
+        hamiltonian_gradient, norm_gradient = jax.grad(
+            column_loss,
+            argnums=(0, 1),
+        )(hamiltonians, planted_norms)
+        assert bool(jnp.all(values[:, aperture_column] == 0.0))
+        assert bool(jnp.all(hamiltonian_gradient == 0.0))
+        assert bool(jnp.all(norm_gradient == 0.0))
+
+    @parameterized.named_parameters(
+        ("nan", np.nan),
+        ("zero", 0.0),
+        ("negative", -0.1),
+    )
+    def test_active_final_momentum_magnitude_rejects(
+        self,
+        invalid_norm: float,
+    ) -> None:
+        """Reject invalid active final-state magnitudes eagerly and in JIT.
+
+        The case covers nonfinite, zero, and negative active magnitudes.
+
+        Notes
+        -----
+        The compact carrier permits a zero sentinel only when its paired
+        physical-energy mask is false. Validation rejects nonfinite, negative,
+        and active-zero magnitudes instead of treating them as absent emission.
+        """
+        import diffpes.simul.spectral as spectral
+
+        hamiltonians: Complex128[Array, "4 2 2"]
+        schedule: Any
+        omega: Float64[Array, " 8"]
+        k_valid: Array
+        omega_valid: Array
+        model: SelfEnergyModel
+        hamiltonians, schedule, omega, k_valid, omega_valid, model = (
+            self._fixture()
+        )
+
+        def streamed(
+            candidate_norms: Float64[Array, " 8"],
+        ) -> Float64[Array, "4 8"]:
+            """Evaluate one schedule with candidate final magnitudes."""
+            candidate_schedule: Any = eqx.tree_at(
+                lambda item: item.final_norm,
+                schedule,
+                candidate_norms,
+            )
+            return spectral._stream_spectral_intensity(
+                hamiltonians,
+                omega,
+                k_valid,
+                omega_valid,
+                candidate_schedule,
+                model,
+                jnp.asarray(0.03),
+                20.0,
+                1.0e-4,
+                k_chunk=2,
+                omega_chunk=4,
+                checkpoint=True,
+            )
+
+        planted_norms: Float64[Array, " 8"] = schedule.final_norm.at[0].set(
+            invalid_norm
+        )
+        assert_rejects(
+            streamed,
+            planted_norms,
+            match="final-momentum|finite|nonnegative|strictly positive",
+        )

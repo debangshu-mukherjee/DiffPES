@@ -75,7 +75,6 @@ import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
 from beartype.typing import Callable, Dict, Tuple
-from jax.tree_util import PyTreeDef
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -94,6 +93,7 @@ from diffpes.types import (
     FinalStateSpec,
     MatrixElementParams,
     OrbitalBasis,
+    PyTreeDef,
     RadialQuadratureSpec,
     RadialSpec,
 )

@@ -14,6 +14,7 @@ from diffpes.types import (
     KGrid,
     KPath,
     KPathInfo,
+    PyTreeDef,
     make_kgrid,
     make_kpath,
     make_kpath_info,
@@ -197,7 +198,7 @@ class TestKPath:
             kz=0.4,
         )
         leaves: list[Array]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree.flatten(kpath)
         restored: KPath = jax.tree.unflatten(tree, leaves)
 

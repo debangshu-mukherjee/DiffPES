@@ -24,13 +24,11 @@ from diffpes.types import (
     DiagonalizedBands,
     OrbitalBasis,
     OrbitalProjection,
-    SimulationParams,
     TBModel,
     make_band_structure,
     make_crystal_geometry,
     make_orbital_basis,
     make_orbital_projection,
-    make_simulation_params,
     make_tb_model,
 )
 from diffpes.types.aliases import ScalarFloat
@@ -378,25 +376,6 @@ def toy_orbital_projection(
     )
     _assert_finite(orbital_projection)
     return orbital_projection
-
-
-@jaxtyped(typechecker=beartype)
-def toy_simulation_params(fidelity: int = 512) -> SimulationParams:
-    """Build fixed simulation parameters.
-
-    Uses an energy window of [-3, 0.5] eV, 40 meV Gaussian resolution,
-    and 100 meV Lorentzian width. These analytical fixture values require no
-    random seed.
-    """
-    params: SimulationParams = make_simulation_params(
-        energy_min=-3.0,
-        energy_max=0.5,
-        fidelity=fidelity,
-        sigma=0.04,
-        gamma=0.1,
-    )
-    _assert_finite(params)
-    return params
 
 
 @jaxtyped(typechecker=beartype)

@@ -37,13 +37,12 @@ from tests._factories import (
     toy_chain_diagonalized,
     toy_graphene_diagonalized,
     toy_orbital_projection,
-    toy_simulation_params,
 )
+from diffpes.types import PyTreeDef
 from diffpes.types import (
     BandStructure,
     DiagonalizedBands,
     OrbitalProjection,
-    SimulationParams,
     TBModel,
 )
 
@@ -189,7 +188,6 @@ class TestHelpers:
             n_bands=3,
             n_atoms=2,
         )
-        simulation: SimulationParams = toy_simulation_params(fidelity=64)
         graphene_model: TBModel
         graphene_bands: DiagonalizedBands
         graphene_model, graphene_bands = toy_graphene_diagonalized(n_k=6)
@@ -199,7 +197,6 @@ class TestHelpers:
         all_carriers: Tuple[object, ...] = (
             bands,
             projections,
-            simulation,
             graphene_model,
             graphene_bands,
             chain_model,
@@ -208,7 +205,6 @@ class TestHelpers:
 
         assert isinstance(bands, BandStructure)
         assert isinstance(projections, OrbitalProjection)
-        assert isinstance(simulation, SimulationParams)
         assert isinstance(graphene_model, TBModel)
         assert isinstance(graphene_bands, DiagonalizedBands)
         assert isinstance(chain_model, TBModel)
@@ -516,6 +512,110 @@ class TestRepositoryArchitecture(chex.TestCase):
         self.assertTrue(
             (reference_tools / "verify_coulomb_reference.py").is_file()
         )
+
+    def test_detector_zero_legacy_surface_is_absent(self) -> None:
+        """Keep retired tier, resolution, and parameter APIs out of live source.
+
+        The witness checks exact deleted module paths, every former six-tier
+        assembler and expanded dispatcher symbol, ``SimulationParams``
+        consumers, and live ``tier``/``fidelity`` identifiers. It inspects
+        production ASTs and literal public exports, so historical changelog and
+        frozen reference prose remain valid evidence rather than false positives.
+
+        Notes
+        -----
+        Live production syntax forbids exact string-tier literals only.
+        Docstrings can record the legacy-surface removal.
+        """
+        source_root: Path = Path(__file__).resolve().parents[1] / "src/diffpes"
+        deleted_paths: Tuple[Path, ...] = (
+            Path("simul/expanded.py"),
+            Path("simul/forward.py"),
+            Path("simul/resolution.py"),
+            Path("types/params.py"),
+        )
+        forbidden_symbols: frozenset[str] = frozenset(
+            {
+                "SimulationParams",
+                "apply_momentum_broadening",
+                "make_expanded_simulation_params",
+                "make_simulation_params",
+                "simulate_advanced",
+                "simulate_advanced_expanded",
+                "simulate_basic",
+                "simulate_basic_expanded",
+                "simulate_basicplus",
+                "simulate_basicplus_expanded",
+                "simulate_context",
+                "simulate_expanded",
+                "simulate_expert",
+                "simulate_expert_expanded",
+                "simulate_novice",
+                "simulate_novice_expanded",
+                "simulate_soc",
+                "simulate_soc_expanded",
+                "simulate_tb_radial",
+            }
+        )
+        tier_literals: frozenset[str] = frozenset(
+            {"advanced", "basic", "basicplus", "expert", "novice", "soc"}
+        )
+        violations: set[str] = {
+            f"live deleted path: {relative_path}"
+            for relative_path in deleted_paths
+            if (source_root / relative_path).exists()
+        }
+        path: Path
+        module: ast.Module
+        for path, module in self._production_modules():
+            relative_path: Path = path.relative_to(source_root)
+            stale_exports: set[str] = (
+                self._literal_exports(module) & forbidden_symbols
+            )
+            if stale_exports:
+                violations.add(
+                    f"{relative_path}: stale public exports "
+                    f"{sorted(stale_exports)}"
+                )
+            node: ast.AST
+            for node in ast.walk(module):
+                symbol: str | None = None
+                if isinstance(node, ast.Name):
+                    symbol = node.id
+                elif isinstance(node, ast.Attribute):
+                    symbol = node.attr
+                elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                    symbol = node.name
+                elif isinstance(node, ast.arg):
+                    symbol = node.arg
+                elif isinstance(node, ast.keyword):
+                    symbol = node.arg
+                elif isinstance(node, ast.alias):
+                    symbol = (
+                        node.asname or node.name.rsplit(".", maxsplit=1)[-1]
+                    )
+                if symbol in forbidden_symbols or symbol in {
+                    "fidelity",
+                    "tier",
+                }:
+                    violations.add(
+                        f"{relative_path}:{getattr(node, 'lineno', 0)}:"
+                        f"retired symbol {symbol}"
+                    )
+                if (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and (
+                        node.value in forbidden_symbols
+                        or node.value in tier_literals
+                        or node.value in {"fidelity", "tier"}
+                    )
+                ):
+                    violations.add(
+                        f"{relative_path}:{node.lineno}:"
+                        f"retired dispatch literal {node.value}"
+                    )
+        self.assertEqual(sorted(violations), [])
 
     @staticmethod
     def _production_modules() -> Tuple[Tuple[Path, ast.Module], ...]:
@@ -2728,11 +2828,11 @@ class TestStack(chex.TestCase):
             "scalar",
             key=jax.random.PRNGKey(0),
         )
-        flattened: Tuple[list[Array], jax.tree_util.PyTreeDef] = (
-            jax.tree_util.tree_flatten(linear_module)
+        flattened: Tuple[list[Array], PyTreeDef] = jax.tree_util.tree_flatten(
+            linear_module
         )
         leaves: list[Array]
-        tree_definition: jax.tree_util.PyTreeDef
+        tree_definition: PyTreeDef
         leaves, tree_definition = flattened
         reconstructed: eqx.Module = jax.tree_util.tree_unflatten(
             tree_definition,

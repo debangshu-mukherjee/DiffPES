@@ -4,6 +4,47 @@
     {
       "convention_refs": [],
       "evidence_ids": [
+        "org.diffpes.evidence.detector.resolution.sampled_scipy_parity",
+        "org.diffpes.evidence.detector.resolution.finite_volume_energy",
+        "org.diffpes.evidence.detector.resolution.finite_volume_angular",
+        "org.diffpes.evidence.detector.resolution.finite_volume_path",
+        "org.diffpes.evidence.detector.manufactured.source_cube",
+        "org.diffpes.evidence.detector.manufactured.complete_chain",
+        "org.diffpes.evidence.detector.chinook.compatibility",
+        "org.diffpes.evidence.detector.slicer.interpolation",
+        "org.diffpes.evidence.detector.map.signed_permutation_boundary_seams",
+        "org.diffpes.evidence.detector.map.general_rotation_strict_enclosure",
+        "org.diffpes.evidence.detector.acquisition.moments",
+        "org.diffpes.evidence.detector.transmission.fixed_domain",
+        "org.diffpes.evidence.detector.derivative.resolution_widths",
+        "org.diffpes.evidence.detector.derivative.source_temperature",
+        "org.diffpes.evidence.detector.derivative.source_geometry",
+        "org.diffpes.evidence.detector.derivative.slicer_queries",
+        "org.diffpes.evidence.detector.derivative.transmission_coefficients",
+        "org.diffpes.evidence.detector.derivative.effects_parameters",
+        "org.diffpes.evidence.detector.derivative.coordinate_map_enclosed_interior",
+        "org.diffpes.evidence.detector.scaling.driver_memory",
+        "org.diffpes.evidence.detector.scaling.rematerialization",
+        "org.diffpes.evidence.detector.scaling.compile_count",
+        "org.diffpes.evidence.detector.scaling.vmap",
+        "org.diffpes.evidence.detector.counterexample.battery",
+        "org.diffpes.evidence.detector.lifecycle.zero_legacy",
+        "org.diffpes.evidence.detector.lifecycle.documentation_wall",
+        "org.diffpes.evidence.detector.handoff.spectral",
+        "org.diffpes.evidence.detector.driver.coherent_composition"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.detector",
+      "transformation_refs": [
+        "org.diffpes.transform.detector.source_density_map@1.0.0",
+        "org.diffpes.transform.instrument.transmission_fixed_domain@1.0.0",
+        "org.diffpes.transform.instrument.native_detector_resolution@1.0.0",
+        "org.diffpes.transform.detector.expected_counts@1.0.0"
+      ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
         "org.diffpes.evidence.kspace.graphene.closed_form",
         "org.diffpes.evidence.kspace.damascelli.kinematics",
         "org.diffpes.evidence.kspace.chinook.kz",
@@ -198,7 +239,23 @@
       "transformation_version": "1.0.0"
     },
     {
+      "transformation_id": "org.diffpes.transform.detector.expected_counts",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.detector.source_density_map",
+      "transformation_version": "1.0.0"
+    },
+    {
       "transformation_id": "org.diffpes.transform.geometry.detector_axis_to_sample",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.instrument.native_detector_resolution",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.instrument.transmission_fixed_domain",
       "transformation_version": "1.0.0"
     },
     {

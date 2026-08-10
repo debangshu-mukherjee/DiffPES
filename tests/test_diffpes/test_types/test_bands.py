@@ -20,6 +20,7 @@ from diffpes.types import (
     DetectorCalibration,
     DetectorRaster,
     OrbitalProjection,
+    PyTreeDef,
     SpinBandStructure,
     SpinOrbitalProjection,
     constant_energy_map,
@@ -89,7 +90,7 @@ class TestBandStructure:
             fermi_energy=-0.5,
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: BandStructure = jax.tree_util.tree_unflatten(tree, leaves)
 
@@ -151,7 +152,7 @@ class TestSpinOrbitalProjection:
             oam=jnp.full((2, 3, 1, 3), 0.5),
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(projection)
         restored: SpinOrbitalProjection = jax.tree_util.tree_unflatten(
             tree, leaves
@@ -191,7 +192,7 @@ class TestSpinBandStructure:
             fermi_energy=-1.0,
         )
         leaves: list[object]
-        tree: jax.tree_util.PyTreeDef
+        tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: SpinBandStructure = jax.tree_util.tree_unflatten(
             tree, leaves

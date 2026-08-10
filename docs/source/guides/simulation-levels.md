@@ -79,12 +79,35 @@ length, every Cartesian path vector, and the registered sample-frame ID.
 `ArpesCube` carries source-coordinate intensity on Cartesian $k_x$, $k_y$,
 and energy axes. Neither carrier is a detector raster.
 
-Plan 08a remains under construction. Its effects API converts an already
-mapped detector density into expected counts. The canonical driver still
-needs to map coherent source spectra into `DetectorCalibration` bins. It also
-needs to apply native resolution and transmission before returning a
-`DetectorRaster`. Diffpes intentionally exposes no end-to-end level-string or
-projection-probability compatibility workflow.
+`simulate_arpes` and `simulate_arpes_cut` are the canonical typed drivers.
+They build coherent physical source carriers from explicit Hamiltonians,
+matrix-element state, and causal self-energy state. The shared detector chain
+maps every source domain into explicit `DetectorCalibration` bins. It mixes
+domains in detector space, applies transmission and native resolution, and
+returns expected counts as a `DetectorRaster`.
+Diffpes intentionally exposes no level-string or projection-probability
+compatibility workflow.
+
+Domain angles use the active right-handed z-y-z convention. The complete
+sample-to-laboratory rotation applies sample azimuth after the domain
+rotation. Cube targets that cross source-support faces are accepted only when
+the projected map is signed diagonal or antidiagonal. A general projected
+rotation must keep the complete inverse target strictly inside every source
+exterior face. Otherwise, eager and compiled calls reject it. Gradients for a
+general rotation cover only that fixed, smoothly enclosed chart.
+
+An `ArpesSpectrum` is a line density already integrated over one declared
+transverse slit aperture. Its forward `u` coordinate must be strictly
+monotone. Its path must stay inside the single `v` bin. The conservative map
+includes `abs(ds/du)` divided by that aperture width. A general path is never
+promoted to an unstated two-dimensional density.
+
+The frozen RM-2 Chinook fixture is deliberately narrower than this production
+surface. It authenticates one complete `241 x 601` single-kz cut and applies a
+test-only adapter that matches Chinook's sampled Gaussian response to a shared
+pre-resolution input. This is K-only response compatibility: the production
+long-tail helper is diagnostic, and the comparison makes no source-assembly,
+detector-ordering, conservation, or absolute-scale claim.
 
 ## Choosing an Interface
 
@@ -93,8 +116,10 @@ projection-probability compatibility workflow.
 - Use the eigen path only with gauge-invariant band weights and a justified
   isolated-band/group regime.
 - Use `evaluate_self_energy` for every causal linewidth model.
-- Use `load_vasp_context` and `prepare_projection` only as input-boundary
-  helpers; they do not assemble a physical spectrum.
+- Use `load_vasp_context` and `prepare_projection` for input-boundary work.
+- Use `run_vasp_workflow` only with an explicit phase-complete Hamiltonian and
+  the complete coherent driver carriers. Parsed PROCAR weights remain
+  phase-dead metadata.
 
 See [Matrix Elements and Polarization](matrix-elements-and-polarization.md)
 for the amplitude convention,
