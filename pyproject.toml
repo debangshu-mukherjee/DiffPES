@@ -34,10 +34,10 @@ dependencies = [
     "matplotlib>=3.10.0",
     "jax>=0.7.0",
     "jaxtyping>=0.3.0",
-    "chex>=0.1.85",
+    "chex>=0.1.89",
     "beartype>=0.21.0",
     "jupyter>=1.1.1",
-    "ipykernel>=7.2.0",
+    "ipykernel>=6.29.5",
     "h5py>=3.15.1",
     "equinox>=0.13.8",
     "optimistix>=0.1.0",
@@ -96,7 +96,7 @@ all = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.10.4,<0.11.0"]
+requires = ["uv_build>=0.10.4,<0.13.0"]
 build-backend = "uv_build"
 
 [[tool.uv.index]]
