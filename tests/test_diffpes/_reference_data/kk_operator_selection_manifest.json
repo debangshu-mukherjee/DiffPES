@@ -91,21 +91,21 @@
       },
       "archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
       "directory": "tests/test_diffpes/_reference_data/kk_analytic_reference",
-      "generator_sha256": "e54510e7dfa8663fbed959af0eee118170c1339b7124c8d73ca4d4b0c8dc4b59",
+        "generator_sha256": "0ab039848e5d16d4e8a540fdb17467754159cf97e567bde3dc3ba0794d3dcec1",
       "manifest_recorded_archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
-      "manifest_sha256": "cf0ddb484727102a65c4bf88d742c11334ca03cec1e010422ea6ffc19aefa7be"
+        "manifest_sha256": "1c08269c503871c367d7610fd927d0a6d8f4b93012458be1e43e611f1d0f81a8"
     },
     "common": {
       "path": "tests/_reference_tools/_kk_candidate_common.py",
-      "sha256": "f6af92d4ea7b16cc020b894637e9ce4feecb7dcde8926c1026c6928dee2e5517"
+      "sha256": "df2ecd4cd002e2e2da179ac4c8a0f663ddbf2f91ff3d8c6bd21c02addfc4de6e"
     },
     "generator": {
       "path": "tests/_reference_tools/generate_kk_operator_selection.py",
-      "sha256": "239543b12c5c3ea46cbc4b579f1fd062c0183328d9dc379cbe67cbcd689307c7"
+      "sha256": "336d7e5f04533491f51b6fbed1abb1b1fde8f872403918bea847761b2671a6b8"
     },
     "maclaurin_control": {
       "path": "tests/_reference_tools/_kk_control_opposite_parity_maclaurin.py",
-      "sha256": "77eaec4ef9898b0b8abc372065a14353f6fb6e4ff6a3377c6436e62b1b8f53e3"
+      "sha256": "a02a72244c6c64a265a97bca05689f9033f80ea10099a1b702e148dc086e6775"
     },
     "piecewise_cubic": {
       "path": "tests/_reference_tools/_kk_candidate_piecewise_cubic.py",

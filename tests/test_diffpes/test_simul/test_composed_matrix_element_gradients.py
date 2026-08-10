@@ -234,9 +234,9 @@ def _generic_channels(
 
     Notes
     -----
-    Fixes one initial and one final momentum in 1/Angstrom, generic
-    complex radial branch values with the s lower branch zero, and
-    depths 0.4 to 3.4 Angstrom.
+    Fixes one initial and one final momentum in 1/Angstrom. Uses generic
+    complex radial branches with the s lower branch zero. Uses depths
+    from 0.4 to 3.4 Angstrom.
     """
     basis: OrbitalBasis = _basis()
     resolved_positions: Float64[Array, "4 3"] = (

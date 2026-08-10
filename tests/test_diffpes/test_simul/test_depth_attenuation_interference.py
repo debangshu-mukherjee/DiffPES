@@ -81,9 +81,9 @@ def _two_s_channels(
 
     Notes
     -----
-    Shares one complex value on the l+1 radial branch of both orbitals,
-    so the two rows differ only through the position, depth, and
-    momentum factors.
+    Shares one complex l+1 radial value between both orbitals. The two
+    rows therefore differ only through position, depth, and momentum
+    factors.
     """
     basis: OrbitalBasis = _two_s_basis()
     params: MatrixElementParams = make_matrix_element_params(basis, (0, 1))
@@ -258,10 +258,9 @@ def _displaced_bands() -> Tuple[
 
     Implementation Logic
     --------------------
-    Builds a generic triclinic cell in Angstrom with two fractional
-    sites, displaces the orbital centre of the second site by a fixed
-    fractional offset, and attaches the two-s basis so only the
-    explicit centre differs from the host atom position.
+    Builds a generic triclinic cell with two fractional sites. Displaces
+    the second orbital centre by a fixed fractional offset. Attaches the
+    two-s basis so only the explicit centre differs from its host atom.
     """
     basis: OrbitalBasis = _two_s_basis()
     geometry: CrystalGeometry = make_crystal_geometry(

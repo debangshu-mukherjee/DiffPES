@@ -25,6 +25,8 @@ recursive numerical children and their orbital basis as static metadata
 without carrier-specific serialization rules.
 Files predating tight-binding depth metadata load absent ``depths`` datasets
 as the bulk sentinel ``None``.
+Files with the retired two-field ``ArpesSpectrum`` schema fail explicitly.
+No safe rule reconstructs their missing Cartesian path geometry.
 """
 
 import json
@@ -45,10 +47,14 @@ from diffpes.types import (
     ATTR_AUX,
     ATTR_NONE,
     ATTR_TYPE,
+    ArpesCube,
     ArpesSpectrum,
     BandStructure,
     CrystalGeometry,
     DensityOfStates,
+    DetectorCalibration,
+    DetectorEffects,
+    DetectorRaster,
     DiagonalizedBands,
     ExperimentGeometry,
     FinalStateSpec,
@@ -91,11 +97,15 @@ def _pytree_classes() -> Tuple[type[eqx.Module], ...]:
     carrier means listing it here.
     """
     classes: Tuple[type[eqx.Module], ...] = (
+        ArpesCube,
         ArpesSpectrum,
         BandStructure,
         CrystalGeometry,
         DensityOfStates,
         DiagonalizedBands,
+        DetectorCalibration,
+        DetectorEffects,
+        DetectorRaster,
         ExperimentGeometry,
         FullDensityOfStates,
         KGrid,
@@ -625,6 +635,8 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
         If ``name`` identifies no group in the file.
     TypeError
         If a group's ``_pytree_type`` is not in the registry.
+    ValueError
+        If an old ``ArpesSpectrum`` group lacks its Cartesian path geometry.
     """
     f: h5py.File
     group_name: str
@@ -662,6 +674,8 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
         ------
         TypeError
             If the stored type name is not in ``_PYTREE_REGISTRY``.
+        ValueError
+            If an old ``ArpesSpectrum`` group lacks its Cartesian geometry.
         """
         field_name: str
 
@@ -675,6 +689,22 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
         aux_data: Any = _decode_aux_data(type_name, aux_json)
 
         none_fields: list[str] = json.loads(str(grp.attrs[ATTR_NONE]))
+        required_spectrum_geometry: frozenset[str] = frozenset(
+            {"k_axis", "kpoints_cart_inv_ang"}
+        )
+        missing_spectrum_geometry: list[str] = sorted(
+            required_spectrum_geometry.difference(grp.keys())
+        )
+        if type_name == "ArpesSpectrum" and (
+            missing_spectrum_geometry or aux_data is None
+        ):
+            msg: str = (
+                "ArpesSpectrum HDF5 schema is incompatible: the stored "
+                "spectrum lacks Cartesian k_axis, kpoints_cart_inv_ang, or "
+                "its registered frame. Geometry cannot be reconstructed; "
+                "regenerate the file with make_arpes_spectrum and save_to_h5."
+            )
+            raise ValueError(msg)
 
         children: list[Any] = []
         for field_name in meta["children_fields"]:

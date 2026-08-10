@@ -52,10 +52,9 @@ def _scipy_real_spherical_harmonic(
 
     Notes
     -----
-    Evaluates the complex harmonic at order abs(m) with SciPy and takes
-    sqrt(2) * (-1)**m times the real part for m > 0, sqrt(2) *
-    (-1)**abs(m) times the imaginary part for m < 0, and the real part
-    for m = 0.
+    Evaluates the complex harmonic at order abs(m) with SciPy. For
+    positive m, scales its real part. For negative m, scales its
+    imaginary part. For m = 0, returns the real part.
     """
     complex_value: Complex[NDArray, "..."] = sph_harm_y(
         l_value,

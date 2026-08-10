@@ -5,33 +5,27 @@ physical inputs support `jit`, `vmap`, forward- and reverse-mode automatic
 differentiation. Static selectors such as radial mode, basis quantum numbers,
 and band-group membership select compiled program structure.
 
-## Incoherent Tier Gradients
+## Coherent Spectral Gradients
 
-The two expanded tiers differentiate through occupation, broadening, and
-their orbital-weight reduction:
+The spectral primitives differentiate through the causal self-energy and
+gauge-invariant band-weight fast path:
 
 ```python
-def total_novice_weight(sigma):
-    spectrum = diffpes.simul.simulate_expanded(
-        level="novice",
-        eigenbands=eigenbands,
-        surface_orb=surface_orb,
-        sigma=sigma,
-        gamma=0.08,
-        fidelity=1000,
-    )
-    return jnp.sum(spectrum.intensity)
+def total_spectral_weight(gamma):
+    model = diffpes.types.make_self_energy_model(gamma=gamma)
+    sigma = diffpes.simul.evaluate_self_energy(omega, model)
+    intensity = jax.vmap(
+        lambda energy, sigma_i: diffpes.simul.spectral_intensity_eigen(
+            eigenvalues, band_weights, energy, sigma_i, 1.0e-4
+        )
+    )(omega, sigma)
+    return jnp.sum(intensity)
 
-d_total_d_sigma = jax.grad(total_novice_weight)(0.04)
+d_total_d_gamma = jax.grad(total_spectral_weight)(0.08)
 ```
 
-For `level="basic"`, derivatives also pass through the Yeh--Lindau
-interpolator with respect to photon energy inside a valid table segment.
-Table boundaries, gaps, element identity, and subshell identity are domain
-or static choices, not smooth variables.
-
-Both tiers consume projection probabilities. Their gradients do not recover
-the discarded relative phase of orbital coefficients.
+At degeneracy, use `spectral_intensity_resolvent`; it avoids raw eigenvector
+derivatives and retains the full transition source.
 
 ## Coherent Matrix-Element Coordinates
 

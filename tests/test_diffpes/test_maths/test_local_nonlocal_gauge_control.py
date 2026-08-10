@@ -49,9 +49,9 @@ def _derivative_sixth(
 
     Notes
     -----
-    For each node, clamps a seven-point window inside the grid, solves
-    the Vandermonde moment system for the first-derivative weights at
-    that offset, and applies the weights to the windowed samples.
+    Clamps one seven-point window inside the grid for each node. Solves
+    its Vandermonde moment system. Applies the resulting derivative
+    weights to the windowed samples.
     """
     derivative: Float64[NDArray, " n_node"] = np.empty_like(values)
     index: int
@@ -95,12 +95,10 @@ def _public_reduced_gauges(
 
     Implementation Logic
     --------------------
-    Divides each reduced state by the radius (zero at the origin) to
-    recover the radial functions, differentiates the s state with the
-    frozen stencils and applies the quotient rule for the radial
-    derivative, folds the exact angular factor 1/sqrt(3) into the
-    position and gradient z components, and evaluates both public
-    Cartesian gauge contractions with weights r**2 times the radial
+    Divides each reduced state by radius to recover radial functions.
+    Uses zero at the origin. Differentiates the s state with frozen
+    stencils and the quotient rule. Folds 1/sqrt(3) into both z
+    components. Evaluates both public contractions with radial r**2
     weights.
     """
     state_s: Float64[NDArray, " n_node"] = states[0]

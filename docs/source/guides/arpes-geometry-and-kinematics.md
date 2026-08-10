@@ -226,5 +226,5 @@ $h\nu-W+\omega$, so $J_W=-J_\omega$ exactly. A photon-energy scan does not
 lift this gauge without an external energy or work-function reference. It can
 still constrain $V_0$ through the $k_z$ dispersion.
 
-See [Geometry and kinematics](../tutorials/geometry-and-kinematics.md) for a
+See [Geometry and kinematics](../tutorials/geometry-and-kinematics.ipynb) for a
 complete executable example.

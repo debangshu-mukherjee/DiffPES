@@ -133,13 +133,11 @@ def _capstone() -> Capstone:
 
     Implementation Logic
     --------------------
-    Freezes the (0, 0, 1) slab topology from the direct bulk model and
-    closes over a parameter view that maps the single active ss_sigma
-    value back into the full vector. The closures rebuild and
-    diagonalize the slab, scale the depth carrier, assemble
-    fixed-integral matrix-element channels, project them onto bands,
-    contract the p-polarized experiment, and sum the two lowest band
-    intensities into the isolated group weight.
+    Freezes the (0, 0, 1) slab topology from the direct bulk model.
+    Closes over a view that maps the active ss_sigma value into the full
+    vector. The closures rebuild and diagonalize the slab. They scale
+    depths, assemble and project channels, contract polarization, and
+    sum the two lowest-band intensities.
     """
     geometry: CrystalGeometry
     basis: OrbitalBasis

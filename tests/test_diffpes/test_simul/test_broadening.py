@@ -82,9 +82,9 @@ def _gaussian_parameter_loss(
 
     Notes
     -----
-    Evaluates the public Gaussian on 19 energies from -1.1 eV to 1.6 eV
-    and contracts with linearly increasing weights, so both parameter
-    gradients stay nonzero.
+    Evaluates the public Gaussian on 19 energies from -1.1 eV to 1.6
+    eV. Contracts with linearly increasing weights. Both parameter
+    gradients therefore stay nonzero.
     """
     energy_axis: Float64[Array, "19"] = jnp.linspace(-1.1, 1.6, 19)
     weights: Float64[Array, "19"] = jnp.linspace(0.6, 1.3, 19)

@@ -1,0 +1,36 @@
+name: documentation
+
+"on": [push, pull_request, workflow_dispatch]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra docs --extra test --extra notebooks
+      - name: Verify paired, output-free tutorial sources
+        run: |
+          uv run --frozen jupytext --sync docs/source/tutorials/*.ipynb
+          uv run --frozen python tests/_tutorials.py
+          git diff --exit-code -- docs/source/tutorials tutorials
+      - name: Restore executed-notebook cache
+        uses: actions/cache@v4
+        with:
+          path: docs/build/.jupyter_cache
+          key: tutorial-cache-${{ runner.os }}-${{ hashFiles('uv.lock', 'docs/source/tutorials/*.ipynb', 'tutorials/*.py') }}
+          restore-keys: |
+            tutorial-cache-${{ runner.os }}-
+      - name: Execute tutorials and build strict documentation
+        run: >-
+          uv run --frozen sphinx-build -W -a -E --keep-going -b html
+          docs/source docs/build/html

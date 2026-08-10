@@ -37,9 +37,9 @@ def _register_transformations() -> None:
 
     Notes
     -----
-    Builds the full tuple of built-in transformation contracts
-    (amplitude, band, resolution, normalization, k-space, kinematics,
-    polarization, geometry, and tight-binding transformations), then
+    Builds the full tuple of built-in transformation contracts. Covers
+    amplitude, band, resolution, normalization, k-space, kinematics,
+    polarization, geometry, and tight-binding transformations. Then
     registers only the identity-version pairs that
     :func:`~.registry.list_transformations` does not already report.
     The skip step makes repeated registration idempotent against the
@@ -84,6 +84,102 @@ def _register_transformations() -> None:
             introduces=("dimensionless_standardization",),
             destroys=("absolute_intensity_calibration",),
             invalidates_claims=("claim.intensity.absolute_calibration",),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.self_energy.kk_causal",
+            "1.0.0",
+            requires=(
+                "retarded_imaginary_self_energy",
+                "declared_relative_energy_domain",
+                "declared_subtraction_point",
+                "serialized_power2_tail_coordinates",
+            ),
+            produces=("complex_retarded_self_energy",),
+            preserves=(
+                "relative_energy_reference",
+                "self_energy_parameter_identity",
+                "retarded_imaginary_sign",
+            ),
+            introduces=(
+                "once_subtracted_kramers_kronig_real_part",
+                "matrix_free_cell_integrated_principal_value",
+                "smooth_mode_piecewise_cubic_core",
+                "grid_mode_piecewise_linear_hat_core",
+                "uniform_even_4096_node_default",
+                "kk_selection_domain_minus8_plus8_ev",
+                "kk_phase_aligned_integer_cell_domain_extension",
+                "power2_tail_gauss_legendre_256_per_side",
+                "trusted_interval_two_cell_margin",
+                "direct_query_evaluation_without_interpolation",
+                "kk_pair_mixed_bound_atol_2e_8_ev_rtol_1e_6",
+                "kk_refinement_bounds_value_2e_6_ev_derivative_2e_5_jvp_2e_5_ev",
+                "kk_tail_refinement_value_derivative_bound_1e_13",
+                "kk_wigner_min_order_1p4_base_error_1e_5_ev",
+                "faddeeva_upper_half_plane_closed_radius_1e8",
+                "voigt_shared_faddeeva_guard",
+                "voigt_zero_width_endpoints_value_only",
+            ),
+            invalidates_claims=(
+                "claim.self_energy.imaginary_only",
+                "claim.kk.query_window_defines_domain",
+                "claim.kk.truncated_tail",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.spectral.resolvent",
+            "1.0.0",
+            requires=(
+                "complex_hermitian_hamiltonian_relative_to_fermi",
+                "complex_retarded_self_energy",
+                "complex_transition_source",
+                "strictly_positive_regulator",
+            ),
+            produces=("intrinsic_spectral_intensity",),
+            preserves=(
+                "relative_energy_reference",
+                "degenerate_subspace_unitary_gauge",
+                "outgoing_channel_incoherent_reduction",
+            ),
+            introduces=(
+                "complex128_resolvent_linear_solve",
+                "degeneracy_safe_hamiltonian_gradient",
+                "scalar_retarded_self_energy_broadening",
+                "hermitian_relative_tolerance_1e_12",
+                "positive_regulator_default_1e_4_ev",
+                "checkpointed_nested_k_omega_scan",
+                "static_padded_256k_512omega_schedule",
+                "static_k_chunk_32_omega_chunk_32",
+                "explicit_nonempty_n_out_source_axis",
+                "independent_scalar_rhs_solve_before_sum",
+                "xla_memory_analysis_allocation_authority",
+                "registered_spinless_solve_tape_1p5x_ceiling",
+                "one_compile_per_padded_schedule",
+            ),
+            destroys=("overall_transition_source_phase",),
+            invalidates_claims=(
+                "claim.spectral.raw_eigenvector_gauge_observable",
+                "claim.spectral.instrument_broadened",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.occupation.fermi_at_omega",
+            "1.0.0",
+            requires=(
+                "intrinsic_spectral_intensity",
+                "sampled_relative_energy",
+                "strictly_positive_temperature",
+            ),
+            produces=("occupied_intrinsic_spectral_intensity",),
+            preserves=(
+                "relative_energy_reference",
+                "sampled_energy_axis",
+                "momentum_coordinates",
+            ),
+            introduces=("fermi_dirac_occupation_at_sampled_energy",),
+            invalidates_claims=(
+                "claim.occupation.evaluated_at_band_eigenvalue",
+                "claim.spectral.instrument_broadened",
+            ),
         ),
         make_transformation_contract(
             "org.diffpes.transform.kspace.fractional_cartesian",
@@ -426,12 +522,10 @@ def _register_slab_surface_handshakes() -> None:
 
     Notes
     -----
-    Reads the existing owner set once, then registers the
-    ``org.diffpes.slab`` handshake (depth-carrier transformation and
-    depth evidence) and the ``org.diffpes.surface`` handshake (slab
-    construction and surface-projection transformations with the
-    surface evidence identities), each only when its owner is not
-    present.
+    Reads the existing owner set once. Registers ``org.diffpes.slab``
+    with its depth-carrier transformation and evidence. Registers
+    ``org.diffpes.surface`` with its construction, projection, and
+    surface evidence. Skips any handshake whose owner already exists.
     """
     existing: set[str] = {item.owner_id for item in list_handshakes()}
     if "org.diffpes.slab" not in existing:
@@ -560,6 +654,62 @@ def _register_matrixel_handshake() -> None:
     register_handshake(handshake)
 
 
+def _register_spectral_handshake() -> None:
+    """PRIVATE: Register the spectral transformation and evidence handshake.
+
+    Notes
+    -----
+    Returns without effect when ``org.diffpes.spectral`` is already present.
+    Otherwise records the causal self-energy, resolvent, and sampled-energy
+    occupation transformations together with every verification,
+    differentiability, scalability, and upstream-handoff evidence identity.
+    """
+    owner_id: str = "org.diffpes.spectral"
+    existing: set[str] = {item.owner_id for item in list_handshakes()}
+    if owner_id in existing:
+        return
+    evidence_ids: Tuple[str, ...] = (
+        "org.diffpes.evidence.spectral.faddeeva.full_envelope",
+        "org.diffpes.evidence.spectral.voigt.shared_guard",
+        "org.diffpes.evidence.spectral.kk.analytic_pair_truth",
+        "org.diffpes.evidence.spectral.kk.refinement_convergence",
+        "org.diffpes.evidence.spectral.kk.carrier_consistency",
+        "org.diffpes.evidence.spectral.kk.derivative_composite_route",
+        "org.diffpes.evidence.spectral.kk.reverse_mode_consistency",
+        "org.diffpes.evidence.spectral.kk.singularity_stress_witness",
+        "org.diffpes.evidence.spectral.kk.spectral_observable_stability",
+        "org.diffpes.evidence.spectral.kk.rejected_control_reference",
+        "org.diffpes.evidence.spectral.two_pole_closed_form",
+        "org.diffpes.evidence.spectral.resolvent_eigen_complex_hermitian",
+        "org.diffpes.evidence.spectral.full_line_weight",
+        "org.diffpes.evidence.spectral.regulator_limit",
+        "org.diffpes.evidence.spectral.resolvent_eigen_consistency",
+        "org.diffpes.evidence.spectral.chinook_compatibility",
+        "org.diffpes.evidence.spectral.self_energy.causal_model_truth",
+        "org.diffpes.evidence.spectral.derivative.faddeeva_voigt",
+        "org.diffpes.evidence.spectral.derivative.kk_parameters",
+        "org.diffpes.evidence.spectral.derivative.assembly_eta_temperature",
+        "org.diffpes.evidence.spectral.derivative.degenerate_resolvent",
+        "org.diffpes.evidence.spectral.derivative.complex_adjoint",
+        "org.diffpes.evidence.spectral.derivative.causal_parameters",
+        "org.diffpes.evidence.spectral.scaling.rematerialized_chunk_memory",
+        "org.diffpes.evidence.spectral.scaling.padded_compile_count",
+        "org.diffpes.evidence.spectral.scaling.complex128_solve",
+        "org.diffpes.evidence.spectral.handoff.matrix_element_transition_rows",
+    )
+    register_handshake(
+        make_registration_handshake(
+            owner_id=owner_id,
+            transformation_refs=(
+                "org.diffpes.transform.self_energy.kk_causal@1.0.0",
+                "org.diffpes.transform.spectral.resolvent@1.0.0",
+                "org.diffpes.transform.occupation.fermi_at_omega@1.0.0",
+            ),
+            evidence_ids=evidence_ids,
+        )
+    )
+
+
 @jaxtyped(typechecker=beartype)
 def register_builtin_models() -> None:
     """Register built-in transformations and owner handshakes.
@@ -578,6 +728,7 @@ def register_builtin_models() -> None:
     _register_kspace_handshake()
     _register_matrixel_handshake()
     _register_slab_surface_handshakes()
+    _register_spectral_handshake()
     _register_tightb_handshake()
 
 

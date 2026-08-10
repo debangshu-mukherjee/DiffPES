@@ -111,15 +111,11 @@ def _validate_wannier_operator_structure(  # noqa: PLR0912
     Raises
     ------
     ValueError
-        If ``centres_cart`` is not ``(n_orb, 3)``; if ``cells`` or
-        ``degeneracies`` is not a tuple; if ``cells`` is empty, contains
-        an entry that is not an exact integer triple, contains
-        duplicates, or disagrees with ``degeneracies`` on length; if a
-        degeneracy is not a positive integer; if ``spin_layout`` or
-        ``source_format`` is not a known label; or if the presence of
-        ``position_matrices`` contradicts ``source_format`` or its shape
-        is not ``(len(cells), n_orb, n_orb, 3)``. This is the static
-        construction-time contract.
+        If ``centres_cart`` has the wrong shape. If cell or degeneracy
+        metadata has invalid types, lengths, values, or duplicates. If
+        a selector has an unknown label. If ``position_matrices``
+        contradicts ``source_format`` or has the wrong shape. This is
+        the static construction-time contract.
     """
     if (
         centres_cart.ndim != _CENTRE_NDIM

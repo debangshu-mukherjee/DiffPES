@@ -20,7 +20,7 @@ Routine Listings
 Notes
 -----
 The tables describe isolated-atom cross sections.  They provide the grounded
-weighting for the deliberately incoherent ``simulate_basic`` tier; coherent
+weighting for explicit probability-level diagnostics; coherent
 matrix-element calculations use :mod:`diffpes.simul.matrixel` instead.
 """
 

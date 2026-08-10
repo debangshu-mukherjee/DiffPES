@@ -11,12 +11,15 @@ kernelspec:
   name: python3
 ---
 
-# Quickstart: Two Incoherent Spectrum Tiers
+# Quickstart: Coherent Spectral Assembly
 
-Build a synthetic band map, compare the two retained projection tiers, and
-differentiate a spectral observable. These tiers consume orbital
-probabilities. The separate coherent pipeline is introduced in
-[Matrix Elements and Polarization](../guides/matrix-elements-and-polarization.md).
+Build an intrinsic ARPES spectrum from gauge-invariant matrix-element
+weights, a causal self-energy, and sampled-energy Fermi occupation. The
+degeneracy-safe resolvent path is introduced alongside the faster eigen path.
+
+Detector mapping, transmission, resolution, and expected counts are separate
+from this intrinsic observable. Plan 08a is constructing their single
+canonical driver.
 
 ```{code-cell} ipython3
 import diffpes
@@ -28,147 +31,146 @@ print(f"diffpes {diffpes.__version__}")
 print(f"x64 enabled: {jax.config.jax_enable_x64}")
 ```
 
-## Synthetic Bands and Projections
+## Synthetic Band and Matrix-Element Data
 
-Use two cosine bands on a one-dimensional path. `eigenbands` has shape
-`[K, B]`. `surface_orb` has the VASP projection shape `[K, B, A, 9]`, with
-the final axis ordered as
-`s, py, pz, px, dxy, dyz, dz2, dxz, dx2-y2`.
+Use two dispersing eigenvalues and positive gauge-invariant band weights on a
+Cartesian sample-frame path. In a full calculation, the weights come from
+coherent matrix-element channels after polarization contraction and band
+projection.
 
 ```{code-cell} ipython3
 nkpt = 120
-kpath = jnp.linspace(-jnp.pi, jnp.pi, nkpt)
-eigenbands = jnp.stack(
-    [
-        -1.2 - 0.8 * jnp.cos(kpath),
-        -0.4 - 0.9 * jnp.cos(kpath + 0.3),
-    ],
+k_cart_x = jnp.linspace(-1.0, 1.0, nkpt)
+kpoints_cart_inv_ang = jnp.stack(
+    (k_cart_x, jnp.zeros_like(k_cart_x), jnp.zeros_like(k_cart_x)),
+    axis=1,
+)
+k_axis = k_cart_x - k_cart_x[0]
+eigenvalues = jnp.stack(
+    (
+        -0.65 - 0.45 * jnp.cos(jnp.pi * k_cart_x),
+        0.15 + 0.35 * jnp.cos(jnp.pi * k_cart_x + 0.2),
+    ),
+    axis=1,
+)
+band_weights = jnp.stack(
+    (
+        0.2 + 0.8 * jnp.cos(0.5 * jnp.pi * k_cart_x) ** 2,
+        0.3 + 0.5 * jnp.sin(0.5 * jnp.pi * k_cart_x) ** 2,
+    ),
     axis=1,
 )
 
-surface_orb = jnp.zeros((nkpt, 2, 1, 9))
-surface_orb = surface_orb.at[:, 0, 0, 2].set(
-    jnp.cos(kpath / 2.0) ** 2
-)
-surface_orb = surface_orb.at[:, 0, 0, 3].set(
-    jnp.sin(kpath / 2.0) ** 2
-)
-surface_orb = surface_orb.at[:, 1, 0, 4].set(0.7)
-surface_orb = surface_orb.at[:, 1, 0, 8].set(0.3)
-
-print(eigenbands.shape, surface_orb.shape)
+print(eigenvalues.shape, band_weights.shape)
 ```
 
-## Uniform Projection Spectrum
+## Assemble the Occupied Intrinsic Spectrum
 
-The `novice` tier sums non-s projection probabilities, applies
-Fermi--Dirac occupation, and broadens each band with a Voigt profile.
+Evaluate a retarded constant-linewidth self-energy, sample the eigen spectral
+primitive, and apply Fermi occupation on the same energy nodes.
 
 ```{code-cell} ipython3
-spectrum_novice = diffpes.simul.simulate_expanded(
-    level="novice",
-    eigenbands=eigenbands,
-    surface_orb=surface_orb,
-    ef=0.0,
-    sigma=0.06,
-    gamma=0.08,
-    fidelity=1200,
-    temperature=30.0,
+omega = jnp.linspace(-1.5, 0.8, 500)
+self_energy_model = diffpes.types.make_self_energy_model(gamma=0.08)
+sigma_omega = diffpes.simul.evaluate_self_energy(omega, self_energy_model)
+
+def one_k_spectrum(eigenvalues_k, weights_k):
+    return jax.vmap(
+        lambda energy, sigma: diffpes.simul.spectral_intensity_eigen(
+            eigenvalues_k,
+            weights_k,
+            energy,
+            sigma,
+            1.0e-4,
+        )
+    )(omega, sigma_omega)
+
+intrinsic = jax.vmap(one_k_spectrum)(eigenvalues, band_weights)
+occupation = jax.vmap(
+    lambda energy: diffpes.simul.fermi_dirac(energy, 0.0, 30.0)
+)(omega)
+spectrum = diffpes.types.make_arpes_spectrum(
+    intensity=intrinsic * occupation[None, :],
+    energy_axis=omega,
+    k_axis=k_axis,
+    kpoints_cart_inv_ang=kpoints_cart_inv_ang,
 )
-print(spectrum_novice.intensity.shape)
+print(spectrum.intensity.shape)
 ```
 
-## Yeh--Lindau Projection Spectrum
-
-The `basic` tier uses element- and subshell-resolved Yeh--Lindau cross
-sections. It requires one atom-major basis row for every projection channel.
-This synthetic example labels the atom as scandium. Its nine channels use the
-$3s$, $3p$, and $3d$ subshells, which have table support at 80 eV.
+The full Cartesian vectors remain attached to the spectrum. Equal cumulative
+path lengths therefore cannot conflate paths in different directions.
 
 ```{code-cell} ipython3
-basis = diffpes.types.make_orbital_basis(
-    atom_indices=(0,) * 9,
-    n=(3,) * 9,
-    l=(0, 1, 1, 1, 2, 2, 2, 2, 2),
-    m=(0, -1, 0, 1, -2, -1, 0, 1, 2),
+fig, ax = plt.subplots(figsize=(6.5, 3.8))
+ax.imshow(
+    spectrum.intensity.T,
+    origin="lower",
+    aspect="auto",
+    extent=(
+        float(k_cart_x[0]),
+        float(k_cart_x[-1]),
+        float(omega[0]),
+        float(omega[-1]),
+    ),
+    cmap="inferno",
 )
-spectrum_basic = diffpes.simul.simulate_expanded(
-    level="basic",
-    eigenbands=eigenbands,
-    surface_orb=surface_orb,
-    ef=0.0,
-    sigma=0.06,
-    fidelity=1200,
-    temperature=30.0,
-    photon_energy=80.0,
-    basis=basis,
-    atomic_numbers=(21,),
-)
-print(spectrum_basic.intensity.shape)
-```
-
-The two spectra have identical dispersions but different relative
-brightness. The basic tier changes p- and d-derived intensities through
-isolated-atom cross sections. Neither tier has the complex coefficient phase
-needed for polarization selection rules or atomic-centre interference.
-
-```{code-cell} ipython3
-extent = [
-    float(kpath[0]),
-    float(kpath[-1]),
-    float(spectrum_novice.energy_axis[0]),
-    float(spectrum_novice.energy_axis[-1]),
-]
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), sharey=True)
-for ax, spectrum, title in zip(
-    axes,
-    (spectrum_novice, spectrum_basic),
-    ("novice: uniform", "basic: Yeh--Lindau"),
-):
-    ax.imshow(
-        spectrum.intensity.T,
-        origin="lower",
-        aspect="auto",
-        extent=extent,
-        cmap="inferno",
-    )
-    ax.set_title(title)
-    ax.set_xlabel("path coordinate")
-axes[0].set_ylabel(r"$E-E_F$ (eV)")
+ax.set_xlabel(r"$k_x$ ($\AA^{-1}$)")
+ax.set_ylabel(r"$E-E_F$ (eV)")
+ax.set_title("occupied intrinsic spectral intensity")
 plt.show()
+```
+
+## Use the Degeneracy-Safe Resolvent
+
+At exact or near degeneracy, keep the Hamiltonian and full transition source
+instead of differentiating eigenvectors.
+
+```{code-cell} ipython3
+hamiltonian = jnp.array(
+    [[0.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 0.0 + 0.0j]],
+    dtype=jnp.complex128,
+)
+transition_sources = jnp.array([[1.0 + 0.0j, 0.5 + 0.2j]])
+resolvent_value = diffpes.simul.spectral_intensity_resolvent(
+    hamiltonian,
+    transition_sources,
+    jnp.asarray(0.0),
+    jnp.asarray(-0.08j),
+    1.0e-4,
+)
+print(float(resolvent_value))
 ```
 
 ## Differentiate a Spectral Observable
 
-Continuous array and scalar inputs remain differentiable. Here the observable
-is the total novice intensity in a window below the Fermi level.
+The self-energy coordinates remain differentiable through the sampled
+spectral assembly.
 
 ```{code-cell} ipython3
-def window_intensity(sigma):
-    spectrum = diffpes.simul.simulate_expanded(
-        level="novice",
-        eigenbands=eigenbands,
-        surface_orb=surface_orb,
-        sigma=sigma,
-        gamma=0.08,
-        fidelity=1200,
-        temperature=30.0,
-    )
-    selected = (
-        (spectrum.energy_axis > -0.4)
-        & (spectrum.energy_axis < 0.0)
-    )
-    return jnp.sum(spectrum.intensity * selected)
+def occupied_weight(gamma):
+    model = diffpes.types.make_self_energy_model(gamma=gamma)
+    sigma = diffpes.simul.evaluate_self_energy(omega, model)
+    intensity = jax.vmap(
+        lambda energy, sigma_i: diffpes.simul.spectral_intensity_eigen(
+            eigenvalues[0],
+            band_weights[0],
+            energy,
+            sigma_i,
+            1.0e-4,
+        )
+    )(omega, sigma)
+    selected = (omega > -0.7) & (omega < 0.0)
+    return jnp.sum(intensity * occupation * selected)
 
-
-gradient = jax.grad(window_intensity)(0.06)
-print(f"d window intensity / d sigma = {float(gradient):.3f}")
+gradient = jax.grad(occupied_weight)(0.08)
+print(f"d occupied weight / d gamma = {float(gradient):.3f}")
 ```
 
 ## Next Steps
 
-- Read [Simulation Tiers and the Coherent Pipeline](../guides/simulation-levels.md).
+- Read [Coherent Spectral Assembly](../guides/simulation-levels.md).
 - Work through the executable
   [matrix-element sensitivity tutorial](matrix-element-sensitivity.md).
-- Use the [VASP ingestion guide](../guides/vasp-data-ingestion.md) with real
-  electronic-structure output.
+- Use the [VASP ingestion guide](../guides/vasp-data-ingestion.md) to prepare
+  real electronic-structure inputs.

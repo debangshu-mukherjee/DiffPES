@@ -182,10 +182,9 @@ def _required_indices(
     Returns
     -------
     result : Tuple[Tuple[Tuple[int, ...], ...], Tuple[str, ...]]
-        Per certification level, the claim indices whose predicate
-        matches that level's prefixes (empty above the policy's maximum
-        level), and the deduplicated required claim identifiers in
-        first-seen order.
+        Claim indices per certification level and deduplicated required
+        identifiers in first-seen order. Levels above the policy's
+        maximum contain no indices.
 
     Notes
     -----

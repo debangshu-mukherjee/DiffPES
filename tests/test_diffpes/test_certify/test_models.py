@@ -43,6 +43,7 @@ class TestRegisterBuiltinModels:
         assert len(transformations) == len(set(transformations))
         assert len(owner_ids) == len(set(owner_ids))
         assert "org.diffpes.matrixel" in owner_ids
+        assert "org.diffpes.spectral" in owner_ids
         matrix_element: RegistrationHandshake = next(
             item
             for item in handshakes
@@ -88,6 +89,17 @@ class TestRegisterBuiltinModels:
         assert (
             "org.diffpes.evidence.matrixel.handoff.transition_rows"
             in matrix_element.evidence_ids
+        )
+        spectral: RegistrationHandshake = next(
+            item
+            for item in handshakes
+            if item.owner_id == "org.diffpes.spectral"
+        )
+        assert len(spectral.transformation_refs) == 3
+        assert len(spectral.evidence_ids) == 27
+        assert (
+            "org.diffpes.evidence.spectral.kk.singularity_stress_witness"
+            in spectral.evidence_ids
         )
         destroyed: set[str] = {
             loss

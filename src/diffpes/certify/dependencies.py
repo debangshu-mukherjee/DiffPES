@@ -147,9 +147,9 @@ def _structural_dependencies(
     --------------------
     Obtains the abstract output with :func:`jax.eval_shape` and the
     typed JAXPR with :func:`jax.make_jaxpr`. Seeds each input variable
-    with its own index set and each constant with the empty set, then
-    walks the equations in order: every output variable of an equation
-    receives the union of the index sets of its input variables. The
+    with its own index set and each constant with the empty set. Walks
+    the equations in order. Each output receives the union of its
+    equation's input index sets. The
     final matrix marks, for each JAXPR output, which input leaves can
     reach it structurally.
 
@@ -702,9 +702,9 @@ def _element_paths(tree: PyTree) -> Tuple[str, ...]:
 
     Notes
     -----
-    Starts from the leaf key path, appends ``[index]`` when a leaf has
-    more than one element, and appends ``.real`` and ``.imag`` for each
-    element of a complex leaf. The names label the rows of the right
+    Starts from the leaf key path. Appends ``[index]`` when a leaf has
+    more than one element. Appends ``.real`` and ``.imag`` for each
+    complex element. The names label the rows of the right
     singular vectors in an information spectrum.
     """
     path: Any

@@ -29,29 +29,18 @@ energy into fixed-shape momentum rasters. Its JAX derivatives expose
 calibration sensitivity to the work function, inner potential, sample
 azimuth, and detector frame.
 
-## Expanded-input workflows
+## Coherent spectral workflows
 
-The package provides expanded-input wrappers for plain arrays and scalars.
-These wrappers run the same JAX kernels as the typed interfaces.
+The production spectral surface preserves complex transition sources through
+the final observable. `diffpes.simul.spectral_intensity_resolvent` is the
+degeneracy-safe path. `spectral_intensity_eigen` is a faster path for
+gauge-invariant band weights away from degeneracies. Both consume the causal
+self-energy returned by `evaluate_self_energy`.
 
-### Function mapping
-
-- `ARPES_simulation_Novice` -> `diffpes.simul.simulate_novice_expanded`
-- `ARPES_simulation_Basic` -> `diffpes.simul.simulate_basic_expanded`
-- Dynamic dispatch by level -> `diffpes.simul.simulate_expanded`
-
-These two wrappers are deliberately incoherent: they consume VASP projection
-probabilities and cannot reconstruct orbital phases. Quantitative
-polarization-dependent calculations use the coherent primitives in
-`diffpes.simul.matrixel`.
-
-### Notes
-
-- Default energy-axis padding behavior:
-  `min(eigenbands)-1` to `max(eigenbands)+1`.
-- Wrappers return the standard `ArpesSpectrum` PyTree.
-- The `basic` tier requires an atom-major `OrbitalBasis` and one atomic
-  number per atom so that it can select Yeh--Lindau subshell data.
+Detector mapping, resolution, transmission, and counts are intentionally
+outside this intrinsic spectral boundary. Plan 08a is constructing the single
+canonical detector/count driver; there is currently no level-string workflow
+or projection-probability compatibility dispatcher.
 
 ### Python indexing conventions
 
@@ -68,22 +57,29 @@ Do not use MATLAB-style indexing notation in Python code.
 ```python
 import jax.numpy as jnp
 
-from diffpes.simul import simulate_expanded
+import jax
 
-# [nkpt, nband]
-eigenbands = jnp.linspace(-2.0, 0.5, 100).reshape(20, 5)
-# [nkpt, nband, natom, 9]
-surface_orb = jnp.ones((20, 5, 2, 9)) * 0.1
+from diffpes.simul import evaluate_self_energy, spectral_intensity_eigen
+from diffpes.types import make_self_energy_model
 
-spectrum = simulate_expanded(
-    level="novice",
-    eigenbands=eigenbands,
-    surface_orb=surface_orb,
-    ef=0.0,
-    sigma=0.04,
-    gamma=0.1,
-    fidelity=2500,
-    temperature=15.0,
+omega = jnp.linspace(-1.0, 1.0, 501)
+self_energy = evaluate_self_energy(
+    omega,
+    make_self_energy_model(gamma=0.08),
+)
+eigenvalues = jnp.array([-0.25, 0.30])
+band_weights = jnp.array([0.8, 0.2])
+intrinsic = jax.vmap(
+    lambda energy, sigma: spectral_intensity_eigen(
+        eigenvalues,
+        band_weights,
+        energy,
+        sigma,
+        1.0e-4,
+    )
+)(
+    omega,
+    self_energy,
 )
 ```
 
@@ -100,13 +96,11 @@ pytest tests/ --cov=src/diffpes --cov-report=term-missing
 Use these priorities to increase coverage toward 100%:
 
 1. **Simulation and types:** These modules already have good coverage.
-   Add a test for each new coherent matrix-element or dispatch branch.
-2. **Expanded dispatch:** Test both `simulate_expanded(level=...)` branches.
-   Also test the `ValueError` for an unknown level.
-3. **HDF5:** Round-trip every PyTree type. Test each load and save error path.
-4. **VASP file readers:** Test `read_doscar`, `read_eigenval`, `read_kpoints`,
+   Add a test for each coherent matrix-element or spectral branch.
+2. **HDF5:** Round-trip every PyTree type. Test each load and save error path.
+3. **VASP file readers:** Test `read_doscar`, `read_eigenval`, `read_kpoints`,
    `read_poscar`, and `read_procar` with minimal repository fixtures.
-5. **Plotting:** Exercise the public plotting API in tests. GUI code can use a
+4. **Plotting:** Exercise the public plotting API in tests. GUI code can use a
    lower coverage target.
-6. **Edge branches:** Cover optional arguments and their error messages.
+5. **Edge branches:** Cover optional arguments and their error messages.
    Include `make_band_structure(..., kpoint_weights=...)`.

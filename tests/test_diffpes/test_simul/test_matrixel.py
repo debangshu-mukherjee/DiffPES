@@ -628,10 +628,10 @@ class TestBandGroupWeightSensitivity:
 
         Implementation Logic
         --------------------
-        Forms a generic complex base vector from the 1-based orbital
-        index, builds two spin rows as parameter-dependent mixtures of
-        the base and its conjugate, and contracts the eigenvectors with
-        the rows through einsum kbo,os->kbs.
+        Forms a generic complex base vector from each 1-based orbital
+        index. Builds two parameter-dependent spin rows from the base
+        and its conjugate. Contracts eigenvectors with those rows
+        through einsum kbo,os->kbs.
         """
         del experiment
         n_orbitals: int = bands.eigenvectors.shape[-1]
@@ -1833,9 +1833,9 @@ class TestAssembleOrbitalTransitionChannels:
 
         Notes
         -----
-        Uses fixed radial integrals (0, 1) on the two branches, the
-        21.2 eV x-polarized experiment, and one zone-center k-point so
-        the parallel momentum transfer stays zero.
+        Uses fixed radial integrals (0, 1) on both branches. Uses the
+        21.2 eV x-polarized experiment and one zone-center k-point. The
+        parallel momentum transfer therefore stays zero.
         """
         basis: OrbitalBasis = _s_basis((0,))
         bands: DiagonalizedBands = _simple_bands(

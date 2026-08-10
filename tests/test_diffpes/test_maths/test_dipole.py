@@ -72,9 +72,9 @@ def _boole_weights(
 
     Notes
     -----
-    Adds the five-point closed Boole block 2h/45 * (7, 32, 12, 32, 7)
-    over each group of four intervals; interior block edges accumulate
-    contributions from both neighbor blocks.
+    Adds the five-point closed Boole block over each four-interval
+    group. Uses weights 2h/45 * (7, 32, 12, 32, 7). Interior edges
+    accumulate contributions from both neighboring blocks.
     """
     interval_count: int = node_count - 1
     assert interval_count % 4 == 0
@@ -125,12 +125,11 @@ def _tensor_product_gauges(
 
     Implementation Logic
     --------------------
-    Attaches the s harmonic to the initial state and the p_z harmonic
-    to the final state, forms flattened radius-times-direction sample
-    points in chunks of 512 radial nodes, weights each sample with the
-    radial weight times radius squared times the angular weight, and
-    accumulates both public Cartesian contractions over the chunks. The
-    initial-state gradient is the radial derivative times the unit
+    Attaches the s harmonic to the initial state and p_z to the final
+    state. Forms flattened radius-direction samples in 512-node radial
+    chunks. Weights each sample by radial, radius-squared, and angular
+    factors. Accumulates both public Cartesian contractions. The
+    initial-state gradient equals the radial derivative times the unit
     direction.
     """
     angular_points: Float64[NDArray, "3 n_angular"]
@@ -233,11 +232,10 @@ def _hydrogenic_gauges(
 
     Implementation Logic
     --------------------
-    Samples the closed-form normalized 1s and 2p radial functions and
-    the analytic 1s radial derivative on a Boole-weighted uniform grid,
-    attaches the s and p_z harmonics, and accumulates both public
-    Cartesian contractions over radius-times-direction chunks of 512
-    radial nodes.
+    Samples normalized closed-form 1s and 2p radial functions on a
+    Boole-weighted grid. Also samples the analytic 1s derivative.
+    Attaches s and p_z harmonics. Accumulates both public Cartesian
+    contractions in 512-node radial chunks.
     """
     radius: float = 43.0
     radial_grid_numpy: Float64[NDArray, " n_node"] = np.linspace(
@@ -339,10 +337,9 @@ def _hydrogenic_reduced_public_gauges(
 
     Implementation Logic
     --------------------
-    Folds the exact angular integral 1/sqrt(3) into the position and
-    gradient z components, so each public Cartesian contraction over
-    the Boole-weighted radial grid equals the reduced one-dimensional
-    radial integral. No angular quadrature remains.
+    Folds the exact angular integral 1/sqrt(3) into both z components.
+    Each public Cartesian contraction then equals the reduced
+    one-dimensional radial integral. No angular quadrature remains.
     """
     radius: float = 43.0
     radial_grid: Array = jnp.linspace(0.0, radius, node_count)
@@ -413,9 +410,9 @@ def _radial_second_derivative(
     Implementation Logic
     --------------------
     Assembles the seven-point sixth-order centered stencil divided by
-    the spacing squared. Out-of-range samples reflect through the
-    origin with sign (-1)**(l + 1) and through the outer wall with sign
-    -1; contributions on the two Dirichlet boundary nodes are dropped.
+    the spacing squared. Reflects out-of-range samples through the
+    origin with sign (-1)**(l + 1). Reflects through the outer wall with
+    sign -1. Drops contributions on both Dirichlet boundary nodes.
     """
     spacing: float = radius / (node_count - 1)
     interior_count: int = node_count - 2
@@ -485,12 +482,11 @@ def _local_box_states(
 
     Implementation Logic
     --------------------
-    For l = 0 and l = 1, builds the sixth-order Dirichlet Hamiltonian
-    with centrifugal, quadratic, and fixed quartic (0.001) terms,
-    solves for the lowest eigenpair with shift-invert Lanczos at sigma
-    0, embeds the interior eigenvector with zero boundaries, normalizes
-    against the Boole weights, and pins the sign so the first interior
-    sample is positive. The lru_cache reuses up to four grids.
+    Builds sixth-order Dirichlet Hamiltonians for l = 0 and l = 1. Uses
+    centrifugal, quadratic, and fixed quartic terms. Solves each lowest
+    eigenpair with shift-invert Lanczos. Embeds zero boundaries,
+    normalizes with Boole weights, and pins a positive first sample.
+    The lru_cache reuses up to four grids.
     """
     radius: float = 40.0
     radial_grid: Float64[NDArray, " n_node"] = np.linspace(
@@ -559,9 +555,9 @@ def _derivative_sixth(
 
     Notes
     -----
-    For each node, clamps a seven-point window inside the grid, solves
-    the Vandermonde moment system for the first-derivative weights at
-    that offset, and applies the weights to the windowed samples.
+    Clamps one seven-point window inside the grid for each node. Solves
+    its Vandermonde moment system. Applies the resulting derivative
+    weights to the windowed samples.
     """
     node_count: int = values.size
     derivative: Float64[NDArray, " n_node"] = np.empty_like(values)

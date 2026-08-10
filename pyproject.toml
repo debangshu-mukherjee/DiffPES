@@ -63,6 +63,7 @@ docs = [
     "numpydoc>=1.9.0",
     "pydoclint>=0.7.3",
     "interrogate>=1.7.0",
+    "jupytext>=1.16.7",
 ]
 test = [
     "pytest>=8.3.5",
@@ -77,6 +78,7 @@ test = [
 notebooks = [
     "ipywidgets>=8.1.0",
     "ipykernel>=6.29.5",
+    "jupytext>=1.16.7",
     "nbconvert>=7.16.6",
 ]
 dev = [
@@ -134,7 +136,12 @@ ignore-init-module = true
 quiet = true
 
 [tool.ruff]
-include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
+include = [
+    "pyproject.toml",
+    "src/**/*.py",
+    "tests/**/*.py",
+    "tutorials/**/*.py",
+]
 line-length = 79
 target-version = "py312"
 exclude = [
@@ -251,6 +258,7 @@ convention = "numpy"
     "E741",
     "PLC0415",
 ]
+"tutorials/**/*.py" = ["D", "ANN", "E501", "ERA"]
 # Remove these legacy suppressions after traced validation and test
 # documentation migrate without changing physics behavior.
 "src/diffpes/types/*.py" = ["PLW0108"]
@@ -286,3 +294,7 @@ include = ["tests/**"]
 unresolved-attribute = "ignore"
 not-subscriptable = "ignore"
 unsupported-operator = "ignore"
+
+[tool.jupytext.formats]
+"docs/source/tutorials/" = "ipynb"
+"tutorials/" = "py:percent"

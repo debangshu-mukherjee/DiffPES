@@ -9,7 +9,7 @@ diffpes uses JAX for differentiable Angle-Resolved PhotoEmission Spectroscopy
 These guides support **physics researchers** who work with ARPES and want to
 understand:
 
-- The photoemission physics at each simulation level
+- The photoemission physics across coherent assembly stages
 - Electronic-structure data flow through the simulation pipeline
 - The physical meaning of simulation parameters and outputs
 - Differentiability for inverse recovery of band-structure parameters
@@ -21,7 +21,7 @@ understand:
 | Guide | Description |
 |-------|-------------|
 | [ARPES Geometry and Kinematics](arpes-geometry-and-kinematics.md) | Photoemission geometry, energy and momentum conservation, and detector coordinates |
-| [Simulation Levels](simulation-levels.md) | Two inexpensive incoherent tiers and the coherent primitive pipeline |
+| [Coherent Spectral Assembly](simulation-levels.md) | Matrix-element sources, resolvent/eigen spectral paths, and the detector boundary |
 | [Matrix Elements and Polarization](matrix-elements-and-polarization.md) | Radial integrals, Gaunt coefficients, spherical harmonics, and light-polarization effects |
 | [Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md) | Voigt profiles, resolution convolution, and self-energy models |
 
@@ -33,7 +33,6 @@ understand:
 | [JAX Transformability and Gradients](jax-transformability-and-gradients.md) | Support for `grad`, `vmap`, and `jit`, with gradient flow through the forward model |
 | [Certified Forward Models](certified-forward-models.md) | Bounded scientific claims, provenance, differentiable evidence, information flow, and portable records |
 | [VASP Data Ingestion](vasp-data-ingestion.md) | Parsing POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, and CHGCAR into PyTrees |
-| [Expanded Wrappers and Conventions](expanded-wrappers-and-conventions.md) | The `simulate_*_expanded` wrapper family and its argument conventions |
 
 ## Quick Start
 

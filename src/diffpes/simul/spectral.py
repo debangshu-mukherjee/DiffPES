@@ -26,10 +26,45 @@ and ``bosonic_kink`` modes evaluate analytic closed forms. Queries and
 the subtraction point must stay inside the trusted interval
 :math:`[a + 2h,\, b - 2h]`.
 
+The same module assembles the intrinsic coherent observable
+:math:`A(k,\omega)f_\mathrm{FD}(\omega,T)`. The degeneracy-safe path applies a
+complex128 Lineax resolvent to the full matrix-element source. The faster
+eigen path consumes gauge-invariant band weights. Differentiated eigen calls
+require every adjacent gap to be at least :math:`10^3\epsilon_{deg}`. An
+explicit value-only mode admits complete invariant weights at degeneracy for
+primal compatibility checks. Both paths keep detector resolution,
+transmission, backgrounds, and counts outside the intrinsic spectral boundary.
+
+Scalability
+-----------
+The resolvent route performs one complex128 LU solve per
+``(k, omega, n_out)`` and therefore costs
+:math:`O(K E n_{out} n_{orb}^3)`. Its checkpointed static scan keeps only a
+live ``(k_chunk, omega_chunk)`` transition block; the registered spinless
+solve-tape estimate is
+``16 * n_k * omega_chunk * n_orb**2`` bytes. It never materializes a complete
+``(K, E, n_out, n_orb)`` source carrier. The eigen route performs one
+eigendecomposition per k point and amortizes it over sampled energy. Its cost
+is :math:`O(K n_{orb}^3 + K E n_{orb})`. Use it for nondegenerate k paths.
+Use the resolvent route at degeneracies and for Hamiltonian
+gradients; the explicit degenerate eigen exception carries no derivative
+claim. The resolver forbids mixed precision. Operator, RHS, LU, and solution
+remain complex128.
+
 Routine Listings
 ----------------
+:func:`assemble_spectral_intensity_bands_chunk`
+    Assemble occupied intrinsic intensity from eigenvalues and band weights.
+:func:`assemble_spectral_intensity_chunk`
+    Assemble occupied intrinsic intensity from Hamiltonians and sources.
 :func:`evaluate_self_energy`
     Evaluate the complex retarded self-energy for one causal model.
+:func:`projected_spectral_density_resolvent`
+    Compute the projected Hermitian resolvent spectral density.
+:func:`spectral_intensity_eigen`
+    Evaluate spectral intensity from eigenvalues and invariant weights.
+:func:`spectral_intensity_resolvent`
+    Evaluate degeneracy-safe spectral intensity through a linear solve.
 
 Notes
 -----
@@ -44,14 +79,34 @@ from functools import partial
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import lineax as lx
 import numpy as np
 from beartype import beartype
 from beartype.typing import Any, Optional, Tuple
 from jax.custom_derivatives import SymbolicZero
-from jaxtyping import Array, Complex128, Float64, Int, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import SelfEnergyModel
+from diffpes.radial import momentum_inv_ang_to_bohr_inv, radial_bvals
+from diffpes.types import (
+    EPS,
+    EPS_DEG,
+    G_PARALLEL_ATOL_INV_ANG,
+    FinalStateSpec,
+    MatrixElementParams,
+    RadialQuadratureSpec,
+    RadialSpec,
+    ScalarBool,
+    ScalarFloat,
+    SelfEnergyModel,
+)
+
+from .broadening import fermi_dirac
+from .matrixel import (
+    contract_polarization,
+    orbital_transition_channels,
+    transition_source,
+)
 
 
 def _tangent_is_symbolic_zero(tangent: Any) -> bool:
@@ -862,7 +917,7 @@ def _check_tail_spec(  # noqa: DOC502 -- eqx.error_if raises under JAX execution
     return validated
 
 
-def _kk_transform_impl(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
+def _kk_transform_impl(  # noqa: DOC502, DOC503 -- JAX runtime guards.
     core_grid: Tuple[Float64[Array, " n_kk"], Float64[Array, " n_kk"]],
     model_domain: Float64[Array, " 2"],
     tail_spec: Any,
@@ -1837,7 +1892,7 @@ def _kink_real_part(
 
 
 @jaxtyped(typechecker=beartype)
-def evaluate_self_energy(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
+def evaluate_self_energy(  # noqa: DOC502, DOC503 -- JAX runtime guards.
     omega_rel_fermi_ev: Float64[Array, " n_omega"],
     model: SelfEnergyModel,
     n_kk: int = 4096,
@@ -2008,4 +2063,1262 @@ def evaluate_self_energy(  # noqa: DOC502 -- eqx.error_if raises under JAX execu
     return sigma
 
 
-__all__: list[str] = ["evaluate_self_energy"]
+def _checked_spectral_hamiltonian(
+    hamiltonian: Complex128[Array, "n_orb n_orb"],
+    *,
+    context: str,
+) -> Complex128[Array, "n_orb n_orb"]:
+    """PRIVATE: Validate one finite Hermitian Hamiltonian.
+
+    Parameters
+    ----------
+    hamiltonian : Complex128[Array, "n_orb n_orb"]
+        Candidate Hamiltonian in eV.
+    context : str
+        Public caller name used in error messages.
+
+    Returns
+    -------
+    checked : Complex128[Array, "n_orb n_orb"]
+        Unchanged Hamiltonian carrying both runtime guards.
+
+    Notes
+    -----
+    The types-owned ``EPS`` tolerance matches the Hermitian validation
+    used by the tight-binding eigensolver. Both checks survive JIT.
+    """
+    checked: Complex128[Array, "n_orb n_orb"] = eqx.error_if(
+        hamiltonian,
+        ~jnp.all(jnp.isfinite(hamiltonian)),
+        f"{context}: Hamiltonian entries must be finite",
+    )
+    checked = eqx.error_if(
+        checked,
+        ~jnp.allclose(checked, checked.conj().T, rtol=EPS, atol=EPS),
+        f"{context}: Hamiltonian must be Hermitian",
+    )
+    return checked  # noqa: RET504 -- the returned value carries both guards.
+
+
+def _checked_resolvent_scalars(
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: ScalarFloat,
+    *,
+    context: str,
+) -> Tuple[
+    Float64[Array, ""],
+    Complex128[Array, ""],
+    Float64[Array, ""],
+]:
+    """PRIVATE: Validate one retarded resolvent coordinate.
+
+    Parameters
+    ----------
+    omega_rel_fermi_ev : Float64[Array, ""]
+        Sampled energy relative to the Fermi level in eV.
+    sigma_omega : Complex128[Array, ""]
+        Retarded self-energy at the sampled energy in eV.
+    eta : ScalarFloat
+        Positive regulator in eV.
+    context : str
+        Public caller name used in error messages.
+
+    Returns
+    -------
+    checked : Tuple[Float64[Array, ""], Complex128[Array, ""],
+        Float64[Array, ""]]
+        Finite sampled energy, retarded self-energy with a positive total
+        linewidth, and a positive float64 regulator.
+
+    Notes
+    -----
+    The physical denominator width is ``eta - imag(sigma)``. Requiring it
+    to remain positive rejects an advanced or singular resolvent.
+    """
+    omega_checked: Float64[Array, ""] = eqx.error_if(
+        omega_rel_fermi_ev,
+        ~jnp.isfinite(omega_rel_fermi_ev),
+        f"{context}: omega must be finite",
+    )
+    eta_array: Float64[Array, ""] = jnp.asarray(eta, dtype=jnp.float64)
+    eta_checked: Float64[Array, ""] = eqx.error_if(
+        eta_array,
+        ~jnp.isfinite(eta_array) | (eta_array <= 0.0),
+        f"{context}: eta must be finite and strictly positive",
+    )
+    sigma_checked: Complex128[Array, ""] = eqx.error_if(
+        sigma_omega,
+        ~jnp.isfinite(sigma_omega),
+        f"{context}: sigma_omega must be finite",
+    )
+    sigma_checked = eqx.error_if(
+        sigma_checked,
+        jnp.imag(sigma_checked) > 0.0,
+        f"{context}: retarded sigma_omega must have a nonpositive "
+        "imaginary part",
+    )
+    sigma_checked = eqx.error_if(
+        sigma_checked,
+        eta_checked - jnp.imag(sigma_checked) <= 0.0,
+        f"{context}: eta - imag(sigma_omega) must be strictly positive",
+    )
+    checked: Tuple[
+        Float64[Array, ""],
+        Complex128[Array, ""],
+        Float64[Array, ""],
+    ] = (omega_checked, sigma_checked, eta_checked)
+    return checked
+
+
+def _resolvent_solution(
+    hamiltonian_rel_fermi_k: Complex128[Array, "n_orb n_orb"],
+    source: Complex128[Array, " n_orb"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: Float64[Array, ""],
+) -> Complex128[Array, " n_orb"]:
+    """PRIVATE: Apply the complex128 retarded resolvent to one source.
+
+    Parameters
+    ----------
+    hamiltonian_rel_fermi_k : Complex128[Array, "n_orb n_orb"]
+        Hermitian Hamiltonian relative to the Fermi level in eV.
+    source : Complex128[Array, " n_orb"]
+        Right-hand side source ket.
+    omega_rel_fermi_ev : Float64[Array, ""]
+        Relative sampled energy in eV.
+    sigma_omega : Complex128[Array, ""]
+        Retarded self-energy at that energy in eV.
+    eta : Float64[Array, ""]
+        Positive regulator in eV.
+
+    Returns
+    -------
+    solution : Complex128[Array, " n_orb"]
+        ``((omega + i*eta - sigma) I - H)^{-1} source``.
+
+    Notes
+    -----
+    Lineax owns the transpose rule, so reverse mode uses the corresponding
+    adjoint solve without a hand-written custom derivative.
+    """
+    identity: Complex128[Array, "n_orb n_orb"] = jnp.eye(
+        hamiltonian_rel_fermi_k.shape[0], dtype=jnp.complex128
+    )
+    operator_matrix: Complex128[Array, "n_orb n_orb"] = (
+        omega_rel_fermi_ev + 1.0j * eta - sigma_omega
+    ) * identity - hamiltonian_rel_fermi_k
+    solution: Complex128[Array, " n_orb"] = lx.linear_solve(
+        lx.MatrixLinearOperator(operator_matrix),
+        source,
+        lx.LU(),
+    ).value
+    return solution
+
+
+def _spectral_intensity_resolvent_unchecked(
+    hamiltonian_rel_fermi_k: Complex128[Array, "n_orb n_orb"],
+    transition_source: Complex128[Array, " n_orb"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: Float64[Array, ""],
+) -> Float64[Array, ""]:
+    """PRIVATE: Evaluate one already-validated resolvent quadratic form.
+
+    Notes
+    -----
+    The caller owns all domain checks. This helper performs one complex128
+    solve and contracts the source with its response.
+    """
+    solution: Complex128[Array, " n_orb"] = _resolvent_solution(
+        hamiltonian_rel_fermi_k,
+        transition_source,
+        omega_rel_fermi_ev,
+        sigma_omega,
+        eta,
+    )
+    intensity: Float64[Array, ""] = (
+        -jnp.imag(jnp.vdot(transition_source, solution)) / jnp.pi
+    )
+    return intensity
+
+
+def _summed_spectral_intensity_resolvent_unchecked(
+    hamiltonian_rel_fermi_k: Complex128[Array, "n_orb n_orb"],
+    transition_sources: Complex128[Array, "n_out n_orb"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: Float64[Array, ""],
+) -> Float64[Array, ""]:
+    """PRIVATE: Evaluate every outgoing source before incoherent reduction.
+
+    Notes
+    -----
+    Vectorization applies the scalar resolvent to each source separately.
+    The helper sums only after it forms each real quadratic response.
+    """
+    per_output: Float64[Array, " n_out"] = jax.vmap(
+        _spectral_intensity_resolvent_unchecked,
+        in_axes=(None, 0, None, None, None),
+    )(
+        hamiltonian_rel_fermi_k,
+        transition_sources,
+        omega_rel_fermi_ev,
+        sigma_omega,
+        eta,
+    )
+    intensity: Float64[Array, ""] = jnp.sum(per_output)
+    return intensity
+
+
+@jaxtyped(typechecker=beartype)
+def spectral_intensity_resolvent(  # noqa: DOC502, DOC503 -- traced guards.
+    hamiltonian_rel_fermi_k: Complex128[Array, "n_orb n_orb"],
+    transition_sources: Complex128[Array, "n_out n_orb"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: ScalarFloat,
+) -> Float64[Array, ""]:
+    r"""Evaluate degeneracy-safe spectral intensity through a linear solve.
+
+    For every outgoing channel :math:`\alpha`, the primitive computes
+    :math:`-\operatorname{Im}[s_\alpha^\dagger G(\omega)s_\alpha]/\pi`,
+    where :math:`G=[(\omega+i\eta-\Sigma)I-H]^{-1}`, and then sums the real
+    responses. It never coherently combines sources before solving and never
+    differentiates an eigenvector, so exact band degeneracies remain regular.
+
+    :see: :class:`~.test_spectral.TestSpectralIntensityResolvent`
+
+    Parameters
+    ----------
+    hamiltonian_rel_fermi_k : Complex128[Array, "n_orb n_orb"]
+        Finite Hermitian Hamiltonian relative to the Fermi level in eV.
+    transition_sources : Complex128[Array, "n_out n_orb"]
+        Nonempty outgoing-channel source kets ``s = d.conj()`` from the
+        matrix-element seam. ``n_out=1`` is the spinless case.
+    omega_rel_fermi_ev : Float64[Array, ""]
+        Sampled energy relative to the Fermi level in eV.
+    sigma_omega : Complex128[Array, ""]
+        Complex retarded self-energy at the sampled energy in eV.
+    eta : ScalarFloat
+        Finite, strictly positive resolvent regulator in eV.
+
+    Returns
+    -------
+    intensity : Float64[Array, ""]
+        Intrinsic spectral intensity in inverse eV.
+
+    Raises
+    ------
+    ValueError
+        If the outgoing-channel axis is empty.
+    EquinoxRuntimeError
+        If an input is non-finite, the Hamiltonian is non-Hermitian, or the
+        total linewidth is not strictly positive.
+
+    Notes
+    -----
+    Each source enters an independent scalar-RHS solve. The contraction uses
+    :func:`jax.numpy.vdot`, not ``dot``. The helper reduces only after forming
+    the real quadratic responses. Lineax keeps the operator, right-hand side,
+    LU factorization, and result in complex128. It supplies exact forward- and
+    reverse-mode rules.
+    """
+    if transition_sources.shape[0] == 0:
+        raise ValueError("transition_sources n_out axis must be nonempty")
+    checked_hamiltonian: Complex128[Array, "n_orb n_orb"] = (
+        _checked_spectral_hamiltonian(
+            hamiltonian_rel_fermi_k,
+            context="spectral_intensity_resolvent",
+        )
+    )
+    checked_sources: Complex128[Array, "n_out n_orb"] = eqx.error_if(
+        transition_sources,
+        ~jnp.all(jnp.isfinite(transition_sources)),
+        "spectral_intensity_resolvent: transition_sources must be finite",
+    )
+    omega_checked: Float64[Array, ""]
+    sigma_checked: Complex128[Array, ""]
+    eta_checked: Float64[Array, ""]
+    omega_checked, sigma_checked, eta_checked = _checked_resolvent_scalars(
+        omega_rel_fermi_ev,
+        sigma_omega,
+        eta,
+        context="spectral_intensity_resolvent",
+    )
+    intensity: Float64[Array, ""] = (
+        _summed_spectral_intensity_resolvent_unchecked(
+            checked_hamiltonian,
+            checked_sources,
+            omega_checked,
+            sigma_checked,
+            eta_checked,
+        )
+    )
+    return intensity
+
+
+@jaxtyped(typechecker=beartype)
+def projected_spectral_density_resolvent(  # noqa: DOC502 -- traced guards.
+    hamiltonian_rel_fermi_k: Complex128[Array, "n_orb n_orb"],
+    transition_operator: Complex128[Array, "n_out n_orb"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: ScalarFloat,
+) -> Complex128[Array, "n_out n_out"]:
+    r"""Compute the projected Hermitian resolvent spectral density.
+
+    The returned matrix is
+    :math:`D[-(G-G^\dagger)/(2\pi i)]D^\dagger`. This polynomial projector
+    form preserves off-diagonal spin and channel coherences at degeneracies.
+
+    :see: :class:`~.test_spectral.TestProjectedSpectralDensityResolvent`
+
+    Parameters
+    ----------
+    hamiltonian_rel_fermi_k : Complex128[Array, "n_orb n_orb"]
+        Finite Hermitian Hamiltonian relative to the Fermi level in eV.
+    transition_operator : Complex128[Array, "n_out n_orb"]
+        Output-channel rows ``D`` in the orbital basis.
+    omega_rel_fermi_ev : Float64[Array, ""]
+        Sampled energy relative to the Fermi level in eV.
+    sigma_omega : Complex128[Array, ""]
+        Complex retarded self-energy at the sampled energy in eV.
+    eta : ScalarFloat
+        Finite, strictly positive regulator in eV.
+
+    Returns
+    -------
+    density : Complex128[Array, "n_out n_out"]
+        Hermitian positive-semidefinite projected spectral density.
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If an input is non-finite, the Hamiltonian is non-Hermitian, or the
+        total linewidth is not strictly positive.
+
+    Notes
+    -----
+    A static ``vmap`` applies the same Lineax operator to every column of
+    ``D.dagger``. Antisymmetrizing the projected Green function as a matrix
+    preserves its off-diagonal coherences. An elementwise imaginary part
+    corrupts them.
+    """
+    checked_hamiltonian: Complex128[Array, "n_orb n_orb"] = (
+        _checked_spectral_hamiltonian(
+            hamiltonian_rel_fermi_k,
+            context="projected_spectral_density_resolvent",
+        )
+    )
+    checked_operator: Complex128[Array, "n_out n_orb"] = eqx.error_if(
+        transition_operator,
+        ~jnp.all(jnp.isfinite(transition_operator)),
+        "projected_spectral_density_resolvent: transition_operator "
+        "must be finite",
+    )
+    omega_checked: Float64[Array, ""]
+    sigma_checked: Complex128[Array, ""]
+    eta_checked: Float64[Array, ""]
+    omega_checked, sigma_checked, eta_checked = _checked_resolvent_scalars(
+        omega_rel_fermi_ev,
+        sigma_omega,
+        eta,
+        context="projected_spectral_density_resolvent",
+    )
+    right_hand_sides: Complex128[Array, "n_orb n_out"] = (
+        checked_operator.conj().T
+    )
+    solved: Complex128[Array, "n_orb n_out"] = jax.vmap(
+        lambda source: _resolvent_solution(
+            checked_hamiltonian,
+            source,
+            omega_checked,
+            sigma_checked,
+            eta_checked,
+        ),
+        in_axes=1,
+        out_axes=1,
+    )(right_hand_sides)
+    projected_green: Complex128[Array, "n_out n_out"] = (
+        checked_operator @ solved
+    )
+    density: Complex128[Array, "n_out n_out"] = -(
+        projected_green - projected_green.conj().T
+    ) / (2.0j * jnp.pi)
+    return density
+
+
+def _checked_eigenvalue_domain(
+    eigenvalues_ev: Float64[Array, "... n_bands"],
+    allow_degenerate_value_only: ScalarBool,
+    *,
+    context: str,
+) -> Float64[Array, "... n_bands"]:
+    """PRIVATE: Enforce the differentiated eigen-path gap floor.
+
+    Parameters
+    ----------
+    eigenvalues_ev : Float64[Array, "... n_bands"]
+        Finite eigenvalues in eV, with any leading batch axes.
+    allow_degenerate_value_only : ScalarBool
+        Whether to admit a degenerate primal with no derivative claim.
+    context : str
+        Public caller name included in a rejection message.
+
+    Returns
+    -------
+    checked : Float64[Array, "... n_bands"]
+        Eigenvalues carrying the traced nondegenerate-domain guard.
+    """
+    if eigenvalues_ev.shape[-1] < 2:  # noqa: PLR2004 -- a gap needs a pair.
+        return eigenvalues_ev
+    minimum_gap_ev: float = 1.0e3 * EPS_DEG
+    sorted_eigenvalues: Float64[Array, "... n_bands"] = jnp.sort(
+        eigenvalues_ev,
+        axis=-1,
+    )
+    adjacent_gaps: Float64[Array, "... n_gap"] = jnp.diff(
+        sorted_eigenvalues,
+        axis=-1,
+    )
+    minimum_gap: Float64[Array, ""] = jnp.min(adjacent_gaps)
+    enforce_gap: Bool[Array, ""] = ~jnp.asarray(
+        allow_degenerate_value_only,
+        dtype=jnp.bool_,
+    )
+    checked: Float64[Array, "... n_bands"] = eqx.error_if(
+        eigenvalues_ev,
+        enforce_gap & (minimum_gap < minimum_gap_ev),
+        f"{context}: differentiated eigen path requires every adjacent band "
+        f"gap to be at least {minimum_gap_ev:.1e} eV; use the "
+        "resolvent for gradients or set allow_degenerate_value_only=True "
+        "only for primal evaluation",
+    )
+    return checked
+
+
+def _spectral_intensity_eigen_unchecked(
+    eigenvalues_rel_fermi_ev: Float64[Array, " n_bands"],
+    band_weights: Float64[Array, " n_bands"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: Float64[Array, ""],
+) -> Float64[Array, ""]:
+    """PRIVATE: Sum already-validated Lorentzian band contributions.
+
+    Notes
+    -----
+    The caller validates weights, eigenvalues, and linewidth. This helper
+    contains only the normalized Lorentzian arithmetic.
+    """
+    linewidth: Float64[Array, ""] = eta - jnp.imag(sigma_omega)
+    displacement: Float64[Array, " n_bands"] = (
+        omega_rel_fermi_ev - eigenvalues_rel_fermi_ev - jnp.real(sigma_omega)
+    )
+    intensity: Float64[Array, ""] = jnp.sum(
+        band_weights * linewidth / (jnp.pi * (displacement**2 + linewidth**2))
+    )
+    return intensity
+
+
+@jaxtyped(typechecker=beartype)
+def spectral_intensity_eigen(  # noqa: DOC502 -- traced domain guards.
+    eigenvalues_rel_fermi_ev: Float64[Array, " n_bands"],
+    band_weights: Float64[Array, " n_bands"],
+    omega_rel_fermi_ev: Float64[Array, ""],
+    sigma_omega: Complex128[Array, ""],
+    eta: ScalarFloat,
+    *,
+    allow_degenerate_value_only: ScalarBool = False,
+) -> Float64[Array, ""]:
+    """Evaluate spectral intensity from eigenvalues and invariant weights.
+
+    This fast path sums one normalized Lorentzian per band. Its inputs are
+    gauge-invariant band weights, so raw eigenvector phases never reach the
+    observable. The resolvent path remains the certified choice at an exact
+    degeneracy.
+
+    :see: :class:`~.test_spectral.TestSpectralIntensityEigen`
+
+    Parameters
+    ----------
+    eigenvalues_rel_fermi_ev : Float64[Array, " n_bands"]
+        Band energies relative to the Fermi level in eV.
+    band_weights : Float64[Array, " n_bands"]
+        Finite, nonnegative gauge-invariant transition weights.
+    omega_rel_fermi_ev : Float64[Array, ""]
+        Sampled energy relative to the Fermi level in eV.
+    sigma_omega : Complex128[Array, ""]
+        Complex retarded self-energy at the sampled energy in eV.
+    eta : ScalarFloat
+        Finite, strictly positive regulator in eV.
+    allow_degenerate_value_only : ScalarBool, optional
+        Admit an exact or near-degenerate primal without certifying JVPs,
+        VJPs, finite differences, or Hamiltonian-parameter derivatives.
+        Default is ``False``.
+
+    Returns
+    -------
+    intensity : Float64[Array, ""]
+        Intrinsic spectral intensity in inverse eV.
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If an input is non-finite, a band weight is negative, or the total
+        linewidth is not strictly positive. Also raised when the minimum band
+        gap is below ``1e3 * EPS_DEG`` unless value-only evaluation is
+        explicit.
+
+    Notes
+    -----
+    The linewidth is exactly ``eta - imag(sigma_omega)`` and the pole
+    displacement is ``omega - eigenvalue - real(sigma_omega)``. Equal poles
+    have a gauge-invariant primal when their supplied weights form a complete
+    invariant group. Only the resolvent path owns derivatives at such a
+    degeneracy.
+    """
+    checked_eigenvalues: Float64[Array, " n_bands"] = eqx.error_if(
+        eigenvalues_rel_fermi_ev,
+        ~jnp.all(jnp.isfinite(eigenvalues_rel_fermi_ev)),
+        "spectral_intensity_eigen: eigenvalues must be finite",
+    )
+    checked_eigenvalues = _checked_eigenvalue_domain(
+        checked_eigenvalues,
+        allow_degenerate_value_only,
+        context="spectral_intensity_eigen",
+    )
+    checked_weights: Float64[Array, " n_bands"] = eqx.error_if(
+        band_weights,
+        ~jnp.all(jnp.isfinite(band_weights) & (band_weights >= 0.0)),
+        "spectral_intensity_eigen: band_weights must be finite and "
+        "nonnegative",
+    )
+    omega_checked: Float64[Array, ""]
+    sigma_checked: Complex128[Array, ""]
+    eta_checked: Float64[Array, ""]
+    omega_checked, sigma_checked, eta_checked = _checked_resolvent_scalars(
+        omega_rel_fermi_ev,
+        sigma_omega,
+        eta,
+        context="spectral_intensity_eigen",
+    )
+    intensity: Float64[Array, ""] = _spectral_intensity_eigen_unchecked(
+        checked_eigenvalues,
+        checked_weights,
+        omega_checked,
+        sigma_checked,
+        eta_checked,
+    )
+    return intensity
+
+
+def _sampled_fermi_occupation(
+    omega_rel_fermi_ev: Float64[Array, " n_chunk"],
+    temperature_k: ScalarFloat,
+) -> Float64[Array, " n_chunk"]:
+    """PRIVATE: Evaluate occupation on the sampled relative-energy axis.
+
+    Notes
+    -----
+    Vectorization evaluates the shared scalar Fermi primitive at every
+    sampled energy and a zero relative chemical potential.
+    """
+    occupation: Float64[Array, " n_chunk"] = jax.vmap(
+        lambda omega: fermi_dirac(omega, 0.0, temperature_k)
+    )(omega_rel_fermi_ev)
+    return occupation
+
+
+@jaxtyped(typechecker=beartype)
+def assemble_spectral_intensity_chunk(  # noqa: DOC502, DOC503 -- traced guards.
+    hamiltonians_ev: Complex128[Array, "n_k n_orb n_orb"],
+    transition_sources: Complex128[Array, "n_k n_chunk n_out n_orb"],
+    omega_rel_fermi_ev: Float64[Array, " n_chunk"],
+    self_energy: SelfEnergyModel,
+    fermi_energy_ev: Float64[Array, ""],
+    temperature_k: ScalarFloat,
+    eta: ScalarFloat = 1.0e-4,
+) -> Float64[Array, "n_k n_chunk"]:
+    """Assemble occupied intrinsic intensity from Hamiltonians and sources.
+
+    The degeneracy-safe path shifts each absolute Hamiltonian by the Fermi
+    energy exactly once. It evaluates the causal self-energy once on the
+    sampled relative-energy grid. It multiplies the spectral function by the
+    Fermi occupation at those sampled energies.
+
+    :see: :class:`~.test_spectral.TestAssembleSpectralIntensityChunk`
+
+    Parameters
+    ----------
+    hamiltonians_ev : Complex128[Array, "n_k n_orb n_orb"]
+        Absolute-energy Hermitian Hamiltonians in eV.
+    transition_sources : Complex128[Array, "n_k n_chunk n_out n_orb"]
+        Nonempty outgoing-channel source kets for each ``(k, omega)``.
+        The code solves every channel independently; ``n_out=1`` is spinless.
+    omega_rel_fermi_ev : Float64[Array, " n_chunk"]
+        Sampled energies ``E - E_F`` in eV.
+    self_energy : SelfEnergyModel
+        Validated causal self-energy carrier on the relative-energy axis.
+    fermi_energy_ev : Float64[Array, ""]
+        Absolute Fermi energy subtracted from every Hamiltonian once.
+    temperature_k : ScalarFloat
+        Finite, strictly positive sample temperature in kelvin.
+    eta : ScalarFloat, optional
+        Positive resolvent regulator in eV. Default is ``1e-4``.
+
+    Returns
+    -------
+    intensity : Float64[Array, "n_k n_chunk"]
+        Intrinsic ``A(k, omega) f_FD(omega, T)`` in inverse eV.
+
+    Raises
+    ------
+    ValueError
+        If the outgoing-channel axis is empty.
+    EquinoxRuntimeError
+        If any numerical input violates the finite, Hermitian, causal, or
+        positive-temperature contract.
+
+    Notes
+    -----
+    The operation contains no detector convolution, count normalization, or
+    background. Peak live solve storage scales as approximately
+    ``16 * n_k * n_chunk * n_out * n_orb**2`` bytes in complex128. Scan static
+    omega chunks and checkpoint this function. Use the eigen path for long
+    nondegenerate paths. Use the resolvent at degeneracies or for Hamiltonian
+    gradients.
+    """
+    if transition_sources.shape[2] == 0:
+        raise ValueError("transition_sources n_out axis must be nonempty")
+    checked_fermi: Float64[Array, ""] = eqx.error_if(
+        fermi_energy_ev,
+        ~jnp.isfinite(fermi_energy_ev),
+        "assemble_spectral_intensity_chunk: fermi_energy_ev must be finite",
+    )
+    checked_omega: Float64[Array, " n_chunk"] = eqx.error_if(
+        omega_rel_fermi_ev,
+        ~jnp.all(jnp.isfinite(omega_rel_fermi_ev)),
+        "assemble_spectral_intensity_chunk: omega must be finite",
+    )
+    checked_sources: Complex128[Array, "n_k n_chunk n_out n_orb"] = (
+        eqx.error_if(
+            transition_sources,
+            ~jnp.all(jnp.isfinite(transition_sources)),
+            "assemble_spectral_intensity_chunk: transition_sources must be "
+            "finite",
+        )
+    )
+    checked_hamiltonians: Complex128[Array, "n_k n_orb n_orb"] = jax.vmap(
+        lambda hamiltonian: _checked_spectral_hamiltonian(
+            hamiltonian,
+            context="assemble_spectral_intensity_chunk",
+        )
+    )(hamiltonians_ev)
+    identity: Complex128[Array, "n_orb n_orb"] = jnp.eye(
+        hamiltonians_ev.shape[-1], dtype=jnp.complex128
+    )
+    hamiltonians_rel: Complex128[Array, "n_k n_orb n_orb"] = (
+        checked_hamiltonians - checked_fermi * identity[None, :, :]
+    )
+    sigma: Complex128[Array, " n_chunk"] = evaluate_self_energy(
+        checked_omega,
+        self_energy,
+    )
+    eta_array: Float64[Array, ""] = jnp.asarray(eta, dtype=jnp.float64)
+    eta_checked: Float64[Array, ""] = eqx.error_if(
+        eta_array,
+        ~jnp.isfinite(eta_array) | (eta_array <= 0.0),
+        "assemble_spectral_intensity_chunk: eta must be finite and positive",
+    )
+    spectral: Float64[Array, "n_k n_chunk"] = jax.vmap(
+        lambda hamiltonian, sources: jax.vmap(
+            _summed_spectral_intensity_resolvent_unchecked,
+            in_axes=(None, 0, 0, 0, None),
+        )(hamiltonian, sources, checked_omega, sigma, eta_checked)
+    )(hamiltonians_rel, checked_sources)
+    occupation: Float64[Array, " n_chunk"] = _sampled_fermi_occupation(
+        checked_omega,
+        temperature_k,
+    )
+    intensity: Float64[Array, "n_k n_chunk"] = spectral * occupation[None, :]
+    return intensity
+
+
+@jaxtyped(typechecker=beartype)
+def assemble_spectral_intensity_bands_chunk(  # noqa: DOC502 -- traced guards.
+    eigenvalues_ev: Float64[Array, "n_k n_bands"],
+    band_weights: Float64[Array, "n_k n_chunk n_bands"],
+    omega_rel_fermi_ev: Float64[Array, " n_chunk"],
+    self_energy: SelfEnergyModel,
+    fermi_energy_ev: Float64[Array, ""],
+    temperature_k: ScalarFloat,
+    eta: ScalarFloat = 1.0e-4,
+    *,
+    allow_degenerate_value_only: ScalarBool = False,
+) -> Float64[Array, "n_k n_chunk"]:
+    """Assemble occupied intrinsic intensity from eigenvalues and band weights.
+
+    This nondegenerate fast path shifts absolute eigenvalues by the Fermi
+    energy exactly once and sums gauge-invariant Lorentzian band weights.
+    The code evaluates occupation at sampled omega, never at a band eigenvalue.
+
+    :see: :class:`~.test_spectral.TestAssembleSpectralIntensityBandsChunk`
+
+    Parameters
+    ----------
+    eigenvalues_ev : Float64[Array, "n_k n_bands"]
+        Absolute band energies in eV.
+    band_weights : Float64[Array, "n_k n_chunk n_bands"]
+        Explicit finite, nonnegative transition weights for each sample.
+    omega_rel_fermi_ev : Float64[Array, " n_chunk"]
+        Sampled energies ``E - E_F`` in eV.
+    self_energy : SelfEnergyModel
+        Validated causal self-energy carrier on the relative-energy axis.
+    fermi_energy_ev : Float64[Array, ""]
+        Absolute Fermi energy subtracted from every eigenvalue once.
+    temperature_k : ScalarFloat
+        Finite, strictly positive sample temperature in kelvin.
+    eta : ScalarFloat, optional
+        Positive regulator in eV. Default is ``1e-4``.
+    allow_degenerate_value_only : ScalarBool, optional
+        Admit exact or near-degenerate rows only for primal compatibility
+        checks with already-formed complete invariant weights. Default is
+        ``False``.
+
+    Returns
+    -------
+    intensity : Float64[Array, "n_k n_chunk"]
+        Intrinsic ``A(k, omega) f_FD(omega, T)`` in inverse eV.
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If an input is non-finite, a weight is negative, or a physical width
+        or temperature is not strictly positive. Also raised when any band
+        gap is below ``1e3 * EPS_DEG`` unless value-only evaluation is
+        explicit.
+
+    Notes
+    -----
+    The eigen route amortizes one eigendecomposition over all sampled
+    energies. Its differentiated domain requires every adjacent band gap to
+    be at least ``1e3 * EPS_DEG``. The explicit value-only exception emits no
+    derivative claim. The function performs no convolution, normalization,
+    or detector response; Plan 08a owns those downstream operations.
+    """
+    checked_eigenvalues: Float64[Array, "n_k n_bands"] = eqx.error_if(
+        eigenvalues_ev,
+        ~jnp.all(jnp.isfinite(eigenvalues_ev)),
+        "assemble_spectral_intensity_bands_chunk: eigenvalues must be finite",
+    )
+    checked_eigenvalues = _checked_eigenvalue_domain(
+        checked_eigenvalues,
+        allow_degenerate_value_only,
+        context="assemble_spectral_intensity_bands_chunk",
+    )
+    checked_weights: Float64[Array, "n_k n_chunk n_bands"] = eqx.error_if(
+        band_weights,
+        ~jnp.all(jnp.isfinite(band_weights) & (band_weights >= 0.0)),
+        "assemble_spectral_intensity_bands_chunk: weights must be finite "
+        "and nonnegative",
+    )
+    checked_fermi: Float64[Array, ""] = eqx.error_if(
+        fermi_energy_ev,
+        ~jnp.isfinite(fermi_energy_ev),
+        "assemble_spectral_intensity_bands_chunk: fermi energy must be finite",
+    )
+    checked_omega: Float64[Array, " n_chunk"] = eqx.error_if(
+        omega_rel_fermi_ev,
+        ~jnp.all(jnp.isfinite(omega_rel_fermi_ev)),
+        "assemble_spectral_intensity_bands_chunk: omega must be finite",
+    )
+    eigenvalues_rel: Float64[Array, "n_k n_bands"] = (
+        checked_eigenvalues - checked_fermi
+    )
+    sigma: Complex128[Array, " n_chunk"] = evaluate_self_energy(
+        checked_omega,
+        self_energy,
+    )
+    eta_array: Float64[Array, ""] = jnp.asarray(eta, dtype=jnp.float64)
+    eta_checked: Float64[Array, ""] = eqx.error_if(
+        eta_array,
+        ~jnp.isfinite(eta_array) | (eta_array <= 0.0),
+        "assemble_spectral_intensity_bands_chunk: eta must be finite and "
+        "positive",
+    )
+    spectral: Float64[Array, "n_k n_chunk"] = jax.vmap(
+        lambda eigenvalues, weights: jax.vmap(
+            _spectral_intensity_eigen_unchecked,
+            in_axes=(None, 0, 0, 0, None),
+        )(eigenvalues, weights, checked_omega, sigma, eta_checked)
+    )(eigenvalues_rel, checked_weights)
+    occupation: Float64[Array, " n_chunk"] = _sampled_fermi_occupation(
+        checked_omega,
+        temperature_k,
+    )
+    intensity: Float64[Array, "n_k n_chunk"] = spectral * occupation[None, :]
+    return intensity
+
+
+class _TransitionSourceSchedule(eqx.Module):
+    """PRIVATE: Store traced Plan-06 inputs for block-local source assembly.
+
+    The carrier contains kinematics and energy-independent matrix-element
+    state, never a precomputed ``(K, E, B)`` transition tensor. The streamed
+    driver slices the padded kinematics and constructs source kets only for
+    the live ``(k_chunk, omega_chunk)`` block.
+
+    Attributes
+    ----------
+    k_i_cart : Float64[Array, "n_k_max 3"]
+        Initial sample-frame crystal momenta in inverse Angstrom.
+    k_f_cart : Float64[Array, "n_k_max n_omega_max 3"]
+        Explicit vacuum final momenta from the Plan-03 kinematic seam.
+    emission_valid : Bool[Array, "n_k_max n_omega_max"]
+        Physical emission mask paired with ``k_f_cart``.
+    positions_cart : Float64[Array, "n_orb 3"]
+        Orbital or Wannier centres in Cartesian Angstrom.
+    depths : Float64[Array, "n_orb"]
+        Orbital depths below the surface in Angstrom.
+    polarization_sample_cart : Complex128[Array, "3"]
+        Sample-frame Cartesian polarization after the one lab-to-sample map.
+    mean_free_path_ang : Float64[Array, ""]
+        Photoelectron intensity mean free path in Angstrom.
+    radial : RadialSpec
+        Shell-shared initial-state radial carrier.
+    matrix_element : MatrixElementParams
+        Shell scales and phase coordinates.
+    quadrature : RadialQuadratureSpec
+        Certified fixed radial quadrature.
+    final_state : FinalStateSpec
+        Direct plane-wave or Coulomb final-state selection.
+    """
+
+    k_i_cart: Float64[Array, "n_k_max 3"]
+    k_f_cart: Float64[Array, "n_k_max n_omega_max 3"]
+    emission_valid: Bool[Array, "n_k_max n_omega_max"]
+    positions_cart: Float64[Array, "n_orb 3"]
+    depths: Float64[Array, " n_orb"]
+    polarization_sample_cart: Complex128[Array, " 3"]
+    mean_free_path_ang: Float64[Array, ""]
+    radial: RadialSpec
+    matrix_element: MatrixElementParams
+    quadrature: RadialQuadratureSpec
+    final_state: FinalStateSpec
+
+
+def _validate_transition_source_schedule(
+    schedule: _TransitionSourceSchedule,
+    *,
+    n_k_max: int,
+    n_omega_max: int,
+    n_orb: int,
+) -> None:
+    """PRIVATE: Validate the static axes of one padded source schedule.
+
+    Notes
+    -----
+    Python shape checks run before tracing. The schedule must also share one
+    orbital basis and radial-shell partition across its carriers.
+    """
+    if (
+        schedule.k_i_cart.shape != (n_k_max, 3)
+        or schedule.k_f_cart.shape != (n_k_max, n_omega_max, 3)
+        or schedule.emission_valid.shape != (n_k_max, n_omega_max)
+        or schedule.positions_cart.shape != (n_orb, 3)
+        or schedule.depths.shape != (n_orb,)
+        or schedule.polarization_sample_cart.shape != (3,)
+        or schedule.mean_free_path_ang.ndim != 0
+        or len(schedule.radial.basis.n) != n_orb
+    ):
+        raise ValueError(
+            "transition source schedule axes must match the padded spectral "
+            "and orbital dimensions"
+        )
+    if (
+        schedule.radial.basis != schedule.matrix_element.basis
+        or schedule.radial.radial_shell_index
+        != schedule.matrix_element.radial_shell_index
+    ):
+        raise ValueError(
+            "transition source radial and matrix-element carriers must share "
+            "one basis and shell partition"
+        )
+
+
+def _transition_sources_for_block(
+    schedule: _TransitionSourceSchedule,
+    k_i_block: Float64[Array, "k_chunk 3"],
+    k_f_block: Float64[Array, "k_chunk omega_chunk 3"],
+    valid_block: Bool[Array, "k_chunk omega_chunk"],
+) -> Complex128[Array, "k_chunk omega_chunk n_spin n_orb"]:
+    """PRIVATE: Build only one live matrix-element source block.
+
+    The helper replaces invalid padding before the Plan-06 primitives run. It
+    restores exact zeros afterward. Every physically valid final momentum must
+    be finite, nonzero, and on the registered zero-umklapp in-plane seam.
+
+    Notes
+    -----
+    The energy-axis vectorization keeps only one chunk of radial values,
+    transition channels, and outgoing sources live at a time.
+    """
+
+    def one_energy(
+        final_momentum: Float64[Array, "k_chunk 3"],
+        valid: Bool[Array, " k_chunk"],
+    ) -> Complex128[Array, "k_chunk n_spin n_orb"]:
+        """Construct the outgoing-spin source rows at one omega."""
+        safe_initial: Float64[Array, "k_chunk 3"] = jnp.where(
+            valid[:, None], k_i_block, 0.0
+        )
+        filler: Float64[Array, "k_chunk 3"] = jnp.broadcast_to(
+            jnp.asarray([0.0, 0.0, 1.0], dtype=jnp.float64),
+            final_momentum.shape,
+        )
+        safe_final: Float64[Array, "k_chunk 3"] = jnp.where(
+            valid[:, None], final_momentum, filler
+        )
+        final_norm: Float64[Array, " k_chunk"] = jnp.linalg.norm(
+            safe_final, axis=-1
+        )
+        invalid_physical: Bool[Array, " k_chunk"] = valid & (
+            ~jnp.all(jnp.isfinite(k_i_block), axis=-1)
+            | ~jnp.all(jnp.isfinite(final_momentum), axis=-1)
+            | (jnp.linalg.norm(final_momentum, axis=-1) <= 0.0)
+            | jnp.any(
+                jnp.abs(final_momentum[:, :2] - k_i_block[:, :2])
+                > G_PARALLEL_ATOL_INV_ANG,
+                axis=-1,
+            )
+        )
+        safe_final = eqx.error_if(
+            safe_final,
+            jnp.any(invalid_physical),
+            "valid streamed final momenta must be finite, nonzero, and on "
+            "the G_parallel=0 seam",
+        )
+        momentum_bohr_inv: Float64[Array, " k_chunk"] = (
+            momentum_inv_ang_to_bohr_inv(final_norm)
+        )
+        bvals: Complex128[Array, "k_chunk n_orb 2"] = radial_bvals(
+            schedule.radial,
+            momentum_bohr_inv,
+            schedule.quadrature,
+            schedule.final_state,
+        )
+        channels: Complex128[Array, "k_chunk n_spin n_orb_per_spin 3"] = (
+            orbital_transition_channels(
+                safe_initial,
+                safe_final,
+                schedule.positions_cart,
+                schedule.depths,
+                bvals,
+                schedule.matrix_element,
+                schedule.mean_free_path_ang,
+                schedule.radial.basis,
+            )
+        )
+        rows: Complex128[Array, "k_chunk n_spin n_orb_per_spin"] = (
+            contract_polarization(
+                channels,
+                schedule.polarization_sample_cart,
+            )
+        )
+        sources: Complex128[Array, "k_chunk n_spin n_orb"] = transition_source(
+            rows
+        )
+        masked_sources: Complex128[Array, "k_chunk n_spin n_orb"] = jnp.where(
+            valid[:, None, None],
+            sources,
+            0.0,
+        )
+        return masked_sources
+
+    sources: Complex128[Array, "k_chunk omega_chunk n_spin n_orb"] = jax.vmap(
+        one_energy, in_axes=(1, 1), out_axes=1
+    )(
+        k_f_block,
+        valid_block,
+    )
+    return sources
+
+
+def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contract.
+    hamiltonians_ev: Complex128[Array, "n_k_max n_orb n_orb"],
+    omega_rel_fermi_ev: Float64[Array, " n_omega_max"],
+    k_valid: Bool[Array, " n_k_max"],
+    omega_valid: Bool[Array, " n_omega_max"],
+    transition_schedule: _TransitionSourceSchedule,
+    self_energy: SelfEnergyModel,
+    fermi_energy_ev: Float64[Array, ""],
+    temperature_k: ScalarFloat,
+    eta: ScalarFloat = 1.0e-4,
+    *,
+    k_chunk: int = 32,
+    omega_chunk: int = 32,
+    checkpoint: bool = True,
+) -> Float64[Array, "n_k_max n_omega_max"]:
+    """PRIVATE: Stream padded chunks without a ``(K,E,B)`` source.
+
+    Parameters
+    ----------
+    hamiltonians_ev : Complex128[Array, "n_k_max n_orb n_orb"]
+        Padded absolute-energy Hermitian Hamiltonians in eV.
+    omega_rel_fermi_ev : Float64[Array, " n_omega_max"]
+        Padded sampled relative-energy axis in eV.
+    k_valid : Bool[Array, " n_k_max"]
+        Validity mask for the padded k axis.
+    omega_valid : Bool[Array, " n_omega_max"]
+        Validity mask for the padded energy axis.
+    transition_schedule : _TransitionSourceSchedule
+        Plan-03 kinematics and Plan-06 carriers used to construct only the
+        current source block.
+    self_energy : SelfEnergyModel
+        Validated causal self-energy carrier.
+    fermi_energy_ev : Float64[Array, ""]
+        Absolute Fermi energy in eV.
+    temperature_k : ScalarFloat
+        Finite, strictly positive temperature in kelvin.
+    eta : ScalarFloat, optional
+        Positive regulator in eV. Default is ``1e-4``.
+    k_chunk : int, optional
+        Positive static k chunk size. Default is 32.
+    omega_chunk : int, optional
+        Positive static energy chunk size. Default is 32.
+    checkpoint : bool, optional
+        Static selector for rematerializing each two-dimensional chunk.
+
+    Returns
+    -------
+    intensity : Float64[Array, "n_k_max n_omega_max"]
+        Masked intrinsic intensity on the complete padded schedule.
+
+    Raises
+    ------
+    ValueError
+        If padded axes, source carriers, or chunk sizes are inconsistent.
+    EquinoxRuntimeError
+        If a physically valid final momentum or traced carrier value leaves
+        its registered domain.
+
+    Notes
+    -----
+    Callers keep padded shapes and the chunk schedule fixed across a sweep;
+    only masks and physical leaves vary. Each scan step constructs radial
+    channels, polarized outgoing-spin source kets, resolvent solutions, and
+    the spin-incoherent reduction for one ``(k_chunk, omega_chunk)`` block.
+    No complete ``(K, E, B)`` transition tensor exists. Checkpointing bounds
+    reverse-mode tape without changing values.
+    """
+    if type(k_chunk) is not int or k_chunk <= 0:
+        raise ValueError("k_chunk must be a positive integer")
+    if type(omega_chunk) is not int or omega_chunk <= 0:
+        raise ValueError("omega_chunk must be a positive integer")
+    n_k_max: int = hamiltonians_ev.shape[0]
+    n_omega_max: int = omega_rel_fermi_ev.shape[0]
+    n_orb: int = hamiltonians_ev.shape[-1]
+    batch_matrix_ndim: int = 3
+    if (
+        hamiltonians_ev.ndim != batch_matrix_ndim
+        or hamiltonians_ev.shape[-2] != n_orb
+        or k_valid.shape != (n_k_max,)
+        or omega_valid.shape != (n_omega_max,)
+    ):
+        raise ValueError("streamed spectral padded axes are inconsistent")
+    _validate_transition_source_schedule(
+        transition_schedule,
+        n_k_max=n_k_max,
+        n_omega_max=n_omega_max,
+        n_orb=n_orb,
+    )
+    if n_k_max % k_chunk:
+        raise ValueError("k_chunk must divide the padded k axis")
+    if n_omega_max % omega_chunk:
+        raise ValueError("omega_chunk must divide the padded omega axis")
+    n_k_blocks: int = n_k_max // k_chunk
+    n_omega_blocks: int = n_omega_max // omega_chunk
+    hamiltonian_blocks: Complex128[Array, "n_k_block k_chunk n_orb n_orb"] = (
+        jnp.reshape(
+            hamiltonians_ev,
+            (n_k_blocks, k_chunk, n_orb, n_orb),
+        )
+    )
+    initial_blocks: Float64[Array, "n_k_block k_chunk 3"] = jnp.reshape(
+        transition_schedule.k_i_cart,
+        (n_k_blocks, k_chunk, 3),
+    )
+    final_blocks: Float64[
+        Array, "n_k_block n_omega_block k_chunk omega_chunk 3"
+    ] = jnp.transpose(
+        jnp.reshape(
+            transition_schedule.k_f_cart,
+            (n_k_blocks, k_chunk, n_omega_blocks, omega_chunk, 3),
+        ),
+        (0, 2, 1, 3, 4),
+    )
+    emission_blocks: Bool[
+        Array, "n_k_block n_omega_block k_chunk omega_chunk"
+    ] = jnp.transpose(
+        jnp.reshape(
+            transition_schedule.emission_valid,
+            (n_k_blocks, k_chunk, n_omega_blocks, omega_chunk),
+        ),
+        (0, 2, 1, 3),
+    )
+    omega_blocks: Float64[Array, "n_omega_block omega_chunk"] = jnp.reshape(
+        omega_rel_fermi_ev,
+        (n_omega_blocks, omega_chunk),
+    )
+    k_mask_blocks: Bool[Array, "n_k_block k_chunk"] = jnp.reshape(
+        k_valid,
+        (n_k_blocks, k_chunk),
+    )
+    omega_mask_blocks: Bool[Array, "n_omega_block omega_chunk"] = jnp.reshape(
+        omega_valid,
+        (n_omega_blocks, omega_chunk),
+    )
+
+    def assemble_block(
+        hamiltonian_block: Complex128[Array, "k_chunk n_orb n_orb"],
+        k_i_block: Float64[Array, "k_chunk 3"],
+        k_f_block: Float64[Array, "k_chunk omega_chunk 3"],
+        valid_block: Bool[Array, "k_chunk omega_chunk"],
+        omega_block: Float64[Array, " omega_chunk"],
+    ) -> Float64[Array, "k_chunk omega_chunk"]:
+        """Build sources, solve, and spin-reduce one live block."""
+        sources: Complex128[Array, "k_chunk omega_chunk n_spin n_orb"] = (
+            _transition_sources_for_block(
+                transition_schedule,
+                k_i_block,
+                k_f_block,
+                valid_block,
+            )
+        )
+        intensity: Float64[Array, "k_chunk omega_chunk"] = (
+            assemble_spectral_intensity_chunk(
+                hamiltonian_block,
+                sources,
+                omega_block,
+                self_energy,
+                fermi_energy_ev,
+                temperature_k,
+                eta,
+            )
+        )
+        masked_intensity: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
+            valid_block,
+            intensity,
+            0.0,
+        )
+        return masked_intensity
+
+    block_function: Any = (
+        jax.checkpoint(assemble_block) if checkpoint else assemble_block
+    )
+
+    def scan_k_block(
+        carry: None,
+        arguments: Tuple[
+            Complex128[Array, "k_chunk n_orb n_orb"],
+            Float64[Array, "k_chunk 3"],
+            Float64[Array, "n_omega_block k_chunk omega_chunk 3"],
+            Bool[Array, "n_omega_block k_chunk omega_chunk"],
+            Bool[Array, " k_chunk"],
+        ],
+    ) -> Tuple[
+        None,
+        Float64[Array, "n_omega_block k_chunk omega_chunk"],
+    ]:
+        """Stream every energy block for one k block."""
+        hamiltonian_block: Complex128[Array, "k_chunk n_orb n_orb"]
+        k_i_block: Float64[Array, "k_chunk 3"]
+        final_for_k: Float64[Array, "n_omega_block k_chunk omega_chunk 3"]
+        emission_for_k: Bool[Array, "n_omega_block k_chunk omega_chunk"]
+        k_mask: Bool[Array, " k_chunk"]
+        (
+            hamiltonian_block,
+            k_i_block,
+            final_for_k,
+            emission_for_k,
+            k_mask,
+        ) = arguments
+
+        def scan_omega_block(
+            inner_carry: None,
+            inner_arguments: Tuple[
+                Float64[Array, " omega_chunk"],
+                Float64[Array, "k_chunk omega_chunk 3"],
+                Bool[Array, "k_chunk omega_chunk"],
+                Bool[Array, " omega_chunk"],
+            ],
+        ) -> Tuple[None, Float64[Array, "k_chunk omega_chunk"]]:
+            """Construct, assemble, and mask one omega block."""
+            omega_block: Float64[Array, " omega_chunk"]
+            k_f_block: Float64[Array, "k_chunk omega_chunk 3"]
+            emission_mask: Bool[Array, "k_chunk omega_chunk"]
+            omega_mask: Bool[Array, " omega_chunk"]
+            omega_block, k_f_block, emission_mask, omega_mask = inner_arguments
+            valid_block: Bool[Array, "k_chunk omega_chunk"] = (
+                k_mask[:, None] & omega_mask[None, :] & emission_mask
+            )
+            values: Float64[Array, "k_chunk omega_chunk"] = block_function(
+                hamiltonian_block,
+                k_i_block,
+                k_f_block,
+                valid_block,
+                omega_block,
+            )
+            result: Tuple[None, Float64[Array, "k_chunk omega_chunk"]] = (
+                inner_carry,
+                values,
+            )
+            return result
+
+        outputs: Float64[Array, "n_omega_block k_chunk omega_chunk"]
+        _, outputs = jax.lax.scan(
+            scan_omega_block,
+            None,
+            (
+                omega_blocks,
+                final_for_k,
+                emission_for_k,
+                omega_mask_blocks,
+            ),
+        )
+        result: Tuple[
+            None,
+            Float64[Array, "n_omega_block k_chunk omega_chunk"],
+        ] = (carry, outputs)
+        return result
+
+    scanned: Float64[Array, "n_k_block n_omega_block k_chunk omega_chunk"]
+    _, scanned = jax.lax.scan(
+        scan_k_block,
+        None,
+        (
+            hamiltonian_blocks,
+            initial_blocks,
+            final_blocks,
+            emission_blocks,
+            k_mask_blocks,
+        ),
+    )
+    intensity: Float64[Array, "n_k_max n_omega_max"] = jnp.reshape(
+        jnp.transpose(scanned, (0, 2, 1, 3)),
+        (n_k_max, n_omega_max),
+    )
+    return intensity
+
+
+__all__: list[str] = [
+    "assemble_spectral_intensity_bands_chunk",
+    "assemble_spectral_intensity_chunk",
+    "evaluate_self_energy",
+    "projected_spectral_density_resolvent",
+    "spectral_intensity_eigen",
+    "spectral_intensity_resolvent",
+]

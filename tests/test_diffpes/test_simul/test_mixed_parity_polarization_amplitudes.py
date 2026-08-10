@@ -106,9 +106,9 @@ def _real_harmonic(
 
     Notes
     -----
-    Evaluates the complex harmonic at order abs(m) and takes sqrt(2) *
-    (-1)**m times the real part for m > 0, sqrt(2) * (-1)**abs(m)
-    times the imaginary part for m < 0, and the real part for m = 0.
+    Evaluates the complex harmonic at order abs(m). For positive m,
+    scales its real part. For negative m, scales its imaginary part.
+    For m = 0, returns the real part.
     """
     complex_value: Complex128[NDArray, "..."] = _complex_harmonic(
         degree,
@@ -195,12 +195,10 @@ def _complex_formula_amplitude(
 
     Implementation Logic
     --------------------
-    Builds the dipole operator on the 32-by-64 product grid from the
-    complex polarization components, integrates initial real harmonic
-    times dipole times final complex harmonic with Gauss-Legendre
-    cosine nodes and uniform azimuth weights, multiplies each final
-    order by the conjugated final harmonic at the detector direction,
-    and sums both dipole-allowed branches with their radial channels.
+    Builds the dipole operator on a 32-by-64 product grid. Integrates the
+    initial harmonic, dipole, and final harmonic with product weights.
+    Multiplies each final order by the conjugated detector-direction
+    harmonic. Sums both allowed branches with their radial channels.
     """
     direction: Float64[NDArray, " 3"] = np.asarray(
         direction_cart, dtype=np.float64
@@ -301,8 +299,8 @@ def _single_orbital_channels(
 
     Notes
     -----
-    Places the orbital at the origin with zero depth and zero initial
-    momentum, uses an 8 Angstrom mean free path, and slices the single
+    Places the orbital at the origin with zero depth and initial
+    momentum. Uses an 8 Angstrom mean free path. Slices the single
     k-point, spin, and orbital entry.
     """
     basis: OrbitalBasis = make_orbital_basis(

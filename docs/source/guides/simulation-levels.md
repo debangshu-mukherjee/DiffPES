@@ -1,83 +1,104 @@
-# Simulation Tiers and the Coherent Pipeline
+# Coherent Spectral Assembly
 
-diffpes separates inexpensive projection spectra from coherent
-photoemission amplitudes. This distinction is physical, not merely an API
-choice. A VASP `PROCAR` projection contains probabilities
-$|c_{n o}(\mathbf{k})|^2$; it does not contain the relative phases needed for
-interference between orbitals or atomic centres.
+diffpes preserves complex transition amplitudes until the physically required
+outgoing-channel reduction. A VASP `PROCAR` projection contains only
+probabilities $|c_{no}(\mathbf{k})|^2$ and cannot reconstruct the relative
+orbital or atomic-centre phases needed for interference. The former
+projection-probability spectrum tiers and level-string dispatcher are
+therefore removed rather than presented as quantitative ARPES workflows.
 
-## The Two Incoherent Tiers
+## Matrix Elements Before Spectral Reduction
 
-| Tier | Broadening | Orbital weight | Intended use |
-|---|---|---|---|
-| `novice` | Voigt | uniform over non-s channels | quick band-map checks |
-| `basic` | Gaussian | element- and subshell-resolved Yeh--Lindau data | photon-energy trends without interference |
-
-Both tiers calculate one probability-level reduction,
-
-$$
-W_n(\mathbf{k})=\sum_o |c_{no}(\mathbf{k})|^2 w_o,
-$$
-
-and then apply occupation and energy broadening. They cannot describe dark
-corridors, sublattice interference, or polarization selection rules that
-depend on amplitude phase.
-
-Use the typed functions `simulate_novice` and `simulate_basic`, or dispatch
-plain arrays through `simulate_expanded`:
-
-```python
-spectrum = diffpes.simul.simulate_expanded(
-    level="novice",
-    eigenbands=eigenbands,
-    surface_orb=surface_orb,
-    sigma=0.04,
-    gamma=0.08,
-    fidelity=2000,
-)
-```
-
-The `basic` route additionally requires an atom-major `OrbitalBasis` and
-`atomic_numbers`. It uses `yeh_lindau_orbital_weights`, which gathers
-subshell cross sections from the packaged Yeh--Lindau table. The underlying
-`yeh_lindau_cross_section` interpolation is log-log monotone within valid
-table segments. It rejects extrapolation and missing-data gaps.
-
-## The Coherent Primitive Pipeline
-
-Quantitative matrix-element work uses functions from
-`diffpes.simul.matrixel` directly:
+The coherent path uses functions from `diffpes.simul.matrixel`:
 
 1. Build an `OrbitalBasis`, `RadialSpec`, `MatrixElementParams`,
    `RadialQuadratureSpec`, and `FinalStateSpec`.
-2. Supply explicit vacuum final momenta `k_f_cart` and their emission-validity
-   mask from the kinematics layer.
+2. Supply explicit vacuum final momenta and their emission-validity mask.
 3. Use `assemble_orbital_transition_channels` to retain one complex Cartesian
    transition vector per orbital and outgoing spin.
-4. Apply `contract_polarization` or `contract_experiment_polarization` only
-   after the transition vector is assembled.
+4. Contract polarization only after assembling the transition vector.
 5. Use `project_band_channels` with complex band coefficients.
-6. Apply `matrix_element_intensity` once. It sums outgoing-spin modulus
-   squares incoherently while preserving interference inside each spin
-   channel.
+6. Apply `matrix_element_intensity` exactly once when a band-weight fast path
+   is valid, or retain full transition sources for the resolvent.
 
-This pipeline does not read the experiment's inner potential to invent a
-vacuum momentum. Inner-potential estimates belong to bulk $k_z$ inference;
-the matrix element consumes the explicit physical vacuum vector.
+This ordering preserves orbital, sublattice, atomic-centre, polarization, and
+surface-attenuation interference.
+
+## Two Coherent Spectral Paths
+
+`spectral_intensity_resolvent` evaluates
+
+$$
+-\frac{1}{\pi}\operatorname{Im}
+\sum_\alpha s_\alpha^\dagger
+[(\omega+i\eta-\Sigma)I-H]^{-1}s_\alpha ,
+$$
+
+without differentiating eigenvectors. It is the certified path at exact or
+near degeneracy.
+
+`spectral_intensity_eigen` consumes eigenvalues and gauge-invariant band
+weights. It is faster away from degeneracies, where those weights have
+already been formed from the coherent matrix-element channels.
+
+Both paths consume the retarded self-energy from `evaluate_self_energy`.
+The chunk assemblers
+`assemble_spectral_intensity_chunk` and
+`assemble_spectral_intensity_bands_chunk` apply the same sampled-energy
+Fermi occupation without materializing a `[K, B, E]` tensor.
+
+```python
+import jax
+import jax.numpy as jnp
+
+from diffpes.simul import evaluate_self_energy, spectral_intensity_eigen
+from diffpes.types import make_self_energy_model
+
+omega = jnp.linspace(-1.0, 1.0, 501)
+sigma = evaluate_self_energy(
+    omega,
+    make_self_energy_model(gamma=0.08),
+)
+eigenvalues = jnp.array([-0.25, 0.30])
+weights = jnp.array([0.8, 0.2])
+intrinsic = jax.vmap(
+    lambda energy, sigma_i: spectral_intensity_eigen(
+        eigenvalues,
+        weights,
+        energy,
+        sigma_i,
+        1.0e-4,
+    )
+)(omega, sigma)
+```
+
+## Source Carriers and the Detector Boundary
+
+`ArpesSpectrum` carries intensity, sampled energy, cumulative Cartesian path
+length, every Cartesian path vector, and the registered sample-frame ID.
+`ArpesCube` carries source-coordinate intensity on Cartesian $k_x$, $k_y$,
+and energy axes. Neither carrier is a detector raster.
+
+Plan 08a remains under construction. Its effects API converts an already
+mapped detector density into expected counts. The canonical driver still
+needs to map coherent source spectra into `DetectorCalibration` bins. It also
+needs to apply native resolution and transmission before returning a
+`DetectorRaster`. Diffpes intentionally exposes no end-to-end level-string or
+projection-probability compatibility workflow.
 
 ## Choosing an Interface
 
-- Use `novice` to inspect dispersions and broadening cheaply.
-- Use `basic` for isolated-atom photon-energy trends when probability-only
-  projections are sufficient.
-- Use the coherent primitives when relative orbital phase, atomic positions,
-  polarization, surface attenuation, spinors, or parameter sensitivities
-  matter.
-
-Expected detector counts are outside these tiers and primitives. Exposure,
-background, detector response, and counting statistics are not yet supported.
+- Use the resolvent path at degeneracies or whenever full source vectors must
+  remain explicit.
+- Use the eigen path only with gauge-invariant band weights and a justified
+  isolated-band/group regime.
+- Use `evaluate_self_energy` for every causal linewidth model.
+- Use `load_vasp_context` and `prepare_projection` only as input-boundary
+  helpers; they do not assemble a physical spectrum.
 
 See [Matrix Elements and Polarization](matrix-elements-and-polarization.md)
-for the amplitude convention and
+for the amplitude convention,
+[Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md)
+for the causal spectral contract, and
 [Matrix-element sensitivity](../tutorials/matrix-element-sensitivity.md) for
 complete-group derivatives.

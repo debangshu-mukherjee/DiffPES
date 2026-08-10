@@ -935,13 +935,19 @@ pytest tests/ --cov=src/diffpes --cov-report=term-missing
 
 ## Tutorial Notebooks
 
-Tutorials use paired Jupyter notebooks and Jupytext percent scripts in
-`tutorials/`. The pair contains an `.ipynb` file and a `.py` file. This
-format keeps source differences reviewable. **Put explanations in Markdown
-cells, not code comments.** Put narrative, motivation, and physics in
-Markdown blocks. Keep code cells free of comments. Apply these ASD-STE100
-rules to all Markdown cells. After editing a pair, synchronize it and remove
-outputs before committing. The pre-commit hooks perform these actions.
+Tutorials pair Jupyter notebooks in `docs/source/tutorials/` with Jupytext
+percent scripts in `tutorials/`. This split lets Sphinx discover the
+`.ipynb` file and keeps source differences reviewable in the `.py` file.
+**Put explanations in Markdown cells, not code comments.** Put narrative,
+motivation, and physics in Markdown blocks. Keep code cells free of comments.
+Apply these ASD-STE100 rules to all Markdown cells.
+
+After editing either side, run `jupytext --sync` and keep notebook outputs
+empty. The pre-commit hooks synchronize pairs, strip outputs, and run
+`tests/_tutorials.py`. CI repeats that no-op check before the documentation
+build. MyST-NB executes notebooks in `cache` mode, stores results only under
+`docs/build/.jupyter_cache`, and treats every unexpected cell error as a hard
+failure.
 
 ## Pull Request Process
 

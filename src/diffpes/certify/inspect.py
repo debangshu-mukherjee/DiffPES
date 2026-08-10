@@ -154,9 +154,9 @@ def _claim_status(claim: Any) -> str:
 
     Notes
     -----
-    An unchecked claim reports ``not_checked`` even when its pass flag
-    is set, so a summary cannot present an unevaluated claim as an
-    outcome.
+    An unchecked claim reports ``not_checked`` even with a true pass
+    flag. This rule stops summaries from presenting unevaluated claims
+    as outcomes.
     """
     if not _scalar_bool(claim.checked):
         status: str = "not_checked"

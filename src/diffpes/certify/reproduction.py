@@ -64,9 +64,8 @@ def _unique_role(
 
     Notes
     -----
-    Reproduction needs exactly one normalized-input artifact and one
-    recorded-result artifact; an ambiguous certificate must fail before
-    any resolver I/O runs.
+    Reproduction needs one normalized-input artifact and one recorded
+    result. Rejects ambiguous certificates before any resolver I/O.
     """
     matches: Tuple[ArtifactRef, ...] = tuple(
         artifact for artifact in artifacts if artifact.role in roles

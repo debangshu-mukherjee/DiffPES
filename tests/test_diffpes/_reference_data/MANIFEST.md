@@ -41,12 +41,12 @@
 - Generator:
   `tests/_reference_tools/generate_voigt_scipy_reference.py`
 - Generator SHA-256:
-  `4a7a2493b5b1e8aec351ac53a0366a25f76df213eadd48aa9432d99e0892b84f`
+  `0d47779b97b872c5a35f6ff970f7cb16473ef6311adde9535f6579def4ec9e23`
 - Generator boundary: NumPy/SciPy only; it imports no DiffPES or JAX module
   and calls neither `voigt` nor `simulate_novice`
 - Provenance manifest: `voigt_scipy_manifest.json`
 - Provenance-manifest SHA-256:
-  `17280f3dbbf6c3b8c5fa653b6de0b4a0922a9236857422ea18dd0ed2468db8ea`
+  `70785578cc72cc312ddf33c4b68c06da82486c0904bb83ae0aed7a72263ecfca`
 
 #### `voigt_scipy_reference.npz`
 
@@ -65,8 +65,8 @@
 
 - SHA-256:
   `ca410005c45faa46ca9e9a7bc949e7954fafdaf494b391bec8cd30bddac50440`
-- Classification: active true-Voigt novice behavioral reference,
-  preregistered strict-red against the superseded TCH production path
+- Classification: retired true-Voigt historical evidence, retained for
+  provenance only; it makes no live production-behavior claim
 - Truth: manual seed-20260713 fixture assembly with SciPy
   `voigt_profile` and an overflow-safe analytic Fermi function
 - Arrays:
@@ -79,8 +79,8 @@
   `7585907bef8075904117b13506491ba488038154ff2ec331c5059a2a7ec5d56f`
 - Classification: superseded pseudo-Voigt historical evidence,
   retained for provenance only; it is not a compatibility shim
-- Byte-for-byte archive of the earlier pseudo-Voigt `novice_toy.npz`; repository-floor
-  replay now consumes `novice_toy_true_voigt.npz`
+- Byte-for-byte archive of the earlier pseudo-Voigt `novice_toy.npz`; the
+  repository-floor integrity gate preserves both archives without replay
 
 ### `chinook_tightb_reference.json`
 

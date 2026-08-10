@@ -48,9 +48,9 @@ def _context(executor: Any) -> CertificationContext:
 
     Implementation Logic
     --------------------
-    Registers a forward-model spec with a unique UUID-suffixed identity,
-    builds a deterministic CPU float64 execution manifest, and prepares
-    the certification for model version 1.0.0.
+    Registers a forward-model spec with a unique UUID-suffixed identity.
+    Builds a deterministic CPU float64 manifest. Prepares certification
+    for model version 1.0.0.
     """
     suffix: Any
     model_id: Any

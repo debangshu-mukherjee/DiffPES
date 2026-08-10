@@ -212,11 +212,10 @@ def _record_errors(  # noqa: PLR0912
 
     Implementation Logic
     --------------------
-    Walks the records once and reports: blank transformation identities
-    or versions, records without outputs, repeated parents or outputs,
-    a record that consumes its own output, contradictory declarations
-    (a term both retained and destroyed), blank outputs, and outputs
-    with more than one producer. It then reports external inputs that
+    Walks the records once and reports blank identities, missing
+    outputs, repetitions, self-consumption, and contradictory terms.
+    Also reports blank outputs and multiple producers. It then reports
+    external inputs that
     internal records also produce, parents that no known node supplies,
     and declared external inputs that no record consumes.
 
@@ -324,9 +323,9 @@ def _topological_indices(
     Builds record-level dependency and child sets from the producer map,
     then runs Kahn's algorithm with a heap ordered by
     :func:`_record_key`, so equal-indegree records leave the queue in
-    one deterministic order. When some records never reach indegree
-    zero, a cycle exists; those records append at the end, sorted by the
-    same key, so callers still receive a total order.
+    one deterministic order. Records that never reach zero indegree
+    form a cycle. Appends those records by the same sorted key so
+    callers still receive a total order.
 
     Parameters
     ----------
@@ -400,13 +399,12 @@ def _propagate_information(
     --------------------
     Seeds each external node with its declared initial semantics. On a
     cyclic graph, returns only those seed states and propagates nothing.
-    Otherwise walks the records in topological order: a node inherits
-    the union of its parents' active semantics, losses, and invalidated
-    claims; an inherited property stays active only when the record
-    names it in ``preserves``; unpreserved and destroyed properties join
-    the losses; introduced properties join the active set; and the
-    record's ``invalidates_claims`` join the invalidations. Every output
-    of the record receives the same propagated state.
+    Otherwise walks the records in topological order. A node inherits
+    its parents' active semantics, losses, and invalidated claims.
+    ``preserves`` keeps inherited properties active. Unpreserved and
+    destroyed properties join the losses. Introduced properties join
+    the active set. ``invalidates_claims`` adds invalidations. Every
+    output receives the same propagated state.
 
     Parameters
     ----------
@@ -494,9 +492,9 @@ def _analyze(
     :func:`_record_errors`, orders the records with
     :func:`_topological_indices` (a cycle adds one explicit error), and
     propagates information states with :func:`_propagate_information`.
-    Derives the roots (external inputs plus outputs of parentless
-    records) and the terminal outputs (outputs that no record consumes),
-    and stores everything in one immutable analysis carrier.
+    Derives roots from external inputs and outputs of parentless
+    records. Derives terminal outputs from nodes that no record
+    consumes. Stores everything in one immutable analysis carrier.
 
     Parameters
     ----------

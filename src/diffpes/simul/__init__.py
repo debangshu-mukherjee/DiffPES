@@ -2,10 +2,12 @@ r"""Provide differentiable ARPES simulation primitives.
 
 Extended Summary
 ----------------
-The subpackage provides two deliberately incoherent projection-spectrum
-tiers, authenticated atomic cross sections, detector kinematics, polarization
-frame transforms, broadening primitives, and orbital angular momentum.
-Coherent photoemission amplitudes live in :mod:`matrixel`.
+The subpackage provides coherent spectral assembly, authenticated atomic
+cross sections, detector kinematics, polarization frame transforms,
+broadening primitives, and orbital angular momentum. Coherent photoemission
+amplitudes live in :mod:`matrixel`; the resolvent and eigen assembly in
+:mod:`spectral` combines those amplitudes with a causal self-energy and
+sampled-energy Fermi occupation.
 
 The following list describes the submodules:
 
@@ -13,8 +15,8 @@ The following list describes the submodules:
     Compute energy broadening functions for ARPES simulations.
 - :mod:`crosssections`
     Interpolate authenticated Yeh--Lindau photoionization cross sections.
-- :mod:`expanded`
-    Run the incoherent ARPES tiers from plain band/projection arrays.
+- :mod:`effects`
+    Assemble detector-coordinate backgrounds and expected counts.
 - :mod:`kinematics`
     Compute free-electron photoemission kinematics.
 - :mod:`matrixel`
@@ -27,15 +29,19 @@ The following list describes the submodules:
     Apply momentum resolution broadening to ARPES simulations.
 - :mod:`spectral`
     Evaluate the complex retarded self-energy through the certified KK map.
-- :mod:`spectrum`
-    Simulate deliberately incoherent ARPES projection spectra.
 - :mod:`workflow`
-    Run high-level workflows for VASP-to-ARPES simulation.
+    Load and prepare VASP projection data for coherent ARPES workflows.
 
 Routine Listings
 ----------------
 :func:`apply_momentum_broadening`
     Convolve I(k, E) with a Gaussian in k-space.
+:func:`apply_post_count_response`
+    Convolve expected counts along the recorded-energy index.
+:func:`assemble_spectral_intensity_bands_chunk`
+    Assemble occupied intrinsic intensity from eigenvalues and band weights.
+:func:`assemble_spectral_intensity_chunk`
+    Assemble occupied intrinsic intensity from Hamiltonians and sources.
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
 :func:`detector_angles_to_kpar`
@@ -44,16 +50,22 @@ Routine Listings
     Convert a detector-fixed axis to sample coordinates.
 :func:`detector_rotation`
     Build the detector-frame rotation.
+:func:`detector_bin_volumes`
+    Compute explicit native detector-bin volumes.
 :func:`compute_oam`
     Compute orbital angular momentum z-component.
 :func:`evaluate_self_energy`
     Evaluate the complex retarded self-energy for one causal model.
+:func:`expected_counts`
+    Assemble deterministic expected detector counts.
 :func:`emission_angles`
     Convert Cartesian momentum to emission angles.
 :func:`fermi_dirac`
     Compute Fermi-Dirac distribution value.
 :func:`final_state_k_inv_ang`
     Convert kinetic energy to momentum and return its validity mask.
+:func:`fixed_total_probabilities`
+    Normalize all detector rates to one event-probability tensor.
 :func:`gaussian`
     Compute normalized Gaussian broadening profile.
 :func:`kinetic_energy_ev`
@@ -78,6 +90,8 @@ Routine Listings
     Load a simulation-ready context from VASP output files.
 :func:`matrix_element_intensity`
     Sum outgoing-spin modulus squares exactly once.
+:func:`background_density`
+    Evaluate a nonnegative detector-coordinate background.
 :func:`log_band_group_weight_sensitivity`
     Convert positive group-weight derivatives to logarithmic derivatives.
 :func:`matrix_element_phase_gauge_direction`
@@ -94,6 +108,8 @@ Routine Listings
     Convert Cartesian polarization to spherical components.
 :func:`prepare_projection`
     Prepare orbital projections for simulation.
+:func:`projected_spectral_density_resolvent`
+    Compute the projected Hermitian resolvent spectral density.
 :func:`project_band_channels`
     Compute band channels without conjugating orbital coefficients.
 :func:`radial_coefficient_scale_gauge_directions`
@@ -102,24 +118,20 @@ Routine Listings
     Evaluate all real spherical harmonics from Cartesian directions.
 :func:`resolve_orbital_positions_cart`
     Resolve orbital centres in Cartesian Angstrom coordinates.
-:func:`run_vasp_workflow`
-    Run an end-to-end VASP-to-ARPES workflow in one call.
 :func:`rotate_frame_vectors`
     Rotate a detector-fixed real axis across a detector-angle grid.
 :func:`sample_azimuth_rotation`
     Build the active sample-to-laboratory azimuth rotation.
-:func:`simulate_basic`
-    Simulate an incoherent spectrum with Yeh--Lindau weights.
-:func:`simulate_basic_expanded`
-    Run the Yeh--Lindau-weighted incoherent tier from plain arrays.
-:func:`simulate_context`
-    Run a level-dispatched simulation from a loaded workflow context.
-:func:`simulate_expanded`
-    Dispatch one of the two retained incoherent simulation tiers.
-:func:`simulate_novice`
-    Simulate an incoherent spectrum with uniform orbital weights.
-:func:`simulate_novice_expanded`
-    Run the uniformly weighted incoherent tier from plain arrays.
+:func:`sample_fixed_total_counts`
+    Generate one fixed-total multinomial count tensor.
+:func:`sample_poisson_counts`
+    Generate independent Poisson counts for a rate tensor.
+:func:`sensitivity_field`
+    Evaluate the positive normalized detector sensitivity field.
+:func:`spectral_intensity_eigen`
+    Evaluate spectral intensity from eigenvalues and invariant weights.
+:func:`spectral_intensity_resolvent`
+    Evaluate degeneracy-safe spectral intensity through a linear solve.
 :func:`transition_source`
     Build conjugated outgoing-spin rows as full source kets.
 :func:`unpack_matrixel_params`
@@ -135,8 +147,8 @@ Routine Listings
 
 Notes
 -----
-The retained simulation functions are JAX-compatible and use ``jax.vmap``
-across k-points and bands.
+The spectral functions are JAX-compatible and preserve coherent source
+amplitudes through the final spectral reduction.
 """
 
 from .broadening import fermi_dirac, gaussian, voigt
@@ -145,10 +157,15 @@ from .crosssections import (
     yeh_lindau_cross_section_table,
     yeh_lindau_orbital_weights,
 )
-from .expanded import (
-    simulate_basic_expanded,
-    simulate_expanded,
-    simulate_novice_expanded,
+from .effects import (
+    apply_post_count_response,
+    background_density,
+    detector_bin_volumes,
+    expected_counts,
+    fixed_total_probabilities,
+    sample_fixed_total_counts,
+    sample_poisson_counts,
+    sensitivity_field,
 )
 from .kinematics import (
     detector_angles_to_kpar,
@@ -189,33 +206,41 @@ from .polarization import (
     sample_azimuth_rotation,
 )
 from .resolution import apply_momentum_broadening
-from .spectral import evaluate_self_energy
-from .spectrum import (
-    simulate_basic,
-    simulate_novice,
+from .spectral import (
+    assemble_spectral_intensity_bands_chunk,
+    assemble_spectral_intensity_chunk,
+    evaluate_self_energy,
+    projected_spectral_density_resolvent,
+    spectral_intensity_eigen,
+    spectral_intensity_resolvent,
 )
 from .workflow import (
     load_vasp_context,
     prepare_projection,
-    run_vasp_workflow,
-    simulate_context,
 )
 
 __all__: list[str] = [
     "apply_momentum_broadening",
+    "apply_post_count_response",
     "assemble_orbital_transition_channels",
+    "assemble_spectral_intensity_bands_chunk",
+    "assemble_spectral_intensity_chunk",
     "band_group_weight_sensitivity",
+    "background_density",
     "build_polarization_vectors",
     "compute_oam",
     "contract_experiment_polarization",
     "contract_polarization",
     "detector_angles_to_kpar",
     "detector_axis_to_sample",
+    "detector_bin_volumes",
     "detector_rotation",
     "emission_angles",
     "evaluate_self_energy",
+    "expected_counts",
     "fermi_dirac",
     "final_state_k_inv_ang",
+    "fixed_total_probabilities",
     "gaussian",
     "kinetic_energy_ev",
     "lab_polarization_to_sample",
@@ -232,19 +257,18 @@ __all__: list[str] = [
     "polarization_from_angles",
     "polarization_to_spherical",
     "prepare_projection",
+    "projected_spectral_density_resolvent",
     "project_band_channels",
     "radial_coefficient_scale_gauge_directions",
     "real_spherical_harmonics_cartesian_all",
     "resolve_orbital_positions_cart",
-    "run_vasp_workflow",
     "rotate_frame_vectors",
     "sample_azimuth_rotation",
-    "simulate_basic",
-    "simulate_basic_expanded",
-    "simulate_context",
-    "simulate_expanded",
-    "simulate_novice",
-    "simulate_novice_expanded",
+    "sample_fixed_total_counts",
+    "sample_poisson_counts",
+    "sensitivity_field",
+    "spectral_intensity_eigen",
+    "spectral_intensity_resolvent",
     "transition_source",
     "unpack_matrixel_params",
     "voigt",

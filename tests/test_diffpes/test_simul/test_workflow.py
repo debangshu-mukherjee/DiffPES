@@ -2,36 +2,27 @@
 
 Extended Summary
 ----------------
-Validates VASP context loading, projection preparation, simulation dispatch,
-and the combined file-to-spectrum workflow with controlled temporary inputs.
+Validates VASP context loading and projection preparation with controlled
+temporary inputs.
 """
 
 from pathlib import Path
 
 import chex
-import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
-from jaxtyping import Array, Float64
+from jaxtyping import Array
 
 import diffpes
 from diffpes.simul import (
     load_vasp_context,
     prepare_projection,
-    run_vasp_workflow,
-    simulate_context,
 )
 from diffpes.types import (
-    ArpesSpectrum,
     SpinOrbitalProjection,
-    WorkflowContext,
-    make_band_structure,
     make_orbital_projection,
     make_spin_orbital_projection,
-    make_workflow_context,
 )
-from tests._gradients import gradient_gate
 
 _FIXTURES_DIR: Path = (
     Path(__file__).resolve().parents[1] / "test_inout" / "fixtures"
@@ -214,170 +205,3 @@ class TestPrepareProjection(chex.TestCase):
         chex.assert_shape(prepared.projections, (2, 2, 2, 9))
         assert prepared.oam is not None
         chex.assert_shape(prepared.oam, (2, 2, 2, 3))
-
-
-class TestSimulateContext(chex.TestCase):
-    """Validate :func:`diffpes.simul.simulate_context`.
-
-    :see: :func:`~diffpes.simul.simulate_context`
-    """
-
-    def test_momentum_broadening_changes_output(self) -> None:
-        """Verify nonzero dk changes simulated intensity.
-
-        The test establishes the momentum broadening changes output contract for
-        simulate context with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        eigenbands: Array
-        kx: Array
-        kpoints: Array
-        projections: Array
-        bands: diffpes.types.BandStructure
-        orb: diffpes.types.OrbitalProjection
-        context: diffpes.types.WorkflowContext
-        base: diffpes.types.ArpesSpectrum
-        broadened: diffpes.types.ArpesSpectrum
-
-        nk: int = 12
-        nb: int = 4
-        na: int = 2
-        eigenbands = jnp.linspace(
-            -2.0, 0.6, nk * nb, dtype=jnp.float64
-        ).reshape(nk, nb)
-        kx = jnp.linspace(0.0, 1.0, nk, dtype=jnp.float64)
-        kpoints = jnp.stack(
-            [kx, jnp.zeros_like(kx), jnp.zeros_like(kx)],
-            axis=1,
-        )
-        projections = jnp.ones((nk, nb, na, 9), dtype=jnp.float64) * 0.1
-        projections = projections.at[:, :, :, 4:9].set(0.3)
-
-        bands = make_band_structure(
-            eigenvalues=eigenbands,
-            kpoints=kpoints,
-            fermi_energy=0.0,
-        )
-        orb = make_orbital_projection(projections=projections)
-        context = make_workflow_context(
-            bands=bands,
-            orb_proj=orb,
-            kpath=None,
-            dos=None,
-        )
-
-        base = simulate_context(
-            context=context,
-            level="novice",
-            fidelity=320,
-            sigma=0.05,
-            temperature=20.0,
-            photon_energy=35.0,
-            normalize=False,
-        )
-        broadened = simulate_context(
-            context=context,
-            level="novice",
-            fidelity=320,
-            sigma=0.05,
-            temperature=20.0,
-            photon_energy=35.0,
-            dk=0.06,
-            normalize=False,
-        )
-
-        chex.assert_shape(base.intensity, (nk, 320))
-        chex.assert_shape(broadened.intensity, (nk, 320))
-        assert not jnp.allclose(base.intensity, broadened.intensity)
-
-    def test_loaded_fermi_energy_gradient_matches_fd(self) -> None:
-        """Propagate the loaded Fermi energy through the workflow gradient.
-
-        Extended Summary
-        ----------------
-        The test traces an explicit scalar Fermi energy through
-        ``load_vasp_context`` and ``simulate_context``. Its finite,
-        nonzero derivative matches central differences at ``rtol=1e-5``.
-
-        Notes
-        -----
-        The test loads two-k-point spin fixtures inside the traced loss.
-        It simulates the novice level at 300 K and checks the summed
-        intensity with the shared gradient harness.
-        """
-
-        def workflow_loss(
-            fermi_energy: Float64[Array, ""],
-        ) -> Float64[Array, ""]:
-            context: WorkflowContext = load_vasp_context(
-                directory=str(_FIXTURES_DIR),
-                eigenval_file="EIGENVAL_spin",
-                procar_file="PROCAR_spin",
-                doscar_file=None,
-                kpoints_file=None,
-                fermi_energy=fermi_energy,
-                procar_mode="legacy",
-                check_dimensions=True,
-            )
-            spectrum: ArpesSpectrum = simulate_context(
-                context=context,
-                level="novice",
-                fidelity=96,
-                sigma=0.05,
-                gamma=0.1,
-                temperature=300.0,
-                photon_energy=35.0,
-            )
-            loss: Float64[Array, ""] = jnp.sum(spectrum.intensity)
-            return loss
-
-        fermi_energy: Float64[Array, ""] = jnp.asarray(-0.4)
-        derivative: Float64[Array, ""] = jax.grad(workflow_loss)(fermi_energy)
-        chex.assert_tree_all_finite(derivative)
-        assert float(jnp.abs(derivative)) > 1e-12
-        gradient_gate(
-            workflow_loss,
-            fermi_energy,
-            regime="stiff",
-            scale_floor=1.0,
-        )
-
-
-class TestRunVaspWorkflow(chex.TestCase):
-    """Validate :func:`diffpes.simul.run_vasp_workflow`.
-
-    :see: :func:`~diffpes.simul.run_vasp_workflow`
-    """
-
-    def test_runs_end_to_end_with_normalization(self) -> None:
-        """Verify one-call workflow runs and returns normalized spectrum.
-
-        The test establishes the runs end to end with normalization contract for run
-        vasp workflow with the concrete values and array shapes described below.
-
-        Notes
-        -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        spectrum: diffpes.types.ArpesSpectrum
-        mean_val: Array
-
-        spectrum = run_vasp_workflow(
-            level="novice",
-            directory=str(_FIXTURES_DIR),
-            eigenval_file="EIGENVAL_spin",
-            procar_file="PROCAR",
-            doscar_file="DOSCAR",
-            kpoints_file="KPOINTS_line_fallback",
-            fidelity=180,
-            sigma=0.05,
-            temperature=15.0,
-            photon_energy=11.0,
-            normalize=True,
-            check_dimensions=True,
-        )
-        chex.assert_shape(spectrum.intensity, (2, 180))
-        chex.assert_shape(spectrum.energy_axis, (180,))
-        mean_val = jnp.mean(spectrum.intensity)
-        chex.assert_trees_all_close(mean_val, jnp.float64(0.0), atol=1e-8)

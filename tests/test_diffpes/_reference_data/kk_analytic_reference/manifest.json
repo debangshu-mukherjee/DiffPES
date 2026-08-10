@@ -53,6 +53,7 @@
     }
   },
   "generator": "generate_kk_analytic_reference.py",
+  "generator_sha256": "0ab039848e5d16d4e8a540fdb17467754159cf97e567bde3dc3ba0794d3dcec1",
   "grid": {
     "count": 1001,
     "start_ev": -1.0,

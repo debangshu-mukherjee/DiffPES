@@ -1,22 +1,25 @@
----
-jupytext:
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.16.4
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
----
+# ---
+# jupyter:
+#   jupytext:
+#     default_lexer: ipython3
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
 
-# Geometry and Kinematics
+# %% [markdown]
+# # Geometry and Kinematics
+#
+# Build a graphene momentum path and first-zone mesh. Then inspect inner-potential
+# dispersion, sample-frame polarization, and a geometry Jacobian.
 
-Build a graphene momentum path and first-zone mesh. Then inspect inner-potential
-dispersion, sample-frame polarization, and a geometry Jacobian.
-
-```{code-cell} ipython3
+# %%
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -35,16 +38,16 @@ from diffpes.tightb import (
     kpoints_frac_to_cart,
 )
 from diffpes.types import make_crystal_geometry, make_experiment_geometry
-```
 
-## Build the Crystal and Experiment
+# %% [markdown]
+# ## Build the Crystal and Experiment
+#
+# Use real-space lattice vectors as matrix rows. The factory derives the
+# reciprocal rows and expands no hidden coordinate convention.
+# The long third vector makes the reciprocal z spacing small. Use a larger
+# static shell to prove completeness.
 
-Use real-space lattice vectors as matrix rows. The factory derives the
-reciprocal rows and expands no hidden coordinate convention.
-The long third vector makes the reciprocal z spacing small. Use a larger
-static shell to prove completeness.
-
-```{code-cell} ipython3
+# %%
 a = 2.46
 c = 20.0
 lattice = jnp.array(
@@ -66,14 +69,14 @@ experiment = make_experiment_geometry(
 )
 print(crystal.reciprocal)
 print(jnp.linalg.norm(experiment.polarization))
-```
 
-## Plot a Path and Zone Mesh
+# %% [markdown]
+# ## Plot a Path and Zone Mesh
+#
+# The path builder returns fractional coordinates. Convert them before any
+# Cartesian distance, angle, or direction calculation.
 
-The path builder returns fractional coordinates. Convert them before any
-Cartesian distance, angle, or direction calculation.
-
-```{code-cell} ipython3
+# %%
 anchors = jnp.array(
     [
         [0.0, 0.0, 0.0],
@@ -100,17 +103,18 @@ ax.set_xlabel(r"$k_x$ ($\mathrm{\mathring{A}}^{-1}$)")
 ax.set_ylabel(r"$k_y$ ($\mathrm{\mathring{A}}^{-1}$)")
 ax.set_aspect("equal")
 plt.show()
-```
 
-## Plot Inner-Potential Dispersion
+# %% [markdown]
+# ## Plot Inner-Potential Dispersion
+#
+# Vary $V_0$ at fixed parallel momentum. The result remains inside the JAX
+# graph for inversion and experiment design.
 
-Vary $V_0$ at fixed parallel momentum. The result remains inside the JAX
-graph for inversion and experiment design.
-
-```{code-cell} ipython3
+# %%
 photon_energy = jnp.linspace(20.0, 150.0, 100)
 k_parallel = jnp.asarray(0.5)
 inner_potentials = jnp.asarray([8.0, 12.0, 16.0])
+
 
 def kz_curve(inner_potential):
     return jax.vmap(
@@ -125,23 +129,26 @@ def kz_curve(inner_potential):
         )
     )(photon_energy)
 
+
 kz_curves = jax.vmap(kz_curve)(inner_potentials)
 fig, ax = plt.subplots(figsize=(6, 4))
 for inner_potential, values in zip(inner_potentials, kz_curves, strict=True):
-    ax.plot(photon_energy, values, label=rf"$V_0={float(inner_potential):.0f}$ eV")
+    ax.plot(
+        photon_energy, values, label=rf"$V_0={float(inner_potential):.0f}$ eV"
+    )
 ax.set_xlabel(r"$h\nu$ (eV)")
 ax.set_ylabel(r"$k_z$ ($\mathrm{\mathring{A}}^{-1}$)")
 ax.legend()
 plt.show()
-```
 
-## Map the Fixed Polarization
+# %% [markdown]
+# ## Map the Fixed Polarization
+#
+# Map one p-polarized laboratory amplitude through the inverse sample
+# orientation. The spherical weights remain fixed across detector pixels
+# because analyzer angles rotate emission directions, not the incident beam.
 
-Map one p-polarized laboratory amplitude through the inverse sample
-orientation. The spherical weights remain fixed across detector pixels
-because analyzer angles rotate emission directions, not the incident beam.
-
-```{code-cell} ipython3
+# %%
 tx = jnp.deg2rad(jnp.linspace(-15.0, 15.0, 61))
 sample_orientation = sample_azimuth_rotation(experiment.sample_azimuth)
 polarization_sample = lab_polarization_to_sample(
@@ -158,15 +165,16 @@ ax.set_xlabel(r"$t_x$ (degrees)")
 ax.set_ylabel(r"$|\epsilon_q|^2$")
 ax.legend()
 plt.show()
-```
 
-## Build the Geometry Jacobian
+# %% [markdown]
+# ## Build the Geometry Jacobian
+#
+# Differentiate one photon-energy scan with respect to $V_0$, $W$, and every
+# photon-energy point. This Jacobian supplies the geometry information block.
 
-Differentiate one photon-energy scan with respect to $V_0$, $W$, and every
-photon-energy point. This Jacobian supplies the geometry information block.
-
-```{code-cell} ipython3
+# %%
 scan_energy = jnp.linspace(25.0, 100.0, 8)
+
 
 def scan(parameters):
     inner_potential = parameters[0]
@@ -183,6 +191,7 @@ def scan(parameters):
     )(energies)
     return jnp.real(values)
 
+
 parameters = jnp.concatenate(
     (
         jnp.stack(
@@ -194,8 +203,8 @@ parameters = jnp.concatenate(
 jacobian = jax.jacfwd(scan)(parameters)
 print(jacobian.shape)
 print(jacobian[:, 0])
-```
 
-Every printed $V_0$ derivative is positive for these propagating channels.
-The [geometry guide](../guides/arpes-geometry-and-kinematics.md) explains the
-validity domain and the $W\leftrightarrow E_F$ gauge.
+# %% [markdown]
+# Every printed $V_0$ derivative is positive for these propagating channels.
+# The [geometry guide](../guides/arpes-geometry-and-kinematics.md) explains the
+# validity domain and the $W\leftrightarrow E_F$ gauge.

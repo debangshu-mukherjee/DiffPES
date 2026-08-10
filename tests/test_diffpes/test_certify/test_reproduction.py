@@ -44,9 +44,8 @@ def _certificate(inputs: Any, expected: Any) -> Any:
     Implementation Logic
     --------------------
     Registers a closed-form square model under a unique UUID-suffixed
-    identity, certifies one forward run at spectrum rank 1, and rebuilds
-    the certificate with two artifact references that carry
-    normalized-content checksums for the inputs and the expected value.
+    identity. Certifies one forward run at spectrum rank 1. Rebuilds the
+    certificate with checksummed input and expected-value artifacts.
     """
     suffix: str = uuid.uuid4().hex
     model_id: str = f"org.diffpes.model.reproduction_test.{suffix}"

@@ -19,9 +19,13 @@ from jaxtyping import Array
 import diffpes
 from diffpes.inout import load_from_h5, save_to_h5
 from diffpes.types import (
+    make_arpes_cube,
     make_arpes_spectrum,
     make_band_structure,
     make_density_of_states,
+    make_detector_calibration,
+    make_detector_effects,
+    make_detector_raster,
     make_diagonalized_bands,
     make_experiment_geometry,
     make_final_state_spec,
@@ -72,6 +76,7 @@ def _all_carriers() -> Dict[str, eqx.Module]:
     basis: diffpes.types.OrbitalBasis
     diagonalized: diffpes.types.DiagonalizedBands
     charge: Array
+    cartesian_path: Array
 
     energy = jnp.array([-1.0, 1.0], dtype=jnp.float64)
     kpoints = jnp.zeros((2, 3), dtype=jnp.float64)
@@ -105,8 +110,24 @@ def _all_carriers() -> Dict[str, eqx.Module]:
         orbital_positions=orbital_positions,
     )
     charge = jnp.ones((2, 2, 2), dtype=jnp.float64)
+    cartesian_path = jnp.asarray(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+        dtype=jnp.float64,
+    )
     carriers: Dict[str, eqx.Module] = {
-        "arpes": make_arpes_spectrum(jnp.ones((2, 2)), energy),
+        "arpes_cube": make_arpes_cube(
+            jnp.ones((2, 2, 2)),
+            energy,
+            energy,
+            energy,
+            provenance="hdf5-round-trip",
+        ),
+        "arpes": make_arpes_spectrum(
+            jnp.ones((2, 2)),
+            energy,
+            jnp.array([0.0, 1.0]),
+            cartesian_path,
+        ),
         "bands": bands,
         "spin_bands": make_spin_band_structure(
             energy[:, None], energy[:, None], kpoints
@@ -123,6 +144,34 @@ def _all_carriers() -> Dict[str, eqx.Module]:
         "experiment": make_experiment_geometry(
             21.2,
             jnp.asarray([1.0, 0.0, 0.0], dtype=jnp.complex128),
+        ),
+        "detector_calibration": make_detector_calibration(
+            u_bin_edges=jnp.array([-0.2, 0.0, 0.2]),
+            v_bin_edges=jnp.array([-0.05, 0.05]),
+            energy_bin_edges_ev=jnp.array([-1.5, -0.5, 0.5, 1.5]),
+            psf_fwhm_u=0.01,
+            psf_fwhm_v=0.02,
+            psf_fwhm_energy_ev=0.05,
+            transmission_reference_domain_ev=jnp.array([10.0, 30.0]),
+        ),
+        "detector_effects": make_detector_effects(
+            domain_logits=jnp.array([0.0]),
+            domain_euler_angles_rad=jnp.zeros((1, 3)),
+            transmission_raw_slopes=jnp.array([-0.4, 0.2]),
+            background_coefficients=jnp.array([-2.0]),
+            sensitivity_coefficients=jnp.empty((0,)),
+            exposure=100.0,
+            background_mode="flat",
+            sensitivity_mode="constant",
+            domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
+        ),
+        "detector_raster": make_detector_raster(
+            expected_counts=jnp.ones((1, 2, 1, 2)),
+            detector_u_axis=jnp.array([-0.1, 0.1]),
+            detector_v_axis=jnp.array([0.0]),
+            energy_axis=energy,
+            channel_labels=("intensity",),
+            coordinate_system="hemispherical_angles",
         ),
         "generated_kpath": make_kpath(
             kpoints,

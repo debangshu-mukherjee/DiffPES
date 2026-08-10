@@ -89,6 +89,45 @@
     {
       "convention_refs": [],
       "evidence_ids": [
+        "org.diffpes.evidence.spectral.faddeeva.full_envelope",
+        "org.diffpes.evidence.spectral.voigt.shared_guard",
+        "org.diffpes.evidence.spectral.kk.analytic_pair_truth",
+        "org.diffpes.evidence.spectral.kk.refinement_convergence",
+        "org.diffpes.evidence.spectral.kk.carrier_consistency",
+        "org.diffpes.evidence.spectral.kk.derivative_composite_route",
+        "org.diffpes.evidence.spectral.kk.reverse_mode_consistency",
+        "org.diffpes.evidence.spectral.kk.singularity_stress_witness",
+        "org.diffpes.evidence.spectral.kk.spectral_observable_stability",
+        "org.diffpes.evidence.spectral.kk.rejected_control_reference",
+        "org.diffpes.evidence.spectral.two_pole_closed_form",
+        "org.diffpes.evidence.spectral.resolvent_eigen_complex_hermitian",
+        "org.diffpes.evidence.spectral.full_line_weight",
+        "org.diffpes.evidence.spectral.regulator_limit",
+        "org.diffpes.evidence.spectral.resolvent_eigen_consistency",
+        "org.diffpes.evidence.spectral.chinook_compatibility",
+        "org.diffpes.evidence.spectral.self_energy.causal_model_truth",
+        "org.diffpes.evidence.spectral.derivative.faddeeva_voigt",
+        "org.diffpes.evidence.spectral.derivative.kk_parameters",
+        "org.diffpes.evidence.spectral.derivative.assembly_eta_temperature",
+        "org.diffpes.evidence.spectral.derivative.degenerate_resolvent",
+        "org.diffpes.evidence.spectral.derivative.complex_adjoint",
+        "org.diffpes.evidence.spectral.derivative.causal_parameters",
+        "org.diffpes.evidence.spectral.scaling.rematerialized_chunk_memory",
+        "org.diffpes.evidence.spectral.scaling.padded_compile_count",
+        "org.diffpes.evidence.spectral.scaling.complex128_solve",
+        "org.diffpes.evidence.spectral.handoff.matrix_element_transition_rows"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.spectral",
+      "transformation_refs": [
+        "org.diffpes.transform.self_energy.kk_causal@1.0.0",
+        "org.diffpes.transform.spectral.resolvent@1.0.0",
+        "org.diffpes.transform.occupation.fermi_at_omega@1.0.0"
+      ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
         "org.diffpes.evidence.surface.finite_chain",
         "org.diffpes.evidence.surface.rotation_covariance",
         "org.diffpes.evidence.surface.graphene_edges",
@@ -179,11 +218,23 @@
       "transformation_version": "1.0.0"
     },
     {
+      "transformation_id": "org.diffpes.transform.occupation.fermi_at_omega",
+      "transformation_version": "1.0.0"
+    },
+    {
       "transformation_id": "org.diffpes.transform.polarization.lab_polarization_to_sample",
       "transformation_version": "1.0.0"
     },
     {
       "transformation_id": "org.diffpes.transform.resolution.energy_voigt",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.self_energy.kk_causal",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.spectral.resolvent",
       "transformation_version": "1.0.0"
     },
     {

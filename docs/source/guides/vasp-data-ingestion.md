@@ -111,10 +111,8 @@ orbital: s    py   pz   px   dxy   dyz   dz2   dxz   dx2-y2
 
 The parser does not store the VASP `tot` column. Standard zero-based,
 end-exclusive slices select orbital families. Use `slice(1, 9)` for non-s,
-`slice(1, 4)` for p, `slice(4, 9)` for d (see
-[Expanded Wrappers and Conventions](expanded-wrappers-and-conventions.md)
-for the full convention). Three `diffpes.inout` helpers provide common
-reductions. All helpers preserve differentiability:
+`slice(1, 4)` for p, and `slice(4, 9)` for d. Three `diffpes.inout` helpers
+provide common reductions. All helpers preserve differentiability:
 
 ```python
 from diffpes.inout import aggregate_atoms, reduce_orbitals, select_atoms
@@ -124,29 +122,13 @@ summed = aggregate_atoms(projection, [0])      # [K, B, 9], atom axis summed
 spd = reduce_orbitals(projection.projections)  # [K, B, A, 3] s/p/d totals
 ```
 
-## From Files to a Spectrum
+## Prepare Inputs for Coherent Assembly
 
-`diffpes.simul` provides three assembly levels for a VASP run directory. Use
-this one-call form:
-
-```python
-from diffpes.simul import run_vasp_workflow
-
-spectrum = run_vasp_workflow(
-    level="novice",
-    directory="path/to/vasp_run",   # EIGENVAL, PROCAR, DOSCAR, KPOINTS
-    photon_energy=21.2,
-    sigma=0.04,
-    gamma=0.08,
-    fidelity=2500,
-)
-```
-
-Alternatively, separate loading from simulation. This form supports
-inspection, selection, and reuse of the parsed context:
+The retained workflow helpers stop at the input boundary. They support
+inspection, selection, and reuse of parsed VASP data:
 
 ```python
-from diffpes.simul import load_vasp_context, prepare_projection, simulate_context
+from diffpes.simul import load_vasp_context, prepare_projection
 
 context = load_vasp_context(
     directory="path/to/vasp_run",
@@ -157,20 +139,17 @@ context = load_vasp_context(
 
 prepared = prepare_projection(context.orb_proj, atom_indices=[0, 1],
                               attach_oam=True)
-spectrum = simulate_context(context, level="novice", photon_energy=21.2,
-                            dk=0.02, normalize=True)
 ```
 
 `load_vasp_context` reads EIGENVAL and PROCAR. It also reads available DOSCAR
 and KPOINTS files. The function resolves the Fermi energy as described above.
 With `check_dimensions=True`, it checks the k-point and band counts before
-simulation. `simulate_context` passes the eigenvalues and prepared projections
-to `simulate_expanded`. It can also apply momentum broadening and z-score
-normalization. The retained dispatch values are `"novice"` and `"basic"`.
-The basic route also requires an atom-major `OrbitalBasis` and one atomic
-number per selected atom. Both routes consume projection probabilities and
-are incoherent. Use `DiagonalizedBands` and the matrix-element primitives
-when complex band coefficients and interference must be preserved.
+returning the context. `PROCAR` probabilities cannot reconstruct complex
+orbital or atomic-centre phase, so the package does not turn this context into
+a quantitative spectrum. Use a `DiagonalizedBands` source with complex
+coefficients, the coherent matrix-element primitives, and the resolvent/eigen
+spectral APIs. Plan 08a will add the single detector/count driver after that
+intrinsic boundary.
 
 ## HDF5 Round-Trip
 
@@ -199,8 +178,6 @@ Unknown group types raise an error during loading.
 
 - [PyTree Architecture](pytree-architecture.md) describes the reader output
   types and their validation contract.
-- [Expanded Wrappers and Conventions](expanded-wrappers-and-conventions.md)
-  describes the `simulate_*_expanded` functions used by `simulate_context`.
 - [JAX Transformability and Gradients](jax-transformability-and-gradients.md)
   describes differentiation after PyTree construction.
 - API reference: {doc}`../api/inout`, {doc}`../api/simul`,

@@ -228,7 +228,7 @@ def _text_tuple(
     name : str
         Field name used in the static error messages.
     unique : bool
-        Whether duplicate entries are rejected. Default is True.
+        Reject duplicate entries when true. Default is True.
 
     Returns
     -------

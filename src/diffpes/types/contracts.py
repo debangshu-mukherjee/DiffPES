@@ -151,9 +151,9 @@ def _normalize_terms(
 
     Implementation Logic
     --------------------
-    Freeze ``values`` into a tuple first. Then reject non-string or blank
-    entries, and compare the set size against the tuple length so that
-    duplicates fail instead of being silently removed.
+    Freeze ``values`` into a tuple first. Reject non-string or blank
+    entries. Compare the set size against the tuple length so
+    duplicates fail without silent removal.
 
     Parameters
     ----------

@@ -87,8 +87,8 @@ def _validate_depths_shape(
 
     Notes
     -----
-    ``None`` passes untouched. Only static shape metadata is checked
-    here; the nonnegativity of the values stays traced in the factory.
+    ``None`` passes untouched. Checks only static shape metadata here.
+    The factory keeps value nonnegativity traced.
     """
     if depths is not None and (
         depths.ndim != 1 or depths.shape[0] != n_orbitals
@@ -118,8 +118,8 @@ def _validate_integer_triple(
 
     Notes
     -----
-    Use exact ``type`` comparisons so that bools and NumPy integers are
-    rejected and the triple stays exact under integer arithmetic.
+    Use exact ``type`` comparisons to reject bools and NumPy integers.
+    The triple stays exact under integer arithmetic.
     """
     if (
         type(values) is not tuple
@@ -237,14 +237,11 @@ def _validate_surface_cell_structure(
     Raises
     ------
     ValueError
-        If ``in_plane_vectors``, ``stacking_vector``, ``rotation``, or
-        ``interlayer_spacing_ang`` has the wrong shape; if ``miller``,
-        ``in_plane_coeffs``, or ``stacking_coeffs`` is not built from
-        exact integer triples; if an in-plane coefficient row does not
-        lie in the Miller plane; if ``miller`` dotted with
-        ``stacking_coeffs`` does not equal one; or if the three
-        coefficient rows are linearly dependent. This is the static
-        construction-time contract.
+        If a numerical field has the wrong shape. If the coefficient
+        metadata lacks exact integer triples. If an in-plane row lies
+        outside the Miller plane. If the stacking dot product differs
+        from one. If the three coefficient rows are linearly
+        dependent. This is the static construction-time contract.
     """
     if (
         in_plane_vectors.ndim != _SURFACE_VECTOR_COUNT
@@ -349,14 +346,11 @@ def _validate_slab_spec_structure(
     Raises
     ------
     ValueError
-        If ``surface_cell`` is not a ``SurfaceCell``; if
-        ``thickness_ang`` or ``vacuum_ang`` is not a finite nonnegative
-        float; if ``fine`` is not a pair of finite floats; if
-        ``termination`` is not a pair of species labels; if ``n_layers``
-        is not a positive integer; or if the provenance maps are not
-        equal-length tuples of nonnegative integers with layer entries
-        in ``[0, n_layers)``. This is the static construction-time
-        contract.
+        If ``surface_cell`` has the wrong type. If a length is not a
+        finite nonnegative float. If ``fine`` or ``termination`` has
+        invalid pair metadata. If ``n_layers`` is not positive. If the
+        provenance maps have invalid lengths, integers, or layer
+        bounds. This is the static construction-time contract.
     """
     if not isinstance(surface_cell, SurfaceCell):
         message: str = "surface_cell must be a SurfaceCell"
@@ -421,7 +415,7 @@ def _validate_basis_geometry(
     Parameters
     ----------
     basis : OrbitalBasis
-        Orbital metadata whose ``atom_indices`` are checked.
+        Orbital metadata that supplies ``atom_indices`` for checking.
     geometry : CrystalGeometry
         Crystal geometry that provides the atomic position rows.
 
@@ -479,10 +473,9 @@ def _validate_hopping_metadata(
     Raises
     ------
     ValueError
-        If a pair is not a tuple of two integers; if a cell is not an
-        exact integer triple; if a pair index lies outside
-        ``[0, n_orbitals)``; if a ``(i, j, R)`` record is duplicated; or
-        if any record has no ``(j, i, -R)`` partner. This is the static
+        If a pair or cell has invalid integer metadata. If a pair index
+        lies outside ``[0, n_orbitals)``. If duplicate records exist.
+        If any record lacks a ``(j, i, -R)`` partner. This is the static
         construction-time contract.
     """
     keys: list[Tuple[int, int, Tuple[int, int, int]]] = []
@@ -572,11 +565,11 @@ def _validate_shell_metadata(
     Raises
     ------
     ValueError
-        If a ``shell_index`` entry is not an integer of at least ``-1``;
-        if ``soc_lambdas`` does not have ``max(shell_index) + 1``
-        entries; if the nonnegative identifiers are not contiguous from
-        0; or if shells and ``(atom, n, l)`` groups do not map
-        one-to-one. This is the static construction-time contract.
+        If ``shell_index`` contains an integer below ``-1``. If
+        ``soc_lambdas`` has the wrong length. If nonnegative identifiers
+        are not contiguous from zero. If shells and ``(atom, n, l)``
+        groups lack a one-to-one map. This is the static
+        construction-time contract.
     """
     if any(type(index) is not int or index < -1 for index in shell_index):
         message: str = (
@@ -675,12 +668,10 @@ def _validate_tb_structure(  # noqa: PLR0913, PLR0917
     Raises
     ------
     ValueError
-        If ``geometry`` or ``basis`` has the wrong type; if the
-        connectivity metadata fields are not tuples; if a numerical
-        array is not one-dimensional; if the hopping, orbital, or shell
-        axes disagree on length; if ``orbital_positions`` does not have
-        shape ``(n_orbitals, 3)``; if ``spinor`` is not a bool; or if
-        the spin channels contradict the ``spinor`` flag. The delegated
+        If geometry, basis, or connectivity metadata has the wrong
+        type. If a numerical array has the wrong rank or length. If
+        ``orbital_positions`` has the wrong shape. If ``spinor`` is not
+        Boolean or contradicts the spin channels. The delegated
         validators raise ``ValueError`` for their own static contracts.
     """
     if not isinstance(geometry, CrystalGeometry):
@@ -760,8 +751,8 @@ def _checked_geometry(
     Parameters
     ----------
     geometry : CrystalGeometry
-        Geometry whose ``lattice``, ``reciprocal``, and ``positions``
-        leaves are guarded.
+        Geometry that supplies ``lattice``, ``reciprocal``, and
+        ``positions`` leaves for guarding.
     context : str
         Caller name used as the prefix of each traced error message.
 
@@ -1135,11 +1126,9 @@ def _validate_diagonalized_structure(
     Raises
     ------
     ValueError
-        If ``geometry`` or ``basis`` has the wrong type; if
-        ``eigenvalues``, ``eigenvectors``, ``kpoints``, or
-        ``fermi_energy`` has the wrong rank or shape; if the axes
-        disagree on ``n_k``, ``n_bands``, or the orbital count; or if
-        ``orbital_positions`` does not have shape ``(n_orbitals, 3)``.
+        If geometry or basis has the wrong type. If an eigensystem
+        array has the wrong rank or shape. If k-point, band, or orbital
+        axes disagree. If ``orbital_positions`` has the wrong shape.
         The delegated validators raise ``ValueError`` for their own
         static contracts.
     """

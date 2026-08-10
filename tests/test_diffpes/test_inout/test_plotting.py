@@ -115,9 +115,16 @@ def _make_spectrum(nk: int = 20, ne: int = 120) -> ArpesSpectrum:
         0.0, 1.0, nk * ne, dtype=jnp.float64
     ).reshape(nk, ne)
     energy_axis: Float64[Array, " ne"] = jnp.linspace(-2.0, 0.5, ne)
+    k_axis: Float64[Array, " nk"] = jnp.linspace(0.0, 1.0, nk)
+    kpoints_cart_inv_ang: Float64[Array, "nk 3"] = jnp.stack(
+        (k_axis, jnp.zeros_like(k_axis), jnp.zeros_like(k_axis)),
+        axis=1,
+    )
     spectrum: ArpesSpectrum = make_arpes_spectrum(
         intensity=intensity,
         energy_axis=energy_axis,
+        k_axis=k_axis,
+        kpoints_cart_inv_ang=kpoints_cart_inv_ang,
     )
     return spectrum
 

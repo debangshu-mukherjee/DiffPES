@@ -36,7 +36,7 @@
     "coulomb-assembly-gradient"
   ],
   "generator": "tests/_reference_tools/generate_coulomb_reference.py",
-  "generator_sha256": "fd032c69e0886eb2c78deb8fdca34cf65eec9a95199b3d555ab01dc69ca832be",
+  "generator_sha256": "9d5552733f3381ed35829fd368b10a5d19c0dda0b0ec4a2a96ab747cfeb8ab93",
   "normalization": "mpmath Coulomb F_l/G_l convention; F'G-FG'=1",
   "reference_engine": {
     "decimal_digits": 80,

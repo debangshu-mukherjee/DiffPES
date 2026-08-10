@@ -26,8 +26,8 @@ and the project uses calendar versioning.
 - `SimulationParams` no longer stores `temperature` or `photon_energy`.
   `ExperimentGeometry.temperature_k` and
   `ExperimentGeometry.photon_energy_ev` own those experiment properties.
-  The retained incoherent spectrum functions accept the scalars explicitly
-  at their physics boundaries.
+  The carrier remains available while Plan 08a defines the canonical
+  detector/count parameter boundary.
 - The obsolete coherent prototype is removed:
   `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
   matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.
@@ -40,23 +40,42 @@ and the project uses calendar versioning.
   `diffpes.maths.dipole_matrix_element_single`,
   `diffpes.maths.dipole_intensity_orbital`, and
   `diffpes.maths.dipole_intensities_all_orbitals` are removed.
-- The projection levels `diffpes.simul.simulate_basicplus`,
-  `diffpes.simul.simulate_advanced`, `diffpes.simul.simulate_expert`, and
-  `diffpes.simul.simulate_soc` are removed together with
-  `simulate_basicplus_expanded`, `simulate_advanced_expanded`,
-  `simulate_expert_expanded`, and `simulate_soc_expanded`. The expanded
-  dispatcher now accepts only `novice` and `basic`.
+- All projection-probability spectrum tiers and the level-string dispatcher
+  are removed without compatibility shims. This includes
+  `diffpes.simul.simulate_novice`, `diffpes.simul.simulate_basic`, every
+  expanded wrapper, `diffpes.simul.simulate_expanded`, and the
+  `simul.spectrum` and `simul.expanded` modules. Use the coherent
+  `spectral_intensity_resolvent` or `spectral_intensity_eigen` path instead.
+- `diffpes.simul.simulate_context` and `diffpes.simul.run_vasp_workflow` are
+  removed. `diffpes.simul.workflow` now contains only the VASP input-boundary
+  helpers `load_vasp_context` and `prepare_projection`. Plan 08a will supply
+  the canonical detector/count driver after its effects chain is certified.
+- The tests and expanded-wrapper guide dedicated only to the removed tiers
+  are deleted. The frozen true- and pseudo-Voigt novice archives remain as
+  non-live historical provenance and are checked for integrity, not replayed
+  through production code.
 - `diffpes.simul.heuristic_weights`, `diffpes.simul.yeh_lindau_weights`, and
   the toy `CROSS_SECTION_ENERGIES`, `CROSS_SECTION_SIGMA_S`,
   `CROSS_SECTION_SIGMA_P`, and `CROSS_SECTION_SIGMA_D` tables are removed.
-  The retained basic tier requires explicit `OrbitalBasis` and atomic numbers
-  and consumes the authenticated element/subshell Yeh--Lindau tables.
+  The authenticated element/subshell Yeh--Lindau tables remain available as
+  explicit probability-level diagnostics; they are not a spectrum assembler.
 - `diffpes.types.SlaterParams` and `diffpes.types.make_slater_params` are
   removed. Use the shell-shared `RadialSpec` carrier and
   `make_radial_spec`.
 
 ### Changed
 
+- **Breaking:** `ArpesSpectrum` now requires cumulative Cartesian path
+  distance, every Cartesian path vector, and the registered sample-frame ID.
+  The HDF5 loader rejects retired two-field spectrum files with an actionable
+  schema error because it cannot reconstruct their missing geometry.
+- `DetectorRaster` now rejects a zero-length channel axis in eager and
+  compiled construction. Every expected-count raster contains at least one
+  explicitly labeled acquisition channel.
+- The geometry-and-kinematics tutorial now uses a stripped Jupyter notebook
+  paired with a reviewable Jupytext percent script. Documentation CI verifies
+  pair synchronization and committed-output absence, reuses a content-keyed
+  execution cache, and fails immediately on an unexpected notebook error.
 - **Breaking:** `make_self_energy_model` now rejects a `gamma` shortcut
   supplied together with explicit `coefficients` instead of silently ignoring
   `gamma`. The `gamma` default becomes `None`; an absent `gamma` with absent
@@ -69,13 +88,15 @@ and the project uses calendar versioning.
   outside the metadata block stays identical, so all compared numeric data is
   unchanged. The artifacts now differ from the raw external generator output by
   that metadata key alone.
-- Two pinned `generator_sha256` values are re-pinned:
+- Three pinned `generator_sha256` values are re-pinned:
   `tests/test_diffpes/test_radial/data/coulomb_mpmath_80digit.manifest.json` and
-  `src/diffpes/simul/data/yeh_lindau_1985.json`. Their generator scripts changed
-  through documentation edits and NumPy type annotations. No generator logic
-  changed. Every reference archive stays byte-identical, and each
-  `archive_sha256` still validates against unchanged data. The re-pin records a
-  documentation change to the generator, not new scientific evidence.
+  `src/diffpes/simul/data/yeh_lindau_1985.json`, plus
+  `tests/test_diffpes/_reference_data/voigt_scipy_manifest.json`. Their
+  generator scripts changed through documentation edits and NumPy type
+  annotations. No generator logic changed. Every reference archive stays
+  byte-identical, and each `archive_sha256` still validates against unchanged
+  data. The re-pin records a documentation change to the generator, not new
+  scientific evidence.
 - Certification owners and evidence identifiers now use scientific domain names.
   This breaking identity re-issue invalidates records that use the former identifiers.
 - Every NumPy array annotation now carries a jaxtyping dtype and shape, in the
@@ -114,10 +135,6 @@ and the project uses calendar versioning.
   exact Gaussian and Cauchy endpoints are value-only. The migration changes
   core values modestly but can produce much larger relative changes in tails,
   so no uniform percentage-shift claim is made.
-- `simulate_novice` and `simulate_basic` are explicitly documented as
-  incoherent projection tiers. `simulate_basic` now accepts `basis` and
-  `atomic_numbers` and applies one probability-level orbital reduction with
-  element- and subshell-resolved Yeh--Lindau weights.
 - Tight-binding models and diagonalized bands now carry optional differentiable
   per-orbital surface depths in Angstrom. Native diagonalization and HDF5
   persistence preserve the carrier exactly; ``None`` retains bulk semantics.
@@ -171,6 +188,21 @@ and the project uses calendar versioning.
 
 ### Added
 
+- The coherent intrinsic spectral seam now joins matrix-element sources and
+  causal self-energy models. `spectral_intensity_resolvent` uses a complex128
+  Lineax solve and remains differentiable at exact degeneracies. Its source
+  contract is `[n_out, n_orb]` with a mandatory nonempty outgoing-channel
+  axis. Each right-hand side receives an independent solve before the
+  real-valued reduction. The chunk assembler accepts
+  `[n_k, n_omega, n_out, n_orb]`. The streamed path constructs only
+  block-local transition sources. It never materializes a full
+  momentum-by-energy-by-basis source carrier.
+  `projected_spectral_density_resolvent` preserves Hermitian channel
+  coherences. `spectral_intensity_eigen` provides the nondegenerate
+  gauge-invariant band-weight path. The two chunk assemblers subtract the
+  Fermi energy exactly once and apply the Fermi distribution at sampled
+  relative energy. Instrument response, normalization, backgrounds, and
+  counts remain downstream operations.
 - `diffpes.simul.spectral` adds the complex retarded self-energy evaluation
   `evaluate_self_energy` with the certified cell-integrated principal-value
   Kramers--Kronig operator. Grid mode uses the exact hat transform; the

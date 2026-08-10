@@ -48,10 +48,9 @@ def _angular_momentum_matrices(
 
     Notes
     -----
-    Builds the raising operator with elements sqrt(l(l+1) - m(m+1)) one
-    step below the diagonal, takes the lowering operator as its
-    conjugate transpose, and forms Jy = (J+ - J-) / (2i) and Jz =
-    diag(m).
+    Builds the raising operator one step below the diagonal. Uses
+    sqrt(l(l+1) - m(m+1)) elements. Takes the lowering operator as its
+    conjugate transpose. Forms Jy and diagonal Jz from both operators.
     """
     magnetic_numbers: Float64[NDArray, " dim"] = np.arange(
         -l, l + 1, dtype=np.float64

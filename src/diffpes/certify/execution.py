@@ -150,10 +150,10 @@ def _certify_forward_checked(
     Implementation Logic
     --------------------
     Resolves the registered executor from the model identity and
-    version, fills in default probe directions
-    (:func:`_probe_directions`) and unit scales when the caller supplies
-    none, resolves the registered domain-check callables, and reuses the
-    cached structural dependency analysis. It then calls the cached
+    version. Fills missing probe directions through
+    :func:`_probe_directions` and supplies unit scales. Resolves the
+    registered domain checks and reuses the cached structural
+    dependency analysis. It then calls the cached
     checkified JIT kernel with these static selections.
 
     Parameters
@@ -410,11 +410,10 @@ def _certify_kernel(  # noqa: PLR0915
 
     Implementation Logic
     --------------------
-    Linearizes the executor once with :func:`jax.linearize` and derives
-    every product from that retained linearization: the information
-    spectrum, the derivative evidence against batched central
-    differences, the traced dependency map over the supplied structural
-    matrix, and the sensitivity map. Runs each registered domain check
+    Linearizes the executor once with :func:`jax.linearize`. Derives the
+    information spectrum and derivative evidence from that retained
+    linearization. Also derives the traced dependency and sensitivity
+    maps. Runs each registered domain check
     and records a :func:`checkify.check` failure when a hard check
     (severity code 2 or higher) does not pass. Builds the claim set:
     identity, output finiteness, JVP-versus-central-difference
@@ -758,14 +757,11 @@ def _claim_is_consistent(
 
     Implementation Logic
     --------------------
-    For a ``domain.`` claim, looks up the recorded domain result by
-    predicate identity and requires exact array equality of the
-    measured, reference, residual, tolerance, margin, passed, checked,
-    in-domain, and severity leaves; a missing domain result fails. For
-    every other claim, recomputes the residual, the minimum signed
-    margin, and the pass Boolean from the retained measured, reference,
-    tolerance, checked, and in-domain leaves, and requires exact
-    equality with the recorded values.
+    For a ``domain.`` claim, looks up the domain result by predicate
+    identity. Requires exact equality across every recorded numerical
+    and status leaf. A missing domain result fails. For every other
+    claim, recomputes the residual, minimum signed margin, and pass
+    Boolean. Requires exact equality with the recorded values.
 
     Parameters
     ----------
@@ -839,9 +835,9 @@ def _external_claim_matches_evidence(
     consistent : bool
         ``True`` for any claim outside the
         ``verification.external_reference`` predicate. For an external
-        claim, ``True`` only when the claim names exactly one evidence
-        record that exists and whose measured, reference, residual, and
-        tolerance arrays equal the claim arrays.
+        claim, ``True`` requires exactly one existing evidence record.
+        Its measured, reference, residual, and tolerance arrays must
+        equal the claim arrays.
 
     Notes
     -----

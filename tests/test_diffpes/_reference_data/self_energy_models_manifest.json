@@ -130,7 +130,7 @@
     }
   },
   "generator": "tests/_reference_tools/generate_self_energy_models_reference.py",
-  "generator_sha256": "3530d7c120edfed2cfe7c57c96b9105076c9fca83ef9c905665b14a8a9789ecf",
+  "generator_sha256": "e65ea2c1117cc4fe33ca3bee00645a59547e2cd7cf5fbd04bc7a71556676f811",
   "grids": {
     "eval_grid": {
       "half_width_ev": 1.5,

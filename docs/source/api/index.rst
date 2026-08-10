@@ -6,10 +6,9 @@ JAX-based differentiable ARPES simulation package.
 diffpes provides a differentiable pipeline connecting electronic band
 structure to Angle-Resolved PhotoEmission Spectroscopy (ARPES) spectra.
 Built on JAX and Equinox, the same forward physics that maps band
-structures to spectra also supports gradient-based inverse recovery. Two
-deliberately incoherent projection tiers provide inexpensive spectra.
-Separate coherent primitives preserve orbital amplitudes through radial,
-angular, polarization, and band-projection stages.
+structures to spectra also supports gradient-based inverse recovery.
+Coherent primitives preserve orbital amplitudes through radial, angular,
+polarization, band-projection, and intrinsic spectral stages.
 
 Submodules
 ----------
@@ -44,8 +43,8 @@ Submodules
     radial wavefunctions, and fixed-grid radial integrals.
 
 :mod:`diffpes.simul`
-    Two incoherent ARPES spectrum tiers, coherent matrix-element assembly,
-    broadening, cross sections, polarization, and orbital angular momentum.
+    Coherent matrix-element and spectral assembly, broadening, cross
+    sections, polarization, and orbital angular momentum.
 
 :mod:`diffpes.tightb`
     Native tight-binding model construction, diagonalization, and
@@ -66,8 +65,11 @@ Examples
 
     import diffpes as dp
 
-    context = dp.simul.load_vasp_context("vasp_output_dir")
-    spectrum = dp.simul.simulate_context(context)
+    import jax.numpy as jnp
+
+    omega = jnp.linspace(-1.0, 1.0, 101)
+    model = dp.types.make_self_energy_model(gamma=0.1)
+    sigma = dp.simul.evaluate_self_energy(omega, model)
 
 Notes
 -----

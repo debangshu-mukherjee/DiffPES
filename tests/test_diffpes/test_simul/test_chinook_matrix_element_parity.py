@@ -68,11 +68,10 @@ def _transition_band_channels(
 
     Implementation Logic
     --------------------
-    Builds an all-p_z basis with one atom per orbital, pins both radial
-    branch integrals to (+1, -1) for every state and orbital, assembles
-    the orbital transition channels with zero depths and a 10 Angstrom
-    mean free path, and projects them with the supplied band
-    coefficients.
+    Builds an all-p_z basis with one atom per orbital. Pins both radial
+    branches to (+1, -1) for every state and orbital. Assembles channels
+    with zero depths and a 10 Angstrom mean free path. Projects them
+    with the supplied band coefficients.
     """
     n_states: int = len(k_i_state)
     n_orbitals: int = positions_cartesian.shape[0]
@@ -198,7 +197,7 @@ def _dark_ring_angles(
     Parameters
     ----------
     k_i_state : Float64[NDArray, "n_state 3"]
-        Sampled momenta in 1/Angstrom; only the in-plane part is used.
+        Sampled momenta in 1/Angstrom. Uses only the in-plane part.
     band_indices : Int64[NDArray, " n_state"]
         Band label 0 or 1 for each state.
     valley_indices : Int64[NDArray, " n_state"]
@@ -216,10 +215,10 @@ def _dark_ring_angles(
 
     Implementation Logic
     --------------------
-    For each valley and band pair, selects the matching states, forms
-    in-plane offsets from the valley centre, keeps samples within 0.018
-    1/Angstrom of the 0.12 1/Angstrom ring radius, and records the
-    atan2 angle of the minimum-intensity sample.
+    Selects matching states for each valley and band. Forms in-plane
+    offsets from the valley centre. Keeps samples within 0.018
+    1/Angstrom of the 0.12 1/Angstrom ring. Records the atan2 angle of
+    the minimum-intensity sample.
     """
     angles: list[float] = []
     valley_index: int

@@ -23,13 +23,8 @@ from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import special
 
-from diffpes.simul import simulate_novice, voigt
+from diffpes.simul import voigt
 from tests._assertions import assert_rejects
-from tests._factories import (
-    toy_band_structure,
-    toy_orbital_projection,
-    toy_simulation_params,
-)
 
 _REFERENCE_DIRECTORY: Path = (
     Path(__file__).resolve().parents[1] / "_reference_data"
@@ -182,8 +177,8 @@ def _stable_fermi(
     Notes
     -----
     Divides by kB T with kB = 8.617333e-5 eV per Kelvin and T = 15
-    Kelvin, then uses exp(-x) / (1 + exp(-x)) for x >= 0 and
-    1 / (1 + exp(x)) otherwise, so the exponential never overflows.
+    Kelvin. Uses exp(-x) / (1 + exp(-x)) for nonnegative x. Uses
+    1 / (1 + exp(x)) otherwise, preventing overflow.
     """
     exponent: Float64[NDArray, "nkpt nband"] = energy / (8.617333e-5 * 15.0)
     occupation: Float64[NDArray, "nkpt nband"] = np.empty_like(exponent)
@@ -1007,39 +1002,3 @@ class TestVoigtProduction:
                 rtol=_DERIVATIVE_RTL,
                 atol=_DERIVATIVE_ATL,
             )
-
-    @pytest.mark.big_mem
-    @pytest.mark.rss_limit_mb(1200)
-    def test_novice_replay_matches_true_voigt_artifact(self) -> None:
-        """Replay the retained novice inputs against independent true truth.
-
-        Extended Summary
-        ----------------
-        The test verifies the complete production novice path reproduces the
-        manually assembled true-Voigt artifact.
-
-        Notes
-        -----
-        Build the fixed-seed carriers, simulate the spectrum, and compare both
-        carrier arrays with their independent references.
-        """
-        key: Array = jax.random.key(20260713)
-        spectrum: Any = simulate_novice(
-            toy_band_structure(key),
-            toy_orbital_projection(key),
-            toy_simulation_params(fidelity=512),
-            15.0,
-        )
-        desired: Dict[str, Float64[NDArray, "..."]] = _load_npz(_NOVICE_PATH)
-        np.testing.assert_allclose(
-            np.asarray(spectrum.intensity),
-            desired["leaf_000_intensity"],
-            rtol=1.0e-12,
-            atol=0.0,
-        )
-        np.testing.assert_allclose(
-            np.asarray(spectrum.energy_axis),
-            desired["leaf_001_energy_axis"],
-            rtol=1.0e-12,
-            atol=2.0 * np.finfo(np.float64).eps,
-        )

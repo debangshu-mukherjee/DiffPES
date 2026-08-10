@@ -37,14 +37,14 @@ class SelfEnergyModel(eqx.Module):
 
     Attributes
     ----------
-    coefficients : Float64[Array, " n_coef"]
+    coefficients : Float64[Array, "..."]
         Unconstrained raw coordinates. Physical positive parameters use a
         smooth softplus map without clipping.
-    energy_nodes_rel_fermi_ev : Optional[Float64[Array, " n_nodes"]]
+    energy_nodes_rel_fermi_ev : Optional[Float64[Array, "..."]]
         Strictly increasing grid nodes on the :math:`E-E_F` axis in eV.
-    kk_domain_rel_fermi_ev : Optional[Float64[Array, " 2"]]
+    kk_domain_rel_fermi_ev : Optional[Float64[Array, "..."]]
         Finite numerical Kramers--Kronig domain ``[a, b]`` in eV.
-    tail_coefficients : Optional[Float64[Array, " n_tail"]]
+    tail_coefficients : Optional[Float64[Array, "..."]]
         For ``power2``, the two raw delta-beta coordinates in ``[-30, 30]``.
     subtraction_point_rel_fermi_ev : Float64[Array, ""]
         Fixed subtraction point on the relative-energy axis in eV.
@@ -264,7 +264,7 @@ class SelfEnergyModel(eqx.Module):
 
 
 @jaxtyped(typechecker=beartype)
-def make_self_energy_model(
+def make_self_energy_model(  # noqa: DOC503 -- traced Equinox guards.
     coefficients: Optional[Float[Array, "..."]] = None,
     gamma: Optional[ScalarFloat] = None,
     mode: str = "constant",
@@ -306,7 +306,7 @@ def make_self_energy_model(
 
     Parameters
     ----------
-    coefficients : Optional[Float[Array, " n_coef"]], optional
+    coefficients : Optional[Float[Array, "..."]], optional
         Explicit unconstrained raw model coordinates.
     gamma : Optional[ScalarFloat], optional
         Positive finite constant linewidth shortcut in eV. The shortcut
@@ -315,13 +315,13 @@ def make_self_energy_model(
     mode : str, optional
         One of ``constant``, ``poly``, ``grid``, ``fermi_liquid``, or
         ``bosonic_kink``. **Static** -- changing it triggers retracing.
-    energy_nodes_rel_fermi_ev : Optional[Float[Array, " n_nodes"]], optional
+    energy_nodes_rel_fermi_ev : Optional[Float[Array, "..."]], optional
         Grid nodes on the :math:`E-E_F` axis in eV.
     kk_consistent : bool, optional
         Causality selector. **Static** -- changing it triggers retracing.
-    kk_domain_rel_fermi_ev : Optional[Float[Array, " 2"]], optional
+    kk_domain_rel_fermi_ev : Optional[Float[Array, "..."]], optional
         Numerical KK domain ``[a, b]`` in relative-energy eV.
-    tail_coefficients : Optional[Float[Array, " n_tail"]], optional
+    tail_coefficients : Optional[Float[Array, "..."]], optional
         Two bounded raw power-tail coordinates.
     subtraction_point_rel_fermi_ev : ScalarFloat, optional
         Subtraction point on the relative-energy axis in eV.

@@ -669,6 +669,117 @@ class TestValidateHandshake:
             "org.diffpes.tightb",
         }
 
+    def test_spectral_handshake_records_complete_semantic_identity(
+        self,
+    ) -> None:
+        """Validate the spectral transformations and declared evidence wall.
+
+        The owner binds the causal Kramers--Kronig map, resolvent spectral
+        density, and Fermi occupation at sampled energy. The causal contract
+        pins the numerical envelope, core interpolation, quadrature order,
+        trusted interval, and value-only endpoint semantics that invalidate
+        the evidence when changed.
+
+        Notes
+        -----
+        Resolve the packaged declaration by owner and compare the live
+        handshake. Inspect three transformation contracts. Validate
+        exactly the declared evidence identities.
+        """
+        register_builtin_models()
+        manifest: Dict[str, Any] = registry_manifest()
+        declaration: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.spectral"
+        )
+        handshake: Any = next(
+            item
+            for item in list_handshakes()
+            if item.owner_id == "org.diffpes.spectral"
+        )
+        expected_refs: Tuple[str, ...] = (
+            "org.diffpes.transform.self_energy.kk_causal@1.0.0",
+            "org.diffpes.transform.spectral.resolvent@1.0.0",
+            "org.diffpes.transform.occupation.fermi_at_omega@1.0.0",
+        )
+        assert handshake.model_refs == ()
+        assert handshake.convention_refs == ()
+        assert handshake.transformation_refs == expected_refs
+        assert tuple(declaration["transformation_refs"]) == expected_refs
+        evidence_ids: Tuple[str, ...] = tuple(declaration["evidence_ids"])
+        assert handshake.evidence_ids == evidence_ids
+        assert len(evidence_ids) == 27
+        assert len(set(evidence_ids)) == 27
+        assert all(
+            item.startswith("org.diffpes.evidence.spectral.")
+            for item in evidence_ids
+        )
+        requirement: str
+        for requirement in (
+            "kk.analytic_pair_truth",
+            "kk.refinement_convergence",
+            "kk.carrier_consistency",
+            "kk.derivative_composite_route",
+            "kk.reverse_mode_consistency",
+            "kk.singularity_stress_witness",
+            "kk.spectral_observable_stability",
+            "kk.rejected_control_reference",
+        ):
+            assert any(requirement in item for item in evidence_ids)
+
+        kk_contract: Any = get_transformation(
+            "org.diffpes.transform.self_energy.kk_causal",
+            "1.0.0",
+        ).contract
+        assert {
+            "smooth_mode_piecewise_cubic_core",
+            "grid_mode_piecewise_linear_hat_core",
+            "uniform_even_4096_node_default",
+            "kk_selection_domain_minus8_plus8_ev",
+            "kk_phase_aligned_integer_cell_domain_extension",
+            "power2_tail_gauss_legendre_256_per_side",
+            "trusted_interval_two_cell_margin",
+            "direct_query_evaluation_without_interpolation",
+            "kk_pair_mixed_bound_atol_2e_8_ev_rtol_1e_6",
+            "kk_refinement_bounds_value_2e_6_ev_derivative_2e_5_jvp_2e_5_ev",
+            "kk_tail_refinement_value_derivative_bound_1e_13",
+            "kk_wigner_min_order_1p4_base_error_1e_5_ev",
+            "faddeeva_upper_half_plane_closed_radius_1e8",
+            "voigt_shared_faddeeva_guard",
+            "voigt_zero_width_endpoints_value_only",
+        } <= set(kk_contract.introduces)
+        resolvent: Any = get_transformation(
+            "org.diffpes.transform.spectral.resolvent",
+            "1.0.0",
+        ).contract
+        occupation: Any = get_transformation(
+            "org.diffpes.transform.occupation.fermi_at_omega",
+            "1.0.0",
+        ).contract
+        assert "complex128_resolvent_linear_solve" in resolvent.introduces
+        assert "hermitian_relative_tolerance_1e_12" in resolvent.introduces
+        assert "positive_regulator_default_1e_4_ev" in resolvent.introduces
+        assert {
+            "checkpointed_nested_k_omega_scan",
+            "static_padded_256k_512omega_schedule",
+            "static_k_chunk_32_omega_chunk_32",
+            "explicit_nonempty_n_out_source_axis",
+            "independent_scalar_rhs_solve_before_sum",
+            "xla_memory_analysis_allocation_authority",
+            "registered_spinless_solve_tape_1p5x_ceiling",
+            "one_compile_per_padded_schedule",
+        } <= set(resolvent.introduces)
+        assert (
+            "fermi_dirac_occupation_at_sampled_energy" in occupation.introduces
+        )
+        report: Any = validate_handshake(
+            handshake,
+            evidence_ids=evidence_ids,
+        )
+        assert bool(report.complete), report.missing_ids
+        assert report.missing_ids == ()
+
     def test_slab_split_handshakes_are_complete_and_acyclic(self) -> None:
         """Validate the separate carrier and full-slab lifecycle records.
 
@@ -818,12 +929,13 @@ class TestRegistryManifest:
     :see: :func:`~diffpes.certify.registry_manifest`
     """
 
-    def test_manifest_has_matrix_element_handshake_and_no_retired_model(
+    def test_manifest_has_scientific_handshakes_and_no_retired_model(
         self,
     ) -> None:
         """Read the schema and current owner handshakes from package resources.
 
-        The manifest omits the stale radial model and declares matrix-element ownership explicitly.
+        The manifest omits the stale radial model and declares matrix-element
+        and spectral ownership explicitly.
 
         Notes
         -----
@@ -837,6 +949,7 @@ class TestRegistryManifest:
         )
         assert owners == tuple(sorted(owners))
         assert "org.diffpes.matrixel" in owners
+        assert "org.diffpes.spectral" in owners
         matrix_element: Dict[str, Any] = next(
             item
             for item in manifest["handshakes"]
@@ -856,6 +969,13 @@ class TestRegistryManifest:
             "org.diffpes.evidence.matrixel.late_polarization_performance"
             in matrix_element["evidence_ids"]
         )
+        spectral: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.spectral"
+        )
+        assert len(spectral["transformation_refs"]) == 3
+        assert len(spectral["evidence_ids"]) == 27
 
 
 class TestRenderModelCard:

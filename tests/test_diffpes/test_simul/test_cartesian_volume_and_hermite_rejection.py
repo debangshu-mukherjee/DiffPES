@@ -106,14 +106,13 @@ def _spatial_volume_amplitude(
 
     Implementation Logic
     --------------------
-    Builds a product quadrature from 400 Gauss-Legendre radial nodes
-    mapped to [0, 50] Bohr, 72 Gauss-Legendre nodes in the polar
-    cosine, and 144 uniform azimuth nodes. The orbital combines the
+    Builds a product quadrature from 400 radial nodes on [0, 50] Bohr.
+    Adds 72 Gauss-Legendre polar-cosine nodes and 144 uniform azimuth
+    nodes. The orbital combines the
     normalized n=1, zeta=1.1 s row and the n=2, zeta=0.9 p row with
     the real harmonics. Each radial shell accumulates the plane-wave
-    phase factor times the polarization projection times the orbital,
-    with volume factor r**3 for the dipole radius and r**2 for the
-    norm.
+    phase, polarization projection, and orbital product. It uses volume
+    factor r**3 for the dipole radius and r**2 for the norm.
     """
     radial_abscissa: Float64[NDArray, " n_r"]
     radial_weights_raw: Float64[NDArray, " n_r"]
@@ -234,10 +233,10 @@ def _production_amplitude(
 
     Implementation Logic
     --------------------
-    Evaluates the production channel assembly at one k-point with zero
-    positions and depths and a 9 Angstrom mean free path, contracts the
-    Cartesian channels with the polarization, and sums the per-orbital
-    amplitudes against the supplied coefficients.
+    Evaluates production channels at one k-point with zero positions
+    and depths. Uses a 9 Angstrom mean free path. Contracts Cartesian
+    channels with polarization and sums orbital amplitudes against the
+    supplied coefficients.
     """
     channels: Complex128[Array, "1 1 2 3"] = orbital_transition_channels(
         jnp.zeros((1, 3)),

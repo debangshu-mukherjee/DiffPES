@@ -1,0 +1,118 @@
+{
+  "backend": "cpu",
+  "device": "TFRT_CPU_0",
+  "gate_ids": [
+    "07.S1",
+    "07.S2",
+    "07.S3"
+  ],
+  "jax_version": "0.9.0.1",
+  "numpy_version": "2.4.2",
+  "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+  "preallocate_environment": "false",
+  "python_version": "3.13.6",
+  "result": "pass",
+  "s1_literal_target": {
+    "allocation_model": {
+      "block_radial_bvals_bytes_diagnostic": 1048576,
+      "block_transition_channels_bytes_diagnostic": 1572864,
+      "block_transition_sources_bytes_diagnostic": 524288,
+      "matrix_free_kk_work_bytes_diagnostic": 1048576,
+      "padded_hamiltonian_axis_mask_output_bytes_diagnostic": 5247744,
+      "padded_kinematics_bytes_diagnostic": 3282944,
+      "registered_ceiling_bytes": 201326592,
+      "registered_factor": 1.5,
+      "registered_solve_tape_bytes": 134217728
+    },
+    "checkpoint": true,
+    "compilation_seconds": 5.14587561506778,
+    "executed": false,
+    "execution_seconds": null,
+    "k_chunk": 32,
+    "memory_analysis": {
+      "alias_size_bytes": 0,
+      "argument_size_bytes": 7483224,
+      "authority_available": true,
+      "compiler_live_allocation_bytes": 60272816,
+      "output_size_bytes": 4194328,
+      "result": "measured",
+      "temporary_size_bytes": 48595264
+    },
+    "n_k_max": 256,
+    "n_kk": 4096,
+    "n_omega_max": 512,
+    "n_orb": 32,
+    "n_out": 1,
+    "n_tail": 256,
+    "omega_chunk": 32,
+    "passes_registered_1p5x_bound": true,
+    "process_peak_rss_after_bytes_non_authoritative": 693555200,
+    "process_peak_rss_before_bytes_non_authoritative": 478945280,
+    "program": "value_and_hamiltonian_gradient"
+  },
+  "s1_reference_comparison": {
+    "gradient_passes_rtol_1e_12": true,
+    "maximum_gradient_absolute_error": 0.0,
+    "maximum_reference_gradient": 0.09663652600169406,
+    "maximum_reference_value": 0.00396639665526749,
+    "maximum_value_absolute_error": 4.336808689942018e-19,
+    "nonzero_gradient": true,
+    "value_passes_rtol_1e_12": true
+  },
+  "s2_compile_count": {
+    "active_sizes": [
+      [
+        2,
+        4
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        4,
+        8
+      ]
+    ],
+    "chunk_schedule": [
+      2,
+      4
+    ],
+    "compile_cache_sizes": [
+      0,
+      1,
+      1,
+      1
+    ],
+    "n_out": 1,
+    "padded_shape": [
+      4,
+      8,
+      2
+    ],
+    "result": "pass",
+    "trace_count": 1
+  },
+  "s3_dtype": {
+    "compiler_ir_contains_complex_f32": false,
+    "compiler_ir_contains_complex_f64": true,
+    "complex64_public_call_rejected": true,
+    "complex64_rejection_exception": "TypeCheckError",
+    "operator_input_dtype": "complex128",
+    "result": "pass",
+    "rhs_input_dtype": "complex128",
+    "solution_dtype": "complex128"
+  },
+  "schema": "diffpes.spectral-scalability.v1",
+  "source_sha256": {
+    "pyproject.toml": "ec3f46d2bf1e1658b47feae3c4d3a77a28d93cded26c03f7cdf4ad570bd5a786",
+    "src/diffpes/radial/integrate.py": "00027b99c0214006cb1bbe2ad1afbfc6b0bef6f1386b8ae8deb0f5b1f6a73e42",
+    "src/diffpes/simul/matrixel.py": "586ab25752cd8d32624ccb932872007e5468e561a43d0615981f7ab20210c2eb",
+    "src/diffpes/simul/spectral.py": "a919f1f1c3ba7b4856d69a8d8f87ff9911e6c10480d1a82de24a3c812f16549d",
+    "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
+    "src/diffpes/types/self_energy.py": "cd1eb66c5ee43abf07801fa358deb7990b7a530a98d4ce1081c8e4877caa50c5",
+    "tests/_reference_tools/measure_spectral_scaling.py": "df1ff422181e943868177d2e95768172d516f9bfe3862687c51d992846093ca1",
+    "uv.lock": "e8ad862e358bb77a7ca645c49fcfa4d677535a1f8fa78273667e7809156cec1d"
+  },
+  "x64_enabled": true
+}

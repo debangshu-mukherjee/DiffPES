@@ -310,8 +310,8 @@ def _validate_orbital_basis_structure(
 
     Implementation Logic
     --------------------
-    Use exact ``type`` comparisons so that bools and NumPy integers are
-    rejected. Check quantum-number consistency pairwise with
+    Use exact ``type`` comparisons to reject bools and NumPy integers.
+    Check quantum-number consistency pairwise with
     ``zip(..., strict=True)`` over ``(n, l)`` and ``(l, m)``.
 
     Parameters
@@ -333,13 +333,10 @@ def _validate_orbital_basis_structure(
     Raises
     ------
     ValueError
-        If any field is not a tuple; if the per-orbital tuples disagree
-        on length; if an ``atom_indices`` entry is not a nonnegative
-        integer; if an ``n`` entry is not an integer of at least 1; if
-        the quantum numbers violate ``0 <= l < n`` or ``abs(m) <= l``;
-        if ``spin`` has the wrong length or an entry other than ``+1``
-        or ``-1``; or if a label is not a string. This is the static
-        construction-time contract.
+        If a field has the wrong container type or length. If an atom,
+        principal, or angular quantum number is invalid. If ``spin``
+        has the wrong length or channel values. If a label is not a
+        string. This is the static construction-time contract.
     """
     if any(
         type(values) is not tuple
@@ -497,12 +494,11 @@ def _validate_radial_shell_structure(
     Raises
     ------
     ValueError
-        If ``radial_shell_index`` is not a tuple, does not have one
-        entry per orbital, or contains an entry that is not a
-        nonnegative integer; if any basis orbital has ``l > 4``; if the
-        shell identifiers are not contiguous from 0; or if the partition
-        does not map shells one-to-one to ``(atom, n, l)`` groups. This
-        is the static construction-time contract.
+        If ``radial_shell_index`` lacks one valid integer entry per
+        orbital. Also if a basis orbital has ``l > 4``. If shell
+        identifiers are not contiguous from zero. If the partition
+        lacks a one-to-one map to ``(atom, n, l)`` groups. This is the
+        static construction-time contract.
     """
     if type(radial_shell_index) is not tuple:
         message: str = "radial_shell_index must be a tuple"
@@ -570,16 +566,16 @@ def _validate_radial_array_shapes(
     Raises
     ------
     ValueError
-        If ``zeta_shell`` or ``coefficients_shell`` is not a matrix; if
-        their shapes differ; if the shell axis does not equal
-        ``n_shells`` or the contraction axis is empty; or if
-        ``effective_charge_shell`` does not have shape ``(n_shells,)``.
-        This is the static construction-time contract.
+        If either contraction array is not a matrix or their shapes
+        differ. If the shell axis differs from ``n_shells`` or the
+        contraction axis is empty. If ``effective_charge_shell`` lacks
+        shape ``(n_shells,)``. This is the static construction-time
+        contract.
 
     Notes
     -----
-    Only static shape metadata is checked here. Numerical content
-    checks stay traced inside the factory.
+    Checks only static shape metadata here. Numerical content checks
+    stay traced inside the factory.
     """
     if (
         zeta_shell.ndim != _ARRAY_MATRIX_NDIM
@@ -896,10 +892,9 @@ def _validate_slater_koster_structure(
     Raises
     ------
     ValueError
-        If ``values`` is not one-dimensional; or if ``keys`` is not a
-        tuple, disagrees with ``values`` on length, contains an entry
-        that is not a nonempty string, or contains duplicates. This is
-        the static construction-time contract.
+        If ``values`` is not one-dimensional. If ``keys`` disagrees
+        with ``values`` on length or contains invalid or duplicate
+        strings. This is the static construction-time contract.
     """
     if values.ndim != 1:
         message: str = "SlaterKosterParams values must be one-dimensional"

@@ -6,8 +6,8 @@ The package provides Angle-Resolved PhotoEmission Spectroscopy (ARPES)
 simulations with JAX automatic differentiation and GPU acceleration.
 The same differentiable physics maps an electronic structure to ARPES
 spectra and supports inverse recovery of band-structure parameters.
-The package provides lightweight incoherent tiers and coherent
-matrix-element primitives.
+The package provides coherent matrix-element and intrinsic spectral
+primitives.
 
 Routine Listings
 ----------------
@@ -20,7 +20,7 @@ Routine Listings
 :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 :mod:`simul`
-    Provide ARPES simulation functions at six complexity levels.
+    Provide coherent matrix-element and spectral simulation primitives.
 :mod:`tightb`
     Provide native tight-binding tools and ARPES-side adapters.
 :mod:`types`
@@ -31,10 +31,10 @@ Routine Listings
 Examples
 --------
 >>> import diffpes
->>> bands = diffpes.inout.read_eigenval("EIGENVAL", fermi_energy=-1.5)
->>> orb = diffpes.inout.read_procar("PROCAR")
->>> params = diffpes.types.make_simulation_params(sigma=0.04)
->>> spectrum = diffpes.simul.simulate_novice(bands, orb, params, 15.0)
+>>> import jax.numpy as jnp
+>>> omega = jnp.linspace(-1.0, 1.0, 101)
+>>> model = diffpes.types.make_self_energy_model(gamma=0.1)
+>>> sigma = diffpes.simul.evaluate_self_energy(omega, model)
 
 Notes
 -----

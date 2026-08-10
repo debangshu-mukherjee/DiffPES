@@ -1,10 +1,11 @@
-"""Run high-level workflows for VASP-to-ARPES simulation.
+"""Load and prepare VASP projection data for coherent ARPES workflows.
 
 Extended Summary
 ----------------
-The module combines common workflow tasks. These tasks load VASP outputs,
-select atoms, attach OAM channels, and run an ARPES simulation. Optional steps
-apply momentum broadening and z-score normalization.
+The module combines the retained input-boundary tasks: loading VASP outputs,
+selecting atoms, and attaching OAM channels. Physical spectral assembly uses
+the coherent APIs in :mod:`diffpes.simul.spectral`. Plan 08a defines the
+canonical detector/count driver after completing its effects chain.
 
 Routine Listings
 ----------------
@@ -12,17 +13,12 @@ Routine Listings
     Load a simulation-ready context from VASP output files.
 :func:`prepare_projection`
     Prepare orbital projections for simulation.
-:func:`run_vasp_workflow`
-    Run an end-to-end VASP-to-ARPES workflow in one call.
-:func:`simulate_context`
-    Run a level-dispatched simulation from a loaded workflow context.
 """
 
 from pathlib import Path
 
-import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal, Optional, Tuple, cast
+from beartype.typing import Literal, Optional, cast
 from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.inout import (
@@ -34,25 +30,19 @@ from diffpes.inout import (
     select_atoms,
 )
 from diffpes.types import (
-    ArpesSpectrum,
     BandStructure,
     DosType,
     KPathInfo,
-    OrbitalBasis,
     ProjectionType,
     ScalarFloat,
     SpinOrbitalProjection,
     WorkflowContext,
-    make_arpes_spectrum,
     make_orbital_projection,
     make_spin_orbital_projection,
     make_workflow_context,
 )
-from diffpes.utils import zscore_normalize
 
-from .expanded import simulate_expanded
 from .oam import compute_oam
-from .resolution import apply_momentum_broadening
 
 
 @jaxtyped(typechecker=beartype)
@@ -261,270 +251,7 @@ def prepare_projection(
     return prepared
 
 
-@beartype
-def _kpath_distances(
-    kpoints: Float64[Array, "K 3"],
-) -> Float64[Array, " K"]:
-    """PRIVATE: Compute cumulative k-path distances from k-point coordinates.
-
-    Notes
-    -----
-    The distances accumulate segment norms along the path.
-    """
-    dk_vecs: Float64[Array, "Km1 3"] = jnp.diff(kpoints, axis=0)
-    dk_norms: Float64[Array, " Km1"] = jnp.linalg.norm(dk_vecs, axis=1)
-    distances: Float64[Array, " K"] = jnp.concatenate(
-        [jnp.zeros(1, dtype=kpoints.dtype), jnp.cumsum(dk_norms)]
-    )
-    return distances
-
-
-@jaxtyped(typechecker=beartype)
-def simulate_context(  # noqa: PLR0913, PLR0917
-    context: WorkflowContext,
-    level: str = "novice",
-    atom_indices: Optional[list[int]] = None,
-    attach_oam: bool = False,
-    normalize: bool = False,
-    dk: Optional[ScalarFloat] = None,
-    sigma: ScalarFloat = 0.04,
-    gamma: ScalarFloat = 0.1,
-    fidelity: int = 25000,
-    temperature: ScalarFloat = 15.0,
-    photon_energy: ScalarFloat = 21.2,
-    basis: Optional[OrbitalBasis] = None,
-    atomic_numbers: Optional[Tuple[int, ...]] = None,
-) -> ArpesSpectrum:
-    """Run a level-dispatched simulation from a loaded workflow context.
-
-    Uses a parsed workflow context as the single input carrier. Optional
-    post-processing preserves its energy axis and returns a new spectrum.
-
-    :see: :class:`~.test_workflow.TestSimulateContext`
-
-    Implementation Logic
-    --------------------
-    1. **Prepare the projection carrier**::
-
-           prepared = prepare_projection(...)
-
-       This step applies the requested atom selection and OAM construction.
-
-    2. **Run the selected simulation**::
-
-           spectrum = simulate_expanded(...)
-
-       The level selects the forward model while JAX traces continuous inputs.
-
-    3. **Apply optional post-processing**::
-
-           intensity = apply_momentum_broadening(intensity, k_dist, dk)
-           intensity = zscore_normalize(intensity)
-
-       Each enabled operation transforms the intensity without changing the
-       energy axis.
-
-    4. **Construct the result**::
-
-           result = make_arpes_spectrum(...)
-
-       The factory validates the final spectrum carrier.
-
-    Parameters
-    ----------
-    context : WorkflowContext
-        Parsed VASP context from :func:`load_vasp_context`.
-    level : str, optional
-        Simulation level for :func:`diffpes.simul.simulate_expanded`.
-    atom_indices : Optional[list[int]], optional
-        Optional atom subset used before simulation.
-    attach_oam : bool, optional
-        If True and OAM is absent, compute OAM before simulation.
-    normalize : bool, optional
-        If True, apply global z-score normalization to output intensity.
-    dk : Optional[ScalarFloat], optional
-        If provided, apply momentum broadening along the k-axis.
-    sigma : ScalarFloat, optional
-        Gaussian broadening width in eV.
-    gamma : ScalarFloat, optional
-        Lorentzian broadening width in eV.
-    fidelity : int, optional
-        Number of points on the energy axis.
-    temperature : ScalarFloat, optional
-        Electronic temperature in Kelvin.
-    photon_energy : ScalarFloat, optional
-        Incident photon energy in eV.
-    basis : Optional[OrbitalBasis], optional
-        Atom-major subshell basis required by the basic tier.
-    atomic_numbers : Optional[Tuple[int, ...]], optional
-        Atomic numbers required by the basic tier.
-
-    Returns
-    -------
-    result : ArpesSpectrum
-        Simulated ARPES spectrum after optional post-processing.
-    """
-    prepared: ProjectionType = prepare_projection(
-        context.orb_proj,
-        atom_indices=atom_indices,
-        attach_oam=attach_oam,
-    )
-
-    spectrum: ArpesSpectrum = simulate_expanded(
-        level=level,
-        eigenbands=context.bands.eigenvalues,
-        surface_orb=prepared.projections,
-        ef=context.bands.fermi_energy,
-        sigma=sigma,
-        gamma=gamma,
-        fidelity=fidelity,
-        temperature=temperature,
-        photon_energy=photon_energy,
-        basis=basis,
-        atomic_numbers=atomic_numbers,
-    )
-
-    intensity: Float64[Array, "K E"] = spectrum.intensity
-    if dk is not None:
-        k_dist: Float64[Array, " K"] = _kpath_distances(context.bands.kpoints)
-        intensity = apply_momentum_broadening(intensity, k_dist, dk)
-
-    if normalize:
-        intensity = zscore_normalize(intensity)
-
-    result: ArpesSpectrum = make_arpes_spectrum(
-        intensity=intensity,
-        energy_axis=spectrum.energy_axis,
-    )
-    return result
-
-
-@jaxtyped(typechecker=beartype)
-def run_vasp_workflow(  # noqa: PLR0913, PLR0917
-    level: str = "novice",
-    directory: str = ".",
-    eigenval_file: str = "EIGENVAL",
-    procar_file: str = "PROCAR",
-    doscar_file: Optional[str] = "DOSCAR",
-    kpoints_file: Optional[str] = "KPOINTS",
-    fermi_energy: Optional[ScalarFloat] = None,
-    atom_indices: Optional[list[int]] = None,
-    attach_oam: bool = False,
-    normalize: bool = False,
-    dk: Optional[ScalarFloat] = None,
-    procar_mode: Literal["legacy", "full"] = "full",
-    doscar_mode: Literal["legacy", "full"] = "legacy",
-    check_dimensions: bool = True,
-    sigma: ScalarFloat = 0.04,
-    gamma: ScalarFloat = 0.1,
-    fidelity: int = 25000,
-    temperature: ScalarFloat = 15.0,
-    photon_energy: ScalarFloat = 21.2,
-    basis: Optional[OrbitalBasis] = None,
-    atomic_numbers: Optional[Tuple[int, ...]] = None,
-) -> ArpesSpectrum:
-    """Run an end-to-end VASP-to-ARPES workflow in one call.
-
-    This helper loads VASP files into a :class:`WorkflowContext` and
-    immediately delegates to :func:`simulate_context`.
-
-    :see: :class:`~.test_workflow.TestRunVaspWorkflow`
-
-    Implementation Logic
-    --------------------
-    1. **Load the workflow context**::
-
-           context = load_vasp_context(...)
-
-       The loader parses the files and checks their shared dimensions.
-    2. **Run the configured simulation**::
-
-           spectrum = simulate_context(...)
-
-       The dispatcher applies the requested physics and post-processing steps.
-
-    Parameters
-    ----------
-    level : str, optional
-        Simulation complexity level (**static**; changing it retraces).
-    directory : str, optional
-        Directory containing the VASP files.
-    eigenval_file : str, optional
-        EIGENVAL filename relative to ``directory``.
-    procar_file : str, optional
-        PROCAR filename relative to ``directory``.
-    doscar_file : Optional[str], optional
-        Optional DOSCAR filename used to infer the Fermi energy.
-    kpoints_file : Optional[str], optional
-        Optional KPOINTS filename used for path metadata.
-    fermi_energy : Optional[ScalarFloat], optional
-        Explicit Fermi energy in eV, or ``None`` to infer it.
-    atom_indices : Optional[list[int]], optional
-        Optional zero-based atom subset.
-    attach_oam : bool, optional
-        Whether to derive OAM channels before simulation.
-    normalize : bool, optional
-        Whether to z-score normalize the final intensity.
-    dk : Optional[ScalarFloat], optional
-        Momentum broadening width in 1/Angstrom, or ``None``.
-    procar_mode : Literal["legacy", "full"], optional
-        PROCAR parsing mode.
-    doscar_mode : Literal["legacy", "full"], optional
-        DOSCAR parsing mode.
-    check_dimensions : bool, optional
-        Whether to validate dimensions across input files.
-    sigma : ScalarFloat, optional
-        Gaussian energy broadening width in eV.
-    gamma : ScalarFloat, optional
-        Lorentzian energy broadening width in eV.
-    fidelity : int, optional
-        Number of energy samples (**static**; changing it retraces).
-    temperature : ScalarFloat, optional
-        Electronic temperature in Kelvin.
-    photon_energy : ScalarFloat, optional
-        Incident photon energy in eV.
-    basis : Optional[OrbitalBasis], optional
-        Atom-major subshell basis required by the basic tier.
-    atomic_numbers : Optional[Tuple[int, ...]], optional
-        Atomic numbers required by the basic tier.
-
-    Returns
-    -------
-    spectrum : ArpesSpectrum
-        Final simulated spectrum.
-    """
-    context: WorkflowContext = load_vasp_context(
-        directory=directory,
-        eigenval_file=eigenval_file,
-        procar_file=procar_file,
-        doscar_file=doscar_file,
-        kpoints_file=kpoints_file,
-        fermi_energy=fermi_energy,
-        procar_mode=procar_mode,
-        doscar_mode=doscar_mode,
-        check_dimensions=check_dimensions,
-    )
-    spectrum: ArpesSpectrum = simulate_context(
-        context=context,
-        level=level,
-        atom_indices=atom_indices,
-        attach_oam=attach_oam,
-        normalize=normalize,
-        dk=dk,
-        sigma=sigma,
-        gamma=gamma,
-        fidelity=fidelity,
-        temperature=temperature,
-        photon_energy=photon_energy,
-        basis=basis,
-        atomic_numbers=atomic_numbers,
-    )
-    return spectrum
-
-
 __all__: list[str] = [
     "load_vasp_context",
     "prepare_projection",
-    "run_vasp_workflow",
-    "simulate_context",
 ]

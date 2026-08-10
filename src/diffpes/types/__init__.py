@@ -20,6 +20,8 @@ The package contains these submodules:
     Define numerical, physical, orbital, and VASP-format constants for diffpes.
 - :mod:`dos`
     Define density-of-states data structures.
+- :mod:`detector_effects`
+    Define detector-coordinate nuisance and acquisition state.
 - :mod:`experiment`
     Define the geometry of an ARPES experiment.
 - :mod:`geometry`
@@ -291,8 +293,10 @@ Routine Listings
     Create a bounded policy-waiver declaration.
 :func:`make_waiver_report`
     Create a temporal waiver-validation report.
+:class:`ArpesCube`
+    Store source-coordinate ARPES intensity on a Cartesian momentum raster.
 :class:`ArpesSpectrum`
-    Store ARPES simulation output in a JAX PyTree.
+    Store self-describing ARPES path intensity in a JAX PyTree.
 :obj:`ATTR_AUX`
     HDF5 attribute name storing auxiliary PyTree data as JSON.
 :obj:`ATTR_NONE`
@@ -325,6 +329,12 @@ Routine Listings
     Maximum group-to-complement gap treated as a cut degeneracy.
 :class:`DensityOfStates`
     Store density-of-states data in a JAX PyTree.
+:class:`DetectorCalibration`
+    Store native detector-bin and point-spread calibration.
+:class:`DetectorEffects`
+    Store the complete v1 detector-effects PyTree.
+:class:`DetectorRaster`
+    Store expected detector counts on native recorded coordinates.
 :class:`DiagonalizedBands`
     Store diagonalized electronic-structure data in a JAX PyTree.
 :obj:`DosType`
@@ -385,6 +395,12 @@ Routine Listings
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
     Magnetic quantum numbers of the p orbitals.
+:func:`constant_energy_map`
+    Compute an ARPES map inside an explicit energy window.
+:func:`fermi_surface_map`
+    Compute an ARPES map around the Fermi level.
+:func:`make_arpes_cube`
+    Create a validated ``ArpesCube`` instance.
 :func:`make_arpes_spectrum`
     Create a validated ``ArpesSpectrum`` instance.
 :func:`make_band_structure`
@@ -393,6 +409,12 @@ Routine Listings
     Create a validated CrystalGeometry instance.
 :func:`make_density_of_states`
     Create a validated DensityOfStates instance.
+:func:`make_detector_calibration`
+    Create a validated ``DetectorCalibration`` instance.
+:func:`make_detector_effects`
+    Create validated detector-effects state.
+:func:`make_detector_raster`
+    Create a validated ``DetectorRaster`` instance.
 :func:`make_diagonalized_bands`
     Create a validated ``DiagonalizedBands`` instance.
 :func:`make_expanded_simulation_params`
@@ -407,6 +429,10 @@ Routine Listings
     Create a validated path through fractional k-space.
 :func:`make_kpath_info`
     Create a validated KPathInfo instance.
+:func:`slice_edc`
+    Interpolate an energy-distribution curve from an ARPES cube.
+:func:`slice_mdc`
+    Interpolate a momentum-distribution map from an ARPES cube.
 :func:`make_final_state_spec`
     Create a validated radial final-state selection.
 :func:`make_matrix_element_params`
@@ -572,16 +598,26 @@ from .aliases import (
     ScalarNumeric,
 )
 from .bands import (
+    ArpesCube,
     ArpesSpectrum,
     BandStructure,
+    DetectorCalibration,
+    DetectorRaster,
     OrbitalProjection,
     SpinBandStructure,
     SpinOrbitalProjection,
+    constant_energy_map,
+    fermi_surface_map,
+    make_arpes_cube,
     make_arpes_spectrum,
     make_band_structure,
+    make_detector_calibration,
+    make_detector_raster,
     make_orbital_projection,
     make_spin_band_structure,
     make_spin_orbital_projection,
+    slice_edc,
+    slice_mdc,
 )
 from .certification import (
     ArtifactRef,
@@ -762,6 +798,7 @@ from .contracts import (
     make_composition_report,
     make_transformation_contract,
 )
+from .detector_effects import DetectorEffects, make_detector_effects
 from .dos import (
     DensityOfStates,
     FullDensityOfStates,
@@ -848,6 +885,7 @@ from .wannier import (
 )
 
 __all__: list[str] = [
+    "ArpesCube",
     "ArpesSpectrum",
     "ArtifactResolver",
     "ArtifactRef",
@@ -902,6 +940,9 @@ __all__: list[str] = [
     "D_ORBITAL_SLICE",
     "DEGENERACY_GROUP_TOL_EV",
     "DensityOfStates",
+    "DetectorCalibration",
+    "DetectorEffects",
+    "DetectorRaster",
     "DependencyMap",
     "DiagonalizedBands",
     "DerivativeEvidence",
@@ -953,7 +994,10 @@ __all__: list[str] = [
     "M_P",
     "MATRIX_NDIM",
     "MAX_SK_ANGULAR_MOMENTUM",
+    "constant_energy_map",
+    "fermi_surface_map",
     "make_artifact_ref",
+    "make_arpes_cube",
     "make_arpes_spectrum",
     "make_band_structure",
     "make_certification_claim",
@@ -964,6 +1008,9 @@ __all__: list[str] = [
     "make_convention_ref",
     "make_crystal_geometry",
     "make_density_of_states",
+    "make_detector_calibration",
+    "make_detector_effects",
+    "make_detector_raster",
     "make_dependency_map",
     "make_derivative_evidence",
     "make_diagonalized_bands",
@@ -1068,6 +1115,8 @@ __all__: list[str] = [
     "SOC_BLOCKS",
     "SPECIES_PAIR_PARTS",
     "SPECTRUM_NDIM",
+    "slice_edc",
+    "slice_mdc",
     "SOCVolumetricData",
     "SPIN_COLS",
     "SpinBandStructure",

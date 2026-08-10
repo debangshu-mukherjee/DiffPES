@@ -13,12 +13,7 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_simul.test_expanded
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tests.test_diffpes.test_simul.test_forward
+.. automodule:: tests.test_diffpes.test_simul.test_effects
    :members:
    :undoc-members:
    :show-inheritance:
@@ -29,11 +24,6 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_simul.test_oam
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tests.test_diffpes.test_simul.test_novice_transformability
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,7 +43,12 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_simul.test_spectrum
+.. automodule:: tests.test_diffpes.test_simul.test_spectral_scalability
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_spectral_wp75_gates
    :members:
    :undoc-members:
    :show-inheritance:

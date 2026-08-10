@@ -44,7 +44,7 @@
     }
   ],
   "generator": "tests/_reference_tools/generate_yeh_lindau_data.py",
-  "generator_sha256": "27dd8ec4969aef430ee030086fa3998b0122e4eff60f32c38ae40eca2a8c94ce",
+  "generator_sha256": "de3f5e7ea47766c6bf3fbada8778ec381d49b10bbde44c26720cb0acc8e941b0",
   "interpolation": "PCHIP in log(sigma_megabarn) versus log(photon_energy_ev)",
   "paper_doi": "10.1016/0092-640X(85)90016-6",
   "primary_source_locator": {

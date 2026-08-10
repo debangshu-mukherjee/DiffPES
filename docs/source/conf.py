@@ -98,9 +98,14 @@ suppress_warnings = [
 myst_dmath_double_inline = True
 myst_heading_anchors = 3
 
-# Under "auto", only files with kernelspec metadata (the tutorial notebooks)
-# execute; plain .md guides without a kernelspec are rendered without running.
-nb_execution_mode = "auto"
+# Execute notebooks through jupyter-cache. Unexpected cell errors are fatal
+# even without Sphinx's ``-W`` flag; CI also uses ``-W`` for documentation
+# warnings. Source notebooks stay output-free because execution results live
+# under ``docs/build/.jupyter_cache``.
+nb_execution_mode = "cache"
+nb_execution_allow_errors = False
+nb_execution_raise_on_error = True
+nb_execution_show_tb = True
 nb_execution_timeout = 300
 
 # MathJax configuration to ensure math renders properly

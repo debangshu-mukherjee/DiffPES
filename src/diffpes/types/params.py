@@ -2,10 +2,10 @@
 
 Extended Summary
 ----------------
-This module defines the PyTree used by the retained incoherent spectrum tiers.
-Experiment properties such as photon energy, sample temperature, incidence
-geometry, and polarization belong to
-``ExperimentGeometry``.
+This module defines the retained parameter PyTree while Plan 08a establishes
+the canonical detector/count parameter boundary. Experiment properties such
+as photon energy, sample temperature, incidence geometry, and polarization
+belong to ``ExperimentGeometry``.
 
 Routine Listings
 ----------------

@@ -564,12 +564,12 @@ def _iter_value_chunks(  # noqa: PLR0912
 
     Implementation Logic
     --------------------
-    Dispatches on the concrete type and assigns one tag per kind:
-    ``N`` none, ``B`` bool, ``I`` integer text, ``F`` binary64 bits,
-    ``C`` complex as two big-endian binary64 fields, ``S`` text, ``Y``
-    raw bytes, ``P`` POSIX path text, ``E`` enum type name plus its
-    value, ``A`` array, ``O`` dataclass, ``T`` tuple, ``L`` list, and
-    ``M`` mapping. The bool check runs before the int check because
+    Dispatches on the concrete type and assigns distinct tags. Assigns
+    ``N``, ``B``, ``I``, ``F``, and ``C`` to none, bool, integer,
+    binary64, and complex values. Assigns ``S``, ``Y``, ``P``, and
+    ``E`` to text, bytes, paths, and enums. Assigns ``A``, ``O``,
+    ``T``, ``L``, and ``M`` to arrays, dataclasses, tuples, lists, and
+    mappings. The bool check runs before the int check because
     ``bool`` subclasses ``int``. Containers recurse through the
     dedicated ``_iter_*_chunks`` helpers.
 

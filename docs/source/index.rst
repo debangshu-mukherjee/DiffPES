@@ -18,7 +18,6 @@ diffpes
    guides/jax-transformability-and-gradients
    guides/certified-forward-models
    guides/vasp-data-ingestion
-   guides/expanded-wrappers-and-conventions
 
 .. toctree::
    :maxdepth: 2

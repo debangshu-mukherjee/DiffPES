@@ -39,6 +39,27 @@ from diffpes.types import (
 )
 
 
+def _cartesian_path(n_points: int) -> Tuple[Array, Array]:
+    """PRIVATE: Build a straight path and its cumulative coordinate.
+
+    Parameters
+    ----------
+    n_points : int
+        Number of equally spaced path nodes.
+
+    Returns
+    -------
+    path : Tuple[Array, Array]
+        Cumulative coordinate and matching Cartesian three-vectors.
+    """
+    k_axis: Array = jnp.linspace(0.0, 1.0, n_points)
+    kpoints: Array = jnp.stack(
+        (k_axis, jnp.zeros_like(k_axis), jnp.zeros_like(k_axis)),
+        axis=1,
+    )
+    return k_axis, kpoints
+
+
 class TestSelfEnergyModel(chex.TestCase):
     """Round-trip the renamed self-energy carrier.
 
@@ -225,6 +246,8 @@ class TestArpesSpectrum(chex.TestCase):
         spectrum = make_arpes_spectrum(
             intensity=jnp.ones((20, 100)),
             energy_axis=jnp.linspace(-3.0, 1.0, 100),
+            k_axis=_cartesian_path(20)[0],
+            kpoints_cart_inv_ang=_cartesian_path(20)[1],
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "spectrum.h5"
@@ -691,6 +714,8 @@ class TestSaveToH5(chex.TestCase):
         spectrum = make_arpes_spectrum(
             intensity=jnp.ones((20, 50)),
             energy_axis=jnp.linspace(-3.0, 1.0, 50),
+            k_axis=_cartesian_path(20)[0],
+            kpoints_cart_inv_ang=_cartesian_path(20)[1],
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "multi_all.h5"
@@ -709,6 +734,42 @@ class TestLoadFromH5(chex.TestCase):
 
     :see: :func:`~diffpes.inout.load_from_h5`
     """
+
+    def test_rejects_two_field_arpes_spectrum_schema(self) -> None:
+        """Reject a legacy spectrum without Cartesian path geometry.
+
+        The old two-field schema stores intensity and energy only. The loader
+        must not invent a momentum path or sample frame.
+
+        Notes
+        -----
+        Write the retired group layout directly and match the actionable
+        schema-incompatibility diagnostic.
+        """
+        temporary_directory: str
+        file_handle: h5py.File
+        group: h5py.Group
+        path: Path
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "legacy_spectrum.h5"
+            with h5py.File(path, "w") as file_handle:
+                group = file_handle.create_group("spectrum")
+                group.attrs["_pytree_type"] = "ArpesSpectrum"
+                group.attrs["_aux_data_json"] = "null"
+                group.attrs["_none_fields"] = "[]"
+                group.create_dataset("intensity", data=jnp.ones((2, 3)))
+                group.create_dataset(
+                    "energy_axis", data=jnp.array([-1.0, 0.0, 1.0])
+                )
+            with pytest.raises(
+                ValueError,
+                match=(
+                    "ArpesSpectrum HDF5 schema is incompatible.*"
+                    "Geometry cannot be reconstructed"
+                ),
+            ):
+                load_from_h5(path, name="spectrum")
 
     def test_load_named_band_structure(self) -> None:
         """Recover a named band structure without changing its arrays.
@@ -898,6 +959,8 @@ class TestDatasetFlags(chex.TestCase):
         spectrum = make_arpes_spectrum(
             intensity=jnp.ones((12, 30)),
             energy_axis=jnp.linspace(-2.0, 1.0, 30),
+            k_axis=_cartesian_path(12)[0],
+            kpoints_cart_inv_ang=_cartesian_path(12)[1],
         )
         params = make_simulation_params(
             fidelity=30,

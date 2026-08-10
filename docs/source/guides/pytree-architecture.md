@@ -28,7 +28,7 @@ Static values choose array topology or code paths:
 - shell-to-orbital mapping,
 - orbital quantum numbers and spin-block layout,
 - quadrature profile,
-- the incoherent tier name,
+- the self-energy and radial model modes,
 - complete band-group membership.
 
 Traced values vary without changing topology:
@@ -60,8 +60,9 @@ radial = diffpes.types.make_radial_spec(
 ## Incoherent and Coherent Data
 
 `OrbitalProjection.projections` stores probabilities with shape
-`[K, B, A, 9]`. The retained `simulate_novice` and `simulate_basic` tiers
-reduce these probabilities once.
+`[K, B, A, 9]`. It remains an ingestion and diagnostic carrier, but no
+production spectrum assembler treats those probabilities as recoverable
+complex amplitudes.
 
 `DiagonalizedBands.eigenvectors` stores complex basis-position-gauge
 coefficients with shape `[K, B, O]`. The coherent matrix-element pipeline

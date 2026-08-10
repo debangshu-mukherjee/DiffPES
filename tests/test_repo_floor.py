@@ -27,7 +27,6 @@ import numpy as np
 from beartype import beartype
 from beartype.typing import Any, Dict, List, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, jaxtyped
-from numpy.typing import NDArray
 
 from tests._assertions import (
     assert_tree_finite,
@@ -41,14 +40,12 @@ from tests._factories import (
     toy_simulation_params,
 )
 from diffpes.types import (
-    ArpesSpectrum,
     BandStructure,
     DiagonalizedBands,
     OrbitalProjection,
     SimulationParams,
     TBModel,
 )
-from diffpes.simul import simulate_novice
 
 
 class TestConftest:
@@ -330,8 +327,8 @@ class TestCI(chex.TestCase):
         repository_root: Path = Path(__file__).resolve().parents[1]
         workflow_path: Path = repository_root / ".github/workflows/tests.yml"
         workflow: Dict[str, Any] = yaml.safe_load(workflow_path.read_text())
-        triggers: list[str] = workflow["on"]
-        python_versions: list[str] = workflow["jobs"]["test"]["strategy"][
+        triggers: List[str] = workflow["on"]
+        python_versions: List[str] = workflow["jobs"]["test"]["strategy"][
             "matrix"
         ]["python-version"]
 
@@ -341,18 +338,62 @@ class TestCI(chex.TestCase):
             ["push", "pull_request", "workflow_dispatch"],
         )
         chex.assert_equal(python_versions, ["3.12", "3.13", "3.14"])
-        docs_job: Dict[str, Any] = workflow["jobs"]["docs"]
+        documentation_path: Path = (
+            repository_root / ".github/workflows/documentation.yml"
+        )
+        documentation: Dict[str, Any] = yaml.safe_load(
+            documentation_path.read_text()
+        )
+        docs_job: Dict[str, Any] = documentation["jobs"]["docs"]
         docs_commands: Tuple[str, ...] = tuple(
             step["run"] for step in docs_job["steps"] if "run" in step
         )
-        self.assertIn("uv sync --extra docs --extra test", docs_commands)
+        self.assertEqual(documentation["on"], triggers)
+        self.assertIn(
+            "uv sync --frozen --extra docs --extra test --extra notebooks",
+            docs_commands,
+        )
         self.assertTrue(
             any(
-                "sphinx-build -W --keep-going -b html" in command
+                "sphinx-build -W -a -E --keep-going -b html" in command
                 and "docs/source docs/build/html" in command
                 for command in docs_commands
             )
         )
+        pair_command: str = next(
+            command
+            for command in docs_commands
+            if "jupytext --sync" in command
+        )
+        self.assertIn("python tests/_tutorials.py", pair_command)
+        self.assertIn("git diff --exit-code", pair_command)
+        cache_steps: List[Dict[str, Any]] = [
+            step
+            for step in docs_job["steps"]
+            if step.get("uses") == "actions/cache@v4"
+        ]
+        self.assertEqual(len(cache_steps), 1)
+        self.assertEqual(
+            cache_steps[0]["with"]["path"],
+            "docs/build/.jupyter_cache",
+        )
+
+        conf_path: Path = repository_root / "docs/source/conf.py"
+        conf_tree: ast.Module = ast.parse(conf_path.read_text())
+        assignments: Dict[str, Any] = {}
+        node: ast.stmt
+        for node in conf_tree.body:
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target: ast.expr = node.targets[0]
+            if isinstance(target, ast.Name):
+                try:
+                    assignments[target.id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    continue
+        self.assertEqual(assignments["nb_execution_mode"], "cache")
+        self.assertIs(assignments["nb_execution_allow_errors"], False)
+        self.assertIs(assignments["nb_execution_raise_on_error"], True)
 
         rtd_path: Path = repository_root / ".readthedocs.yaml"
         rtd: Dict[str, Any] = yaml.safe_load(rtd_path.read_text())
@@ -407,72 +448,39 @@ class TestCI(chex.TestCase):
 
 
 class TestRegressionReferences(chex.TestCase):
-    """Validate the retained novice forward baseline after the true-Voigt migration.
+    """Validate historical novice artifact integrity after tier removal.
 
-    The class covers the independently preregistered true-Voigt spectrum,
-    archive metadata, and the manifest checksum.
+    The class keeps the frozen true- and pseudo-Voigt archives as provenance
+    evidence without replaying either deleted production assembler.
     """
 
-    @pytest.mark.big_mem
-    @pytest.mark.rss_limit_mb(1200)
-    def test_forward_replay_and_manifest(self) -> None:
-        """Replay the novice reference artifact within its pinned tolerance.
+    def test_historical_artifacts_match_manifest(self) -> None:
+        """Match historical archive bytes and array metadata to the manifest.
 
-        The test confirms spectrum arrays reproduce at relative tolerance
-        ``1e-12`` and that the committed archive matches its manifest SHA-256.
+        The check deliberately makes no behavioral claim for a live forward
+        path. It preserves both retired archives as immutable evidence.
 
         Notes
         -----
-        The test rebuilds the fixed-seed novice CPU/x64 pipeline and checks its
-        declared shape, float64 dtype, and artifact digest.
+        Each archive must retain its recorded digest, float64 arrays, and
+        pickle-free loading contract.
         """
         reference_directory: Path = (
             Path(__file__).parent / "test_diffpes" / "_reference_data"
         )
         manifest: str = (reference_directory / "MANIFEST.md").read_text()
-        key: PRNGKeyArray = jax.random.key(20260713)
-        novice: ArpesSpectrum = simulate_novice(
-            toy_band_structure(key),
-            toy_orbital_projection(key),
-            toy_simulation_params(fidelity=512),
-            15.0,
-        )
-        reference_path: Path = (
-            reference_directory / "novice_toy_true_voigt.npz"
-        )
-        archive: Any
-        with np.load(reference_path, allow_pickle=False) as archive:
-            desired_intensity: Float[NDArray, "nkpt n_energy"] = archive[
-                "leaf_000_intensity"
-            ]
-            desired_energy_axis: Float[NDArray, " n_energy"] = archive[
-                "leaf_001_energy_axis"
-            ]
-        np.testing.assert_allclose(
-            np.asarray(novice.intensity),
-            desired_intensity,
-            rtol=1e-12,
-            atol=0.0,
-        )
-        np.testing.assert_allclose(
-            np.asarray(novice.energy_axis),
-            desired_energy_axis,
-            rtol=1e-12,
-            atol=2.0 * np.finfo(np.float64).eps,
-        )
-        chex.assert_shape(novice.intensity, (8, 512))
-        actual_dtypes: Tuple[jnp.dtype, ...] = tuple(
-            array.dtype for array in (novice.intensity,)
-        )
-        chex.assert_equal(actual_dtypes, (jnp.float64,))
 
         artifact_name: str
-        for artifact_name in ("novice_toy_true_voigt",):
+        for artifact_name in (
+            "novice_toy_true_voigt",
+            "novice_toy_pseudo_voigt",
+        ):
             artifact_path: Path = reference_directory / f"{artifact_name}.npz"
             digest: str = hashlib.sha256(
                 artifact_path.read_bytes()
             ).hexdigest()
             self.assertIn(f"`{digest}`", manifest)
+            archive: Any
             with np.load(artifact_path, allow_pickle=False) as archive:
                 self.assertTrue(
                     all(
@@ -1402,10 +1410,9 @@ class TestRepositoryArchitecture(chex.TestCase):
     def test_annotations_use_beartype_tuple_and_dict(self) -> None:
         """Require beartype ``Tuple`` and ``Dict`` annotation generics.
 
-        The test confirms no annotation or type-alias expression uses the
-        builtin ``tuple`` or ``dict`` generic, that ``Tuple`` and ``Dict``
-        come from ``beartype.typing``, and that no module imports
-        charter-owned typing constructs from the stdlib ``typing`` module.
+        The test rejects builtin ``tuple`` and ``dict`` annotation generics.
+        It requires ``Tuple`` and ``Dict`` from ``beartype.typing``. It also
+        rejects charter-owned imports from the standard ``typing`` module.
 
         Notes
         -----

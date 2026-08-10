@@ -1,8 +1,8 @@
 diffpes.simul
 =============
 
-Free-electron kinematics and ARPES simulation functions at six complexity
-levels.
+Free-electron kinematics, coherent matrix-element assembly, and intrinsic
+spectral functions.
 
 .. automodule:: diffpes.simul
    :members:

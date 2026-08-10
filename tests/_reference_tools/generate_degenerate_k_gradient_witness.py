@@ -547,10 +547,11 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
             "The atomic model is k-independent, so the registered generic "
             "k inherits the exact j_eff = 3/2 quartet at -lambda/2 and "
             "j_eff = 1/2 doublet at +lambda; the eigen autodiff path "
-            "returns a finite but wrong derivative at this degeneracy, "
-            "which is why the witness test asserts it excluded "
-            "(documented xfail) and takes finite-difference truth from "
-            "the invariant multiplet-summed observable instead"
+            "returns a finite but wrong derivative at this degeneracy. "
+            "That route is outside the declared nondegenerate domain, so "
+            "no eigen-path derivative claim is made; finite-difference "
+            "truth comes from the invariant multiplet-summed observable "
+            "instead"
         ),
     }
 

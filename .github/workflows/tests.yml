@@ -37,16 +37,3 @@ jobs:
       - uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: false
-
-  docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.13"
-      - run: uv sync --extra docs --extra test
-      - run: >-
-          uv run sphinx-build -W --keep-going -b html
-          docs/source docs/build/html
