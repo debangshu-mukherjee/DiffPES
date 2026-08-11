@@ -1,7 +1,7 @@
 # Detector-driver scalability evidence
 
 Regenerate the isolated CPU artifact from the repository root only after the
-detector mapper, effects chain, and coherent driver are stable:
+detector mapper, effects chain, and canonical drivers are stable:
 
 ```bash
 MPLCONFIGDIR=/tmp/diffpes-mpl \
@@ -34,7 +34,7 @@ then compare a two-geometry `vmap` with direct rows. Their generic rotated
 targets remain strictly enclosed inside every source exterior face.
 
 The frozen CPU run passed with 1,679,527,776 bytes peak-live forward allocation.
-Value plus the complete Hamiltonian gradient used 2,518,490,816 bytes. Its
+Value plus the complete Hamiltonian gradient used 2,518,490,824 bytes. Its
 recursive audit found no full KBE or full-kinematics carrier. S2 rematerialized
 values and gradients were bitwise equal; S3 recorded cache sizes
 `[0, 1, 1, 1]`; S4 had zero vmap error.
@@ -42,5 +42,5 @@ values and gradients were bitwise equal; S3 recorded cache sizes
 The JSON records hashes for this harness, the complete production driver and
 detector stack, relevant carriers, dependency metadata, and the lock file. The
 consumer authenticates artifact SHA-256
-`cf2687813b0b9344b7da0ae752893e1231c8ac836f23097aa9f026746ed51afc`
+`afb70466c0468b616bb66b36b4c6cf23f539116f98ccbe1e5c6a1ad30ee65760`
 before parsing the record.

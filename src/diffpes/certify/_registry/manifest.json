@@ -65,6 +65,36 @@
     {
       "convention_refs": [],
       "evidence_ids": [
+        "org.diffpes.evidence.kz.exact_finite_energy_center",
+        "org.diffpes.evidence.kz.wrapped_cauchy_voigt_truth",
+        "org.diffpes.evidence.kz.direct_delta_boundary",
+        "org.diffpes.evidence.kz.quadrature_calibrated_profile",
+        "org.diffpes.evidence.kz.oblique_normal_integrand_covariance",
+        "org.diffpes.evidence.kz.driver_owned_carriers",
+        "org.diffpes.evidence.kz.derivative.mean_free_path",
+        "org.diffpes.evidence.kz.derivative.kinematics",
+        "org.diffpes.evidence.kz.derivative.nonzero_tripwires",
+        "org.diffpes.evidence.kz.scaling.node_local_memory",
+        "org.diffpes.evidence.kz.scaling.remat_hv_scan",
+        "org.diffpes.evidence.kz.driver.canonical_extension",
+        "org.diffpes.evidence.kz.lifecycle.no_all_node_carrier",
+        "org.diffpes.evidence.kz.lifecycle.documentation_wall",
+        "org.diffpes.evidence.kz.handoff.kspace",
+        "org.diffpes.evidence.kz.handoff.surface",
+        "org.diffpes.evidence.kz.handoff.matrixel",
+        "org.diffpes.evidence.kz.handoff.spectral",
+        "org.diffpes.evidence.kz.handoff.detector"
+      ],
+      "model_refs": [],
+      "owner_id": "org.diffpes.kz",
+      "transformation_refs": [
+        "org.diffpes.transform.kz.wrapped_lorentzian_integral@1.0.0",
+        "org.diffpes.transform.kz.photon_energy_scan@1.0.0"
+      ]
+    },
+    {
+      "convention_refs": [],
+      "evidence_ids": [
         "org.diffpes.evidence.matrixel.spherical_bessel_values_derivatives",
         "org.diffpes.evidence.matrixel.radial_integral_dipole_measure",
         "org.diffpes.evidence.matrixel.real_gaunt_dipole_table",
@@ -268,6 +298,14 @@
     },
     {
       "transformation_id": "org.diffpes.transform.kspace.fractional_cartesian",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.kz.photon_energy_scan",
+      "transformation_version": "1.0.0"
+    },
+    {
+      "transformation_id": "org.diffpes.transform.kz.wrapped_lorentzian_integral",
       "transformation_version": "1.0.0"
     },
     {

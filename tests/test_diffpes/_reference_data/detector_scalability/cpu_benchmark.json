@@ -26,7 +26,7 @@
     ],
     "forward": {
       "budget_bytes": 2000000000,
-      "compilation_seconds": 2.907892011999138,
+      "compilation_seconds": 3.0867413060041144,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
@@ -41,21 +41,21 @@
     },
     "forward_and_gradient": {
       "budget_bytes": 12000000000,
-      "compilation_seconds": 7.89191098900119,
+      "compilation_seconds": 8.111263040002086,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
         "authority_available": true,
-        "compiler_live_allocation_bytes": 2518490816,
+        "compiler_live_allocation_bytes": 2518490824,
         "output_size_bytes": 419430424,
         "result": "measured",
-        "temporary_size_bytes": 1679629992
+        "temporary_size_bytes": 1679630000
       },
       "passes_budget": true,
       "program": "value_and_complete_hamiltonian_gradient"
     },
     "jax_profiler_execution_trace": "not produced: literal CPU programs are compile-only; compiler allocation is the registered device-program authority",
-    "jaxpr_inspection_seconds": 2.7857940160010912,
+    "jaxpr_inspection_seconds": 3.2531585809920216,
     "jaxpr_shape_audit": {
       "compact_kinematics_invariant": "no canonical, flattened, or factored shape with K*E*3 elements",
       "contains_full_kbe_materialization": false,
@@ -274,7 +274,7 @@
       "full_kbe_shape_matches": [],
       "full_kinematics_element_count": 78643200,
       "full_kinematics_shape_matches": [],
-      "recursive_equation_count": 5858,
+      "recursive_equation_count": 5871,
       "result": "pass"
     },
     "k_chunk": 32,
@@ -286,8 +286,8 @@
     "n_kx": 256,
     "n_ky": 256,
     "n_orbital": 20,
-    "process_peak_rss_after_bytes_non_authoritative": 2353319936,
-    "process_peak_rss_before_bytes_non_authoritative": 1906409472,
+    "process_peak_rss_after_bytes_non_authoritative": 2370740224,
+    "process_peak_rss_before_bytes_non_authoritative": 1905766400,
     "programs_executed": false,
     "result": "pass"
   },
@@ -373,15 +373,15 @@
     "src/diffpes/radial/integrate.py": "00027b99c0214006cb1bbe2ad1afbfc6b0bef6f1386b8ae8deb0f5b1f6a73e42",
     "src/diffpes/radial/screening.py": "ae6b26fca43aa98829238b8582dd993cf7c10de56653769ce1bd92154b2819a5",
     "src/diffpes/radial/wavefunctions.py": "119ca866032bc3c5cc3c8309000c8397b470d4efb1224c598ddc23d9ab11e6d8",
-    "src/diffpes/simul/__init__.py": "32a56f16c5e383e369182f0df8325cd2551596e319218aa9d2debc8dcd68bdc9",
+    "src/diffpes/simul/__init__.py": "a517d3a2c54899dc8459da03ef752833f6ecee442f1119cd6946fe5ef28d7bd3",
     "src/diffpes/simul/_detector_map.py": "a6ddad8664b2c4fa36339e6045f6371f100de4485d25e5f06fcb719ae763e6fc",
     "src/diffpes/simul/broadening.py": "4e6c40afff59d2b814f7c956d33728418edeaf97856249f8a0ba809c908df715",
-    "src/diffpes/simul/effects.py": "edabae24e255365ca12592f2742141259b8df689f9e1f86713336208cb9d3976",
+    "src/diffpes/simul/effects.py": "54e0cdb050c7d3fed847eae3e980e9d2722a3bf8d1940974a81d31f2e47454ec",
     "src/diffpes/simul/kinematics.py": "1b7ab38dd59467cf4cc3ebc43bc147d37829b580d6356b778738f5c683307b9c",
     "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
     "src/diffpes/simul/polarization.py": "2ef6af1eca002832b3f3d96c96ed7ac2511e5a936578d9ec38a21e0e75a10f75",
-    "src/diffpes/simul/spectral.py": "e63e5e556c79fcdbf29ec1d3b1f421d7413516b39a3d1c85c730819b810eadb7",
-    "src/diffpes/simul/spectrum.py": "1507f8014b64de3a42de4813bbbe56762b5e4dad5cc5aa6e371c71de8f7ab833",
+    "src/diffpes/simul/spectral.py": "49d2ef280aadbd7c797a2d83aeadc7d7cf985180e350cb285b691af3f07f7b6f",
+    "src/diffpes/simul/spectrum.py": "a5a025391e1f3d9d17c251c5d8e9097a807822edf1fb70c2c3731555cdae6c43",
     "src/diffpes/types/__init__.py": "f78a92dfa4325f406b5a7c6d2ebc4a46d8ea4b9f44e5ad8318d345e6e3809bad",
     "src/diffpes/types/aliases.py": "bb513d2e168e59592b6f4ef643eff00fc3c63480feb0d030cf7aca05f284b206",
     "src/diffpes/types/bands.py": "8c151187130b4fa8a91c6959490b751be23b9930f8ddfea24629189deb237de4",

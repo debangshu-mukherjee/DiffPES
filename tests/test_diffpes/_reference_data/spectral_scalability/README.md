@@ -21,15 +21,15 @@ one fixed padded shape.
 
 XLA `memory_analysis` is the allocation authority. It reported argument,
 output, temporary, and alias allocations of `4,211,032`, `4,194,328`,
-`50,186,720`, and `0` bytes, respectively. Their derived peak-live total is
-`58,592,080` bytes. This total is compared directly with the frozen spinless
+`50,187,248`, and `0` bytes, respectively. Their derived peak-live total is
+`58,592,608` bytes. This total is compared directly with the frozen spinless
 solve-tape model: `16*n_k*omega_chunk*n_orb**2 = 134,217,728` bytes. Its `1.5x`
 ceiling is `201,326,592` bytes. No projection from a smaller executable
 authorizes this gate. Whole-process peak RSS remains diagnostic because it
 includes Python, compilation, allocator caches, and the companion executables.
-The recorded high-water values were `463,216,640` bytes before and `688,885,760`
+The recorded high-water values were `463,302,656` bytes before and `688,541,696`
 bytes after the literal-target compile. The executable companions had not run.
-Compilation took `5.385746` seconds on the recorded TFRT CPU host. The compact
+Compilation took `5.526224` seconds on the recorded TFRT CPU host. The compact
 `k_i[K,3] + final_norm[E] + valid[E]` schedule accounts for `10,752` diagnostic
 bytes and reconstructs final momentum only inside each live block.
 
@@ -45,4 +45,4 @@ complex64 call. Source hashes bind the generator, numerical implementation,
 carrier, dependency metadata, and lock file to the measurement. The pytest
 artifact handshake recomputes every digest and every allocation identity.
 The committed `cpu_benchmark.json` SHA-256 is
-`cb5469eb67f36cd40c577c9d61581d965767cb6fd9e36f7c1985cb735c597b00`.
+`08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd`.

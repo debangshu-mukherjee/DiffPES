@@ -1,8 +1,8 @@
 diffpes.simul
 =============
 
-Free-electron kinematics, coherent matrix-element assembly, and intrinsic
-spectral functions.
+Free-electron kinematics, coherent matrix-element assembly, intrinsic
+spectral functions, wrapped bulk-kz integration, and photon-energy scans.
 
 .. automodule:: diffpes.simul
    :members:

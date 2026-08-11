@@ -18,12 +18,14 @@ from hypothesis import strategies as st
 from jaxtyping import Float64
 from scipy import ndimage, special
 
+import diffpes.simul.effects as effects_module
 from diffpes.simul.effects import (
     apply_detector_effects,
     apply_post_count_response,
     apply_resolution,
     apply_transmission,
     background_density,
+    broaden_kz,
     convolve_energy,
     convolve_kpath,
     convolve_momentum_map,
@@ -31,6 +33,8 @@ from diffpes.simul.effects import (
     expected_counts,
     fixed_total_probabilities,
     gaussian_kernel_1d,
+    kz_fractional_nodes,
+    kz_wrapped_lorentzian_bin_weights,
     map_source_to_detector,
     sample_fixed_total_counts,
     sample_poisson_counts,
@@ -40,16 +44,20 @@ from diffpes.simul.effects import (
 from diffpes.types import (
     K_PREFACTOR_INV_ANG_SQRT_EV,
     ArpesCube,
+    CrystalGeometry,
     DetectorCalibration,
     DetectorEffects,
     DetectorRaster,
     ExperimentGeometry,
+    SurfaceCell,
     constant_energy_map,
     fermi_surface_map,
     make_arpes_cube,
+    make_crystal_geometry,
     make_detector_calibration,
     make_detector_effects,
     make_experiment_geometry,
+    make_surface_cell,
 )
 from tests._assertions import assert_rejects
 from tests._gradients import gradient_gate
@@ -363,6 +371,767 @@ def _reference_integrated_bernstein(
         axis=-1,
     )
     return values
+
+
+def _wrapped_cauchy_fourier_bin_masses(
+    edges: Float64[np.ndarray, " Np1"],
+    center: float,
+    gamma_frac: float,
+    *,
+    n_harmonics: int = 256,
+) -> Float64[np.ndarray, " N"]:
+    """PRIVATE: Integrate wrapped-Cauchy bins by a Fourier reference.
+
+    Parameters
+    ----------
+    edges : Float64[np.ndarray, " Np1"]
+        Fractional edges spanning one period.
+    center : float
+        Folded fractional distribution centre.
+    gamma_frac : float
+        Positive HWHM divided by the reciprocal period.
+    n_harmonics : int, optional
+        Number of retained positive Fourier harmonics. Default is 256.
+
+    Returns
+    -------
+    masses : Float64[np.ndarray, " N"]
+        Independently integrated Fourier-series bin masses.
+
+    Notes
+    -----
+    The coefficient of harmonic ``m`` is ``exp(-2*pi*gamma_frac*m)``.
+    Integrating each cosine analytically avoids sharing the production CDF.
+    """
+    harmonics: Float64[np.ndarray, " M"] = np.arange(
+        1, n_harmonics + 1, dtype=np.float64
+    )
+    coefficients: Float64[np.ndarray, " M"] = np.exp(
+        -2.0 * np.pi * gamma_frac * harmonics
+    ) / (np.pi * harmonics)
+    right_phases: Float64[np.ndarray, "M N"] = (
+        2.0 * np.pi * (harmonics[:, None] * (edges[None, 1:] - center))
+    )
+    left_phases: Float64[np.ndarray, "M N"] = (
+        2.0 * np.pi * (harmonics[:, None] * (edges[None, :-1] - center))
+    )
+    masses: Float64[np.ndarray, " N"] = np.diff(edges) + np.sum(
+        coefficients[:, None] * (np.sin(right_phases) - np.sin(left_phases)),
+        axis=0,
+    )
+    return masses
+
+
+def _surface_kz_fixture(
+    *,
+    oblique: bool,
+    doubled_stacking: bool = False,
+) -> Tuple[CrystalGeometry, SurfaceCell]:
+    """PRIVATE: Build a cubic or oblique unit-advance surface fixture.
+
+    Parameters
+    ----------
+    oblique : bool
+        Whether the stacking vector has lateral components and length two.
+    doubled_stacking : bool, optional
+        Whether to plant stale numerical ``g=2`` stacking data while keeping
+        the exact unit-advance metadata. Default is ``False``.
+
+    Returns
+    -------
+    fixture : Tuple[CrystalGeometry, SurfaceCell]
+        Bulk geometry and its nominal Plan-05 surface carrier.
+
+    Notes
+    -----
+    The oblique direct rows are ``(1,0,0)``, ``(0,1,0)``, and
+    ``(0.4,0.2,2)``. Identity coefficients and rotation make every expected
+    row independently explicit.
+    """
+    lattice: jax.Array = (
+        jnp.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.4, 0.2, 2.0],
+            ]
+        )
+        if oblique
+        else jnp.eye(3, dtype=jnp.float64)
+    )
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice,
+        jnp.zeros((1, 3), dtype=jnp.float64),
+        ("X",),
+    )
+    stacking_scale: float = 2.0 if doubled_stacking else 1.0
+    nominal_spacing: float = 2.0 if oblique else 1.0
+    cell: SurfaceCell = make_surface_cell(
+        in_plane_vectors=lattice[:2],
+        stacking_vector=stacking_scale * lattice[2],
+        rotation=jnp.eye(3, dtype=jnp.float64),
+        interlayer_spacing_ang=stacking_scale * nominal_spacing,
+        miller=(0, 0, 1),
+        in_plane_coeffs=((1, 0, 0), (0, 1, 0)),
+        stacking_coeffs=(0, 0, 1),
+    )
+    fixture: Tuple[CrystalGeometry, SurfaceCell] = (geometry, cell)
+    return fixture
+
+
+class TestKzFractionalNodes:
+    """Verify :func:`diffpes.simul.kz_fractional_nodes`.
+
+    The class owns the static midpoint grid and G5 one-node rejection.
+    """
+
+    def test_returns_exact_uniform_centres_and_jits(self) -> None:
+        """Build the registered half-open midpoint grid under eager and JIT.
+
+        The four-bin fixture has exact binary-representable centres.
+
+        Notes
+        -----
+        Marking ``n_kz`` static preserves one compiled shape per node count.
+        """
+        desired: jax.Array = jnp.array([-0.375, -0.125, 0.125, 0.375])
+        eager: jax.Array = kz_fractional_nodes(4)
+        compiled: jax.Array = jax.jit(kz_fractional_nodes, static_argnums=0)(4)
+
+        chex.assert_trees_all_equal(eager, desired)
+        chex.assert_trees_all_equal(compiled, desired)
+        chex.assert_trees_all_equal(jnp.diff(eager), jnp.full(3, 0.25))
+
+    @pytest.mark.parametrize("invalid_count", [0, 1, True])
+    def test_g5_rejects_nonquadrature_counts(self, invalid_count: int) -> None:
+        """Reject empty, one-node, and boolean finite-width grids.
+
+        A one-node midpoint erases every mean-free-path dependence.
+
+        Notes
+        -----
+        ``bulk_direct`` is a separate no-node route and cannot use this helper.
+        """
+        with pytest.raises(ValueError, match="static integer of at least two"):
+            kz_fractional_nodes(invalid_count)
+
+
+class TestKzWrappedLorentzianBinWeights:
+    """Verify :func:`diffpes.simul.kz_wrapped_lorentzian_bin_weights`.
+
+    The class owns analytic G4 bin mass, units, wrapping, and validation.
+    """
+
+    def test_g4_matches_fourier_bin_masses_across_period_seam(self) -> None:
+        """Match an independent Fourier integral on unequal fractional bins.
+
+        The centre at ``0.487`` forces probability across the period seam.
+
+        Notes
+        -----
+        The omitted Fourier tail is below ``1e-22`` for this fixture, well
+        inside the registered ``1e-12`` reference-remainder ceiling.
+        """
+        edges_np: Float64[np.ndarray, " Np1"] = (
+            -0.5 + np.linspace(0.0, 1.0, 18) ** 1.3
+        )
+        center: float = 0.487
+        mean_free_path: float = 7.5
+        period: float = 2.2
+        gamma_frac: float = 0.5 / (mean_free_path * period)
+        desired: Float64[np.ndarray, " N"] = (
+            _wrapped_cauchy_fourier_bin_masses(edges_np, center, gamma_frac)
+        )
+        actual: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            jnp.asarray(edges_np),
+            jnp.asarray(center),
+            mean_free_path,
+            period,
+        )
+        decay: float = np.exp(-2.0 * np.pi * gamma_frac)
+        remainder_bound: float = (
+            2.0 * decay**257 / (np.pi * 257.0 * (1.0 - decay))
+        )
+
+        np.testing.assert_allclose(actual, desired, rtol=1.0e-13, atol=5e-15)
+        assert bool(jnp.all(actual > 0.0))
+        np.testing.assert_allclose(np.sum(actual), 1.0, rtol=1.0e-13, atol=0.0)
+        assert remainder_bound <= 1.0e-12
+
+    def test_private_streamed_bin_equals_every_public_vector_mass(
+        self,
+    ) -> None:
+        """Match the scalar-bin streaming seam to batched public weights.
+
+        Three centres include both sides of the branch cut and the origin.
+
+        Notes
+        -----
+        The private helper vmaps only over bins and leaves the centre batch
+        intact. A driver can therefore scan without a complete K-by-E-by-node
+        carrier.
+        """
+        edges: jax.Array = jnp.linspace(-0.5, 0.5, 33)
+        centres: jax.Array = jnp.array([-0.49, 0.0, 0.49])
+        public: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            edges, centres, 10.0, 1.8
+        )
+        node_first: jax.Array = jax.vmap(
+            lambda lower, upper: (
+                effects_module._kz_wrapped_lorentzian_bin_weight(  # noqa: SLF001
+                    lower,
+                    upper,
+                    centres,
+                    10.0,
+                    1.8,
+                )
+            )
+        )(edges[:-1], edges[1:])
+        streamed: jax.Array = jnp.moveaxis(node_first, 0, -1)
+        compiled: jax.Array = jax.jit(kz_wrapped_lorentzian_bin_weights)(
+            edges, centres, 10.0, 1.8
+        )
+
+        chex.assert_trees_all_equal(streamed, public)
+        chex.assert_trees_all_close(compiled, public, rtol=1.0e-13, atol=0.0)
+
+    def test_g4_uses_fractional_width_and_preserves_physical_units(
+        self,
+    ) -> None:
+        """Keep weights invariant at fixed ``lambda * G_perp``.
+
+        Omitting division by the physical period changes the planted result.
+
+        Notes
+        -----
+        This executable counterexample prevents mixing fractional bin edges
+        with the inverse-angstrom Lorentzian HWHM.
+        """
+        edges: jax.Array = jnp.linspace(-0.5, 0.5, 65)
+        center: jax.Array = jnp.asarray(0.173)
+        first: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            edges, center, 5.0, 2.0
+        )
+        rescaled: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            edges, center, 10.0, 1.0
+        )
+        planted_wrong_units: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            edges, center, 5.0, 1.0
+        )
+
+        chex.assert_trees_all_equal(first, rescaled)
+        assert float(jnp.max(jnp.abs(first - planted_wrong_units))) > 1.0e-2
+
+    @pytest.mark.parametrize(
+        ("edges", "center", "mean_free_path", "period", "message"),
+        [
+            (
+                jnp.array([-0.4, 0.0, 0.5]),
+                jnp.asarray(0.0),
+                10.0,
+                2.0,
+                "span",
+            ),
+            (
+                jnp.array([-0.5, 0.0, 0.5]),
+                jnp.asarray(0.5),
+                10.0,
+                2.0,
+                "folded kz centres",
+            ),
+            (
+                jnp.array([-0.5, 0.0, 0.5]),
+                jnp.asarray(0.0),
+                0.0,
+                2.0,
+                "mean_free_path_ang",
+            ),
+            (
+                jnp.array([-0.5, 0.0, 0.5]),
+                jnp.asarray(0.0),
+                10.0,
+                np.inf,
+                "period_inv_ang",
+            ),
+        ],
+    )
+    def test_rejects_invalid_physical_domains_eager_and_jit(
+        self,
+        edges: jax.Array,
+        center: jax.Array,
+        mean_free_path: float,
+        period: float,
+        message: str,
+    ) -> None:
+        """Reject malformed edges, centres, and physical scales.
+
+        The test exercises each invalid value through eager and compiled calls.
+
+        Notes
+        -----
+        The finite-width path admits neither an infinite-lambda endpoint nor
+        an unfolded centre at the excluded positive boundary.
+        """
+        assert_rejects(
+            kz_wrapped_lorentzian_bin_weights,
+            edges,
+            center,
+            mean_free_path,
+            period,
+            match=message,
+        )
+
+
+class TestBroadenKz:
+    """Verify :func:`diffpes.simul.broaden_kz`.
+
+    The class owns G4/G5 averaging and the local D2 lambda derivative.
+    """
+
+    def test_g4_preserves_constant_and_matches_wrapped_voigt_fourier(
+        self,
+    ) -> None:
+        """Preserve unit density and match the wrapped-Voigt Fourier truth.
+
+        The refined midpoint grid leaves less than ``1e-8`` relative error.
+
+        Notes
+        -----
+        A wrapped Gaussian supplies the input. Multiplying its Fourier
+        coefficients by the wrapped-Cauchy coefficients gives an independent
+        analytic wrapped-Voigt value at the requested centre.
+        """
+        n_kz: int = 16_384
+        nodes_np: Float64[np.ndarray, " N"] = np.asarray(
+            kz_fractional_nodes(n_kz)
+        )
+        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        center: float = 0.18
+        gaussian_center: float = -0.23
+        sigma_frac: float = 0.07
+        mean_free_path: float = 8.0
+        period: float = 1.6
+        gamma_frac: float = 0.5 / (mean_free_path * period)
+        harmonics: Float64[np.ndarray, " M"] = np.arange(
+            1, 65, dtype=np.float64
+        )
+        gaussian_coefficients: Float64[np.ndarray, " M"] = np.exp(
+            -0.5 * np.square(2.0 * np.pi * sigma_frac * harmonics)
+        )
+        wrapped_gaussian: Float64[np.ndarray, " N"] = 1.0 + 2.0 * np.sum(
+            gaussian_coefficients[:, None]
+            * np.cos(
+                2.0
+                * np.pi
+                * harmonics[:, None]
+                * (nodes_np[None, :] - gaussian_center)
+            ),
+            axis=0,
+        )
+        weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
+            edges,
+            jnp.asarray(center),
+            mean_free_path,
+            period,
+        )
+        actual: jax.Array = broaden_kz(jnp.asarray(wrapped_gaussian), weights)
+        desired: float = 1.0 + 2.0 * np.sum(
+            np.exp(-2.0 * np.pi * gamma_frac * harmonics)
+            * gaussian_coefficients
+            * np.cos(2.0 * np.pi * harmonics * (center - gaussian_center))
+        )
+        constant: jax.Array = broaden_kz(jnp.ones(n_kz), weights)
+
+        np.testing.assert_allclose(actual, desired, rtol=1.0e-8, atol=0.0)
+        np.testing.assert_allclose(constant, 1.0, rtol=1.0e-13, atol=0.0)
+
+    @pytest.mark.parametrize("mean_free_path", [5.0, 10.0, 50.0])
+    def test_d2_lambda_gradient_matches_fd_and_is_nonzero(
+        self, mean_free_path: float
+    ) -> None:
+        """Match forward/reverse lambda derivatives at all D2 lengths.
+
+        The asymmetric periodic intensity keeps every gradient nonzero.
+
+        Notes
+        -----
+        The shared smooth f64 ladder supplies directional and elementwise
+        central-finite-difference comparisons.
+        """
+        n_kz: int = 96
+        nodes: jax.Array = kz_fractional_nodes(n_kz)
+        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        intensity: jax.Array = (
+            1.2
+            + 0.31 * jnp.cos(2.0 * jnp.pi * nodes)
+            + 0.17 * jnp.sin(4.0 * jnp.pi * nodes)
+        )
+
+        def loss(candidate: jax.Array) -> jax.Array:
+            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
+                edges,
+                jnp.asarray(0.173),
+                candidate,
+                jnp.asarray(1.8),
+            )
+            return broaden_kz(intensity, candidate_weights)
+
+        gradient_gate(
+            loss,
+            jnp.asarray(mean_free_path),
+            regime="smooth",
+            scale_floor=1.0,
+        )
+
+    def test_jit_and_vmap_match_direct_lambda_centre_sweeps(self) -> None:
+        """Compile and batch the full weight-plus-reduction success path.
+
+        Three centre/lambda pairs share one static node schedule.
+
+        Notes
+        -----
+        Direct scalar evaluations provide the independent batched comparison.
+        """
+        n_kz: int = 64
+        nodes: jax.Array = kz_fractional_nodes(n_kz)
+        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        intensity: jax.Array = 1.1 + 0.2 * jnp.cos(
+            2.0 * jnp.pi * (nodes - 0.07)
+        )
+        centres: jax.Array = jnp.array([-0.31, 0.04, 0.39])
+        lengths: jax.Array = jnp.array([5.0, 10.0, 50.0])
+
+        def evaluate(center: jax.Array, length: jax.Array) -> jax.Array:
+            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
+                edges, center, length, jnp.asarray(1.8)
+            )
+            return broaden_kz(intensity, candidate_weights)
+
+        direct: jax.Array = jnp.stack(
+            [
+                evaluate(center, length)
+                for center, length in zip(centres, lengths, strict=True)
+            ]
+        )
+        batched: jax.Array = jax.jit(jax.vmap(evaluate))(centres, lengths)
+
+        chex.assert_trees_all_close(batched, direct, rtol=1.0e-13, atol=0.0)
+
+    def test_g5_joint_refinement_approaches_off_grid_direct_value(
+        self,
+    ) -> None:
+        """Verify convergence toward a periodic direct value during refinement.
+
+        Node counts grow by eight while fractional HWHM shrinks by four.
+
+        Notes
+        -----
+        Thus ``delta_u / gamma_u`` halves on every step. A fixed-grid
+        infinite-lambda limit is deliberately neither formed nor claimed.
+        """
+        center: float = 0.173
+        period: float = 2.0
+        counts: Tuple[int, ...] = (64, 512, 4096)
+        lengths: Tuple[float, ...] = (3.125, 12.5, 50.0)
+        direct: float = (
+            1.0
+            + 0.3 * np.cos(2.0 * np.pi * center)
+            + 0.1 * np.sin(4.0 * np.pi * center)
+        )
+        errors: list[float] = []
+        ratios: list[float] = []
+        count: int
+        length: float
+        for count, length in zip(counts, lengths, strict=True):
+            nodes: jax.Array = kz_fractional_nodes(count)
+            edges: jax.Array = jnp.linspace(-0.5, 0.5, count + 1)
+            intensity: jax.Array = (
+                1.0
+                + 0.3 * jnp.cos(2.0 * jnp.pi * nodes)
+                + 0.1 * jnp.sin(4.0 * jnp.pi * nodes)
+            )
+            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
+                edges, jnp.asarray(center), length, period
+            )
+            broadened: jax.Array = broaden_kz(intensity, candidate_weights)
+            errors.append(abs(float(broadened) - direct))
+            gamma_frac: float = 0.5 / (length * period)
+            ratios.append((1.0 / count) / gamma_frac)
+
+        assert errors[2] < errors[1] < errors[0]
+        assert ratios[2] < ratios[1] < ratios[0]
+
+    def test_rejects_one_node_shapes_and_nonphysical_values(self) -> None:
+        """Reject the one-node counterexample and malformed weighted inputs.
+
+        Shape checks remain static while value checks run eagerly and in JIT.
+
+        Notes
+        -----
+        A zero weight is invalid because finite wrapped-Cauchy bins have
+        strictly positive mass over the complete primitive period.
+        """
+        with pytest.raises(ValueError, match="at least two nodes"):
+            broaden_kz(jnp.ones(1), jnp.ones(1))
+        with pytest.raises(ValueError, match="remaining static shapes"):
+            broaden_kz(jnp.ones((3, 2)), jnp.ones((3,)) / 3.0)
+        assert_rejects(
+            broaden_kz,
+            jnp.array([1.0, -0.1]),
+            jnp.array([0.5, 0.5]),
+            match="finite and nonnegative",
+        )
+        assert_rejects(
+            broaden_kz,
+            jnp.array([1.0, 2.0]),
+            jnp.array([1.0, 0.0]),
+            match="finite, positive, and sum to one",
+        )
+
+
+class TestSurfaceKzFrame:
+    """Verify the private primitive surface reciprocal-frame seam.
+
+    The class owns G8 unit advance and reciprocal identities. It rejects stale
+    data before any bulk model evaluation.
+    """
+
+    def test_g8_cubic_frame_is_exact_and_jittable(self) -> None:
+        """Recover the cubic direct, reciprocal, normal, and period values.
+
+        Identity coefficients and rotation make the external truth explicit.
+
+        Notes
+        -----
+        The compiled carrier replay exercises traced cross-carrier validation.
+        """
+        geometry: CrystalGeometry
+        cell: SurfaceCell
+        geometry, cell = _surface_kz_fixture(oblique=False)
+        direct: jax.Array
+        reciprocal: jax.Array
+        normal: jax.Array
+        period: jax.Array
+        direct, reciprocal, normal, period = effects_module._surface_kz_frame(  # noqa: SLF001
+            cell, geometry
+        )
+        compiled: Tuple[jax.Array, jax.Array, jax.Array, jax.Array] = jax.jit(
+            effects_module._surface_kz_frame  # noqa: SLF001
+        )(cell, geometry)
+
+        chex.assert_trees_all_close(direct, jnp.eye(3))
+        chex.assert_trees_all_close(reciprocal, 2.0 * jnp.pi * jnp.eye(3))
+        chex.assert_trees_all_close(normal, jnp.array([0.0, 0.0, 1.0]))
+        chex.assert_trees_all_close(period, 2.0 * jnp.pi)
+        chex.assert_trees_all_close(
+            compiled, (direct, reciprocal, normal, period)
+        )
+
+    def test_g8_rejects_stale_doubled_stacking_before_mapping(self) -> None:
+        """Reject numerical ``g=2`` data carrying stale unit-advance metadata.
+
+        The carrier factory alone accepts the internally shaped planted cell.
+
+        Notes
+        -----
+        Reconstruction from bulk lattice and exact coefficients exposes the
+        doubled vector before its false half-period reaches a dispersion.
+        """
+        geometry: CrystalGeometry
+        stale_cell: SurfaceCell
+        geometry, stale_cell = _surface_kz_fixture(
+            oblique=False, doubled_stacking=True
+        )
+        assert_rejects(
+            effects_module._surface_kz_frame,  # noqa: SLF001
+            stale_cell,
+            geometry,
+            match="coefficient @ bulk lattice @ rotation",
+        )
+
+
+class TestMapSurfaceFractionalToBulk:
+    """Verify the private G8 arbitrary surface-to-bulk momentum map.
+
+    The class owns bulk-direct centres, oblique coupling, and periodicity.
+    """
+
+    def test_maps_arbitrary_k_by_energy_centres_and_jits(self) -> None:
+        """Verify off-grid ``(K,E)`` centres with exact third coordinates.
+
+        The centres exercise the generic bulk-direct surface used by drivers.
+
+        Notes
+        -----
+        JIT output includes all reciprocal and cross-carrier checks.
+        """
+        geometry: CrystalGeometry
+        cell: SurfaceCell
+        geometry, cell = _surface_kz_fixture(oblique=True)
+        k_parallel: jax.Array = jnp.array(
+            [[0.21, -0.17, 0.0], [-0.31, 0.23, 0.0]]
+        )
+        centres: jax.Array = jnp.array(
+            [[-0.37, 0.04, 0.29], [-0.42, -0.11, 0.33]]
+        )
+        surface: jax.Array
+        bulk_fractional: jax.Array
+        surface, bulk_fractional = (
+            effects_module._map_surface_fractional_to_bulk(  # noqa: SLF001
+                k_parallel, centres, cell, geometry
+            )
+        )
+        compiled: Tuple[jax.Array, jax.Array] = jax.jit(
+            effects_module._map_surface_fractional_to_bulk  # noqa: SLF001
+        )(k_parallel, centres, cell, geometry)
+        direct: jax.Array = effects_module._surface_kz_frame(  # noqa: SLF001
+            cell, geometry
+        )[0]
+        recovered: jax.Array = surface @ direct.T / (2.0 * jnp.pi)
+
+        chex.assert_trees_all_close(
+            recovered[..., 2], centres, rtol=1.0e-12, atol=1.0e-14
+        )
+        chex.assert_trees_all_close(compiled, (surface, bulk_fractional))
+
+
+class TestMapSurfaceKzNodesToBulkFractional:
+    """Verify the private G8 registered-node surface-to-bulk map.
+
+    The class owns lateral stacking coupling, folding, and periodicity.
+    """
+
+    def test_g8_oblique_map_round_trips_and_preserves_periodicity(
+        self,
+    ) -> None:
+        """Verify an oblique cell and reciprocal-translation periodicity.
+
+        The third surface coordinate equals every registered node exactly.
+
+        Notes
+        -----
+        Shifting physical momentum by the in-plane projection of the first
+        surface reciprocal row changes bulk fractional momentum by an integer,
+        preserving dispersion. The generic mapper supplies the reciprocal
+        row's compensating normal component through ``u_parallel``.
+        """
+        geometry: CrystalGeometry
+        cell: SurfaceCell
+        geometry, cell = _surface_kz_fixture(oblique=True)
+        nodes: jax.Array = kz_fractional_nodes(8)
+        k_parallel: jax.Array = jnp.array(
+            [[0.21, -0.17, 0.0], [-0.31, 0.23, 0.0]]
+        )
+        direct: jax.Array
+        reciprocal: jax.Array
+        normal: jax.Array
+        direct, reciprocal, normal, _ = effects_module._surface_kz_frame(  # noqa: SLF001
+            cell, geometry
+        )
+        in_plane_reciprocal_shift: jax.Array = (
+            reciprocal[0] - jnp.dot(reciprocal[0], normal) * normal
+        )
+        surface: jax.Array
+        bulk_fractional: jax.Array
+        surface, bulk_fractional = (
+            effects_module._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
+                k_parallel, nodes, cell, geometry
+            )
+        )
+        shifted_surface: jax.Array
+        shifted_bulk_fractional: jax.Array
+        shifted_surface, shifted_bulk_fractional = jax.jit(
+            effects_module._map_surface_kz_nodes_to_bulk_fractional  # noqa: SLF001
+        )(k_parallel + in_plane_reciprocal_shift, nodes, cell, geometry)
+        surface_fractional: jax.Array = surface @ direct.T / (2.0 * jnp.pi)
+        shift_difference: jax.Array = shifted_bulk_fractional - bulk_fractional
+
+        chex.assert_trees_all_close(
+            surface_fractional[..., 2],
+            jnp.broadcast_to(nodes, surface_fractional[..., 2].shape),
+            rtol=1.0e-12,
+            atol=1.0e-14,
+        )
+        chex.assert_trees_all_close(
+            shift_difference,
+            jnp.broadcast_to(
+                jnp.array([1.0, 0.0, 0.0]), shift_difference.shape
+            ),
+            rtol=1.0e-12,
+            atol=1.0e-14,
+        )
+        intensity: jax.Array = 1.3 + 0.2 * jnp.sum(
+            jnp.cos(2.0 * jnp.pi * bulk_fractional), axis=-1
+        )
+        shifted_intensity: jax.Array = 1.3 + 0.2 * jnp.sum(
+            jnp.cos(2.0 * jnp.pi * shifted_bulk_fractional), axis=-1
+        )
+        chex.assert_trees_all_close(
+            shifted_intensity, intensity, rtol=1.0e-12, atol=1.0e-14
+        )
+        assert bool(jnp.all(jnp.isfinite(shifted_surface)))
+
+    def test_g8_planted_scalar_append_loses_oblique_lateral_coupling(
+        self,
+    ) -> None:
+        """Make the forbidden scalar-fractional append disagree visibly.
+
+        The compliant physical map uses ``u_parallel`` from the full v3 row.
+
+        Notes
+        -----
+        Appending the node to Cartesian in-plane components changes the bulk
+        point for the oblique fixture.
+        """
+        geometry: CrystalGeometry
+        cell: SurfaceCell
+        geometry, cell = _surface_kz_fixture(oblique=True)
+        nodes: jax.Array = kz_fractional_nodes(4)
+        k_parallel: jax.Array = jnp.array([0.27, -0.19, 0.0])
+        actual: jax.Array
+        _, actual = effects_module._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
+            k_parallel, nodes, cell, geometry
+        )
+        planted_wrong: jax.Array = jnp.stack(
+            (
+                jnp.full_like(nodes, k_parallel[0]),
+                jnp.full_like(nodes, k_parallel[1]),
+                nodes,
+            ),
+            axis=-1,
+        )
+
+        assert float(jnp.max(jnp.abs(actual - planted_wrong))) > 1.0e-2
+
+    def test_rejects_nonplane_momentum_and_unregistered_nodes(self) -> None:
+        """Reject a normal momentum component and a shifted node schedule.
+
+        Both counterexamples violate the private physical mapping boundary.
+
+        Notes
+        -----
+        The shared rejection helper exercises traced checks in eager and JIT.
+        """
+        geometry: CrystalGeometry
+        cell: SurfaceCell
+        geometry, cell = _surface_kz_fixture(oblique=True)
+        nodes: jax.Array = kz_fractional_nodes(4)
+        assert_rejects(
+            effects_module._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
+            jnp.array([0.2, 0.1, 0.03]),
+            nodes,
+            cell,
+            geometry,
+            match="surface plane",
+        )
+        assert_rejects(
+            effects_module._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
+            jnp.array([0.2, 0.1, 0.0]),
+            nodes + 0.01,
+            cell,
+            geometry,
+            match="registered uniform fractional centres",
+        )
 
 
 class TestGaussianKernel1D:

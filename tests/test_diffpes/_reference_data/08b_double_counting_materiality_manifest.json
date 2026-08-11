@@ -1,0 +1,18 @@
+{
+  "artifact": {
+    "path_from_diffpes_root": "tests/test_diffpes/_reference_data/08b_double_counting_materiality.json",
+    "sha256": "d6df6e636a01f8982c1b1f1f358d5966aca41bca013da21d6c22a4e0292ae50c"
+  },
+  "classification": "inert mirror of independent Plan-08b double-counting and G4 truth",
+  "consumer_boundary": "pytest authenticates and parses this inert byte mirror; it never imports or executes the plans-side generator",
+  "generator": {
+    "mutable_authority_count": 1,
+    "path": "diffpes-plans/verification/generate_08b_double_counting_materiality.py",
+    "sha256": "51ececca60f17f909fd134c7544e7dee0beb53c26223c90bf7e7e4f1ee146469"
+  },
+  "plans_artifact": {
+    "path": "diffpes-plans/verification/08b_double_counting_materiality.json",
+    "sha256": "d6df6e636a01f8982c1b1f1f358d5966aca41bca013da21d6c22a4e0292ae50c"
+  },
+  "schema_version": 1
+}

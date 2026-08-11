@@ -12,6 +12,7 @@ diffpes
    guides/index
    guides/arpes-geometry-and-kinematics
    guides/simulation-levels
+   guides/kz-broadening-and-photon-energy-scans
    guides/matrix-elements-and-polarization
    guides/spectral-broadening-and-self-energy
    guides/pytree-architecture

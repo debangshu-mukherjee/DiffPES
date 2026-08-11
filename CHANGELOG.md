@@ -48,8 +48,9 @@ and the project uses calendar versioning.
   `diffpes.simul.simulate_novice`, `diffpes.simul.simulate_basic`, every
   expanded wrapper, `diffpes.simul.simulate_expanded`, the former
   `simul.spectrum` implementation, and the `simul.expanded` module. The
-  rebuilt `simul.spectrum` module now exposes only the coherent
-  `simulate_arpes` and `simulate_arpes_cut` drivers.
+  rebuilt `simul.spectrum` module retains the canonical `simulate_arpes` and
+  `simulate_arpes_cut` drivers and adds the physically separate Plan-08b
+  `simulate_hv_scan`; none of the removed tier dispatch survives.
 - `diffpes.simul.simulate_context` is removed. The old implicit-H,
   projection-probability `run_vasp_workflow` signature is also removed. Its
   rebuilt coherent API requires an explicit Hamiltonian. It also requires
@@ -69,6 +70,12 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- `simulate_arpes` and `simulate_arpes_cut` retain the complete Plan 08a
+  positional surface and add only keyword-only `bulk_models_by_domain`,
+  `surface_cells_by_domain`, `kz_nodes_frac`, and `kz_mode` arguments. The
+  default `native_direct` route reproduces the single-kz call. The mutually
+  exclusive `bulk_direct`, `bulk_kz`, and `coherent_slab` routes reject mixed
+  carriers instead of guessing which escape-depth model the caller intended.
 - **Breaking:** `run_vasp_workflow` now uses VASP files only for parsed path,
   Fermi-level, crystal, and projection metadata. Callers must supply the
   phase-complete Hamiltonian plus all radial, matrix-element, self-energy,
@@ -198,6 +205,39 @@ and the project uses calendar versioning.
 
 ### Added
 
+- Plan 08b adds an explicit differentiable bulk-kz integral and
+  photon-energy scans. `kz_fractional_nodes`,
+  `kz_wrapped_lorentzian_bin_weights`, and `broaden_kz` implement positive
+  analytic wrapped-Cauchy bin masses over one primitive surface reciprocal
+  period, centred by exact finite-energy inner-potential kinematics. The G6
+  calibration selects `n_kz=2048` as the smallest registered count meeting
+  its value, integrated-count, gradient, and reference-series budgets; there
+  is no silent public count default. A normal integration-coordinate
+  reciprocal shift leaves the complete gauge-covariant integrand invariant
+  at fixed detected $k_\parallel$ and $k_f$. A move to a neighboring detected
+  surface zone changes those momenta. It retains physical repeated-zone
+  matrix-element contrast.
+- `simulate_hv_scan` returns a single-domain pre-detector
+  `[n_hv, n_k, n_e]` stack through a checkpointable `jax.lax.scan`, and
+  `hv_map_at_energy` returns an interpolated `[n_k, n_hv]` map. Production
+  integration remains node-local and forbids a complete all-node band,
+  source, kinematics, or intensity carrier.
+- The authenticated Plan-08b literal scalability record
+  `4f83fd4f85974ff7065e04846f48003960b1ddbe3ced3db537d7fa92b5caa3c4`
+  compiles the exact `256 x 256 x 400`, 20-band, 2048-node target. It records
+  1,074,870,048-byte forward and 2,567,802,048-byte full-H-gradient live
+  allocations. It also records zero forbidden all-node carriers,
+  rematerialization equality, and flat photon-scan auxiliary allocation. The
+  source-handshake refresh rebinds the spectral and detector records as
+  `08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd`
+  and `afb70466c0468b616bb66b36b4c6cf23f539116f98ccbe1e5c6a1ad30ee65760`.
+  All registered budgets and companions remain green.
+- The certification registry adds the `org.diffpes.kz` owner and immutable
+  wrapped-integration/photon-energy-scan transformations. Registration
+  requires exact `org.diffpes.kspace`, `org.diffpes.surface`,
+  `org.diffpes.matrixel`, `org.diffpes.spectral`, and
+  `org.diffpes.detector` upstream handshakes; missing or drifted declarations
+  fail closed.
 - Plan 08a adds one coherent single-kz forward surface. `simulate_arpes`
   accepts separable Cartesian source rasters. `simulate_arpes_cut` accepts
   self-describing momentum paths. The rebuilt `run_vasp_workflow` requires an

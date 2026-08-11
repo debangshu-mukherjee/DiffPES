@@ -135,6 +135,11 @@ an elementwise imaginary part would discard off-diagonal coherence.
 This ordering preserves orbital and inter-centre interference while keeping
 instrument effects separate. The intrinsic assembly performs no Gaussian
 resolution, normalization, background, transmission, or count conversion.
+In `bulk_kz` mode, the wrapped out-of-plane-momentum integral reduces these
+occupied intrinsic intensities before transmission and native detector
+resolution. It is mutually exclusive with the `coherent_slab` depth-amplitude
+sum; see [kz Broadening and Photon-Energy
+Scans](kz-broadening-and-photon-energy-scans.md).
 
 `band_group_weight_sensitivity` returns derivatives of the matrix-element
 weights before spectral, exposure, background, or detector factors.
@@ -175,12 +180,12 @@ post-resolution density-to-count primitive.
 The WP7.6 CPU gate compiled the literal `256 k x 512 omega x 32 orbital`
 spinless value-and-Hamiltonian-gradient target with static `32 x 32` chunks,
 checkpointing, `n_kk=4096`, and `n_tail=256`. XLA reported `4,211,032` argument
-bytes, `4,194,328` output bytes, `50,186,720` temporary bytes, and zero aliased
-bytes: `58,592,080` compiler-live bytes in total. This is below the registered
+bytes, `4,194,328` output bytes, `50,187,248` temporary bytes, and zero aliased
+bytes: `58,592,608` compiler-live bytes in total. This is below the registered
 spinless solve-tape estimate of `134,217,728` bytes and its `1.5x` ceiling of
 `201,326,592` bytes. The target was compiled for allocation analysis but was
 not executed; that fact is explicit in the authenticated artifact. Host RSS
-(`463,216,640` to `688,885,760` bytes) is diagnostic only. Its compact
+(`463,302,656` to `688,541,696` bytes) is diagnostic only. Its compact
 `k_i[K,3] + final_norm[E] + valid[E]` carrier uses `10,752` diagnostic bytes;
 final momenta are reconstructed only within each live spectral block.
 
@@ -191,7 +196,7 @@ produced one trace, and the lowered Lineax operator, RHS, and solution were all
 complex128. The reproducible record is
 `tests/test_diffpes/_reference_data/spectral_scalability/cpu_benchmark.json`.
 Its committed SHA-256 is
-`cb5469eb67f36cd40c577c9d61581d965767cb6fd9e36f7c1985cb735c597b00`.
+`08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd`.
 
 See [Simulation Tiers and the Coherent Pipeline](simulation-levels.md) for
 the model boundary and

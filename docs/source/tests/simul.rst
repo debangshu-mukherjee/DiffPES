@@ -48,6 +48,31 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_simul.test_kz_driver_scans
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_kz_quadrature_budget_artifact
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_kz_double_counting_materiality_artifact
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_kz_reciprocal_gauge
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_kz_scalability
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_simul.test_manufactured_arpes_cube
    :members:
    :undoc-members:

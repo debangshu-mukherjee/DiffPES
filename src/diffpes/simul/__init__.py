@@ -28,7 +28,7 @@ The following list describes the submodules:
 - :mod:`polarization`
     Compute photon polarization and explicit frame transformations.
 - :mod:`spectrum`
-    Compose the coherent single-:math:`k_z` ARPES forward driver.
+    Compose the coherent ARPES forward and photon-energy-scan drivers.
 - :mod:`spectral`
     Evaluate the complex retarded self-energy through the certified KK map.
 - :mod:`workflow`
@@ -50,6 +50,8 @@ Routine Listings
     Assemble occupied intrinsic intensity from Hamiltonians and sources.
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
+:func:`broaden_kz`
+    Apply wrapped-Cauchy bin masses to node-resolved bulk intensity.
 :func:`detector_angles_to_kpar`
     Convert detector angles to parallel momentum.
 :func:`detector_axis_to_sample`
@@ -82,8 +84,12 @@ Routine Listings
     Compute normalized Gaussian broadening profile.
 :func:`gaussian_kernel_1d`
     Build a sampled, sum-normalized Gaussian stencil.
+:func:`hv_map_at_energy`
+    Interpolate a photon-energy scan at one sampled binding energy.
 :func:`kinetic_energy_ev`
     Compute signed photoelectron kinetic energy and its validity mask.
+:func:`kz_fractional_nodes`
+    Build static uniform surface-fractional kz bin centres.
 :func:`assemble_orbital_transition_channels`
     Assemble the validated orbital transition tensor.
 :func:`band_group_weight_sensitivity`
@@ -100,6 +106,8 @@ Routine Listings
     Compute complex out-of-plane momentum from the inner potential.
 :func:`kz_from_inner_potential_at_fermi`
     Evaluate the named Fermi-level ``kz`` approximation.
+:func:`kz_wrapped_lorentzian_bin_weights`
+    Integrate wrapped-Lorentzian mass over fractional kz bins.
 :func:`load_vasp_context`
     Load a simulation-ready context from VASP output files.
 :func:`matrix_element_intensity`
@@ -149,9 +157,11 @@ Routine Listings
 :func:`sensitivity_field`
     Evaluate the positive normalized detector sensitivity field.
 :func:`simulate_arpes`
-    Simulate the canonical coherent single-kz detector raster.
+    Simulate the canonical detector raster.
 :func:`simulate_arpes_cut`
-    Simulate the canonical coherent single-kz path-cut detector raster.
+    Simulate the canonical path-cut detector raster.
+:func:`simulate_hv_scan`
+    Simulate a single-domain pre-detector photon-energy scan.
 :func:`spectral_intensity_eigen`
     Evaluate spectral intensity from eigenvalues and invariant weights.
 :func:`spectral_intensity_resolvent`
@@ -189,6 +199,7 @@ from .effects import (
     apply_resolution,
     apply_transmission,
     background_density,
+    broaden_kz,
     convolve_energy,
     convolve_kpath,
     convolve_momentum_map,
@@ -196,6 +207,8 @@ from .effects import (
     expected_counts,
     fixed_total_probabilities,
     gaussian_kernel_1d,
+    kz_fractional_nodes,
+    kz_wrapped_lorentzian_bin_weights,
     map_source_to_detector,
     sample_fixed_total_counts,
     sample_poisson_counts,
@@ -248,7 +261,13 @@ from .spectral import (
     spectral_intensity_eigen,
     spectral_intensity_resolvent,
 )
-from .spectrum import normalize_intensity, simulate_arpes, simulate_arpes_cut
+from .spectrum import (
+    hv_map_at_energy,
+    normalize_intensity,
+    simulate_arpes,
+    simulate_arpes_cut,
+    simulate_hv_scan,
+)
 from .workflow import (
     load_vasp_context,
     prepare_projection,
@@ -265,6 +284,7 @@ __all__: list[str] = [
     "assemble_spectral_intensity_chunk",
     "band_group_weight_sensitivity",
     "background_density",
+    "broaden_kz",
     "build_polarization_vectors",
     "compute_oam",
     "convolve_energy",
@@ -284,11 +304,14 @@ __all__: list[str] = [
     "fixed_total_probabilities",
     "gaussian",
     "gaussian_kernel_1d",
+    "hv_map_at_energy",
     "kinetic_energy_ev",
+    "kz_fractional_nodes",
     "lab_polarization_to_sample",
     "kpar_to_detector_angles",
     "kz_from_inner_potential",
     "kz_from_inner_potential_at_fermi",
+    "kz_wrapped_lorentzian_bin_weights",
     "load_vasp_context",
     "log_band_group_weight_sensitivity",
     "matrix_element_intensity",
@@ -314,6 +337,7 @@ __all__: list[str] = [
     "sensitivity_field",
     "simulate_arpes",
     "simulate_arpes_cut",
+    "simulate_hv_scan",
     "spectral_intensity_eigen",
     "spectral_intensity_resolvent",
     "transition_source",

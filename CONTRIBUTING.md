@@ -119,6 +119,38 @@ new code must follow JAX best practices:
 - Use `.at[].set()` for array updates instead of in-place modification
 - Keep functions purely functional — no side effects, no global mutable state
 - Code must remain traceable for `jit`, `grad`, `vmap`, and sharding
+- Place `jit` at a useful boundary. A small helper does not need its own
+  `jit` when a public caller already compiles the complete operation.
+- Mark only genuine compile-time structure as static. A value that must carry
+  a gradient never appears in `static_argnames`.
+
+**Decorator order with `jit`:** Runtime type checking must wrap the original
+Python function. The JAX transformation then wraps the checked function.
+Write the JAX decorator outermost and `@jaxtyped(typechecker=beartype)`
+directly above the function:
+
+```python
+# ✅ Correct - jit outermost, jaxtyped innermost
+@jax.jit
+@jaxtyped(typechecker=beartype)
+def transmission(potential: Float[Array, "H W"]) -> Complex[Array, "H W"]: ...
+
+
+# ❌ Wrong - jaxtyped receives a PjitFunction, not the Python function
+@jaxtyped(typechecker=beartype)
+@jax.jit
+def wrong_order(...): ...
+```
+
+For static arguments, use the direct `@jax.jit(static_argnames=...)` factory.
+Do not use `functools.partial(jax.jit, ...)` as a decorator factory. The
+direct form gives `ty` a usable callable signature.
+
+**Uninitialized allocation:** Do not assume that `jnp.empty` or `np.empty`
+contains zeros or any deterministic value. Use `jnp.zeros` when zero
+initialization matters. Use `jnp.full` for another initial value. Use an
+`empty` allocation only when the code definitely writes every element before
+any read, as the `inout` parsers do.
 
 **Solver stack:** Use [Optimistix](https://docs.kidger.site/optimistix/) for
 optimization and nonlinear solves. Its methods include `least_squares`,
@@ -207,6 +239,13 @@ def simulate_spectrum(
 - Use descriptive dimension names in shape specs:
   `Float[Array, "nkpt nband"]`, `Complex[Array, "nkpt nband natom norb"]`,
   scalars as `Float[Array, ""]`.
+- **Use width-qualified dtypes when an array has a canonical storage
+  contract.** Examples are `Float64`, `Complex128`, and `Int64`. Apply them
+  to carrier fields, post-conversion locals, and returned arrays whose
+  producer guarantees that width. Keep the polymorphic `Float`, `Complex`,
+  and `Int` forms only at an explicit conversion boundary or in a genuinely
+  dtype-polymorphic function. An exact dtype annotation is an assertion, not
+  a cast. Convert first, then annotate the converted value.
 - **Never annotate with a bare `np.ndarray`.** That annotation states no dtype
   and no shape. Import `NDArray` from `numpy.typing`. Then use `NDArray` as the
   array type inside a jaxtyping spec: `Float[NDArray, "m n p"]`. This form gives
@@ -298,6 +337,10 @@ immutable JAX PyTrees flow through `jit`, `grad`, and `vmap`. Declare static,
 non-array metadata fields with `eqx.field(static=True)`. JAX then excludes
 these fields from the differentiable leaves.
 
+Static metadata participates in the compilation cache identity. Keep each
+static field small, hashable, and scientifically explicit. Do not mark a
+physical fit parameter static merely to make tracing easier.
+
 ```python
 import equinox as eqx
 from jaxtyping import Array, Float
@@ -358,6 +401,14 @@ def make_band_structure(
     return band_structure
 ```
 
+**Attach the checked value to the returned computation.** The example above
+stores `checked_eigenvalues`, not the unchecked input, in the carrier. Tracing
+can remove an unused `eqx.error_if` result, and the check then never fires.
+
+**Do not replace rejection with NaN poisoning.** An invalid scientific input
+must fail closed in both eager and compiled execution. Do not return NaN as a
+substitute for a `ValueError` or an `eqx.error_if` check.
+
 ### Units, Conventions, and Indexing
 
 - Use **eV** for energies, **Angstrom** for lengths, and **1/Angstrom** for
@@ -380,6 +431,13 @@ physics, mathematics, or software structure.
 numbers, work-package numbers, gate identifiers, phase labels, sprint labels,
 and milestone labels. Development tracking stays in the separate planning
 repository. It is immaterial to a user of this library.
+
+The rule covers the **entire repository** and has **no historical
+exception**. Plan vocabulary does not appear anywhere: not in comments,
+docstrings, file names, tests, artifacts, or manifests. Rename each artifact
+to domain terms at the plans-to-code boundary, before it enters this
+repository. When a legacy name with plan vocabulary surfaces, rename it to a
+descriptive domain name in an owning change.
 
 The rule applies to all of these:
 
@@ -411,6 +469,12 @@ Name a certification owner for its scientific domain. Write
 `org.diffpes.matrixel`. Do not write `org.diffpes.plan.06`.
 
 ### Documentation Standards
+
+**The goal of a docstring is complete understanding without the code.** A
+human or an LLM must understand the docstring without reading the code. It
+must describe inputs, outputs, behavior, and failure modes. If a reader must
+open the function body to answer one of these questions, the docstring is
+incomplete. Every rule in this section serves that goal.
 
 Docstrings follow the **NumPy / numpydoc convention**. Ruff and `pydoclint`
 enforce this convention through `pyproject.toml`. The `interrogate` tool checks
@@ -499,6 +563,27 @@ submodule summary verbatim into its `- :mod:` entry.
 Use the correct Sphinx role in `Routine Listings`. Use `:func:` for functions
 and `:class:` for classes or PyTrees. Use `:obj:` for aliases or constants.
 Use `:mod:` for submodules.
+
+**Order every listing deterministically.** Keep the `- :mod:` submodule list
+alphabetical. Group each `Routine Listings` section as classes, then
+functions, then objects. Sort each group alphabetically. Apply the same
+grouped, alphabetical order to the matching `__all__` value.
+
+**Declare `__all__` as an annotated literal at the end of the module.** Write
+it as `__all__: list[str] = [...]` after the last definition in the file. The
+reader then finds the definitions first and the export list last. Keep the
+value a literal list, so the structure tests can inspect it. This
+module-metadata annotation is the one sanctioned use of the builtin `list`
+generic: beartype never inspects `__all__`.
+
+```python
+# end of module
+__all__: list[str] = [
+    "BandStructure",
+    "free_electron_kz",
+    "make_band_structure",
+]
+```
 
 **List every public object in three places, and keep all three synchronized:**
 
@@ -725,13 +810,15 @@ class LifetimeModel(eqx.Module):
 
 ##### Private objects and raw strings
 
-- **Every `_`-prefixed function or method has a fully fledged docstring.**
-  A private docstring uses the same numpydoc sections as a public one. It
-  carries the summary line, `Parameters`, `Returns`, and `Implementation
-  Logic` (or `Notes` for a one-formula function). It adds `Raises` for
-  every explicit raise. A docstring that only gives a summary is a defect.
-  Private code is exempt only from the three-places rule and the `:see:`
-  cross-reference.
+- **Every `_`-prefixed function or method has a full docstring. There are no
+  exceptions.** A private docstring uses the same numpydoc sections as a
+  public one. It carries the summary line, `Parameters`, `Returns`, and
+  `Implementation Logic` (or `Notes` for a one-formula function). It adds
+  `Raises` for every explicit raise. A docstring that only gives a summary
+  is a defect. The completeness goal applies with full force: a reader
+  understands a private function from its docstring alone, without the
+  code. Private code is exempt only from the three-places rule and the
+  `:see:` cross-reference.
 - **Start every private docstring with `PRIVATE`.** Write the summary line
   as `PRIVATE: <imperative sentence>`. The marker states the audience at
   the first word. The function is internal, its contract can change without
@@ -849,6 +936,32 @@ finite-difference test with a stated tolerance. Add a zero-gradient tripwire
 for every parameter that must carry sensitivity. Forward-value tests cannot
 detect a corrupted Fisher row.
 
+**Do not update a pinned reference artifact merely to make a failure
+disappear.** A committed artifact in `tests/data/` or
+`tests/test_diffpes/_reference_data/` is a regression capture. When a change
+legitimately moves a captured value, explain the intended behavior change and
+update the artifact's manifest and provenance in the same review.
+
+**Exercise both validation tiers.** A factory has a static `ValueError` tier
+and a traced `eqx.error_if` tier. Test both. A traced error can be deferred
+until the result is consumed, so force it with `jax.block_until_ready`:
+
+```python
+with pytest.raises(ValueError, match="disagree on nkpt"):
+    make_band_structure(kpoints, jnp.ones((2, 4)), fermi_energy=0.0)
+
+compiled = jax.jit(lambda ev: make_band_structure(kpoints, ev, 0.0))
+with pytest.raises(
+    (equinox.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+    match="must be finite",
+):
+    result = compiled(jnp.full((3, 4), jnp.nan))
+    jax.block_until_ready(result)
+```
+
+Do not accept a traced invalid value merely because the eager path rejects a
+Python scalar. Use `jax.block_until_ready` also in timing tests.
+
 **Writing tests:**
 - Prefer `chex` assertions over bare `assert` for arrays:
   `chex.assert_shape`, `chex.assert_trees_all_close`,
@@ -888,6 +1001,10 @@ test-specific adaptations:
   in the shared helper modules. Use `tests/_factories.py`,
   `tests/_assertions.py`, or `tests/_types.py`. Do not copy shared fixtures
   across files.
+- **Give every private test helper a full `PRIVATE:` docstring.** The
+  private-docstring rule from the source standards applies unchanged in
+  `tests/`: summary line, `Parameters`, `Returns`, and `Notes` or
+  `Implementation Logic`, plus `Raises` for every explicit raise.
 
 Example:
 
@@ -952,12 +1069,62 @@ pytest tests/ --cov=src/diffpes --cov-report=term-missing
 
 ## Tutorial Notebooks
 
-Tutorials pair Jupyter notebooks in `docs/source/tutorials/` with Jupytext
-percent scripts in `tutorials/`. This split lets Sphinx discover the
-`.ipynb` file and keeps source differences reviewable in the `.py` file.
+**Every tutorial is a Jupyter notebook (`.ipynb`).** The notebook is the
+canonical tutorial format because it is the most common format among
+scientists. Do not ship a tutorial as a plain script, a Markdown page, or
+another format. Tutorials pair Jupyter notebooks in `docs/source/tutorials/`
+with Jupytext percent scripts in `tutorials/`. This split lets Sphinx discover
+the `.ipynb` file and keeps source differences reviewable in the `.py` file.
+The `.py` script is a review aid, not a substitute for the notebook.
 **Put explanations in Markdown cells, not code comments.** Put narrative,
 motivation, and physics in Markdown blocks. Keep code cells free of comments.
 Apply these ASD-STE100 rules to all Markdown cells.
+
+### Notebook Authoring Standards
+
+**Notebooks are long and detailed, with a target of ten or more figures.**
+A tutorial teaches one lesson in depth. It walks the reader through the
+physics step by step and shows each intermediate result. A short notebook
+that only calls one function and shows one plot is a guide example, not a
+tutorial.
+
+**Notebooks call diffpes; they do not define functions.** A tutorial
+demonstrates the public API. Do not define helper functions, classes, or
+local reimplementations inside a notebook. A capability that a tutorial
+needs but the API lacks is a missing feature: add it to `src/diffpes/`
+through the normal process, then call it. A small inline lambda for a plot
+label is acceptable; a physics function is not.
+
+Apply these structural rules to every notebook:
+
+- **Open with a descriptive title and a brief abstract.** The first Markdown
+  cell carries the title as a `#` header and one short paragraph that states
+  the core purpose: what the reader learns and what the notebook produces.
+- **Define clear sections.** Group the analysis steps with Markdown headers
+  (`#`, `##`, `###`). A reader must be able to navigate the notebook from
+  its header outline alone.
+- **Write for the intended audience.** The reader is an experimental-science
+  graduate student or postdoc. They use the notebooks to get up to speed on
+  ARPES simulations and inversions for their own research. They know their
+  material and their beamline. They do not know JAX, Equinox, or the diffpes
+  machinery, and a notebook never requires or teaches that machinery. Use
+  the experimentalist's vocabulary: cuts, EDCs, photon energy, polarization.
+- **Explain the why.** Explain the *why* behind each methodological
+  choice, not only the technical *what*. State the reason for an
+  approximation, a parameter value, or a model selection.
+- **Document the process.** Record the data sources, the hypotheses under
+  test, and every assumption made during data parsing or model setup. A
+  reader must be able to audit the chain from input to conclusion.
+- **Separate code from text.** Place the high-level commentary in a Markdown
+  cell directly before the code cell it describes. Do not bury explanation
+  in comments, and do not describe code that sits several cells away.
+- **One cell, one step.** Keep each code cell short and focused on a single
+  actionable operation. A cell that builds a model, runs it, and plots it
+  is three cells.
+- **Demonstrate outputs immediately.** Follow each calculation with a quick
+  visual confirmation: a plot, a printed scalar with units, or a short array
+  preview. Do not let the reader run three cells blind before the first
+  output.
 
 After editing either side, run `jupytext --sync` and keep notebook outputs
 empty. The pre-commit hooks synchronize pairs, strip outputs, and run
@@ -986,6 +1153,15 @@ pre-commit run --all-files
 
 # Run the test suite
 pytest
+```
+
+After a documentation change, build the documentation with warnings as
+errors, exactly as CI does:
+
+```bash
+uv sync --extra docs
+uv run --frozen sphinx-build -W -a -E --keep-going -b html \
+  docs/source docs/build/html
 ```
 
 `ty` is the project's type checker. `pre-commit` runs ruff checks, ruff
@@ -1032,8 +1208,17 @@ Both files regenerate locally during a commit. CI does not write them.
    `fix/gaunt-phase-convention`.
 2. **Commit Messages:** Write a clear summary line, then bullet points for the
    substantive changes (implementation, tests, docs).
-3. **PR Description:** State the purpose, reason, test method, and breaking
-   changes.
+3. **PR Description:** State:
+   - the behavior and boundary changed;
+   - the scientific or software reason;
+   - the independent evidence and the test commands;
+   - gradient, unit, sign, and convention effects;
+   - public API and artifact-schema changes;
+   - fresh-install evidence when dependencies or packaging changed.
+
+**Differentiability is an acceptance criterion.** A change that breaks a
+touched gradient seam has failed, even when its forward regression tests
+pass.
 
 ### Review Process
 
@@ -1125,8 +1310,37 @@ Release checklist:
 3. Run `uv build` from a clean tree.
 4. Verify that the wheel contains the complete `diffpes/` package.
 5. Verify that its metadata contains `License-Expression: MIT`.
-6. Tag the release commit with `v<version>`.
-7. Run `uv publish`.
+6. Run the fresh-environment validation below.
+7. Tag the release commit with `v<version>`.
+8. Run `uv publish`.
+
+### Fresh-Environment Validation
+
+Do not use the editable checkout as the only packaging test. A wheel can omit
+package data or the `py.typed` marker even when the source tests pass. For a
+release, and for any dependency, Python, JAX, or build change, install the
+wheel into a disposable environment. Let the wheel metadata resolve the newest
+compatible dependencies. Do not reuse `uv.lock` or the project `.venv` for
+this check.
+
+```bash
+fresh_dir="$(mktemp -d)"
+uv build --wheel --out-dir "$fresh_dir/dist"
+uv venv --python 3.13 --no-project "$fresh_dir/venv"
+uv pip install --python "$fresh_dir/venv/bin/python" \
+  "$fresh_dir"/dist/diffpes-*.whl
+```
+
+Then run a small scientific smoke test from outside the source tree. Exercise
+a public forward-model path, not only `import diffpes`. Confirm that the
+top-level x64 setup takes effect. Run one runtime-typechecked public function
+under `jit`. Confirm that its finite result has the expected dtype and units.
+
+Do not respond to a fresh-environment failure with an arbitrary dependency
+cap. Identify the actual defect first: Python support, decorator order,
+changed initialization semantics, a removed API, or missing package data. Add
+a cap only when a real incompatibility requires one, and record the reason in
+the review.
 
 ## Getting Help
 

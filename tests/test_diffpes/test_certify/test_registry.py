@@ -1057,8 +1057,8 @@ class TestRegistryManifest:
     ) -> None:
         """Read the schema and current owner handshakes from package resources.
 
-        The manifest omits the stale radial model and declares matrix-element
-        and spectral ownership explicitly.
+        The manifest omits the stale radial model and declares matrix-element,
+        spectral, detector, and finite-kz ownership explicitly.
 
         Notes
         -----
@@ -1072,6 +1072,7 @@ class TestRegistryManifest:
         )
         assert owners == tuple(sorted(owners))
         assert "org.diffpes.detector" in owners
+        assert "org.diffpes.kz" in owners
         assert "org.diffpes.matrixel" in owners
         assert "org.diffpes.spectral" in owners
         matrix_element: Dict[str, Any] = next(
@@ -1107,6 +1108,13 @@ class TestRegistryManifest:
         )
         assert len(detector["transformation_refs"]) == 4
         assert len(detector["evidence_ids"]) == 28
+        kz: Dict[str, Any] = next(
+            item
+            for item in manifest["handshakes"]
+            if item["owner_id"] == "org.diffpes.kz"
+        )
+        assert len(kz["transformation_refs"]) == 2
+        assert len(kz["evidence_ids"]) == 19
 
 
 class TestRenderModelCard:

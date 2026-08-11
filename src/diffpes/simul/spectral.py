@@ -92,6 +92,7 @@ from diffpes.types import (
     EPS,
     EPS_DEG,
     G_PARALLEL_ATOL_INV_ANG,
+    ExperimentGeometry,
     FinalStateSpec,
     MatrixElementParams,
     RadialQuadratureSpec,
@@ -102,6 +103,7 @@ from diffpes.types import (
 )
 
 from .broadening import fermi_dirac
+from .kinematics import kz_from_inner_potential
 from .matrixel import (
     contract_polarization,
     orbital_transition_channels,
@@ -2896,6 +2898,9 @@ class _TransitionSourceSchedule(eqx.Module):
         Certified fixed radial quadrature.
     final_state : FinalStateSpec
         Direct plane-wave or Coulomb final-state selection.
+    inner_potential_geometry : Optional[ExperimentGeometry]
+        Experiment geometry for exact finite-energy internal final momentum.
+        ``None`` retains the native vacuum-momentum branch.
     """
 
     k_i_cart: Float64[Array, "n_k_max 3"]
@@ -2909,6 +2914,7 @@ class _TransitionSourceSchedule(eqx.Module):
     matrix_element: MatrixElementParams
     quadrature: RadialQuadratureSpec
     final_state: FinalStateSpec
+    inner_potential_geometry: Optional[ExperimentGeometry] = None
 
 
 def _validate_transition_source_schedule(
@@ -3201,25 +3207,48 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         parallel_sq: Float64[Array, " k_chunk"] = jnp.sum(
             k_i_block[:, :2] * k_i_block[:, :2], axis=-1
         )
-        normal_sq: Float64[Array, "k_chunk omega_chunk"] = (
-            final_norm_block[None, :] * final_norm_block[None, :]
-            - parallel_sq[:, None]
-        )
-        emission_valid: Bool[Array, "k_chunk omega_chunk"] = (
-            emission_energy_block[None, :] & (normal_sq > 0.0)
-        )
+        final_kz: Float64[Array, "k_chunk omega_chunk"]
+        emission_valid: Bool[Array, "k_chunk omega_chunk"]
+        if transition_schedule.inner_potential_geometry is None:
+            normal_sq: Float64[Array, "k_chunk omega_chunk"] = (
+                final_norm_block[None, :] * final_norm_block[None, :]
+                - parallel_sq[:, None]
+            )
+            emission_valid = emission_energy_block[None, :] & (normal_sq > 0.0)
+            provisional_valid: Bool[Array, "k_chunk omega_chunk"] = (
+                k_mask[:, None] & omega_mask[None, :] & emission_valid
+            )
+            safe_normal_sq: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
+                provisional_valid,
+                normal_sq,
+                1.0,
+            )
+            final_kz = jnp.where(
+                provisional_valid,
+                jnp.sqrt(safe_normal_sq),
+                0.0,
+            )
+        else:
+            internal_kz: Complex128[Array, "k_chunk omega_chunk"]
+            propagating: Bool[Array, "k_chunk omega_chunk"]
+            internal_kz, propagating = kz_from_inner_potential(
+                transition_schedule.inner_potential_geometry.photon_energy_ev,
+                transition_schedule.inner_potential_geometry.work_function_ev,
+                transition_schedule.inner_potential_geometry.inner_potential_ev,
+                omega_block[None, :],
+                jnp.sqrt(parallel_sq)[:, None],
+            )
+            emission_valid = emission_energy_block[None, :] & propagating
+            provisional_valid = (
+                k_mask[:, None] & omega_mask[None, :] & emission_valid
+            )
+            final_kz = jnp.where(
+                provisional_valid,
+                jnp.real(internal_kz),
+                0.0,
+            )
         valid_block: Bool[Array, "k_chunk omega_chunk"] = (
             k_mask[:, None] & omega_mask[None, :] & emission_valid
-        )
-        safe_normal_sq: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
-            valid_block,
-            normal_sq,
-            1.0,
-        )
-        final_kz: Float64[Array, "k_chunk omega_chunk"] = jnp.where(
-            valid_block,
-            jnp.sqrt(safe_normal_sq),
-            0.0,
         )
         final_kx: Float64[Array, "k_chunk omega_chunk"] = jnp.broadcast_to(
             k_i_block[:, 0, None], final_kz.shape

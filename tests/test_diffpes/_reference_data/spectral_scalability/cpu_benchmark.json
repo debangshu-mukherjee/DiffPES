@@ -25,7 +25,7 @@
       "registered_solve_tape_bytes": 134217728
     },
     "checkpoint": true,
-    "compilation_seconds": 5.385745653000413,
+    "compilation_seconds": 5.526224321001791,
     "executed": false,
     "execution_seconds": null,
     "k_chunk": 32,
@@ -33,10 +33,10 @@
       "alias_size_bytes": 0,
       "argument_size_bytes": 4211032,
       "authority_available": true,
-      "compiler_live_allocation_bytes": 58592080,
+      "compiler_live_allocation_bytes": 58592608,
       "output_size_bytes": 4194328,
       "result": "measured",
-      "temporary_size_bytes": 50186720
+      "temporary_size_bytes": 50187248
     },
     "n_k_max": 256,
     "n_kk": 4096,
@@ -46,8 +46,8 @@
     "n_tail": 256,
     "omega_chunk": 32,
     "passes_registered_1p5x_bound": true,
-    "process_peak_rss_after_bytes_non_authoritative": 688885760,
-    "process_peak_rss_before_bytes_non_authoritative": 463216640,
+    "process_peak_rss_after_bytes_non_authoritative": 688541696,
+    "process_peak_rss_before_bytes_non_authoritative": 463302656,
     "program": "value_and_hamiltonian_gradient"
   },
   "s1_reference_comparison": {
@@ -108,7 +108,7 @@
     "pyproject.toml": "ec3f46d2bf1e1658b47feae3c4d3a77a28d93cded26c03f7cdf4ad570bd5a786",
     "src/diffpes/radial/integrate.py": "00027b99c0214006cb1bbe2ad1afbfc6b0bef6f1386b8ae8deb0f5b1f6a73e42",
     "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
-    "src/diffpes/simul/spectral.py": "e63e5e556c79fcdbf29ec1d3b1f421d7413516b39a3d1c85c730819b810eadb7",
+    "src/diffpes/simul/spectral.py": "49d2ef280aadbd7c797a2d83aeadc7d7cf985180e350cb285b691af3f07f7b6f",
     "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
     "src/diffpes/types/self_energy.py": "cd1eb66c5ee43abf07801fa358deb7990b7a530a98d4ce1081c8e4877caa50c5",
     "tests/_reference_tools/measure_spectral_scaling.py": "1189fc93b2865adad4107fb094010c1ded7ae86bde77a89c65dec757f92fbac3",

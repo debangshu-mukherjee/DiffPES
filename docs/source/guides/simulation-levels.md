@@ -80,13 +80,22 @@ length, every Cartesian path vector, and the registered sample-frame ID.
 and energy axes. Neither carrier is a detector raster.
 
 `simulate_arpes` and `simulate_arpes_cut` are the canonical typed drivers.
-They build coherent physical source carriers from explicit Hamiltonians,
-matrix-element state, and causal self-energy state. The shared detector chain
-maps every source domain into explicit `DetectorCalibration` bins. It mixes
-domains in detector space, applies transmission and native resolution, and
-returns expected counts as a `DetectorRaster`.
+They build physical source carriers from mode-owned Hamiltonian or bulk-model
+state, explicit matrix elements, and a causal self-energy. The shared detector
+chain maps every source domain into explicit `DetectorCalibration` bins. It
+mixes domains in detector space, applies transmission and native resolution,
+and returns expected counts as a `DetectorRaster`.
 Diffpes intentionally exposes no level-string or projection-probability
 compatibility workflow.
+
+Their keyword-only `kz_mode` extension selects exactly one of four routes.
+These are the retained `native_direct` source, exact finite-energy
+`bulk_direct`, wrapped finite-width `bulk_kz`, and a `coherent_slab`
+depth-amplitude sum. The two escape-depth models are mutually exclusive.
+`simulate_hv_scan` exposes the corresponding single-domain, pre-detector hν
+stack; `hv_map_at_energy` makes a path-by-hν slice. See [kz Broadening and
+Photon-Energy Scans](kz-broadening-and-photon-energy-scans.md) for carrier
+rules, the finite-$\omega$ center, and the registered node budget.
 
 Domain angles use the active right-handed z-y-z convention. The complete
 sample-to-laboratory rotation applies sample azimuth after the domain
@@ -122,8 +131,10 @@ detector-ordering, conservation, or absolute-scale claim.
   phase-dead metadata.
 
 See [Matrix Elements and Polarization](matrix-elements-and-polarization.md)
-for the amplitude convention,
-[Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md)
-for the causal spectral contract, and
-[Matrix-element sensitivity](../tutorials/matrix-element-sensitivity.md) for
-complete-group derivatives.
+for the amplitude convention. See [Spectral Broadening and
+Self-Energy](spectral-broadening-and-self-energy.md) for the causal contract.
+See [kz Broadening and Photon-Energy
+Scans](kz-broadening-and-photon-energy-scans.md) for bulk averaging and hν
+outputs. See [Matrix-element
+sensitivity](../tutorials/matrix-element-sensitivity.md) for complete-group
+derivatives.

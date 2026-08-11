@@ -22,6 +22,7 @@ understand:
 |-------|-------------|
 | [ARPES Geometry and Kinematics](arpes-geometry-and-kinematics.md) | Photoemission geometry, energy and momentum conservation, and detector coordinates |
 | [Coherent Spectral Assembly](simulation-levels.md) | Matrix-element sources, resolvent/eigen spectral paths, and the detector boundary |
+| [kz Broadening and Photon-Energy Scans](kz-broadening-and-photon-energy-scans.md) | Wrapped bulk-kz integration, mutually exclusive source modes, and differentiable hν scans |
 | [Matrix Elements and Polarization](matrix-elements-and-polarization.md) | Radial integrals, Gaunt coefficients, spherical harmonics, and light-polarization effects |
 | [Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md) | Voigt profiles, resolution convolution, and self-energy models |
 

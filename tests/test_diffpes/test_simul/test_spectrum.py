@@ -614,6 +614,109 @@ class TestSimulateArpesCut:
         assert jnp.allclose(jnp.diff(captured[0].k_axis), expected_steps)
 
 
+class TestSimulateHvScan:
+    """Verify :func:`diffpes.simul.simulate_hv_scan`."""
+
+    @pytest.mark.big_mem
+    @pytest.mark.rss_limit_mb(1800)
+    def test_stacks_public_native_single_hv_calls(self) -> None:
+        """Compare native spectra along the caller-owned photon-energy axis.
+
+        The two-row public scan must equal two independent one-row public
+        calls while preserving explicit Hamiltonian ownership and axis order.
+
+        Notes
+        -----
+        Compare complete float64 values and the declared hnu-k-energy shape.
+        """
+        fixture: Dict[str, object] = _fixture()
+        path_points: jax.Array = fixture["kgrid"].kpoints[:2]
+        path: KPath = make_kpath(path_points, n_per_segment=1, kz=0.0)
+        bands: DiagonalizedBands = fixture["bands"]
+        path_bands: DiagonalizedBands = make_diagonalized_bands(
+            bands.eigenvalues[:2],
+            bands.eigenvectors[:2],
+            path_points,
+            bands.geometry,
+            bands.basis,
+            fermi_energy=bands.fermi_energy,
+            depths=bands.depths,
+        )
+        photon_energies: jax.Array = jnp.asarray((48.0, 52.0))
+        scan: jax.Array = spectrum.simulate_hv_scan(
+            fixture["hamiltonians"][:2],
+            path_bands,
+            fixture["radial"],
+            fixture["matrix_params"],
+            fixture["quadrature"],
+            fixture["final_state"],
+            fixture["geometry"],
+            fixture["self_energy"],
+            path,
+            fixture["energy_axis"],
+            photon_energies,
+            k_chunk=2,
+            energy_chunk=3,
+            checkpoint=False,
+        )
+        expected: jax.Array = jnp.stack(
+            tuple(
+                spectrum.simulate_hv_scan(
+                    fixture["hamiltonians"][:2],
+                    path_bands,
+                    fixture["radial"],
+                    fixture["matrix_params"],
+                    fixture["quadrature"],
+                    fixture["final_state"],
+                    fixture["geometry"],
+                    fixture["self_energy"],
+                    path,
+                    fixture["energy_axis"],
+                    photon_energy[None],
+                    k_chunk=2,
+                    energy_chunk=3,
+                    checkpoint=False,
+                )[0]
+                for photon_energy in photon_energies
+            )
+        )
+
+        assert scan.shape == (2, 2, 5)
+        assert jnp.allclose(scan, expected, rtol=1.0e-12, atol=1.0e-14)
+
+
+class TestHvMapAtEnergy:
+    """Verify :func:`diffpes.simul.hv_map_at_energy`."""
+
+    def test_interpolates_energy_and_transposes_axes(self) -> None:
+        """Interpolate the sampled energy axis into a k-by-hnu map.
+
+        The query lies strictly between two bins and exposes both interpolation
+        order and the required output-axis transpose.
+
+        Notes
+        -----
+        Compare the public helper and its compiled value with linear algebra.
+        """
+        energy_axis: jax.Array = jnp.asarray((-0.4, -0.2, 0.1, 0.3))
+        scan: jax.Array = jnp.arange(24.0).reshape((3, 2, 4)) + 1.0
+        query: jax.Array = jnp.asarray(-0.08)
+        fraction: jax.Array = (query - energy_axis[1]) / (
+            energy_axis[2] - energy_axis[1]
+        )
+        expected: jax.Array = (
+            (1.0 - fraction) * scan[:, :, 1] + fraction * scan[:, :, 2]
+        ).T
+        actual: jax.Array = spectrum.hv_map_at_energy(scan, energy_axis, query)
+        compiled: jax.Array = jax.jit(spectrum.hv_map_at_energy)(
+            scan, energy_axis, query
+        )
+
+        assert actual.shape == (2, 3)
+        assert jnp.allclose(actual, expected, rtol=1.0e-13, atol=1.0e-14)
+        assert jnp.allclose(compiled, actual, rtol=1.0e-13, atol=1.0e-14)
+
+
 class TestNormalizeIntensity:
     """Verify :func:`diffpes.simul.normalize_intensity`."""
 

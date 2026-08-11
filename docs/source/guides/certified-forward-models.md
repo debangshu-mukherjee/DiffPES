@@ -110,6 +110,14 @@ IDs. The kinematics and geometry layer registers four semantic transformation
 contracts through this interface. Its handshake becomes complete only when the
 caller supplies all six declared evidence IDs.
 
+The `org.diffpes.kz` owner binds the wrapped finite-energy bulk-kz integral
+and the pre-detector photon-energy scan. It fails closed unless the complete
+packaged `org.diffpes.kspace`, `org.diffpes.surface`,
+`org.diffpes.matrixel`, `org.diffpes.spectral`, and
+`org.diffpes.detector` handshakes are already present and field-for-field
+equal as immutable records. A matching upstream owner label with missing
+transformations or evidence does not satisfy this lifecycle edge.
+
 ## Inspection
 
 The inspection API answers scientific questions without loading the result

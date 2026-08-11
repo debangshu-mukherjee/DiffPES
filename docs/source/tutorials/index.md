@@ -12,6 +12,7 @@ quickstart
 certified-forward-model
 geometry-and-kinematics
 coherent-detector-paper-path
+bulk-kz-and-photon-energy
 tight-binding-models
 slabs-and-surfaces
 matrix-element-sensitivity
@@ -28,6 +29,9 @@ matrix-element-sensitivity
 - [Coherent tight-binding model to detector counts](coherent-detector-paper-path.ipynb):
   Build a coherent ARPES cube, inspect its Fermi-surface map, fit analyser
   transmission, and run the canonical native-detector count driver.
+- [Bulk kz integration and photon-energy scans](bulk-kz-and-photon-energy.ipynb):
+  Distinguish the four out-of-plane modes, inspect wrapped-kz weights, and
+  evaluate a compact bulk photon-energy map.
 - [Native tight-binding models](tight-binding-models.md): Build graphene by
   hand and with Slater--Koster parameters. Add spin--orbit coupling, then
   inspect fat bands, spin texture, and density of states.

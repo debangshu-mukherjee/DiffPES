@@ -14,7 +14,7 @@ Routine Listings
 """
 
 from beartype import beartype
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -29,6 +29,7 @@ from .registry import (
     list_transformations,
     register_handshake,
     register_transformation,
+    registry_manifest,
 )
 
 
@@ -180,6 +181,72 @@ def _register_transformations() -> None:
             invalidates_claims=(
                 "claim.occupation.evaluated_at_band_eigenvalue",
                 "claim.spectral.instrument_broadened",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.kz.wrapped_lorentzian_integral",
+            "1.0.0",
+            requires=(
+                "normal_reciprocal_covariant_full_integrand",
+                "dimensionless_surface_fractional_kz_nodes",
+                "exact_finite_energy_inner_potential_center",
+                "positive_intensity_mean_free_path_angstrom",
+                "primitive_surface_cell",
+            ),
+            produces=("kz_broadened_intrinsic_spectral_intensity",),
+            preserves=(
+                "relative_energy_reference",
+                "surface_parallel_momentum",
+                "normal_integration_coordinate_reciprocal_invariance",
+                "fixed_parallel_and_outgoing_final_momenta",
+                "hamiltonian_spectral_source_gauge_covariance",
+                "physical_surface_repeated_zone_matrix_element_contrast",
+                "constant_observable_unit_mass",
+            ),
+            introduces=(
+                "wrapped_cauchy_analytic_bin_masses",
+                "gauge_covariant_surface_reciprocal_folding",
+                "gamma_hwhm_one_over_two_mean_free_path",
+                "exact_finite_omega_kz_center",
+                "fixed_surface_fractional_node_schedule",
+                "g6_calibrated_n_kz_2048_or_explicit_caller_recalibration",
+                "no_crop_renormalization_or_finite_image_sum",
+                "checkpointed_node_local_lax_scan",
+                "single_k_by_energy_accumulator",
+                "no_complete_all_node_carrier",
+            ),
+            destroys=("resolved_bulk_kz_attribution",),
+            invalidates_claims=(
+                "claim.kz.sharp_direct_distribution",
+                "claim.kz.coherent_slab_depth_sum",
+                "claim.kz.crop_normalized_lorentzian",
+            ),
+        ),
+        make_transformation_contract(
+            "org.diffpes.transform.kz.photon_energy_scan",
+            "1.0.0",
+            requires=(
+                "single_domain_pre_detector_intensity_program",
+                "sampled_photon_energy_axis",
+                "exact_finite_energy_inner_potential_kinematics",
+            ),
+            produces=("pre_detector_photon_energy_scan",),
+            preserves=(
+                "relative_energy_reference",
+                "surface_parallel_momentum",
+                "sampled_photon_energy_axis",
+                "explicit_hamiltonian_derivative_authority",
+            ),
+            introduces=(
+                "photon_energy_lax_scan",
+                "finite_omega_kinematics_per_scan_sample",
+                "elementwise_photon_energy_gradients",
+                "flat_auxiliary_memory_beyond_returned_scan",
+                "no_five_point_photon_energy_interpolation",
+            ),
+            invalidates_claims=(
+                "claim.kz.fermi_level_center_broadcast_over_energy",
+                "claim.kz.scan_includes_detector_response",
             ),
         ),
         make_transformation_contract(
@@ -916,6 +983,116 @@ def _register_detector_handshake() -> None:
     )
 
 
+def _packaged_handshake(owner_id: str) -> RegistrationHandshake:
+    """PRIVATE: Return one immutable packaged owner handshake.
+
+    Parameters
+    ----------
+    owner_id : str
+        Exact owner identity to resolve from the packaged registry manifest.
+
+    Returns
+    -------
+    handshake : RegistrationHandshake
+        Exact declaration stored in the packaged registry manifest.
+
+    Raises
+    ------
+    RuntimeError
+        If the packaged manifest does not declare ``owner_id`` exactly once.
+
+    Notes
+    -----
+    Plan-owned downstream handshakes compare these complete immutable records,
+    rather than accepting a matching owner label with drifted transformations
+    or evidence.
+    """
+    manifest: Dict[str, Any] = registry_manifest()
+    declarations: Tuple[Dict[str, Any], ...] = tuple(
+        item
+        for item in manifest.get("handshakes", ())
+        if item.get("owner_id") == owner_id
+    )
+    if len(declarations) != 1:
+        msg: str = f"packaged registry must declare {owner_id} exactly once"
+        raise RuntimeError(msg)
+    declaration: Dict[str, Any] = declarations[0]
+    handshake: RegistrationHandshake = make_registration_handshake(
+        owner_id=owner_id,
+        model_refs=tuple(declaration["model_refs"]),
+        transformation_refs=tuple(declaration["transformation_refs"]),
+        convention_refs=tuple(declaration["convention_refs"]),
+        evidence_ids=tuple(declaration["evidence_ids"]),
+    )
+    return handshake
+
+
+def _register_kz_handshake() -> None:
+    """PRIVATE: Register the finite-kz and photon-energy-scan handshake.
+
+    Notes
+    -----
+    Requires exact packaged k-space, surface, matrix-element, spectral, and
+    detector owner records. A matching label with missing or drifted semantic
+    evidence cannot release the downstream ``org.diffpes.kz`` owner.
+    Registration is otherwise idempotent.
+    """
+    owner_id: str = "org.diffpes.kz"
+    required_upstream: Tuple[str, ...] = (
+        "org.diffpes.kspace",
+        "org.diffpes.surface",
+        "org.diffpes.matrixel",
+        "org.diffpes.spectral",
+        "org.diffpes.detector",
+    )
+    live: Dict[str, RegistrationHandshake] = {
+        item.owner_id: item for item in list_handshakes()
+    }
+    invalid_upstream: Tuple[str, ...] = tuple(
+        upstream_id
+        for upstream_id in required_upstream
+        if live.get(upstream_id) != _packaged_handshake(upstream_id)
+    )
+    if invalid_upstream:
+        msg: str = (
+            f"{owner_id} requires exact upstream handshakes: "
+            + ", ".join(invalid_upstream)
+        )
+        raise RuntimeError(msg)
+    if owner_id in live:
+        return
+    register_handshake(
+        make_registration_handshake(
+            owner_id=owner_id,
+            transformation_refs=(
+                "org.diffpes.transform.kz.wrapped_lorentzian_integral@1.0.0",
+                "org.diffpes.transform.kz.photon_energy_scan@1.0.0",
+            ),
+            evidence_ids=(
+                "org.diffpes.evidence.kz.exact_finite_energy_center",
+                "org.diffpes.evidence.kz.wrapped_cauchy_voigt_truth",
+                "org.diffpes.evidence.kz.direct_delta_boundary",
+                "org.diffpes.evidence.kz.quadrature_calibrated_profile",
+                "org.diffpes.evidence.kz.oblique_normal_integrand_covariance",
+                "org.diffpes.evidence.kz.driver_owned_carriers",
+                "org.diffpes.evidence.kz.derivative.mean_free_path",
+                "org.diffpes.evidence.kz.derivative.kinematics",
+                "org.diffpes.evidence.kz.derivative.nonzero_tripwires",
+                "org.diffpes.evidence.kz.scaling.node_local_memory",
+                "org.diffpes.evidence.kz.scaling.remat_hv_scan",
+                "org.diffpes.evidence.kz.driver.canonical_extension",
+                "org.diffpes.evidence.kz.lifecycle.no_all_node_carrier",
+                "org.diffpes.evidence.kz.lifecycle.documentation_wall",
+                "org.diffpes.evidence.kz.handoff.kspace",
+                "org.diffpes.evidence.kz.handoff.surface",
+                "org.diffpes.evidence.kz.handoff.matrixel",
+                "org.diffpes.evidence.kz.handoff.spectral",
+                "org.diffpes.evidence.kz.handoff.detector",
+            ),
+        )
+    )
+
+
 @jaxtyped(typechecker=beartype)
 def register_builtin_models() -> None:
     """Register built-in transformations and owner handshakes.
@@ -937,6 +1114,7 @@ def register_builtin_models() -> None:
     _register_spectral_handshake()
     _register_detector_handshake()
     _register_tightb_handshake()
+    _register_kz_handshake()
 
 
 __all__: list[str] = [

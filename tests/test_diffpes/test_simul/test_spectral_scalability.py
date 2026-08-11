@@ -41,7 +41,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "cb5469eb67f36cd40c577c9d61581d965767cb6fd9e36f7c1985cb735c597b00"
+    "08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -119,7 +119,7 @@ class TestSpectralScalabilityEvidence:
             memory["temporary_size_bytes"],
             memory["alias_size_bytes"],
             memory["compiler_live_allocation_bytes"],
-        ) == (4_211_032, 4_194_328, 50_186_720, 0, 58_592_080)
+        ) == (4_211_032, 4_194_328, 50_187_248, 0, 58_592_608)
         live: int = (
             memory["argument_size_bytes"]
             + memory["output_size_bytes"]
@@ -147,7 +147,7 @@ class TestSpectralScalabilityEvidence:
         assert (
             measurement["process_peak_rss_before_bytes_non_authoritative"],
             measurement["process_peak_rss_after_bytes_non_authoritative"],
-        ) == (463_216_640, 688_885_760)
+        ) == (463_302_656, 688_541_696)
         assert (
             measurement["process_peak_rss_after_bytes_non_authoritative"]
             >= measurement["process_peak_rss_before_bytes_non_authoritative"]
