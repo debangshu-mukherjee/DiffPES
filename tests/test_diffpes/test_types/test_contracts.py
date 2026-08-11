@@ -32,7 +32,8 @@ class TestTransformationContract:
 
         Notes
         -----
-        The test constructs one contract through the validated factory and compares its
+        The test constructs one contract through the validated factory and
+        compares its
         immutable tuples and Boolean flag with the independent input values.
         """
         contract: TransformationContract = make_transformation_contract(
@@ -67,7 +68,8 @@ class TestCompositionReport:
 
         Notes
         -----
-        The test builds a valid report with two transformation references and compares
+        The test builds a valid report with two transformation references and
+        compares
         each static field with the independently specified tuples.
         """
         report: CompositionReport = make_composition_report(

@@ -8,22 +8,22 @@ rasters without data-dependent output shapes.
 
 Routine Listings
 ----------------
-:func:`kpoints_frac_to_cart`
-    Convert fractional k-points to Cartesian momenta.
-:func:`kpoints_cart_to_frac`
-    Convert Cartesian momenta to fractional k-points.
-:func:`build_kpath`
-    Build a labeled path between k-space anchors.
-:func:`kpath_arc_length`
-    Compute cumulative Cartesian distance along a k-path.
-:func:`first_bz_mask`
-    Mark Cartesian points inside the first Brillouin zone.
-:func:`build_bz_mesh`
-    Build a fixed-shape reciprocal mesh and its first-zone mask.
 :func:`build_arpes_kmesh`
     Build a fixed-kz ARPES raster in fractional coordinates.
+:func:`build_bz_mesh`
+    Build a fixed-shape reciprocal mesh and its first-zone mask.
 :func:`build_kmesh_hv_at_fermi`
     Build an at-Fermi photon-energy raster in fractional coordinates.
+:func:`build_kpath`
+    Build a labeled path between k-space anchors.
+:func:`first_bz_mask`
+    Mark Cartesian points inside the first Brillouin zone.
+:func:`kpath_arc_length`
+    Compute cumulative Cartesian distance along a k-path.
+:func:`kpoints_cart_to_frac`
+    Convert Cartesian momenta to fractional k-points.
+:func:`kpoints_frac_to_cart`
+    Convert fractional k-points to Cartesian momenta.
 
 Notes
 -----

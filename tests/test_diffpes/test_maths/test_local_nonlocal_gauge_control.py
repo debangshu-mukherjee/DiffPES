@@ -1,5 +1,7 @@
 """Execute the frozen local/nonlocal gauge negative control.
 
+Extended Summary
+----------------
 The test checks the local commutator identity and the registered nonlocal
 projector disagreement through both public Cartesian gauge APIs.
 """
@@ -11,8 +13,9 @@ from pathlib import Path
 import chex
 import jax.numpy as jnp
 import numpy as np
+from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, Float64, Int64
+from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.maths import (
@@ -30,6 +33,7 @@ _REFERENCE_SHA256 = (
 )
 
 
+@jaxtyped(typechecker=beartype)
 def _derivative_sixth(
     values: Float64[NDArray, " n_node"], spacing: float
 ) -> Float64[NDArray, " n_node"]:
@@ -70,12 +74,33 @@ def _derivative_sixth(
     return derivative
 
 
+@jaxtyped(typechecker=beartype)
 def _public_reduced_gauges(
     radial_grid: Float64[NDArray, " n_node"],
     radial_weights: Float64[NDArray, " n_node"],
     states: Float64[NDArray, "2 n_node"],
-) -> Tuple[Array, Array]:
+) -> Tuple[Complex128[Array, ""], Complex128[Array, ""]]:
     """PRIVATE: Pass the exact radial angular reduction through public APIs.
+
+    Implementation Logic
+    --------------------
+    1. **Recover the radial functions**::
+
+           radial_initial = np.divide(state_s, radial_grid, ...)
+
+       A zero output value handles the origin of each quotient.
+
+    2. **Construct the Cartesian reduction**::
+
+           positions = jnp.stack((zero, zero, radial_grid / sqrt(3)), axis=-1)
+
+       The same angular factor scales the derivative component.
+
+    3. **Evaluate both public gauges**::
+
+           length = dipole_length_cartesian(...)
+
+       Radial :math:`r^2` weights supply the sampled volume measure.
 
     Parameters
     ----------
@@ -88,18 +113,10 @@ def _public_reduced_gauges(
 
     Returns
     -------
-    length : Array
+    length : Complex128[Array, ""]
         Length-gauge s-to-p amplitude for z polarization.
-    momentum : Array
+    momentum : Complex128[Array, ""]
         Momentum-gauge s-to-p amplitude for z polarization.
-
-    Implementation Logic
-    --------------------
-    Divides each reduced state by radius to recover radial functions.
-    Uses zero at the origin. Differentiates the s state with frozen
-    stencils and the quotient rule. Folds 1/sqrt(3) into both z
-    components. Evaluates both public contractions with radial r**2
-    weights.
     """
     state_s: Float64[NDArray, " n_node"] = states[0]
     state_p: Float64[NDArray, " n_node"] = states[1]
@@ -125,7 +142,7 @@ def _public_reduced_gauges(
         out=np.zeros_like(state_s),
         where=radial_grid > 0.0,
     )
-    positions: Array = jnp.stack(
+    positions: Float64[Array, "n_node 3"] = jnp.stack(
         (
             jnp.zeros_like(jnp.asarray(radial_grid)),
             jnp.zeros_like(jnp.asarray(radial_grid)),
@@ -133,7 +150,7 @@ def _public_reduced_gauges(
         ),
         axis=-1,
     )
-    gradient: Array = jnp.stack(
+    gradient: Complex128[Array, "n_node 3"] = jnp.stack(
         (
             jnp.zeros_like(jnp.asarray(radial_grid)),
             jnp.zeros_like(jnp.asarray(radial_grid)),
@@ -141,28 +158,34 @@ def _public_reduced_gauges(
         ),
         axis=-1,
     ).astype(jnp.complex128)
-    weights: Array = jnp.asarray(radial_weights * radial_grid**2)
-    polarization: Array = jnp.asarray(
+    weights: Float64[Array, " n_node"] = jnp.asarray(
+        radial_weights * radial_grid**2
+    )
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
         (0.0, 0.0, 1.0),
         dtype=jnp.complex128,
     )
-    length: Array = dipole_length_cartesian(
+    length: Complex128[Array, ""] = dipole_length_cartesian(
         jnp.asarray(radial_final, dtype=jnp.complex128),
         jnp.asarray(radial_initial, dtype=jnp.complex128),
         positions,
         weights,
         polarization,
     )
-    momentum: Array = dipole_momentum_cartesian(
+    momentum: Complex128[Array, ""] = dipole_momentum_cartesian(
         jnp.asarray(radial_final, dtype=jnp.complex128),
         gradient,
         weights,
         polarization,
     )
-    return length, momentum
+    result: Tuple[Complex128[Array, ""], Complex128[Array, ""]] = (
+        length,
+        momentum,
+    )
+    return result
 
 
-def test_g12_d12_local_passes_and_nonlocal_projector_must_disagree() -> None:
+def test_local_identity_passes_and_nonlocal_projector_disagrees() -> None:
     """Assert the public local identity and both nonlocal controls.
 
     The test compares local and nonlocal fixtures through both public gauges.
@@ -195,15 +218,17 @@ def test_g12_d12_local_passes_and_nonlocal_projector_must_disagree() -> None:
             reference["nonlocal_strength_derivative"]
         )
 
-    local_length: Array
-    local_momentum: Array
+    local_length: Complex128[Array, ""]
+    local_momentum: Complex128[Array, ""]
     local_length, local_momentum = _public_reduced_gauges(
         radial_grid,
         radial_weights,
         local_states,
     )
     local_gap: float = float(local_energies[1] - local_energies[0])
-    local_residual: Array = local_momentum - 1j * local_gap * local_length
+    local_residual: Complex128[Array, ""] = (
+        local_momentum - 1j * local_gap * local_length
+    )
     chex.assert_trees_all_close(
         local_residual,
         jnp.asarray(0.0j),
@@ -211,15 +236,15 @@ def test_g12_d12_local_passes_and_nonlocal_projector_must_disagree() -> None:
         atol=1.0e-10,
     )
 
-    nonlocal_length: Array
-    nonlocal_momentum: Array
+    nonlocal_length: Complex128[Array, ""]
+    nonlocal_momentum: Complex128[Array, ""]
     nonlocal_length, nonlocal_momentum = _public_reduced_gauges(
         radial_grid,
         radial_weights,
         nonlocal_states,
     )
     nonlocal_gap: float = float(nonlocal_energies[1] - nonlocal_energies[0])
-    nonlocal_residual: Array = (
+    nonlocal_residual: Complex128[Array, ""] = (
         nonlocal_momentum - 1j * nonlocal_gap * nonlocal_length
     )
     assert float(jnp.abs(nonlocal_residual)) >= 1.0e-5

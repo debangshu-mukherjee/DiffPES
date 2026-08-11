@@ -1,19 +1,5 @@
 {
-  "cpu": "x86_64",
-  "device": "TFRT_CPU_0",
-  "dtype_policy": "JAX x64",
-  "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
-  "gates": [
-    "matrix-element-forward-scaling",
-    "matrix-element-compiled-graph-scaling",
-    "matrix-element-gradient-scaling"
-  ],
-  "host_setup_seconds": 1.7331537669997488,
-  "jax_version": "0.9.0.1",
-  "numpy_version": "2.4.2",
-  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 922439680,
-  "s1": {
+  "compile_reuse": {
     "compile_cache_sizes": [
       0,
       1,
@@ -50,10 +36,16 @@
     ],
     "result": "pass"
   },
-  "s2": {
+  "cpu": "x86_64",
+  "device": "TFRT_CPU_0",
+  "dtype_policy": "JAX x64",
+  "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
+  "host_setup_seconds": 1.7087155820045155,
+  "jax_version": "0.9.0.1",
+  "literal_allocation": {
     "compilation_seconds": {
-      "reduced_scan": 0.5581576669992501,
-      "scalar_value_and_gradient": 0.6844185010013462
+      "reduced_scan": 0.6355279569979757,
+      "scalar_value_and_gradient": 0.6588105900009396
     },
     "forbidden_k_e_b_shape_present": false,
     "forbidden_k_e_b_shapes": [],
@@ -61,7 +53,7 @@
       18
     ],
     "hlo_gzip": "channel_scan_hlo.txt.gz",
-    "hlo_gzip_sha256": "d0bb5787e8f4f2814f36249bd37db87153443e0a2e587c8425013fc2b64c0e5a",
+    "hlo_gzip_sha256": "8048b292c6ae353d2dc41852c02d4da305025cec56d44ee273a37caa73933771",
     "jaxpr_gzip": "channel_scan_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
@@ -110,72 +102,80 @@
       6
     ]
   },
-  "s3": {
+  "numpy_version": "2.4.2",
+  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
+  "process_peak_rss_bytes_non_authoritative": 908025856,
+  "requirements": [
+    "matrix-element-forward-scaling",
+    "matrix-element-compiled-graph-scaling",
+    "matrix-element-gradient-scaling"
+  ],
+  "schema": "diffpes.matrix-element-scalability.v2",
+  "source_sha256": {
+    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
+    "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
+    "tests/_reference_tools/measure_matrix_element_scaling.py": "4fb4868c962623e97f28c5b5d6e97d190d1198c82abd4cf248700e9315e0148d"
+  },
+  "throughput": {
     "compilation_seconds": {
-      "batch_contraction": 0.08375131300090288,
-      "channel": 0.596235553999577,
-      "late_reuse_pipeline": 0.5926548010011174,
-      "single_contraction": 0.07934134400056791,
-      "single_rebuild_pipeline": 0.5858378470002208
+      "batch_contraction": 0.07708346800063737,
+      "channel": 0.5562785910005914,
+      "late_reuse_pipeline": 0.5875437040085671,
+      "single_contraction": 0.07411708400468342,
+      "single_rebuild_pipeline": 0.5704067260085139
     },
-    "contraction_ratio": 0.2119567385712042,
+    "contraction_ratio": 0.2091091783674566,
     "median_seconds": {
-      "batched_contraction": 0.0009773410001798766,
-      "late_reuse_pipeline": 0.014371567998750834,
-      "six_rebuild_pipelines": 0.05708645400045498,
-      "six_sequential_contractions": 0.0046110400016914355
+      "batched_contraction": 0.0010352550016250461,
+      "late_reuse_pipeline": 0.014277371999924071,
+      "six_rebuild_pipelines": 0.05614619099651463,
+      "six_sequential_contractions": 0.004950786998961121
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.2517509319923128,
+    "pipeline_ratio": 0.25428923577042584,
     "raw_seconds": {
       "batched_contraction": [
-        0.0009349060001113685,
-        0.0010835840002982877,
-        0.0009773410001798766,
-        0.001007423001283314,
-        0.0010426650005683769,
-        0.0009073670007637702,
-        0.0009236870009772247
+        0.001061927992850542,
+        0.0010352550016250461,
+        0.0010657930106390268,
+        0.0010337290004827082,
+        0.001010482999845408,
+        0.0010059530031867325,
+        0.0011866470013046637
       ],
       "late_reuse_pipeline": [
-        0.014397545000974787,
-        0.014662950999991153,
-        0.013050696999926004,
-        0.015666716999476193,
-        0.014251221000449732,
-        0.014371567998750834,
-        0.014259634999689297
+        0.01490090299921576,
+        0.01404381099564489,
+        0.014419729996006936,
+        0.014206870997441001,
+        0.014277371999924071,
+        0.014523621008265764,
+        0.014014560001669452
       ],
       "six_rebuild_pipelines": [
-        0.05673091600147018,
-        0.05633664900051372,
-        0.05724311199992371,
-        0.059940728000583476,
-        0.057678117000250495,
-        0.05708645400045498,
-        0.05561522500102001
+        0.05629158600640949,
+        0.05743001800146885,
+        0.05614619099651463,
+        0.05592992999299895,
+        0.05555961499339901,
+        0.05688861200178508,
+        0.05546763900201768
       ],
       "six_sequential_contractions": [
-        0.003007639999850653,
-        0.0047309199999290286,
-        0.004824625999390264,
-        0.0046110400016914355,
-        0.00488591599969368,
-        0.004455401000086567,
-        0.0024661949992150767
+        0.004845656003453769,
+        0.004752690001623705,
+        0.004950786998961121,
+        0.005139393004355952,
+        0.00391774698800873,
+        0.005034290996263735,
+        0.005040004994953051
       ]
     },
     "repetitions": 7,
     "result": "pass",
     "synchronized": true,
     "warmups": 2
-  },
-  "schema": "diffpes.matrix-element-scalability.v2",
-  "source_sha256": {
-    "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
-    "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
-    "tests/_reference_tools/measure_matrix_element_scaling.py": "0eea4d9dac585d2d005de75c5fc3d15f3aa8d49931687f1ef719bd6d6e39f871"
   }
 }

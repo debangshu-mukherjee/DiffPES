@@ -7,6 +7,7 @@ scientific identity in the supported certification regime.
 import jax.numpy as jnp
 import pytest
 from beartype.typing import Any, Tuple
+from jaxtyping import Array, Float64
 
 from diffpes.certify import (
     achieved_levels,
@@ -15,25 +16,29 @@ from diffpes.certify import (
     evaluate_policy,
     evidence_is_independent,
 )
-from diffpes.types import make_evidence_lineage, make_evidence_report
+from diffpes.types import (
+    CertificationClaim,
+    make_evidence_lineage,
+    make_evidence_report,
+)
 
 
 def _claim(
-    name: Any,
-    predicate: Any,
-    passed: Any = True,
+    name: str,
+    predicate: str,
+    passed: bool = True,
     *,
     evidence_ids: Tuple[str, ...] = (),
-) -> Any:
+) -> CertificationClaim:
     """PRIVATE: Evaluate one certification claim with a chosen outcome.
 
     Parameters
     ----------
-    name : Any
+    name : str
         Claim identity string.
-    predicate : Any
+    predicate : str
         Stable predicate identity string for the claim.
-    passed : Any
+    passed : bool
         Desired outcome; True selects a measured vector that meets the
         zero tolerance.
     evidence_ids : Tuple[str, ...]
@@ -41,7 +46,7 @@ def _claim(
 
     Returns
     -------
-    claim : Any
+    claim : CertificationClaim
         Evaluated claim record on the subject ``subject.test``.
 
     Notes
@@ -49,9 +54,8 @@ def _claim(
     A passing claim measures zeros against the zero reference; a failing
     claim measures ones, which exceeds the zero tolerance.
     """
-    measured: Any
-    measured = jnp.zeros(1) if passed else jnp.ones(1)
-    return evaluate_claim(
+    measured: Float64[Array, " 1"] = jnp.zeros(1) if passed else jnp.ones(1)
+    claim: CertificationClaim = evaluate_claim(
         name,
         "subject.test",
         predicate,
@@ -60,6 +64,7 @@ def _claim(
         jnp.zeros(1),
         evidence_ids=evidence_ids,
     )
+    return claim
 
 
 class TestAchievedLevels:
@@ -78,7 +83,7 @@ class TestAchievedLevels:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         report: Any
         report = evaluate_policy(
@@ -107,7 +112,7 @@ class TestEvaluatePolicy:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         report: Any
         report = evaluate_policy(
@@ -131,14 +136,14 @@ class TestEvidenceIsIndependent:
 
     @pytest.mark.parametrize(
         ("case", "expected"),
-        (
+        [
             ("wrapper", False),
             ("renamed-copy", False),
             ("fixture-import", False),
             ("unresolved-conflict", False),
             ("attestation-only", False),
             ("disjoint-control", True),
-        ),
+        ],
     )
     def test_independence_is_derived_from_complete_lineage(
         self,
@@ -360,7 +365,7 @@ class TestEvidenceIsIndependent:
 
     @pytest.mark.parametrize(
         ("resolved", "compatible"),
-        ((False, False), (True, False)),
+        [(False, False), (True, False)],
     )
     def test_unresolved_or_checksum_mismatched_artifact_blocks_publication(
         self,

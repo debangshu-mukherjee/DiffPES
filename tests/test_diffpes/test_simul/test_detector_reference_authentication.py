@@ -1,7 +1,7 @@
 """Verify the inert manufactured detector-chain reference.
 
 The consumer binds the archive bytes to literal artifact and generator
-identities without importing or reading the plans-side generator.
+identities without importing or reading the external generator.
 """
 
 import hashlib
@@ -23,10 +23,7 @@ _RETIRED_GENERATOR_PATH: Path = (
     / "_reference_tools"
     / "generate_detector_chain_manufactured_reference.py"
 )
-_GENERATOR_AUTHORITY: str = (
-    "diffpes-plans/verification/detector_chain_manufactured/"
-    "generate_detector_chain_manufactured_reference.py"
-)
+_GENERATOR_AUTHORITY: str = "generate_detector_chain_manufactured_reference.py"
 _ARTIFACT_SHA256: str = (
     "04e41d5f0fa2fe6111718bdc039f49344f48689d74ef0783408585cac76b55c3"
 )
@@ -50,13 +47,14 @@ def _sha256(path: Path) -> str:
     """
     digest: Any = hashlib.sha256()
     digest.update(path.read_bytes())
-    return digest.hexdigest()
+    returned: str = digest.hexdigest()
+    return returned
 
 
 def test_manufactured_detector_archive_has_authenticated_authority() -> None:
     """Bind the inert archive to literal artifact and generator identities.
 
-    The plans-side generator remains outside the pytest execution boundary.
+    The external generator remains outside the pytest execution boundary.
     Its literal digest and authority path cross through the inert manifest.
     The consumer recomputes the archive digest from the consumed bytes.
 

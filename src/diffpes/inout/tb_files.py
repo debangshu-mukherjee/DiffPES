@@ -24,13 +24,12 @@ every Hamiltonian line, whereas ``tb.dat`` uses explicit cell-block headers
 for both Hamiltonian and position matrices.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Optional, Tuple
+from beartype.typing import Dict, List, Optional, Tuple
 from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
@@ -48,92 +47,19 @@ from diffpes.types import (
     WANNIER_TB_POSITION_FIELDS,
     WANNIER_TB_SUFFIX,
     CrystalGeometry,
+    HamiltonianBlocks,
+    HoppingRecord,
     OrbitalBasis,
     TBModel,
+    TextLineCursor,
     WannierOperatorData,
     make_crystal_geometry,
+    make_hamiltonian_blocks,
+    make_hopping_record,
     make_tb_model,
+    make_text_line_cursor,
     make_wannier_operator_data,
 )
-
-
-@dataclass(frozen=True)
-class _HoppingRecord:
-    """Store one parsed non-onsite hopping and its source line."""
-
-    pair: Tuple[int, int]
-    cell: Tuple[int, int, int]
-    amplitude: complex
-    line_number: int
-
-
-@dataclass(frozen=True)
-class _HamiltonianBlocks:
-    """Store normalized Hamiltonian matrices with exact block metadata."""
-
-    matrices: Complex128[NDArray, "n_cell n_orb n_orb"]
-    source_lines: Int64[NDArray, "n_cell n_orb n_orb"]
-    cells: Tuple[Tuple[int, int, int], ...]
-    degeneracies: Tuple[int, ...]
-
-
-@dataclass
-class _LineCursor:
-    """Record strict, line-numbered parsing of one text file."""
-
-    path: Path
-    lines: Tuple[str, ...]
-    index: int = 0
-
-    @classmethod
-    def from_path(cls, path: Path) -> "_LineCursor":
-        """Read one UTF-8 text file into a line cursor."""
-        text: str = path.read_text(encoding="utf-8")
-        cursor: _LineCursor = cls(
-            path=path,
-            lines=tuple(text.splitlines()),
-        )
-        return cursor
-
-    def next_line(self, context: str) -> Tuple[int, str]:
-        """Return the next physical line without skipping blanks."""
-        if self.index >= len(self.lines):
-            message: str = (
-                f"{self.path}: unexpected end of file while reading {context}"
-            )
-            raise ValueError(message)
-        line_number: int = self.index + 1
-        text: str = self.lines[self.index]
-        self.index += 1
-        result: Tuple[int, str] = (line_number, text)
-        return result
-
-    def next_nonempty(self, context: str) -> Tuple[int, str]:
-        """Return the next nonblank line."""
-        while self.index < len(self.lines):
-            line_number: int
-            text: str
-            line_number, text = self.next_line(context)
-            if text.strip():
-                result: Tuple[int, str] = (line_number, text)
-                return result
-        message: str = (
-            f"{self.path}: unexpected end of file while reading {context}"
-        )
-        raise ValueError(message)
-
-    def ensure_exhausted(self) -> None:
-        """Reject any trailing nonblank record."""
-        while self.index < len(self.lines):
-            line_number: int
-            text: str
-            line_number, text = self.next_line("trailing records")
-            if text.strip():
-                message: str = (
-                    f"{self.path}: line {line_number}: unexpected trailing "
-                    "record"
-                )
-                raise ValueError(message)
 
 
 def _line_error(path: Path, line_number: int, message: str) -> ValueError:
@@ -267,14 +193,14 @@ def _parse_finite_float(  # noqa: DOC503 -- raises a prebuilt line error.
 
 
 def _parse_single_positive_integer(  # noqa: DOC503 -- prebuilt line error.
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
     context: str,
 ) -> int:
     """PRIVATE: Parse a one-token positive integer line.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned before the expected counter line.
     context : str
         Field name, such as ``"num_wann"`` or ``"nrpts"``, used in
@@ -299,7 +225,7 @@ def _parse_single_positive_integer(  # noqa: DOC503 -- prebuilt line error.
     line_number: int
     text: str
     line_number, text = cursor.next_nonempty(context)
-    tokens: list[str] = text.split()
+    tokens: List[str] = text.split()
     if len(tokens) != 1:
         message: ValueError = _line_error(
             cursor.path,
@@ -324,7 +250,7 @@ def _parse_single_positive_integer(  # noqa: DOC503 -- prebuilt line error.
 
 
 def _parse_cell(  # noqa: DOC503 -- raises a prebuilt line error.
-    tokens: list[str],
+    tokens: List[str],
     path: Path,
     line_number: int,
     context: str,
@@ -333,7 +259,7 @@ def _parse_cell(  # noqa: DOC503 -- raises a prebuilt line error.
 
     Parameters
     ----------
-    tokens : list[str]
+    tokens : List[str]
         Split tokens of one cell record.
     path : Path
         Source file for the diagnostic.
@@ -375,7 +301,7 @@ def _parse_cell(  # noqa: DOC503 -- raises a prebuilt line error.
 
 
 def _parse_one_based_pair(  # noqa: DOC503 -- raises a prebuilt line error.
-    tokens: list[str],
+    tokens: List[str],
     n_orbitals: int,
     path: Path,
     line_number: int,
@@ -384,7 +310,7 @@ def _parse_one_based_pair(  # noqa: DOC503 -- raises a prebuilt line error.
 
     Parameters
     ----------
-    tokens : list[str]
+    tokens : List[str]
         Two index tokens from one matrix row.
     n_orbitals : int
         Declared ``num_wann`` orbital count.
@@ -433,14 +359,14 @@ def _parse_one_based_pair(  # noqa: DOC503 -- raises a prebuilt line error.
 
 
 def _parse_degeneracies(  # noqa: DOC503 -- raises a prebuilt line error.
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
     n_cells: int,
 ) -> Tuple[int, ...]:
     """PRIVATE: Parse the normative 15-integer-per-line degeneracy block.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the start of the degeneracy block.
     n_cells : int
         Declared ``nrpts`` cell count.
@@ -464,12 +390,12 @@ def _parse_degeneracies(  # noqa: DOC503 -- raises a prebuilt line error.
     ``min(15, n_cells - parsed)`` tokens per line, so a malformed
     block cannot silently shift the Hamiltonian rows that follow.
     """
-    values: list[int] = []
+    values: List[int] = []
     while len(values) < n_cells:
         line_number: int
         text: str
         line_number, text = cursor.next_nonempty("degeneracy weights")
-        tokens: list[str] = text.split()
+        tokens: List[str] = text.split()
         expected: int = min(
             WANNIER_DEGENERACIES_PER_LINE,
             n_cells - len(values),
@@ -502,13 +428,13 @@ def _parse_degeneracies(  # noqa: DOC503 -- raises a prebuilt line error.
 
 
 def _parse_wannier_dimensions(
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
 ) -> Tuple[int, int, Tuple[int, ...]]:
     """PRIVATE: Parse ``num_wann``, ``nrpts``, and their weight block.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned after the header line.
 
     Returns
@@ -535,12 +461,12 @@ def _parse_wannier_dimensions(
     return dimensions
 
 
-def _parse_header(cursor: _LineCursor) -> None:  # noqa: DOC503
+def _parse_header(cursor: TextLineCursor) -> None:  # noqa: DOC503
     """PRIVATE: Consume and validate the required free-form header line.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the first physical line.
 
     Raises
@@ -595,11 +521,11 @@ def _require_filename_suffix(path: Path, suffix: str) -> None:
 
 
 def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
     n_orbitals: int,
     n_cells: int,
     degeneracies: Tuple[int, ...],
-) -> _HamiltonianBlocks:
+) -> HamiltonianBlocks:
     """PRIVATE: Parse cell-bearing ``hr.dat`` Hamiltonian rows.
 
     Implementation Logic
@@ -614,7 +540,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the first Hamiltonian row.
     n_orbitals : int
         Declared ``num_wann`` orbital count.
@@ -625,7 +551,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
 
     Returns
     -------
-    blocks : _HamiltonianBlocks
+    blocks : HamiltonianBlocks
         Weight-normalized complex matrices in eV, their source-line
         map, the cell tuple in file order, and the degeneracies.
 
@@ -644,7 +570,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.int64,
     )
-    cells: list[Tuple[int, int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
     cell_index: int
     for cell_index in range(n_cells):
         block_cell: Optional[Tuple[int, int, int]] = None
@@ -654,7 +580,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
             line_number: int
             text: str
             line_number, text = cursor.next_nonempty("hr Hamiltonian row")
-            tokens: list[str] = text.split()
+            tokens: List[str] = text.split()
             if len(tokens) != WANNIER_HR_HAMILTONIAN_FIELDS:
                 message: ValueError = _line_error(
                     cursor.path,
@@ -714,7 +640,7 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
             message = f"{cursor.path}: duplicate Hamiltonian cell {block_cell}"
             raise ValueError(message)
         cells.append(block_cell)
-    blocks: _HamiltonianBlocks = _HamiltonianBlocks(
+    blocks: HamiltonianBlocks = make_hamiltonian_blocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=tuple(cells),
@@ -724,13 +650,13 @@ def _parse_hr_hamiltonian_blocks(  # noqa: DOC503, PLR0913
 
 
 def _parse_tb_lattice(  # noqa: DOC503
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
 ) -> Float64[NDArray, "3 3"]:
     """PRIVATE: Parse three Cartesian lattice rows in Angstrom.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the first lattice row.
 
     Returns
@@ -754,7 +680,7 @@ def _parse_tb_lattice(  # noqa: DOC503
         line_number: int
         text: str
         line_number, text = cursor.next_nonempty("tb lattice")
-        tokens: list[str] = text.split()
+        tokens: List[str] = text.split()
         if len(tokens) != WANNIER_CELL_FIELDS:
             message: ValueError = _line_error(
                 cursor.path,
@@ -775,11 +701,11 @@ def _parse_tb_lattice(  # noqa: DOC503
 
 
 def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
     n_orbitals: int,
     n_cells: int,
     degeneracies: Tuple[int, ...],
-) -> _HamiltonianBlocks:
+) -> HamiltonianBlocks:
     """PRIVATE: Parse block-headed ``tb.dat`` Hamiltonian matrices.
 
     Implementation Logic
@@ -793,7 +719,7 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the first cell header.
     n_orbitals : int
         Declared ``num_wann`` orbital count.
@@ -804,7 +730,7 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
 
     Returns
     -------
-    blocks : _HamiltonianBlocks
+    blocks : HamiltonianBlocks
         Weight-normalized complex matrices in eV, their source-line
         map, the cell tuple in file order, and the degeneracies.
 
@@ -823,7 +749,7 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
         (n_cells, n_orbitals, n_orbitals),
         dtype=np.int64,
     )
-    cells: list[Tuple[int, int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
     cell_index: int
     for cell_index in range(n_cells):
         cell_line: int
@@ -849,7 +775,7 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
             line_number: int
             text: str
             line_number, text = cursor.next_nonempty("tb Hamiltonian row")
-            tokens: list[str] = text.split()
+            tokens: List[str] = text.split()
             if len(tokens) != WANNIER_TB_HAMILTONIAN_FIELDS:
                 message = _line_error(
                     cursor.path,
@@ -887,7 +813,7 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
                 real + 1j * imaginary
             ) / weight
             source_lines[cell_index, pair[0], pair[1]] = line_number
-    blocks: _HamiltonianBlocks = _HamiltonianBlocks(
+    blocks: HamiltonianBlocks = make_hamiltonian_blocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=tuple(cells),
@@ -897,9 +823,9 @@ def _parse_tb_hamiltonian_blocks(  # noqa: DOC503 -- prebuilt line error.
 
 
 def _parse_tb_position_blocks(  # noqa: DOC503 -- prebuilt line error.
-    cursor: _LineCursor,
+    cursor: TextLineCursor,
     n_orbitals: int,
-    hamiltonian_blocks: _HamiltonianBlocks,
+    hamiltonian_blocks: HamiltonianBlocks,
 ) -> Complex128[NDArray, "n_cell n_orb n_orb 3"]:
     """PRIVATE: Parse and align block-headed ``tb.dat`` position matrices.
 
@@ -916,11 +842,11 @@ def _parse_tb_position_blocks(  # noqa: DOC503 -- prebuilt line error.
 
     Parameters
     ----------
-    cursor : _LineCursor
+    cursor : TextLineCursor
         Line cursor positioned at the first position cell header.
     n_orbitals : int
         Declared ``num_wann`` orbital count.
-    hamiltonian_blocks : _HamiltonianBlocks
+    hamiltonian_blocks : HamiltonianBlocks
         Parsed Hamiltonian blocks that define the cell set, the cell
         order, and the degeneracy weights.
 
@@ -981,7 +907,7 @@ def _parse_tb_position_blocks(  # noqa: DOC503 -- prebuilt line error.
             line_number: int
             text: str
             line_number, text = cursor.next_nonempty("tb position row")
-            tokens: list[str] = text.split()
+            tokens: List[str] = text.split()
             if len(tokens) != WANNIER_TB_POSITION_FIELDS:
                 message = _line_error(
                     cursor.path,
@@ -1003,7 +929,7 @@ def _parse_tb_position_blocks(  # noqa: DOC503 -- prebuilt line error.
                 )
                 raise message
             seen_pairs.add(pair)
-            components: list[complex] = []
+            components: List[complex] = []
             axis: int
             for axis in range(3):
                 real: float = _parse_finite_float(
@@ -1063,7 +989,7 @@ def _validate_basis_size(
 
 
 def _validate_hopping_closure(
-    records: Tuple[_HoppingRecord, ...],
+    records: Tuple[HoppingRecord, ...],
     path: Path,
 ) -> None:
     """PRIVATE: Name duplicate, missing, or numerically inconsistent reverse
@@ -1080,7 +1006,7 @@ def _validate_hopping_closure(
 
     Parameters
     ----------
-    records : Tuple[_HoppingRecord, ...]
+    records : Tuple[HoppingRecord, ...]
         Directed non-onsite hopping records with source lines.
     path : Path
         Source file for the diagnostics.
@@ -1094,16 +1020,16 @@ def _validate_hopping_closure(
     """
     lookup: Dict[
         Tuple[int, int, Tuple[int, int, int]],
-        _HoppingRecord,
+        HoppingRecord,
     ] = {}
-    record: _HoppingRecord
+    record: HoppingRecord
     for record in records:
         key: Tuple[int, int, Tuple[int, int, int]] = (
             record.pair[0],
             record.pair[1],
             record.cell,
         )
-        previous: Optional[_HoppingRecord] = lookup.get(key)
+        previous: Optional[HoppingRecord] = lookup.get(key)
         if previous is not None:
             message: str = (
                 f"{path}: rows {previous.line_number} and "
@@ -1121,7 +1047,7 @@ def _validate_hopping_closure(
             orbital_i,
             (-cell[0], -cell[1], -cell[2]),
         )
-        reverse: Optional[_HoppingRecord] = lookup.get(reverse_key)
+        reverse: Optional[HoppingRecord] = lookup.get(reverse_key)
         if reverse is None:
             message = (
                 f"{path}: row {record.line_number}: missing Hermitian reverse "
@@ -1139,9 +1065,9 @@ def _validate_hopping_closure(
 
 
 def _extract_model_data(  # noqa: DOC503 -- raises a prebuilt line error.
-    blocks: _HamiltonianBlocks,
+    blocks: HamiltonianBlocks,
     path: Path,
-) -> Tuple[Float64[NDArray, " n_orb"], Tuple[_HoppingRecord, ...]]:
+) -> Tuple[Float64[NDArray, " n_orb"], Tuple[HoppingRecord, ...]]:
     """PRIVATE: Extract real origin diagonals and directed hopping records.
 
     Implementation Logic
@@ -1155,7 +1081,7 @@ def _extract_model_data(  # noqa: DOC503 -- raises a prebuilt line error.
 
     Parameters
     ----------
-    blocks : _HamiltonianBlocks
+    blocks : HamiltonianBlocks
         Weight-normalized Hamiltonian blocks with source-line maps.
     path : Path
         Source file for the diagnostics.
@@ -1163,7 +1089,7 @@ def _extract_model_data(  # noqa: DOC503 -- raises a prebuilt line error.
     Returns
     -------
     result : Tuple[Float64[NDArray, " n_orb"], \
-Tuple[_HoppingRecord, ...]]
+Tuple[HoppingRecord, ...]]
         Real onsite energies in eV and the validated directed hopping
         records in eV.
 
@@ -1173,7 +1099,7 @@ Tuple[_HoppingRecord, ...]]
         If the origin cell is absent or repeated, an onsite entry has
         an imaginary part above tolerance, or Hermitian closure fails.
     """
-    origin_indices: list[int] = [
+    origin_indices: List[int] = [
         index for index, cell in enumerate(blocks.cells) if cell == (0, 0, 0)
     ]
     if len(origin_indices) != 1:
@@ -1186,7 +1112,7 @@ Tuple[_HoppingRecord, ...]]
     onsite: Float64[NDArray, " n_orb"] = np.empty(
         (n_orbitals,), dtype=np.float64
     )
-    records: list[_HoppingRecord] = []
+    records: List[HoppingRecord] = []
     cell_index: int
     cell: Tuple[int, int, int]
     orbital_i: int
@@ -1211,16 +1137,16 @@ Tuple[_HoppingRecord, ...]]
                     onsite[orbital_i] = amplitude.real
                 else:
                     records.append(
-                        _HoppingRecord(
+                        make_hopping_record(
                             pair=(orbital_i, orbital_j),
                             cell=cell,
                             amplitude=amplitude,
                             line_number=line_number,
                         )
                     )
-    record_tuple: Tuple[_HoppingRecord, ...] = tuple(records)
+    record_tuple: Tuple[HoppingRecord, ...] = tuple(records)
     _validate_hopping_closure(record_tuple, path)
-    result: Tuple[Float64[NDArray, " n_orb"], Tuple[_HoppingRecord, ...]] = (
+    result: Tuple[Float64[NDArray, " n_orb"], Tuple[HoppingRecord, ...]] = (
         onsite,
         record_tuple,
     )
@@ -1228,7 +1154,7 @@ Tuple[_HoppingRecord, ...]]
 
 
 def _make_model(
-    blocks: _HamiltonianBlocks,
+    blocks: HamiltonianBlocks,
     geometry: CrystalGeometry,
     basis: OrbitalBasis,
     path: Path,
@@ -1238,7 +1164,7 @@ def _make_model(
 
     Parameters
     ----------
-    blocks : _HamiltonianBlocks
+    blocks : HamiltonianBlocks
         Weight-normalized Hamiltonian blocks with source-line maps.
     geometry : CrystalGeometry
         Resolved lattice and atomic positions.
@@ -1265,7 +1191,7 @@ def _make_model(
     the final carrier validation.
     """
     onsite: Float64[NDArray, " n_orb"]
-    records: Tuple[_HoppingRecord, ...]
+    records: Tuple[HoppingRecord, ...]
     onsite, records = _extract_model_data(blocks, path)
     n_orbitals: int = onsite.shape[0]
     model: TBModel = make_tb_model(
@@ -1380,15 +1306,15 @@ def _spin_permutation(
 
 
 def _permute_hamiltonian_blocks(
-    blocks: _HamiltonianBlocks,
+    blocks: HamiltonianBlocks,
     permutation: Tuple[int, ...],
-) -> _HamiltonianBlocks:
+) -> HamiltonianBlocks:
     """PRIVATE: Apply one state permutation to both Hamiltonian axes and
     line maps.
 
     Parameters
     ----------
-    blocks : _HamiltonianBlocks
+    blocks : HamiltonianBlocks
         Parsed blocks in the serialized orbital order.
     permutation : Tuple[int, ...]
         Serialized index for each native index, from
@@ -1396,7 +1322,7 @@ def _permute_hamiltonian_blocks(
 
     Returns
     -------
-    permuted_blocks : _HamiltonianBlocks
+    permuted_blocks : HamiltonianBlocks
         Blocks with both orbital axes of the matrices and of the
         source-line map gathered into the native order; cells and
         degeneracies pass through unchanged.
@@ -1417,7 +1343,7 @@ def _permute_hamiltonian_blocks(
         axis=1,
     )
     source_lines = np.take(source_lines, permutation, axis=2)
-    permuted_blocks: _HamiltonianBlocks = _HamiltonianBlocks(
+    permuted_blocks: HamiltonianBlocks = make_hamiltonian_blocks(
         matrices=matrices,
         source_lines=source_lines,
         cells=blocks.cells,
@@ -1573,7 +1499,7 @@ def _geometry_from_centres(
     )
     atom: int
     for atom in range(n_atoms):
-        orbital_rows: list[int] = [
+        orbital_rows: List[int] = [
             index
             for index, assigned_atom in enumerate(atom_indices)
             if assigned_atom == atom
@@ -1843,7 +1769,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         (n_orbitals,), dtype=np.float64
     )
     onsite_lines: Dict[int, int] = {}
-    records: list[_HoppingRecord] = []
+    records: List[HoppingRecord] = []
     saw_row: bool = False
     line_number: int
     text: str
@@ -1851,7 +1777,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
         if not text.strip():
             continue
         saw_row = True
-        tokens: list[str] = [token.strip() for token in text.split(",")]
+        tokens: List[str] = [token.strip() for token in text.split(",")]
         if len(tokens) not in (
             HOPPING_LIST_REAL_FIELDS,
             HOPPING_LIST_COMPLEX_FIELDS,
@@ -1951,7 +1877,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
             onsite_lines[orbital_i] = line_number
         else:
             records.append(
-                _HoppingRecord(
+                make_hopping_record(
                     pair=(orbital_i, orbital_j),
                     cell=cell,
                     amplitude=amplitude,
@@ -1961,7 +1887,7 @@ def read_hopping_list(  # noqa: DOC502, DOC503, PLR0913, PLR0915
     if not saw_row:
         message = f"{path}: hopping list contains no records"
         raise ValueError(message)
-    record_tuple: Tuple[_HoppingRecord, ...] = tuple(records)
+    record_tuple: Tuple[HoppingRecord, ...] = tuple(records)
     _validate_hopping_closure(record_tuple, path)
     resolved_shell_index: Tuple[int, ...] = (
         shell_index if shell_index else (-1,) * n_orbitals
@@ -2037,7 +1963,7 @@ def read_wannier90_hr(  # noqa: DOC502
     """
     path: Path = Path(filename)
     _require_filename_suffix(path, WANNIER_HR_SUFFIX)
-    cursor: _LineCursor = _LineCursor.from_path(path)
+    cursor: TextLineCursor = make_text_line_cursor(path)
     _parse_header(cursor)
     n_orbitals: int
     n_cells: int
@@ -2045,7 +1971,7 @@ def read_wannier90_hr(  # noqa: DOC502
     n_orbitals, n_cells, degeneracies = _parse_wannier_dimensions(cursor)
     _validate_basis_size(basis, n_orbitals, path)
     _spin_permutation(basis, "block_down_up", path)
-    blocks: _HamiltonianBlocks = _parse_hr_hamiltonian_blocks(
+    blocks: HamiltonianBlocks = _parse_hr_hamiltonian_blocks(
         cursor,
         n_orbitals,
         n_cells,
@@ -2138,7 +2064,7 @@ def read_wannier90_tb(  # noqa: DOC502
     """
     path: Path = Path(filename)
     _require_filename_suffix(path, WANNIER_TB_SUFFIX)
-    cursor: _LineCursor = _LineCursor.from_path(path)
+    cursor: TextLineCursor = make_text_line_cursor(path)
     _parse_header(cursor)
     lattice: Float64[NDArray, "3 3"] = _parse_tb_lattice(cursor)
     n_orbitals: int
@@ -2146,7 +2072,7 @@ def read_wannier90_tb(  # noqa: DOC502
     degeneracies: Tuple[int, ...]
     n_orbitals, n_cells, degeneracies = _parse_wannier_dimensions(cursor)
     _validate_basis_size(basis, n_orbitals, path)
-    serialized_blocks: _HamiltonianBlocks = _parse_tb_hamiltonian_blocks(
+    serialized_blocks: HamiltonianBlocks = _parse_tb_hamiltonian_blocks(
         cursor,
         n_orbitals,
         n_cells,
@@ -2165,7 +2091,7 @@ def read_wannier90_tb(  # noqa: DOC502
         spin_layout,
         path,
     )
-    blocks: _HamiltonianBlocks = _permute_hamiltonian_blocks(
+    blocks: HamiltonianBlocks = _permute_hamiltonian_blocks(
         serialized_blocks,
         permutation,
     )

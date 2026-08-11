@@ -34,7 +34,8 @@ class TestWorkflowContext:
 
         Notes
         -----
-        The test builds both members with their public factories, constructs the
+        The test builds both members with their public factories, constructs
+        the
         context, and compares the stored objects and ``None`` sentinels.
         """
         bands: BandStructure = make_band_structure(
@@ -68,7 +69,8 @@ class TestMakeWorkflowContext:
 
         Notes
         -----
-        The test constructs independently valid carriers with incompatible k-point
+        The test constructs independently valid carriers with incompatible
+        k-point
         counts and matches the factory's dimension diagnostic.
         """
         bands: BandStructure = make_band_structure(

@@ -31,34 +31,23 @@ from __future__ import annotations
 import heapq
 from collections.abc import Iterable, Mapping, Sequence
 
-import equinox as eqx
 from beartype import beartype
-from beartype.typing import Any, Dict, Tuple, cast
+from beartype.typing import Any, Dict, List, Tuple, cast
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
     InformationState,
+    ProvenanceAnalysis,
     ProvenanceGraph,
     ProvenanceReport,
     TransformationRecord,
     make_information_state,
+    make_provenance_analysis,
     make_provenance_graph,
     make_provenance_report,
 )
 
 from .checksums import checksum_pytree
-
-
-class _Analysis(eqx.Module):
-    """Store complete internal analysis before construction or comparison."""
-
-    ordered_records: Tuple[TransformationRecord, ...]
-    topological_order: Tuple[str, ...] = eqx.field(static=True)
-    information: Tuple[InformationState, ...]
-    errors: Tuple[str, ...] = eqx.field(static=True)
-    roots: Tuple[str, ...] = eqx.field(static=True)
-    terminal_outputs: Tuple[str, ...] = eqx.field(static=True)
-    orphaned_inputs: Tuple[str, ...] = eqx.field(static=True)
 
 
 def _normalize_terms(
@@ -203,7 +192,7 @@ def _record_errors(  # noqa: PLR0912
     records: Sequence[TransformationRecord],
     external_inputs: Tuple[str, ...],
 ) -> Tuple[
-    list[str],
+    List[str],
     Dict[str, int],
     set[str],
     Tuple[str, ...],
@@ -228,7 +217,7 @@ def _record_errors(  # noqa: PLR0912
 
     Returns
     -------
-    result : Tuple[list[str], Dict[str, int], set[str], Tuple[str, ...]]
+    result : Tuple[List[str], Dict[str, int], set[str], Tuple[str, ...]]
         Deterministic error messages, the producer-record index per
         output identity, the set of consumed node identities, and the
         sorted orphaned external inputs.
@@ -236,10 +225,10 @@ def _record_errors(  # noqa: PLR0912
     index: Any
     record: Any
     output_id: Any
-    errors: list[str] = []
+    errors: List[str] = []
     producer: Dict[str, int] = {}
     consumed: set[str] = set()
-    all_outputs: list[str] = []
+    all_outputs: List[str] = []
     for index, record in enumerate(records):
         reference: str = (
             f"{record.transformation_id}@{record.transformation_version}"
@@ -302,7 +291,7 @@ def _record_errors(  # noqa: PLR0912
         errors.append(
             "declared external inputs are not consumed: " + ", ".join(orphaned)
         )
-    result: Tuple[list[str], Dict[str, int], set[str], Tuple[str, ...]] = (
+    result: Tuple[List[str], Dict[str, int], set[str], Tuple[str, ...]] = (
         errors,
         producer,
         consumed,
@@ -344,8 +333,8 @@ def _topological_indices(
     parent_index: Any
     degree: Any
     child: Any
-    dependencies: list[set[int]] = []
-    children: list[set[int]] = [set() for _ in records]
+    dependencies: List[set[int]] = []
+    children: List[set[int]] = [set() for _ in records]
     for index, record in enumerate(records):
         parents: set[int] = {
             producer[parent]
@@ -355,12 +344,12 @@ def _topological_indices(
         dependencies.append(parents)
         for parent_index in parents:
             children[parent_index].add(index)
-    indegree: list[int] = [len(parents) for parents in dependencies]
-    ready: list[Tuple[Tuple[str, str, Tuple[str, ...], int], int]] = []
+    indegree: List[int] = [len(parents) for parents in dependencies]
+    ready: List[Tuple[Tuple[str, str, Tuple[str, ...], int], int]] = []
     for index, degree in enumerate(indegree):
         if degree == 0:
             heapq.heappush(ready, (_record_key(records[index], index), index))
-    ordered: list[int] = []
+    ordered: List[int] = []
     while ready:
         ready_item: Tuple[Tuple[str, str, Tuple[str, ...], int], int] = (
             heapq.heappop(ready)
@@ -376,7 +365,7 @@ def _topological_indices(
                 )
     has_cycle: bool = len(ordered) != len(records)
     if has_cycle:
-        remaining: list[int] = sorted(
+        remaining: List[int] = sorted(
             set(range(len(records))) - set(ordered),
             key=lambda index: _record_key(records[index], index),
         )
@@ -482,7 +471,7 @@ def _analyze(
     records: Sequence[TransformationRecord],
     external_inputs: Tuple[str, ...],
     initial_semantics: Tuple[Tuple[str, Tuple[str, ...]], ...],
-) -> _Analysis:
+) -> ProvenanceAnalysis:
     """PRIVATE: Perform deterministic structural analysis and semantic
     propagation.
 
@@ -507,7 +496,7 @@ def _analyze(
 
     Returns
     -------
-    analysis : _Analysis
+    analysis : ProvenanceAnalysis
         Ordered records, topological output order, information states,
         errors, roots, terminal outputs, and orphaned inputs.
 
@@ -517,12 +506,12 @@ def _analyze(
     analysis, so the two paths cannot disagree.
     """
     record_analysis: Tuple[
-        list[str], Dict[str, int], set[str], Tuple[str, ...]
+        List[str], Dict[str, int], set[str], Tuple[str, ...]
     ] = _record_errors(
         records,
         external_inputs,
     )
-    errors: list[str] = record_analysis[0]
+    errors: List[str] = record_analysis[0]
     producer: Dict[str, int] = record_analysis[1]
     consumed: set[str] = record_analysis[2]
     orphaned: Tuple[str, ...] = record_analysis[3]
@@ -561,7 +550,7 @@ def _analyze(
         )
     )
     terminal_outputs: Tuple[str, ...] = tuple(sorted(all_outputs - consumed))
-    analysis: _Analysis = _Analysis(
+    analysis: ProvenanceAnalysis = make_provenance_analysis(
         ordered_records=ordered_records,
         topological_order=output_order,
         information=information,
@@ -636,7 +625,7 @@ def build_provenance(
     semantic_pairs: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         normalized_inputs[1]
     )
-    analysis: _Analysis = _analyze(
+    analysis: ProvenanceAnalysis = _analyze(
         normalized_records,
         input_ids,
         semantic_pairs,
@@ -698,12 +687,12 @@ def validate_provenance(graph: ProvenanceGraph) -> ProvenanceReport:
     report : ProvenanceReport
         Complete deterministic validation result.
     """
-    analysis: _Analysis = _analyze(
+    analysis: ProvenanceAnalysis = _analyze(
         graph.records,
         graph.external_inputs,
         graph.initial_semantics,
     )
-    errors: list[str] = list(analysis.errors)
+    errors: List[str] = list(analysis.errors)
     expected_checksum: str = checksum_pytree(
         (graph.records, graph.initial_semantics),
         record_kind="provenance",
@@ -869,7 +858,7 @@ def lineage(graph: ProvenanceGraph, output_id: str) -> Tuple[str, ...]:
         msg: str = f"unknown provenance node: {output_id}"
         raise KeyError(msg)
     ancestors: set[str] = set()
-    pending: list[str] = [output_id]
+    pending: List[str] = [output_id]
     while pending:
         current: str = pending.pop()
         record: TransformationRecord | None = producer.get(current)

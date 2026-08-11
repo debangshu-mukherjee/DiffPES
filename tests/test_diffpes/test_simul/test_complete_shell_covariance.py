@@ -84,7 +84,13 @@ def _complete_pd_fixture() -> Tuple[
         sigma_shell=jnp.asarray((1.2, 0.75)),
         phase_shift_angles_shell=jnp.asarray((0.1, -0.3, 0.4, -0.2)),
     )
-    return basis, shell_index, radial, params
+    returned: Tuple[
+        OrbitalBasis,
+        Tuple[int, ...],
+        RadialSpec,
+        MatrixElementParams,
+    ] = basis, shell_index, radial, params
+    return returned
 
 
 def _real_wigner(
@@ -119,7 +125,7 @@ def _real_wigner(
     return real_rotation
 
 
-def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
+def test_random_complete_p_d_shell_wigner_covariance() -> None:
     """Rotate every tensor leg and preserve contracted p/d amplitudes.
 
     Random proper rotations cover complete p and d shells with generic
@@ -204,7 +210,7 @@ def test_g15_random_complete_p_d_shell_wigner_covariance() -> None:
                 )
 
 
-def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
+def test_each_coefficient_scale_direction_nulls_full_intensity() -> None:
     """Verify null intensity slopes for both radial coefficient gauges.
 
     The complete coherent matrix element includes radial evaluation,
@@ -212,7 +218,8 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
 
     Notes
     -----
-    Apply each named gauge tangent and contrast it with a physical sigma tangent.
+    Apply each named gauge tangent and contrast it with a physical sigma
+    tangent.
     """
     basis: OrbitalBasis
     radial: RadialSpec
@@ -280,7 +287,8 @@ def test_g15_each_coefficient_scale_direction_nulls_full_intensity() -> None:
             jnp.asarray((0.3 + 0.2j, -0.4j, 0.7 - 0.1j)),
         )
         amplitude: Complex128[Array, ""] = jnp.sum(polarized * coefficients)
-        return jnp.abs(amplitude) ** 2
+        returned: Float64[Array, ""] = jnp.abs(amplitude) ** 2
+        return returned
 
     direction: Float64[Array, " n_theta"]
     for direction in directions:

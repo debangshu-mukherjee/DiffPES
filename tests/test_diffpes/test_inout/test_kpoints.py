@@ -1,9 +1,10 @@
 """Validate VASP KPOINTS parsing.
 
-Covers line-mode, automatic, and explicit sampling together with labels, weights, shifts, and malformed coordinate records.
+Covers line-mode, automatic, and explicit sampling together with labels,
+weights, shifts, and malformed coordinate records.
 """
 
-import io
+import os
 import tempfile
 from pathlib import Path
 
@@ -14,22 +15,7 @@ from beartype.typing import TextIO
 
 import diffpes
 from diffpes.inout import (
-    read_chgcar,
-    read_doscar,
-    read_eigenval,
     read_kpoints,
-    read_poscar,
-    read_procar,
-)
-from diffpes.types import (
-    BandStructure,
-    FullDensityOfStates,
-    SOCVolumetricData,
-    SpinBandStructure,
-    SpinOrbitalProjection,
-    VolumetricData,
-    make_orbital_projection,
-    make_spin_orbital_projection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -47,14 +33,16 @@ class TestReadKpoints(chex.TestCase):
     """
 
     def test_line_mode(self) -> None:
-        """Read Line-mode KPOINTS and assert mode, num_kpoints, and symmetry labels.
+        """Read line-mode KPOINTS and assert its symmetry labels.
 
         The test parses the ``KPOINTS_line`` fixture. It verifies the mode,
         point count, and labels. It also verifies all metadata for line mode.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         kpath: diffpes.types.KPathInfo
 
@@ -83,14 +71,16 @@ class TestReadKpoints(chex.TestCase):
         assert kpath.shift is None
 
     def test_automatic_mode(self) -> None:
-        """Read Automatic (Monkhorst-Pack) KPOINTS and assert mode and zero k-point count.
+        """Read automatic KPOINTS and assert its zero point count.
 
         The test parses ``KPOINTS_auto``. It checks the mode, zero point
         count, grid, and shift.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         kpath: diffpes.types.KPathInfo
 
@@ -109,7 +99,7 @@ class TestReadKpoints(chex.TestCase):
         assert kpath.weights is None
 
     def test_line_mode_label_fallback(self) -> None:
-        """Read Line-mode KPOINTS using fallback label extraction (no "!" prefix).
+        """Read line-mode KPOINTS using fallback label extraction.
 
         The test uses KPOINTS_line_fallback where one line has five tokens
         (coordinates plus weight and label "G") and another has three
@@ -118,7 +108,9 @@ class TestReadKpoints(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         kpath: diffpes.types.KPathInfo
 
@@ -138,7 +130,9 @@ class TestReadKpoints(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         kpath: diffpes.types.KPathInfo
 
@@ -159,16 +153,19 @@ class TestReadKpoints(chex.TestCase):
         assert kpath.coordinate_mode.lower() == "cartesian"
 
     def test_explicit_mode_with_mode_header(self) -> None:
-        """Read Explicit KPOINTS with an explicit mode header line and separate coordinate line.
+        """Read explicit KPOINTS with a separate mode header.
 
         The test parses ``KPOINTS_explicit_mode_header``. A separate header
-        line declares the mode before the coordinate system. The test checks the mode, point
-        count, array shapes, first point, weights, and coordinate mode.
+        line declares the mode before the coordinate system. The test checks
+        the mode, point count, array shapes, first point, weights, and
+        coordinate mode.
         This input covers the alternative KPOINTS layout.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         kpath: diffpes.types.KPathInfo
 
@@ -237,20 +234,21 @@ class TestReadKpointsErrors(chex.TestCase):
         Calls ``os.unlink`` on the path after the assertion so the
         temporary file does not accumulate between test runs.
         """
-        import os
-
         os.unlink(path)
 
     def test_explicit_break_when_excess_lines(self) -> None:
         """Verify that explicit KPOINTS ignores excess point lines.
 
-        The test writes a 3-kpoint Explicit KPOINTS file with 4 coordinate lines.
+        The test writes a 3-kpoint explicit KPOINTS file with four coordinate
+        lines.
         The test checks the Explicit mode and exactly three returned k-points.
         The parser ignores the fourth line.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         kpath: diffpes.types.KPathInfo
@@ -275,12 +273,15 @@ class TestReadKpointsErrors(chex.TestCase):
     def test_explicit_invalid_float_raises(self) -> None:
         """Verify that a nonnumeric KPOINTS token raises ``ValueError``.
 
-        The test writes an Explicit KPOINTS with "abc 0.0 0.0" as a k-point line.
-        The test asserts ``ValueError`` matching ``"Invalid explicit KPOINTS"``.
+        The test writes an explicit KPOINTS with ``abc 0.0 0.0`` as a point
+        line. It asserts ``ValueError`` matching
+        ``"Invalid explicit KPOINTS"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -301,12 +302,15 @@ class TestReadKpointsErrors(chex.TestCase):
     def test_explicit_too_few_coords_raises(self) -> None:
         """Verify that a short KPOINTS coordinate raises ``ValueError``.
 
-        The test writes an Explicit KPOINTS where a k-point line has only 2 values.
+        The test writes an explicit KPOINTS where a point line has only two
+        values.
         The test asserts ``ValueError`` matching ``"at least 3 coordinates"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -326,7 +330,9 @@ class TestReadKpointsErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         kpath: diffpes.types.KPathInfo
@@ -354,7 +360,9 @@ class TestReadKpointsErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         kpath: diffpes.types.KPathInfo
@@ -379,14 +387,17 @@ class TestReadKpointsErrors(chex.TestCase):
         """Verify acceptance of a numeric k-point line.
 
         The test uses an Explicit KPOINTS with an unrecognized ``mode_line``.
-        The first remaining line contains numeric tokens. All float calls succeed
-        (lines 272-273 executed), so the function reaches ``return True``
-        (line 276). This means ``remaining_lines.pop(0)`` is NOT called and
+        The first remaining line contains numeric tokens. All float calls
+        succeed (lines 272-273 executed), so the function reaches
+        ``return True`` (line 276). This means ``remaining_lines.pop(0)`` is
+        not called and
         ``coord_mode`` stays as ``scheme_or_mode`` ("Explicit").
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         kpath: diffpes.types.KPathInfo
@@ -414,7 +425,9 @@ class TestReadKpointsErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -434,7 +447,9 @@ class TestReadKpointsErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -455,7 +470,9 @@ class TestReadKpointsErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 

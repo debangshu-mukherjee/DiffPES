@@ -82,9 +82,9 @@ import jax.numpy as jnp
 import lineax as lx
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Optional, Tuple
+from beartype.typing import Any, List, Optional, Tuple
 from jax.custom_derivatives import SymbolicZero
-from jaxtyping import Array, Bool, Complex128, Float64, Int, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.radial import momentum_inv_ang_to_bohr_inv, radial_bvals
@@ -92,14 +92,12 @@ from diffpes.types import (
     EPS,
     EPS_DEG,
     G_PARALLEL_ATOL_INV_ANG,
-    ExperimentGeometry,
-    FinalStateSpec,
-    MatrixElementParams,
-    RadialQuadratureSpec,
-    RadialSpec,
+    Power2TailSpec,
     ScalarBool,
     ScalarFloat,
     SelfEnergyModel,
+    TransitionSourceSchedule,
+    make_power2_tail_spec,
 )
 
 from .broadening import fermi_dirac
@@ -132,7 +130,7 @@ def _tangent_is_symbolic_zero(tangent: Any) -> bool:
     The check flattens the tree with symbolic zeros as leaves.
     It then tests every leaf for the symbolic zero type.
     """
-    leaves: list[Any] = jax.tree_util.tree_leaves(
+    leaves: List[Any] = jax.tree_util.tree_leaves(
         tangent, is_leaf=lambda value: isinstance(value, SymbolicZero)
     )
     all_zero: bool = all(isinstance(value, SymbolicZero) for value in leaves)
@@ -188,37 +186,6 @@ def _materialize_tangent(tangent: Any) -> Any:
     return materialized
 
 
-class _Power2TailSpec(eqx.Module):
-    """Store one C1 ``power2`` tail contract in left-then-right order.
-
-    The carrier stores the six derived tail parameters for both
-    semi-infinite continuations. The amplitudes stay strictly positive.
-    The quadratic coefficients keep every tail denominator positive.
-
-    Attributes
-    ----------
-    amplitude_left : Float64[Array, ""]
-        Positive left edge amplitude ``-Sigma''(a)`` in eV.
-    alpha_left : Float64[Array, ""]
-        Left linear tail coefficient from the edge slope match.
-    beta_left : Float64[Array, ""]
-        Left quadratic tail coefficient above ``alpha_left**2 / 4``.
-    amplitude_right : Float64[Array, ""]
-        Positive right edge amplitude ``-Sigma''(b)`` in eV.
-    alpha_right : Float64[Array, ""]
-        Right linear tail coefficient from the edge slope match.
-    beta_right : Float64[Array, ""]
-        Right quadratic tail coefficient above ``alpha_right**2 / 4``.
-    """
-
-    amplitude_left: Float64[Array, ""]
-    alpha_left: Float64[Array, ""]
-    beta_left: Float64[Array, ""]
-    amplitude_right: Float64[Array, ""]
-    alpha_right: Float64[Array, ""]
-    beta_right: Float64[Array, ""]
-
-
 def _power2_spec_from_edges(
     edge_value_left: Float64[Array, ""],
     slope_left: Float64[Array, ""],
@@ -226,7 +193,7 @@ def _power2_spec_from_edges(
     slope_right: Float64[Array, ""],
     raw_left: Float64[Array, ""],
     raw_right: Float64[Array, ""],
-) -> _Power2TailSpec:
+) -> Power2TailSpec:
     """PRIVATE: Construct the C1 ``power2`` tail contract from edge data.
 
     The amplitudes negate the sampled edge values. The linear
@@ -251,7 +218,7 @@ def _power2_spec_from_edges(
 
     Returns
     -------
-    spec : _Power2TailSpec
+    spec : Power2TailSpec
         Derived six-parameter tail contract.
 
     Notes
@@ -269,7 +236,7 @@ def _power2_spec_from_edges(
     beta_right: Float64[Array, ""] = alpha_right**2 / 4.0 + jnp.logaddexp(
         raw_right, 0.0
     )
-    spec: _Power2TailSpec = _Power2TailSpec(
+    spec: Power2TailSpec = make_power2_tail_spec(
         amplitude_left=amplitude_left,
         alpha_left=alpha_left,
         beta_left=beta_left,
@@ -469,8 +436,8 @@ def _cubic_core_pv(
         msg: str = "the piecewise-cubic core grid requires at least four nodes"
         raise ValueError(msg)
     spacing: Float64[Array, ""] = core_grid[1] - core_grid[0]
-    cell_indices: Int[Array, " n_cell"] = jnp.arange(n_kk - 1)
-    stencil_starts: Int[Array, " n_cell"] = jnp.clip(
+    cell_indices: Int64[Array, " n_cell"] = jnp.arange(n_kk - 1)
+    stencil_starts: Int64[Array, " n_cell"] = jnp.clip(
         cell_indices - 1, 0, n_kk - 4
     )
 
@@ -703,7 +670,7 @@ def _derivative_samples_sixth_order(
     stencil_offsets: Float64[NDArray, " seven"] = np.arange(
         7, dtype=np.float64
     )
-    edge_rows: list[Float64[NDArray, " seven"]] = []
+    edge_rows: List[Float64[NDArray, " seven"]] = []
     position: int
     for position in range(3):
         system: Float64[NDArray, "seven seven"] = np.vander(
@@ -1455,7 +1422,7 @@ def _smooth_real_impl(
     slope_left: Float64[Array, ""]
     slope_right: Float64[Array, ""]
     slope_left, slope_right = _cubic_edge_slopes(values, spacing)
-    spec: _Power2TailSpec = _power2_spec_from_edges(
+    spec: Power2TailSpec = _power2_spec_from_edges(
         values[0],
         slope_left,
         values[-1],
@@ -1531,7 +1498,7 @@ def _smooth_query_composite(
     slope_left: Float64[Array, ""]
     slope_right: Float64[Array, ""]
     slope_left, slope_right = _cubic_edge_slopes(values, spacing)
-    spec: _Power2TailSpec = _power2_spec_from_edges(
+    spec: Power2TailSpec = _power2_spec_from_edges(
         values[0],
         slope_left,
         values[-1],
@@ -1831,7 +1798,7 @@ def _hat_real_subtracted(
     slope_right: Float64[Array, ""] = (ordinates[-1] - ordinates[-2]) / (
         nodes[-1] - nodes[-2]
     )
-    spec: _Power2TailSpec = _power2_spec_from_edges(
+    spec: Power2TailSpec = _power2_spec_from_edges(
         ordinates[0],
         slope_left,
         ordinates[-1],
@@ -2809,7 +2776,7 @@ def assemble_spectral_intensity_bands_chunk(  # noqa: DOC502 -- traced guards.
     energies. Its differentiated domain requires every adjacent band gap to
     be at least ``1e3 * EPS_DEG``. The explicit value-only exception emits no
     derivative claim. The function performs no convolution, normalization,
-    or detector response; Plan 08a owns those downstream operations.
+    or detector response; the canonical detector driver owns those operations.
     """
     checked_eigenvalues: Float64[Array, "n_k n_bands"] = eqx.error_if(
         eigenvalues_ev,
@@ -2865,60 +2832,8 @@ def assemble_spectral_intensity_bands_chunk(  # noqa: DOC502 -- traced guards.
     return intensity
 
 
-class _TransitionSourceSchedule(eqx.Module):
-    """PRIVATE: Store traced Plan-06 inputs for block-local source assembly.
-
-    The carrier contains compact Plan-03 kinematics and energy-independent
-    matrix-element state, never a precomputed ``(K, E, 3)`` final-momentum or
-    ``(K, E, B)`` transition tensor. The streamed driver reconstructs final
-    momenta and source kets only for the live
-    ``(k_chunk, omega_chunk)`` block.
-
-    Attributes
-    ----------
-    k_i_cart : Float64[Array, "n_k_max 3"]
-        Initial sample-frame crystal momenta in inverse Angstrom.
-    final_norm : Float64[Array, "n_omega_max"]
-        Vacuum final-momentum magnitude for each sampled energy.
-    emission_energy_valid : Bool[Array, "n_omega_max"]
-        Positive kinetic-energy and final-state-momentum mask.
-    positions_cart : Float64[Array, "n_orb 3"]
-        Orbital or Wannier centres in Cartesian Angstrom.
-    depths : Float64[Array, "n_orb"]
-        Orbital depths below the surface in Angstrom.
-    polarization_sample_cart : Complex128[Array, "3"]
-        Sample-frame Cartesian polarization after the one lab-to-sample map.
-    mean_free_path_ang : Float64[Array, ""]
-        Photoelectron intensity mean free path in Angstrom.
-    radial : RadialSpec
-        Shell-shared initial-state radial carrier.
-    matrix_element : MatrixElementParams
-        Shell scales and phase coordinates.
-    quadrature : RadialQuadratureSpec
-        Certified fixed radial quadrature.
-    final_state : FinalStateSpec
-        Direct plane-wave or Coulomb final-state selection.
-    inner_potential_geometry : Optional[ExperimentGeometry]
-        Experiment geometry for exact finite-energy internal final momentum.
-        ``None`` retains the native vacuum-momentum branch.
-    """
-
-    k_i_cart: Float64[Array, "n_k_max 3"]
-    final_norm: Float64[Array, " n_omega_max"]
-    emission_energy_valid: Bool[Array, " n_omega_max"]
-    positions_cart: Float64[Array, "n_orb 3"]
-    depths: Float64[Array, " n_orb"]
-    polarization_sample_cart: Complex128[Array, " 3"]
-    mean_free_path_ang: Float64[Array, ""]
-    radial: RadialSpec
-    matrix_element: MatrixElementParams
-    quadrature: RadialQuadratureSpec
-    final_state: FinalStateSpec
-    inner_potential_geometry: Optional[ExperimentGeometry] = None
-
-
 def _validate_transition_source_schedule(
-    schedule: _TransitionSourceSchedule,
+    schedule: TransitionSourceSchedule,
     *,
     n_k_max: int,
     n_omega_max: int,
@@ -2957,14 +2872,14 @@ def _validate_transition_source_schedule(
 
 
 def _transition_sources_for_block(
-    schedule: _TransitionSourceSchedule,
+    schedule: TransitionSourceSchedule,
     k_i_block: Float64[Array, "k_chunk 3"],
     k_f_block: Float64[Array, "k_chunk omega_chunk 3"],
     valid_block: Bool[Array, "k_chunk omega_chunk"],
 ) -> Complex128[Array, "k_chunk omega_chunk n_spin n_orb"]:
     """PRIVATE: Build only one live matrix-element source block.
 
-    The helper replaces invalid padding before the Plan-06 primitives run. It
+    The helper replaces invalid padding before the source primitives run. It
     restores exact zeros afterward. Every physically valid final momentum must
     be finite, nonzero, and on the registered zero-umklapp in-plane seam.
 
@@ -3059,7 +2974,7 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
     omega_rel_fermi_ev: Float64[Array, " n_omega_max"],
     k_valid: Bool[Array, " n_k_max"],
     omega_valid: Bool[Array, " n_omega_max"],
-    transition_schedule: _TransitionSourceSchedule,
+    transition_schedule: TransitionSourceSchedule,
     self_energy: SelfEnergyModel,
     fermi_energy_ev: Float64[Array, ""],
     temperature_k: ScalarFloat,
@@ -3081,8 +2996,8 @@ def _stream_spectral_intensity(  # noqa: DOC503, PLR0913, PLR0915 -- scan contra
         Validity mask for the padded k axis.
     omega_valid : Bool[Array, " n_omega_max"]
         Validity mask for the padded energy axis.
-    transition_schedule : _TransitionSourceSchedule
-        Plan-03 kinematics and Plan-06 carriers used to construct only the
+    transition_schedule : TransitionSourceSchedule
+        Detector kinematics and source carriers used to construct only the
         current source block.
     self_energy : SelfEnergyModel
         Validated causal self-energy carrier.

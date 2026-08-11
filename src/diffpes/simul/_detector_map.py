@@ -3,14 +3,14 @@ r"""Compute conservative source-to-detector finite-volume maps.
 Extended Summary
 ----------------
 This private module implements the coordinate-density seam used by the
-Plan-08a detector chain.  It maps a self-describing source carrier into the
+canonical detector chain. It maps a self-describing source carrier into the
 explicit bins of :class:`~diffpes.types.DetectorCalibration`, using four
 Gauss--Legendre nodes per active target axis.  Clamped-linear source
 interpolation spans exterior half-cells and vanishes beyond their faces.
 No source array supplies target coordinates.
 
 Cartesian source domains first undergo an active z--y--z Euler rotation and
-then the active sample-to-laboratory azimuth rotation.  The exact Plan-03
+then the active sample-to-laboratory azimuth rotation. The exact detector
 detector map supplies laboratory parallel momentum.  Its analytic inverse-map
 Jacobian converts source density to native angular density.
 
@@ -26,22 +26,16 @@ Notes
 The public wrappers live in :mod:`diffpes.simul.effects`.  This isolation
 allows independent finite-volume tests during complete detector-chain
 assembly.  Production always uses four quadrature points.  The
-order-selecting helper supports only the binding four-versus-eight convergence
-gate.
+order-selecting helper supports only the four-versus-eight convergence
+comparison.
 """
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from beartype.typing import Optional, Tuple, Union
-from jaxtyping import Array, Bool, Float64
+from beartype.typing import List, Optional, Tuple, Union
+from jaxtyping import Array, Bool, Float64, Int32, Int64
 
-from diffpes.simul.kinematics import (
-    detector_angles_to_kpar,
-    final_state_k_inv_ang,
-    kpar_to_detector_angles,
-)
-from diffpes.simul.polarization import sample_azimuth_rotation
 from diffpes.types import (
     ArpesCube,
     ArpesSpectrum,
@@ -49,6 +43,13 @@ from diffpes.types import (
     DetectorEffects,
     ExperimentGeometry,
 )
+
+from .kinematics import (
+    detector_angles_to_kpar,
+    final_state_k_inv_ang,
+    kpar_to_detector_angles,
+)
+from .polarization import sample_azimuth_rotation
 
 __all__: list[str] = []
 
@@ -86,7 +87,7 @@ def _gauss_legendre_rule(
             0.6521451548625461,
             0.34785484513745385,
         )
-    elif order == 8:  # noqa: PLR2004 -- convergence-gate quadrature order.
+    elif order == 8:  # noqa: PLR2004 -- eight-point comparison order.
         nodes_tuple = (
             -0.9602898564975363,
             -0.7966664774136267,
@@ -198,7 +199,12 @@ def _source_cell_widths(axis: Float64[Array, " n"]) -> Float64[Array, " n"]:
 
 def _clamped_bracket(
     axis: Float64[Array, " n"], query: Float64[Array, " ..."]
-) -> Tuple[Array, Array, Float64[Array, " ..."], Bool[Array, " ..."]]:
+) -> Tuple[
+    Int32[Array, " ..."],
+    Int32[Array, " ..."],
+    Float64[Array, " ..."],
+    Bool[Array, " ..."],
+]:
     """PRIVATE: Find a clamped-linear bracket and support mask.
 
     Parameters
@@ -222,10 +228,10 @@ def _clamped_bracket(
     faces: Float64[Array, " np1"] = _source_faces(axis)
     in_domain: Bool[Array, " ..."] = (query >= faces[0]) & (query <= faces[-1])
     clamped: Float64[Array, " ..."] = jnp.clip(query, axis[0], axis[-1])
-    upper: Array = jnp.clip(
+    upper: Int32[Array, " ..."] = jnp.clip(
         jnp.searchsorted(axis, clamped, side="right"), 1, axis.size - 1
     )
-    lower: Array = upper - 1
+    lower: Int32[Array, " ..."] = upper - 1
     denominator: Float64[Array, " ..."] = axis[upper] - axis[lower]
     safe_denominator: Float64[Array, " ..."] = jnp.where(
         denominator > 0.0, denominator, 1.0
@@ -233,8 +239,8 @@ def _clamped_bracket(
     weight: Float64[Array, " ..."] = (clamped - axis[lower]) / safe_denominator
     weight = jnp.where(denominator > 0.0, weight, 0.0)
     bracket: Tuple[
-        Array,
-        Array,
+        Int32[Array, " ..."],
+        Int32[Array, " ..."],
         Float64[Array, " ..."],
         Bool[Array, " ..."],
     ] = (lower, upper, weight, in_domain)
@@ -266,18 +272,18 @@ def _interpolate_cube(
     values : Float64[Array, " ..."]
         Reconstructed density, exactly zero outside any exterior face.
     """
-    ix0: Array
-    ix1: Array
+    ix0: Int32[Array, " ..."]
+    ix1: Int32[Array, " ..."]
     tx: Float64[Array, " ..."]
     valid_x: Bool[Array, " ..."]
     ix0, ix1, tx, valid_x = _clamped_bracket(source.kx_axis, kx_query)
-    iy0: Array
-    iy1: Array
+    iy0: Int32[Array, " ..."]
+    iy1: Int32[Array, " ..."]
     ty: Float64[Array, " ..."]
     valid_y: Bool[Array, " ..."]
     iy0, iy1, ty, valid_y = _clamped_bracket(source.ky_axis, ky_query)
-    ie0: Array
-    ie1: Array
+    ie0: Int32[Array, " ..."]
+    ie1: Int32[Array, " ..."]
     te: Float64[Array, " ..."]
     valid_e: Bool[Array, " ..."]
     ie0, ie1, te, valid_e = _clamped_bracket(source.energy_axis, energy_query)
@@ -327,13 +333,13 @@ def _interpolate_spectrum(
     values : Float64[Array, " ..."]
         Reconstructed line density, zero beyond either exterior face.
     """
-    ik0: Array
-    ik1: Array
+    ik0: Int32[Array, " ..."]
+    ik1: Int32[Array, " ..."]
     tk: Float64[Array, " ..."]
     valid_k: Bool[Array, " ..."]
     ik0, ik1, tk, valid_k = _clamped_bracket(source.k_axis, path_query)
-    ie0: Array
-    ie1: Array
+    ie0: Int32[Array, " ..."]
+    ie1: Int32[Array, " ..."]
     te: Float64[Array, " ..."]
     valid_e: Bool[Array, " ..."]
     ie0, ie1, te, valid_e = _clamped_bracket(source.energy_axis, energy_query)
@@ -439,7 +445,7 @@ def _detector_forward_jacobian(
     momentum: Float64[Array, " ..."],
     slit: str,
 ) -> Float64[Array, "... 2 2"]:
-    """PRIVATE: Evaluate the analytic Plan-03 detector momentum Jacobian.
+    """PRIVATE: Evaluate the analytic detector momentum Jacobian.
 
     Parameters
     ----------
@@ -450,7 +456,7 @@ def _detector_forward_jacobian(
     momentum : Float64[Array, " ..."]
         Positive photoelectron momentum magnitude in inverse angstroms.
     slit : str
-        Static Plan-03 slit orientation.
+        Static detector slit orientation.
 
     Returns
     -------
@@ -512,7 +518,7 @@ def _inverse_map_abs_jacobian(
     momentum : Float64[Array, " ..."]
         Positive photoelectron momentum magnitude.
     slit : str
-        Static Plan-03 slit orientation.
+        Static detector slit orientation.
 
     Returns
     -------
@@ -554,7 +560,7 @@ def _analytic_angle_jacobian(
     momentum : Float64[Array, ""]
         Positive photoelectron momentum magnitude.
     slit : str
-        Static Plan-03 slit orientation.
+        Static detector slit orientation.
 
     Returns
     -------
@@ -1080,14 +1086,16 @@ def _map_cube_general(
     )
     n_v: int = v_nodes.shape[0]
     n_e: int = energy_nodes.shape[0]
-    flat_bins: Array = jnp.arange(u_nodes.shape[0] * n_v * n_e)
+    flat_bins: Int64[Array, " n_bin"] = jnp.arange(
+        u_nodes.shape[0] * n_v * n_e
+    )
 
-    def integrate_bin(flat_index: Array) -> Float64[Array, ""]:
+    def integrate_bin(flat_index: Int64[Array, ""]) -> Float64[Array, ""]:
         """Integrate one explicit native target bin."""
-        u_index: Array = flat_index // (n_v * n_e)
-        remainder: Array = flat_index % (n_v * n_e)
-        v_index: Array = remainder // n_e
-        energy_index: Array = remainder % n_e
+        u_index: Int64[Array, ""] = flat_index // (n_v * n_e)
+        remainder: Int64[Array, ""] = flat_index % (n_v * n_e)
+        v_index: Int64[Array, ""] = remainder // n_e
+        energy_index: Int64[Array, ""] = remainder % n_e
         u_grid: Float64[Array, "q 1 1"] = u_nodes[u_index, :, None, None]
         v_grid: Float64[Array, "1 q 1"] = v_nodes[v_index, None, :, None]
         energy_grid: Float64[Array, "1 1 q"] = energy_nodes[
@@ -1207,14 +1215,14 @@ def _map_cube_axis_aligned_momentum(  # noqa: PLR0915
     n_u: int = calibration.u_bin_edges.shape[0] - 1
     n_v: int = calibration.v_bin_edges.shape[0] - 1
     n_e: int = calibration.energy_bin_edges_ev.shape[0] - 1
-    flat_bins: Array = jnp.arange(n_u * n_v * n_e)
+    flat_bins: Int64[Array, " n_bin"] = jnp.arange(n_u * n_v * n_e)
 
-    def integrate_bin(flat_index: Array) -> Float64[Array, ""]:
+    def integrate_bin(flat_index: Int64[Array, ""]) -> Float64[Array, ""]:
         """Integrate one native bin between mapped momentum seams."""
-        u_index: Array = flat_index // (n_v * n_e)
-        remainder: Array = flat_index % (n_v * n_e)
-        v_index: Array = remainder // n_e
-        energy_index: Array = remainder % n_e
+        u_index: Int64[Array, ""] = flat_index // (n_v * n_e)
+        remainder: Int64[Array, ""] = flat_index % (n_v * n_e)
+        v_index: Int64[Array, ""] = remainder // n_e
+        energy_index: Int64[Array, ""] = remainder % n_e
         energy_nodes: Float64[Array, "1 q"]
         energy_weights: Float64[Array, "1 q"]
         energy_nodes, energy_weights = _segmented_quadrature(
@@ -1501,7 +1509,7 @@ def _path_angle_and_derivative(
     kinetic_energy : Float64[Array, ""]
         Positive photoelectron kinetic energy.
     slit : str
-        Static Plan-03 slit orientation.
+        Static detector slit orientation.
 
     Returns
     -------
@@ -1591,7 +1599,11 @@ def _validate_spectrum_chart(  # noqa: DOC502 -- eqx.error_if raises at runtime.
             points: Float64[Array, "q 3"]
             tangent: Float64[Array, " 3"]
             points, tangent = data
-            values: Tuple[Array, Array, Array] = jax.vmap(
+            values: Tuple[
+                Float64[Array, " q"],
+                Float64[Array, " q"],
+                Float64[Array, " q"],
+            ] = jax.vmap(
                 lambda point: _path_angle_and_derivative(
                     point,
                     tangent,
@@ -1671,7 +1683,7 @@ def _solve_path_coordinate(
     Notes
     -----
     A fixed Newton solve refines the piecewise-linear inverse guess.  Its
-    derivative uses the explicit analytic Plan-03 angle Jacobian rather than
+    derivative uses the explicit analytic detector-angle Jacobian rather than
     differentiating a dense coordinate map.
     """
     extended_axis: Float64[Array, " kp2"]
@@ -1712,12 +1724,12 @@ def _solve_path_coordinate(
     bounded_u: Float64[Array, ""] = jnp.clip(
         target_u, ordered_u[0], ordered_u[-1]
     )
-    upper: Array = jnp.clip(
+    upper: Int32[Array, ""] = jnp.clip(
         jnp.searchsorted(ordered_u, bounded_u, side="right"),
         1,
         ordered_u.size - 1,
     )
-    lower: Array = upper - 1
+    lower: Int32[Array, ""] = upper - 1
     s0: Float64[Array, ""] = ordered_axis[lower]
     s1: Float64[Array, ""] = ordered_axis[upper]
     point0: Float64[Array, "3"] = ordered_points[lower]
@@ -1729,7 +1741,7 @@ def _solve_path_coordinate(
     initial_s: Float64[Array, ""] = s0 + initial_fraction * (s1 - s0)
 
     def newton_step(
-        _: Array, candidate_s: Float64[Array, ""]
+        _: Int64[Array, ""], candidate_s: Float64[Array, ""]
     ) -> Float64[Array, ""]:
         """Apply one analytic-Jacobian Newton refinement."""
         point: Float64[Array, "3"] = point0 + (candidate_s - s0) * tangent
@@ -1824,12 +1836,12 @@ def _map_spectrum(
         order,
     )
     n_e: int = energy_nodes.shape[0]
-    flat_bins: Array = jnp.arange(u_nodes.shape[0] * n_e)
+    flat_bins: Int64[Array, " n_bin"] = jnp.arange(u_nodes.shape[0] * n_e)
 
-    def integrate_bin(flat_index: Array) -> Float64[Array, ""]:
+    def integrate_bin(flat_index: Int64[Array, ""]) -> Float64[Array, ""]:
         """Integrate one active ``u``/energy target bin."""
-        u_index: Array = flat_index // n_e
-        energy_index: Array = flat_index % n_e
+        u_index: Int64[Array, ""] = flat_index // n_e
+        energy_index: Int64[Array, ""] = flat_index % n_e
         u_grid: Float64[Array, "q 1"] = u_nodes[u_index, :, None]
         energy_grid: Float64[Array, "1 q"] = energy_nodes[
             energy_index, None, :
@@ -1933,7 +1945,7 @@ def _map_source_to_detector_with_order(
         Active source-domain z--y--z rotation.  ``None`` selects identity.
     order : int, optional
         Static quadrature order, four for production and eight for the
-        convergence gate.  Default is four.
+        convergence comparison. Default is four.
 
     Returns
     -------
@@ -2050,8 +2062,8 @@ def _map_and_mix_domains(
             "detector frame identifiers and source count disagree"
         )
     domain_index: int
-    densities: list[Float64[Array, "u v e"]] = []
-    source_fluxes: list[Float64[Array, ""]] = []
+    densities: List[Float64[Array, "u v e"]] = []
+    source_fluxes: List[Float64[Array, ""]] = []
     for domain_index in range(n_domain):
         source: Union[ArpesCube, ArpesSpectrum] = physical_by_domain[
             domain_index

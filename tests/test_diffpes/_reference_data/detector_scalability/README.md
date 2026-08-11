@@ -14,7 +14,7 @@ The harness ahead-of-time compiles the literal `256 x 256 x 400` expected-count
 cube with 20 bands and 20 explicit Hamiltonian orbitals. The source grid uses
 the released signed-diagonal boundary-aware cubature path. The executable is
 compile-only on CPU because running its 26,214,400 detector bins is not part of
-the memory gate.
+the memory requirement.
 
 XLA `memory_analysis` supplies argument, output, temporary, alias, and derived
 peak-live allocation for the forward and complete-Hamiltonian-gradient
@@ -35,12 +35,13 @@ targets remain strictly enclosed inside every source exterior face.
 
 The frozen CPU run passed with 1,679,527,776 bytes peak-live forward allocation.
 Value plus the complete Hamiltonian gradient used 2,518,490,824 bytes. Its
-recursive audit found no full KBE or full-kinematics carrier. S2 rematerialized
-values and gradients were bitwise equal; S3 recorded cache sizes
-`[0, 1, 1, 1]`; S4 had zero vmap error.
+recursive audit found no full KBE or full-kinematics carrier. Rematerialized
+values and gradients were bitwise equal. The compile-reuse check recorded
+cache sizes `[0, 1, 1, 1]`, and the geometry-batching check had zero vmap
+error.
 
 The JSON records hashes for this harness, the complete production driver and
 detector stack, relevant carriers, dependency metadata, and the lock file. The
 consumer authenticates artifact SHA-256
-`afb70466c0468b616bb66b36b4c6cf23f539116f98ccbe1e5c6a1ad30ee65760`
+`ca642cd6d4b1276937508f404c46487c505b1f1888e726747f6b21d345d3d0b4`
 before parsing the record.

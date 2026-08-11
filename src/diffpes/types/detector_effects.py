@@ -25,7 +25,10 @@ _REGISTERED_DOMAIN_FRAME_IDS: Tuple[str, ...] = (
 )
 _SENSITIVITY_MODES: Tuple[str, ...] = ("constant", "smooth")
 
-__all__: list[str] = ["DetectorEffects", "make_detector_effects"]
+__all__: list[str] = [
+    "DetectorEffects",
+    "make_detector_effects",
+]
 
 
 class DetectorEffects(eqx.Module):
@@ -72,6 +75,10 @@ class DetectorEffects(eqx.Module):
     Numerical fields are differentiable leaves. Selectors and discrete
     acquisition metadata are static. The factory normalizes a calibrated
     response kernel exactly once.
+
+    See Also
+    --------
+    make_detector_effects : Validated factory for this type.
     """
 
     domain_logits: Float64[Array, " n_domain"]

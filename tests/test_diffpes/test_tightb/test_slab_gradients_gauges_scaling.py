@@ -10,9 +10,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, List, Tuple
 from jax.extend.core import ClosedJaxpr, Jaxpr, Literal
-from jaxtyping import Array
+from jaxtyping import Array, Bool, Complex128, Float64, PRNGKeyArray
 
 from diffpes.tightb import (
     diagonalize_tb,
@@ -36,12 +36,12 @@ from diffpes.types import (
     make_orbital_basis,
     make_tb_model,
 )
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 def _geometry() -> CrystalGeometry:
     """PRIVATE: Build the anisotropic one-site geometry for the gradient
-    gates.
+    checks.
 
     Returns
     -------
@@ -54,19 +54,20 @@ def _geometry() -> CrystalGeometry:
     The three distinct lattice constants remove accidental cubic
     symmetry, so gradient and gauge checks see generic geometry.
     """
-    return make_crystal_geometry(
+    geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.diag(jnp.asarray((2.2, 2.5, 1.3))),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
         species=("X",),
     )
+    return geometry
 
 
-def _complex_soc_bulk(parameters: Array) -> TBModel:
+def _complex_soc_bulk(parameters: Float64[Array, " 5"]) -> TBModel:
     """PRIVATE: Build a complete p-shell spinor model from five coordinates.
 
     Parameters
     ----------
-    parameters : Array
+    parameters : Float64[Array, " 5"]
         Five active coordinates ``(p0, p1, p2, p3, soc)``; the first
         four scale hopping entries in eV and the last is the atomic
         spin--orbit coupling in eV.
@@ -89,11 +90,11 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
     final :func:`spin_double_model` call doubles the basis and applies
     the SOC coordinate.
     """
-    p0: Any
-    p1: Any
-    p2: Any
-    p3: Any
-    soc: Any
+    p0: Float64[Array, ""]
+    p1: Float64[Array, ""]
+    p2: Float64[Array, ""]
+    p3: Float64[Array, ""]
+    soc: Float64[Array, ""]
     basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0, 0, 0),
         n=(2, 2, 2),
@@ -102,7 +103,7 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
         labels=("px", "py", "pz"),
     )
     p0, p1, p2, p3, soc = parameters
-    x_block: Array = jnp.asarray(
+    x_block: Complex128[Array, "3 3"] = jnp.asarray(
         (
             (0.7 * p0, (0.21 + 0.13j) * p3, (-0.08 + 0.17j) * p2),
             ((-0.06 + 0.11j) * p3, -0.4 * p1, (0.09 - 0.07j) * p0),
@@ -110,7 +111,7 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
         ),
         dtype=jnp.complex128,
     )
-    z_block: Array = jnp.asarray(
+    z_block: Complex128[Array, "3 3"] = jnp.asarray(
         (
             (-0.31 * p1, (0.04 + 0.16j) * p2, (0.12 - 0.03j) * p3),
             ((-0.09 + 0.08j) * p2, 0.27 * p0, (0.15 + 0.06j) * p1),
@@ -118,7 +119,7 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
         ),
         dtype=jnp.complex128,
     )
-    blocks: Tuple[Array, ...] = (
+    blocks: Tuple[Complex128[Array, "3 3"], ...] = (
         x_block,
         x_block.conj().T,
         z_block,
@@ -154,7 +155,8 @@ def _complex_soc_bulk(parameters: Array) -> TBModel:
             )
         ),
     )
-    return spin_double_model(spinless)
+    model: TBModel = spin_double_model(spinless)
+    return model
 
 
 def _canonical_topology() -> SlabTopology:
@@ -174,22 +176,27 @@ def _canonical_topology() -> SlabTopology:
     under autodiff with :func:`rebuild_slab` while the integer topology
     stays static.
     """
-    nominal: Array = jnp.asarray((0.53, -0.47, 0.61, -0.39, 0.22))
-    return freeze_slab_topology(
+    nominal: Float64[Array, " 5"] = jnp.asarray(
+        (0.53, -0.47, 0.61, -0.39, 0.22)
+    )
+    topology: SlabTopology = freeze_slab_topology(
         _complex_soc_bulk(nominal),
         miller=(0, 0, 1),
         thickness_ang=1.3,
         vacuum_ang=4.0,
     )
+    return topology
 
 
-def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
+def _oblique_chain_model(
+    shape_parameter: Float64[Array, ""] | float,
+) -> TBModel:
     """PRIVATE: Build a one-orbital chain in a continuously deformable
     oblique cell.
 
     Parameters
     ----------
-    shape_parameter : Array | float
+    shape_parameter : Float64[Array, ""] | float
         Dimensionless deformation coordinate; three off-diagonal
         lattice entries in Angstrom vary linearly with it.
 
@@ -205,8 +212,10 @@ def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
     path of slab construction: the surface cell, layer spacing, and
     depths all respond to the continuous cell deformation.
     """
-    parameter: Array = jnp.asarray(shape_parameter, dtype=jnp.float64)
-    lattice: Array = jnp.asarray(
+    parameter: Float64[Array, ""] = jnp.asarray(
+        shape_parameter, dtype=jnp.float64
+    )
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
             (2.1, 0.23 + 0.11 * parameter, 0.31),
             (0.17, 1.8, 0.14 - 0.07 * parameter),
@@ -226,7 +235,7 @@ def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
         m=(0,),
         labels=("s",),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.asarray((-0.4, -0.4), dtype=jnp.complex128),
         onsite_energies=jnp.zeros((1,)),
         soc_lambdas=jnp.zeros((0,)),
@@ -236,22 +245,25 @@ def _oblique_chain_model(shape_parameter: Array | float) -> TBModel:
         hopping_cells=((0, 0, 1), (0, 0, -1)),
         shell_index=(-1,),
     )
+    return model
 
 
-def _spectral_loss(parameters: Array, topology: SlabTopology) -> Array:
+def _spectral_loss(
+    parameters: Float64[Array, " 5"], topology: SlabTopology
+) -> Float64[Array, ""]:
     """PRIVATE: Return a smooth broadened spectrum plus an isolated-group
     trace.
 
     Parameters
     ----------
-    parameters : Array
+    parameters : Float64[Array, " 5"]
         Five active bulk coordinates for :func:`_complex_soc_bulk`.
     topology : SlabTopology
         Frozen static slab topology from :func:`_canonical_topology`.
 
     Returns
     -------
-    loss : Array
+    loss : Float64[Array, ""]
         Scalar sum of two gauge-invariant terms. The first is a
         Gaussian-broadened spectral moment over four probe energies in
         eV with width 0.37 eV. The second is 0.17 times the summed
@@ -267,43 +279,48 @@ def _spectral_loss(parameters: Array, topology: SlabTopology) -> Array:
     """
     slab: TBModel
     slab, _ = rebuild_slab(_complex_soc_bulk(parameters), topology)
-    k_x: Array = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
-    kpoints: Array = jnp.stack(
+    k_x: Float64[Array, " 5"] = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
+    kpoints: Float64[Array, "5 3"] = jnp.stack(
         (k_x, 0.13 * k_x + 0.04, jnp.zeros_like(k_x)),
         axis=-1,
     )
     bands: DiagonalizedBands = diagonalize_tb(slab, kpoints)
-    probe_energies: Array = jnp.asarray((-0.83, -0.21, 0.34, 0.91))
+    probe_energies: Float64[Array, " 4"] = jnp.asarray(
+        (-0.83, -0.21, 0.34, 0.91)
+    )
     sigma: float = 0.37
-    broadened: Array = jnp.exp(
+    broadened: Float64[Array, "5 nband 4"] = jnp.exp(
         -((bands.eigenvalues[:, :, None] - probe_energies[None, None, :]) ** 2)
         / (2.0 * sigma**2)
     )
-    spectral_moment: Array = jnp.sum(
+    spectral_moment: Float64[Array, ""] = jnp.sum(
         broadened * jnp.asarray((0.7, -0.4, 0.9, 0.3))[None, None, :]
     )
-    group_trace: Array = layer_resolved_group_traces(
+    group_trace: Float64[Array, "5 1"] = layer_resolved_group_traces(
         bands,
         ((0, 1),),
         2.1,
     )
-    return spectral_moment + 0.17 * jnp.sum(group_trace)
+    loss: Float64[Array, ""] = spectral_moment + 0.17 * jnp.sum(group_trace)
+    return loss
 
 
-def _group_trace_loss(parameters: Array, topology: SlabTopology) -> Array:
+def _group_trace_loss(
+    parameters: Float64[Array, " 5"], topology: SlabTopology
+) -> Float64[Array, ""]:
     """PRIVATE: Return the isolated fixed-group component of the
     depth-gradient loss.
 
     Parameters
     ----------
-    parameters : Array
+    parameters : Float64[Array, " 5"]
         Five active bulk coordinates for :func:`_complex_soc_bulk`.
     topology : SlabTopology
         Frozen static slab topology from :func:`_canonical_topology`.
 
     Returns
     -------
-    loss : Array
+    loss : Float64[Array, ""]
         Scalar sum of the layer-resolved trace of the fixed band group
         ``(0, 1)`` at an intensity escape length of 2.1 Angstrom.
 
@@ -316,29 +333,32 @@ def _group_trace_loss(parameters: Array, topology: SlabTopology) -> Array:
     """
     slab: TBModel
     slab, _ = rebuild_slab(_complex_soc_bulk(parameters), topology)
-    k_x: Array = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
-    kpoints: Array = jnp.stack(
+    k_x: Float64[Array, " 5"] = jnp.asarray((-0.41, -0.19, 0.07, 0.23, 0.44))
+    kpoints: Float64[Array, "5 3"] = jnp.stack(
         (k_x, 0.13 * k_x + 0.04, jnp.zeros_like(k_x)),
         axis=-1,
     )
     bands: DiagonalizedBands = diagonalize_tb(slab, kpoints)
-    return jnp.sum(layer_resolved_group_traces(bands, ((0, 1),), 2.1))
+    loss: Float64[Array, ""] = jnp.sum(
+        layer_resolved_group_traces(bands, ((0, 1),), 2.1)
+    )
+    return loss
 
 
 def _bands(
-    eigenvalues: Array,
-    eigenvectors: Array,
-    depths: Array,
+    eigenvalues: Float64[Array, "nkpt nband"],
+    eigenvectors: Complex128[Array, "nkpt nband norb"],
+    depths: Float64[Array, " norb"],
 ) -> DiagonalizedBands:
     """PRIVATE: Build a small surface-bearing eigensystem.
 
     Parameters
     ----------
-    eigenvalues : Array
+    eigenvalues : Float64[Array, "nkpt nband"]
         Synthetic band energies in eV.
-    eigenvectors : Array
+    eigenvectors : Complex128[Array, "nkpt nband norb"]
         Band-major eigenvector rows for each k-point.
-    depths : Array
+    depths : Float64[Array, " norb"]
         Per-orbital depths below the surface in Angstrom.
 
     Returns
@@ -355,7 +375,7 @@ def _bands(
     physics.
     """
     n_orbitals: int = eigenvalues.shape[-1]
-    return make_diagonalized_bands(
+    bands: DiagonalizedBands = make_diagonalized_bands(
         eigenvalues=eigenvalues,
         eigenvectors=eigenvectors,
         kpoints=jnp.zeros((eigenvalues.shape[0], 3)),
@@ -374,22 +394,25 @@ def _bands(
         ),
         depths=depths,
     )
+    return bands
 
 
-def _random_unitary(key: Array, size: int) -> Array:
+def _random_unitary(
+    key: PRNGKeyArray, size: int
+) -> Complex128[Array, "size size"]:
     """PRIVATE: Return a deterministic Haar-like complex unitary from a
     complex QR.
 
     Parameters
     ----------
-    key : Array
+    key : PRNGKeyArray
         JAX PRNG key that fixes the draw.
     size : int
         Matrix dimension.
 
     Returns
     -------
-    unitary : Array
+    unitary : Complex128[Array, "size size"]
         A ``size`` by ``size`` complex unitary matrix.
 
     Notes
@@ -400,17 +423,20 @@ def _random_unitary(key: Array, size: int) -> Array:
     of QR, so the same key always yields the same unitary for the
     gauge-invariance checks.
     """
-    real_key: Array
-    imaginary_key: Array
+    real_key: PRNGKeyArray
+    imaginary_key: PRNGKeyArray
     real_key, imaginary_key = jax.random.split(key)
-    matrix: Array = jax.random.normal(real_key, (size, size)) + 1j * (
-        jax.random.normal(imaginary_key, (size, size))
+    matrix: Complex128[Array, "size size"] = jax.random.normal(
+        real_key, (size, size)
+    ) + 1j * (jax.random.normal(imaginary_key, (size, size)))
+    q_matrix: Complex128[Array, "size size"]
+    r_matrix: Complex128[Array, "size size"]
+    q_matrix, r_matrix = jnp.linalg.qr(matrix)
+    phases: Complex128[Array, " size"] = jnp.diag(r_matrix)
+    unitary: Complex128[Array, "size size"] = (
+        q_matrix * (phases / jnp.abs(phases)).conj()[None, :]
     )
-    q_matrix: Array
-    diagonal: Array
-    q_matrix, diagonal = jnp.linalg.qr(matrix)
-    phases: Array = jnp.diag(diagonal)
-    return q_matrix * (phases / jnp.abs(phases)).conj()[None, :]
+    return unitary
 
 
 def _diagonal_model(n_orbitals: int) -> TBModel:
@@ -445,10 +471,10 @@ def _diagonal_model(n_orbitals: int) -> TBModel:
     pairs: Tuple[Tuple[int, int], ...] = tuple(
         (index, index) for index in range(n_orbitals)
     )
-    forward: Array = jnp.linspace(-0.31, -0.07, n_orbitals).astype(
-        jnp.complex128
-    )
-    return make_tb_model(
+    forward: Complex128[Array, " n_orb"] = jnp.linspace(
+        -0.31, -0.07, n_orbitals
+    ).astype(jnp.complex128)
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate((forward, forward)),
         onsite_energies=jnp.linspace(-1.3, 1.7, n_orbitals),
         soc_lambdas=jnp.zeros((0,)),
@@ -458,6 +484,7 @@ def _diagonal_model(n_orbitals: int) -> TBModel:
         hopping_cells=((1, 0, 0),) * n_orbitals + ((-1, 0, 0),) * n_orbitals,
         shell_index=(-1,) * n_orbitals,
     )
+    return model
 
 
 def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
@@ -485,7 +512,7 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
     Hermitian, dense, and generic. Slab scaling tests extrude it layer
     by layer with four orbitals per layer.
     """
-    positions: Array = (
+    positions: Float64[Array, "natom 3"] = (
         jnp.asarray(((0.0, 0.0, 0.0), (0.0, 0.0, 0.5)))
         if alternating_species
         else jnp.zeros((1, 3))
@@ -505,8 +532,10 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
     pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column) for row in range(4) for column in range(4)
     )
-    seed: Array = jnp.arange(16, dtype=jnp.float64).reshape(4, 4)
-    forward: Array = 0.13 * (
+    seed: Float64[Array, "4 4"] = jnp.arange(16, dtype=jnp.float64).reshape(
+        4, 4
+    )
+    forward: Complex128[Array, "4 4"] = 0.13 * (
         jnp.sin(seed + 0.2) + 1j * jnp.cos(0.7 * seed + 0.1)
     )
     cells: Tuple[Tuple[int, int, int], ...] = (
@@ -515,13 +544,13 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
         (0, 0, 1),
         (0, 0, -1),
     )
-    blocks: Tuple[Array, ...] = (
+    blocks: Tuple[Complex128[Array, "4 4"], ...] = (
         forward,
         forward.conj().T,
         1.3 * forward,
         1.3 * forward.conj().T,
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate(
             tuple(block.reshape(-1) for block in blocks)
         ),
@@ -533,6 +562,7 @@ def _scaling_bulk_model(*, alternating_species: bool = False) -> TBModel:
         hopping_cells=tuple(cell for cell in cells for _ in range(len(pairs))),
         shell_index=(-1,) * 4,
     )
+    return model
 
 
 def _scaling_slab(n_layers: int) -> TBModel:
@@ -569,7 +599,7 @@ def _scaling_slab(n_layers: int) -> TBModel:
     return slab
 
 
-def _collect_shapes(value: object, shapes: list[Tuple[int, ...]]) -> None:
+def _collect_shapes(value: object, shapes: List[Tuple[int, ...]]) -> None:
     """PRIVATE: Collect shaped variables recursively from one JAXPR.
 
     Parameters
@@ -577,7 +607,7 @@ def _collect_shapes(value: object, shapes: list[Tuple[int, ...]]) -> None:
     value : object
         A ``ClosedJaxpr``, ``Jaxpr``, container, or any other object
         found inside JAXPR equation parameters.
-    shapes : list[tuple[int, ...]]
+    shapes : List[Tuple[int, ...]]
         Mutable accumulator that receives one shape tuple per shaped
         variable.
 
@@ -598,7 +628,7 @@ def _collect_shapes(value: object, shapes: list[Tuple[int, ...]]) -> None:
         _collect_shapes(value.jaxpr, shapes)
         return
     if isinstance(value, Jaxpr):
-        variables: list[object] = [
+        variables: List[object] = [
             *value.constvars,
             *value.invars,
             *value.outvars,
@@ -625,10 +655,14 @@ def _collect_shapes(value: object, shapes: list[Tuple[int, ...]]) -> None:
 
 
 class TestSlabDifferentiability:
-    """Certify depth and structural gradients with finite differences and nonzero tripwires."""
+    """Certify depth and structural gradients with nonzero tripwires.
+
+    The cases compare slab gradients with finite differences for SOC, geometry,
+    and depth probes.
+    """
 
     @pytest.mark.rss_limit_mb(1536)
-    def test_generic_complex_soc_slab_gradient_gate(self) -> None:
+    def test_generic_complex_soc_slab_gradient_matches_fd(self) -> None:
         """Match fwd/rev/FD for every active hopping and SOC coordinate.
 
         Exercise this slab condition with fixed fixtures.
@@ -637,16 +671,16 @@ class TestSlabDifferentiability:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        parameters: Array = jnp.asarray(
+        parameters: Float64[Array, " 5"] = jnp.asarray(
             (0.53, -0.47, 0.61, -0.39, 0.22),
             dtype=jnp.float64,
         )
         topology: SlabTopology = _canonical_topology()
-        group_gradient: Array = jax.grad(
+        group_gradient: Float64[Array, " 5"] = jax.grad(
             lambda candidate: _group_trace_loss(candidate, topology)
         )(parameters)
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             lambda candidate: _spectral_loss(candidate, topology),
             parameters,
             regime="smooth",
@@ -656,12 +690,13 @@ class TestSlabDifferentiability:
         assert jnp.linalg.norm(group_gradient) > 1e-9
 
     @pytest.mark.rss_limit_mb(1024)
-    @pytest.mark.parametrize("observable", ("spacing", "rotation", "depths"))
+    @pytest.mark.parametrize("observable", ["spacing", "rotation", "depths"])
     def test_oblique_frozen_surface_geometry_gradient(
         self,
         observable: str,
     ) -> None:
-        """Match forward, reverse, and finite-difference slab rebuild gradients.
+        """Match forward, reverse, and finite-difference slab rebuild
+        gradients.
 
         Exercise this slab condition with fixed fixtures.
 
@@ -669,14 +704,14 @@ class TestSlabDifferentiability:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        nominal: Array = jnp.asarray(0.37)
+        nominal: Float64[Array, ""] = jnp.asarray(0.37)
         topology: SlabTopology = freeze_slab_topology(
             _oblique_chain_model(nominal),
             miller=(1, 1, 1),
             thickness_ang=5.0,
             vacuum_ang=4.0,
         )
-        rotation_weights: Array = jnp.asarray(
+        rotation_weights: Float64[Array, "3 3"] = jnp.asarray(
             (
                 (0.7, -0.2, 0.5),
                 (-0.3, 0.9, 0.4),
@@ -684,26 +719,30 @@ class TestSlabDifferentiability:
             )
         )
 
-        def loss(parameter: Array) -> Array:
+        def loss(parameter: Float64[Array, ""]) -> Float64[Array, ""]:
             spec: Any
             slab: TBModel
+            result: Float64[Array, ""]
             slab, spec = rebuild_slab(
                 _oblique_chain_model(parameter),
                 topology,
             )
             if observable == "spacing":
-                return spec.surface_cell.interlayer_spacing_ang
+                result = spec.surface_cell.interlayer_spacing_ang
+                return result
             if observable == "rotation":
-                return jnp.sum(spec.surface_cell.rotation * rotation_weights)
+                result = jnp.sum(spec.surface_cell.rotation * rotation_weights)
+                return result
             assert slab.depths is not None
-            depth_weights: Array = jnp.linspace(
+            depth_weights: Float64[Array, " n_orb"] = jnp.linspace(
                 0.4,
                 1.3,
                 slab.depths.shape[0],
             )
-            return jnp.sum(depth_weights * slab.depths)
+            result = jnp.sum(depth_weights * slab.depths)
+            return result
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             nominal,
             regime="smooth",
@@ -711,7 +750,8 @@ class TestSlabDifferentiability:
         )
 
     def test_group_trace_probe_depth_gradient_and_small_guard(self) -> None:
-        """Match structural finite-difference evidence and keep the 1e-8-A probe finite.
+        """Match structural finite-difference evidence and keep the 1e-8-A
+        probe finite.
 
         Exercise this slab condition with fixed fixtures.
 
@@ -719,10 +759,10 @@ class TestSlabDifferentiability:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        weights: Array = jnp.asarray((0.18, 0.77, 0.42))
-        depths: Array = -jnp.log(weights)
+        weights: Float64[Array, " 3"] = jnp.asarray((0.18, 0.77, 0.42))
+        depths: Float64[Array, " 3"] = -jnp.log(weights)
         theta: float = 0.37
-        rotation: Array = jnp.asarray(
+        rotation: Complex128[Array, "3 3"] = jnp.asarray(
             (
                 (jnp.cos(theta), jnp.sin(theta), 0.0),
                 (-jnp.sin(theta), jnp.cos(theta), 0.0),
@@ -736,31 +776,36 @@ class TestSlabDifferentiability:
             depths,
         )
 
-        def loss(length: Array) -> Array:
-            return jnp.sum(
+        def loss(length: Float64[Array, ""]) -> Float64[Array, ""]:
+            result: Float64[Array, ""] = jnp.sum(
                 layer_resolved_group_traces(
                     bands,
                     ((0, 1),),
                     length,
                 )
             )
+            return result
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             jnp.asarray(1.7),
             regime="smooth",
         )
-        small_length: Array = jnp.asarray(1e-8)
-        small_value: Array = loss(small_length)
-        small_gradient: Array = jax.grad(loss)(small_length)
+        small_length: Float64[Array, ""] = jnp.asarray(1e-8)
+        small_value: Float64[Array, ""] = loss(small_length)
+        small_gradient: Float64[Array, ""] = jax.grad(loss)(small_length)
         assert jnp.isfinite(small_value)
         assert jnp.isfinite(small_gradient)
 
 
 class TestSlabGaugeInvariance:
-    """Certify gauge invariance under random phases and complete-group unitaries."""
+    """Certify complete-group gauge invariance.
 
-    @pytest.mark.parametrize("seed", (7, 19, 43))
+    The cases apply random phase, two-state, and three-state rotations to
+    complete spectral groups.
+    """
+
+    @pytest.mark.parametrize("seed", [7, 19, 43])
     def test_random_phases_and_u2_preserve_complete_trace(
         self,
         seed: int,
@@ -773,10 +818,12 @@ class TestSlabGaugeInvariance:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = -jnp.log(jnp.asarray((0.2, 0.8, 0.4)))
-        canonical: Array = jnp.eye(3, dtype=jnp.complex128)
-        unitary: Array = _random_unitary(jax.random.key(seed), 2)
-        phases: Array = jnp.exp(
+        depths: Float64[Array, " 3"] = -jnp.log(jnp.asarray((0.2, 0.8, 0.4)))
+        canonical: Complex128[Array, "3 3"] = jnp.eye(3, dtype=jnp.complex128)
+        unitary: Complex128[Array, "2 2"] = _random_unitary(
+            jax.random.key(seed), 2
+        )
+        phases: Complex128[Array, " 3"] = jnp.exp(
             1j
             * jax.random.uniform(
                 jax.random.key(seed + 100),
@@ -785,7 +832,7 @@ class TestSlabGaugeInvariance:
                 maxval=jnp.pi,
             )
         )
-        transformed: Array = canonical.at[:2, :].set(
+        transformed: Complex128[Array, "3 3"] = canonical.at[:2, :].set(
             unitary @ canonical[:2, :]
         )
         transformed = phases[:, None] * transformed
@@ -799,17 +846,17 @@ class TestSlabGaugeInvariance:
             original,
             transformed[None, :, :],
         )
-        original_trace: Array = layer_resolved_group_traces(
+        original_trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             original,
             ((0, 1),),
             1.0,
         )
-        gauged_trace: Array = layer_resolved_group_traces(
+        gauged_trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             gauged,
             ((0, 1),),
             1.0,
         )
-        individual_change: Array = jnp.max(
+        individual_change: Float64[Array, ""] = jnp.max(
             jnp.abs(
                 layer_resolved_weights(gauged, 1.0)
                 - layer_resolved_weights(original, 1.0)
@@ -829,7 +876,7 @@ class TestSlabGaugeInvariance:
             maxulp=32,
         )
 
-    @pytest.mark.parametrize("seed", (3, 29))
+    @pytest.mark.parametrize("seed", [3, 29])
     def test_random_u3_preserves_full_trace(self, seed: int) -> None:
         """Preserve the complete U(3) trace while rejecting a partial group.
 
@@ -839,9 +886,11 @@ class TestSlabGaugeInvariance:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = -jnp.log(jnp.asarray((0.1, 0.4, 0.9)))
-        canonical: Array = jnp.eye(3, dtype=jnp.complex128)
-        transformed: Array = _random_unitary(jax.random.key(seed), 3)
+        depths: Float64[Array, " 3"] = -jnp.log(jnp.asarray((0.1, 0.4, 0.9)))
+        canonical: Complex128[Array, "3 3"] = jnp.eye(3, dtype=jnp.complex128)
+        transformed: Complex128[Array, "3 3"] = _random_unitary(
+            jax.random.key(seed), 3
+        )
         original: DiagonalizedBands = _bands(
             jnp.zeros((1, 3)),
             canonical[None, :, :],
@@ -855,12 +904,12 @@ class TestSlabGaugeInvariance:
 
         with pytest.raises(RuntimeError, match="cuts a degenerate"):
             layer_resolved_group_traces(gauged, ((0, 1),), 1.0)
-        expected: Array = layer_resolved_group_traces(
+        expected: Float64[Array, "1 1"] = layer_resolved_group_traces(
             original,
             ((0, 1, 2),),
             1.0,
         )
-        actual: Array = layer_resolved_group_traces(
+        actual: Float64[Array, "1 1"] = layer_resolved_group_traces(
             gauged,
             ((0, 1, 2),),
             1.0,
@@ -874,7 +923,11 @@ class TestSlabGaugeInvariance:
 
 
 class TestSlabScaling:
-    """Certify bounded execution and static-shape evidence."""
+    """Certify bounded execution and static-shape evidence.
+
+    The cases compare chunked execution, rematerialized gradients, JAX
+    structure, retracing, and invalid chunks.
+    """
 
     @pytest.mark.rss_limit_mb(1024)
     def test_chunked_values_and_remat_grad_match_nonchunked(self) -> None:
@@ -887,7 +940,7 @@ class TestSlabScaling:
         Compare outputs with declared numerical or structural references.
         """
         model: TBModel = _scaling_slab(3)
-        kpoints: Array = jnp.stack(
+        kpoints: Float64[Array, "16 3"] = jnp.stack(
             (
                 jnp.linspace(-0.47, 0.43, 16),
                 jnp.linspace(0.03, 0.19, 16),
@@ -895,24 +948,35 @@ class TestSlabScaling:
             ),
             axis=-1,
         )
-        expected: Array = eigvalsh_bands(model, kpoints)
-        actual: Array = eigvalsh_bands_chunked(model, kpoints, 4)
+        expected: Float64[Array, "16 12"] = eigvalsh_bands(model, kpoints)
+        actual: Float64[Array, "16 12"] = eigvalsh_bands_chunked(
+            model, kpoints, 4
+        )
 
-        def loss(scale: Array, chunked: bool) -> Array:
+        def loss(
+            scale: Float64[Array, ""], chunked: bool
+        ) -> Float64[Array, ""]:
             changed: TBModel = eqx.tree_at(
                 lambda item: item.hopping_amplitudes,
                 model,
                 scale * model.hopping_amplitudes,
             )
-            values: Array = (
+            values: Float64[Array, "16 12"] = (
                 eigvalsh_bands_chunked(changed, kpoints, 4)
                 if chunked
                 else eigvalsh_bands(changed, kpoints)
             )
-            return jnp.sum(jnp.sin(0.7 * values) + 0.13 * values**2)
+            result: Float64[Array, ""] = jnp.sum(
+                jnp.sin(0.7 * values) + 0.13 * values**2
+            )
+            return result
 
-        chunked_gradient: Array = jax.grad(loss, argnums=0)(1.1, True)
-        ordinary_gradient: Array = jax.grad(loss, argnums=0)(1.1, False)
+        chunked_gradient: Float64[Array, ""] = jax.grad(loss, argnums=0)(
+            1.1, True
+        )
+        ordinary_gradient: Float64[Array, ""] = jax.grad(loss, argnums=0)(
+            1.1, False
+        )
         assert jnp.allclose(actual, expected, rtol=1e-13, atol=1e-13)
         assert jnp.allclose(
             chunked_gradient,
@@ -936,7 +1000,9 @@ class TestSlabScaling:
         chunk_size: int = 4
         model: TBModel = _scaling_slab(4)
         assert model.onsite_energies.shape == (n_orbitals,)
-        kpoints: Array = jnp.zeros((n_kpoints, 3), dtype=jnp.float64)
+        kpoints: Float64[Array, "32 3"] = jnp.zeros(
+            (n_kpoints, 3), dtype=jnp.float64
+        )
         jaxpr: ClosedJaxpr = jax.make_jaxpr(
             lambda points: eigvalsh_bands_chunked(
                 model,
@@ -944,7 +1010,7 @@ class TestSlabScaling:
                 chunk_size,
             )
         )(kpoints)
-        shapes: list[Tuple[int, ...]] = []
+        shapes: List[Tuple[int, ...]] = []
         _collect_shapes(jaxpr, shapes)
 
         assert (chunk_size, n_orbitals, n_orbitals) in shapes
@@ -990,7 +1056,7 @@ class TestSlabScaling:
             vacuum_ang=4.0,
             termination=("Y", "X"),
         )
-        kpoints: Array = jnp.stack(
+        kpoints: Float64[Array, "16 3"] = jnp.stack(
             (
                 jnp.linspace(-0.4, 0.4, 16),
                 jnp.zeros((16,)),
@@ -998,20 +1064,26 @@ class TestSlabScaling:
             ),
             axis=-1,
         )
-        trace_count: list[int] = [0]
+        trace_count: List[int] = [0]
 
         def counted(
             candidate: TBModel,
-            points: Array,
-            active_mask: Array,
-        ) -> Array:
+            points: Float64[Array, "16 3"],
+            active_mask: Bool[Array, " 16"],
+        ) -> Float64[Array, ""]:
             trace_count[0] += 1
-            values: Array = eigvalsh_bands_chunked(candidate, points, 4)
-            return jnp.sum(values * active_mask[:, None])
+            values: Float64[Array, "16 nband"] = eigvalsh_bands_chunked(
+                candidate, points, 4
+            )
+            result: Float64[Array, ""] = jnp.sum(values * active_mask[:, None])
+            return result
 
-        compiled: Callable[..., Array] = eqx.filter_jit(counted)
+        compiled: Callable[
+            [TBModel, Float64[Array, "16 3"], Bool[Array, " 16"]],
+            Float64[Array, ""],
+        ] = eqx.filter_jit(counted)
         for active_length in (5, 9, 16, 7):
-            mask: Array = jnp.arange(16) < active_length
+            mask: Bool[Array, " 16"] = jnp.arange(16) < active_length
             compiled(
                 fixed_model,
                 kpoints,
@@ -1044,7 +1116,7 @@ class TestSlabScaling:
         )
         assert thickness_model.hopping_pairs != termination_model.hopping_pairs
 
-    @pytest.mark.parametrize("chunk_size", (0, -1, 3))
+    @pytest.mark.parametrize("chunk_size", [0, -1, 3])
     def test_rejects_invalid_chunk_contract(self, chunk_size: int) -> None:
         """Reject nonpositive or non-dividing static chunk sizes.
 

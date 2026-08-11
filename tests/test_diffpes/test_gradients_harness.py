@@ -4,9 +4,10 @@ Extended Summary
 ----------------
 Exercises scale-aware finite differences, JAX's complex-to-real convention,
 complex-step differentiation, and planted wrong and zero gradients. These
-self-tests establish finite-difference and gradient checks before physics code relies on the
-shared harness.
+self-tests establish gradient checks before physics code uses this harness.
 """
+
+from functools import partial
 
 import chex
 import jax
@@ -14,62 +15,62 @@ import jax.numpy as jnp
 import pytest
 from beartype.typing import Tuple
 from jax import test_util
-from jaxtyping import Array, Complex, Float
+from jaxtyping import Array, Complex128, Float64
 
 from tests._gradients import (
     RTOL_LADDER,
     assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
     assert_nonzero_grad,
     central_fd_grad,
     complex_step_derivative,
     fd_step,
-    gradient_gate,
     random_generic_complex,
 )
 from tests._types import GradRegime
 
 
 @jax.custom_jvp
-def _wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
+def _wrong_sine(x: Float64[Array, "..."]) -> Float64[Array, "..."]:
     """PRIVATE: Return sine with a deliberately incorrect ten-percent tangent.
 
     Parameters
     ----------
-    x : Float[Array, "..."]
+    x : Float64[Array, "..."]
         Dimensionless input values in radians.
 
     Returns
     -------
-    result : Float[Array, "..."]
+    result : Float64[Array, "..."]
         The elementwise sine of ``x``.
 
     Notes
     -----
     The primal is the exact sine. The paired ``_wrong_sine_jvp`` rule
     plants a tangent scaled by 1.1. The harness self-tests verify that
-    the gradient gate rejects this ten-percent derivative defect.
+    the gradient check rejects this ten-percent derivative defect.
     """
-    result: Float[Array, "..."] = jnp.sin(x)
+    result: Float64[Array, "..."] = jnp.sin(x)
     return result
 
 
 @_wrong_sine.defjvp
 def _wrong_sine_jvp(
-    primals: Tuple[Float[Array, "..."], ...],
-    tangents: Tuple[Float[Array, "..."], ...],
-) -> Tuple[Float[Array, "..."], Float[Array, "..."]]:
+    primals: Tuple[Float64[Array, "..."], ...],
+    tangents: Tuple[Float64[Array, "..."], ...],
+) -> Tuple[Float64[Array, "..."], Float64[Array, "..."]]:
     """PRIVATE: Plant a tangent scaled by 1.1 for harness-defect detection.
 
     Parameters
     ----------
-    primals : tuple[Float[Array, "..."], ...]
+    primals : Tuple[Float64[Array, "..."], ...]
         One-element tuple that holds the input array ``x``.
-    tangents : tuple[Float[Array, "..."], ...]
+    tangents : Tuple[Float64[Array, "..."], ...]
         One-element tuple that holds the input tangent of ``x``.
 
     Returns
     -------
-    result : tuple[Float[Array, "..."], Float[Array, "..."]]
+    result : Tuple[Float64[Array, "..."], Float64[Array, "..."]]
         The exact sine primal and the corrupted tangent.
 
     Notes
@@ -78,13 +79,13 @@ def _wrong_sine_jvp(
     derivative. Every tolerance rung of ``assert_grad_matches_fd`` must
     reject this planted defect while the primal stays exact.
     """
-    x: Float[Array, "..."]
-    x_tangent: Float[Array, "..."]
+    x: Float64[Array, "..."]
+    x_tangent: Float64[Array, "..."]
     (x,) = primals
     (x_tangent,) = tangents
-    primal: Float[Array, "..."] = _wrong_sine(x)
-    tangent: Float[Array, "..."] = 1.1 * jnp.cos(x) * x_tangent
-    result: Tuple[Float[Array, "..."], Float[Array, "..."]] = (
+    primal: Float64[Array, "..."] = _wrong_sine(x)
+    tangent: Float64[Array, "..."] = 1.1 * jnp.cos(x) * x_tangent
+    result: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
         primal,
         tangent,
     )
@@ -92,17 +93,17 @@ def _wrong_sine_jvp(
 
 
 @jax.custom_jvp
-def _near_wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
+def _near_wrong_sine(x: Float64[Array, "..."]) -> Float64[Array, "..."]:
     """PRIVATE: Return sine with a deliberately incorrect five-digit tangent.
 
     Parameters
     ----------
-    x : Float[Array, "..."]
+    x : Float64[Array, "..."]
         Dimensionless input values in radians.
 
     Returns
     -------
-    result : Float[Array, "..."]
+    result : Float64[Array, "..."]
         The elementwise sine of ``x``.
 
     Notes
@@ -111,42 +112,42 @@ def _near_wrong_sine(x: Float[Array, "..."]) -> Float[Array, "..."]:
     rule plants a tangent scaled by 1.00001, so the detection-floor test
     can pin the strictest relative tolerance rung of the harness.
     """
-    result: Float[Array, "..."] = jnp.sin(x)
+    result: Float64[Array, "..."] = jnp.sin(x)
     return result
 
 
 @_near_wrong_sine.defjvp
 def _near_wrong_sine_jvp(
-    primals: Tuple[Float[Array, "..."], ...],
-    tangents: Tuple[Float[Array, "..."], ...],
-) -> Tuple[Float[Array, "..."], Float[Array, "..."]]:
+    primals: Tuple[Float64[Array, "..."], ...],
+    tangents: Tuple[Float64[Array, "..."], ...],
+) -> Tuple[Float64[Array, "..."], Float64[Array, "..."]]:
     """PRIVATE: Plant a tangent scaled by 1.00001 to pin the detection floor.
 
     Parameters
     ----------
-    primals : tuple[Float[Array, "..."], ...]
+    primals : Tuple[Float64[Array, "..."], ...]
         One-element tuple that holds the input array ``x``.
-    tangents : tuple[Float[Array, "..."], ...]
+    tangents : Tuple[Float64[Array, "..."], ...]
         One-element tuple that holds the input tangent of ``x``.
 
     Returns
     -------
-    result : tuple[Float[Array, "..."], Float[Array, "..."]]
+    result : Tuple[Float64[Array, "..."], Float64[Array, "..."]]
         The exact sine primal and the slightly corrupted tangent.
 
     Notes
     -----
     Computes ``1.00001 * cos(x) * x_tangent``, one part in 100000 above
     the true derivative. The smooth 1e-6 rung must still detect this
-    defect, which documents the sensitivity floor of the gradient gate.
+    defect, which documents the sensitivity floor of the gradient check.
     """
-    x: Float[Array, "..."]
-    x_tangent: Float[Array, "..."]
+    x: Float64[Array, "..."]
+    x_tangent: Float64[Array, "..."]
     (x,) = primals
     (x_tangent,) = tangents
-    primal: Float[Array, "..."] = _near_wrong_sine(x)
-    tangent: Float[Array, "..."] = 1.00001 * jnp.cos(x) * x_tangent
-    result: Tuple[Float[Array, "..."], Float[Array, "..."]] = (
+    primal: Float64[Array, "..."] = _near_wrong_sine(x)
+    tangent: Float64[Array, "..."] = 1.00001 * jnp.cos(x) * x_tangent
+    result: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
         primal,
         tangent,
     )
@@ -154,17 +155,17 @@ def _near_wrong_sine_jvp(
 
 
 @jax.custom_jvp
-def _tiny_linear(x: Float[Array, ""]) -> Float[Array, ""]:
+def _tiny_linear(x: Float64[Array, ""]) -> Float64[Array, ""]:
     """PRIVATE: Return an order-one loss with a resolvable ``1e-7`` derivative.
 
     Parameters
     ----------
-    x : Float[Array, ""]
+    x : Float64[Array, ""]
         Dimensionless scalar parameter.
 
     Returns
     -------
-    result : Float[Array, ""]
+    result : Float64[Array, ""]
         The affine loss ``1.0 + 1e-7 * x``.
 
     Notes
@@ -174,27 +175,27 @@ def _tiny_linear(x: Float[Array, ""]) -> Float[Array, ""]:
     plants a zero tangent, so the finite-difference absolute-tolerance
     tests can verify that the missing slope is not hidden.
     """
-    result: Float[Array, ""] = 1.0 + 1e-7 * x
+    result: Float64[Array, ""] = 1.0 + 1e-7 * x
     return result
 
 
 @_tiny_linear.defjvp
 def _tiny_linear_jvp(
-    primals: Tuple[Float[Array, ""], ...],
-    tangents: Tuple[Float[Array, ""], ...],
-) -> Tuple[Float[Array, ""], Float[Array, ""]]:
+    primals: Tuple[Float64[Array, ""], ...],
+    tangents: Tuple[Float64[Array, ""], ...],
+) -> Tuple[Float64[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Plant an exactly zero tangent for the nonzero linear primal.
 
     Parameters
     ----------
-    primals : tuple[Float[Array, ""], ...]
+    primals : Tuple[Float64[Array, ""], ...]
         One-element tuple that holds the scalar input ``x``.
-    tangents : tuple[Float[Array, ""], ...]
+    tangents : Tuple[Float64[Array, ""], ...]
         One-element tuple that holds the input tangent of ``x``.
 
     Returns
     -------
-    result : tuple[Float[Array, ""], Float[Array, ""]]
+    result : Tuple[Float64[Array, ""], Float64[Array, ""]]
         The exact affine primal and a zero tangent.
 
     Notes
@@ -203,27 +204,27 @@ def _tiny_linear_jvp(
     one-hundred-percent-wrong derivative that the elementwise and
     directional finite-difference comparisons must both reject.
     """
-    x: Float[Array, ""]
+    x: Float64[Array, ""]
     (x,) = primals
-    primal: Float[Array, ""] = _tiny_linear(x)
-    tangent: Float[Array, ""] = jnp.zeros_like(x)
-    result: Tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    primal: Float64[Array, ""] = _tiny_linear(x)
+    tangent: Float64[Array, ""] = jnp.zeros_like(x)
+    result: Tuple[Float64[Array, ""], Float64[Array, ""]] = primal, tangent
     return result
 
 
 @jax.custom_jvp
-def _mixed_scale_linear(x: Float[Array, "2"]) -> Float[Array, ""]:
+def _mixed_scale_linear(x: Float64[Array, "2"]) -> Float64[Array, ""]:
     """PRIVATE: Return a loss whose large parameter has a tiny sensitivity.
 
     Parameters
     ----------
-    x : Float[Array, "2"]
+    x : Float64[Array, "2"]
         Dimensionless parameter pair; the test drives it at scales
         ``1e-3`` and ``1e3``.
 
     Returns
     -------
-    result : Float[Array, ""]
+    result : Float64[Array, ""]
         The affine loss ``1.0 + 1e-4 * x[0] + 1e-10 * x[1]``.
 
     Notes
@@ -233,27 +234,27 @@ def _mixed_scale_linear(x: Float[Array, "2"]) -> Float[Array, ""]:
     ``_mixed_scale_linear_jvp`` rule suppresses that slope, so the test
     can require a per-coordinate roundoff floor.
     """
-    result: Float[Array, ""] = 1.0 + 1e-4 * x[0] + 1e-10 * x[1]
+    result: Float64[Array, ""] = 1.0 + 1e-4 * x[0] + 1e-10 * x[1]
     return result
 
 
 @_mixed_scale_linear.defjvp
 def _mixed_scale_linear_jvp(
-    primals: Tuple[Float[Array, "2"], ...],
-    tangents: Tuple[Float[Array, "2"], ...],
-) -> Tuple[Float[Array, ""], Float[Array, ""]]:
+    primals: Tuple[Float64[Array, "2"], ...],
+    tangents: Tuple[Float64[Array, "2"], ...],
+) -> Tuple[Float64[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Plant zero for only the large parameter's resolvable tangent.
 
     Parameters
     ----------
-    primals : tuple[Float[Array, "2"], ...]
+    primals : Tuple[Float64[Array, "2"], ...]
         One-element tuple that holds the parameter pair ``x``.
-    tangents : tuple[Float[Array, "2"], ...]
+    tangents : Tuple[Float64[Array, "2"], ...]
         One-element tuple that holds the input tangent of ``x``.
 
     Returns
     -------
-    result : tuple[Float[Array, ""], Float[Array, ""]]
+    result : Tuple[Float64[Array, ""], Float64[Array, ""]]
         The exact affine primal and the truncated tangent.
 
     Notes
@@ -263,13 +264,13 @@ def _mixed_scale_linear_jvp(
     expose the suppressed second coordinate despite its million-fold
     larger step.
     """
-    x: Float[Array, "2"]
-    x_tangent: Float[Array, "2"]
+    x: Float64[Array, "2"]
+    x_tangent: Float64[Array, "2"]
     (x,) = primals
     (x_tangent,) = tangents
-    primal: Float[Array, ""] = _mixed_scale_linear(x)
-    tangent: Float[Array, ""] = 1e-4 * x_tangent[0]
-    result: Tuple[Float[Array, ""], Float[Array, ""]] = primal, tangent
+    primal: Float64[Array, ""] = _mixed_scale_linear(x)
+    tangent: Float64[Array, ""] = 1e-4 * x_tangent[0]
+    result: Tuple[Float64[Array, ""], Float64[Array, ""]] = primal, tangent
     return result
 
 
@@ -284,13 +285,13 @@ class TestGradientHarness(chex.TestCase):
     :see: :func:`~tests._gradients.central_fd_grad`
     :see: :func:`~tests._gradients.complex_step_derivative`
     :see: :func:`~tests._gradients.fd_step`
-    :see: :func:`~tests._gradients.gradient_gate`
+    :see: :func:`~tests._gradients.assert_gradients_match_finite_differences`
     """
 
     def test_closed_form_truths(self) -> None:
         """Verify analytic smooth gradients pass at relative tolerance 1e-6.
 
-        The shared gate must accept closed-form derivatives across smooth and
+        The shared check must accept closed-form derivatives across smooth and
         stiff regimes and across parameter scales from ``1e-3`` to ``5``.
 
         Notes
@@ -300,20 +301,20 @@ class TestGradientHarness(chex.TestCase):
         Each check uses both autodiff modes and elementwise finite differences
         for the finite-difference requirement.
         """
-        sine_input: Float[Array, "3"] = jnp.array([-0.7, 0.2, 1.1])
+        sine_input: Float64[Array, "3"] = jnp.array([-0.7, 0.2, 1.1])
         assert_grad_matches_fd(lambda x: jnp.sum(jnp.sin(x)), sine_input)
-        gaussian_input: Float[Array, "3"] = jnp.array([-1.2, 0.3, 0.9])
+        gaussian_input: Float64[Array, "3"] = jnp.array([-1.2, 0.3, 0.9])
         assert_grad_matches_fd(
             lambda x: jnp.sum(jnp.exp(-(x**2))), gaussian_input
         )
-        rosenbrock_input: Float[Array, "2"] = jnp.array([-0.8, 1.4])
+        rosenbrock_input: Float64[Array, "2"] = jnp.array([-0.8, 1.4])
         assert_grad_matches_fd(
             lambda x: (1.0 - x[0]) ** 2 + 100.0 * (x[1] - x[0] ** 2) ** 2,
             rosenbrock_input,
             regime="stiff",
         )
-        mixed_scale: Float[Array, "3"] = jnp.array([1e-3, 5.0, 3.0])
-        gradient_gate(
+        mixed_scale: Float64[Array, "3"] = jnp.array([1e-3, 5.0, 3.0])
+        assert_gradients_match_finite_differences(
             lambda x: x[0] ** 2 * x[1] / x[2],
             mixed_scale,
             regime="smooth",
@@ -330,10 +331,10 @@ class TestGradientHarness(chex.TestCase):
         The test compares a mixed-unit vector against the exact
         ``eps**(1/3) * max(abs(theta), 1e-3)`` prescription.
         """
-        theta: Float[Array, "3"] = jnp.array([1e-4, 5.0, -3.0])
-        actual: Float[Array, "3"] = fd_step(theta)
-        ratio: Float[Array, "3"] = actual / actual[0]
-        expected_ratio: Float[Array, "3"] = jnp.array([1.0, 5000.0, 3000.0])
+        theta: Float64[Array, "3"] = jnp.array([1e-4, 5.0, -3.0])
+        actual: Float64[Array, "3"] = fd_step(theta)
+        ratio: Float64[Array, "3"] = actual / actual[0]
+        expected_ratio: Float64[Array, "3"] = jnp.array([1.0, 5000.0, 3000.0])
         chex.assert_trees_all_close(ratio, expected_ratio)
 
     def test_wirtinger_convention(self) -> None:
@@ -348,17 +349,17 @@ class TestGradientHarness(chex.TestCase):
         It also checks generic asymmetric complex data at relative tolerance
         ``1e-8`` for the finite-difference requirement.
         """
-        exact: Complex[Array, ""] = jax.grad(lambda z: jnp.abs(z) ** 2)(
+        exact: Complex128[Array, ""] = jax.grad(lambda z: jnp.abs(z) ** 2)(
             jnp.asarray(1.0 + 1.0j)
         )
         chex.assert_trees_all_equal(exact, jnp.asarray(2.0 - 2.0j))
-        values: Complex[Array, "4"] = random_generic_complex(
+        values: Complex128[Array, "4"] = random_generic_complex(
             jax.random.key(20260713), (4,)
         )
-        automatic: Complex[Array, "4"] = jax.grad(
+        automatic: Complex128[Array, "4"] = jax.grad(
             lambda z: jnp.sum(jnp.abs(z) ** 2)
         )(values)
-        finite_difference: Complex[Array, "4"] = central_fd_grad(
+        finite_difference: Complex128[Array, "4"] = central_fd_grad(
             lambda z: jnp.sum(jnp.abs(z) ** 2), values
         )
         chex.assert_trees_all_close(
@@ -374,12 +375,18 @@ class TestGradientHarness(chex.TestCase):
         Notes
         -----
         A ``custom_jvp`` retains the correct sine primal. It scales the
-        derivative by 1.1. The shared check must raise for the gradient requirement.
+        derivative by 1.1. The shared check must raise for this requirement.
         """
-        theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        theta: Float64[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
         regime: GradRegime
         for regime in RTOL_LADDER:
-            with self.subTest(regime=regime), pytest.raises(AssertionError):
+            with (
+                self.subTest(regime=regime),
+                pytest.raises(
+                    AssertionError,
+                    match="Not equal to tolerance|gradient mismatch",
+                ),
+            ):
                 assert_grad_matches_fd(
                     lambda x: jnp.sum(_wrong_sine(x)), theta, regime=regime
                 )
@@ -392,11 +399,14 @@ class TestGradientHarness(chex.TestCase):
 
         Notes
         -----
-        The test uses a planted ``1.00001*cos(x)`` tangent and demands detection at the
-        strictest 1e-6 relative rung, documenting the gradient-check floor.
+        The test uses a planted ``1.00001*cos(x)`` tangent. It requires
+        detection at the strictest 1e-6 relative rung.
         """
-        theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
-        with pytest.raises(AssertionError):
+        theta: Float64[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        with pytest.raises(
+            AssertionError,
+            match="Not equal to tolerance|gradient mismatch",
+        ):
             assert_grad_matches_fd(
                 lambda x: jnp.sum(_near_wrong_sine(x)), theta
             )
@@ -415,8 +425,8 @@ class TestGradientHarness(chex.TestCase):
         checks. It requires the elementwise finite-difference comparison to
         raise.
         """
-        theta: Float[Array, ""] = jnp.asarray(1.0)
-        with pytest.raises(AssertionError):
+        theta: Float64[Array, ""] = jnp.asarray(1.0)
+        with pytest.raises(AssertionError, match="gradient mismatch"):
             assert_grad_matches_fd(_tiny_linear, theta, modes=())
 
     def test_mixed_scale_uses_per_parameter_fd_atol(self) -> None:
@@ -432,8 +442,8 @@ class TestGradientHarness(chex.TestCase):
         per-coordinate finite-difference comparison to expose the suppressed
         second sensitivity.
         """
-        theta: Float[Array, "2"] = jnp.array([1e-3, 1e3])
-        with pytest.raises(AssertionError):
+        theta: Float64[Array, "2"] = jnp.array([1e-3, 1e3])
+        with pytest.raises(AssertionError, match="gradient mismatch"):
             assert_grad_matches_fd(_mixed_scale_linear, theta, modes=())
 
     def test_fd_atol_tracks_loss_rescaling(self) -> None:
@@ -444,18 +454,45 @@ class TestGradientHarness(chex.TestCase):
 
         Notes
         -----
-        The test repeats the finite-difference gate at unit and million-fold
+        The test repeats the finite-difference check at unit and million-fold
         scales. It requires both comparisons to reject the planted tangent.
         """
-        theta: Float[Array, ""] = jnp.asarray(1.0)
+        theta: Float64[Array, ""] = jnp.asarray(1.0)
+
+        def _scaled_loss(
+            candidate: Float64[Array, ""],
+            *,
+            scale: float,
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Scale the planted tiny linear objective.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, ""]
+                Scalar coordinate under differentiation.
+            scale : float
+                Multiplicative objective scale.
+
+            Returns
+            -------
+            value : Float64[Array, ""]
+                Scaled planted objective value.
+
+            Notes
+            -----
+            Keeps the scale static while the gradient check varies the input.
+            """
+            value: Float64[Array, ""] = scale * _tiny_linear(candidate)
+            return value
+
         loss_scale: float
         for loss_scale in (1.0, 1e6):
             with (
                 self.subTest(loss_scale=loss_scale),
-                pytest.raises(AssertionError),
+                pytest.raises(AssertionError, match="gradient mismatch"),
             ):
                 assert_grad_matches_fd(
-                    lambda x: loss_scale * _tiny_linear(x),
+                    partial(_scaled_loss, scale=loss_scale),
                     theta,
                     modes=(),
                 )
@@ -472,8 +509,11 @@ class TestGradientHarness(chex.TestCase):
         The test enables only forward-mode directional checking. It requires
         that independent check to reject the planted zero tangent.
         """
-        theta: Float[Array, ""] = jnp.asarray(1.0)
-        with pytest.raises(AssertionError):
+        theta: Float64[Array, ""] = jnp.asarray(1.0)
+        with pytest.raises(
+            AssertionError,
+            match="Not equal to tolerance|gradient mismatch",
+        ):
             assert_grad_matches_fd(_tiny_linear, theta, modes=("fwd",))
 
     def test_planted_zero_gradient(self) -> None:
@@ -488,22 +528,25 @@ class TestGradientHarness(chex.TestCase):
         autodiff sensitivity. Finite differences and the independent norm
         check must each raise for the gradient requirement.
         """
-        theta: Float[Array, "2"] = jnp.array([1.0, -2.0])
+        theta: Float64[Array, "2"] = jnp.array([1.0, -2.0])
 
-        def stopped_loss(x: Float[Array, "2"]) -> Float[Array, ""]:
-            result: Float[Array, ""] = jnp.sum(jax.lax.stop_gradient(x) ** 2)
+        def stopped_loss(x: Float64[Array, "2"]) -> Float64[Array, ""]:
+            result: Float64[Array, ""] = jnp.sum(jax.lax.stop_gradient(x) ** 2)
             return result
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(
+            AssertionError,
+            match="Not equal to tolerance|gradient mismatch",
+        ):
             assert_grad_matches_fd(stopped_loss, theta)
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="gradient at .* has norm"):
             assert_nonzero_grad(stopped_loss, theta)
 
     def test_elementwise_tripwire_rejects_masked_zero_coordinate(self) -> None:
         """Prevent one sensitive coordinate from masking a zero coordinate.
 
         Leaf-level sensitivity remains the default because structural zeros
-        can be physical. A gate that registers every coordinate must opt in
+        can be physical. A check that registers every coordinate must opt in
         to the elementwise tripwire.
 
         Notes
@@ -512,11 +555,11 @@ class TestGradientHarness(chex.TestCase):
         norm check. It then requires the elementwise mode to identify index
         one.
         """
-        theta: Float[Array, "3"] = jnp.asarray((0.4, -0.2, 0.7))
+        theta: Float64[Array, "3"] = jnp.asarray((0.4, -0.2, 0.7))
 
-        def partially_sensitive(x: Float[Array, "3"]) -> Float[Array, ""]:
+        def partially_sensitive(x: Float64[Array, "3"]) -> Float64[Array, ""]:
             """Return a loss independent of the middle coordinate."""
-            result: Float[Array, ""] = x[0] + x[2] ** 2
+            result: Float64[Array, ""] = x[0] + x[2] ** 2
             return result
 
         assert_nonzero_grad(partially_sensitive, theta)
@@ -543,9 +586,9 @@ class TestGradientHarness(chex.TestCase):
         the cosine derivative. It uses a nonuniform direction to expose
         accidental scalar treatment.
         """
-        x: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
-        direction: Float[Array, "3"] = jnp.array([0.5, -2.0, 1.25])
-        derivative: Float[Array, "3"] = complex_step_derivative(
+        x: Float64[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        direction: Float64[Array, "3"] = jnp.array([0.5, -2.0, 1.25])
+        derivative: Float64[Array, "3"] = complex_step_derivative(
             jnp.sin,
             x,
             direction=direction,
@@ -556,7 +599,7 @@ class TestGradientHarness(chex.TestCase):
             rtol=1e-15,
             atol=0.0,
         )
-        default_direction: Float[Array, "3"] = complex_step_derivative(
+        default_direction: Float64[Array, "3"] = complex_step_derivative(
             jnp.sin,
             x,
         )
@@ -566,7 +609,7 @@ class TestGradientHarness(chex.TestCase):
             rtol=1e-15,
             atol=0.0,
         )
-        compiled: Float[Array, "3"] = jax.jit(
+        compiled: Float64[Array, "3"] = jax.jit(
             lambda value: complex_step_derivative(
                 jnp.sin,
                 value,
@@ -592,12 +635,12 @@ class TestGradientHarness(chex.TestCase):
         The test applies complex step to a constant and a stationary
         quadratic. It compares both estimates with exact zero arrays.
         """
-        x: Float[Array, "3"] = jnp.zeros((3,))
-        constant: Float[Array, "3"] = complex_step_derivative(
+        x: Float64[Array, "3"] = jnp.zeros((3,))
+        constant: Float64[Array, "3"] = complex_step_derivative(
             jnp.ones_like,
             x,
         )
-        stationary: Float[Array, "3"] = complex_step_derivative(
+        stationary: Float64[Array, "3"] = complex_step_derivative(
             lambda value: value**2,
             x,
         )
@@ -617,10 +660,13 @@ class TestGradientHarness(chex.TestCase):
         that estimate with the independent positive derivative and requires
         failure.
         """
-        x: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
-        estimate: Float[Array, "3"] = complex_step_derivative(jnp.conj, x)
+        x: Float64[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        estimate: Float64[Array, "3"] = complex_step_derivative(jnp.conj, x)
         chex.assert_trees_all_equal(estimate, -jnp.ones_like(x))
-        with pytest.raises(AssertionError):
+        with pytest.raises(
+            AssertionError,
+            match="Values not approximately equal",
+        ):
             chex.assert_trees_all_close(
                 estimate,
                 jnp.ones_like(x),
@@ -629,18 +675,18 @@ class TestGradientHarness(chex.TestCase):
             )
 
     def test_nonholomorphic_maps_use_stacked_real_fd(self) -> None:
-        """Validate a general complex-to-real map with stacked-real differences.
+        """Validate a complex-to-real map with stacked-real differences.
 
         Modulus-squared is intentionally outside complex-step's domain. The
-        program-wide central-FD gate handles its real and imaginary directions.
+        The central-FD check handles its real and imaginary directions.
 
         Notes
         -----
         The test supplies asymmetric complex values to the shared gradient
-        gate. The gate compares autodiff with separate real and imaginary
+        check. The check compares autodiff with separate real and imaginary
         perturbations.
         """
-        values: Complex[Array, "3"] = jnp.array(
+        values: Complex128[Array, "3"] = jnp.array(
             [0.2 + 0.3j, -0.7 + 0.5j, 1.1 - 0.4j]
         )
         assert_grad_matches_fd(
@@ -660,7 +706,7 @@ class TestGradientHarness(chex.TestCase):
         scaled ``custom_jvp``. This direct check establishes the independent
         semantic reference for the finite-difference requirement.
         """
-        theta: Float[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
+        theta: Float64[Array, "3"] = jnp.array([-0.4, 0.2, 0.8])
         test_util.check_grads(
             lambda x: jnp.sum(jnp.sin(x)),
             (theta,),
@@ -668,7 +714,7 @@ class TestGradientHarness(chex.TestCase):
             modes=("fwd", "rev"),
             eps=1e-5,
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="Not equal to tolerance"):
             test_util.check_grads(
                 lambda x: jnp.sum(_wrong_sine(x)),
                 (theta,),

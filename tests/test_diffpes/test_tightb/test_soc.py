@@ -11,8 +11,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Tuple
-from jaxtyping import Array, Complex128
+from beartype.typing import List, Tuple
+from jaxtyping import Array, Complex128, Float64, Int64
 
 from diffpes.maths import real_harmonic_unitary
 from diffpes.tightb import (
@@ -32,7 +32,7 @@ from diffpes.types import (
     make_orbital_basis,
     make_tb_model,
 )
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 def _one_atom_geometry() -> CrystalGeometry:
@@ -141,9 +141,9 @@ def _make_dispersive_p_model(coupling: float = 0.37) -> TBModel:
         labels=("p_y", "p_z", "p_x"),
     )
     hopping_values: Tuple[float, ...] = (-0.7, -1.1, -1.6)
-    amplitudes: list[complex] = []
-    pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
+    amplitudes: List[complex] = []
+    pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
     orbital: int
     hopping: float
     for orbital, hopping in enumerate(hopping_values):
@@ -165,7 +165,11 @@ def _make_dispersive_p_model(coupling: float = 0.37) -> TBModel:
 
 
 class TestLMatrices:
-    """Validate :func:`diffpes.tightb.l_matrices`."""
+    """Validate :func:`diffpes.tightb.l_matrices`.
+
+    The cases check ladder algebra, selected matrix entries, and rejection of
+    unsupported angular momenta.
+    """
 
     @pytest.mark.parametrize("angular_momentum", range(5))
     def test_ladder_algebra(self, angular_momentum: int) -> None:
@@ -177,9 +181,9 @@ class TestLMatrices:
         -----
         Compare the adjoint and commutator directly at strict tolerance.
         """
-        lz: Array
-        raising: Array
-        lowering: Array
+        lz: Complex128[Array, "n_m n_m"]
+        raising: Complex128[Array, "n_m n_m"]
+        lowering: Complex128[Array, "n_m n_m"]
         lz, raising, lowering = l_matrices(angular_momentum)
 
         assert jnp.allclose(lowering, raising.conj().T, atol=0.0, rtol=0.0)
@@ -199,11 +203,11 @@ class TestLMatrices:
         -----
         Compare selected entries and the complete diagonal with literals.
         """
-        lz: Array
-        raising: Array
-        lowering: Array
+        lz: Complex128[Array, "5 5"]
+        raising: Complex128[Array, "5 5"]
+        lowering: Complex128[Array, "5 5"]
         lz, raising, lowering = l_matrices(2)
-        expected_diagonal: Array = jnp.asarray(
+        expected_diagonal: Complex128[Array, " 5"] = jnp.asarray(
             [-2.0, -1.0, 0.0, 1.0, 2.0],
             dtype=jnp.complex128,
         )
@@ -213,7 +217,7 @@ class TestLMatrices:
         assert raising[2, 1] == pytest.approx(jnp.sqrt(6.0))
         assert raising[4, 3] == pytest.approx(2.0)
 
-    @pytest.mark.parametrize("invalid", (-1, 5))
+    @pytest.mark.parametrize("invalid", [-1, 5])
     def test_rejects_unsupported_l(self, invalid: int) -> None:
         """Reject angular momenta outside the package-wide supported range.
 
@@ -228,7 +232,11 @@ class TestLMatrices:
 
 
 class TestSocShellBlock:
-    """Validate :func:`diffpes.tightb.soc_shell_block`."""
+    """Validate :func:`diffpes.tightb.soc_shell_block`.
+
+    The cases compare the p-shell matrix, total-angular-momentum symmetry,
+    Hermiticity, and compilation.
+    """
 
     def test_p_block_matches_canonical_analytic_matrix(self) -> None:
         """Pin every p-shell matrix element in down--up block order.
@@ -256,7 +264,7 @@ class TestSocShellBlock:
 
         assert jnp.allclose(actual, expected, rtol=0.0, atol=1e-13)
 
-    @pytest.mark.parametrize("angular_momentum", (1, 2))
+    @pytest.mark.parametrize("angular_momentum", [1, 2])
     def test_commutes_with_total_jz(self, angular_momentum: int) -> None:
         r"""Verify :math:`[L\cdot S,J_z]=0` after the real-basis transform.
 
@@ -267,23 +275,33 @@ class TestSocShellBlock:
         Transform orbital :math:`L_z`, form :math:`J_z`, and evaluate the
         commutator.
         """
-        lz_complex: Array
-        raising: Array
-        lowering: Array
+        lz_complex: Complex128[Array, "n_m n_m"]
+        raising: Complex128[Array, "n_m n_m"]
+        lowering: Complex128[Array, "n_m n_m"]
         lz_complex, raising, lowering = l_matrices(angular_momentum)
         del raising, lowering
-        unitary: Array = real_harmonic_unitary(angular_momentum)
-        lz_real: Array = unitary.conj() @ lz_complex @ unitary.T
+        unitary: Complex128[Array, "n_m n_m"] = real_harmonic_unitary(
+            angular_momentum
+        )
+        lz_real: Complex128[Array, "n_m n_m"] = (
+            unitary.conj() @ lz_complex @ unitary.T
+        )
         orbital_size: int = 2 * angular_momentum + 1
-        spin_z: Array = jnp.diag(
+        spin_z: Complex128[Array, "2 2"] = jnp.diag(
             jnp.asarray([-0.5, 0.5], dtype=jnp.complex128)
         )
-        total_jz: Array = jnp.kron(jnp.eye(2), lz_real) + jnp.kron(
+        total_jz: Complex128[Array, "n_spin_orb n_spin_orb"] = jnp.kron(
+            jnp.eye(2), lz_real
+        ) + jnp.kron(
             spin_z,
             jnp.eye(orbital_size),
         )
-        block: Array = soc_shell_block(angular_momentum)
-        commutator: Array = block @ total_jz - total_jz @ block
+        block: Complex128[Array, "n_spin_orb n_spin_orb"] = soc_shell_block(
+            angular_momentum
+        )
+        commutator: Complex128[Array, "n_spin_orb n_spin_orb"] = (
+            block @ total_jz - total_jz @ block
+        )
 
         assert jnp.allclose(commutator, 0.0, rtol=0.0, atol=1e-13)
 
@@ -297,7 +315,9 @@ class TestSocShellBlock:
         -----
         Compile a zero-argument closure and compare it with its adjoint.
         """
-        block: Array = jax.jit(lambda: soc_shell_block(angular_momentum))()
+        block: Complex128[Array, "n_spin_orb n_spin_orb"] = jax.jit(
+            lambda: soc_shell_block(angular_momentum)
+        )()
 
         assert jnp.allclose(
             block,
@@ -308,7 +328,11 @@ class TestSocShellBlock:
 
 
 class TestSpinDoubleBasis:
-    """Validate :func:`diffpes.tightb.spin_double_basis`."""
+    """Validate :func:`diffpes.tightb.spin_double_basis`.
+
+    The case compares the doubled basis with the declared down-then-up
+    ordering.
+    """
 
     def test_basis_uses_declared_down_then_up_order(self) -> None:
         """Keep the original orbital block down and append an up copy.
@@ -337,7 +361,11 @@ class TestSpinDoubleBasis:
 
 
 class TestSpinDoubleModel:
-    """Validate :func:`diffpes.tightb.spin_double_model`."""
+    """Validate :func:`diffpes.tightb.spin_double_model`.
+
+    The cases check spin-diagonal duplication and reject an already spinful
+    input.
+    """
 
     def test_model_duplicates_only_spin_diagonal_hoppings(self) -> None:
         """Verify onsite, hopping, cell, and shell duplication exactly once.
@@ -420,7 +448,11 @@ class TestSpinDoubleModel:
 
 
 class TestSocMatrix:
-    """Validate :func:`diffpes.tightb.soc_matrix`."""
+    """Validate :func:`diffpes.tightb.soc_matrix`.
+
+    The cases check shell placement, projected-t2g support, Kramers structure,
+    validation, and invariant gradients.
+    """
 
     def test_places_two_shell_blocks_at_their_global_indices(self) -> None:
         """Place independent shell strengths without cross-shell coupling.
@@ -440,12 +472,18 @@ class TestSocMatrix:
         )
         basis: OrbitalBasis = spin_double_basis(spinless_basis)
         shell_index: Tuple[int, ...] = (0, 0, 0, 1, 1, 1) * 2
-        lambdas: Array = jnp.asarray([0.2, -0.35], dtype=jnp.float64)
-        actual: Array = soc_matrix(basis, shell_index, lambdas)
-        block: Array = soc_shell_block(1)
-        first: Array = jnp.asarray([0, 1, 2, 6, 7, 8])
-        second: Array = jnp.asarray([3, 4, 5, 9, 10, 11])
-        expected: Array = jnp.zeros((12, 12), dtype=jnp.complex128)
+        lambdas: Float64[Array, " 2"] = jnp.asarray(
+            [0.2, -0.35], dtype=jnp.float64
+        )
+        actual: Complex128[Array, "12 12"] = soc_matrix(
+            basis, shell_index, lambdas
+        )
+        block: Complex128[Array, "6 6"] = soc_shell_block(1)
+        first: Int64[Array, " 6"] = jnp.asarray([0, 1, 2, 6, 7, 8])
+        second: Int64[Array, " 6"] = jnp.asarray([3, 4, 5, 9, 10, 11])
+        expected: Complex128[Array, "12 12"] = jnp.zeros(
+            (12, 12), dtype=jnp.complex128
+        )
         expected = expected.at[first[:, None], first[None, :]].set(
             lambdas[0] * block
         )
@@ -480,13 +518,13 @@ class TestSocMatrix:
             )
         )
         coupling: float = 0.4
-        matrix: Array = soc_matrix(
+        matrix: Complex128[Array, "6 6"] = soc_matrix(
             basis,
             (0,) * 6,
             jnp.asarray([coupling], dtype=jnp.float64),
         )
-        eigenvalues: Array = jnp.linalg.eigvalsh(matrix)
-        expected: Array = jnp.asarray(
+        eigenvalues: Float64[Array, " 6"] = jnp.linalg.eigvalsh(matrix)
+        expected: Float64[Array, " 6"] = jnp.asarray(
             [-coupling / 2.0] * 4 + [coupling] * 2,
             dtype=jnp.float64,
         )
@@ -524,7 +562,7 @@ class TestSocMatrix:
 
     @pytest.mark.parametrize(
         ("angular_momentum", "lower_multiplicity", "upper_multiplicity"),
-        ((1, 2, 4), (2, 4, 6)),
+        [(1, 2, 4), (2, 4, 6)],
     )
     def test_atomic_multiplets_through_bloch_hamiltonian(
         self,
@@ -545,14 +583,14 @@ class TestSocMatrix:
             angular_momentum,
             coupling,
         )
-        hamiltonian: Array = bloch_hamiltonian(
+        hamiltonian: Complex128[Array, "n_band n_band"] = bloch_hamiltonian(
             model,
             jnp.asarray([0.19, -0.23, 0.11], dtype=jnp.float64),
         )
-        actual: Array = jnp.linalg.eigvalsh(hamiltonian)
+        actual: Float64[Array, " n_band"] = jnp.linalg.eigvalsh(hamiltonian)
         lower: float = -0.5 * (angular_momentum + 1) * coupling
         upper: float = 0.5 * angular_momentum * coupling
-        expected: Array = jnp.asarray(
+        expected: Float64[Array, " n_band"] = jnp.asarray(
             [lower] * lower_multiplicity + [upper] * upper_multiplicity,
             dtype=jnp.float64,
         )
@@ -575,15 +613,17 @@ class TestSocMatrix:
         Compare adjacent sorted eigenvalues across five deterministic keys.
         """
         model: TBModel = _make_dispersive_p_model()
-        kpoint: Array = jax.random.uniform(
+        kpoint: Float64[Array, " 3"] = jax.random.uniform(
             jax.random.key(seed),
             (3,),
             minval=-0.5,
             maxval=0.5,
             dtype=jnp.float64,
         )
-        hamiltonian: Array = bloch_hamiltonian(model, kpoint)
-        eigenvalues: Array = jnp.linalg.eigvalsh(hamiltonian)
+        hamiltonian: Complex128[Array, "6 6"] = bloch_hamiltonian(
+            model, kpoint
+        )
+        eigenvalues: Float64[Array, " 6"] = jnp.linalg.eigvalsh(hamiltonian)
 
         assert jnp.allclose(
             eigenvalues[0::2],
@@ -602,25 +642,31 @@ class TestSocMatrix:
 
         Notes
         -----
-        Apply the shared smooth gradient gate and check the analytic result.
+        Apply the shared smooth gradient check and verify the analytic result.
         """
         model: TBModel = _make_atomic_shell_model(1, 0.37)
-        kpoint: Array = jnp.asarray([0.17, -0.21, 0.09], dtype=jnp.float64)
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
+            [0.17, -0.21, 0.09], dtype=jnp.float64
+        )
 
-        def loss(coupling: Array) -> Array:
+        def loss(coupling: Float64[Array, ""]) -> Float64[Array, ""]:
             candidate: TBModel = eqx.tree_at(
                 lambda item: item.soc_lambdas,
                 model,
                 coupling[None],
             )
-            hamiltonian: Array = bloch_hamiltonian(candidate, kpoint)
-            eigenvalues: Array = eigh_safe(hamiltonian)[0]
-            value: Array = jnp.sum(eigenvalues**2)
+            hamiltonian: Complex128[Array, "6 6"] = bloch_hamiltonian(
+                candidate, kpoint
+            )
+            eigenvalues: Float64[Array, " 6"] = eigh_safe(hamiltonian)[0]
+            value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
             return value
 
-        coupling: Array = jnp.asarray(0.37, dtype=jnp.float64)
-        gradient_gate(loss, coupling, regime="smooth")
-        derivative: Array = jax.grad(loss)(coupling)
+        coupling: Float64[Array, ""] = jnp.asarray(0.37, dtype=jnp.float64)
+        assert_gradients_match_finite_differences(
+            loss, coupling, regime="smooth"
+        )
+        derivative: Float64[Array, ""] = jax.grad(loss)(coupling)
 
         assert float(derivative) == pytest.approx(
             6.0 * float(coupling),

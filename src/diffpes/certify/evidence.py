@@ -22,8 +22,8 @@ Routine Listings
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable, Tuple
-from jaxtyping import Array, Float, PyTree, jaxtyped
+from beartype.typing import Any, Callable, List, Tuple
+from jaxtyping import Array, Bool, Float, Float64, PyTree, Shaped, jaxtyped
 
 from diffpes.types import (
     CertificationClaim,
@@ -44,18 +44,18 @@ from .dependencies import (
 )
 
 
-def _as_vector(value: Array) -> Array:
+def _as_vector(value: Shaped[Array, "..."]) -> Float64[Array, " n_value"]:
     """PRIVATE: Flatten a numerical value to a one-dimensional JAX
     array.
 
     Parameters
     ----------
-    value : Array
+    value : Shaped[Array, "..."]
         Scalar or array value in its declared physical units.
 
     Returns
     -------
-    vector : Array
+    vector : Float64[Array, " n_value"]
         One-dimensional ``float64`` view of ``value``.
 
     Notes
@@ -63,7 +63,9 @@ def _as_vector(value: Array) -> Array:
     Ravels after a cast to ``float64`` so evidence comparisons run in
     one dtype and one flat coordinate layout.
     """
-    vector: Array = jnp.ravel(jnp.asarray(value, dtype=jnp.float64))
+    vector: Float64[Array, " n_value"] = jnp.ravel(
+        jnp.asarray(value, dtype=jnp.float64)
+    )
     return vector
 
 
@@ -71,9 +73,9 @@ def _as_vector(value: Array) -> Array:
 def evaluate_evidence(
     evidence_id: str,
     method_id: str,
-    measured: Array,
-    reference: Array,
-    tolerance: Array,
+    measured: Shaped[Array, "..."],
+    reference: Shaped[Array, "..."],
+    tolerance: Shaped[Array, "..."],
     *,
     source_type: str = "external_reference",
     lineage: EvidenceLineage | None = None,
@@ -93,11 +95,11 @@ def evaluate_evidence(
         Stable evidence identifier (**static** -- changing it retraces).
     method_id : str
         Stable comparison-method identifier (**static** -- a change retraces).
-    measured : Array
+    measured : Shaped[Array, "..."]
         Computed numerical values in the declared observable units.
-    reference : Array
+    reference : Shaped[Array, "..."]
         Independent reference values in the same units.
-    tolerance : Array
+    tolerance : Shaped[Array, "..."]
         Nonnegative component tolerances in the same units.
     source_type : str
         Evidence-source category (**static** -- changing it retraces).
@@ -122,15 +124,15 @@ def evaluate_evidence(
     Residuals remain JAX leaves, so losses may differentiate through the
     comparison before any Boolean policy reduction.
     """
-    measured_array: Array = _as_vector(measured)
-    reference_array: Array = _as_vector(reference)
-    tolerance_array: Array = jnp.broadcast_to(
+    measured_array: Float64[Array, " n_measure"] = _as_vector(measured)
+    reference_array: Float64[Array, " n_measure"] = _as_vector(reference)
+    tolerance_array: Float64[Array, " n_measure"] = jnp.broadcast_to(
         _as_vector(tolerance), measured_array.shape
     )
     if measured_array.shape != reference_array.shape:
         msg: str = "measured and reference evidence arrays must agree"
         raise ValueError(msg)
-    residual: Array = measured_array - reference_array
+    residual: Float64[Array, " n_measure"] = measured_array - reference_array
     evidence: EvidenceRef = make_evidence_ref(
         evidence_id=evidence_id,
         method_id=method_id,
@@ -150,9 +152,9 @@ def evaluate_claim(
     claim_id: str,
     subject_id: str,
     predicate_id: str,
-    measured: Array,
-    reference: Array,
-    tolerance: Array,
+    measured: Shaped[Array, "..."],
+    reference: Shaped[Array, "..."],
+    tolerance: Shaped[Array, "..."],
     *,
     evidence_ids: Tuple[str, ...] = (),
     checked: bool = True,
@@ -175,11 +177,11 @@ def evaluate_claim(
         Scientific subject identifier (**static** -- changing it retraces).
     predicate_id : str
         Predicate identity (**static** -- changing it retraces).
-    measured : Array
+    measured : Shaped[Array, "..."]
         Computed numerical values in the predicate units.
-    reference : Array
+    reference : Shaped[Array, "..."]
         Reference values in the same units.
-    tolerance : Array
+    tolerance : Shaped[Array, "..."]
         Nonnegative component tolerances in the same units.
     evidence_ids : Tuple[str, ...]
         Supporting evidence identifiers (**static** -- changing them retraces).
@@ -206,20 +208,22 @@ def evaluate_claim(
     values. The function derives the Boolean outcome after it retains that
     margin.
     """
-    measured_array: Array = _as_vector(measured)
-    reference_array: Array = _as_vector(reference)
-    tolerance_array: Array = jnp.broadcast_to(
+    measured_array: Float64[Array, " n_measure"] = _as_vector(measured)
+    reference_array: Float64[Array, " n_measure"] = _as_vector(reference)
+    tolerance_array: Float64[Array, " n_measure"] = jnp.broadcast_to(
         _as_vector(tolerance), measured_array.shape
     )
     if measured_array.shape != reference_array.shape:
         msg: str = "claim measured and reference arrays must agree"
         raise ValueError(msg)
-    residual: Array = measured_array - reference_array
-    component_margin: Array = tolerance_array - jnp.abs(residual)
-    margin: Array = jnp.min(component_margin)
-    checked_array: Array = jnp.asarray(checked, dtype=jnp.bool_)
-    domain_array: Array = jnp.asarray(in_domain, dtype=jnp.bool_)
-    passed: Array = (
+    residual: Float64[Array, " n_measure"] = measured_array - reference_array
+    component_margin: Float64[Array, " n_measure"] = tolerance_array - jnp.abs(
+        residual
+    )
+    margin: Float64[Array, ""] = jnp.min(component_margin)
+    checked_array: Bool[Array, ""] = jnp.asarray(checked, dtype=jnp.bool_)
+    domain_array: Bool[Array, ""] = jnp.asarray(in_domain, dtype=jnp.bool_)
+    passed: Bool[Array, ""] = (
         checked_array & domain_array & jnp.all(component_margin >= 0)
     )
     claim: CertificationClaim = make_certification_claim(
@@ -243,9 +247,9 @@ def evaluate_claim(
 @jaxtyped(typechecker=beartype)
 def evaluate_domain(
     predicate_id: str,
-    measured: Array,
-    reference: Array,
-    tolerance: Array,
+    measured: Shaped[Array, ""],
+    reference: Shaped[Array, ""],
+    tolerance: Shaped[Array, ""],
     *,
     checked: bool = True,
     severity_code: int = 1,
@@ -262,11 +266,11 @@ def evaluate_domain(
     ----------
     predicate_id : str
         Stable domain-predicate identity (**static** -- changing it retraces).
-    measured : Array
+    measured : Shaped[Array, ""]
         Measured physical quantity in the predicate units.
-    reference : Array
+    reference : Shaped[Array, ""]
         Domain-center value in the same units.
-    tolerance : Array
+    tolerance : Shaped[Array, ""]
         Symmetric half-width in the same units.
     checked : bool
         Whether evaluation occurred (**static** -- changing it retraces).
@@ -283,13 +287,19 @@ def evaluate_domain(
     The signed margin remains differentiable away from the absolute-value
     cusp. Optimization can use it directly without differentiating a Boolean.
     """
-    measured_array: Array = jnp.asarray(measured, dtype=jnp.float64)
-    reference_array: Array = jnp.asarray(reference, dtype=jnp.float64)
-    tolerance_array: Array = jnp.asarray(tolerance, dtype=jnp.float64)
-    residual: Array = measured_array - reference_array
-    margin: Array = tolerance_array - jnp.abs(residual)
-    checked_array: Array = jnp.asarray(checked, dtype=jnp.bool_)
-    passed: Array = checked_array & (margin >= 0)
+    measured_array: Float64[Array, ""] = jnp.asarray(
+        measured, dtype=jnp.float64
+    )
+    reference_array: Float64[Array, ""] = jnp.asarray(
+        reference, dtype=jnp.float64
+    )
+    tolerance_array: Float64[Array, ""] = jnp.asarray(
+        tolerance, dtype=jnp.float64
+    )
+    residual: Float64[Array, ""] = measured_array - reference_array
+    margin: Float64[Array, ""] = tolerance_array - jnp.abs(residual)
+    checked_array: Bool[Array, ""] = jnp.asarray(checked, dtype=jnp.bool_)
+    passed: Bool[Array, ""] = checked_array & (margin >= 0)
     result: DomainResult = make_domain_result(
         predicate_id=predicate_id,
         measured=measured_array,
@@ -305,7 +315,9 @@ def evaluate_domain(
     return result
 
 
-def _perturb(inputs: PyTree, direction: PyTree, step: Array) -> PyTree:
+def _perturb(
+    inputs: PyTree, direction: PyTree, step: Float[Array, ""]
+) -> PyTree:
     """PRIVATE: Add one scaled tangent PyTree to an input PyTree.
 
     Parameters
@@ -314,7 +326,7 @@ def _perturb(inputs: PyTree, direction: PyTree, step: Array) -> PyTree:
         Numerical inputs at the evaluation point.
     direction : PyTree
         Tangent with the same structure as ``inputs``.
-    step : Array
+    step : Float[Array, ""]
         Scalar step size in the units of each perturbed leaf.
 
     Returns
@@ -341,8 +353,8 @@ def _derivative_evidence_from_linearization(  # noqa: PLR0913
     inputs: PyTree,
     directions: PyTree,
     cotangents: Float[Array, "n_cotangent n_output"],
-    pushforward: Callable[[PyTree], Array],
-    pullback: Callable[[Array], PyTree],
+    pushforward: Callable[[PyTree], Float[Array, " n_output"]],
+    pullback: Callable[[Float[Array, " n_output"]], PyTree],
     spectrum: InformationSpectrum,
     *,
     input_paths: Tuple[str, ...],
@@ -366,9 +378,9 @@ def _derivative_evidence_from_linearization(  # noqa: PLR0913
         Tangent probes with one leading probe axis.
     cotangents : Float[Array, "n_cotangent n_output"]
         Output-space transpose probes.
-    pushforward : Callable[[PyTree], Array]
+    pushforward : Callable[[PyTree], Float[Array, " n_output"]]
         Retained JVP linear map.
-    pullback : Callable[[Array], PyTree]
+    pullback : Callable[[Float[Array, " n_output"]], PyTree]
         Retained transpose linear map.
     spectrum : InformationSpectrum
         Information spectrum from the same retained linearization.
@@ -391,37 +403,53 @@ def _derivative_evidence_from_linearization(  # noqa: PLR0913
     The function differentiates continuous evidence. Threshold decisions remain
     discrete diagnostics.
     """
-    jvp_values: Array = jax.vmap(pushforward)(directions)
+    jvp_values: Float[Array, "n_probe n_output"] = jax.vmap(pushforward)(
+        directions
+    )
 
-    def finite_difference(direction: PyTree, local_step: Array) -> Array:
-        plus: Array = forward_fn(_perturb(inputs, direction, local_step))
-        minus: Array = forward_fn(_perturb(inputs, direction, -local_step))
-        derivative: Array = (plus - minus) / (2.0 * local_step)
+    def finite_difference(
+        direction: PyTree, local_step: Float[Array, ""]
+    ) -> Float[Array, " n_output"]:
+        plus: Float[Array, " n_output"] = forward_fn(
+            _perturb(inputs, direction, local_step)
+        )
+        minus: Float[Array, " n_output"] = forward_fn(
+            _perturb(inputs, direction, -local_step)
+        )
+        derivative: Float[Array, " n_output"] = (plus - minus) / (
+            2.0 * local_step
+        )
         return derivative
 
-    steps: Array = step * jnp.maximum(jnp.abs(scales), 1e-3)
-    reference: Array = jax.vmap(finite_difference)(directions, steps)
-    residuals: Array = jvp_values - reference
+    steps: Float[Array, " n_probe"] = step * jnp.maximum(jnp.abs(scales), 1e-3)
+    reference: Float[Array, "n_probe n_output"] = jax.vmap(finite_difference)(
+        directions, steps
+    )
+    residuals: Float[Array, "n_probe n_output"] = jvp_values - reference
 
-    def pull_one(cotangent: Array) -> Array:
+    def pull_one(
+        cotangent: Float[Array, " n_output"],
+    ) -> Float[Array, " n_summary"]:
         leaf: Any
         pulled: PyTree = pullback(cotangent)
-        values: list[Array] = []
+        values: List[Float[Array, ""]] = []
         for leaf in jax.tree.leaves(pulled):
-            array: Array = jnp.asarray(leaf)
+            array: Shaped[Array, "..."] = jnp.asarray(leaf)
             values.append(jnp.linalg.norm(jnp.ravel(jnp.real(array))))
             if jnp.iscomplexobj(array):
                 values.append(jnp.linalg.norm(jnp.ravel(jnp.imag(array))))
-        summaries: Array = jnp.asarray(values)
+        summaries: Float[Array, " n_summary"] = jnp.asarray(values)
         return summaries
 
-    vjp_values: Array = jax.vmap(pull_one)(cotangents)
-    finite: Array = (
+    vjp_values: Float[Array, "n_cotangent n_summary"] = jax.vmap(pull_one)(
+        cotangents
+    )
+    finite: Bool[Array, ""] = (
         jnp.all(jnp.isfinite(jvp_values))
         & jnp.all(jnp.isfinite(vjp_values))
         & jnp.all(jnp.isfinite(reference))
     )
-    fd_correct: Array = jnp.allclose(
+    fd_correct: Bool[Array, ""] = jnp.allclose(
         jvp_values,
         reference,
         rtol=1e-6,
@@ -471,7 +499,7 @@ def derivative_evidence(
     --------------------
     1. **Compute the derivative residuals**::
 
-           residuals: Array = jvp_values - reference
+           residuals: Float[Array, "n_probe n_output"] = jvp_values - reference
 
        The residual retains the difference between JAX linearization and the
        finite-difference reference before construction of the evidence.
@@ -507,40 +535,50 @@ def derivative_evidence(
     JVP, VJP, residual, and spectrum leaves remain differentiable. The function
     derives Boolean evidence fields after it retains the continuous values.
     """
-    linearized: Tuple[Array, Callable[[PyTree], Array]] = jax.linearize(
+    linearized: Tuple[
+        Float[Array, " n_output"],
+        Callable[[PyTree], Float[Array, " n_output"]],
+    ] = jax.linearize(
         forward_fn,
         inputs,
     )
-    output: Array = linearized[0]
-    pushforward: Callable[[PyTree], Array] = linearized[1]
-    transposed: Callable[[Array], Tuple[PyTree]] = jax.linear_transpose(
-        pushforward,
-        inputs,
+    output: Float[Array, " n_output"] = linearized[0]
+    pushforward: Callable[[PyTree], Float[Array, " n_output"]] = linearized[1]
+    transposed: Callable[[Float[Array, " n_output"]], Tuple[PyTree]] = (
+        jax.linear_transpose(
+            pushforward,
+            inputs,
+        )
     )
 
-    def pullback(cotangent: Array) -> PyTree:
+    def pullback(cotangent: Float[Array, " n_output"]) -> PyTree:
         pulled: PyTree = transposed(cotangent)[0]
         return pulled
 
-    flat_inputs: Array
-    unravel_inputs: Callable[[Array], PyTree]
+    flat_inputs: Float[Array, " n_input"]
+    unravel_inputs: Callable[[Float[Array, " n_input"]], PyTree]
     flat_inputs, unravel_inputs = _ravel_real_pytree(inputs)
 
-    def flat_pushforward(tangent: Array) -> Array:
-        response: Array = pushforward(unravel_inputs(tangent))
-        flattened: Array = _ravel_real_pytree(response)[0]
+    def flat_pushforward(
+        tangent: Float[Array, " n_input"],
+    ) -> Float[Array, " n_output"]:
+        response: Float[Array, " n_output"] = pushforward(
+            unravel_inputs(tangent)
+        )
+        flattened: Float[Array, " n_output"] = _ravel_real_pytree(response)[0]
         return flattened
 
-    flat_transposed: Callable[[Array], Tuple[Array]] = jax.linear_transpose(
-        flat_pushforward,
-        flat_inputs,
-    )
+    flat_transposed: Callable[
+        [Float[Array, " n_output"]], Tuple[Float[Array, " n_input"]]
+    ] = jax.linear_transpose(flat_pushforward, flat_inputs)
 
-    def flat_pullback(cotangent: Array) -> Array:
-        pulled: Array = flat_transposed(cotangent)[0]
+    def flat_pullback(
+        cotangent: Float[Array, " n_output"],
+    ) -> Float[Array, " n_input"]:
+        pulled: Float[Array, " n_input"] = flat_transposed(cotangent)[0]
         return pulled
 
-    flat_output: Array = _ravel_real_pytree(output)[0]
+    flat_output: Float[Array, " n_output"] = _ravel_real_pytree(output)[0]
     spectrum: InformationSpectrum = _information_spectrum_from_linearization(
         inputs,
         flat_output,

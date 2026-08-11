@@ -15,13 +15,18 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from beartype import beartype
 from beartype.typing import Any, Callable
-from jaxtyping import Array
+from jaxtyping import Array, Float64, jaxtyped
 
-from diffpes.radial import hydrogenic_radial, slater_radial
-from diffpes.radial.wavefunctions import evaluate_radial
-from diffpes.types import make_orbital_basis
-from diffpes.types.radial_params import RadialSpec, make_radial_spec
+from diffpes.radial import evaluate_radial, hydrogenic_radial, slater_radial
+from diffpes.radial.wavefunctions import _associated_laguerre
+from diffpes.types import (
+    OrbitalBasis,
+    RadialSpec,
+    make_orbital_basis,
+    make_radial_spec,
+)
 
 
 class TestSlaterRadial(chex.TestCase):
@@ -46,11 +51,13 @@ class TestSlaterRadial(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 20000"]
         fn: Callable[..., Any]
-        radial: Array
-        norm: Array
+        radial: Float64[Array, " 20000"]
+        norm: Float64[Array, ""]
 
         r = jnp.linspace(0.0, 30.0, 20000, dtype=jnp.float64)
         fn = self.variant(lambda radius: slater_radial(radius, n=2, zeta=1.3))
@@ -61,8 +68,8 @@ class TestSlaterRadial(chex.TestCase):
     def test_gradient_wrt_zeta_matches_finite_difference(self) -> None:
         """Verify autodiff gradient of Slater sum w.r.t. zeta matches FD.
 
-        The test defines a scalar objective = sum(R(r; zeta)) for n=2, zeta=1.15
-        on a 500-point grid up to r=8 Bohr.  Differentiates with
+        The test defines a scalar sum of R(r; zeta) for n=2 and zeta=1.15.
+        It uses a 500-point grid up to r=8 Bohr and differentiates with
         ``jax.grad`` and compares against a central finite-difference
         estimate with step eps=1e-4.  Asserts agreement to within 2e-4
         (atol and rtol), confirming the normalization constant, power-law
@@ -70,22 +77,44 @@ class TestSlaterRadial(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
-        zeta0: Array
-        eps: Array
-        grad_auto: Array
-        fd: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 500"]
+        zeta0: Float64[Array, ""]
+        eps: Float64[Array, ""]
+        grad_auto: Float64[Array, ""]
+        fd: Float64[Array, ""]
 
         r = jnp.linspace(0.0, 8.0, 500, dtype=jnp.float64)
         zeta0 = jnp.asarray(1.15, dtype=jnp.float64)
         eps = jnp.asarray(1.0e-4, dtype=jnp.float64)
 
-        def objective(zeta: chex.Numeric) -> chex.Array:
-            return jnp.sum(slater_radial(r, n=2, zeta=jnp.asarray(zeta)))
+        @jaxtyped(typechecker=beartype)
+        def _objective(zeta: Float64[Array, ""]) -> Float64[Array, ""]:
+            """PRIVATE: Sum the Slater radial samples for one exponent.
 
-        grad_auto = jax.grad(objective)(zeta0)
-        fd = (objective(zeta0 + eps) - objective(zeta0 - eps)) / (2.0 * eps)
+            Parameters
+            ----------
+            zeta : Float64[Array, ""]
+                Slater exponent in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Sum over the fixed radial grid.
+
+            Notes
+            -----
+            Evaluates the normalized ``n=2`` radial function at every radius.
+            """
+            result: Float64[Array, ""] = jnp.sum(
+                slater_radial(r, n=2, zeta=zeta)
+            )
+            return result
+
+        grad_auto = jax.grad(_objective)(zeta0)
+        fd = (_objective(zeta0 + eps) - _objective(zeta0 - eps)) / (2.0 * eps)
         chex.assert_trees_all_close(grad_auto, fd, atol=2.0e-4, rtol=2.0e-4)
 
 
@@ -112,10 +141,12 @@ class TestHydrogenicRadial(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 4"]
         fn: Callable[..., Any]
-        expected: Array
+        expected: Float64[Array, " 4"]
 
         r = jnp.array([0.0, 0.3, 1.0, 2.5], dtype=jnp.float64)
         fn = self.variant(
@@ -140,9 +171,11 @@ class TestHydrogenicRadial(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         fn: Callable[..., Any]
-        value_at_origin: Array
+        value_at_origin: Float64[Array, " 1"]
 
         fn = self.variant(
             lambda radius: hydrogenic_radial(
@@ -177,8 +210,10 @@ class TestSlaterRadialErrors:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 1"]
 
         r = jnp.array([1.0], dtype=jnp.float64)
         with pytest.raises(ValueError, match="n must be >= 1"):
@@ -203,8 +238,10 @@ class TestHydrogenicRadialErrors:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 1"]
 
         r = jnp.array([1.0], dtype=jnp.float64)
         with pytest.raises(ValueError, match="n must be >= 1"):
@@ -219,8 +256,10 @@ class TestHydrogenicRadialErrors:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 1"]
 
         r = jnp.array([1.0], dtype=jnp.float64)
         with pytest.raises(ValueError, match="angular_momentum"):
@@ -240,15 +279,15 @@ class TestLaguerreRecurrence:
     def test_negative_order_raises(self) -> None:
         """Verify that order < 0 raises ValueError in _associated_laguerre.
 
-        The test establishes the negative order raises contract for laguerre recurrence
+        The test establishes the negative-order Laguerre recurrence contract
         with the concrete values and array shapes described below.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
-
-        from diffpes.radial.wavefunctions import _associated_laguerre
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 1"]
 
         r = jnp.array([1.0], dtype=jnp.float64)
         with pytest.raises(ValueError, match="non-negative"):
@@ -257,15 +296,15 @@ class TestLaguerreRecurrence:
     def test_negative_alpha_raises(self) -> None:
         """Verify that alpha < 0 raises ValueError in _associated_laguerre.
 
-        The test establishes the negative alpha raises contract for laguerre recurrence
+        The test establishes the negative-alpha Laguerre recurrence contract
         with the concrete values and array shapes described below.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        r: Array
-
-        from diffpes.radial.wavefunctions import _associated_laguerre
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        r: Float64[Array, " 1"]
 
         r = jnp.array([1.0], dtype=jnp.float64)
         with pytest.raises(ValueError, match="non-negative"):
@@ -279,12 +318,12 @@ class TestLaguerreRecurrence:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        x: Array
-        result: Array
-        expected: Array
-
-        from diffpes.radial.wavefunctions import _associated_laguerre
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        x: Float64[Array, " 2"]
+        result: Float64[Array, " 2"]
+        expected: Float64[Array, " 2"]
 
         x = jnp.array([0.0, 1.0], dtype=jnp.float64)
         result = _associated_laguerre(1, 0.0, x)
@@ -300,11 +339,11 @@ class TestLaguerreRecurrence:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        x: Array
-        result: Array
-
-        from diffpes.radial.wavefunctions import _associated_laguerre
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        x: Float64[Array, " 1"]
+        result: Float64[Array, " 1"]
 
         x = jnp.array([0.0], dtype=jnp.float64)
 
@@ -313,15 +352,22 @@ class TestLaguerreRecurrence:
 
 
 class TestEvaluateRadial(chex.TestCase):
-    """Validate :func:`diffpes.radial.evaluate_radial`."""
+    """Validate :func:`diffpes.radial.evaluate_radial`.
+
+    The cases cover Slater, hydrogenic, sampled-grid, and fixed-integral
+    dispatch with shell sharing and normalization. They use eager and JIT
+    values, JVP comparisons, finite differences, and traced rejection paths.
+
+    :see: :func:`~diffpes.radial.evaluate_radial`
+    """
 
     @staticmethod
-    def _basis() -> Any:
+    def _basis() -> OrbitalBasis:
         """PRIVATE: Return one complete p shell for shell-sharing checks.
 
         Returns
         -------
-        basis : Any
+        basis : OrbitalBasis
             Orbital basis with the three ``n=4``, ``l=1`` partners
             ``py``, ``pz``, and ``px`` on one atom.
 
@@ -330,13 +376,14 @@ class TestEvaluateRadial(chex.TestCase):
         All three orbitals share one radial shell, so gathered radial
         rows must be identical across the magnetic partners.
         """
-        return make_orbital_basis(
+        basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0, 0, 0),
             n=(4, 4, 4),
             l=(1, 1, 1),
             m=(-1, 0, 1),
             labels=("py", "pz", "px"),
         )
+        return basis
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_slater_uses_noninteger_n_star_and_shell_gather(self) -> None:
@@ -348,7 +395,7 @@ class TestEvaluateRadial(chex.TestCase):
         -----
         Require equal gathered rows, finite origin behavior, and unit norm.
         """
-        radial_grid: Array = jnp.linspace(0.0, 120.0, 6001)
+        radial_grid: Float64[Array, " 6001"] = jnp.linspace(0.0, 120.0, 6001)
         spec: RadialSpec = make_radial_spec(
             self._basis(),
             (0, 0, 0),
@@ -357,8 +404,8 @@ class TestEvaluateRadial(chex.TestCase):
             n_star_shell=(3.7,),
         )
         evaluator: Callable[..., Any] = self.variant(evaluate_radial)
-        values: Array = evaluator(spec, radial_grid)
-        norm: Array = jnp.trapezoid(
+        values: Float64[Array, "3 6001"] = evaluator(spec, radial_grid)
+        norm: Float64[Array, ""] = jnp.trapezoid(
             values[0] ** 2 * radial_grid**2,
             x=radial_grid,
         )
@@ -379,10 +426,29 @@ class TestEvaluateRadial(chex.TestCase):
         -----
         Compare two JVPs through the public mode-dispatch function.
         """
-        radial_grid: Array = jnp.linspace(0.0, 20.0, 301)
-        coefficients: Array = jnp.asarray(((0.8, 0.4),))
+        radial_grid: Float64[Array, " 301"] = jnp.linspace(0.0, 20.0, 301)
+        coefficients: Float64[Array, "1 2"] = jnp.asarray(((0.8, 0.4),))
 
-        def radial_from_coefficients(candidate: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _radial_from_coefficients(
+            candidate: Float64[Array, "1 2"],
+        ) -> Float64[Array, " 301"]:
+            """PRIVATE: Evaluate the shared row for candidate coefficients.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, "1 2"]
+                Slater contraction coefficients for the shared shell.
+
+            Returns
+            -------
+            result : Float64[Array, " 301"]
+                First gathered radial row on the fixed grid.
+
+            Notes
+            -----
+            Builds a two-term Slater contraction with fixed exponents.
+            """
             spec: RadialSpec = make_radial_spec(
                 self._basis(),
                 (0, 0, 0),
@@ -390,15 +456,18 @@ class TestEvaluateRadial(chex.TestCase):
                 coefficients_shell=candidate,
                 n_star_shell=(3.7,),
             )
-            return evaluate_radial(spec, radial_grid)[0]
+            result: Float64[Array, " 301"] = evaluate_radial(
+                spec, radial_grid
+            )[0]
+            return result
 
-        gauge_jvp: Array = jax.jvp(
-            radial_from_coefficients,
+        gauge_jvp: Float64[Array, " 301"] = jax.jvp(
+            _radial_from_coefficients,
             (coefficients,),
             (coefficients,),
         )[1]
-        shape_jvp: Array = jax.jvp(
-            radial_from_coefficients,
+        shape_jvp: Float64[Array, " 301"] = jax.jvp(
+            _radial_from_coefficients,
             (coefficients,),
             (jnp.asarray(((-0.4, 0.8),)),),
         )[1]
@@ -422,42 +491,86 @@ class TestEvaluateRadial(chex.TestCase):
         -----
         Compare centered finite differences at a stable step.
         """
-        radial_grid: Array = jnp.linspace(0.0, 10.0, 251)
-        epsilon: Array = jnp.asarray(1.0e-5)
+        radial_grid: Float64[Array, " 251"] = jnp.linspace(0.0, 10.0, 251)
+        epsilon: Float64[Array, ""] = jnp.asarray(1.0e-5)
 
-        def slater_objective(zeta: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _slater_objective(
+            zeta: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Sum the dispatched Slater radial samples.
+
+            Parameters
+            ----------
+            zeta : Float64[Array, ""]
+                Slater exponent in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Sum of the first gathered radial row.
+
+            Notes
+            -----
+            Builds the shared-shell specification with the traced exponent.
+            """
             spec: RadialSpec = make_radial_spec(
                 self._basis(),
                 (0, 0, 0),
                 zeta_shell=zeta.reshape((1, 1)),
                 n_star_shell=(3.7,),
             )
-            return jnp.sum(evaluate_radial(spec, radial_grid)[0])
+            result: Float64[Array, ""] = jnp.sum(
+                evaluate_radial(spec, radial_grid)[0]
+            )
+            return result
 
-        hydrogen_basis: Any = make_orbital_basis(
+        hydrogen_basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0,),
             n=(2,),
             l=(1,),
             m=(0,),
         )
 
-        def hydrogenic_objective(charge: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _hydrogenic_objective(
+            charge: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Sum the dispatched hydrogenic radial samples.
+
+            Parameters
+            ----------
+            charge : Float64[Array, ""]
+                Effective charge in units of the elementary charge.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Sum of the hydrogenic radial row.
+
+            Notes
+            -----
+            Builds the p-state specification with the traced charge.
+            """
             spec: RadialSpec = make_radial_spec(
                 hydrogen_basis,
                 (0,),
                 mode="hydrogenic",
                 effective_charge_shell=charge.reshape((1,)),
             )
-            return jnp.sum(evaluate_radial(spec, radial_grid)[0])
+            result: Float64[Array, ""] = jnp.sum(
+                evaluate_radial(spec, radial_grid)[0]
+            )
+            return result
 
-        objective: Callable[[Array], Array]
-        point: Array
+        objective: Callable[[Float64[Array, ""]], Float64[Array, ""]]
+        point: Float64[Array, ""]
         for objective, point in (
-            (slater_objective, jnp.asarray(0.9)),
-            (hydrogenic_objective, jnp.asarray(1.4)),
+            (_slater_objective, jnp.asarray(0.9)),
+            (_hydrogenic_objective, jnp.asarray(1.4)),
         ):
-            automatic: Array = jax.grad(objective)(point)
-            finite_difference: Array = (
+            automatic: Float64[Array, ""] = jax.grad(objective)(point)
+            finite_difference: Float64[Array, ""] = (
                 objective(point + epsilon) - objective(point - epsilon)
             ) / (2.0 * epsilon)
             chex.assert_trees_all_close(
@@ -479,7 +592,7 @@ class TestEvaluateRadial(chex.TestCase):
         -----
         Exercise both checks through a compiled public evaluation.
         """
-        radial_grid: Array = jnp.linspace(0.0, 12.0, 101)
+        radial_grid: Float64[Array, " 101"] = jnp.linspace(0.0, 12.0, 101)
         spec: RadialSpec = make_radial_spec(
             self._basis(),
             (0, 0, 0),
@@ -488,61 +601,109 @@ class TestEvaluateRadial(chex.TestCase):
             n_star_shell=(3.7,),
         )
 
-        def update_zeta(candidate: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _update_zeta(
+            candidate: Float64[Array, "1 2"],
+        ) -> Float64[Array, "3 101"]:
+            """PRIVATE: Evaluate after replacing both Slater exponents.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, "1 2"]
+                Candidate Slater exponents in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, "3 101"]
+                Gathered radial rows on the fixed grid.
+
+            Notes
+            -----
+            Replaces only the exponent leaf of the closed-over specification.
+            """
             updated: RadialSpec = eqx.tree_at(
                 lambda item: item.zeta_shell,
                 spec,
                 candidate,
             )
-            return evaluate_radial(updated, radial_grid)
+            result: Float64[Array, "3 101"] = evaluate_radial(
+                updated, radial_grid
+            )
+            return result
 
-        def update_coefficients(candidate: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _update_coefficients(
+            candidate: Float64[Array, "1 2"],
+        ) -> Float64[Array, "3 101"]:
+            """PRIVATE: Evaluate after replacing contraction coefficients.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, "1 2"]
+                Candidate dimensionless contraction coefficients.
+
+            Returns
+            -------
+            result : Float64[Array, "3 101"]
+                Gathered radial rows on the fixed grid.
+
+            Notes
+            -----
+            Replaces only the coefficient leaf of the closed-over
+            specification.
+            """
             updated: RadialSpec = eqx.tree_at(
                 lambda item: item.coefficients_shell,
                 spec,
                 candidate,
             )
-            return evaluate_radial(updated, radial_grid)
+            result: Float64[Array, "3 101"] = evaluate_radial(
+                updated, radial_grid
+            )
+            return result
 
         with pytest.raises(
             eqx.EquinoxRuntimeError,
             match="certified tail envelope",
         ):
-            eqx.filter_jit(update_zeta)(
+            eqx.filter_jit(_update_zeta)(
                 jnp.asarray(((0.49, 0.801),))
             ).block_until_ready()
         with pytest.raises(
             eqx.EquinoxRuntimeError,
             match="certified tail envelope",
         ):
-            eqx.filter_jit(update_zeta)(
+            eqx.filter_jit(_update_zeta)(
                 jnp.asarray(((4.01, 0.801),))
             ).block_until_ready()
         with pytest.raises(
             eqx.EquinoxRuntimeError,
             match="coefficient condition",
         ):
-            eqx.filter_jit(update_coefficients)(
+            eqx.filter_jit(_update_coefficients)(
                 jnp.asarray(((1.0, -0.999999),))
             ).block_until_ready()
 
     def test_grid_is_exact_and_fixed_mode_has_no_radial_function(self) -> None:
         """Enforce exact-grid semantics and the fixed-mode dispatch boundary.
 
-        The evaluator accepts the compact sampled row only at stored coordinates.
+        The evaluator accepts the compact sampled row only at stored
+        coordinates.
 
         Notes
         -----
         Use shifted-grid and fixed-mode calls as planted false controls.
         """
-        basis: Any = make_orbital_basis(
+        basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0,),
             n=(1,),
             l=(0,),
             m=(0,),
         )
-        radial_grid: Array = jnp.linspace(0.0, 8.0, 81)
-        samples: Array = jnp.exp(-radial_grid).at[-1].set(0.0)[None, :]
+        radial_grid: Float64[Array, " 81"] = jnp.linspace(0.0, 8.0, 81)
+        samples: Float64[Array, "1 81"] = (
+            jnp.exp(-radial_grid).at[-1].set(0.0)[None, :]
+        )
         grid_spec: RadialSpec = make_radial_spec(
             basis,
             (0,),
@@ -557,7 +718,9 @@ class TestEvaluateRadial(chex.TestCase):
             fixed_integrals_shell=jnp.asarray(((3.0, 4.0),)),
         )
 
-        values: Array = evaluate_radial(grid_spec, radial_grid)
+        values: Float64[Array, "1 81"] = evaluate_radial(
+            grid_spec, radial_grid
+        )
         chex.assert_shape(values, (1, radial_grid.shape[0]))
         with pytest.raises(eqx.EquinoxRuntimeError, match="no interpolation"):
             evaluate_radial(grid_spec, radial_grid + 1.0e-6)

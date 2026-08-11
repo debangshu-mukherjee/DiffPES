@@ -60,7 +60,8 @@ def _is_norm_call(node: ast.AST) -> bool:
         True when the syntax node is a recognized norm call.
     """
     if not isinstance(node, ast.Call):
-        return False
+        returned: bool = False
+        return returned
     function: ast.expr = node.func
     is_norm: bool = (
         isinstance(function, ast.Name) and function.id in {"norm", "safe_norm"}

@@ -1,5 +1,7 @@
 """Validate dipole basis transforms, channel tables, and gauge contractions.
 
+Extended Summary
+----------------
 The tests exercise complex phases, static padding, and independent direct
 Cartesian sums.
 """
@@ -12,8 +14,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Array, Complex128, Float64, Int64
+from beartype import beartype
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 from scipy.integrate import lebedev_rule
 from scipy.sparse import csr_matrix, diags, lil_matrix
@@ -32,12 +35,13 @@ from diffpes.maths import (
 from diffpes.types import L_MAX, OrbitalBasis, make_orbital_basis
 
 
-def _generic_polarization() -> Array:
+@jaxtyped(typechecker=beartype)
+def _generic_polarization() -> Complex128[Array, " 3"]:
     """PRIVATE: Return a generic complex elliptic polarization.
 
     Returns
     -------
-    polarization : Array
+    polarization : Complex128[Array, " 3"]
         Complex128 Cartesian polarization with three unequal elliptic
         components.
 
@@ -45,13 +49,14 @@ def _generic_polarization() -> Array:
     -----
     Fixes the components so no Cartesian axis or phase is special.
     """
-    polarization: Array = jnp.asarray(
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
         (0.31 + 0.17j, -0.23 + 0.41j, 0.53 - 0.29j),
         dtype=jnp.complex128,
     )
     return polarization
 
 
+@jaxtyped(typechecker=beartype)
 def _boole_weights(
     node_count: int, radius: float
 ) -> Float64[NDArray, " n_node"]:
@@ -91,6 +96,7 @@ def _boole_weights(
     return weights
 
 
+@jaxtyped(typechecker=beartype)
 def _tensor_product_gauges(
     radial_grid: Float64[NDArray, " n_node"],
     radial_weights: Float64[NDArray, " n_node"],
@@ -98,7 +104,7 @@ def _tensor_product_gauges(
     radial_initial_derivative: Float64[NDArray, " n_node"],
     radial_final: Float64[NDArray, " n_node"],
     lebedev_degree: int,
-) -> Tuple[Array, Array]:
+) -> Tuple[Complex128[Array, ""], Complex128[Array, ""]]:
     """PRIVATE: Evaluate both public gauges on a radial-Lebedev product grid.
 
     Parameters
@@ -118,9 +124,9 @@ def _tensor_product_gauges(
 
     Returns
     -------
-    length : Array
+    length : Complex128[Array, ""]
         Length-gauge amplitude for z polarization.
-    momentum : Array
+    momentum : Complex128[Array, ""]
         Momentum-gauge amplitude for z polarization.
 
     Implementation Logic
@@ -137,9 +143,11 @@ def _tensor_product_gauges(
     angular_points, angular_weights = lebedev_rule(lebedev_degree)
     directions: Float64[NDArray, "n_angular 3"] = angular_points.T
     angular_count: int = directions.shape[0]
-    polarization: Array = jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128)
-    length: Array = jnp.asarray(0.0j)
-    momentum: Array = jnp.asarray(0.0j)
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
+        (0.0, 0.0, 1.0), dtype=jnp.complex128
+    )
+    length: Complex128[Array, ""] = jnp.asarray(0.0j)
+    momentum: Complex128[Array, ""] = jnp.asarray(0.0j)
     chunk_size: int = 512
     chunk_start: int
     for chunk_start in range(0, radial_grid.size, chunk_size):
@@ -203,19 +211,24 @@ def _tensor_product_gauges(
             jnp.asarray(volume_weights),
             polarization,
         )
-    return length, momentum
+    result: Tuple[Complex128[Array, ""], Complex128[Array, ""]] = (
+        length,
+        momentum,
+    )
+    return result
 
 
+@jaxtyped(typechecker=beartype)
 def _hydrogenic_gauges(
-    charge: Array,
+    charge: Float64[Array, ""],
     node_count: int,
     lebedev_degree: int,
-) -> Tuple[Array, Array]:
+) -> Tuple[Complex128[Array, ""], Complex128[Array, ""]]:
     """PRIVATE: Evaluate the normalized hydrogenic 1s-to-2p gauge pair.
 
     Parameters
     ----------
-    charge : Array
+    charge : Float64[Array, ""]
         Nuclear charge that scales both hydrogenic orbitals; the JAX
         scalar stays differentiable.
     node_count : int
@@ -225,9 +238,9 @@ def _hydrogenic_gauges(
 
     Returns
     -------
-    length : Array
+    length : Complex128[Array, ""]
         Length-gauge 1s-to-2p amplitude for z polarization.
-    momentum : Array
+    momentum : Complex128[Array, ""]
         Momentum-gauge 1s-to-2p amplitude for z polarization.
 
     Implementation Logic
@@ -244,59 +257,81 @@ def _hydrogenic_gauges(
     radial_weights_numpy: Float64[NDArray, " n_node"] = _boole_weights(
         node_count, radius
     )
-    radial_grid: Array = jnp.asarray(radial_grid_numpy)
-    radial_initial: Array = 2.0 * charge**1.5 * jnp.exp(-charge * radial_grid)
-    radial_final: Array = (
+    radial_grid: Float64[Array, " n_node"] = jnp.asarray(radial_grid_numpy)
+    radial_initial: Float64[Array, " n_node"] = (
+        2.0 * charge**1.5 * jnp.exp(-charge * radial_grid)
+    )
+    radial_final: Float64[Array, " n_node"] = (
         charge**1.5
         * (charge * radial_grid)
         * jnp.exp(-charge * radial_grid / 2.0)
         / (2.0 * math.sqrt(6.0))
     )
-    radial_derivative: Array = -charge * radial_initial
+    radial_derivative: Float64[Array, " n_node"] = -charge * radial_initial
     angular_points_numpy: Float64[NDArray, "3 n_angular"]
     angular_weights_numpy: Float64[NDArray, " n_angular"]
     angular_points_numpy, angular_weights_numpy = lebedev_rule(lebedev_degree)
-    directions: Array = jnp.asarray(angular_points_numpy.T)
-    angular_weights: Array = jnp.asarray(angular_weights_numpy)
+    directions: Float64[Array, "n_angular 3"] = jnp.asarray(
+        angular_points_numpy.T
+    )
+    angular_weights: Float64[Array, " n_angular"] = jnp.asarray(
+        angular_weights_numpy
+    )
     angular_count: int = directions.shape[0]
-    polarization: Array = jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128)
-    length: Array = jnp.asarray(0.0j)
-    momentum: Array = jnp.asarray(0.0j)
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
+        (0.0, 0.0, 1.0), dtype=jnp.complex128
+    )
+    length: Complex128[Array, ""] = jnp.asarray(0.0j)
+    momentum: Complex128[Array, ""] = jnp.asarray(0.0j)
     chunk_size: int = 512
     chunk_start: int
     for chunk_start in range(0, node_count, chunk_size):
         chunk_stop: int = min(chunk_start + chunk_size, node_count)
-        radial_chunk: Array = radial_grid[chunk_start:chunk_stop]
-        radial_weight_chunk: Array = jnp.asarray(radial_weights_numpy)[
+        radial_chunk: Float64[Array, " n_chunk"] = radial_grid[
             chunk_start:chunk_stop
         ]
-        initial_chunk: Array = radial_initial[chunk_start:chunk_stop]
-        final_chunk: Array = radial_final[chunk_start:chunk_stop]
-        derivative_chunk: Array = radial_derivative[chunk_start:chunk_stop]
+        radial_weight_chunk: Float64[Array, " n_chunk"] = jnp.asarray(
+            radial_weights_numpy
+        )[chunk_start:chunk_stop]
+        initial_chunk: Float64[Array, " n_chunk"] = radial_initial[
+            chunk_start:chunk_stop
+        ]
+        final_chunk: Float64[Array, " n_chunk"] = radial_final[
+            chunk_start:chunk_stop
+        ]
+        derivative_chunk: Float64[Array, " n_chunk"] = radial_derivative[
+            chunk_start:chunk_stop
+        ]
         chunk_count: int = chunk_stop - chunk_start
-        radius_flat: Array = jnp.repeat(radial_chunk, angular_count)
-        directions_flat: Array = jnp.tile(directions, (chunk_count, 1))
-        position_flat: Array = radius_flat[:, None] * directions_flat
-        volume_weights: Array = jnp.repeat(
+        radius_flat: Float64[Array, " n_flat"] = jnp.repeat(
+            radial_chunk, angular_count
+        )
+        directions_flat: Float64[Array, "n_flat 3"] = jnp.tile(
+            directions, (chunk_count, 1)
+        )
+        position_flat: Float64[Array, "n_flat 3"] = (
+            radius_flat[:, None] * directions_flat
+        )
+        volume_weights: Float64[Array, " n_flat"] = jnp.repeat(
             radial_weight_chunk * radial_chunk**2,
             angular_count,
         ) * jnp.tile(angular_weights, chunk_count)
-        initial_flat: Array = jnp.repeat(
+        initial_flat: Complex128[Array, " n_flat"] = jnp.repeat(
             initial_chunk / math.sqrt(4.0 * math.pi),
             angular_count,
         ).astype(jnp.complex128)
-        final_flat: Array = (
+        final_flat: Complex128[Array, " n_flat"] = (
             jnp.repeat(
                 final_chunk * math.sqrt(3.0 / (4.0 * math.pi)),
                 angular_count,
             )
             * directions_flat[:, 2]
         ).astype(jnp.complex128)
-        derivative_flat: Array = jnp.repeat(
+        derivative_flat: Float64[Array, " n_flat"] = jnp.repeat(
             derivative_chunk / math.sqrt(4.0 * math.pi),
             angular_count,
         )
-        gradient_flat: Array = (
+        gradient_flat: Complex128[Array, "n_flat 3"] = (
             derivative_flat[:, None] * directions_flat
         ).astype(jnp.complex128)
         length = length + dipole_length_cartesian(
@@ -312,27 +347,32 @@ def _hydrogenic_gauges(
             volume_weights,
             polarization,
         )
-    return length, momentum
+    result: Tuple[Complex128[Array, ""], Complex128[Array, ""]] = (
+        length,
+        momentum,
+    )
+    return result
 
 
+@jaxtyped(typechecker=beartype)
 def _hydrogenic_reduced_public_gauges(
-    charge: Array,
+    charge: Float64[Array, ""],
     node_count: int,
-) -> Tuple[Array, Array]:
+) -> Tuple[Complex128[Array, ""], Complex128[Array, ""]]:
     """PRIVATE: Evaluate the analytic angular reduction through public APIs.
 
     Parameters
     ----------
-    charge : Array
+    charge : Float64[Array, ""]
         Nuclear charge that scales both hydrogenic orbitals.
     node_count : int
         Number of radial nodes on the [0, 43] Bohr grid.
 
     Returns
     -------
-    length : Array
+    length : Complex128[Array, ""]
         Length-gauge 1s-to-2p amplitude for z polarization.
-    momentum : Array
+    momentum : Complex128[Array, ""]
         Momentum-gauge 1s-to-2p amplitude for z polarization.
 
     Implementation Logic
@@ -342,16 +382,22 @@ def _hydrogenic_reduced_public_gauges(
     one-dimensional radial integral. No angular quadrature remains.
     """
     radius: float = 43.0
-    radial_grid: Array = jnp.linspace(0.0, radius, node_count)
-    radial_weights: Array = jnp.asarray(_boole_weights(node_count, radius))
-    radial_initial: Array = 2.0 * charge**1.5 * jnp.exp(-charge * radial_grid)
-    radial_final: Array = (
+    radial_grid: Float64[Array, " n_node"] = jnp.linspace(
+        0.0, radius, node_count
+    )
+    radial_weights: Float64[Array, " n_node"] = jnp.asarray(
+        _boole_weights(node_count, radius)
+    )
+    radial_initial: Float64[Array, " n_node"] = (
+        2.0 * charge**1.5 * jnp.exp(-charge * radial_grid)
+    )
+    radial_final: Float64[Array, " n_node"] = (
         charge**1.5
         * (charge * radial_grid)
         * jnp.exp(-charge * radial_grid / 2.0)
         / (2.0 * math.sqrt(6.0))
     )
-    positions: Array = jnp.stack(
+    positions: Float64[Array, "n_node 3"] = jnp.stack(
         (
             jnp.zeros_like(radial_grid),
             jnp.zeros_like(radial_grid),
@@ -359,7 +405,7 @@ def _hydrogenic_reduced_public_gauges(
         ),
         axis=-1,
     )
-    gradient: Array = jnp.stack(
+    gradient: Complex128[Array, "n_node 3"] = jnp.stack(
         (
             jnp.zeros_like(radial_grid),
             jnp.zeros_like(radial_grid),
@@ -367,24 +413,31 @@ def _hydrogenic_reduced_public_gauges(
         ),
         axis=-1,
     ).astype(jnp.complex128)
-    volume_weights: Array = radial_weights * radial_grid**2
-    polarization: Array = jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128)
-    length: Array = dipole_length_cartesian(
+    volume_weights: Float64[Array, " n_node"] = radial_weights * radial_grid**2
+    polarization: Complex128[Array, " 3"] = jnp.asarray(
+        (0.0, 0.0, 1.0), dtype=jnp.complex128
+    )
+    length: Complex128[Array, ""] = dipole_length_cartesian(
         radial_final.astype(jnp.complex128),
         radial_initial.astype(jnp.complex128),
         positions,
         volume_weights,
         polarization,
     )
-    momentum: Array = dipole_momentum_cartesian(
+    momentum: Complex128[Array, ""] = dipole_momentum_cartesian(
         radial_final.astype(jnp.complex128),
         gradient,
         volume_weights,
         polarization,
     )
-    return length, momentum
+    result: Tuple[Complex128[Array, ""], Complex128[Array, ""]] = (
+        length,
+        momentum,
+    )
+    return result
 
 
+@jaxtyped(typechecker=beartype)
 def _radial_second_derivative(
     node_count: int,
     radius: float,
@@ -450,6 +503,7 @@ def _radial_second_derivative(
 
 
 @lru_cache(maxsize=4)
+@jaxtyped(typechecker=beartype)
 def _local_box_states(
     node_count: int,
     quadratic_coefficient: float,
@@ -496,8 +550,8 @@ def _local_box_states(
         node_count, radius
     )
     interior_radius: Float64[NDArray, " n_interior"] = radial_grid[1:-1]
-    energies: list[float] = []
-    states: list[Float64[NDArray, " n_node"]] = []
+    energies: List[float] = []
+    states: List[Float64[NDArray, " n_node"]] = []
     angular_momentum: int
     for angular_momentum in (0, 1):
         second_derivative: csr_matrix = _radial_second_derivative(
@@ -528,14 +582,23 @@ def _local_box_states(
             state *= -1.0
         energies.append(float(eigenvalues[0]))
         states.append(state)
-    return (
+    energy_values: Float64[NDArray, " 2"] = np.asarray(energies)
+    state_values: Float64[NDArray, "2 n_node"] = np.asarray(states)
+    result: Tuple[
+        Float64[NDArray, " n_node"],
+        Float64[NDArray, " n_node"],
+        Float64[NDArray, " 2"],
+        Float64[NDArray, "2 n_node"],
+    ] = (
         radial_grid,
         radial_weights,
-        np.asarray(energies),
-        np.asarray(states),
+        energy_values,
+        state_values,
     )
+    return result
 
 
+@jaxtyped(typechecker=beartype)
 def _derivative_sixth(
     values: Float64[NDArray, " n_node"], spacing: float
 ) -> Float64[NDArray, " n_node"]:
@@ -594,13 +657,13 @@ class TestPolarizationCartToComplex:
         The test compares each transformed vector with its analytic components.
         """
         inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
-        x_result: Array = polarization_cart_to_complex(
+        x_result: Complex128[Array, " 3"] = polarization_cart_to_complex(
             jnp.asarray((1.0, 0.0, 0.0), dtype=jnp.complex128)
         )
-        y_result: Array = polarization_cart_to_complex(
+        y_result: Complex128[Array, " 3"] = polarization_cart_to_complex(
             jnp.asarray((0.0, 1.0, 0.0), dtype=jnp.complex128)
         )
-        z_result: Array = polarization_cart_to_complex(
+        z_result: Complex128[Array, " 3"] = polarization_cart_to_complex(
             jnp.asarray((0.0, 0.0, 1.0), dtype=jnp.complex128)
         )
         chex.assert_trees_all_close(
@@ -627,16 +690,18 @@ class TestPolarizationCartToComplex:
             rtol=1e-14,
             atol=1e-14,
         )
-        positive_helicity: Array = (
+        positive_helicity: Complex128[Array, " 3"] = (
             jnp.asarray((1.0, 1j, 0.0), dtype=jnp.complex128)
             * inverse_sqrt_two
         )
-        negative_helicity: Array = jnp.conj(positive_helicity)
-        positive_result: Array = polarization_cart_to_complex(
+        negative_helicity: Complex128[Array, " 3"] = jnp.conj(
             positive_helicity
         )
-        negative_result: Array = polarization_cart_to_complex(
-            negative_helicity
+        positive_result: Complex128[Array, " 3"] = (
+            polarization_cart_to_complex(positive_helicity)
+        )
+        negative_result: Complex128[Array, " 3"] = (
+            polarization_cart_to_complex(negative_helicity)
         )
         chex.assert_trees_all_close(
             positive_result,
@@ -654,40 +719,53 @@ class TestPolarizationCartToComplex:
     def test_wrong_real_permutation_is_not_complex_map(self) -> None:
         """Reject interpreting ``(y,z,x)`` as complex spherical channels.
 
-        A generic elliptic vector distinguishes a permutation from a unitary map.
+        A generic elliptic vector distinguishes a permutation from a unitary
+        map.
 
         Notes
         -----
         The test compares both mappings at a strict numerical tolerance.
         """
-        polarization: Array = _generic_polarization()
-        correct: Array = polarization_cart_to_complex(polarization)
-        wrong: Array = polarization_cart_to_real(polarization)
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        correct: Complex128[Array, " 3"] = polarization_cart_to_complex(
+            polarization
+        )
+        wrong: Complex128[Array, " 3"] = polarization_cart_to_real(
+            polarization
+        )
         assert not bool(jnp.allclose(correct, wrong, rtol=1e-12, atol=1e-12))
 
     def test_cartesian_real_and_complex_amplitudes_agree(self) -> None:
         """Match one bilinear amplitude in all three photon bases.
 
-        The complex basis uses the spherical metric from the canonical contraction.
+        The complex basis uses the spherical metric from the canonical
+        contraction.
 
         Notes
         -----
-        The test transforms two generic vectors and evaluates each direct formula.
+        The test transforms two generic vectors and evaluates each direct
+        formula.
         """
-        polarization: Array = _generic_polarization()
-        dipole_cart: Array = jnp.asarray(
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        dipole_cart: Complex128[Array, " 3"] = jnp.asarray(
             (-0.19 + 0.27j, 0.43 - 0.11j, 0.37 + 0.52j),
             dtype=jnp.complex128,
         )
-        polarization_real: Array = polarization_cart_to_real(polarization)
-        dipole_real: Array = polarization_cart_to_real(dipole_cart)
-        polarization_complex: Array = polarization_cart_to_complex(
+        polarization_real: Complex128[Array, " 3"] = polarization_cart_to_real(
             polarization
         )
-        dipole_complex: Array = polarization_cart_to_complex(dipole_cart)
-        cartesian_amplitude: Array = polarization @ dipole_cart
-        real_amplitude: Array = polarization_real @ dipole_real
-        complex_amplitude: Array = (
+        dipole_real: Complex128[Array, " 3"] = polarization_cart_to_real(
+            dipole_cart
+        )
+        polarization_complex: Complex128[Array, " 3"] = (
+            polarization_cart_to_complex(polarization)
+        )
+        dipole_complex: Complex128[Array, " 3"] = polarization_cart_to_complex(
+            dipole_cart
+        )
+        cartesian_amplitude: Complex128[Array, ""] = polarization @ dipole_cart
+        real_amplitude: Complex128[Array, ""] = polarization_real @ dipole_real
+        complex_amplitude: Complex128[Array, ""] = (
             -polarization_complex[0] * dipole_complex[2]
             + polarization_complex[1] * dipole_complex[1]
             - polarization_complex[2] * dipole_complex[0]
@@ -721,11 +799,13 @@ class TestPolarizationComplexToCart:
         -----
         The test applies both compiled functions and compares their outputs.
         """
-        polarization: Array = _generic_polarization()
-        transformed: Array = jax.jit(polarization_cart_to_complex)(
-            polarization
-        )
-        recovered: Array = jax.jit(polarization_complex_to_cart)(transformed)
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        transformed: Complex128[Array, " 3"] = jax.jit(
+            polarization_cart_to_complex
+        )(polarization)
+        recovered: Complex128[Array, " 3"] = jax.jit(
+            polarization_complex_to_cart
+        )(transformed)
         chex.assert_trees_all_close(
             recovered,
             polarization,
@@ -755,9 +835,13 @@ class TestPolarizationCartToReal:
         -----
         The test compares production with direct integer indexing.
         """
-        polarization: Array = _generic_polarization()
-        transformed: Array = polarization_cart_to_real(polarization)
-        expected: Array = polarization[jnp.asarray((1, 2, 0))]
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        transformed: Complex128[Array, " 3"] = polarization_cart_to_real(
+            polarization
+        )
+        expected: Complex128[Array, " 3"] = polarization[
+            jnp.asarray((1, 2, 0))
+        ]
         chex.assert_trees_all_close(
             transformed,
             expected,
@@ -781,8 +865,8 @@ class TestPolarizationRealToCart:
         -----
         The test applies both public maps and requests exact equality.
         """
-        polarization: Array = _generic_polarization()
-        recovered: Array = polarization_real_to_cart(
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        recovered: Complex128[Array, " 3"] = polarization_real_to_cart(
             polarization_cart_to_real(polarization)
         )
         chex.assert_trees_all_close(
@@ -815,8 +899,8 @@ class TestChannelTables:
             m=(0, -1, 1, -4),
             labels=("s", "py", "dxz", "g"),
         )
-        coupling: Array
-        valid: Array
+        coupling: Float64[Array, "4 2 3 36"]
+        valid: Float64[Array, "4 2 3 36"]
         coupling, valid = channel_tables(basis)
         assert coupling.shape == (4, 2, 3, 36)
         assert valid.shape == coupling.shape
@@ -830,7 +914,7 @@ class TestChannelTables:
         q_index: int
         m_final: int
         harmonic_index: int
-        expected: Array
+        expected: Float64[Array, ""]
         for orbital_index, (l_initial, m_initial) in enumerate(
             zip(basis.l, basis.m, strict=True)
         ):
@@ -892,8 +976,8 @@ class TestChannelTables:
             m=(-1,),
             labels=("py",),
         )
-        coupling: Array
-        valid: Array
+        coupling: Float64[Array, "1 2 3 36"]
+        valid: Float64[Array, "1 2 3 36"]
         coupling, valid = channel_tables(basis)
         del valid
         nonzero_indices: Int64[NDArray, "n_nonzero 2"] = np.argwhere(
@@ -921,8 +1005,8 @@ class TestChannelTables:
             m=(0,),
             labels=("dz2",),
         )
-        coupling: Array
-        valid: Array
+        coupling: Float64[Array, "1 2 3 36"]
+        valid: Float64[Array, "1 2 3 36"]
         coupling, valid = channel_tables(basis)
         del valid
         assert coupling.dtype == jnp.float64
@@ -946,15 +1030,37 @@ class TestChannelTables:
             labels=("py", "dxz"),
         )
 
-        def build_tables() -> Tuple[Array, Array]:
-            result: Tuple[Array, Array] = channel_tables(basis)
+        @jaxtyped(typechecker=beartype)
+        def _build_tables() -> Tuple[
+            Float64[Array, "2 2 3 36"],
+            Float64[Array, "2 2 3 36"],
+        ]:
+            """PRIVATE: Build both closed-over channel tables.
+
+            Returns
+            -------
+            result : Tuple[
+                Float64[Array, "2 2 3 36"],
+                Float64[Array, "2 2 3 36"],
+            ]
+                Coupling coefficients and validity mask for the static basis.
+
+            Notes
+            -----
+            Closes over the two-orbital fixture so JAX traces a
+            zero-argument function.
+            """
+            result: Tuple[
+                Float64[Array, "2 2 3 36"],
+                Float64[Array, "2 2 3 36"],
+            ] = channel_tables(basis)
             return result
 
-        expression: Any = jax.make_jaxpr(build_tables)()
+        expression: Any = jax.make_jaxpr(_build_tables)()
         assert expression.out_avals[0].shape == (2, 2, 3, 36)
-        coupling: Array
-        valid: Array
-        coupling, valid = jax.jit(build_tables)()
+        coupling: Float64[Array, "2 2 3 36"]
+        valid: Float64[Array, "2 2 3 36"]
+        coupling, valid = jax.jit(_build_tables)()
         assert coupling.shape == (2, 2, 3, 36)
         assert valid.shape == coupling.shape
 
@@ -968,27 +1074,29 @@ class TestDipoleLengthCartesian:
     def test_independent_direct_sum_and_phase_covariance(self) -> None:
         """Match NumPy and retain the final-bra and initial-ket phase.
 
-        Generic complex samples expose missing conjugation or an extra conjugation.
+        Generic complex samples expose missing or extra conjugation.
 
         Notes
         -----
         The test evaluates an explicit sum and then rotates both ket phases.
         """
-        psi_final: Array = jnp.asarray(
+        psi_final: Complex128[Array, " 3"] = jnp.asarray(
             (0.2 + 0.7j, -0.4 + 0.1j, 0.8 - 0.3j),
             dtype=jnp.complex128,
         )
-        psi_initial: Array = jnp.asarray(
+        psi_initial: Complex128[Array, " 3"] = jnp.asarray(
             (-0.5 + 0.2j, 0.3 + 0.9j, -0.1 - 0.6j),
             dtype=jnp.complex128,
         )
-        positions: Array = jnp.asarray(
+        positions: Float64[Array, "3 3"] = jnp.asarray(
             ((0.1, -0.2, 0.4), (0.7, 0.3, -0.1), (-0.5, 0.8, 0.2)),
             dtype=jnp.float64,
         )
-        weights: Array = jnp.asarray((0.2, 0.5, 0.3), dtype=jnp.float64)
-        polarization: Array = _generic_polarization()
-        actual: Array = dipole_length_cartesian(
+        weights: Float64[Array, " 3"] = jnp.asarray(
+            (0.2, 0.5, 0.3), dtype=jnp.float64
+        )
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        actual: Complex128[Array, ""] = dipole_length_cartesian(
             psi_final,
             psi_initial,
             positions,
@@ -1010,7 +1118,7 @@ class TestDipoleLengthCartesian:
 
         alpha: float = 0.37
         beta: float = -0.61
-        transformed: Array = dipole_length_cartesian(
+        transformed: Complex128[Array, ""] = dipole_length_cartesian(
             jnp.exp(1j * alpha) * psi_final,
             jnp.exp(1j * beta) * psi_initial,
             positions,
@@ -1033,23 +1141,44 @@ class TestDipoleLengthCartesian:
         -----
         The test compares a JAX tangent with a symmetric finite difference.
         """
-        psi_final: Array = jnp.asarray(
+        psi_final: Complex128[Array, " 2"] = jnp.asarray(
             (0.2 + 0.7j, -0.4 + 0.1j), dtype=jnp.complex128
         )
-        psi_initial: Array = jnp.asarray(
+        psi_initial: Complex128[Array, " 2"] = jnp.asarray(
             (-0.5 + 0.2j, 0.3 + 0.9j), dtype=jnp.complex128
         )
-        direction: Array = jnp.asarray(
+        direction: Complex128[Array, " 2"] = jnp.asarray(
             (0.1 - 0.3j, -0.2 + 0.4j), dtype=jnp.complex128
         )
-        positions: Array = jnp.asarray(
+        positions: Float64[Array, "2 3"] = jnp.asarray(
             ((0.1, -0.2, 0.4), (0.7, 0.3, -0.1)), dtype=jnp.float64
         )
-        weights: Array = jnp.asarray((0.2, 0.5), dtype=jnp.float64)
-        polarization: Array = _generic_polarization()
+        weights: Float64[Array, " 2"] = jnp.asarray(
+            (0.2, 0.5), dtype=jnp.float64
+        )
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
 
-        def amplitude(initial: Array) -> Array:
-            result: Array = dipole_length_cartesian(
+        @jaxtyped(typechecker=beartype)
+        def _amplitude(
+            initial: Complex128[Array, " 2"],
+        ) -> Complex128[Array, ""]:
+            """PRIVATE: Evaluate the length amplitude for initial samples.
+
+            Parameters
+            ----------
+            initial : Complex128[Array, " 2"]
+                Initial-state samples at the two quadrature positions.
+
+            Returns
+            -------
+            result : Complex128[Array, ""]
+                Complex Cartesian length-gauge amplitude.
+
+            Notes
+            -----
+            Holds the final state, positions, weights, and polarization fixed.
+            """
+            result: Complex128[Array, ""] = dipole_length_cartesian(
                 psi_final,
                 initial,
                 positions,
@@ -1058,14 +1187,14 @@ class TestDipoleLengthCartesian:
             )
             return result
 
-        jvp_result: Tuple[Array, Array] = jax.jvp(
-            amplitude, (psi_initial,), (direction,)
+        jvp_result: Tuple[Complex128[Array, ""], Complex128[Array, ""]] = (
+            jax.jvp(_amplitude, (psi_initial,), (direction,))
         )
-        tangent: Array = jvp_result[1]
+        tangent: Complex128[Array, ""] = jvp_result[1]
         step: float = 1e-5
-        finite_difference: Array = (
-            amplitude(psi_initial + step * direction)
-            - amplitude(psi_initial - step * direction)
+        finite_difference: Complex128[Array, ""] = (
+            _amplitude(psi_initial + step * direction)
+            - _amplitude(psi_initial - step * direction)
         ) / (2.0 * step)
         chex.assert_trees_all_close(
             tangent,
@@ -1090,11 +1219,11 @@ class TestDipoleMomentumCartesian:
         -----
         The test evaluates an explicit sum and then rotates both ket phases.
         """
-        psi_final: Array = jnp.asarray(
+        psi_final: Complex128[Array, " 3"] = jnp.asarray(
             (0.2 + 0.7j, -0.4 + 0.1j, 0.8 - 0.3j),
             dtype=jnp.complex128,
         )
-        gradient: Array = jnp.asarray(
+        gradient: Complex128[Array, "3 3"] = jnp.asarray(
             (
                 (0.1 + 0.3j, -0.2 + 0.4j, 0.5 - 0.1j),
                 (-0.7 + 0.2j, 0.4 + 0.8j, 0.3 - 0.5j),
@@ -1102,9 +1231,11 @@ class TestDipoleMomentumCartesian:
             ),
             dtype=jnp.complex128,
         )
-        weights: Array = jnp.asarray((0.2, 0.5, 0.3), dtype=jnp.float64)
-        polarization: Array = _generic_polarization()
-        actual: Array = dipole_momentum_cartesian(
+        weights: Float64[Array, " 3"] = jnp.asarray(
+            (0.2, 0.5, 0.3), dtype=jnp.float64
+        )
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        actual: Complex128[Array, ""] = dipole_momentum_cartesian(
             psi_final,
             gradient,
             weights,
@@ -1124,7 +1255,7 @@ class TestDipoleMomentumCartesian:
 
         alpha: float = 0.37
         beta: float = -0.61
-        transformed: Array = dipole_momentum_cartesian(
+        transformed: Complex128[Array, ""] = dipole_momentum_cartesian(
             jnp.exp(1j * alpha) * psi_final,
             jnp.exp(1j * beta) * gradient,
             weights,
@@ -1146,11 +1277,15 @@ class TestDipoleMomentumCartesian:
         -----
         The test supplies no position or initial-wavefunction samples.
         """
-        psi_final: Array = jnp.asarray((1.0 + 0.2j,), dtype=jnp.complex128)
-        zero_gradient: Array = jnp.zeros((1, 3), dtype=jnp.complex128)
-        weights: Array = jnp.ones((1,), dtype=jnp.float64)
-        polarization: Array = _generic_polarization()
-        amplitude: Array = dipole_momentum_cartesian(
+        psi_final: Complex128[Array, " 1"] = jnp.asarray(
+            (1.0 + 0.2j,), dtype=jnp.complex128
+        )
+        zero_gradient: Complex128[Array, "1 3"] = jnp.zeros(
+            (1, 3), dtype=jnp.complex128
+        )
+        weights: Float64[Array, " 1"] = jnp.ones((1,), dtype=jnp.float64)
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
+        amplitude: Complex128[Array, ""] = dipole_momentum_cartesian(
             psi_final,
             zero_gradient,
             weights,
@@ -1159,8 +1294,12 @@ class TestDipoleMomentumCartesian:
         chex.assert_trees_all_close(amplitude, 0.0j, rtol=0.0, atol=0.0)
 
 
-class TestGaugeEquivalenceBattery:
-    """Validate the frozen G12/D12 local-potential gauge battery."""
+class TestGaugeEquivalence:
+    """Validate local-potential gauge equivalence.
+
+    The tests check complex phase covariance and the local commutator
+    identity. They compare independent Cartesian length and momentum gauges.
+    """
 
     def test_generic_complex_phase_directional_covariance(self) -> None:
         """Differentiate both phase-covariance laws on unrelated samples.
@@ -1173,15 +1312,15 @@ class TestGaugeEquivalenceBattery:
         The test compares each JAX directional derivative with the analytic
         derivative and an independent centered quotient.
         """
-        psi_final: Array = jnp.asarray(
+        psi_final: Complex128[Array, " 3"] = jnp.asarray(
             (0.2 + 0.7j, -0.4 + 0.1j, 0.8 - 0.3j),
             dtype=jnp.complex128,
         )
-        psi_initial: Array = jnp.asarray(
+        psi_initial: Complex128[Array, " 3"] = jnp.asarray(
             (-0.5 + 0.2j, 0.3 + 0.9j, -0.1 - 0.6j),
             dtype=jnp.complex128,
         )
-        gradient: Array = jnp.asarray(
+        gradient: Complex128[Array, "3 3"] = jnp.asarray(
             (
                 (0.1 + 0.3j, -0.2 + 0.4j, 0.5 - 0.1j),
                 (-0.7 + 0.2j, 0.4 + 0.8j, 0.3 - 0.5j),
@@ -1189,42 +1328,66 @@ class TestGaugeEquivalenceBattery:
             ),
             dtype=jnp.complex128,
         )
-        positions: Array = jnp.asarray(
+        positions: Float64[Array, "3 3"] = jnp.asarray(
             ((0.1, -0.2, 0.4), (0.7, 0.3, -0.1), (-0.5, 0.8, 0.2)),
             dtype=jnp.float64,
         )
-        weights: Array = jnp.asarray((0.2, 0.5, 0.3), dtype=jnp.float64)
-        polarization: Array = _generic_polarization()
+        weights: Float64[Array, " 3"] = jnp.asarray(
+            (0.2, 0.5, 0.3), dtype=jnp.float64
+        )
+        polarization: Complex128[Array, " 3"] = _generic_polarization()
 
-        def amplitudes(phases: Array) -> Array:
-            final_phase: Array = jnp.exp(1j * phases[0])
-            initial_phase: Array = jnp.exp(1j * phases[1])
-            length: Array = dipole_length_cartesian(
+        @jaxtyped(typechecker=beartype)
+        def _amplitudes(
+            phases: Float64[Array, " 2"],
+        ) -> Complex128[Array, " 2"]:
+            """PRIVATE: Evaluate both gauges under independent ket phases.
+
+            Parameters
+            ----------
+            phases : Float64[Array, " 2"]
+                Final- and initial-state phases in radians.
+
+            Returns
+            -------
+            result : Complex128[Array, " 2"]
+                Length- and momentum-gauge amplitudes.
+
+            Notes
+            -----
+            Applies the final phase to the bra samples and the initial phase
+            to the initial samples and gradients.
+            """
+            final_phase: Complex128[Array, ""] = jnp.exp(1j * phases[0])
+            initial_phase: Complex128[Array, ""] = jnp.exp(1j * phases[1])
+            length: Complex128[Array, ""] = dipole_length_cartesian(
                 final_phase * psi_final,
                 initial_phase * psi_initial,
                 positions,
                 weights,
                 polarization,
             )
-            momentum: Array = dipole_momentum_cartesian(
+            momentum: Complex128[Array, ""] = dipole_momentum_cartesian(
                 final_phase * psi_final,
                 initial_phase * gradient,
                 weights,
                 polarization,
             )
-            result: Array = jnp.stack((length, momentum))
+            result: Complex128[Array, " 2"] = jnp.stack((length, momentum))
             return result
 
-        phases: Array = jnp.asarray((0.37, -0.61))
-        direction: Array = jnp.asarray((0.19, -0.31))
-        values: Array
-        tangent: Array
-        values, tangent = jax.jvp(amplitudes, (phases,), (direction,))
-        expected_tangent: Array = 1j * (direction[1] - direction[0]) * values
+        phases: Float64[Array, " 2"] = jnp.asarray((0.37, -0.61))
+        direction: Float64[Array, " 2"] = jnp.asarray((0.19, -0.31))
+        values: Complex128[Array, " 2"]
+        tangent: Complex128[Array, " 2"]
+        values, tangent = jax.jvp(_amplitudes, (phases,), (direction,))
+        expected_tangent: Complex128[Array, " 2"] = (
+            1j * (direction[1] - direction[0]) * values
+        )
         step: float = 2.0**-16
-        finite_difference: Array = (
-            amplitudes(phases + step * direction)
-            - amplitudes(phases - step * direction)
+        finite_difference: Complex128[Array, " 2"] = (
+            _amplitudes(phases + step * direction)
+            - _amplitudes(phases - step * direction)
         ) / (2.0 * step)
         chex.assert_trees_all_close(
             tangent,
@@ -1256,16 +1419,35 @@ class TestGaugeEquivalenceBattery:
         analytic_momentum_scale: float = 16.0 * math.sqrt(2.0) / 81.0
         charge_value: float
         for charge_value in (0.5, 1.0, 2.0, 3.0):
-            charge: Array = jnp.asarray(charge_value)
+            charge: Float64[Array, ""] = jnp.asarray(charge_value)
 
-            def real_gauges(variable_charge: Array) -> Array:
-                length: Array
-                momentum: Array
+            @jaxtyped(typechecker=beartype)
+            def _real_gauges(
+                variable_charge: Float64[Array, ""],
+            ) -> Float64[Array, " 4"]:
+                """PRIVATE: Evaluate real gauge components for one charge.
+
+                Parameters
+                ----------
+                variable_charge : Float64[Array, ""]
+                    Nuclear charge in units of the elementary charge.
+
+                Returns
+                -------
+                result : Float64[Array, " 4"]
+                    Real and imaginary parts of both gauge amplitudes.
+
+                Notes
+                -----
+                Uses the fixed 8193-node analytic angular reduction.
+                """
+                length: Complex128[Array, ""]
+                momentum: Complex128[Array, ""]
                 length, momentum = _hydrogenic_reduced_public_gauges(
                     variable_charge,
                     8193,
                 )
-                result: Array = jnp.stack(
+                result: Float64[Array, " 4"] = jnp.stack(
                     (
                         length.real,
                         length.imag,
@@ -1275,8 +1457,8 @@ class TestGaugeEquivalenceBattery:
                 )
                 return result
 
-            actual: Array = real_gauges(charge)
-            exact: Array = jnp.asarray(
+            actual: Float64[Array, " 4"] = _real_gauges(charge)
+            exact: Float64[Array, " 4"] = jnp.asarray(
                 (
                     analytic_length_scale / charge_value,
                     0.0,
@@ -1290,12 +1472,12 @@ class TestGaugeEquivalenceBattery:
                 rtol=1e-9,
                 atol=1e-12,
             )
-            commutator_error: Array = jnp.abs(
+            commutator_error: Float64[Array, ""] = jnp.abs(
                 actual[3] - (3.0 * charge**2 / 8.0) * actual[0]
             )
             assert float(commutator_error) <= 1e-10
 
-            expected_derivative: Array = jnp.asarray(
+            expected_derivative: Float64[Array, " 4"] = jnp.asarray(
                 (
                     -analytic_length_scale / charge_value**2,
                     0.0,
@@ -1303,11 +1485,15 @@ class TestGaugeEquivalenceBattery:
                     analytic_momentum_scale,
                 )
             )
-            derivative_forward: Array = jax.jacfwd(real_gauges)(charge)
-            derivative_reverse: Array = jax.jacrev(real_gauges)(charge)
+            derivative_forward: Float64[Array, " 4"] = jax.jacfwd(
+                _real_gauges
+            )(charge)
+            derivative_reverse: Float64[Array, " 4"] = jax.jacrev(
+                _real_gauges
+            )(charge)
             step: float = max(1.0, charge_value) * 2.0**-16
-            derivative_finite: Array = (
-                real_gauges(charge + step) - real_gauges(charge - step)
+            derivative_finite: Float64[Array, " 4"] = (
+                _real_gauges(charge + step) - _real_gauges(charge - step)
             ) / (2.0 * step)
             chex.assert_trees_all_close(
                 derivative_forward,
@@ -1340,23 +1526,27 @@ class TestGaugeEquivalenceBattery:
         """
         charge_value: float
         for charge_value in (0.5, 3.0):
-            coarse_length: Array
-            coarse_momentum: Array
+            coarse_length: Complex128[Array, ""]
+            coarse_momentum: Complex128[Array, ""]
             coarse_length, coarse_momentum = _hydrogenic_gauges(
                 jnp.asarray(charge_value),
                 8193,
                 17,
             )
-            fine_length: Array
-            fine_momentum: Array
+            fine_length: Complex128[Array, ""]
+            fine_momentum: Complex128[Array, ""]
             fine_length, fine_momentum = _hydrogenic_gauges(
                 jnp.asarray(charge_value),
                 16385,
                 23,
             )
-            coarse: Array = jnp.stack((coarse_length, coarse_momentum))
-            fine: Array = jnp.stack((fine_length, fine_momentum))
-            mixed_error: Array = jnp.abs(coarse - fine) / (
+            coarse: Complex128[Array, " 2"] = jnp.stack(
+                (coarse_length, coarse_momentum)
+            )
+            fine: Complex128[Array, " 2"] = jnp.stack(
+                (fine_length, fine_momentum)
+            )
+            mixed_error: Float64[Array, " 2"] = jnp.abs(coarse - fine) / (
                 1.0 + jnp.maximum(jnp.abs(coarse), jnp.abs(fine))
             )
             assert float(jnp.max(mixed_error)) <= 1e-10
@@ -1403,8 +1593,8 @@ class TestGaugeEquivalenceBattery:
             out=np.zeros_like(state_s),
             where=radial_grid > 0.0,
         )
-        length: Array
-        momentum: Array
+        length: Complex128[Array, ""]
+        momentum: Complex128[Array, ""]
         length, momentum = _tensor_product_gauges(
             radial_grid,
             radial_weights,
@@ -1479,8 +1669,8 @@ class TestGaugeEquivalenceBattery:
             out=np.zeros_like(fine_state_s),
             where=fine_grid > 0.0,
         )
-        fine_length: Array
-        fine_momentum: Array
+        fine_length: Complex128[Array, ""]
+        fine_momentum: Complex128[Array, ""]
         fine_length, fine_momentum = _tensor_product_gauges(
             fine_grid,
             fine_weights,
@@ -1489,9 +1679,13 @@ class TestGaugeEquivalenceBattery:
             fine_radial_final,
             23,
         )
-        coarse_gauges: Array = jnp.stack((length, momentum))
-        fine_gauges: Array = jnp.stack((fine_length, fine_momentum))
-        mixed_refinement: Array = jnp.abs(coarse_gauges - fine_gauges) / (
+        coarse_gauges: Complex128[Array, " 2"] = jnp.stack((length, momentum))
+        fine_gauges: Complex128[Array, " 2"] = jnp.stack(
+            (fine_length, fine_momentum)
+        )
+        mixed_refinement: Float64[Array, " 2"] = jnp.abs(
+            coarse_gauges - fine_gauges
+        ) / (
             1.0
             + jnp.maximum(
                 jnp.abs(coarse_gauges),
@@ -1501,7 +1695,9 @@ class TestGaugeEquivalenceBattery:
         assert float(jnp.max(mixed_refinement)) <= 1e-10
 
     @pytest.mark.rss_limit_mb(768)
-    def test_local_quadratic_coefficient_derivatives(self) -> None:
+    def test_local_quadratic_coefficient_derivatives(  # noqa: PLR0915
+        self,
+    ) -> None:
         """Match JAX gauge derivatives for the local box coefficient.
 
         Pass independent central-difference eigenstate tangents through the
@@ -1544,9 +1740,26 @@ class TestGaugeEquivalenceBattery:
         ) / (2.0 * coefficient_step)
         spacing: float = radial_grid[1] - radial_grid[0]
 
-        def radial_function(
+        @jaxtyped(typechecker=beartype)
+        def _radial_function(
             state: Float64[NDArray, " n_node"],
         ) -> Float64[NDArray, " n_node"]:
+            """PRIVATE: Convert a reduced state into its radial function.
+
+            Parameters
+            ----------
+            state : Float64[NDArray, " n_node"]
+                Reduced radial state on the shared grid.
+
+            Returns
+            -------
+            result : Float64[NDArray, " n_node"]
+                Radial function values with the origin defined as zero.
+
+            Notes
+            -----
+            Divides by radius only at strictly positive grid nodes.
+            """
             result: Float64[NDArray, " n_node"] = np.divide(
                 state,
                 radial_grid,
@@ -1555,9 +1768,27 @@ class TestGaugeEquivalenceBattery:
             )
             return result
 
-        def radial_function_derivative(
+        @jaxtyped(typechecker=beartype)
+        def _radial_function_derivative(
             state: Float64[NDArray, " n_node"],
         ) -> Float64[NDArray, " n_node"]:
+            """PRIVATE: Differentiate the radial function on the shared grid.
+
+            Parameters
+            ----------
+            state : Float64[NDArray, " n_node"]
+                Reduced radial state on the shared grid.
+
+            Returns
+            -------
+            result : Float64[NDArray, " n_node"]
+                Radial-function derivative with the origin defined as zero.
+
+            Notes
+            -----
+            Applies the sixth-order derivative to the reduced state before
+            evaluating ``(derivative * radial_grid - state) / radial_grid**2``.
+            """
             derivative: Float64[NDArray, " n_node"] = _derivative_sixth(
                 state, spacing
             )
@@ -1574,12 +1805,16 @@ class TestGaugeEquivalenceBattery:
         angular_points, angular_weights = lebedev_rule(17)
         directions_numpy: Float64[NDArray, "n_angular 3"] = angular_points.T
         angular_count: int = directions_numpy.shape[0]
-        directions: Array = jnp.asarray(
+        directions: Float64[Array, "n_sample 3"] = jnp.asarray(
             np.tile(directions_numpy, (radial_grid.size, 1))
         )
-        radius_flat: Array = jnp.asarray(np.repeat(radial_grid, angular_count))
-        positions: Array = radius_flat[:, None] * directions
-        weights: Array = jnp.asarray(
+        radius_flat: Float64[Array, " n_sample"] = jnp.asarray(
+            np.repeat(radial_grid, angular_count)
+        )
+        positions: Float64[Array, "n_sample 3"] = (
+            radius_flat[:, None] * directions
+        )
+        weights: Float64[Array, " n_sample"] = jnp.asarray(
             np.repeat(
                 radial_weights * radial_grid**2,
                 angular_count,
@@ -1588,68 +1823,88 @@ class TestGaugeEquivalenceBattery:
         )
         y00: float = 1.0 / math.sqrt(4.0 * math.pi)
         y10_scale: float = math.sqrt(3.0 / (4.0 * math.pi))
-        initial_base: Array = jnp.asarray(
-            np.repeat(radial_function(states[0]) * y00, angular_count),
+        initial_base: Complex128[Array, " n_sample"] = jnp.asarray(
+            np.repeat(_radial_function(states[0]) * y00, angular_count),
             dtype=jnp.complex128,
         )
-        initial_tangent: Array = jnp.asarray(
+        initial_tangent: Complex128[Array, " n_sample"] = jnp.asarray(
             np.repeat(
-                radial_function(state_tangents[0]) * y00,
+                _radial_function(state_tangents[0]) * y00,
                 angular_count,
             ),
             dtype=jnp.complex128,
         )
-        final_base: Array = jnp.asarray(
+        final_base: Complex128[Array, " n_sample"] = jnp.asarray(
             np.repeat(
-                radial_function(states[1]) * y10_scale,
+                _radial_function(states[1]) * y10_scale,
                 angular_count,
             )
             * np.asarray(directions[:, 2]),
             dtype=jnp.complex128,
         )
-        final_tangent: Array = jnp.asarray(
+        final_tangent: Complex128[Array, " n_sample"] = jnp.asarray(
             np.repeat(
-                radial_function(state_tangents[1]) * y10_scale,
+                _radial_function(state_tangents[1]) * y10_scale,
                 angular_count,
             )
             * np.asarray(directions[:, 2]),
             dtype=jnp.complex128,
         )
-        gradient_base: Array = jnp.asarray(
+        gradient_base: Complex128[Array, "n_sample 3"] = jnp.asarray(
             np.repeat(
-                radial_function_derivative(states[0]) * y00,
+                _radial_function_derivative(states[0]) * y00,
                 angular_count,
             )[:, None]
             * np.asarray(directions),
             dtype=jnp.complex128,
         )
-        gradient_tangent: Array = jnp.asarray(
+        gradient_tangent: Complex128[Array, "n_sample 3"] = jnp.asarray(
             np.repeat(
-                radial_function_derivative(state_tangents[0]) * y00,
+                _radial_function_derivative(state_tangents[0]) * y00,
                 angular_count,
             )[:, None]
             * np.asarray(directions),
             dtype=jnp.complex128,
         )
-        polarization: Array = jnp.asarray(
+        polarization: Complex128[Array, " 3"] = jnp.asarray(
             (0.0, 0.0, 1.0), dtype=jnp.complex128
         )
 
-        def real_gauges(offset: Array) -> Array:
-            length: Array = dipole_length_cartesian(
+        @jaxtyped(typechecker=beartype)
+        def _real_gauges(
+            offset: Float64[Array, ""],
+        ) -> Float64[Array, " 4"]:
+            """PRIVATE: Evaluate both gauges along the state tangent.
+
+            Parameters
+            ----------
+            offset : Float64[Array, ""]
+                Scalar displacement along every state tangent.
+
+            Returns
+            -------
+            result : Float64[Array, " 4"]
+                Real and imaginary components of both gauge amplitudes.
+
+            Notes
+            -----
+            Applies the common offset to the final state, initial state, and
+            initial-state gradient before the Cartesian contractions.
+            """
+            length: Complex128[Array, ""] = dipole_length_cartesian(
                 final_base + offset * final_tangent,
                 initial_base + offset * initial_tangent,
                 positions,
                 weights,
                 polarization,
             )
-            momentum: Array = dipole_momentum_cartesian(
+            momentum: Complex128[Array, ""] = dipole_momentum_cartesian(
                 final_base + offset * final_tangent,
                 gradient_base + offset * gradient_tangent,
                 weights,
                 polarization,
             )
-            result: Array = jnp.stack(
+            result: Float64[Array, " 4"] = jnp.stack(
                 (
                     length.real,
                     length.imag,
@@ -1659,13 +1914,17 @@ class TestGaugeEquivalenceBattery:
             )
             return result
 
-        zero: Array = jnp.asarray(0.0)
-        derivative_forward: Array = jax.jacfwd(real_gauges)(zero)
-        derivative_reverse: Array = jax.jacrev(real_gauges)(zero)
+        zero: Float64[Array, ""] = jnp.asarray(0.0)
+        derivative_forward: Float64[Array, " 4"] = jax.jacfwd(_real_gauges)(
+            zero
+        )
+        derivative_reverse: Float64[Array, " 4"] = jax.jacrev(_real_gauges)(
+            zero
+        )
         quotient_step: float = 2.0**-16
-        derivative_finite: Array = (
-            real_gauges(zero + quotient_step)
-            - real_gauges(zero - quotient_step)
+        derivative_finite: Float64[Array, " 4"] = (
+            _real_gauges(zero + quotient_step)
+            - _real_gauges(zero - quotient_step)
         ) / (2.0 * quotient_step)
         chex.assert_trees_all_close(
             derivative_forward,
@@ -1680,9 +1939,27 @@ class TestGaugeEquivalenceBattery:
             atol=1e-10,
         )
 
-        def reduced_gauges(
+        @jaxtyped(typechecker=beartype)
+        def _reduced_gauges(
             selected_states: Float64[NDArray, "2 n_node"],
         ) -> Float64[NDArray, " 4"]:
+            """PRIVATE: Evaluate analytic angular reductions for two states.
+
+            Parameters
+            ----------
+            selected_states : Float64[NDArray, "2 n_node"]
+                Reduced s and p radial states on the shared grid.
+
+            Returns
+            -------
+            result : Float64[NDArray, " 4"]
+                Real and imaginary components of both reduced amplitudes.
+
+            Notes
+            -----
+            Integrates the radial length and momentum expressions with the
+            shared Boole weights and the analytic angular factor.
+            """
             state_s: Float64[NDArray, " n_node"] = selected_states[0]
             state_p: Float64[NDArray, " n_node"] = selected_states[1]
             derivative_s: Float64[NDArray, " n_node"] = _derivative_sixth(
@@ -1711,7 +1988,7 @@ class TestGaugeEquivalenceBattery:
             return result
 
         reduced_derivative: Float64[NDArray, " 4"] = (
-            reduced_gauges(plus_states) - reduced_gauges(minus_states)
+            _reduced_gauges(plus_states) - _reduced_gauges(minus_states)
         ) / (2.0 * coefficient_step)
         chex.assert_trees_all_close(
             derivative_forward,
@@ -1719,7 +1996,7 @@ class TestGaugeEquivalenceBattery:
             rtol=1e-7,
             atol=1e-10,
         )
-        base_gauges: Float64[NDArray, " 4"] = reduced_gauges(states)
+        base_gauges: Float64[NDArray, " 4"] = _reduced_gauges(states)
         energy_gap: float = energies[1] - energies[0]
         energy_gap_derivative: float = (
             (plus_energies[1] - plus_energies[0])

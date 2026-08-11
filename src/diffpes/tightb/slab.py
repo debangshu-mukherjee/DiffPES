@@ -21,12 +21,12 @@ Routine Listings
     Build an exact primitive surface cell for one Miller plane.
 :func:`freeze_slab_topology`
     Freeze every discrete choice required to rebuild one slab.
-:func:`rebuild_slab`
-    Construct a slab from frozen topology using only JAX geometry.
 :func:`gen_slab`
     Construct a finite Miller-index slab with exact open-normal topology.
 :func:`gen_slab_with_operators`
     Construct a slab while preserving its Wannier operator sidecar.
+:func:`rebuild_slab`
+    Construct a slab from frozen topology using only JAX geometry.
 :func:`rotate_tb_model`
     Construct a rotated complete-shell tight-binding model.
 :func:`validate_open_surface_adjacency`
@@ -49,8 +49,8 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
+from beartype.typing import Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, Int32, Int64, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.maths import (
@@ -71,6 +71,7 @@ from diffpes.types import (
     make_crystal_geometry,
     make_orbital_basis,
     make_slab_spec,
+    make_slab_topology,
     make_surface_cell,
     make_tb_model,
     make_wannier_operator_data,
@@ -483,7 +484,7 @@ def _surface_rotation(
         )
     )
     cosine: Float64[Array, ""] = jnp.dot(normal, z_axis)
-    away_from_antipode: Array = cosine > -1.0 + 1e-12
+    away_from_antipode: Bool[Array, ""] = cosine > -1.0 + 1e-12
     sanitized_denominator: Float64[Array, ""] = jnp.where(
         away_from_antipode,
         1.0 + cosine,
@@ -646,7 +647,7 @@ def find_surface_cell(  # noqa: DOC502
 
 def _shell_groups(
     model: TBModel,
-) -> Dict[Tuple[int, int, int, int], list[int]]:
+) -> Dict[Tuple[int, int, int, int], List[int]]:
     """PRIVATE: Compute orbital groups by site, principal shell, l, and spin.
 
     Parameters
@@ -656,7 +657,7 @@ def _shell_groups(
 
     Returns
     -------
-    groups : Dict[Tuple[int, int, int, int], list[int]]
+    groups : Dict[Tuple[int, int, int, int], List[int]]
         Map from ``(atom, n, l, spin)`` to the basis positions of that
         shell's orbitals.
 
@@ -666,7 +667,7 @@ def _shell_groups(
     so each spatial shell forms one group. The groups are the units on
     which Wigner rotation blocks act.
     """
-    groups: Dict[Tuple[int, int, int, int], list[int]] = {}
+    groups: Dict[Tuple[int, int, int, int], List[int]] = {}
     orbital: int
     atom: int
     principal: int
@@ -719,10 +720,10 @@ def _missing_magnetic_numbers(
     """
     missing: Dict[Tuple[int, int, int, int], Tuple[int, ...]] = {}
     key: Tuple[int, int, int, int]
-    indices: list[int]
+    indices: List[int]
     for key, indices in _shell_groups(model).items():
         angular: int = key[2]
-        present: list[int] = [model.basis.m[index] for index in indices]
+        present: List[int] = [model.basis.m[index] for index in indices]
         expected: set[int] = set(range(-angular, angular + 1))
         absent: Tuple[int, ...] = tuple(sorted(expected - set(present)))
         duplicated: bool = len(present) != len(set(present))
@@ -1014,7 +1015,7 @@ def _translation_blocks(
             pair[0],
             pair[1],
         ].add(model.hopping_amplitudes[hopping])
-    diagonal: Array = jnp.arange(n_orbitals, dtype=jnp.int32)
+    diagonal: Int32[Array, " n_orb"] = jnp.arange(n_orbitals, dtype=jnp.int32)
     blocks = blocks.at[cell_lookup[zero_cell], diagonal, diagonal].add(
         model.onsite_energies
     )
@@ -1366,7 +1367,7 @@ def _natural_atom_copies(
     )
     extra_span: float = max(abs(fine[0]), abs(fine[1]))
     padding: int = int(math.ceil(extra_span / spacing)) + 1
-    candidates: list[Tuple[float, int, int]] = []
+    candidates: List[Tuple[float, int, int]] = []
     expanded_layers: int
     for expanded_layers in range(
         n_layers,
@@ -1492,7 +1493,7 @@ def _terminated_atom_copies(  # noqa: PLR0913
     )
     extra_span: float = max(abs(fine[0]), abs(fine[1]))
     padding: int = int(math.ceil(extra_span / spacing)) + 2
-    kept: list[Tuple[float, int, int, str]] = []
+    kept: List[Tuple[float, int, int, str]] = []
     expanded_layers: int
     for expanded_layers in range(
         n_layers,
@@ -1501,7 +1502,7 @@ def _terminated_atom_copies(  # noqa: PLR0913
         baseline_top: float = base_top + (expanded_layers - 1) * spacing
         bottom_cut: float = baseline_bottom + fine[1]
         top_cut: float = baseline_top - fine[0]
-        candidates: list[Tuple[float, int, int, str]] = []
+        candidates: List[Tuple[float, int, int, str]] = []
         layer: int
         atom: int
         for layer in range(-padding, expanded_layers + padding):
@@ -1584,13 +1585,13 @@ def _orbital_copy_metadata(
     atom's orbitals in bulk basis order. The slab orbital ordering is
     therefore deterministic and reproducible from the topology alone.
     """
-    orbitals_by_atom: Dict[int, list[int]] = {}
+    orbitals_by_atom: Dict[int, List[int]] = {}
     bulk_orbital: int
     for bulk_orbital, atom in enumerate(basis.atom_indices):
         orbitals_by_atom.setdefault(atom, []).append(bulk_orbital)
-    slab_to_bulk: list[int] = []
-    slab_atom_indices: list[int] = []
-    slab_layers: list[int] = []
+    slab_to_bulk: List[int] = []
+    slab_atom_indices: List[int] = []
+    slab_layers: List[int] = []
     slab_atom: int
     bulk_atom: int
     atom: int
@@ -1697,8 +1698,8 @@ def _slab_shell_metadata(
     coupling strength.
     """
     shell_lookup: Dict[Tuple[int, int], int] = {}
-    slab_shells: list[int] = []
-    bulk_shell_gather: list[int] = []
+    slab_shells: List[int] = []
+    bulk_shell_gather: List[int] = []
     slab_orbital: int
     bulk_orbital: int
     for slab_orbital, bulk_orbital in enumerate(slab_to_bulk):
@@ -1826,9 +1827,9 @@ def _propagate_hoppings_with_shifts(
         slab_layers,
         lookup,
     ) = _orbital_lookup(rotated_bulk, spec)
-    pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
-    gather: list[int] = []
+    pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
+    gather: List[int] = []
     slab_source: int
     bulk_source: int
     pair: Tuple[int, int]
@@ -1880,7 +1881,9 @@ def _propagate_hoppings_with_shifts(
             cells.append(slab_cell)
             gather.append(hopping_index)
     gather_tuple: Tuple[int, ...] = tuple(gather)
-    gather_array: Array = jnp.asarray(gather_tuple, dtype=jnp.int32)
+    gather_array: Int32[Array, " n_hop_slab"] = jnp.asarray(
+        gather_tuple, dtype=jnp.int32
+    )
     amplitudes: Complex128[Array, " n_hop_slab"] = (
         rotated_bulk.hopping_amplitudes[gather_array]
     )
@@ -1974,7 +1977,7 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
     )
     adjacency: Dict[
         int,
-        list[Tuple[int, int, int]],
+        List[Tuple[int, int, int]],
     ] = {}
     index: int
     pair: Tuple[int, int]
@@ -1985,9 +1988,11 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
         adjacency.setdefault(pair[0], []).append((index, pair[1], cell[2]))
     if offending:
         if model.orbital_positions is None:
-            orbital_fractional: Array = model.geometry.positions[
-                jnp.asarray(model.basis.atom_indices, dtype=jnp.int32)
-            ]
+            orbital_fractional: Float64[Array, "n_orb 3"] = (
+                model.geometry.positions[
+                    jnp.asarray(model.basis.atom_indices, dtype=jnp.int32)
+                ]
+            )
         else:
             orbital_fractional = model.orbital_positions
         orbital_heights: Float64[NDArray, " n_orb"] = np.asarray(
@@ -2028,7 +2033,7 @@ def validate_open_surface_adjacency(model: TBModel) -> None:
         target: int
         delta: int
         for root in top_orbitals:
-            queue: list[Tuple[int, int, Tuple[int, ...]]] = [(root, 0, ())]
+            queue: List[Tuple[int, int, Tuple[int, ...]]] = [(root, 0, ())]
             visited: set[Tuple[int, int]] = {(root, 0)}
             while queue and witness is None:
                 source, normal_image, path = queue.pop(0)
@@ -2127,7 +2132,9 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
             surface_cell.stacking_vector[None, :],
         )
     )
-    bulk_atom_array: Array = jnp.asarray(bulk_atoms, dtype=jnp.int32)
+    bulk_atom_array: Int32[Array, " n_slab_atoms"] = jnp.asarray(
+        bulk_atoms, dtype=jnp.int32
+    )
     base_surface: Float64[Array, "n_atoms 3"] = (
         rotated_bulk.geometry.positions @ inverse_array
         - jnp.asarray(atom_shifts, dtype=jnp.float64)
@@ -2183,7 +2190,7 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
 
     orbital_position_array: Float64[Array, "n_orb 3"] | None = None
     if rotated_bulk.orbital_positions is not None:
-        bulk_orbital_array: Array = jnp.asarray(
+        bulk_orbital_array: Int32[Array, " n_orb"] = jnp.asarray(
             slab_to_bulk,
             dtype=jnp.int32,
         )
@@ -2228,7 +2235,7 @@ def _slab_geometry_and_centres(  # noqa: PLR0913
         )
         depth_coordinates: Float64[Array, " n_orb"] = centre_cart[:, 2]
     else:
-        slab_atom_index_array: Array = jnp.asarray(
+        slab_atom_index_array: Int32[Array, " n_orb"] = jnp.asarray(
             slab_atom_indices,
             dtype=jnp.int32,
         )
@@ -2340,7 +2347,7 @@ def freeze_slab_topology(  # noqa: PLR0913
         )
         n_layers = max(atom_layers) + 1
         resolved_termination = termination
-    topology: SlabTopology = SlabTopology(
+    topology: SlabTopology = make_slab_topology(
         miller=surface_cell.miller,
         in_plane_coeffs=surface_cell.in_plane_coeffs,
         stacking_coeffs=surface_cell.stacking_coeffs,
@@ -2463,11 +2470,11 @@ def rebuild_slab(
         spec,
         atom_shifts,
     )
-    slab_to_bulk_array: Array = jnp.asarray(
+    slab_to_bulk_array: Int32[Array, " n_orb"] = jnp.asarray(
         slab_to_bulk,
         dtype=jnp.int32,
     )
-    shell_gather_array: Array = jnp.asarray(
+    shell_gather_array: Int32[Array, " n_shell"] = jnp.asarray(
         shell_gather,
         dtype=jnp.int32,
     )
@@ -2685,7 +2692,7 @@ def _slab_operator_centres(
     )
     if operator_data.position_matrices is None:
         if not identity_rotation:
-            indices: list[int]
+            indices: List[int]
             for indices in _shell_groups(bulk_model).values():
                 shell_centres: Float64[NDArray, "n_shell 3"] = np.asarray(
                     operator_data.centres_cart
@@ -2725,7 +2732,7 @@ def _slab_operator_centres(
             spec.surface_cell.rotation,
         )
         zero_index: int = operator_data.cells.index((0, 0, 0))
-        diagonal: Array = jnp.arange(
+        diagonal: Int32[Array, " n_bulk_orb"] = jnp.arange(
             len(bulk_model.basis.n),
             dtype=jnp.int32,
         )
@@ -2747,7 +2754,9 @@ def _slab_operator_centres(
         ],
         dtype=jnp.float64,
     )
-    bulk_indices: Array = jnp.asarray(slab_to_bulk, dtype=jnp.int32)
+    bulk_indices: Int32[Array, " n_orb_slab"] = jnp.asarray(
+        slab_to_bulk, dtype=jnp.int32
+    )
     centres_cart: Float64[Array, "n_orb_slab 3"] = (
         bulk_centres_rotated[bulk_indices] + translations @ surface_vectors
     )
@@ -2967,7 +2976,7 @@ def _propagate_position_matrices(  # noqa: PLR0915
         bulk_model,
         spec,
     )
-    emitted: list[
+    emitted: List[
         Tuple[
             Tuple[int, int, int],
             int,
@@ -3066,13 +3075,15 @@ def _propagate_position_matrices(  # noqa: PLR0915
     zero_cell_index: int | None = cell_lookup.get((0, 0, 0))
     if zero_cell_index is not None:
         bulk_zero_index: int = operator_data.cells.index((0, 0, 0))
-        diagonal: Array = jnp.arange(n_slab_orbitals, dtype=jnp.int32)
+        diagonal: Int32[Array, " n_orb"] = jnp.arange(
+            n_slab_orbitals, dtype=jnp.int32
+        )
         current_diagonal: Complex128[Array, "n_orb 3"] = matrices[
             zero_cell_index,
             diagonal,
             diagonal,
         ]
-        bulk_indices: Array = jnp.asarray(
+        bulk_indices: Int32[Array, " n_orb"] = jnp.asarray(
             slab_to_bulk,
             dtype=jnp.int32,
         )

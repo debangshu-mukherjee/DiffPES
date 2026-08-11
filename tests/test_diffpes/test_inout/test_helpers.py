@@ -10,7 +10,6 @@ import chex
 import jax.numpy as jnp
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable
 from jaxtyping import Array, Float64, jaxtyped
 
 import diffpes
@@ -32,7 +31,7 @@ from diffpes.types import (
 
 @jaxtyped(typechecker=beartype)
 def _make_test_orb() -> OrbitalProjection:
-    """PRIVATE: Create a test OrbitalProjection with 2 k-points, 2 bands, 3 atoms.
+    """PRIVATE: Create a deterministic OrbitalProjection fixture.
 
     The helper constructs an ``OrbitalProjection`` with shape ``(2, 2, 3, 9)``.
     Each atom has a distinct s-orbital value. All atoms share fixed p-orbital
@@ -76,7 +75,7 @@ class TestSelectAtoms(chex.TestCase):
     """
 
     def test_select_single_atom(self) -> None:
-        """Select a single atom by index and verify output shape and s-orbital value.
+        """Select one atom and verify its shape and s-orbital value.
 
         The fixture has three atoms with distinct s-orbital weights.
         The test selects atom 1 and checks the reduced atom axis.
@@ -85,7 +84,9 @@ class TestSelectAtoms(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         orb: (
             diffpes.types.OrbitalProjection
             | diffpes.types.SpinOrbitalProjection
@@ -112,7 +113,9 @@ class TestSelectAtoms(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         orb: (
             diffpes.types.OrbitalProjection
             | diffpes.types.SpinOrbitalProjection
@@ -133,7 +136,7 @@ class TestSelectAtoms(chex.TestCase):
         )
 
     def test_preserves_spin_orbital_projection_type(self) -> None:
-        """Verify that selecting atoms from a SpinOrbitalProjection returns SpinOrbitalProjection.
+        """Preserve the SpinOrbitalProjection type after selection.
 
         The test constructs a SpinOrbitalProjection with ``projections`` shape
         (2, 2, 3, 9) and ``spin`` shape (2, 2, 3, 6), then selects atoms
@@ -143,9 +146,11 @@ class TestSelectAtoms(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        proj: Array
-        spin: Array
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        proj: Float64[Array, "2 2 3 9"]
+        spin: Float64[Array, "2 2 3 6"]
         orb: diffpes.types.SpinOrbitalProjection
         sub: (
             diffpes.types.OrbitalProjection
@@ -181,7 +186,9 @@ class TestAggregateAtoms(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         orb: (
             diffpes.types.OrbitalProjection
             | diffpes.types.SpinOrbitalProjection
@@ -207,7 +214,9 @@ class TestAggregateAtoms(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         orb: (
             diffpes.types.OrbitalProjection
             | diffpes.types.SpinOrbitalProjection
@@ -234,9 +243,10 @@ class TestReduceOrbitals(chex.TestCase):
     """
 
     def test_reduces_to_spd(self) -> None:
-        """Reduce 9-channel orbital projections to s/p/d totals and verify sums.
+        """Reduce nine orbital channels to s/p/d totals.
 
-        The test applies ``reduce_orbitals`` to the fixture's raw projections array.
+        The test applies ``reduce_orbitals`` to the fixture's raw projections
+        array.
         The test asserts the output shape is (2, 2, 3, 3) -- 9 orbital channels
         collapsed to 3 -- and checks atom 0's reduced values analytically:
 
@@ -246,7 +256,9 @@ class TestReduceOrbitals(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         orb: (
             diffpes.types.OrbitalProjection
             | diffpes.types.SpinOrbitalProjection
@@ -293,7 +305,9 @@ class TestCheckConsistency(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         bands: diffpes.types.BandStructure
         orb: diffpes.types.OrbitalProjection
 
@@ -317,7 +331,9 @@ class TestCheckConsistency(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         bands: diffpes.types.BandStructure
         orb: diffpes.types.OrbitalProjection
 
@@ -342,7 +358,9 @@ class TestCheckConsistency(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         bands: diffpes.types.BandStructure
         orb: diffpes.types.OrbitalProjection
 
@@ -366,7 +384,9 @@ class TestCheckConsistency(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         bands: diffpes.types.BandStructure
         orb: diffpes.types.OrbitalProjection
         kpath: diffpes.types.KPathInfo
@@ -387,17 +407,19 @@ class TestCheckConsistency(chex.TestCase):
         check_consistency(bands, orb, kpath)
 
     def test_kpath_line_mode_mismatch_raises(self) -> None:
-        """Verify ValueError when Line-mode KPathInfo has a different k-point count.
+        """Reject a mismatched line-mode k-point count.
 
-        The test constructs a BandStructure with 10 k-points and an OrbitalProjection
-        with matching dimensions, but a KPathInfo with ``num_kpoints=5`` in
+        The test constructs a BandStructure with 10 k-points and a matching
+        OrbitalProjection, but a KPathInfo with ``num_kpoints=5`` in
         ``"Line-mode"``. Asserts that ``check_consistency`` raises
         ``ValueError`` matching ``"K-point count mismatch"``, covering the
         ``kpath.mode == "Line-mode"`` branch at helpers.py lines 283-287.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         bands: diffpes.types.BandStructure
         orb: diffpes.types.OrbitalProjection
         kpath: diffpes.types.KPathInfo
@@ -428,15 +450,17 @@ class TestSelectAtomsWithOAM(chex.TestCase):
     def test_select_atoms_preserves_oam(self) -> None:
         """Verify OAM slicing along the atom axis during selection.
 
-        The test constructs an OrbitalProjection with OAM shape (2, 2, 3, 3) and
-        selects atoms 0 and 2. The test checks the resulting OAM shape.
+        The test constructs an OrbitalProjection with OAM shape (2, 2, 3, 3)
+        and selects atoms 0 and 2. The test checks the resulting OAM shape.
         This input covers the path where ``orb.oam`` is not ``None``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        proj: Array
-        oam: Array
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        proj: Float64[Array, "2 2 3 9"]
+        oam: Float64[Array, "2 2 3 3"]
         orb: diffpes.types.OrbitalProjection
         sub: (
             diffpes.types.OrbitalProjection

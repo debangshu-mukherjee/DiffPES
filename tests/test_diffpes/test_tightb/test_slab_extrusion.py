@@ -7,15 +7,16 @@ import jax
 import jax.numpy as jnp
 import pytest
 from beartype.typing import Any, Tuple
+from jaxtyping import Array, Complex128, Float64, Int64
 
-from diffpes.tightb import bloch_hamiltonian
-from diffpes.tightb.slab import (
-    _propagate_hoppings,
+from diffpes.tightb import (
+    bloch_hamiltonian,
     gen_slab,
     gen_slab_with_operators,
     rotate_tb_model,
     validate_open_surface_adjacency,
 )
+from diffpes.tightb.slab import _propagate_hoppings
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,
@@ -27,12 +28,14 @@ from diffpes.types import (
 )
 
 
-def _z_chain_model(hopping: jax.Array | float = -1.0) -> TBModel:
+def _z_chain_model(
+    hopping: Float64[Array, ""] | float = -1.0,
+) -> TBModel:
     """PRIVATE: Build a one-orbital chain whose periodic direction is bulk z.
 
     Parameters
     ----------
-    hopping : jax.Array | float
+    hopping : Float64[Array, ""] | float
         Nearest-neighbor hopping amplitude in eV; a traced array keeps
         the model differentiable through this value.
 
@@ -60,7 +63,7 @@ def _z_chain_model(hopping: jax.Array | float = -1.0) -> TBModel:
         m=(0,),
         labels=("s",),
     )
-    value: jax.Array = jnp.asarray(hopping, dtype=jnp.complex128)
+    value: Complex128[Array, ""] = jnp.asarray(hopping, dtype=jnp.complex128)
     model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.stack((value, jnp.conj(value))),
         onsite_energies=jnp.zeros((1,), dtype=jnp.float64),
@@ -105,7 +108,7 @@ def _alternating_species_model() -> TBModel:
         m=(0, 0),
         labels=("X-s", "Y-s"),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.zeros((0,), dtype=jnp.complex128),
         onsite_energies=jnp.zeros((2,), dtype=jnp.float64),
         soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
@@ -115,6 +118,7 @@ def _alternating_species_model() -> TBModel:
         hopping_cells=(),
         shell_index=(-1, -1),
     )
+    return model
 
 
 class TestGenSlab:
@@ -123,7 +127,7 @@ class TestGenSlab:
     :see: :func:`~diffpes.tightb.gen_slab`
     """
 
-    @pytest.mark.parametrize("n_layers", (1, 2, 5, 20))
+    @pytest.mark.parametrize("n_layers", [1, 2, 5, 20])
     def test_finite_chain_closed_form(self, n_layers: int) -> None:
         """Match every open-chain eigenvalue to the textbook spectrum.
 
@@ -142,13 +146,13 @@ class TestGenSlab:
             thickness_ang=float(n_layers - 1),
             vacuum_ang=6.0,
         )
-        hamiltonian: jax.Array = bloch_hamiltonian(
+        hamiltonian: Complex128[Array, "nlayer nlayer"] = bloch_hamiltonian(
             slab,
             jnp.zeros((3,), dtype=jnp.float64),
         )
-        actual: jax.Array = jnp.linalg.eigvalsh(hamiltonian)
-        modes: jax.Array = jnp.arange(1, n_layers + 1)
-        expected: jax.Array = (
+        actual: Float64[Array, " nlayer"] = jnp.linalg.eigvalsh(hamiltonian)
+        modes: Int64[Array, " nlayer"] = jnp.arange(1, n_layers + 1)
+        expected: Float64[Array, " nlayer"] = (
             2.0 * hopping * jnp.cos(modes * jnp.pi / (n_layers + 1))
         )
 
@@ -207,7 +211,7 @@ class TestGenSlab:
         Compare outputs with declared numerical or structural references.
         """
 
-        def loss(hopping: jax.Array) -> jax.Array:
+        def loss(hopping: Float64[Array, ""]) -> Float64[Array, ""]:
             slab: Any
             slab, _ = gen_slab(
                 _z_chain_model(hopping),
@@ -215,16 +219,21 @@ class TestGenSlab:
                 thickness_ang=4.0,
                 vacuum_ang=5.0,
             )
-            hamiltonian: jax.Array = bloch_hamiltonian(
-                slab,
-                jnp.zeros((3,), dtype=jnp.float64),
+            hamiltonian: Complex128[Array, "nlayer nlayer"] = (
+                bloch_hamiltonian(
+                    slab,
+                    jnp.zeros((3,), dtype=jnp.float64),
+                )
             )
-            return jnp.real(jnp.vdot(hamiltonian, hamiltonian))
+            result: Float64[Array, ""] = jnp.real(
+                jnp.vdot(hamiltonian, hamiltonian)
+            )
+            return result
 
-        value: jax.Array = jnp.asarray(-0.61, dtype=jnp.float64)
-        derivative: jax.Array = jax.grad(loss)(value)
+        value: Float64[Array, ""] = jnp.asarray(-0.61, dtype=jnp.float64)
+        derivative: Float64[Array, ""] = jax.grad(loss)(value)
         step: float = 1e-5
-        finite_difference: jax.Array = (
+        finite_difference: Float64[Array, ""] = (
             loss(value + step) - loss(value - step)
         ) / (2.0 * step)
 
@@ -288,7 +297,7 @@ class TestGenSlab:
 
     @pytest.mark.parametrize(
         "fine",
-        ((0.2, 0.0), (0.6, 0.6)),
+        [(0.2, 0.0), (0.6, 0.6)],
     )
     def test_post_fine_natural_span_remains_a_minimum(
         self,
@@ -311,8 +320,10 @@ class TestGenSlab:
             vacuum_ang=4.0,
             fine=fine,
         )
-        cartesian: jax.Array = slab.geometry.positions @ slab.geometry.lattice
-        realized_span: jax.Array = jnp.max(cartesian[:, 2]) - jnp.min(
+        cartesian: Float64[Array, "natom 3"] = (
+            slab.geometry.positions @ slab.geometry.lattice
+        )
+        realized_span: Float64[Array, ""] = jnp.max(cartesian[:, 2]) - jnp.min(
             cartesian[:, 2]
         )
 
@@ -338,7 +349,9 @@ class TestGenSlab:
             termination=("X", "X"),
             fine=(0.1, 0.1),
         )
-        cartesian: jax.Array = slab.geometry.positions @ slab.geometry.lattice
+        cartesian: Float64[Array, "natom 3"] = (
+            slab.geometry.positions @ slab.geometry.lattice
+        )
         bottom: int = int(jnp.argmin(cartesian[:, 2]))
         top: int = int(jnp.argmax(cartesian[:, 2]))
 
@@ -424,7 +437,7 @@ class TestGenSlabWithOperators:
             m=(0, 0),
             labels=("s1", "s2"),
         )
-        centres: jax.Array = jnp.asarray(
+        centres: Float64[Array, "2 3"] = jnp.asarray(
             [[0.0, 0.0, 0.1], [0.0, 0.0, 0.37]],
             dtype=jnp.float64,
         )
@@ -439,7 +452,7 @@ class TestGenSlabWithOperators:
             shell_index=(-1, -1),
             orbital_positions=centres,
         )
-        position: jax.Array = jnp.zeros(
+        position: Complex128[Array, "1 2 2 3"] = jnp.zeros(
             (1, 2, 2, 3),
             dtype=jnp.complex128,
         )
@@ -481,7 +494,7 @@ class TestGenSlabWithOperators:
             atol=1e-13,
         )
         zero_index: int = propagated.cells.index((0, 0, 0))
-        diagonal: jax.Array = propagated.position_matrices[
+        diagonal: Complex128[Array, "4 3"] = propagated.position_matrices[
             zero_index,
             jnp.arange(4),
             jnp.arange(4),

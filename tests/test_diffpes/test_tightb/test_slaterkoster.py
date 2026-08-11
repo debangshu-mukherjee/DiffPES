@@ -1,6 +1,6 @@
 """Validate Slater--Koster blocks, neighbors, models, and gradients.
 
-The analytic gate covers every s/p/d sigma, pi, and delta channel on fifty
+The analytic check covers every s/p/d sigma, pi, and delta channel on fifty
 generic directions. Additional cases pin parity, swapped-shell Hermiticity,
 exact integer connectivity, hand-counted honeycomb/fcc shells, and the
 transverse derivative at both bond poles.
@@ -119,7 +119,7 @@ def _table_i_blocks(
 
     Returns
     -------
-    blocks : dict[tuple[int, int], Float64[Array, "m1 m2"]]
+    blocks : Dict[Tuple[int, int], Float64[Array, "m1 m2"]]
         Hopping blocks in eV for the six canonical shell pairs keyed by
         ``(l1, l2)`` with ``l1 <= l2``.
 
@@ -190,7 +190,7 @@ def _table_i_blocks(
 
 
 def _graphene_geometry() -> CrystalGeometry:
-    """PRIVATE: Construct the two-atom honeycomb geometry for the shell gate.
+    """PRIVATE: Construct the two-atom honeycomb geometry for the shell check.
 
     Returns
     -------
@@ -254,7 +254,11 @@ def _compact_spd_basis() -> OrbitalBasis:
 
 
 class TestSkBlock:
-    """Validate :func:`diffpes.tightb.sk_block`."""
+    """Validate :func:`diffpes.tightb.sk_block`.
+
+    The cases check table channels, parity, Hermiticity, pole gradients,
+    compilation, and validation.
+    """
 
     def test_all_table_i_channels_on_fifty_random_directions(self) -> None:
         """Match direction-cosine polynomials for all ten s/p/d channels.
@@ -374,7 +378,7 @@ class TestSkBlock:
             atol=2e-14,
         )
 
-    @pytest.mark.parametrize("pole", (1.0, -1.0))
+    @pytest.mark.parametrize("pole", [1.0, -1.0])
     def test_transverse_gradient_is_analytic_at_bond_poles(
         self,
         pole: float,
@@ -422,7 +426,15 @@ class TestSkBlock:
         -----
         Pin the rectangular real float64 output and zero-bond diagnostic.
         """
-        compiled: Callable[[int, int, Array, Array], Array] = jax.jit(
+        compiled: Callable[
+            [
+                int,
+                int,
+                Float64[Array, " n_integral"],
+                Float64[Array, " 3"],
+            ],
+            Float64[Array, "n_left n_right"],
+        ] = jax.jit(
             sk_block,
             static_argnums=(0, 1),
         )
@@ -435,7 +447,10 @@ class TestSkBlock:
 
         assert block.shape == (5, 3)
         assert block.dtype == jnp.float64
-        with pytest.raises(Exception, match="bond nonzero"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="bond nonzero",
+        ):
             sk_block(
                 1,
                 1,
@@ -452,7 +467,11 @@ class TestSkBlock:
 
 
 class TestNeighborShells:
-    """Validate :func:`diffpes.tightb.neighbor_shells`."""
+    """Validate :func:`diffpes.tightb.neighbor_shells`.
+
+    The cases check honeycomb, fcc, small-cell, and skew-lattice shells plus
+    explicit-radius rejection.
+    """
 
     def test_honeycomb_has_three_unique_nearest_neighbor_bonds(self) -> None:
         """Verify the three undirected A--B bonds of a honeycomb cell.
@@ -620,7 +639,11 @@ class TestNeighborShells:
 
 
 class TestBuildSkModel:
-    """Validate :func:`diffpes.tightb.build_sk_model`."""
+    """Validate :func:`diffpes.tightb.build_sk_model`.
+
+    The cases check shell keys, Hermitian closure, exact cells, traced
+    geometry, and spectral gradients.
+    """
 
     def test_distance_shell_keys_select_distinct_integrals(self) -> None:
         """Verify independent first- and second-neighbor chain hoppings.
@@ -770,15 +793,20 @@ class TestBuildSkModel:
                 (-1,),
                 1.1,
             )
-            return jnp.real(model.hopping_amplitudes)
+            amplitudes: Float64[Array, " n_hop"] = jnp.real(
+                model.hopping_amplitudes
+            )
+            return amplitudes
 
         with pytest.raises(
             ValueError,
-            match="cannot certify neighbor topology from fully traced geometry",
+            match=(
+                "cannot certify neighbor topology from fully traced geometry"
+            ),
         ):
             jax.jit(hopping)(geometry.lattice)
 
-    @pytest.mark.parametrize("pole", (1.0, -1.0))
+    @pytest.mark.parametrize("pole", [1.0, -1.0])
     def test_position_gradient_flows_through_frozen_topology(
         self,
         pole: float,

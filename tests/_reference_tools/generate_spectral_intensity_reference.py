@@ -1,19 +1,20 @@
 """Generate the frozen spectral-intensity truth artifacts.
 
-The generator uses only NumPy for numerical truth and never imports
-DiffPES, JAX, or either production spectral primitive.  It freezes the
-two-pole closed form (including the exact t=0 degenerate limit), the
-Hermitian fixture with an independent dense eigendecomposition and a
-hand-derived two-solve adjoint derivative truth, the finite-window
-arctangent masses plus the full-line tan-map Gauss-Legendre quadrature
-convention, the four-rung eta ladder with the frozen HWHM definition,
-the sampled-omega Fermi-occupation counterexample, and the registry of
-differentiated coordinates.  This preregistration artifact freezes
-every constant below.
+Extended Summary
+----------------
+The generator uses only NumPy for numerical truth. It never imports DiffPES,
+JAX, or production spectral primitives. Record the two-pole closed form and
+its exact degenerate limit. Record one Hermitian fixture with an independent
+dense eigendecomposition. Include a hand-derived two-solve adjoint derivative
+truth. Store finite-window arctangent masses and the full-line tan-map
+quadrature convention. Store the four-rung eta ladder and its frozen HWHM
+definition. Include the sampled-omega occupation counterexample and the
+differentiated-coordinate registry. This authority artifact records every
+constant below.
 
-The eta ladder is ``{8, 4, 2, 1} x 1e-4`` eV exactly; the final-rung
-captured-mass budget (6.5e-5) and the HWHM-change budget (1.01e-4 eV)
-are satisfiable only at that scale.
+The eta ladder equals ``{8, 4, 2, 1} x 1e-4`` eV exactly. Only that scale
+satisfies both final-rung budgets. The captured-mass budget equals 6.5e-5.
+The HWHM-change budget equals 1.01e-4 eV.
 """
 
 from __future__ import annotations
@@ -24,12 +25,11 @@ import json
 import platform
 import zipfile
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import scipy
-from beartype.typing import Dict, Tuple
-from jaxtyping import Bool, Complex128, Float64, Shaped
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Bool, Complex128, Float64
 from numpy.typing import NDArray
 
 # --- two-pole fixture --------------------------------------------------------
@@ -108,14 +108,24 @@ KB_EV_PER_K: float = 8.617333e-5
 FERMI_OMEGA: Float64[NDArray, " n_fermi_omega"] = np.linspace(
     -0.3, 0.3, 1201, dtype=np.float64
 )
+DENSE_SOLVE_RELATIVE_TOLERANCE: float = 1.0e-12
+SOURCE_NORM_ABSOLUTE_TOLERANCE: float = 1.0e-13
+FULL_LINE_MASS_ABSOLUTE_TOLERANCE: float = 1.0e-8
+FULL_LINE_ORDER_DELTA_TOLERANCE: float = 1.0e-12
+ETA_RATIO_MINIMUM: float = 1.98
+ETA_RATIO_MAXIMUM: float = 2.02
+ETA_FINAL_MASS_CHANGE_MAXIMUM: float = 6.5e-5
+ETA_FINAL_HWHM_CHANGE_MAXIMUM: float = 1.01e-4
+ETA_LIMIT_ABSOLUTE_TOLERANCE: float = 2.0e-6
+OCCUPATION_COUNTEREXAMPLE_MINIMUM: float = 1.0e12
 
 
-def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
+def _array_bytes(array: Float64[NDArray, "..."]) -> bytes:
     """PRIVATE: Serialize one array without pickle or filesystem metadata.
 
     Parameters
     ----------
-    array : Shaped[NDArray, "..."]
+    array : Float64[NDArray, "..."]
         Array to serialize.
 
     Returns
@@ -130,12 +140,13 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
     """
     output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
-    return output.getvalue()
+    payload: bytes = output.getvalue()
+    return payload
 
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: Dict[str, Shaped[NDArray, "..."]],
+    arrays: Dict[str, Float64[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
 
@@ -143,15 +154,16 @@ def _write_deterministic_npz(
     ----------
     path : Path
         Destination NPZ path.
-    arrays : dict[str, Shaped[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, "..."]]
         Named arrays to store; each one casts to float64.
 
     Notes
     -----
-    Members enter in sorted name order with the fixed 1980-01-01 ZIP
-    timestamp, a fixed file mode, and DEFLATE level 9, so identical
-    arrays always produce byte-identical archives.
+    Sort members by name. Give each member the fixed 1980-01-01 timestamp and
+    file mode. Use DEFLATE level 9. Identical arrays then produce identical
+    archive bytes.
     """
+    archive: zipfile.ZipFile
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -159,7 +171,7 @@ def _write_deterministic_npz(
         compresslevel=9,
     ) as archive:
         name: str
-        array: Shaped[NDArray, "..."]
+        array: Float64[NDArray, "..."]
         for name, array in sorted(arrays.items()):
             normalized: Float64[NDArray, "..."] = np.asarray(
                 array, dtype=np.float64
@@ -196,7 +208,8 @@ def _sha256(path: Path) -> str:
     The function reads the complete file into memory before hashing;
     every evidence file stays small enough for that.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _lorentzian(
@@ -225,7 +238,10 @@ def _lorentzian(
     The full-line integral of this form is exactly one, which anchors
     every sum-rule row.
     """
-    return (gamma_total / np.pi) / ((omega - center) ** 2 + gamma_total**2)
+    spectral: Float64[NDArray, " n_omega"] = (gamma_total / np.pi) / (
+        (omega - center) ** 2 + gamma_total**2
+    )
+    return spectral
 
 
 def _resolvent_intensity(
@@ -262,7 +278,8 @@ def _resolvent_intensity(
         omega + 1j * gamma_total
     ) * np.eye(hamiltonian.shape[0]) - hamiltonian
     solution: Complex128[NDArray, " n_orb"] = np.linalg.solve(operator, source)
-    return float(-np.imag(np.vdot(source, solution)) / np.pi)
+    intensity: float = float(-np.imag(np.vdot(source, solution)) / np.pi)
+    return intensity
 
 
 def _eigen_intensity(
@@ -301,13 +318,14 @@ def _eigen_intensity(
     weights: Float64[NDArray, " n_orb"] = (
         np.abs(eigenvectors.conj().T @ source) ** 2
     )
-    return float(
+    intensity: float = float(
         np.sum(
             weights
             * (gamma_total / np.pi)
             / ((omega - eigenvalues) ** 2 + gamma_total**2)
         )
     )
+    return intensity
 
 
 def _window_mass(
@@ -323,7 +341,7 @@ def _window_mass(
         Lorentzian center in eV.
     gamma_total : float
         Total HWHM broadening in eV.
-    window : tuple[float, float]
+    window : Tuple[float, float]
         Window edges ``(lower, upper)`` in eV.
 
     Returns
@@ -340,13 +358,14 @@ def _window_mass(
     lower: float
     upper: float
     lower, upper = window
-    return float(
+    mass: float = float(
         (
             np.arctan((upper - center) / gamma_total)
             - np.arctan((lower - center) / gamma_total)
         )
         / np.pi
     )
+    return mass
 
 
 def _fullline_mass(center: float, gamma_total: float, order: int) -> float:
@@ -368,10 +387,10 @@ def _fullline_mass(center: float, gamma_total: float, order: int) -> float:
 
     Implementation Logic
     --------------------
-    The map ``E = center + gamma tan(pi u / 2)`` sends ``u`` in
-    ``(-1, 1)`` to the full line with Jacobian ``gamma (pi/2)
-    sec^2(pi u / 2)``; Gauss-Legendre nodes in ``u`` then integrate the
-    mapped Lorentzian, mirroring the frozen true-Voigt convention.
+    Map ``u`` in ``(-1, 1)`` to the full line through
+    ``E = center + gamma tan(pi u / 2)``. Use Jacobian
+    ``gamma (pi/2) sec^2(pi u / 2)``. Gauss-Legendre nodes then integrate the
+    mapped Lorentzian. This mirrors the frozen true-Voigt convention.
     """
     nodes: Float64[NDArray, " n_node"]
     weights: Float64[NDArray, " n_node"]
@@ -381,16 +400,17 @@ def _fullline_mass(center: float, gamma_total: float, order: int) -> float:
     jacobian: Float64[NDArray, " n_node"] = (
         gamma_total * np.pi / 2.0 / np.cos(angle) ** 2
     )
-    return float(
+    mass: float = float(
         np.sum(weights * _lorentzian(energy, center, gamma_total) * jacobian)
     )
+    return mass
 
 
 def _quadratic_peak(
     values: Float64[NDArray, " n_omega"],
     omega: Float64[NDArray, " n_omega"],
 ) -> Tuple[float, float, int]:
-    """PRIVATE: Locate the quadratic-interpolated peak on the frozen grid.
+    """PRIVATE: Find the quadratic-interpolated peak on the frozen grid.
 
     Parameters
     ----------
@@ -401,7 +421,7 @@ def _quadratic_peak(
 
     Returns
     -------
-    peak : tuple[float, float, int]
+    peak : Tuple[float, float, int]
         Interpolated peak position in eV, interpolated peak height in
         1/eV, and the grid argmax index.
 
@@ -420,7 +440,8 @@ def _quadratic_peak(
     spacing: float = float(omega[1] - omega[0])
     position: float = float(omega[index] + offset * spacing)
     height: float = float(mid - 0.25 * (left - right) * offset)
-    return position, height, index
+    peak: Tuple[float, float, int] = (position, height, index)
+    return peak
 
 
 def _measured_hwhm(
@@ -443,11 +464,10 @@ def _measured_hwhm(
 
     Implementation Logic
     --------------------
-    The frozen definition: the peak position and height come from the
-    three-point quadratic vertex around the grid argmax; the half
-    level is half of that vertex height; linear interpolation between
-    the bracketing grid samples locates each half-level crossing; the
-    HWHM is half the distance between the two crossings.
+    Obtain peak position and height from the three-point quadratic vertex.
+    Center that vertex on the grid argmax. Define the half level from half
+    the vertex height. Interpolate each crossing between its bracketing grid
+    samples. Return half the distance between both crossings.
     """
     position: float
     height: float
@@ -472,7 +492,8 @@ def _measured_hwhm(
     right_crossing: float = float(
         omega[right_index - 1] + right_fraction * spacing
     )
-    return 0.5 * (right_crossing - left_crossing)
+    hwhm: float = 0.5 * (right_crossing - left_crossing)
+    return hwhm
 
 
 def _stable_fermi(
@@ -515,7 +536,7 @@ def _two_pole_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Fixture constants, pole energies and weights in eV, the omega
         grid, and both closed-form intensity rows in 1/eV.
 
@@ -525,12 +546,11 @@ def _two_pole_payload() -> Dict[str, Float64[NDArray, "..."]]:
         If the closed form or the exact ``t = 0`` degenerate limit
         disagrees with the dense resolvent solve beyond rtol 1e-12.
 
-    Implementation Logic
-    --------------------
-    The symmetric 2x2 Hamiltonian diagonalizes into ``eps0 +- t`` with
-    weights ``|m1 +- m2|^2 / 2``; each pole carries one unit
-    Lorentzian scaled by its weight, and the dense solve certifies
-    both rows point by point.
+    Notes
+    -----
+    Diagonalize the symmetric 2x2 Hamiltonian into ``eps0 +- t``. Its weights
+    equal ``|m1 +- m2|^2 / 2``. Give each pole one unit Lorentzian scaled by
+    its weight. Compare both rows pointwise with the dense solve.
     """
     gamma_total: float = TWO_POLE_GAMMA + TWO_POLE_ETA
     source_plus: complex = TWO_POLE_SOURCE[0] + TWO_POLE_SOURCE[1]
@@ -586,15 +606,21 @@ def _two_pole_payload() -> Dict[str, Float64[NDArray, "..."]]:
         ],
         dtype=np.float64,
     )
-    if np.max(np.abs(intensity - direct) / direct) > 1.0e-12:
+    if (
+        np.max(np.abs(intensity - direct) / direct)
+        > DENSE_SOLVE_RELATIVE_TOLERANCE
+    ):
         raise RuntimeError(
             "two-pole closed form disagrees with the dense solve"
         )
-    if np.max(np.abs(degenerate - direct_degenerate) / degenerate) > 1.0e-12:
+    if (
+        np.max(np.abs(degenerate - direct_degenerate) / degenerate)
+        > DENSE_SOLVE_RELATIVE_TOLERANCE
+    ):
         raise RuntimeError(
             "two-pole degenerate limit disagrees with the solve"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "two_pole_epsilon0": np.asarray(TWO_POLE_EPSILON0),
         "two_pole_eta": np.asarray(TWO_POLE_ETA),
         "two_pole_gamma": np.asarray(TWO_POLE_GAMMA),
@@ -608,6 +634,7 @@ def _two_pole_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "two_pole_source_imag": TWO_POLE_SOURCE.imag,
         "two_pole_source_real": TWO_POLE_SOURCE.real,
     }
+    return payload
 
 
 def _adjoint_truth(
@@ -625,7 +652,7 @@ def _adjoint_truth(
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Adjoint omegas in eV, intensities, analytic two-solve
         derivatives, raw central differences per step, and the
         two-level Richardson extrapolation.
@@ -636,8 +663,8 @@ def _adjoint_truth(
         If the Richardson finite differences leave the 1e-10 adjoint
         bound.
 
-    Implementation Logic
-    --------------------
+    Notes
+    -----
     Two dense solves per omega give ``g = G s`` and ``h = G^dagger
     s``; the derivative for direction ``E`` is ``-(1/pi) Im[h^dagger E
     g]``.  Central differences of the eigendecomposition intensity
@@ -709,7 +736,7 @@ def _adjoint_truth(
         raise RuntimeError(
             "Richardson finite differences leave the adjoint bound"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "adjoint_analytic": analytic,
         "adjoint_direction_imag": ADJOINT_DIRECTIONS.imag,
         "adjoint_direction_real": ADJOINT_DIRECTIONS.real,
@@ -719,6 +746,7 @@ def _adjoint_truth(
         "adjoint_richardson": richardson,
         "adjoint_steps": ADJOINT_STEPS,
     }
+    return payload
 
 
 def _hermitian_payload() -> Tuple[
@@ -730,10 +758,10 @@ def _hermitian_payload() -> Tuple[
 
     Returns
     -------
-    result : tuple[dict[str, Float64[NDArray, "..."]], Float64[NDArray, " n_orb"], Float64[NDArray, " n_orb"]]
-        The Hermitian payload (fixture matrices, eigenvalues in eV,
-        band weights, intensity row, adjoint rows), plus the
-        eigenvalues and band weights again for the sum-rule assembly.
+    result : Tuple[Dict[str, Float64[NDArray, "..."]],
+        Float64[NDArray, " n_orb"], Float64[NDArray, " n_orb"]]
+        Payload, eigenvalues in eV, and band weights. The payload stores the
+        fixture matrices, intensity row, and adjoint rows.
 
     Raises
     ------
@@ -742,11 +770,11 @@ def _hermitian_payload() -> Tuple[
         the eigendecomposition intensity disagrees with the dense
         solve beyond rtol 1e-12.
 
-    Implementation Logic
-    --------------------
-    ``H = A + A^dagger`` symmetrizes the frozen seed matrix; ``eigh``
-    gives bands and weights; the Lorentzian band sum and the resolvent
-    solve certify each other on the whole omega grid.
+    Notes
+    -----
+    Symmetrize the frozen seed matrix with ``H = A + A^dagger``. Obtain bands
+    and weights with ``eigh``. Compare the Lorentzian band sum and resolvent
+    solve across the complete omega grid.
     """
     hamiltonian: Complex128[NDArray, "n_orb n_orb"] = (
         HERMITIAN_MATRIX_A + HERMITIAN_MATRIX_A.conj().T
@@ -759,7 +787,10 @@ def _hermitian_payload() -> Tuple[
         np.abs(eigenvectors.conj().T @ HERMITIAN_SOURCE) ** 2
     )
     weight_total: float = float(np.sum(np.abs(HERMITIAN_SOURCE) ** 2))
-    if abs(float(np.sum(band_weights)) - weight_total) > 1.0e-13:
+    if (
+        abs(float(np.sum(band_weights)) - weight_total)
+        > SOURCE_NORM_ABSOLUTE_TOLERANCE
+    ):
         raise RuntimeError(
             "Hermitian band weights do not resolve the source norm"
         )
@@ -781,7 +812,10 @@ def _hermitian_payload() -> Tuple[
         ],
         dtype=np.float64,
     )
-    if np.max(np.abs(intensity - direct) / intensity) > 1.0e-12:
+    if (
+        np.max(np.abs(intensity - direct) / intensity)
+        > DENSE_SOLVE_RELATIVE_TOLERANCE
+    ):
         raise RuntimeError(
             "Hermitian eigendecomposition disagrees with the solve"
         )
@@ -801,7 +835,12 @@ def _hermitian_payload() -> Tuple[
         "hermitian_source_real": HERMITIAN_SOURCE.real,
     }
     payload.update(_adjoint_truth(hamiltonian, gamma_total))
-    return payload, eigenvalues, band_weights
+    result: Tuple[
+        Dict[str, Float64[NDArray, "..."]],
+        Float64[NDArray, " n_orb"],
+        Float64[NDArray, " n_orb"],
+    ] = (payload, eigenvalues, band_weights)
+    return result
 
 
 def _sum_rule_rows(
@@ -824,7 +863,8 @@ def _sum_rule_rows(
 
     Returns
     -------
-    rows : tuple[tuple[str, ...], Float64[NDArray, " n_row"], Float64[NDArray, " n_row"], Float64[NDArray, " n_row"]]
+    rows : Tuple[Tuple[str, ...], Float64[NDArray, " n_row"],
+        Float64[NDArray, " n_row"], Float64[NDArray, " n_row"]]
         Row labels, centers in eV, total gammas in eV, and weights.
 
     Notes
@@ -834,28 +874,28 @@ def _sum_rule_rows(
     """
     two_pole_gamma_total: float = TWO_POLE_GAMMA + TWO_POLE_ETA
     hermitian_gamma_total: float = HERMITIAN_GAMMA_SIGMA + HERMITIAN_ETA
-    labels: list[str] = [
+    labels: List[str] = [
         "two_pole_plus",
         "two_pole_minus",
         "two_pole_degenerate",
         "hermitian_band_0",
         "hermitian_band_1",
     ]
-    centers: list[float] = [
+    centers: List[float] = [
         TWO_POLE_EPSILON0 + TWO_POLE_HOPPING,
         TWO_POLE_EPSILON0 - TWO_POLE_HOPPING,
         TWO_POLE_EPSILON0,
         float(hermitian_eigenvalues[0]),
         float(hermitian_eigenvalues[1]),
     ]
-    gammas: list[float] = [
+    gammas: List[float] = [
         two_pole_gamma_total,
         two_pole_gamma_total,
         two_pole_gamma_total,
         hermitian_gamma_total,
         hermitian_gamma_total,
     ]
-    weights: list[float] = [
+    weights: List[float] = [
         float(np.abs(TWO_POLE_SOURCE[0] + TWO_POLE_SOURCE[1]) ** 2 / 2.0),
         float(np.abs(TWO_POLE_SOURCE[0] - TWO_POLE_SOURCE[1]) ** 2 / 2.0),
         float(np.sum(np.abs(TWO_POLE_SOURCE) ** 2)),
@@ -872,12 +912,23 @@ def _sum_rule_rows(
     centers.append(ETA_LADDER_LEVEL_EV)
     gammas.append(ETA_LADDER_GAMMA_PHYSICAL)
     weights.append(1.0)
-    return (
-        tuple(labels),
-        np.asarray(centers, dtype=np.float64),
-        np.asarray(gammas, dtype=np.float64),
-        np.asarray(weights, dtype=np.float64),
+    label_tuple: Tuple[str, ...] = tuple(labels)
+    center_values: Float64[NDArray, " n_row"] = np.asarray(
+        centers, dtype=np.float64
     )
+    gamma_values: Float64[NDArray, " n_row"] = np.asarray(
+        gammas, dtype=np.float64
+    )
+    weight_values: Float64[NDArray, " n_row"] = np.asarray(
+        weights, dtype=np.float64
+    )
+    result: Tuple[
+        Tuple[str, ...],
+        Float64[NDArray, " n_row"],
+        Float64[NDArray, " n_row"],
+        Float64[NDArray, " n_row"],
+    ] = (label_tuple, center_values, gamma_values, weight_values)
+    return result
 
 
 def _sum_rule_payload(
@@ -895,7 +946,7 @@ def _sum_rule_payload(
 
     Returns
     -------
-    result : tuple[dict[str, Float64[NDArray, "..."]], tuple[str, ...]]
+    result : Tuple[Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]]
         The sum-rule payload (window and full-line masses, order
         deltas, row constants) and the row labels for the manifest.
 
@@ -934,12 +985,12 @@ def _sum_rule_payload(
         ],
         dtype=np.float64,
     )
-    if np.max(np.abs(fullline - 1.0)) > 1.0e-8:
+    if np.max(np.abs(fullline - 1.0)) > FULL_LINE_MASS_ABSOLUTE_TOLERANCE:
         raise RuntimeError("full-line tan-map mass leaves the analytic bound")
     order_deltas: Float64[NDArray, " n_row"] = np.abs(
         fullline[:, 1] - fullline[:, 0]
     )
-    if np.max(order_deltas) > 1.0e-12:
+    if np.max(order_deltas) > FULL_LINE_ORDER_DELTA_TOLERANCE:
         raise RuntimeError("full-line 256-to-512 order delta is unstable")
     payload: Dict[str, Float64[NDArray, "..."]] = {
         "sum_rule_centers": centers,
@@ -955,7 +1006,11 @@ def _sum_rule_payload(
         "sum_rule_window_masses_unit": window_masses,
         "sum_rule_window_masses_weighted": weights * window_masses,
     }
-    return payload, labels
+    result: Tuple[Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]] = (
+        payload,
+        labels,
+    )
+    return result
 
 
 def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -963,7 +1018,7 @@ def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Rung intensities in 1/eV, captured masses, measured and
         analytic HWHM in eV, error ratios, final-rung changes, and the
         eta-to-zero linear extrapolations.
@@ -971,13 +1026,12 @@ def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
     Raises
     ------
     RuntimeError
-        If a rung-to-rung error ratio leaves the ``2 +/- 0.02`` band,
-        if a final-rung change exceeds its frozen budget, if the
-        interpolated peak drifts beyond 2e-6 eV from the level, or if
-        an extrapolation misses its limit beyond 2e-6.
+        If a rung-to-rung error ratio leaves the ``2 +/- 0.02`` band. Also if
+        a final-rung change exceeds its budget. Also if a peak drifts beyond
+        2e-6 eV. Also if an extrapolation misses its limit beyond 2e-6.
 
-    Implementation Logic
-    --------------------
+    Notes
+    -----
     Each rung is one Lorentzian at the fixed level with ``gamma +
     eta``.  Errors against the eta-to-zero row scale linearly in eta,
     so halving eta halves them; the two smallest rungs extrapolate
@@ -1033,19 +1087,22 @@ def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
     ratios: Float64[NDArray, " n_ratio"] = np.concatenate(
         (mass_ratios, hwhm_ratios)
     )
-    if np.any((ratios < 1.98) | (ratios > 2.02)):
+    if np.any((ratios < ETA_RATIO_MINIMUM) | (ratios > ETA_RATIO_MAXIMUM)):
         raise RuntimeError(
             "eta-ladder rung-to-rung ratio leaves the 2 +/- 0.02 band"
         )
     final_mass_change: float = float(np.abs(captured[-1] - captured[-2]))
     final_hwhm_change: float = float(np.abs(hwhm[-1] - hwhm[-2]))
-    if final_mass_change > 6.5e-5:
+    if final_mass_change > ETA_FINAL_MASS_CHANGE_MAXIMUM:
         raise RuntimeError(
             "eta-ladder final-rung captured-mass change is too large"
         )
-    if final_hwhm_change > 1.01e-4:
+    if final_hwhm_change > ETA_FINAL_HWHM_CHANGE_MAXIMUM:
         raise RuntimeError("eta-ladder final-rung HWHM change is too large")
-    if np.max(np.abs(peak_positions - ETA_LADDER_LEVEL_EV)) > 2.0e-6:
+    if (
+        np.max(np.abs(peak_positions - ETA_LADDER_LEVEL_EV))
+        > ETA_LIMIT_ABSOLUTE_TOLERANCE
+    ):
         raise RuntimeError(
             "eta-ladder interpolated peak drifts from the level"
         )
@@ -1058,11 +1115,11 @@ def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
         ],
         dtype=np.float64,
     )
-    if np.any(extrapolation_errors > 2.0e-6):
+    if np.any(extrapolation_errors > ETA_LIMIT_ABSOLUTE_TOLERANCE):
         raise RuntimeError(
             "eta-ladder eta-to-zero extrapolation misses the limit"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "eta_ladder_captured_mass_eta0": np.asarray(captured_eta0),
         "eta_ladder_captured_masses": captured,
         "eta_ladder_etas": ETA_LADDER_ETAS,
@@ -1087,6 +1144,7 @@ def _eta_ladder_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "eta_ladder_peak_heights_analytic": 1.0 / (np.pi * gamma_totals),
         "eta_ladder_peak_positions": peak_positions,
     }
+    return payload
 
 
 def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -1094,7 +1152,7 @@ def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Spectral row in 1/eV, both intensity conventions, the sampled
         occupation, fixture constants, and the achieved maximum
         relative discrepancy.
@@ -1102,15 +1160,15 @@ def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
     Raises
     ------
     RuntimeError
-        If the maximum relative discrepancy drops below the 1e12
-        floor, which would mean the occupied-side tail vanished.
+        If the maximum relative discrepancy drops below the 1e12 floor. This
+        threshold indicates loss of the occupied-side tail.
 
     Notes
     -----
-    The correct convention multiplies the spectral function by the
-    occupation at the sampled omega; the wrong convention uses the
-    occupation at the band eigenvalue, which kills the occupied-side
-    tail below the chemical potential at 15 K.
+    Multiply the spectral function by occupation at each sampled omega for
+    the correct convention. The incorrect convention uses occupation at the
+    band eigenvalue. It removes the occupied-side tail below the chemical
+    potential at 15 K.
     """
     kt: float = KB_EV_PER_K * FERMI_TEMPERATURE_K
     spectral: Float64[NDArray, " n_fermi_omega"] = _lorentzian(
@@ -1132,11 +1190,11 @@ def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
         np.abs(intensity_correct - intensity_wrong) / intensity_wrong
     )
     maximum_relative: float = float(np.max(relative))
-    if maximum_relative < 1.0e12:
+    if maximum_relative < OCCUPATION_COUNTEREXAMPLE_MINIMUM:
         raise RuntimeError(
             "sampled-omega counterexample lost its occupied-side tail"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "fermi_band_energy": np.asarray(FERMI_BAND_EV),
         "fermi_gamma": np.asarray(FERMI_GAMMA),
         "fermi_intensity_correct": intensity_correct,
@@ -1149,6 +1207,7 @@ def _fermi_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "fermi_spectral": spectral,
         "fermi_temperature_k": np.asarray(FERMI_TEMPERATURE_K),
     }
+    return payload
 
 
 def _reference_payload() -> Tuple[
@@ -1158,7 +1217,7 @@ def _reference_payload() -> Tuple[
 
     Returns
     -------
-    result : tuple[dict[str, Float64[NDArray, "..."]], tuple[str, ...]]
+    result : Tuple[Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]]
         Union of the two-pole, Hermitian, sum-rule, eta-ladder, and
         Fermi payloads, plus the sum-rule row labels.
 
@@ -1184,7 +1243,11 @@ def _reference_payload() -> Tuple[
     payload.update(sum_rule_payload)
     payload.update(_eta_ladder_payload())
     payload.update(_fermi_payload())
-    return payload, sum_rule_labels
+    result: Tuple[Dict[str, Float64[NDArray, "..."]], Tuple[str, ...]] = (
+        payload,
+        sum_rule_labels,
+    )
+    return result
 
 
 def _manifest(
@@ -1200,12 +1263,12 @@ def _manifest(
         Written NPZ archive whose digest enters the manifest.
     generator_path : Path
         This generator file whose digest enters the manifest.
-    sum_rule_labels : tuple[str, ...]
+    sum_rule_labels : Tuple[str, ...]
         Row labels from the sum-rule assembly.
 
     Returns
     -------
-    manifest : dict[str, Any]
+    manifest : Dict[str, Any]
         JSON-ready manifest with fixture constants, conventions,
         budgets, requirement names, and both SHA-256 digests.
 
@@ -1216,7 +1279,7 @@ def _manifest(
     changes the recorded provenance.
     """
     gamma_raw: float = float(np.log(np.expm1(TWO_POLE_GAMMA)))
-    return {
+    manifest: Dict[str, Any] = {
         "adjoint_derivative": {
             "adjoint_truth": (
                 "two dense solves g=G M and h=G^dagger M with "
@@ -1362,7 +1425,7 @@ def _manifest(
             "sampled-energy-occupation-witness",
         ],
         "schema": "diffpes.spectral-intensity-reference.v1",
-        "stage": "preregistered-before-spectral-intensity-production-edit",
+        "authority": "independent-numpy-spectral-intensity-truth",
         "sum_rule": {
             "fullline_map": (
                 "E = center + s*tan(pi*u/2), Jacobian s*pi/2*sec(pi*u/2)^2,"
@@ -1397,10 +1460,17 @@ def _manifest(
             "tolerance_rtol": 1.0e-10,
         },
     }
+    return manifest
 
 
 def main() -> None:
-    """Write the frozen spectral-intensity archive and provenance manifest."""
+    """Write the spectral-intensity archive and provenance manifest.
+
+    Notes
+    -----
+    The function builds all independent truth rows and writes a deterministic
+    archive. It records the generator digest, environment, and conventions.
+    """
     root: Path = Path(__file__).resolve().parents[2]
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
     data_directory.mkdir(parents=True, exist_ok=True)

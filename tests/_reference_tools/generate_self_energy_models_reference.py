@@ -1,20 +1,21 @@
 """Generate frozen Fermi-liquid and bosonic-kink self-energy truth artifacts.
 
-The generator uses only NumPy and SciPy for numerical truth.  It does not
-import DiffPES or evaluate any production self-energy code.  It freezes the
-Fermi-liquid and bosonic-kink fixture parameters (physical eV values and raw
-softplus-inverse coordinates), evaluation and KK grids, the independently
-derived causal real parts, asymptotic first-moment identities, and
-complex-step parameter-derivative truths.  These tables back the
+Extended Summary
+----------------
+The generator uses only NumPy and SciPy for numerical truth. It does not
+import DiffPES or evaluate production self-energy code. Record physical and
+raw parameters for both fixtures. Record evaluation grids, KK grids, and
+independently derived causal real parts. Include asymptotic first-moment
+identities and complex-step derivative truths. These tables back the
 causal-self-energy-analytic-truth and self-energy-parameter-derivative-truth
 requirements.
 
-Truth derivations are doubly independent: the Fermi-liquid subtracted real
-part is computed by adaptive principal-value quadrature (QAWC core plus QAGI
-infinite tails of the dynamic remainder after subtracting ``Gamma0``) and is
-certified against the exact residue closed form; the bosonic-kink pole pair
-is analytic, and its Kramers-Kronig self-consistency is spot-checked by the
-same principal-value quadrature.  The retarded convention throughout is
+Derive each truth through two independent routes. Adaptive principal-value
+quadrature computes the Fermi-liquid real part. QAWC handles its core, and
+QAGI handles infinite tails after subtracting ``Gamma0``. Compare the result
+with the exact residue form. Use an analytic bosonic-kink pole pair. Check its
+Kramers--Kronig consistency with the same quadrature. The retarded convention
+throughout is
 ``Sigma'(w) = (1/pi) PV integral Sigma''_dyn(x)/(x-w) dx`` with
 ``Sigma'' <= 0``.
 """
@@ -27,14 +28,12 @@ import json
 import platform
 import warnings
 import zipfile
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import scipy
-from beartype.typing import Dict, Tuple
-from jaxtyping import Bool, Complex128, Float64, Shaped
+from beartype.typing import Any, Callable, Dict, List, Tuple
+from jaxtyping import Bool, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import integrate
 
@@ -139,12 +138,12 @@ KINK_MOMENT_FREQUENCIES_EV: Float64[NDArray, " n_moment"] = np.asarray(
 MOMENT_RATIO_BOUNDS: Tuple[float, float] = (3.9, 4.1)
 
 
-def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
+def _array_bytes(array: Float64[NDArray, "..."]) -> bytes:
     """PRIVATE: Serialize one array without pickle or filesystem metadata.
 
     Parameters
     ----------
-    array : Shaped[NDArray, "..."]
+    array : Float64[NDArray, "..."]
         Array to serialize.
 
     Returns
@@ -159,12 +158,13 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
     """
     output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
-    return output.getvalue()
+    payload: bytes = output.getvalue()
+    return payload
 
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: Dict[str, Shaped[NDArray, "..."]],
+    arrays: Dict[str, Float64[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write a sorted float64 NPZ with fixed dates and modes.
 
@@ -172,15 +172,16 @@ def _write_deterministic_npz(
     ----------
     path : Path
         Destination NPZ path.
-    arrays : dict[str, Shaped[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, "..."]]
         Named arrays to store; each one casts to float64.
 
     Notes
     -----
-    Members enter in sorted name order with the fixed 1980-01-01 ZIP
-    timestamp, a fixed file mode, and DEFLATE level 9, so identical
-    arrays always produce byte-identical archives.
+    Sort members by name. Give each member the fixed 1980-01-01 timestamp and
+    file mode. Use DEFLATE level 9. Identical arrays then produce identical
+    archive bytes.
     """
+    archive: zipfile.ZipFile
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -188,7 +189,7 @@ def _write_deterministic_npz(
         compresslevel=9,
     ) as archive:
         name: str
-        array: Shaped[NDArray, "..."]
+        array: Float64[NDArray, "..."]
         for name, array in sorted(arrays.items()):
             normalized: Float64[NDArray, "..."] = np.asarray(
                 array, dtype=np.float64
@@ -225,7 +226,8 @@ def _sha256(path: Path) -> str:
     The function reads the complete file into memory before hashing;
     every evidence file stays small enough for that.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _softplus(
@@ -248,13 +250,16 @@ def _softplus(
     The overflow-safe form ``log1p(exp(-|raw|)) + max(raw, 0)`` equals
     ``log(1 + exp(raw))`` for every finite input.
     """
-    return np.log1p(np.exp(-np.abs(raw))) + np.maximum(raw, 0.0)
+    positive: Float64[NDArray, " n_param"] = np.log1p(
+        np.exp(-np.abs(raw))
+    ) + np.maximum(raw, 0.0)
+    return positive
 
 
 def _softplus_inverse(
     positive: Float64[NDArray, " n_param"],
 ) -> Float64[NDArray, " n_param"]:
-    """PRIVATE: Invert softplus with the stable ``p + log(-expm1(-p))``.
+    """PRIVATE: Compute softplus inverse with a stable expression.
 
     Parameters
     ----------
@@ -271,7 +276,8 @@ def _softplus_inverse(
     The ``expm1`` form keeps full precision for small inputs, where the
     naive ``log(exp(p) - 1)`` cancels catastrophically.
     """
-    return positive + np.log(-np.expm1(-positive))
+    raw: Float64[NDArray, " n_param"] = positive + np.log(-np.expm1(-positive))
+    return raw
 
 
 def _raw_coordinates(
@@ -326,12 +332,13 @@ def _evaluation_grid() -> Float64[NDArray, " n_grid"]:
     Both fixtures share this grid, so every truth table aligns row by
     row.
     """
-    return np.linspace(
+    grid: Float64[NDArray, " n_grid"] = np.linspace(
         -EVAL_GRID_HALF_WIDTH_EV,
         EVAL_GRID_HALF_WIDTH_EV,
         EVAL_GRID_POINTS,
         dtype=np.float64,
     )
+    return grid
 
 
 def _fl_sigma_imag(
@@ -363,7 +370,10 @@ def _fl_sigma_imag(
     The quartic saturation caps the quadratic Fermi-liquid growth above
     the crossover, which keeps the KK transform convergent.
     """
-    return -gamma0 - beta * omega**2 / (1.0 + (omega / omega_c) ** 4)
+    sigma_imag: (
+        Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"]
+    ) = -gamma0 - beta * omega**2 / (1.0 + (omega / omega_c) ** 4)
+    return sigma_imag
 
 
 def _fl_sigma_real(
@@ -394,7 +404,9 @@ def _fl_sigma_real(
     ``Omega_c*exp(3i*pi/4)``; contour integration of the retarded KK
     transform collapses to this real rational function.
     """
-    return (
+    sigma_real: (
+        Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"]
+    ) = (
         (np.sqrt(2.0) / 2.0)
         * beta
         * omega_c**3
@@ -402,6 +414,7 @@ def _fl_sigma_real(
         * (omega**2 - omega_c**2)
         / (omega**4 + omega_c**4)
     )
+    return sigma_real
 
 
 def _fl_dynamic_imag(x: float) -> float:
@@ -422,7 +435,10 @@ def _fl_dynamic_imag(x: float) -> float:
     The constant ``-Gamma0`` baseline drops out before the KK
     transform; this scalar form feeds the adaptive quadrature.
     """
-    return -FL_BETA_PER_EV * x**2 / (1.0 + (x / FL_OMEGA_C_EV) ** 4)
+    remainder: float = (
+        -FL_BETA_PER_EV * x**2 / (1.0 + (x / FL_OMEGA_C_EV) ** 4)
+    )
+    return remainder
 
 
 def _kink_sigma_real(
@@ -461,9 +477,10 @@ def _kink_sigma_real(
     d_plus: Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"] = (
         omega + omega0
     ) ** 2 + width**2
-    return coupling**2 * (
-        (omega - omega0) / d_minus + (omega + omega0) / d_plus
-    )
+    sigma_real: (
+        Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"]
+    ) = coupling**2 * ((omega - omega0) / d_minus + (omega + omega0) / d_plus)
+    return sigma_real
 
 
 def _kink_sigma_imag(
@@ -505,7 +522,10 @@ def _kink_sigma_imag(
     d_plus: Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"] = (
         omega + omega0
     ) ** 2 + width**2
-    return -gamma0 - coupling**2 * width * (1.0 / d_minus + 1.0 / d_plus)
+    sigma_imag: (
+        Float64[NDArray, " n_omega"] | Complex128[NDArray, " n_omega"]
+    ) = -gamma0 - coupling**2 * width * (1.0 / d_minus + 1.0 / d_plus)
+    return sigma_imag
 
 
 def _kink_dynamic_imag(x: float) -> float:
@@ -528,9 +548,10 @@ def _kink_dynamic_imag(x: float) -> float:
     """
     d_minus: float = (x - KINK_OMEGA0_EV) ** 2 + KINK_WIDTH_EV**2
     d_plus: float = (x + KINK_OMEGA0_EV) ** 2 + KINK_WIDTH_EV**2
-    return (
+    remainder: float = (
         -(KINK_COUPLING_EV**2) * KINK_WIDTH_EV * (1.0 / d_minus + 1.0 / d_plus)
     )
+    return remainder
 
 
 def _pv_real_part(
@@ -552,18 +573,16 @@ def _pv_real_part(
 
     Returns
     -------
-    result : tuple[float, float]
+    result : Tuple[float, float]
         The KK real part in eV and the summed quadrature error
         estimate in eV.
 
-    Implementation Logic
-    --------------------
-    The principal-value core uses QAWC with the Cauchy weight around
-    the query, optional smooth remainder segments cover the rest of the
-    finite KK domain, and QAGI integrates the true infinite tails of
-    the dynamic remainder.  Certification happens later by hard
-    comparison against analytic values, so QUADPACK convergence
-    warnings stay suppressed here.
+    Notes
+    -----
+    Use QAWC with a Cauchy weight around the query. Cover the remaining
+    finite domain with optional smooth segments. Use QAGI for the dynamic
+    remainder's true infinite tails. Later, compare results directly with
+    analytic values. Suppress QUADPACK convergence warnings here.
     """
 
     def _shifted(x: float) -> float:
@@ -584,12 +603,13 @@ def _pv_real_part(
         This form serves the smooth segments away from the query, where
         the denominator never vanishes.
         """
-        return dynamic_imag(x) / (x - omega)
+        value: float = dynamic_imag(x) / (x - omega)
+        return value
 
     lower_edge: float
     upper_edge: float
     lower_edge, upper_edge = KK_DOMAIN_EV
-    smooth_segments: list[Tuple[float, float]]
+    smooth_segments: List[Tuple[float, float]]
     if cauchy_half_width is None:
         cauchy_segment: Tuple[float, float] = (lower_edge, upper_edge)
         smooth_segments = []
@@ -637,7 +657,8 @@ def _pv_real_part(
             )
             total += value
             error += estimate
-    return total / np.pi, error / np.pi
+    result: Tuple[float, float] = (total / np.pi, error / np.pi)
+    return result
 
 
 def _parameters_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -645,7 +666,7 @@ def _parameters_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Evaluation grid, KK domain, both physical parameter vectors,
         their raw coordinates, and the softplus Jacobian rows.
 
@@ -667,7 +688,7 @@ def _parameters_payload() -> Dict[str, Float64[NDArray, "..."]]:
     kink_raw: Float64[NDArray, " n_kink_param"] = _raw_coordinates(
         kink_physical
     )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "eval_grid_ev": _evaluation_grid(),
         "fl_kk_domain_ev": np.asarray(KK_DOMAIN_EV, dtype=np.float64),
         "fl_parameters_physical": fl_physical,
@@ -677,6 +698,7 @@ def _parameters_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "kink_parameters_raw": kink_raw,
         "kink_softplus_jacobian": -np.expm1(-kink_physical),
     }
+    return payload
 
 
 def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -684,7 +706,7 @@ def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Grid ``Sigma''``, quadrature and analytic subtracted real
         parts, quadrature error estimates, the causality ceiling, and
         the achieved truth deviation, all in eV.
@@ -696,11 +718,11 @@ def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
         if the quadrature leaves the 1e-12 truth budget against the
         residue closed form.
 
-    Implementation Logic
-    --------------------
-    The routine integrates the dynamic remainder at every grid point
-    and at zero, subtracts the zero value, and certifies the result
-    against the exact residue closed form before it freezes both rows.
+    Notes
+    -----
+    Integrate the dynamic remainder at every grid point and at zero. Subtract
+    the zero value. Compare the result with the exact residue form before
+    storing both rows.
     """
     grid: Float64[NDArray, " n_grid"] = _evaluation_grid()
     sigma_imag: Float64[NDArray, " n_grid"] = _fl_sigma_imag(
@@ -737,7 +759,7 @@ def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
         raise RuntimeError(
             "Fermi-liquid quadrature leaves the 1e-12 truth budget"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "fl_causality_ceiling": np.asarray(
             np.max(sigma_imag),
             dtype=np.float64,
@@ -759,6 +781,7 @@ def _fermi_liquid_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "fl_sigma_real_subtracted_analytic": subtracted_analytic,
         "fl_sigma_real_subtracted_quad": subtracted_quad,
     }
+    return payload
 
 
 def _bosonic_kink_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -766,7 +789,7 @@ def _bosonic_kink_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Analytic ``Sigma'`` and ``Sigma''`` on the shared grid and the
         causality ceiling, all in eV.
 
@@ -796,7 +819,7 @@ def _bosonic_kink_payload() -> Dict[str, Float64[NDArray, "..."]]:
     )
     if not np.all(sigma_imag < 0.0):
         raise RuntimeError("bosonic-kink Sigma'' is not strictly negative")
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "kink_causality_ceiling": np.asarray(
             np.max(sigma_imag),
             dtype=np.float64,
@@ -804,6 +827,7 @@ def _bosonic_kink_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "kink_sigma_imag_grid": sigma_imag,
         "kink_sigma_real_grid": sigma_real,
     }
+    return payload
 
 
 def _bosonic_kink_kk_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -811,7 +835,7 @@ def _bosonic_kink_kk_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Spot frequencies in eV, exact and quadrature real parts in eV,
         absolute residuals, and quadrature error estimates.
 
@@ -846,13 +870,14 @@ def _bosonic_kink_kk_payload() -> Dict[str, Float64[NDArray, "..."]]:
         raise RuntimeError(
             "bosonic-kink KK spot check leaves the 1e-10 budget"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "kink_spot_abs_residuals": residuals,
         "kink_spot_frequencies_ev": KINK_SPOT_FREQUENCIES_EV,
         "kink_spot_quad_error_estimates": quad_errors,
         "kink_spot_real_exact": exact,
         "kink_spot_real_quad": quad_values,
     }
+    return payload
 
 
 def _bosonic_kink_moment_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -860,7 +885,7 @@ def _bosonic_kink_moment_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Moment frequencies in eV, products ``w * Sigma'(w)`` in eV^2,
         the ``2 g^2`` limit, deviations, and consecutive ratios.
 
@@ -897,13 +922,14 @@ def _bosonic_kink_moment_payload() -> Dict[str, Float64[NDArray, "..."]]:
         raise RuntimeError(
             "first-moment convergence is not the expected 1/omega**2"
         )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "kink_first_moment_deviations": deviations,
         "kink_first_moment_frequencies_ev": KINK_MOMENT_FREQUENCIES_EV,
         "kink_first_moment_limit": np.asarray(limit, dtype=np.float64),
         "kink_first_moment_products": products,
         "kink_first_moment_ratios": ratios,
     }
+    return payload
 
 
 def _complex_step_column(
@@ -938,13 +964,14 @@ def _complex_step_column(
     subtraction-free and exact to machine precision.
     """
     step: float = COMPLEX_STEP_RELATIVE * float(parameters[index])
-    perturbed: list[complex] = [complex(value) for value in parameters]
+    perturbed: List[complex] = [complex(value) for value in parameters]
     perturbed[index] = complex(parameters[index], step)
     values: Complex128[NDArray, " n_probe"] = function(
         frequencies.astype(np.complex128),
         *perturbed,
     )
-    return np.imag(values) / step
+    column: Float64[NDArray, " n_probe"] = np.imag(values) / step
+    return column
 
 
 def _check_derivative_matrix(
@@ -960,7 +987,7 @@ def _check_derivative_matrix(
         Complex-step derivative matrix in dimensionless coordinates.
     analytic_matrix : Float64[NDArray, "n_probe n_param"]
         Hand-derived analytic matrix in the same coordinates.
-    structural_zero_columns : tuple[int, ...]
+    structural_zero_columns : Tuple[int, ...]
         Columns whose entries must vanish exactly.
 
     Returns
@@ -971,10 +998,10 @@ def _check_derivative_matrix(
     Raises
     ------
     RuntimeError
-        If the matrices disagree beyond the mixed tolerance, if a
-        structural-zero column carries a nonzero entry, if a sensitive
-        entry underflows the 1e-12 floor, or if a sensitive column
-        lacks one probe above the 1e-3 floor.
+        If the matrices disagree beyond the mixed tolerance. Also if a
+        structural-zero column contains a nonzero entry. Also if a sensitive
+        entry falls below 1e-12. Also if a sensitive column lacks one probe
+        above 1e-3.
 
     Notes
     -----
@@ -1007,7 +1034,8 @@ def _check_derivative_matrix(
         < DERIVATIVE_COLUMN_FLOOR
     ):
         raise RuntimeError("sensitive derivative column lacks a strong probe")
-    return float(np.max(deviation))
+    max_deviation: float = float(np.max(deviation))
+    return max_deviation
 
 
 def _fermi_liquid_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -1015,15 +1043,9 @@ def _fermi_liquid_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Probe frequencies in eV, both derivative matrices, the
         sensitivity masks, and the achieved cross-check deviation.
-
-    Raises
-    ------
-    RuntimeError
-        If :func:`_check_derivative_matrix` rejects either matrix,
-        propagated unchanged.
 
     Notes
     -----
@@ -1109,7 +1131,7 @@ def _fermi_liquid_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
         _check_derivative_matrix(imag_step, imag_analytic, ()),
         _check_derivative_matrix(real_step, real_analytic, (0,)),
     )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "fl_derivative_crosscheck_max_abs_error": np.asarray(
             crosscheck,
             dtype=np.float64,
@@ -1126,6 +1148,7 @@ def _fermi_liquid_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "fl_dsigma_real_dq": real_step,
         "fl_probe_frequencies_ev": frequencies,
     }
+    return payload
 
 
 def _bosonic_kink_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -1133,15 +1156,9 @@ def _bosonic_kink_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Probe frequencies in eV, both derivative matrices, the
         sensitivity masks, and the achieved cross-check deviation.
-
-    Raises
-    ------
-    RuntimeError
-        If :func:`_check_derivative_matrix` rejects either matrix,
-        propagated unchanged.
 
     Notes
     -----
@@ -1250,7 +1267,7 @@ def _bosonic_kink_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
         _check_derivative_matrix(imag_step, imag_analytic, ()),
         _check_derivative_matrix(real_step, real_analytic, (0,)),
     )
-    return {
+    payload: Dict[str, Float64[NDArray, "..."]] = {
         "kink_derivative_crosscheck_max_abs_error": np.asarray(
             crosscheck,
             dtype=np.float64,
@@ -1267,6 +1284,7 @@ def _bosonic_kink_derivative_payload() -> Dict[str, Float64[NDArray, "..."]]:
         "kink_dsigma_real_dq": real_step,
         "kink_probe_frequencies_ev": frequencies,
     }
+    return payload
 
 
 def _reference_payload() -> Dict[str, Float64[NDArray, "..."]]:
@@ -1274,7 +1292,7 @@ def _reference_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    payload : dict[str, Float64[NDArray, "..."]]
+    payload : Dict[str, Float64[NDArray, "..."]]
         Union of the parameter, Fermi-liquid, derivative, kink, KK
         spot-check, and first-moment payloads.
 
@@ -1295,7 +1313,13 @@ def _reference_payload() -> Dict[str, Float64[NDArray, "..."]]:
 
 
 def main() -> None:
-    """Write the frozen self-energy archive and its provenance manifest."""
+    """Write the self-energy archive and its provenance manifest.
+
+    Notes
+    -----
+    The function builds all independent truth rows and writes a deterministic
+    archive. It records the generator digest, environment, and conventions.
+    """
     root: Path = Path(__file__).resolve().parents[2]
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
     data_directory.mkdir(parents=True, exist_ok=True)
@@ -1447,7 +1471,7 @@ def main() -> None:
             "self-energy-parameter-derivative-truth",
         ],
         "schema": "diffpes.self-energy-models-reference.v1",
-        "stage": "frozen-truth-before-self-energy-production-edit",
+        "authority": "independent-numpy-scipy-self-energy-truth",
     }
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

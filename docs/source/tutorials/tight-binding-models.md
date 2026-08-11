@@ -1,16 +1,3 @@
----
-jupytext:
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.16.4
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
----
-
 # Native Tight-Binding Models
 
 Build nearest-neighbor graphene twice: first from an explicit, Hermitian-closed
@@ -19,7 +6,7 @@ coupling and calculate fat bands with a Rashba spin texture. Finish with a
 broadened density of states. Every numerical object remains a JAX PyTree.
 The same models can later become optimization variables.
 
-```{code-cell} ipython3
+```python
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
@@ -51,7 +38,7 @@ differentiable complex hopping amplitudes. A physical nearest-neighbor bond is
 therefore represented by a directed entry `(i, j, R)` and its conjugate
 partner `(j, i, -R)`.
 
-```{code-cell} ipython3
+```python
 a = 2.46
 graphene_geometry = make_crystal_geometry(
     lattice=jnp.asarray(
@@ -120,7 +107,7 @@ Build the fractional $\Gamma$--K--M--$\Gamma$ path and diagonalize the model.
 Repeated segment endpoints are intentional and make each symmetry point easy
 to label.
 
-```{code-cell} ipython3
+```python
 anchors = jnp.asarray(
     [
         [0.0, 0.0, 0.0],
@@ -148,7 +135,7 @@ $V_{pp\pi}$. The builder discovers the static neighbor topology once,
 then retains exact cells. Away from cutoff crossings, differentiation covers
 the bond geometry and Slater--Koster value.
 
-```{code-cell} ipython3
+```python
 graphene_sk_params = make_slater_koster_params(
     values=jnp.asarray([hopping]),
     keys=("C-C:pp_pi",),
@@ -181,7 +168,7 @@ complete $p$ shell, attach one shell identifier, and then duplicate the model.
 The declared spin order is all spin-down orbitals followed by all spin-up
 orbitals; `spinor=True` never doubles this basis again.
 
-```{code-cell} ipython3
+```python
 p_basis = make_orbital_basis(
     atom_indices=(0, 0, 0),
     n=(2, 2, 2),
@@ -222,7 +209,7 @@ forms an orbital projector and averages its expectation inside diagnostic
 degenerate groups. At graphene's Dirac point both sublattices carry one-half
 of each averaged state.
 
-```{code-cell} ipython3
+```python
 a_sublattice = fat_bands(sk_bands, (0,))
 print("A-sublattice weights at K:", a_sublattice[51])
 
@@ -257,7 +244,7 @@ places one spatial orbital in each spin sector and uses conjugate-closed
 spin-flip hoppings. The resulting square-lattice Rashba field winds around
 $\Gamma$.
 
-```{code-cell} ipython3
+```python
 rashba_geometry = make_crystal_geometry(
     lattice=jnp.diag(jnp.asarray([3.2, 3.2, 12.0])),
     positions=jnp.zeros((1, 3)),
@@ -359,7 +346,7 @@ normalized Gaussian, and solve the finite-temperature filling equation.
 `dos_gaussian` returns the same `DensityOfStates` carrier used by parsed
 electronic-structure data.
 
-```{code-cell} ipython3
+```python
 mesh_axis = jnp.arange(24, dtype=jnp.float64) / 24.0
 k1, k2 = jnp.meshgrid(mesh_axis, mesh_axis, indexing="ij")
 mesh_kpoints = jnp.stack(

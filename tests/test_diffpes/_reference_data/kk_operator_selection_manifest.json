@@ -64,7 +64,7 @@
   "environment": {
     "jax": "0.9.0.1",
     "numpy": "2.4.2",
-    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
     "python": "3.13.6",
     "scipy": "1.17.1"
   },
@@ -91,33 +91,33 @@
       },
       "archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
       "directory": "tests/test_diffpes/_reference_data/kk_analytic_reference",
-        "generator_sha256": "0ab039848e5d16d4e8a540fdb17467754159cf97e567bde3dc3ba0794d3dcec1",
+      "generator_sha256": "563aaf92c94b3962dbdb63a2ce0121b0cf8192beea3fc833e983292fb086cbf8",
       "manifest_recorded_archive_sha256": "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5",
-        "manifest_sha256": "1c08269c503871c367d7610fd927d0a6d8f4b93012458be1e43e611f1d0f81a8"
+      "manifest_sha256": "e91e02d117c0b389e55e9505b3b5affac6780927ef39676a700bb5818078a14a"
     },
     "common": {
       "path": "tests/_reference_tools/_kk_candidate_common.py",
-      "sha256": "df2ecd4cd002e2e2da179ac4c8a0f663ddbf2f91ff3d8c6bd21c02addfc4de6e"
+      "sha256": "2f401f171ac90b1bd1c1f75448aa1f06662d537e4a6301f0560a2c41d10303cb"
     },
     "generator": {
       "path": "tests/_reference_tools/generate_kk_operator_selection.py",
-      "sha256": "336d7e5f04533491f51b6fbed1abb1b1fde8f872403918bea847761b2671a6b8"
+      "sha256": "9bf4aa378886e3e135787fd50477a8da464ae0bc6a689b3bf6f99485f3e0da64"
     },
     "maclaurin_control": {
       "path": "tests/_reference_tools/_kk_control_opposite_parity_maclaurin.py",
-      "sha256": "a02a72244c6c64a265a97bca05689f9033f80ea10099a1b702e148dc086e6775"
+      "sha256": "3d855cc5afbd84591b83a0d0c7136504d959c4e514ae26a30402f8601fd81920"
     },
     "piecewise_cubic": {
       "path": "tests/_reference_tools/_kk_candidate_piecewise_cubic.py",
-      "sha256": "a17e6f2c6b4ec3aee76d3ec116cb091bccc85bcc0edb59f908f1128aa2ea7900"
+      "sha256": "1158e257f4700353ff49e7f170228f43b263c27025499e853002d65add2a1ea4"
     },
     "piecewise_linear": {
       "path": "tests/_reference_tools/_kk_candidate_piecewise_linear.py",
-      "sha256": "f01469f8fa44163dc07c5f1e1be76facd4c4a8ad00584deef9b8e210a23d6bfb"
+      "sha256": "b8979970ed70200e89a0523c7528ddc51f27e25f279a9a86bcdd97a26be07af5"
     },
     "piecewise_quadratic": {
       "path": "tests/_reference_tools/_kk_candidate_piecewise_quadratic.py",
-      "sha256": "83ae1ff85341782bac118447f1d9ab0381c1135a9fb00e4e79c83220c968cf3e"
+      "sha256": "2dee8a85e8f4f4e24a457fcebf029c470ebc965377557ce6b614851bfa7b8e19"
     }
   },
   "fixture_configurations": {
@@ -296,7 +296,7 @@
           },
           "refinements": {
             "domain_extension": {
-              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "jvp_half_width_requirement": "excluded (band-edge branch point)",
               "max_delta_dsigma_direct": 0.0,
               "max_delta_jvp_per_param_ev": {
                 "g": 0.0,
@@ -306,7 +306,7 @@
               "pass_delta_jvp_g_value_budget_2em6": true
             },
             "grid8192": {
-              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "jvp_half_width_requirement": "excluded (band-edge branch point)",
               "max_delta_dsigma_direct": 5.383473510811587e-06,
               "max_delta_jvp_per_param_ev": {
                 "g": 2.072367922462126e-06,
@@ -467,7 +467,7 @@
           },
           "refinements": {
             "domain_extension": {
-              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "jvp_half_width_requirement": "excluded (band-edge branch point)",
               "max_delta_dsigma_direct": 0.0,
               "max_delta_jvp_per_param_ev": {
                 "g": 0.0,
@@ -477,7 +477,7 @@
               "pass_delta_jvp_g_value_budget_2em6": true
             },
             "grid8192": {
-              "jvp_half_width_gating": "excluded (band-edge branch point)",
+              "jvp_half_width_requirement": "excluded (band-edge branch point)",
               "max_delta_dsigma_direct": 9.9862179479826e-06,
               "max_delta_jvp_per_param_ev": {
                 "g": 2.8726285177804733e-06,
@@ -914,7 +914,7 @@
     }
   },
   "production_imports": [],
-  "purpose": "preproduction Kramers-Kronig operator selection: candidate comparison, carrier consistency, derivative route, reverse-mode consistency, and spectral observable stability",
+  "purpose": "independent Kramers-Kronig operator selection: candidate comparison, carrier consistency, derivative route, reverse-mode consistency, and spectral observable stability",
   "query_derivative_identity_check": "forward all-ones JVP versus jax.grad at three spot queries; scale-aware bound 1e-9 * (n_kk/4096) * max(1, |grad|, |jvp|) covering f64 summation-order conditioning; the measured maximum deviation is recorded per scenario",
   "registered_budgets": {
     "max_delta_dsigma": 2e-05,

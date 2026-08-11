@@ -18,7 +18,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from beartype.typing import Any, Callable
-from jaxtyping import Array
+from jaxtyping import Array, Float64
 
 from diffpes.maths import (
     real_spherical_harmonic,
@@ -47,11 +47,13 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        expected: Array
-        theta: Array
-        phi: Array
-        vals: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        expected: float
+        theta: Float64[Array, " 4"]
+        phi: Float64[Array, " 4"]
+        vals: Float64[Array, " 4"]
 
         expected = 1.0 / (2.0 * math.sqrt(math.pi))
         theta = jnp.array([0.0, 0.5, 1.0, 2.0])
@@ -72,11 +74,13 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        theta: Array
-        phi: Array
-        vals: Array
-        expected: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        theta: Float64[Array, " 50"]
+        phi: Float64[Array, " 50"]
+        vals: Float64[Array, " 50"]
+        expected: Float64[Array, " 50"]
 
         theta = jnp.linspace(0.0, jnp.pi, 50)
         phi = jnp.zeros(50)
@@ -89,19 +93,21 @@ class TestRealSphericalHarmonic:
     def test_y11_sin_cos(self) -> None:
         """Verify Y_1^1 = +sqrt(3/(4*pi)) * sin(theta) * cos(phi).
 
-        The test evaluates Y_1^{+1} at theta=pi/4, phi=0 and compares against the
-        package real-harmonic convention expression. The explicit real-basis
-        phase cancels the complex Condon--Shortley sign, so this is the
-        positive p_x orbital fixed by canon C5. Asserts agreement to
-        within 1e-10.
+        The test evaluates Y_1^{+1} at theta=pi/4, phi=0 and compares against
+        the package real-harmonic convention expression. The explicit
+        real-basis phase cancels the complex Condon--Shortley sign, so this is
+        the positive p_x orbital fixed by the real-harmonic convention. The
+        values agree within 1e-10.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        theta: Array
-        phi: Array
-        val: Array
-        expected: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        theta: Float64[Array, ""]
+        phi: Float64[Array, ""]
+        val: Float64[Array, ""]
+        expected: float
 
         theta = jnp.array(jnp.pi / 4)
         phi = jnp.array(0.0)
@@ -117,18 +123,20 @@ class TestRealSphericalHarmonic:
     def test_y1m1_sin_sin(self) -> None:
         """Verify Y_1^{-1} = +sqrt(3/(4*pi)) * sin(theta) * sin(phi).
 
-        The test evaluates Y_1^{-1} at theta=pi/3, phi=pi/4 and compares against
-        the analytical expression.  For m < 0, the real spherical harmonic
+        The test evaluates Y_1^{-1} at theta=pi/3, phi=pi/4 and compares
+        against the analytical expression. For m < 0, the real harmonic
         uses ``sin(|m|*phi)`` and the Condon-Shortley phase cancels, yielding
         a positive prefactor.  Asserts agreement to within 1e-10.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        theta: Array
-        phi: Array
-        val: Array
-        expected: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        theta: Float64[Array, ""]
+        phi: Float64[Array, ""]
+        val: Float64[Array, ""]
+        expected: float
 
         theta = jnp.array(jnp.pi / 3)
         phi = jnp.array(jnp.pi / 4)
@@ -155,21 +163,23 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         n_theta: int
         n_phi: int
-        x: Array
-        w: Array
-        theta_grid: Array
-        phi_grid: Array
-        dphi: Array
-        y00: Array
-        y10: Array
-        sin_theta: Array
-        integrand: Array
-        integral: Array
-        integrand_self: Array
-        integral_self: Array
+        x: Float64[Array, " n_theta"]
+        w: Float64[Array, " n_theta"]
+        theta_grid: Float64[Array, " n_theta"]
+        phi_grid: Float64[Array, " n_phi"]
+        dphi: float
+        y00: Float64[Array, "n_theta n_phi"]
+        y10: Float64[Array, "n_theta n_phi"]
+        sin_theta: Float64[Array, " n_theta"]
+        integrand: Float64[Array, "n_theta n_phi"]
+        integral: Float64[Array, ""]
+        integrand_self: Float64[Array, "n_theta n_phi"]
+        integral_self: Float64[Array, ""]
 
         n_theta = 100
         n_phi = 200
@@ -182,7 +192,8 @@ class TestRealSphericalHarmonic:
                             math.pi / n_theta,
                         )
                         for i in range(n_theta)
-                    ]
+                    ],
+                    strict=True,
                 )
             )
         )
@@ -226,9 +237,11 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         f: Callable[..., Any]
-        val: Array
+        val: Float64[Array, ""]
 
         f = jax.jit(lambda t, p: real_spherical_harmonic(2, 1, t, p))
         val = f(jnp.array(1.0), jnp.array(0.5))
@@ -245,9 +258,11 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         grad_fn: Callable[..., Any]
-        g: Array
+        g: Float64[Array, ""]
 
         grad_fn = jax.grad(
             lambda t: real_spherical_harmonic(1, 0, t, jnp.array(0.0))
@@ -266,9 +281,11 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         grad_fn: Callable[..., Any]
-        g: Array
+        g: Float64[Array, ""]
 
         grad_fn = jax.grad(
             lambda p: real_spherical_harmonic(1, 1, jnp.array(jnp.pi / 4), p)
@@ -285,7 +302,9 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         with pytest.raises(ValueError, match="l must be non-negative"):
             real_spherical_harmonic(-1, 0, jnp.array(0.0), jnp.array(0.0))
 
@@ -298,7 +317,9 @@ class TestRealSphericalHarmonic:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         with pytest.raises(ValueError, match="must be <= l"):
             real_spherical_harmonic(1, 2, jnp.array(0.0), jnp.array(0.0))
 
@@ -321,10 +342,12 @@ class TestRealSphericalHarmonicsAll:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        theta: Array
-        phi: Array
-        vals: Array
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
+        theta: Float64[Array, ""]
+        phi: Float64[Array, ""]
+        vals: Float64[Array, " 9"]
 
         theta = jnp.array(0.5)
         phi = jnp.array(0.3)
@@ -332,7 +355,7 @@ class TestRealSphericalHarmonicsAll:
         assert vals.shape == (9,)
 
     def test_matches_individual(self) -> None:
-        """Verify batch results match individual ``real_spherical_harmonic`` calls.
+        """Verify batch results match individual harmonic calls.
 
         The test evaluates both interfaces at ``theta=1.2`` and ``phi=0.7``.
         It compares each batch element with the corresponding scalar call.
@@ -341,15 +364,17 @@ class TestRealSphericalHarmonicsAll:
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the documented inputs.
+        It checks the stated property with explicit assertions.
+        """
         l: int
         m: int
 
-        theta: Array
-        phi: Array
-        vals_all: Array
+        theta: Float64[Array, ""]
+        phi: Float64[Array, ""]
+        vals_all: Float64[Array, " 9"]
         idx: int
-        val_single: Array
+        val_single: Float64[Array, ""]
 
         theta = jnp.array(1.2)
         phi = jnp.array(0.7)
@@ -360,6 +385,7 @@ class TestRealSphericalHarmonicsAll:
             for m in range(-l, l + 1):
                 val_single = real_spherical_harmonic(l, m, theta, phi)
                 assert jnp.allclose(vals_all[idx], val_single, atol=1e-12), (
-                    f"Mismatch at l={l}, m={m}: {vals_all[idx]} vs {val_single}"
+                    f"Mismatch at l={l}, m={m}: "
+                    f"{vals_all[idx]} vs {val_single}"
                 )
                 idx += 1

@@ -5,7 +5,7 @@ scientific identity in the supported certification regime.
 """
 
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, Tuple
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -16,41 +16,41 @@ from diffpes.certify import (
     lineage,
     validate_provenance,
 )
-from diffpes.types import make_transformation_record
+from diffpes.types import TransformationRecord, make_transformation_record
 
 
 def _record(
-    transformation_id: Any,
-    parents: Any,
-    outputs: Any,
+    transformation_id: str,
+    parents: Tuple[str, ...],
+    outputs: Tuple[str, ...],
     *,
-    preserves: Any = (),
-    introduces: Any = (),
-    destroys: Any = (),
-    invalidates: Any = (),
-) -> Any:
+    preserves: Tuple[str, ...] = (),
+    introduces: Tuple[str, ...] = (),
+    destroys: Tuple[str, ...] = (),
+    invalidates: Tuple[str, ...] = (),
+) -> TransformationRecord:
     """PRIVATE: Build one transformation record for provenance tests.
 
     Parameters
     ----------
-    transformation_id : Any
+    transformation_id : str
         Stable transformation identity.
-    parents : Any
+    parents : Tuple[str, ...]
         Parent artifact identities.
-    outputs : Any
+    outputs : Tuple[str, ...]
         Output artifact identities.
-    preserves : Any
+    preserves : Tuple[str, ...]
         Information keys the transformation preserves.
-    introduces : Any
+    introduces : Tuple[str, ...]
         Information keys the transformation introduces.
-    destroys : Any
+    destroys : Tuple[str, ...]
         Information keys the transformation destroys.
-    invalidates : Any
+    invalidates : Tuple[str, ...]
         Claim identities the transformation invalidates.
 
     Returns
     -------
-    record : Any
+    record : TransformationRecord
         Transformation record at version 1.0.0 with the parameters
         checksum fixed to ``none``.
 
@@ -59,7 +59,7 @@ def _record(
     Forwards each argument to the transformation-record constructor and
     fixes the version and the parameters checksum.
     """
-    return make_transformation_record(
+    record: TransformationRecord = make_transformation_record(
         transformation_id=transformation_id,
         transformation_version="1.0.0",
         parent_ids=parents,
@@ -70,6 +70,7 @@ def _record(
         invalidates_claims=invalidates,
         parameters_checksum="none",
     )
+    return record
 
 
 class TestValidateProvenance:
@@ -102,14 +103,14 @@ class TestValidateProvenance:
     def test_generated_acyclic_graphs_validate(
         self, parent_choices: Any
     ) -> None:
-        """Validate generated DAGs independently of their supplied record order.
+        """Validate generated DAGs regardless of supplied record order.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         index: Any
         choice: Any
@@ -153,7 +154,7 @@ class TestEffectiveInformation:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         amplitude: Any
         intensity: Any
@@ -221,14 +222,14 @@ class TestEffectiveInformation:
         )
 
     def test_source_record_and_multiple_outputs_are_supported(self) -> None:
-        """Allow explicit source nodes and one transformation with several outputs.
+        """Allow source nodes and transformations with several outputs.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         source: Any
         graph: Any
@@ -267,7 +268,7 @@ class TestBuildProvenance:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         first: Any
         second: Any
@@ -291,14 +292,14 @@ class TestBuildProvenance:
         assert any("cycle" in error for error in report.errors)
 
     def test_missing_parent_and_multiple_producer_are_rejected(self) -> None:
-        """Require every non-source parent and every output producer to be unique.
+        """Require unique non-source parents and output producers.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         missing: Any
         first: Any
@@ -324,7 +325,7 @@ class TestBuildProvenance:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         source: Any
         source = _record("org.diffpes.transform.test.source", (), ("result",))
@@ -348,7 +349,7 @@ class TestLineage:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         source: Any
         graph: Any
@@ -376,7 +377,7 @@ class TestInvalidatedClaims:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         record: Any
         graph: Any

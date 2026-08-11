@@ -48,7 +48,7 @@ class TestCertificateProcessFixture:
             "import sample_certificate; "
             "print(certificate_identity(sample_certificate()))"
         )
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],
             check=False,
             capture_output=True,
@@ -99,7 +99,7 @@ class TestCertificationOverheadFixture:
     def test_records_separate_warm_timings(self, record_property: Any) -> None:
         """Record finite model and certification durations independently.
 
-        The two properties must keep model time separate from orchestration time.
+        The two properties must separate model time from orchestration time.
 
         Notes
         -----

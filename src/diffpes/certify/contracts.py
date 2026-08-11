@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 from beartype import beartype
-from beartype.typing import Any, Tuple
+from beartype.typing import Any, List, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -105,7 +105,7 @@ def validate_contract(contract: TransformationContract) -> Tuple[str, ...]:
         Deterministic structural error messages, empty when valid.
     """
     exc: ValueError | TypeError
-    errors: list[str] = []
+    errors: List[str] = []
     try:
         make_transformation_contract(
             contract.transformation_id,
@@ -166,8 +166,8 @@ def validate_composition(
     current: set[str] = set(initial)
     losses: set[str] = set()
     invalidated: set[str] = set()
-    errors: list[str] = []
-    references: list[str] = []
+    errors: List[str] = []
+    references: List[str] = []
     for index, contract in enumerate(contracts):
         reference: str = (
             f"{contract.transformation_id}@{contract.transformation_version}"

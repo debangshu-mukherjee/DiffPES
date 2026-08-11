@@ -117,7 +117,9 @@ def _experiment(
 
 def _bands(
     basis: OrbitalBasis,
-    lattice: Float64[Array, "3 3"] = jnp.eye(3),
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    ),
     atom_positions: Float64[Array, "1 3"] = jnp.asarray([[0.07, 0.11, 0.13]]),
     orbital_positions: Float64[Array, "4 3"] | None = jnp.asarray(
         [
@@ -323,10 +325,14 @@ def _intensity(
 
 
 class TestRadialAndChannelGradients:
-    """Certify composed radial and photon-energy derivative gates."""
+    """Certify composed radial and photon-energy derivative checks.
+
+    The cases compare finite differences with gradients for the Slater data,
+    radial coefficients, channel coefficients, and the vacuum momentum.
+    """
 
     @pytest.mark.rss_limit_mb(1024)
-    def test_d1_slater_exponents_and_coefficients(self) -> None:
+    def test_slater_exponents_and_coefficients(self) -> None:
         """Match autodiff for normalized multi-zeta intensity.
 
         The composition includes radial quadrature, orbital assembly, generic
@@ -382,7 +388,7 @@ class TestRadialAndChannelGradients:
         assert_nonzero_grad(loss, initial, elementwise=True)
 
     @pytest.mark.rss_limit_mb(768)
-    def test_d2_photon_energy_to_explicit_vacuum_momentum(self) -> None:
+    def test_photon_energy_to_explicit_vacuum_momentum(self) -> None:
         """Match derivatives through energy conservation and vacuum momentum.
 
         The inner potential remains absent from the fixed-vacuum assembly
@@ -390,7 +396,8 @@ class TestRadialAndChannelGradients:
 
         Notes
         -----
-        Apply the shared harness away from threshold and assert the exact V0 zero.
+        Apply the shared harness away from threshold and assert the exact V0
+        zero.
         """
         basis: OrbitalBasis = _basis()
         bands: DiagonalizedBands = _bands(basis)
@@ -469,9 +476,13 @@ class TestRadialAndChannelGradients:
 
 
 class TestProjectionAndPolarizationGradients:
-    """Certify optical, centre, attenuation, and phase derivatives."""
+    """Certify optical, centre, attenuation, and phase derivatives.
 
-    def test_d3_complex_polarization_real_view_and_azimuth(self) -> None:
+    The cases perturb the polarization, lattice, orbital centres, attenuation,
+    and compact phase coordinates through the composed matrix element.
+    """
+
+    def test_complex_polarization_real_view_and_azimuth(self) -> None:
         """Match derivatives on generic complex optical coordinates.
 
         Four stacked real quadratures construct the transverse laboratory
@@ -479,7 +490,8 @@ class TestProjectionAndPolarizationGradients:
 
         Notes
         -----
-        Apply the shared forward/reverse and central-FD harness to the real view.
+        Apply the shared forward/reverse and central-FD harness to the real
+        view.
         """
         channels: Complex128[Array, "1 1 4 3"] = _generic_channels()
         initial: Float64[Array, " 5"] = jnp.asarray(
@@ -505,7 +517,7 @@ class TestProjectionAndPolarizationGradients:
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
         assert_nonzero_grad(loss, initial, elementwise=True)
 
-    def test_d4_fractional_centres_and_lattice(self) -> None:
+    def test_fractional_centres_and_lattice(self) -> None:
         """Match derivatives through explicit and atom-fallback centre maps.
 
         Both carrier routes apply one fractional-to-Cartesian lattice product
@@ -513,7 +525,8 @@ class TestProjectionAndPolarizationGradients:
 
         Notes
         -----
-        Check both routes with the shared harness and pin translation JVP analytically.
+        Check both routes with the shared harness and pin translation JVP
+        analytically.
         """
         basis: OrbitalBasis = _basis()
         centre: Float64[Array, "4 3"] = jnp.asarray(
@@ -621,7 +634,7 @@ class TestProjectionAndPolarizationGradients:
             atol=1.0e-12,
         )
 
-    def test_d5_nonzero_depth_attenuation(self) -> None:
+    def test_nonzero_depth_attenuation(self) -> None:
         """Match mean-free-path sensitivity at positive depths.
 
         The fixture has several distinct nonzero depths, so attenuation must
@@ -644,7 +657,7 @@ class TestProjectionAndPolarizationGradients:
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
         assert_nonzero_grad(loss, initial, elementwise=True)
 
-    def test_d6_compact_physical_phase_coordinates(self) -> None:
+    def test_compact_physical_phase_coordinates(self) -> None:
         """Match derivatives for every compact physical channel phase.
 
         Generic radial values, centres, eigenvectors, and polarization expose
@@ -669,17 +682,22 @@ class TestProjectionAndPolarizationGradients:
 
 
 class TestIntensityAndGroupWeightGradients:
-    """Certify holomorphic centre phases and complex band derivatives."""
+    """Certify holomorphic centre phases and complex band derivatives.
 
-    def test_d7_holomorphic_centre_phase(self) -> None:
-        """Match intensity derivatives with analytic, JVP, FD, and high-precision truths.
+    The cases compare finite differences with the centre-phase gradient and
+    with real views of generic complex band and group-weight directions.
+    """
+
+    def test_holomorphic_centre_phase(self) -> None:
+        """Match intensity derivatives to four independent truths.
 
         A non-real baseline forbids a subtract-free imaginary-step shortcut
         and exercises the actual production centre-phase sub-block.
 
         Notes
         -----
-        Apply the shared scalar harness and compare complex directional derivatives.
+        Apply the shared scalar harness and compare complex directional
+        derivatives.
         """
         direction: Float64[Array, " 3"] = jnp.asarray([0.13, -0.17, 0.09])
         positions: Float64[Array, "4 3"] = jnp.asarray(
@@ -755,7 +773,7 @@ class TestIntensityAndGroupWeightGradients:
             atol=1.0e-12,
         )
 
-    def test_d8_generic_eigenvectors_and_group_directions(self) -> None:
+    def test_generic_eigenvectors_and_group_directions(self) -> None:
         """Match raw-band derivatives and complete-group JVPs.
 
         The nondegenerate input populates both complex quadratures. Separate
@@ -763,7 +781,8 @@ class TestIntensityAndGroupWeightGradients:
 
         Notes
         -----
-        Apply both harness modes, then require exact first-order group covariance.
+        Apply both harness modes, then require exact first-order group
+        covariance.
         """
         channels: Complex128[Array, "1 1 4 3"] = _generic_channels()
         experiment: ExperimentGeometry = _experiment()
@@ -827,12 +846,30 @@ class TestIntensityAndGroupWeightGradients:
                 None, ...
             ]
 
-            def group_weight(
+            def _group_weight(
                 candidate: Complex128[Array, "1 n_group 4"],
+                transition_channels: Complex128[Array, "1 1 4 3"] = transition,
             ) -> Float64[Array, ""]:
-                """Return one complete unresolved-spin group weight."""
+                """PRIVATE: Return a complete unresolved-spin group weight.
+
+                Parameters
+                ----------
+                candidate : Complex128[Array, "1 n_group 4"]
+                    Candidate eigenvectors for the unresolved group.
+                transition_channels : Complex128[Array, "1 1 4 3"]
+                    Fixed orbital transition channels.
+
+                Returns
+                -------
+                value : Float64[Array, ""]
+                    Summed group intensity.
+
+                Notes
+                -----
+                Projects every candidate band before contracting polarization.
+                """
                 band_channels: Complex128[Array, "1 n_group 1 3"] = (
-                    project_band_channels(transition, candidate)
+                    project_band_channels(transition_channels, candidate)
                 )
                 amplitudes: Complex128[Array, "1 n_group 1"] = (
                     contract_experiment_polarization(
@@ -846,7 +883,7 @@ class TestIntensityAndGroupWeightGradients:
                 return value
 
             derivative: Float64[Array, ""] = jax.jvp(
-                group_weight,
+                _group_weight,
                 (rows,),
                 (tangent,),
             )[1]

@@ -1,4 +1,4 @@
-"""Measure the literal Plan-07 streamed spectral scalability gates on CPU.
+"""Measure literal streamed spectral scalability on CPU.
 
 The isolated harness lowers and compiles the preregistered
 ``(256 k, 512 omega, 32 orbital)`` checkpointed value-and-Hamiltonian-gradient
@@ -19,30 +19,32 @@ import resource
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, Int64
 
 from diffpes.simul.spectral import (
     _resolvent_solution,
     _stream_spectral_intensity,
     _transition_sources_for_block,
-    _TransitionSourceSchedule,
     assemble_spectral_intensity_chunk,
     spectral_intensity_resolvent,
 )
 from diffpes.types import (
+    OrbitalBasis,
+    RadialSpec,
     SelfEnergyModel,
+    TransitionSourceSchedule,
     make_final_state_spec,
     make_matrix_element_params,
     make_orbital_basis,
     make_radial_quadrature_spec,
     make_radial_spec,
     make_self_energy_model,
+    make_transition_source_schedule,
 )
 
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -68,6 +70,7 @@ REFERENCE_K_CHUNK: int = 2
 REFERENCE_OMEGA_CHUNK: int = 4
 N_KK: int = 4096
 N_TAIL: int = 256
+GRADIENT_SENSITIVITY_MINIMUM: float = 1.0e-8
 COMPLEX128_BYTES: int = 16
 FLOAT64_BYTES: int = 8
 BOOL_BYTES: int = 1
@@ -82,7 +85,8 @@ def _sha256(path: Path) -> str:
     Binary reads make the recorded identity independent of text decoding and
     newline normalization.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _maximum_rss_bytes() -> int:
@@ -93,7 +97,10 @@ def _maximum_rss_bytes() -> int:
     Linux reports ``ru_maxrss`` in kibibytes. The benchmark converts that
     diagnostic value to bytes without treating it as allocation authority.
     """
-    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+    maximum_rss: int = (
+        int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+    )
+    return maximum_rss
 
 
 def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
@@ -106,7 +113,7 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
 
     Returns
     -------
-    record : dict[str, int | bool | str]
+    record : Dict[str, int | bool | str]
         Backend counters and the derived compiler-live allocation.
     """
     analysis: Any = compiled.memory_analysis()
@@ -119,16 +126,17 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
     if analysis is None or any(
         getattr(analysis, name, None) is None for name in required
     ):
-        return {
+        record: Dict[str, int | bool | str] = {
             "authority_available": False,
             "result": "residual: XLA memory_analysis unavailable",
         }
+        return record
     arguments: int = int(analysis.argument_size_in_bytes)
     outputs: int = int(analysis.output_size_in_bytes)
     temporaries: int = int(analysis.temp_size_in_bytes)
     aliases: int = int(analysis.alias_size_in_bytes)
     live: int = arguments + outputs + temporaries - aliases
-    return {
+    record: Dict[str, int | bool | str] = {
         "authority_available": True,
         "argument_size_bytes": arguments,
         "output_size_bytes": outputs,
@@ -137,6 +145,7 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
         "compiler_live_allocation_bytes": live,
         "result": "measured",
     }
+    return record
 
 
 def _allocation_model(
@@ -163,18 +172,18 @@ def _allocation_model(
 
     Returns
     -------
-    model : dict[str, int | float]
+    model : Dict[str, int | float]
         The registered solve-tape estimate and 1.5-times ceiling plus
         diagnostic kinematic, block-source, and matrix-free-KK byte terms.
 
     Notes
     -----
-    The blocking S1 criterion remains exactly
+    The blocking forward-allocation criterion remains exactly
     ``16 * n_k * omega_chunk * n_orb**2`` and its registered ``1.5x``
     ceiling. Other terms explain the measured executable but do not enlarge
-    that acceptance ceiling after observation. The kinematics diagnostic is
-    the compact ``k_i[K,3] + final_norm[E] + energy_valid[E]`` carrier; final
-    momenta are reconstructed only inside a live block.
+    that acceptance ceiling after observation. Use the compact
+    ``k_i[K,3] + final_norm[E] + energy_valid[E]`` carrier for kinematics.
+    Reconstruct final momenta only inside a live block.
     """
     solve_tape: int = COMPLEX128_BYTES * n_k * omega_chunk * n_orb**2
     ceiling: int = int(BOUND_FACTOR * solve_tape)
@@ -193,7 +202,7 @@ def _allocation_model(
         + BOOL_BYTES * (n_k + n_omega)
         + FLOAT64_BYTES * n_k * n_omega
     )
-    return {
+    model: Dict[str, int | float] = {
         "registered_solve_tape_bytes": solve_tape,
         "registered_factor": BOUND_FACTOR,
         "registered_ceiling_bytes": ceiling,
@@ -204,6 +213,7 @@ def _allocation_model(
         "block_transition_sources_bytes_diagnostic": block_sources,
         "matrix_free_kk_work_bytes_diagnostic": kk_work,
     }
+    return model
 
 
 def _self_energy(*, numerical_kk: bool) -> SelfEnergyModel:
@@ -215,10 +225,11 @@ def _self_energy(*, numerical_kk: bool) -> SelfEnergyModel:
     small comparison and trace checks use the constant-width carrier.
     """
     if not numerical_kk:
-        return make_self_energy_model(gamma=0.04)
+        model: SelfEnergyModel = make_self_energy_model(gamma=0.04)
+        return model
     physical: Float64[Array, " three"] = jnp.asarray([0.02, 0.5, 0.8])
     raw: Float64[Array, " three"] = jnp.log(jnp.expm1(physical))
-    return make_self_energy_model(
+    model = make_self_energy_model(
         coefficients=raw,
         mode="fermi_liquid",
         kk_consistent=True,
@@ -229,6 +240,7 @@ def _self_energy(*, numerical_kk: bool) -> SelfEnergyModel:
         subtraction_point_rel_fermi_ev=0.0,
         tail_mode="power2",
     )
+    return model
 
 
 def _fixture(
@@ -240,9 +252,9 @@ def _fixture(
 ) -> Tuple[
     Complex128[Array, "n_k n_orb n_orb"],
     Float64[Array, " n_omega"],
-    Array,
-    Array,
-    _TransitionSourceSchedule,
+    Bool[Array, " n_k"],
+    Bool[Array, " n_omega"],
+    TransitionSourceSchedule,
     SelfEnergyModel,
 ]:
     """PRIVATE: Construct one deterministic padded source schedule.
@@ -253,8 +265,8 @@ def _fixture(
     channel, and a selectable self-energy cost profile.
     """
     diagonal: Float64[Array, " n_orb"] = jnp.linspace(-0.35, 0.4, n_orb)
-    row: Array = jnp.arange(n_orb)[:, None]
-    column: Array = jnp.arange(n_orb)[None, :]
+    row: Int64[Array, "n_orb 1"] = jnp.arange(n_orb)[:, None]
+    column: Int64[Array, "1 n_orb"] = jnp.arange(n_orb)[None, :]
     off_diagonal: Complex128[Array, "n_orb n_orb"] = jnp.where(
         jnp.abs(row - column) == 1,
         0.012 + 0.007j * jnp.sign(column - row),
@@ -281,14 +293,14 @@ def _fixture(
     final_norm: Float64[Array, " n_omega"] = 1.0 + 2.0e-4 * jnp.arange(
         n_omega, dtype=jnp.float64
     )
-    basis: Any = make_orbital_basis(
+    basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,) * n_orb,
         n=(1,) * n_orb,
         l=(0,) * n_orb,
         m=(0,) * n_orb,
     )
     shell_index: Tuple[int, ...] = (0,) * n_orb
-    radial: Any = make_radial_spec(
+    radial: RadialSpec = make_radial_spec(
         basis,
         shell_index,
         mode="fixed",
@@ -302,7 +314,7 @@ def _fixture(
         ),
         axis=-1,
     )
-    schedule: _TransitionSourceSchedule = _TransitionSourceSchedule(
+    schedule: TransitionSourceSchedule = make_transition_source_schedule(
         k_i_cart=k_i,
         final_norm=final_norm,
         emission_energy_valid=jnp.ones(n_omega, dtype=jnp.bool_),
@@ -317,22 +329,33 @@ def _fixture(
         quadrature=make_radial_quadrature_spec(),
         final_state=make_final_state_spec(),
     )
-    return (
+    k_valid: Bool[Array, " n_k"] = jnp.ones(n_k, dtype=jnp.bool_)
+    omega_valid: Bool[Array, " n_omega"] = jnp.ones(n_omega, dtype=jnp.bool_)
+    model: SelfEnergyModel = _self_energy(numerical_kk=numerical_kk)
+    fixture: Tuple[
+        Complex128[Array, "n_k n_orb n_orb"],
+        Float64[Array, " n_omega"],
+        Bool[Array, " n_k"],
+        Bool[Array, " n_omega"],
+        TransitionSourceSchedule,
+        SelfEnergyModel,
+    ] = (
         hamiltonians,
         omega,
-        jnp.ones(n_k, dtype=jnp.bool_),
-        jnp.ones(n_omega, dtype=jnp.bool_),
+        k_valid,
+        omega_valid,
         schedule,
-        _self_energy(numerical_kk=numerical_kk),
+        model,
     )
+    return fixture
 
 
 def _stream_call(
     hamiltonians: Complex128[Array, "n_k n_orb n_orb"],
     omega: Float64[Array, " n_omega"],
-    k_valid: Array,
-    omega_valid: Array,
-    schedule: _TransitionSourceSchedule,
+    k_valid: Bool[Array, " n_k"],
+    omega_valid: Bool[Array, " n_omega"],
+    schedule: TransitionSourceSchedule,
     model: SelfEnergyModel,
     *,
     k_chunk: int,
@@ -346,7 +369,7 @@ def _stream_call(
     Shared thermodynamic coordinates keep the benchmark focused on chunking,
     rematerialization, and the Hamiltonian derivative tape.
     """
-    return _stream_spectral_intensity(
+    intensity: Float64[Array, "n_k n_omega"] = _stream_spectral_intensity(
         hamiltonians,
         omega,
         k_valid,
@@ -360,6 +383,7 @@ def _stream_call(
         omega_chunk=omega_chunk,
         checkpoint=checkpoint,
     )
+    return intensity
 
 
 def _reference_comparison() -> Dict[str, float | bool]:
@@ -370,6 +394,12 @@ def _reference_comparison() -> Dict[str, float | bool]:
     The record includes maximum value and Hamiltonian-gradient errors plus a
     nonzero-gradient witness for the small executable companion.
     """
+    hamiltonians: Complex128[Array, "n_k n_orb n_orb"]
+    omega: Float64[Array, " n_omega"]
+    k_valid: Bool[Array, " n_k"]
+    omega_valid: Bool[Array, " n_omega"]
+    schedule: TransitionSourceSchedule
+    model: SelfEnergyModel
     hamiltonians, omega, k_valid, omega_valid, schedule, model = _fixture(
         REFERENCE_N_K,
         REFERENCE_N_OMEGA,
@@ -382,10 +412,12 @@ def _reference_comparison() -> Dict[str, float | bool]:
     normal_sq: Float64[Array, "n_k n_omega"] = (
         schedule.final_norm[None, :] ** 2 - parallel_sq[:, None]
     )
-    emission_valid: Array = schedule.emission_energy_valid[None, :] & (
-        normal_sq > 0.0
+    emission_valid: Bool[Array, "1 n_omega"] = schedule.emission_energy_valid[
+        None, :
+    ] & (normal_sq > 0.0)
+    mask: Bool[Array, "n_k n_omega"] = (
+        k_valid[:, None] & omega_valid[None, :] & emission_valid
     )
-    mask: Array = k_valid[:, None] & omega_valid[None, :] & emission_valid
     safe_normal_sq: Float64[Array, "n_k n_omega"] = jnp.where(
         mask, normal_sq, 1.0
     )
@@ -404,7 +436,23 @@ def _reference_comparison() -> Dict[str, float | bool]:
     def stream_values(
         candidate: Complex128[Array, "n_k n_orb n_orb"],
     ) -> Float64[Array, "n_k n_omega"]:
-        return _stream_call(
+        """Compute checkpointed streamed intensity values.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "n_k n_orb n_orb"]
+            Explicit Hamiltonian raster in eV.
+
+        Returns
+        -------
+        values : Float64[Array, "n_k n_omega"]
+            Streamed spectral intensity values.
+
+        Notes
+        -----
+        The closure fixes the registered small comparison schedule.
+        """
+        values: Float64[Array, "n_k n_omega"] = _stream_call(
             candidate,
             omega,
             k_valid,
@@ -415,6 +463,7 @@ def _reference_comparison() -> Dict[str, float | bool]:
             omega_chunk=REFERENCE_OMEGA_CHUNK,
             checkpoint=True,
         )
+        return values
 
     sources: Complex128[Array, "n_k n_omega one n_orb"] = (
         _transition_sources_for_block(
@@ -428,6 +477,22 @@ def _reference_comparison() -> Dict[str, float | bool]:
     def direct_values(
         candidate: Complex128[Array, "n_k n_orb n_orb"],
     ) -> Float64[Array, "n_k n_omega"]:
+        """Compute direct unchunked intensity values.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "n_k n_orb n_orb"]
+            Explicit Hamiltonian raster in eV.
+
+        Returns
+        -------
+        masked_values : Float64[Array, "n_k n_omega"]
+            Direct spectral intensity values on valid coordinates.
+
+        Notes
+        -----
+        The function assembles the same transition sources without streaming.
+        """
         values: Float64[Array, "n_k n_omega"] = (
             assemble_spectral_intensity_chunk(
                 candidate,
@@ -439,7 +504,10 @@ def _reference_comparison() -> Dict[str, float | bool]:
                 1.0e-4,
             )
         )
-        return jnp.where(mask, values, 0.0)
+        masked_values: Float64[Array, "n_k n_omega"] = jnp.where(
+            mask, values, 0.0
+        )
+        return masked_values
 
     streamed: Float64[Array, "n_k n_omega"] = stream_values(hamiltonians)
     direct: Float64[Array, "n_k n_omega"] = direct_values(hamiltonians)
@@ -455,7 +523,7 @@ def _reference_comparison() -> Dict[str, float | bool]:
     )
     value_scale: float = float(jnp.max(jnp.abs(direct)))
     gradient_scale: float = float(jnp.max(jnp.abs(direct_gradient)))
-    return {
+    record: Dict[str, float | bool] = {
         "maximum_value_absolute_error": value_error,
         "maximum_gradient_absolute_error": gradient_error,
         "maximum_reference_value": value_scale,
@@ -464,34 +532,70 @@ def _reference_comparison() -> Dict[str, float | bool]:
         <= 1.0e-12 * max(1.0, value_scale),
         "gradient_passes_rtol_1e_12": gradient_error
         <= 1.0e-12 * max(1.0, gradient_scale),
-        "nonzero_gradient": gradient_scale > 1.0e-8,
+        "nonzero_gradient": gradient_scale > GRADIENT_SENSITIVITY_MINIMUM,
     }
+    return record
 
 
 def _compile_count() -> Dict[str, Any]:
-    """PRIVATE: Count traces across active sizes on one padded schedule.
+    """PRIVATE: Measure traces across active sizes on one padded schedule.
 
     Notes
     -----
     Only validity masks change between calls. Stable shapes and static chunk
     sizes must retain one compiled executable.
     """
-    hamiltonians, omega, _, _, schedule, model = _fixture(
+    hamiltonians: Complex128[Array, "n_k n_orb n_orb"]
+    omega: Float64[Array, " n_omega"]
+    ignored_k_valid: Bool[Array, " n_k"]
+    ignored_omega_valid: Bool[Array, " n_omega"]
+    schedule: TransitionSourceSchedule
+    model: SelfEnergyModel
+    (
+        hamiltonians,
+        omega,
+        ignored_k_valid,
+        ignored_omega_valid,
+        schedule,
+        model,
+    ) = _fixture(
         REFERENCE_N_K,
         REFERENCE_N_OMEGA,
         REFERENCE_N_ORB,
         numerical_kk=False,
     )
-    traces: list[int] = [0]
+    traces: List[int] = [0]
 
     def scheduled(
         matrices: Complex128[Array, "n_k n_orb n_orb"],
         energies: Float64[Array, " n_omega"],
-        valid_k: Array,
-        valid_omega: Array,
+        valid_k: Bool[Array, " n_k"],
+        valid_omega: Bool[Array, " n_omega"],
     ) -> Float64[Array, "n_k n_omega"]:
+        """Compute one masked streamed schedule and count its trace.
+
+        Parameters
+        ----------
+        matrices : Complex128[Array, "n_k n_orb n_orb"]
+            Explicit Hamiltonian raster in eV.
+        energies : Float64[Array, " n_omega"]
+            Sampled relative-energy axis in eV.
+        valid_k : Bool[Array, " n_k"]
+            Validity mask for momentum points.
+        valid_omega : Bool[Array, " n_omega"]
+            Validity mask for energy samples.
+
+        Returns
+        -------
+        values : Float64[Array, "n_k n_omega"]
+            Streamed spectral intensity values.
+
+        Notes
+        -----
+        The Python counter increments only during tracing.
+        """
         traces[0] += 1
-        return _stream_call(
+        values: Float64[Array, "n_k n_omega"] = _stream_call(
             matrices,
             energies,
             valid_k,
@@ -502,14 +606,15 @@ def _compile_count() -> Dict[str, Any]:
             omega_chunk=REFERENCE_OMEGA_CHUNK,
             checkpoint=True,
         )
+        return values
 
     compiled: Any = jax.jit(scheduled)
     active_sizes: Tuple[Tuple[int, int], ...] = ((2, 4), (3, 6), (4, 8))
-    cache_sizes: list[int] = [int(compiled._cache_size())]
+    cache_sizes: List[int] = [int(compiled._cache_size())]
     active_k: int
     active_omega: int
     for active_k, active_omega in active_sizes:
-        result: Array = compiled(
+        result: Float64[Array, "n_k n_omega"] = compiled(
             hamiltonians,
             omega,
             jnp.arange(REFERENCE_N_K) < active_k,
@@ -517,7 +622,7 @@ def _compile_count() -> Dict[str, Any]:
         )
         jax.block_until_ready(result)
         cache_sizes.append(int(compiled._cache_size()))
-    return {
+    record: Dict[str, Any] = {
         "padded_shape": [REFERENCE_N_K, REFERENCE_N_OMEGA, REFERENCE_N_ORB],
         "n_out": 1,
         "chunk_schedule": [REFERENCE_K_CHUNK, REFERENCE_OMEGA_CHUNK],
@@ -528,6 +633,7 @@ def _compile_count() -> Dict[str, Any]:
         if traces[0] == 1 and cache_sizes == [0, 1, 1, 1]
         else "fail",
     }
+    return record
 
 
 def _dtype_record() -> Dict[str, Any]:
@@ -554,10 +660,13 @@ def _dtype_record() -> Dict[str, Any]:
         hamiltonian, source, omega, sigma, eta
     )
     compiler_text: str = lowered.as_text()
-    solution: Array = lowered.compile()(hamiltonian, source, omega, sigma, eta)
+    solution: Complex128[Array, " 2"] = lowered.compile()(
+        hamiltonian, source, omega, sigma, eta
+    )
     jax.block_until_ready(solution)
     rejected: bool = False
     exception_type: str = ""
+    error: Exception
     try:
         spectral_intensity_resolvent(
             hamiltonian.astype(jnp.complex64),
@@ -569,7 +678,7 @@ def _dtype_record() -> Dict[str, Any]:
     except Exception as error:  # noqa: BLE001 -- record the guard owner.
         rejected = True
         exception_type = type(error).__name__
-    return {
+    record: Dict[str, Any] = {
         "operator_input_dtype": str(hamiltonian.dtype),
         "rhs_input_dtype": str(source.dtype),
         "solution_dtype": str(solution.dtype),
@@ -584,17 +693,30 @@ def _dtype_record() -> Dict[str, Any]:
         and rejected
         else "fail",
     }
+    return record
 
 
 def main() -> None:
-    """Compile the literal target and write the complete S1--S3 record."""
-    parser = argparse.ArgumentParser()
+    """Compile the literal target and write the scalability record.
+
+    Notes
+    -----
+    The command compiles the registered value-and-gradient target. It executes
+    that target only when the caller supplies ``--execute-target``.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser()
     parser.add_argument(
         "--execute-target",
         action="store_true",
         help="also execute the 256x512x32 value-and-gradient program once",
     )
-    arguments = parser.parse_args()
+    arguments: argparse.Namespace = parser.parse_args()
+    hamiltonians: Complex128[Array, "n_k n_orb n_orb"]
+    omega: Float64[Array, " n_omega"]
+    k_valid: Bool[Array, " n_k"]
+    omega_valid: Bool[Array, " n_omega"]
+    schedule: TransitionSourceSchedule
+    model: SelfEnergyModel
     hamiltonians, omega, k_valid, omega_valid, schedule, model = _fixture(
         TARGET_N_K,
         TARGET_N_OMEGA,
@@ -605,11 +727,35 @@ def main() -> None:
     def loss(
         candidate: Complex128[Array, "n_k n_orb n_orb"],
         energies: Float64[Array, " n_omega"],
-        valid_k: Array,
-        valid_omega: Array,
-        source_schedule: _TransitionSourceSchedule,
+        valid_k: Bool[Array, " n_k"],
+        valid_omega: Bool[Array, " n_omega"],
+        source_schedule: TransitionSourceSchedule,
     ) -> Float64[Array, ""]:
-        return jnp.sum(
+        """Compute the scalar streamed intensity loss.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "n_k n_orb n_orb"]
+            Explicit Hamiltonian raster in eV.
+        energies : Float64[Array, " n_omega"]
+            Sampled relative-energy axis in eV.
+        valid_k : Bool[Array, " n_k"]
+            Validity mask for momentum points.
+        valid_omega : Bool[Array, " n_omega"]
+            Validity mask for energy samples.
+        source_schedule : TransitionSourceSchedule
+            Padded schedule for transition-source assembly.
+
+        Returns
+        -------
+        value : Float64[Array, ""]
+            Sum of all streamed spectral intensity values.
+
+        Notes
+        -----
+        The closure fixes the self-energy model and static chunk dimensions.
+        """
+        value: Float64[Array, ""] = jnp.sum(
             _stream_call(
                 candidate,
                 energies,
@@ -622,6 +768,7 @@ def main() -> None:
                 checkpoint=True,
             )
         )
+        return value
 
     compiled_function: Any = jax.jit(jax.value_and_grad(loss))
     rss_before: int = _maximum_rss_bytes()
@@ -667,6 +814,7 @@ def main() -> None:
         "src/diffpes/radial/integrate.py",
         "src/diffpes/types/radial_params.py",
         "src/diffpes/types/self_energy.py",
+        "src/diffpes/types/spectral.py",
         "pyproject.toml",
         "uv.lock",
     )
@@ -675,7 +823,11 @@ def main() -> None:
     dtype: Dict[str, Any] = _dtype_record()
     record: Dict[str, Any] = {
         "schema": "diffpes.spectral-scalability.v1",
-        "gate_ids": ["07.S1", "07.S2", "07.S3"],
+        "requirements": [
+            "streamed-forward-memory",
+            "rematerialized-gradient-memory",
+            "fixed-shape-trace-reuse",
+        ],
         "backend": jax.default_backend(),
         "device": str(jax.devices()[0]),
         "platform": platform.platform(),
@@ -690,7 +842,7 @@ def main() -> None:
             relative: _sha256(REPOSITORY_ROOT / relative)
             for relative in source_paths
         },
-        "s1_literal_target": {
+        "literal_streaming_target": {
             "n_k_max": TARGET_N_K,
             "n_omega_max": TARGET_N_OMEGA,
             "n_orb": TARGET_N_ORB,
@@ -710,9 +862,9 @@ def main() -> None:
             "process_peak_rss_before_bytes_non_authoritative": rss_before,
             "process_peak_rss_after_bytes_non_authoritative": rss_after,
         },
-        "s1_reference_comparison": reference,
-        "s2_compile_count": compile_count,
-        "s3_dtype": dtype,
+        "reference_comparison": reference,
+        "compile_reuse": compile_count,
+        "complex128_dtype": dtype,
         "result": "pass"
         if memory_passes
         and all(

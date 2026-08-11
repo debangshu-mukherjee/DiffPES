@@ -74,8 +74,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Callable, Dict, Tuple
-from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
+from beartype.typing import Callable, Dict, List, Tuple, Union
+from jaxtyping import Array, Bool, Complex128, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.maths import channel_tables, polarization_cart_to_real
@@ -253,14 +253,20 @@ def _active_parameter_tree(
     radial: RadialSpec,
     me_params: MatrixElementParams,
     mean_free_path_ang: Float64[Array, ""],
-) -> Dict[str, Array]:
+) -> Dict[
+    str,
+    Union[Float64[Array, "..."], Complex128[Array, "..."]],
+]:
     """PRIVATE: Collect the mode-active matrix-element parameter leaves.
 
     Notes
     -----
     The mode string selects which leaves stay active.
     """
-    active: Dict[str, Array] = {}
+    active: Dict[
+        str,
+        Union[Float64[Array, "..."], Complex128[Array, "..."]],
+    ] = {}
     if radial.mode == "slater":
         active["zeta_shell"] = radial.zeta_shell
         active["coefficients_shell"] = radial.coefficients_shell
@@ -276,7 +282,10 @@ def _active_parameter_tree(
 
 
 def _pack_active_tree(
-    active: Dict[str, Array],
+    active: Dict[
+        str,
+        Union[Float64[Array, "..."], Complex128[Array, "..."]],
+    ],
 ) -> Tuple[
     Float64[Array, " n_theta"],
     PyTreeDef,
@@ -288,12 +297,12 @@ def _pack_active_tree(
     -----
     The packing stacks real and imaginary parts as one vector.
     """
-    leaves: list[Array]
+    leaves: List[Union[Float64[Array, "..."], Complex128[Array, "..."]]]
     tree_definition: PyTreeDef
     leaves, tree_definition = jax.tree_util.tree_flatten(active)
-    packed_leaves: list[Float64[Array, " n_leaf"]] = []
-    metadata: list[Tuple[Tuple[int, ...], bool]] = []
-    leaf: Array
+    packed_leaves: List[Float64[Array, " n_leaf"]] = []
+    metadata: List[Tuple[Tuple[int, ...], bool]] = []
+    leaf: Union[Float64[Array, "..."], Complex128[Array, "..."]]
     for leaf in leaves:
         is_complex: bool = bool(jnp.iscomplexobj(leaf))
         shape: Tuple[int, ...] = tuple(leaf.shape)
@@ -423,7 +432,10 @@ def pack_matrixel_params(
     if mean_free_path_ang.ndim != 0:
         message = "mean_free_path_ang must be scalar"
         raise ValueError(message)
-    active: Dict[str, Array] = _active_parameter_tree(
+    active: Dict[
+        str,
+        Union[Float64[Array, "..."], Complex128[Array, "..."]],
+    ] = _active_parameter_tree(
         radial,
         me_params,
         mean_free_path_ang,
@@ -492,7 +504,7 @@ def unpack_matrixel_params(
     if tree_definition.num_leaves != len(packing_metadata):
         message = "packing metadata must match the parameter tree"
         raise ValueError(message)
-    leaves: list[Array] = []
+    leaves: List[Union[Float64[Array, "..."], Complex128[Array, "..."]]] = []
     offset: int = 0
     shape: Tuple[int, ...]
     is_complex: bool
@@ -504,7 +516,7 @@ def unpack_matrixel_params(
             message = "flat vector is shorter than its packing metadata"
             raise ValueError(message)
         packed_leaf: Float64[Array, " n_leaf"] = flat[offset:next_offset]
-        leaf: Array = (
+        leaf: Union[Float64[Array, "..."], Complex128[Array, "..."]] = (
             unpack_complex(packed_leaf.reshape(shape + (2,)))
             if is_complex
             else packed_leaf.reshape(shape)
@@ -514,7 +526,10 @@ def unpack_matrixel_params(
     if offset != flat.shape[0]:
         message = "flat vector is longer than its packing metadata"
         raise ValueError(message)
-    active: Dict[str, Array] = jax.tree_util.tree_unflatten(
+    active: Dict[
+        str,
+        Union[Float64[Array, "..."], Complex128[Array, "..."]],
+    ] = jax.tree_util.tree_unflatten(
         tree_definition,
         leaves,
     )
@@ -659,7 +674,7 @@ def radial_coefficient_scale_gauge_directions(
             dtype=jnp.float64,
         )
         return directions
-    tangents: list[Float64[Array, " n_theta"]] = []
+    tangents: List[Float64[Array, " n_theta"]] = []
     shell: int
     for shell in range(radial.coefficients_shell.shape[0]):
         displaced_coefficients: Float64[Array, "n_shell n_contraction"] = (
@@ -890,7 +905,7 @@ def resolve_orbital_positions_cart(
     if bands.orbital_positions is not None:
         positions_fractional = bands.orbital_positions
     else:
-        atom_indices: Array = jnp.asarray(
+        atom_indices: Int32[Array, " n_orb"] = jnp.asarray(
             bands.basis.atom_indices,
             dtype=jnp.int32,
         )
@@ -962,7 +977,7 @@ def real_spherical_harmonics_cartesian_all(  # noqa: DOC503
     direction_unit: Float64[Array, "... 3"] = (
         directions / safe_norms[..., None]
     )
-    values: list[Float64[Array, " ..."]] = []
+    values: List[Float64[Array, " ..."]] = []
     degree: int
     order: int
     for degree in range(l_max + 1):
@@ -1102,7 +1117,7 @@ def orbital_transition_channels(  # noqa: DOC503
     depth_nonnegative: Float64[Array, " n_orb"] = jnp.maximum(
         depth_values, 0.0
     )
-    shell_indices: Array = jnp.asarray(
+    shell_indices: Int32[Array, " n_orb"] = jnp.asarray(
         me_params.radial_shell_index,
         dtype=jnp.int32,
     )
@@ -1116,7 +1131,7 @@ def orbital_transition_channels(  # noqa: DOC503
         ~jnp.all(jnp.isfinite(me_params.phase_shift_angles_shell)),
         "matrix-element phase angles must be finite",
     )
-    phase_indices: Array = jnp.asarray(
+    phase_indices: Int32[Array, " n_orb"] = jnp.asarray(
         _orbital_phase_indices(me_params),
         dtype=jnp.int32,
     )

@@ -24,12 +24,12 @@ matrix-element-sensitivity
 - [Inspect and persist a certified forward run](certified-forward-model.md):
   Read bounded claims and differentiable evidence. Save canonical JSON and
   attach the same record to an HDF5 result.
-- [Geometry and kinematics](geometry-and-kinematics.ipynb): Build k-space rasters,
+- [Geometry and kinematics](geometry-and-kinematics.md): Build k-space rasters,
   detector frames, inner-potential scans, and a geometry Jacobian.
-- [Coherent tight-binding model to detector counts](coherent-detector-paper-path.ipynb):
+- [Coherent tight-binding model to detector counts](coherent-detector-paper-path.md):
   Build a coherent ARPES cube, inspect its Fermi-surface map, fit analyser
   transmission, and run the canonical native-detector count driver.
-- [Bulk kz integration and photon-energy scans](bulk-kz-and-photon-energy.ipynb):
+- [Bulk kz integration and photon-energy scans](bulk-kz-and-photon-energy.md):
   Distinguish the four out-of-plane modes, inspect wrapped-kz weights, and
   evaluate a compact bulk photon-energy map.
 - [Native tight-binding models](tight-binding-models.md): Build graphene by

@@ -38,13 +38,13 @@
 
 - Classification: independent C-type manufactured detector-chain truth
 - Single mutable generator authority:
-  `diffpes-plans/verification/detector_chain_manufactured/generate_detector_chain_manufactured_reference.py`
+  `generate_detector_chain_manufactured_reference.py`
 - Generator SHA-256:
   `9789939629293cdaa039f98cdaa9119014b3bfa7d9abad7389847c2ea1c758d6`
 - Artifact SHA-256:
   `04e41d5f0fa2fe6111718bdc039f49344f48689d74ef0783408585cac76b55c3`
 - Provenance and tolerance metadata:
-  `diffpes-plans/verification/detector_chain_manufactured/manifest.json`
+  `detector_chain_manufactured_manifest.json`
 - Metadata SHA-256:
   `e783075d4b68086582e53153587a1baf744880148d601a4edf29b26eef5f32fc`
 - Truth boundary: NumPy/SciPy only; the generator imports neither DiffPES nor
@@ -66,23 +66,24 @@
 - Generator:
   `tests/_reference_tools/generate_voigt_scipy_reference.py`
 - Generator SHA-256:
-  `0d47779b97b872c5a35f6ff970f7cb16473ef6311adde9535f6579def4ec9e23`
+  `a89e7b8755952743df96213b100b3fdafae97a26f6f5978c6aed53827104dacb`
 - Generator boundary: NumPy/SciPy only; it imports no DiffPES or JAX module
   and calls neither `voigt` nor `simulate_novice`
 - Provenance manifest: `voigt_scipy_manifest.json`
 - Provenance-manifest SHA-256:
-  `70785578cc72cc312ddf33c4b68c06da82486c0904bb83ae0aed7a72263ecfca`
+  `c1621fdace972da14145e45bfbfb8ecbae67d8c20923b845379c1c3586f37822`
 
 #### `voigt_scipy_reference.npz`
 
 - SHA-256:
-  `43b1b38836fb2cabf683423a8315b7bf2ca2c11a03cab5ec31a4ede7471c29d0`
+  `b1453e08b21da66ecc28aaa6f356deb345b495a3c68e1d0f90b671e075b82e7f`
 - Truth engines: `scipy.special.voigt_profile`, `scipy.special.wofz`,
   analytic Gaussian/Cauchy endpoints, and the Faddeeva ODE derivative
 - Evidence includes the complete positive-width table, exact endpoints,
   one-sided rates, and scaled 256-to-512 full-line normalization.
 - It also includes shared-envelope coordinates, analytic point derivatives,
-  contracted D1 truth, and three five-point finite-difference rungs.
+  contracted width-derivative truth, and three five-point finite-difference
+  rungs.
 - Archive contract: 40 named arrays, all `float64`, deterministic ZIP
   metadata, and pickle disabled
 
@@ -105,7 +106,7 @@
 - Classification: superseded pseudo-Voigt historical evidence,
   retained for provenance only; it is not a compatibility shim
 - Byte-for-byte archive of the earlier pseudo-Voigt `novice_toy.npz`; the
-  repository-floor integrity gate preserves both archives without replay
+  repository integrity check preserves both archives without replay
 
 ### `chinook_tightb_reference.json`
 
@@ -147,7 +148,7 @@
 - Generator SHA-256:
   `9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8`
 - Artifact SHA-256:
-  `afd95f0e6f26771b10e6d825f4e487f88bab0bdc5b326348d43bb6a24194d18c`
+  `13d350dca4df7061f1dcc43ed372ae07ce0e973c635c7257277a81e8ea97d788`
 - Arrays encoded as JSON numbers:
   - Γ eigenvalues: shape `(22,)`, eV
   - X = `(0.5, 0.0, 0.0)` eigenvalues: shape `(22,)`, eV
@@ -156,7 +157,7 @@
 
 - Classification: `chinook-pointwise-matrix-element-parity` and
   `chinook-polarization-intensity-parity`, K-type behavioral compatibility;
-  the analytic C checks remain authoritative
+  the analytic correctness checks remain authoritative
 - Chinook commit:
   `24913de8cc5b8c162f7c1b4acc64bd1b54dd548b`
 - Isolated-environment SHA-256:
@@ -164,7 +165,7 @@
 - Archive SHA-256:
   `9e857413fce56a3d4af45e88b040a0b85d9af0b445f240f53cb7b1de19365cb1`
 - Model-specification SHA-256:
-  `c1e6679986e8812313f4c75b9b28daa67e82c69c5707a104d4d744e69bf9c439`
+  `209f1857a5c6816502e00d415482833d9ef6d90e3e583925d485a657137fd559`
 - Pytest reconstructs current public-API amplitudes on all frozen points; it
   does not trust the saved DiffPES replay or import Chinook.
 
@@ -174,8 +175,8 @@
   local/nonlocal length-versus-momentum gauge evidence
 - Artifact SHA-256:
   `e136dfd8214cd4e1e83d11b1d20d87a8597c66e61f54636b949d3c159fc579f0`
-- The tracked code-tree copy is byte-equal to
-  external `verification/matrixel_gauge/g12_reference.npz` tooling.
+- The tracked code-tree copy is byte-equal to its external verification
+  authority.
 
 ### `yeh_lindau_authority/`
 

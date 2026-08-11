@@ -63,7 +63,7 @@ def _bulk_chain() -> TBModel:
         m=(0,),
         labels=("s",),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.asarray((-0.8, -0.8), dtype=jnp.complex128),
         onsite_energies=jnp.zeros((1,), dtype=jnp.float64),
         soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
@@ -73,10 +73,15 @@ def _bulk_chain() -> TBModel:
         hopping_cells=((0, 0, 1), (0, 0, -1)),
         shell_index=(-1,),
     )
+    return model
 
 
 class TestSlabCarrierHandoff:
-    """Certify slab metadata across persistence and projection consumers."""
+    """Certify slab metadata across persistence and projection consumers.
+
+    The case propagates depth metadata through consumers, persistence,
+    projections, and plotting views.
+    """
 
     @pytest.mark.rss_limit_mb(640)
     def test_depths_survive_consumers_and_plot_accepts_slab_views(
@@ -166,6 +171,3 @@ class TestSlabCarrierHandoff:
         )
         assert jnp.array_equal(bands.depths, expected_depths)
         plt.close(figure)
-
-
-__all__: list[str] = []

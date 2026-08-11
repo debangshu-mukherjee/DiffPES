@@ -169,6 +169,21 @@ def _upward_recurrence(
 ) -> Float64[Array, " ..."]:
     """PRIVATE: Evaluate j_l by upward recurrence.
 
+    Implementation Logic
+    --------------------
+    1. **Propagate the anchor pair**::
+
+           final_state = jax.lax.fori_loop(1, order, _step, (j0, j1))
+
+       The loop applies ``j_(l+1) = (2l+1) j_l / x - j_(l-1)``.
+       Upward recurrence is stable when ``order <= abs(x)``.
+
+    2. **Select the requested order**::
+
+           values = final_state[1]
+
+       The second state value contains :math:`j_l(x)` after the final step.
+
     Parameters
     ----------
     order : int
@@ -184,13 +199,6 @@ def _upward_recurrence(
     -------
     values : Float64[Array, " ..."]
         Spherical Bessel values :math:`j_l(x)` with the input shape.
-
-    Implementation Logic
-    --------------------
-    A :func:`jax.lax.fori_loop` applies the recurrence
-    ``j_(l+1) = (2l+1) j_l / x - j_(l-1)`` from the anchor pair
-    ``(j0, j1)`` up to ``order``.  Upward recurrence is stable when
-    ``order <= abs(x)``.
     """
 
     def _step(
@@ -243,6 +251,33 @@ def _downward_miller(
 ) -> Float64[Array, " ..."]:
     """PRIVATE: Evaluate j_l by fixed-depth downward Miller recurrence.
 
+    Implementation Logic
+    --------------------
+    1. **Choose the start order**::
+
+           start_order = order + ceil(sqrt(40 * max(order, 1))) + 12
+
+       The fixed excess order makes the downward recurrence converge.
+
+    2. **Propagate and record the target**::
+
+           miller_state = jax.lax.fori_loop(
+               0,
+               start_order,
+               _step,
+               initial_state,
+           )
+
+       The loop applies ``j_(l-1) = (2l+1) j_l / x - j_(l+1)``.
+       It records the unnormalized value at the requested order.
+
+    3. **Normalize with the stronger anchor**::
+
+           values = raw_target * scale
+
+       The scale uses the larger of the analytic ``j0`` and ``j1`` anchors.
+       A sanitized inactive denominator keeps both candidate ratios finite.
+
     Parameters
     ----------
     order : int
@@ -258,16 +293,6 @@ def _downward_miller(
     -------
     values : Float64[Array, " ..."]
         Spherical Bessel values :math:`j_l(x)` with the input shape.
-
-    Implementation Logic
-    --------------------
-    Starts at order ``order + ceil(sqrt(40 * max(order, 1))) + 12``
-    with the arbitrary seed pair ``(0, 1)``.  Iterates the downward
-    recurrence ``j_(l-1) = (2l+1) j_l / x - j_(l+1)`` to order zero
-    and records the unnormalized value at the target order.  Miller
-    normalization then rescales the recorded value with whichever
-    analytic anchor, ``j0`` or ``j1``, has the larger magnitude.  The
-    inactive ratio divides by one, so it stays finite.
     """
     start_order: int = order + math.ceil(math.sqrt(40.0 * max(order, 1))) + 12
     target_seed: Float64[Array, " ..."] = jnp.ones_like(x)

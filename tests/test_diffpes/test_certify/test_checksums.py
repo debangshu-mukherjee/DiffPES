@@ -54,7 +54,7 @@ class TestParseChecksum:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="format"):
             parse_checksum("crc32:1234")
@@ -88,7 +88,7 @@ class TestChecksumChunks:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         whole: Any
         streamed: Any
@@ -114,7 +114,7 @@ class TestChecksumChunks:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="record_kind"):
             checksum_bytes(b"value", record_kind=record_kind)
@@ -136,7 +136,7 @@ class TestChecksumBytes:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         original: Any
         changed: Any
@@ -178,14 +178,14 @@ class TestSemanticChecksum:
     """
 
     def test_semantic_and_numerical_declarations_affect_identity(self) -> None:
-        """Distinguish equal arrays with different units or precision contracts.
+        """Distinguish equal arrays with differing metadata contracts.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         value: Any
         value = jnp.array([1.0, 2.0])
@@ -213,7 +213,7 @@ class TestChecksumPytree:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         left: Any
         right: Any
@@ -243,7 +243,7 @@ class TestArtifactRef:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         normalized: Any
@@ -283,7 +283,7 @@ class TestChecksumFile:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         path = tmp_path / "artifact.bin"
@@ -311,7 +311,7 @@ class TestResultChecksum:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         value: Any
         value = jnp.asarray([1.0, 2.0])

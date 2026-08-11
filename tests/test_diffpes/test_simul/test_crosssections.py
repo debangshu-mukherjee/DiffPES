@@ -9,6 +9,7 @@ domain rejection, and orbital-basis gathering.
 import hashlib
 import json
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 import chex
@@ -17,8 +18,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Bool, Float64, Int, Int32
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Bool, Float64, Int, Int32
 from numpy.typing import NDArray
 
 from diffpes.simul import (
@@ -96,13 +97,14 @@ class TestYehLindauCrossSectionTable:
         with pytest.raises(ValueError, match="unsupported"):
             yeh_lindau_cross_section_table(1, 7, 3)
 
-    def test_manifest_authenticates_archive_domains_and_provenance(
+    def test_manifest_authenticates_archive_domains_and_provenance(  # noqa: PLR0915
         self,
     ) -> None:
         """Validate every packed domain and its numerical authority.
 
         The manifest binds the generator and all positive interpolation runs.
-        It scopes workbook replay separately from an unclaimed PDF transcription.
+        It scopes workbook replay separately from an unclaimed PDF
+        transcription.
 
         Notes
         -----
@@ -146,7 +148,7 @@ class TestYehLindauCrossSectionTable:
                 "photon_energy_ev"
             ]
             sigma: Float64[NDArray, " n_packed"] = archive["sigma_megabarn"]
-        derived_domains: Dict[str, list[list[float]]] = {}
+        derived_domains: Dict[str, List[List[float]]] = {}
         row_index: int
         key: Int[NDArray, " 3"]
         for row_index, key in enumerate(keys):
@@ -156,7 +158,7 @@ class TestYehLindauCrossSectionTable:
             positive: Bool[NDArray, " node"] = np.isfinite(
                 sigma[start:stop]
             ) & (sigma[start:stop] > 0.0)
-            intervals: list[list[float]] = []
+            intervals: List[List[float]] = []
             interval_start: int = 0
             while interval_start < positive.shape[0]:
                 if not positive[interval_start]:
@@ -180,7 +182,7 @@ class TestYehLindauCrossSectionTable:
             derived_domains[key_string] = intervals
         assert manifest["supported_domains_ev"] == derived_domains
 
-        spot_checks: list[Dict[str, Any]] = manifest[
+        spot_checks: List[Dict[str, Any]] = manifest[
             "digitisation_replay_spot_checks"
         ]
         assert len(spot_checks) >= 4
@@ -283,10 +285,15 @@ class TestYehLindauCrossSection(chex.TestCase):
         key: Tuple[int, int, int]
         values: Tuple[float, float, float]
         for key, values in expected:
-            function: Callable[[float], jax.Array] = self.variant(
-                lambda energy: yeh_lindau_cross_section(energy, *key)
+            function: Callable[[float], Float64[Array, "..."]] = self.variant(
+                partial(
+                    yeh_lindau_cross_section,
+                    atomic_number=key[0],
+                    n=key[1],
+                    l=key[2],
+                )
             )
-            actual: jax.Array = jnp.stack(
+            actual: Float64[Array, "..."] = jnp.stack(
                 tuple(function(energy) for energy in (21.2, 40.8, 80.0))
             )
             chex.assert_trees_all_close(
@@ -303,16 +310,19 @@ class TestYehLindauCrossSection(chex.TestCase):
 
         Notes
         -----
-        Compare automatic differentiation with the shared finite-difference harness.
+        Compare automatic differentiation with the shared finite-difference
+        harness.
         """
 
-        def function(energy: jax.Array) -> jax.Array:
-            result: jax.Array = yeh_lindau_cross_section(energy, 6, 2, 1)
+        def function(energy: Float64[Array, "..."]) -> Float64[Array, "..."]:
+            result: Float64[Array, "..."] = yeh_lindau_cross_section(
+                energy, 6, 2, 1
+            )
             return result
 
-        point: jax.Array = jnp.asarray(55.0, dtype=jnp.float64)
+        point: Float64[Array, ""] = jnp.asarray(55.0, dtype=jnp.float64)
         assert_grad_matches_fd(function, point, atol=1e-9)
-        gradient: jax.Array = jax.grad(function)(point)
+        gradient: Float64[Array, "..."] = jax.grad(function)(point)
         assert jnp.isfinite(gradient)
         assert abs(float(gradient)) > 1e-4
 
@@ -325,12 +335,18 @@ class TestYehLindauCrossSection(chex.TestCase):
         -----
         Query beyond carbon and at the missing Li 1s 200 eV node.
         """
-        checked: Callable[..., jax.Array] = eqx.filter_jit(
+        checked: Callable[..., Float64[Array, "..."]] = eqx.filter_jit(
             yeh_lindau_cross_section
         )
-        with pytest.raises(Exception, match="positive Yeh--Lindau intervals"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="positive Yeh--Lindau intervals",
+        ):
             checked(jnp.asarray(20_000.0), 6, 2, 1)
-        with pytest.raises(Exception, match="positive Yeh--Lindau intervals"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="positive Yeh--Lindau intervals",
+        ):
             checked(jnp.asarray(200.0), 3, 1, 0)
 
 
@@ -356,14 +372,14 @@ class TestYehLindauOrbitalWeights(chex.TestCase):
             l=(1, 1, 1),
             m=(-1, 0, 1),
         )
-        function: Callable[[float], jax.Array] = self.variant(
+        function: Callable[[float], Float64[Array, "..."]] = self.variant(
             lambda energy: yeh_lindau_orbital_weights(
                 energy,
                 basis,
                 (6, 8),
             )
         )
-        weights: jax.Array = function(40.8)
+        weights: Float64[Array, "..."] = function(40.8)
         chex.assert_shape(weights, (3,))
         chex.assert_trees_all_close(
             weights,

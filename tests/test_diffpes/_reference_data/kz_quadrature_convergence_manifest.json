@@ -1,0 +1,18 @@
+{
+  "artifact": {
+    "path_from_diffpes_root": "tests/test_diffpes/_reference_data/kz_quadrature_convergence.json",
+    "sha256": "16ecee54c5e3ef04536b937fb67f103f9141eb64f9b8a6986367928de6f7147f"
+  },
+  "classification": "inert mirror of the independent kz quadrature-convergence truth",
+  "consumer_boundary": "pytest authenticates and parses this inert record; it never imports or executes the external generator",
+  "generator": {
+    "mutable_authority_count": 1,
+    "name": "generate_kz_quadrature_convergence.py",
+    "sha256": "3658d7df5c74c0c748bf67e3f9bee5cff852a3ef5516041930993da19fe5764b"
+  },
+  "authority_artifact": {
+    "name": "kz_quadrature_convergence.json",
+    "sha256": "16ecee54c5e3ef04536b937fb67f103f9141eb64f9b8a6986367928de6f7147f"
+  },
+  "schema_version": 1
+}

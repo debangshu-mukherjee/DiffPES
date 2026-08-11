@@ -12,11 +12,10 @@ import json
 import math
 from pathlib import Path
 
-import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Any, Dict
-from jaxtyping import Bool, Complex128, Float64, Int64, Shaped
+from beartype.typing import Any, Dict, List
+from jaxtyping import Array, Bool, Complex128, Float64, Int64, Shaped
 from numpy.typing import NDArray
 
 from diffpes.simul import (
@@ -47,7 +46,7 @@ def _transition_band_channels(
     k_f_state: Float64[NDArray, "n_state 3"],
     positions_cartesian: Float64[NDArray, "n_orb 3"],
     coefficients_state: Complex128[NDArray, "n_state n_orb"],
-) -> jax.Array:
+) -> Float64[Array, "..."]:
     """PRIVATE: Build transition and band channels through public DiffPES APIs.
 
     Parameters
@@ -63,7 +62,7 @@ def _transition_band_channels(
 
     Returns
     -------
-    band_channels : jax.Array
+    band_channels : Float64[Array, "..."]
         Cartesian band transition channels for each state.
 
     Implementation Logic
@@ -85,11 +84,11 @@ def _transition_band_channels(
         basis,
         tuple(range(n_orbitals)),
     )
-    bvals: jax.Array = jnp.broadcast_to(
+    bvals: Complex128[Array, "..."] = jnp.broadcast_to(
         jnp.asarray([1.0 + 0.0j, -1.0 + 0.0j]),
         (n_states, n_orbitals, 2),
     )
-    transition: jax.Array = orbital_transition_channels(
+    transition: Complex128[Array, "..."] = orbital_transition_channels(
         jnp.asarray(k_i_state),
         jnp.asarray(k_f_state),
         jnp.asarray(positions_cartesian),
@@ -99,7 +98,7 @@ def _transition_band_channels(
         jnp.asarray(10.0, dtype=jnp.float64),
         basis,
     )
-    band_channels: jax.Array = project_band_channels(
+    band_channels: Complex128[Array, "..."] = project_band_channels(
         transition,
         jnp.asarray(coefficients_state[:, None, :]),
     )
@@ -107,14 +106,14 @@ def _transition_band_channels(
 
 
 def _polarized_amplitudes(
-    band_channels: jax.Array,
+    band_channels: Float64[Array, "..."],
     polarizations: Complex128[NDArray, "n_pol 3"],
 ) -> Complex128[NDArray, "n_state n_pol"]:
     """PRIVATE: Return public band amplitudes for each supplied polarization.
 
     Parameters
     ----------
-    band_channels : jax.Array
+    band_channels : Float64[Array, "..."]
         Cartesian band channels from the public projection.
     polarizations : Complex128[NDArray, "n_pol 3"]
         Cartesian complex polarization vectors, one row each.
@@ -129,10 +128,10 @@ def _polarized_amplitudes(
     Contracts the channels with each polarization, extracts the single
     spin and band amplitude per state, and stacks the columns.
     """
-    amplitudes: list[Complex128[NDArray, " n_state"]] = []
+    amplitudes: List[Complex128[NDArray, " n_state"]] = []
     polarization: Complex128[NDArray, " 3"]
     for polarization in polarizations:
-        contracted: jax.Array = contract_polarization(
+        contracted: Complex128[Array, "..."] = contract_polarization(
             band_channels,
             jnp.asarray(polarization),
         )
@@ -172,7 +171,7 @@ def _canonical_cartesian_amplitudes(
     Builds the band channels and contracts them with the three
     Cartesian unit polarizations from the identity matrix.
     """
-    band_channels: jax.Array = _transition_band_channels(
+    band_channels: Complex128[Array, "..."] = _transition_band_channels(
         k_i_state,
         k_f_state,
         positions_cartesian,
@@ -220,7 +219,7 @@ def _dark_ring_angles(
     1/Angstrom of the 0.12 1/Angstrom ring. Records the atan2 angle of
     the minimum-intensity sample.
     """
-    angles: list[float] = []
+    angles: List[float] = []
     valley_index: int
     band_index: int
     for valley_index in range(2):
@@ -327,7 +326,7 @@ def test_polarization_intensities_and_ratios() -> None:
         reference: Dict[str, Shaped[NDArray, "..."]] = {
             key: archive[key] for key in archive.files
         }
-    band_channels: jax.Array = _transition_band_channels(
+    band_channels: Complex128[Array, "..."] = _transition_band_channels(
         reference["polarization_k_i_cart_inverse_angstrom"],
         reference["polarization_k_f_cart_inverse_angstrom"],
         np.zeros((1, 3), dtype=float),

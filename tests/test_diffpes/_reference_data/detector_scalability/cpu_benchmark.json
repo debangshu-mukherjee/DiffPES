@@ -1,19 +1,62 @@
 {
   "backend": "cpu",
+  "compile_reuse_and_geometry_batching": {
+    "batch_length": 2,
+    "compile_cache_sizes": [
+      0,
+      1,
+      1,
+      1
+    ],
+    "fixed_output_shape": [
+      2,
+      1,
+      2,
+      2,
+      2
+    ],
+    "mapping_chart": "general rotation with strict target enclosure",
+    "maximum_vmap_absolute_error": 0.0,
+    "native_fwhm_sweeps": [
+      [
+        0.01,
+        0.011,
+        0.02
+      ],
+      [
+        0.013,
+        0.009,
+        0.026
+      ],
+      [
+        0.008,
+        0.014,
+        0.018
+      ]
+    ],
+    "one_compilation": true,
+    "photon_energy_sweeps_ev": [
+      [
+        49.8,
+        50.2
+      ],
+      [
+        50.0,
+        50.4
+      ],
+      [
+        49.7,
+        50.3
+      ]
+    ],
+    "program": "jit_vmap_simulate_arpes_over_experiment_geometry",
+    "result": "pass",
+    "trace_count": 1,
+    "vmap_matches_direct_rtol_1e_12": true
+  },
   "device": "TFRT_CPU_0",
-  "gate_ids": [
-    "08a.S1",
-    "08a.S2",
-    "08a.S3",
-    "08a.S4"
-  ],
   "jax_version": "0.9.0.1",
-  "numpy_version": "2.4.2",
-  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "preallocate_environment": "false",
-  "python_version": "3.13.6",
-  "result": "pass",
-  "s1_literal_target": {
+  "literal_detector_target": {
     "checkpoint": true,
     "energy_chunk": 16,
     "expected_count_cube_bytes": 209715200,
@@ -26,7 +69,7 @@
     ],
     "forward": {
       "budget_bytes": 2000000000,
-      "compilation_seconds": 3.0867413060041144,
+      "compilation_seconds": 2.998125414000242,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
@@ -41,7 +84,7 @@
     },
     "forward_and_gradient": {
       "budget_bytes": 12000000000,
-      "compilation_seconds": 8.111263040002086,
+      "compilation_seconds": 7.604598534991965,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
@@ -55,7 +98,7 @@
       "program": "value_and_complete_hamiltonian_gradient"
     },
     "jax_profiler_execution_trace": "not produced: literal CPU programs are compile-only; compiler allocation is the registered device-program authority",
-    "jaxpr_inspection_seconds": 3.2531585809920216,
+    "jaxpr_inspection_seconds": 2.7812104070035275,
     "jaxpr_shape_audit": {
       "compact_kinematics_invariant": "no canonical, flattened, or factored shape with K*E*3 elements",
       "contains_full_kbe_materialization": false,
@@ -286,12 +329,16 @@
     "n_kx": 256,
     "n_ky": 256,
     "n_orbital": 20,
-    "process_peak_rss_after_bytes_non_authoritative": 2370740224,
-    "process_peak_rss_before_bytes_non_authoritative": 1905766400,
+    "process_peak_rss_after_bytes_non_authoritative": 2346958848,
+    "process_peak_rss_before_bytes_non_authoritative": 1906364416,
     "programs_executed": false,
     "result": "pass"
   },
-  "s2_rematerialization": {
+  "numpy_version": "2.4.2",
+  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
+  "preallocate_environment": "false",
+  "python_version": "3.13.6",
+  "rematerialization_comparison": {
     "checkpointed_value": 1.3642646314884798e-05,
     "gradient_passes_rtol_1e_12": true,
     "mapping_chart": "general rotation with strict target enclosure",
@@ -304,99 +351,53 @@
     "result": "pass",
     "value_passes_rtol_1e_12": true
   },
-  "s3_compile_count_s4_vmap": {
-    "batch_length": 2,
-    "compile_cache_sizes": [
-      0,
-      1,
-      1,
-      1
-    ],
-    "fixed_output_shape": [
-      2,
-      1,
-      2,
-      2,
-      2
-    ],
-    "mapping_chart": "general rotation with strict target enclosure",
-    "maximum_vmap_absolute_error": 0.0,
-    "native_fwhm_sweeps": [
-      [
-        0.01,
-        0.011,
-        0.02
-      ],
-      [
-        0.013,
-        0.009,
-        0.026
-      ],
-      [
-        0.008,
-        0.014,
-        0.018
-      ]
-    ],
-    "one_compilation": true,
-    "photon_energy_sweeps_ev": [
-      [
-        49.8,
-        50.2
-      ],
-      [
-        50.0,
-        50.4
-      ],
-      [
-        49.7,
-        50.3
-      ]
-    ],
-    "program": "jit_vmap_simulate_arpes_over_experiment_geometry",
-    "result": "pass",
-    "trace_count": 1,
-    "vmap_matches_direct_rtol_1e_12": true
-  },
+  "requirements": [
+    "detector-forward-memory",
+    "complete-hamiltonian-gradient-memory",
+    "fixed-shape-compile-reuse",
+    "geometry-vmap-parity"
+  ],
+  "result": "pass",
   "schema": "diffpes.detector-scalability.v1",
   "source_sha256": {
-    "pyproject.toml": "ec3f46d2bf1e1658b47feae3c4d3a77a28d93cded26c03f7cdf4ad570bd5a786",
-    "src/diffpes/maths/__init__.py": "b99b328e5140e41166373a25df0a2d0fdaf9499cc60528cd2f7d7b93cc5251ab",
-    "src/diffpes/maths/dipole.py": "9a506de39d8611282fa61e71715b1ddc36aa3dc18048b05ea185edc519001dbe",
-    "src/diffpes/maths/gaunt.py": "322e7300964c5118e965aa9218f4abe8522f47752b07b73512b98367da04c631",
-    "src/diffpes/maths/rotations.py": "a0314a953915f63be533b7fcbbe13bbd039bc35a861eb5edf792819d73379ea7",
+    "pyproject.toml": "0138b1caf0151db298c10ee861f821247beb9fabe203bf3e6e214b85b4824c5d",
+    "src/diffpes/maths/__init__.py": "ee63eff683d3f2dbf7549b7a79c452088833cb61c678b4ea1c6707bbb52cfa34",
+    "src/diffpes/maths/dipole.py": "d61ca5c5ae1b776096397fb0ffc1d4e63cdba40154697cf7846c647adedb090f",
+    "src/diffpes/maths/gaunt.py": "d19d2f1aa518f205523dc87159f1914d72359d031d5a1ba3209e8ad6603780ca",
+    "src/diffpes/maths/rotations.py": "b06dc0fa036e9d2969091249a8c97692c03ebfc9d41ebb62cf65a2bfb61f0f3f",
     "src/diffpes/maths/safe.py": "6dda8cedee880c7ba1a31926314fef4a12ab6caf49e0b53c4b9f75f1ba6f7e4f",
-    "src/diffpes/maths/spherical_harmonics.py": "19f52880f8248f413357f50211a702a38c48be07db70fe0525d18f9495770907",
-    "src/diffpes/radial/__init__.py": "6a155d7139c437c9f8859ce93ad34b1d564737a92d46d2d9aae5305b73ef517a",
-    "src/diffpes/radial/bessel.py": "22ef618d4c08a8385d9fa56f01ce4f9d4b5d85a3b891ecda7703872ad2c61de0",
-    "src/diffpes/radial/coulomb.py": "199f4914184f3747685c7c3dd13461b1e4d97777bfebe599221a4af290fb6063",
-    "src/diffpes/radial/integrate.py": "00027b99c0214006cb1bbe2ad1afbfc6b0bef6f1386b8ae8deb0f5b1f6a73e42",
-    "src/diffpes/radial/screening.py": "ae6b26fca43aa98829238b8582dd993cf7c10de56653769ce1bd92154b2819a5",
-    "src/diffpes/radial/wavefunctions.py": "119ca866032bc3c5cc3c8309000c8397b470d4efb1224c598ddc23d9ab11e6d8",
+    "src/diffpes/maths/spherical_harmonics.py": "3b99a222623b0f93f9fc91157fc09cf879a8760ace4ec8baf530cb191f7a1741",
+    "src/diffpes/radial/__init__.py": "1e91e92a810739bd80d903807393c086e54192f420e778429bfcc9d04a745500",
+    "src/diffpes/radial/bessel.py": "ee64359dd0b0e2349892e06a7fe2481f38b799b28612baf8baaf2c3114c922d5",
+    "src/diffpes/radial/coulomb.py": "c061296ff6a606df8a70f33c43fb288cf7c5bd347053a46ff2bcc7bbde5f8a8a",
+    "src/diffpes/radial/integrate.py": "ce56faa08b1e928ee855c54d54b933d29b66502bd0b20e2472d44d3b1548d5df",
+    "src/diffpes/radial/screening.py": "38a92c00401b881eca31d6b1927ab4812d2643e51806c7d6005815113d3becd1",
+    "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
     "src/diffpes/simul/__init__.py": "a517d3a2c54899dc8459da03ef752833f6ecee442f1119cd6946fe5ef28d7bd3",
-    "src/diffpes/simul/_detector_map.py": "a6ddad8664b2c4fa36339e6045f6371f100de4485d25e5f06fcb719ae763e6fc",
-    "src/diffpes/simul/broadening.py": "4e6c40afff59d2b814f7c956d33728418edeaf97856249f8a0ba809c908df715",
-    "src/diffpes/simul/effects.py": "54e0cdb050c7d3fed847eae3e980e9d2722a3bf8d1940974a81d31f2e47454ec",
+    "src/diffpes/simul/_detector_map.py": "676871729f994aab0d45a7090d7afae445c2cda728547d895be42c3781a4a025",
+    "src/diffpes/simul/broadening.py": "207235e7ac99a286b94ec21068ca339fb1239e87800d03dcccbbe5ea44727e8c",
+    "src/diffpes/simul/effects.py": "91b62f35a0723589908e2d6fd091e58b88c02fbab7b6cff74c2e488e8e387e91",
     "src/diffpes/simul/kinematics.py": "1b7ab38dd59467cf4cc3ebc43bc147d37829b580d6356b778738f5c683307b9c",
-    "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
+    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
     "src/diffpes/simul/polarization.py": "2ef6af1eca002832b3f3d96c96ed7ac2511e5a936578d9ec38a21e0e75a10f75",
-    "src/diffpes/simul/spectral.py": "49d2ef280aadbd7c797a2d83aeadc7d7cf985180e350cb285b691af3f07f7b6f",
-    "src/diffpes/simul/spectrum.py": "a5a025391e1f3d9d17c251c5d8e9097a807822edf1fb70c2c3731555cdae6c43",
-    "src/diffpes/types/__init__.py": "f78a92dfa4325f406b5a7c6d2ebc4a46d8ea4b9f44e5ad8318d345e6e3809bad",
-    "src/diffpes/types/aliases.py": "bb513d2e168e59592b6f4ef643eff00fc3c63480feb0d030cf7aca05f284b206",
-    "src/diffpes/types/bands.py": "8c151187130b4fa8a91c6959490b751be23b9930f8ddfea24629189deb237de4",
-    "src/diffpes/types/constants.py": "a9c4dc496da31319eebd6ee5d1263dec1e7a2b8290b3b8b984ef52de9e57245a",
-    "src/diffpes/types/detector_effects.py": "d7204b83bcb3f952c99615e32f90c57b2e2206a366483c1308269b8ceea2418d",
+    "src/diffpes/simul/spectral.py": "5364621f115dcc10dc922aa4a06a4739db4adac144588be963757f23a057b422",
+    "src/diffpes/simul/spectrum.py": "229821d410ca5e0831744a5c8fb8490fb2236aa02eddcb963107b3dde81019dc",
+    "src/diffpes/types/__init__.py": "950757b20e8fc61f180950a48089ff871064fd2e51894253013348d2a48eb7db",
+    "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+    "src/diffpes/types/bands.py": "98c90cf8378f5c2df308b167850aebcd5752e4677b1d8580ae95c1a0a8114a0f",
+    "src/diffpes/types/constants.py": "ca5eaae27401c693415f4cab6424f10525a9f0dc94f7abbf4723639ba3198f1f",
+    "src/diffpes/types/detector_effects.py": "4fdcd982a3bba7b84c5c3beaa0208fa148a6478415d980412c1b3c017c72c69c",
     "src/diffpes/types/experiment.py": "03e3a2d4142cc0ab61c76b1ff88f78c1d5c15228c213647195215495709fe661",
-    "src/diffpes/types/geometry.py": "e22f4be205c21a43e328806f0f247bc0cd1db219577c92dc14adb670a0373125",
-    "src/diffpes/types/kpath.py": "881e9f725745b1e16625749690903270ce13fa77a940b7bd168dd7da5d80d07c",
-    "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
-    "src/diffpes/types/self_energy.py": "cd1eb66c5ee43abf07801fa358deb7990b7a530a98d4ce1081c8e4877caa50c5",
-    "src/diffpes/types/tb_model.py": "e59055ad077eb7d4acb75f8b448aafcd9c84d258835f85bfbda5b1f17268d04d",
-    "src/diffpes/utils/__init__.py": "fd9425390893e8d7f6c9c43f7f6525b12b04aadb648fa3394679b6066331cda2",
-    "src/diffpes/utils/math.py": "60a591fdd82f7157ad80aa428794d36797a56fe715848abcacfee1020c00b032",
-    "tests/_reference_tools/measure_detector_scaling.py": "9d2b30d2273a89c5e811a2f7d405552059cb36b8b962219cb32c2e5c47507c92",
-    "uv.lock": "e8ad862e358bb77a7ca645c49fcfa4d677535a1f8fa78273667e7809156cec1d"
+    "src/diffpes/types/geometry.py": "7d4748f374399348e31ce191b342faa6c17403a17e7196aff7a86e30566850e3",
+    "src/diffpes/types/kpath.py": "7c60adbd07c9e5549cd994552de5868daf500c3bf7d790c7409ed761455d7eb1",
+    "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
+    "src/diffpes/types/self_energy.py": "46f229f1eb50bdd72e55f69cb72d12d34346ca924a9dc72ef5a514f2ed54c420",
+    "src/diffpes/types/spectral.py": "2c0dd8bb9d670f548715b8b450103b25878ce4161d3ea79c6cdb5e6872f4e12c",
+    "src/diffpes/types/tb_model.py": "259b62e3a9e407fd173e4e63a8113b78d18bfa8614b91c155c9e84b995e57fe9",
+    "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+    "src/diffpes/utils/math.py": "4c2936eb29fa0413dd27d0edfad1a0912d1a40fd5a33b5f1db99ccb4c02a70bf",
+    "tests/_reference_tools/measure_detector_scaling.py": "d6f278aa18ab18f98c60c102fd46b60a28c1bb02531988810b5915b75c85535b",
+    "uv.lock": "299c8130df47a0ebf73e1ecf6506c590cde2272ac702095e9f1809e22390b9ee"
   },
   "x64_enabled": true
 }

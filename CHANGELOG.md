@@ -49,7 +49,7 @@ and the project uses calendar versioning.
   expanded wrapper, `diffpes.simul.simulate_expanded`, the former
   `simul.spectrum` implementation, and the `simul.expanded` module. The
   rebuilt `simul.spectrum` module retains the canonical `simulate_arpes` and
-  `simulate_arpes_cut` drivers and adds the physically separate Plan-08b
+  `simulate_arpes_cut` drivers and adds the physically separate
   `simulate_hv_scan`; none of the removed tier dispatch survives.
 - `diffpes.simul.simulate_context` is removed. The old implicit-H,
   projection-probability `run_vasp_workflow` signature is also removed. Its
@@ -70,8 +70,15 @@ and the project uses calendar versioning.
 
 ### Changed
 
-- `simulate_arpes` and `simulate_arpes_cut` retain the complete Plan 08a
-  positional surface and add only keyword-only `bulk_models_by_domain`,
+- Every project-tracking name in the repository moved to domain terms. The
+  reference-data artifacts are now `kz_quadrature_convergence.json`,
+  `kz_double_counting_materiality.json`, and `kz_scan_scalability.json` with
+  matching manifests. Regeneration uses domain artifact identities and
+  requirement labels. Their external verification authorities, generators,
+  and pinned hashes moved with them. Test modules, test names, docstrings,
+  guides, and the tutorial carry the same rename. No numeric evidence changed.
+- `simulate_arpes` and `simulate_arpes_cut` retain their complete positional
+  surface and add only keyword-only `bulk_models_by_domain`,
   `surface_cells_by_domain`, `kz_nodes_frac`, and `kz_mode` arguments. The
   default `native_direct` route reproduces the single-kz call. The mutually
   exclusive `bulk_direct`, `bulk_kz`, and `coherent_slab` routes reject mixed
@@ -89,17 +96,22 @@ and the project uses calendar versioning.
 - `DetectorRaster` now rejects a zero-length channel axis in eager and
   compiled construction. Every expected-count raster contains at least one
   explicitly labeled acquisition channel.
-- The geometry-and-kinematics tutorial now uses a stripped Jupyter notebook
-  paired with a reviewable Jupytext percent script. Documentation CI verifies
-  pair synchronization and committed-output absence, reuses a content-keyed
-  execution cache, and fails immediately on an unexpected notebook error.
+- The repository `tutorials/` directory is now the canonical tutorial path
+  and contains only stripped `.ipynb` notebooks. The Jupytext percent-script
+  pairs are removed. `docs/source/tutorials/` carries one executed Markdown
+  export, with code and outputs, per canonical notebook beside the
+  Markdown-only tutorial pages. Documentation CI verifies the output-free
+  canon with `tests/_tutorials.py`, regenerates every export with
+  `jupyter nbconvert --to markdown --execute`, rejects drift with
+  `git diff --exit-code`, and fails immediately on an unexpected notebook
+  error.
 - **Breaking:** `make_self_energy_model` now rejects a `gamma` shortcut
   supplied together with explicit `coefficients` instead of silently ignoring
   `gamma`. The `gamma` default becomes `None`; an absent `gamma` with absent
   `coefficients` still constructs the `0.1` eV constant carrier.
 - Three authenticated reference artifacts are re-issued:
   `chinook_tightb_reference.json`, `chinook_slab_reference.json`, and
-  `wannier90_wse2_reference.json`. Each carried one plan-named metadata key.
+  `wannier90_wse2_reference.json`. Each carried one tracking-only metadata key.
   The key becomes `requirement` or `requirements` with a descriptive value, and
   each pinned artifact digest is recomputed. A guard confirmed that every field
   outside the metadata block stays identical, so all compared numeric data is
@@ -114,6 +126,15 @@ and the project uses calendar versioning.
   byte-identical, and each `archive_sha256` still validates against unchanged
   data. The re-pin records a documentation change to the generator, not new
   scientific evidence.
+- The analytic Kramers--Kronig, operator-selection, self-energy,
+  spectral-intensity, and Chinook spectral provenance manifests are replayed
+  from their final typed and documented generators. Their numerical archives
+  remain byte-identical. The refreshed manifest identities are
+  `e91e02d117c0b389e55e9505b3b5affac6780927ef39676a700bb5818078a14a`,
+  `e0188fc51f6f61f7c94c30cbbd460fc784d2f5772544225b64e8015ad86ba7f5`,
+  `b72314c2587acbd61ee35cb81eeaa84d411562c82b597b23aae74e217551669b`,
+  `8edc1297a10ed66ad6058acf44c05b8512b55f1bd77fa15a97174a848fbd0673`,
+  and `48b3020c51f01b89506923cfcd32cb48093cdfe645650fc69c6859db3b7bfedc`.
 - Certification owners and evidence identifiers now use scientific domain names.
   This breaking identity re-issue invalidates records that use the former identifiers.
 - Every NumPy array annotation now carries a jaxtyping dtype and shape, in the
@@ -205,14 +226,15 @@ and the project uses calendar versioning.
 
 ### Added
 
-- Plan 08b adds an explicit differentiable bulk-kz integral and
+- The simulation API adds an explicit differentiable bulk-kz integral and
   photon-energy scans. `kz_fractional_nodes`,
   `kz_wrapped_lorentzian_bin_weights`, and `broaden_kz` implement positive
   analytic wrapped-Cauchy bin masses over one primitive surface reciprocal
-  period, centred by exact finite-energy inner-potential kinematics. The G6
-  calibration selects `n_kz=2048` as the smallest registered count meeting
-  its value, integrated-count, gradient, and reference-series budgets; there
-  is no silent public count default. A normal integration-coordinate
+  period, centred by exact finite-energy inner-potential kinematics. The
+  quadrature-convergence calibration selects `n_kz=2048` as the smallest
+  registered count meeting its value, integrated-count, gradient, and
+  reference-series budgets; there is no silent public count default. A normal
+  integration-coordinate
   reciprocal shift leaves the complete gauge-covariant integrand invariant
   at fixed detected $k_\parallel$ and $k_f$. A move to a neighboring detected
   surface zone changes those momenta. It retains physical repeated-zone
@@ -222,15 +244,15 @@ and the project uses calendar versioning.
   `hv_map_at_energy` returns an interpolated `[n_k, n_hv]` map. Production
   integration remains node-local and forbids a complete all-node band,
   source, kinematics, or intensity carrier.
-- The authenticated Plan-08b literal scalability record
-  `4f83fd4f85974ff7065e04846f48003960b1ddbe3ced3db537d7fa92b5caa3c4`
+- The authenticated kz-scan scalability record
+  `e7ff6ea629d09fd41ca6ce8fd1a43fd4723dc39bba0c3da979898d83504f34b9`
   compiles the exact `256 x 256 x 400`, 20-band, 2048-node target. It records
   1,074,870,048-byte forward and 2,567,802,048-byte full-H-gradient live
   allocations. It also records zero forbidden all-node carriers,
   rematerialization equality, and flat photon-scan auxiliary allocation. The
   source-handshake refresh rebinds the spectral and detector records as
-  `08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd`
-  and `afb70466c0468b616bb66b36b4c6cf23f539116f98ccbe1e5c6a1ad30ee65760`.
+  `2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576`
+  and `ca642cd6d4b1276937508f404c46487c505b1f1888e726747f6b21d345d3d0b4`.
   All registered budgets and companions remain green.
 - The certification registry adds the `org.diffpes.kz` owner and immutable
   wrapped-integration/photon-energy-scan transformations. Registration
@@ -238,12 +260,13 @@ and the project uses calendar versioning.
   `org.diffpes.matrixel`, `org.diffpes.spectral`, and
   `org.diffpes.detector` upstream handshakes; missing or drifted declarations
   fail closed.
-- Plan 08a adds one coherent single-kz forward surface. `simulate_arpes`
+- The coherent detector pipeline adds one single-kz forward surface.
+  `simulate_arpes`
   accepts separable Cartesian source rasters. `simulate_arpes_cut` accepts
   self-describing momentum paths. The rebuilt `run_vasp_workflow` requires an
-  explicit Hamiltonian. The drivers stream block-local Plan-06
-  transition sources through the degeneracy-safe Plan-07 resolvent, then call
-  one shared detector chain. `map_source_to_detector` performs conservative
+  explicit Hamiltonian. The drivers stream block-local matrix-element
+  transition sources through the degeneracy-safe spectral resolvent, then
+  call one shared detector chain. `map_source_to_detector` performs conservative
   native-bin density mapping before detector-space domain mixing.
   `apply_detector_effects` applies fixed-domain analyser transmission,
   finite-volume native-coordinate resolution, nonnegative backgrounds,
@@ -255,7 +278,8 @@ and the project uses calendar versioning.
   complete inverse detector target to lie strictly inside the source support.
   A path cut is a slit-integrated line density with one declared transverse
   aperture, not an inferred two-dimensional source density.
-  The frozen RM-2 Chinook comparison is K-only response compatibility. It
+  The frozen lithium-chain Chinook comparison is K-only response
+  compatibility. It
   replays a test-only matched Gaussian adapter on a common authenticated raw
   cut and makes no production-driver, conservation, or absolute-scale claim.
 

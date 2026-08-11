@@ -12,7 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Complex128, Float64, PRNGKeyArray, jaxtyped
 
 from diffpes.tightb import (
@@ -42,16 +42,11 @@ def _assert_finite(tree: object) -> None:
     tree : object
         Toy carrier or any other PyTree of numerical leaves.
 
-    Raises
-    ------
-    AssertionError
-        If any leaf holds a non-finite value, from
-        ``chex.assert_tree_all_finite``.
-
     Notes
     -----
     ``jax.tree.leaves`` collects the leaves first, so every factory
-    output passes through one uniform finiteness check.
+    output passes through one uniform finiteness check. The Chex assertion
+    raises ``AssertionError`` when a leaf contains a non-finite value.
     """
     leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
@@ -208,9 +203,9 @@ def make_rashba_model(
         rashba,
         dtype=jnp.complex128,
     )
-    amplitudes: list[Complex128[Array, ""]] = []
-    pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
+    amplitudes: List[Complex128[Array, ""]] = []
+    pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
     cell: Tuple[int, int, int]
     spin: int
     nearest_cells: Tuple[Tuple[int, int, int], ...] = (

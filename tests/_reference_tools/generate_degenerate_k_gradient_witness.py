@@ -2,23 +2,20 @@ r"""Generate the frozen degenerate-k gradient witness fixture.
 
 Extended Summary
 ----------------
-The degenerate-k gradient witness differentiates a gauge-invariant
-resolvent intensity at exact band degeneracies: (i) the Dirac point of the
-registered graphene test model and (ii) a Kramers-degenerate k-point of
-the registered projected-t2g spin--orbit test model.  This generator
-registers the two perturbation coordinates the witness test varies and
-freezes independent numerical evidence that both witnesses are
-analytically sensitive:
+The witness differentiates a gauge-invariant resolvent intensity at exact
+band degeneracies. It covers the registered graphene model's Dirac point.
+It also covers a Kramers-degenerate point in the projected-t2g spin--orbit
+model. This generator registers both perturbation coordinates. It preserves
+independent evidence that both witnesses have analytic sensitivity:
 
 - The graphene witness perturbs exactly one nearest-neighbor bond,
   ``t1 -> t1 + theta`` on the registered ``(0, 1)`` pair in cell
   ``(0, 0, 0)``, through the public :func:`tb_parameter_view` coordinate.
   Its ``dH(K)/dtheta`` is nonzero at K even though ``H(K)`` vanishes.
-- The common nearest-neighbor scale is measured as the documented negative
-  control: at K the assembled ``H(K)`` is identically zero, so the scale
-  coordinate has zero ``dH/ds`` and zero gauge-invariant intensity
-  sensitivity.  That structural zero is why the witness registry forbids
-  it as a witness.
+- Measure the common nearest-neighbor scale as the documented negative
+  control. At K, the assembled ``H(K)`` equals zero. The scale coordinate
+  therefore has zero ``dH/ds`` and zero intensity sensitivity. This
+  structural zero excludes it from the witness registry.
 - The Kramers witness perturbs the registered spin-symmetric tetragonal
   crystal-field direction (both ``dxy`` onsite energies) of the
   registered t2g spin--orbit fixture.  Time reversal survives the crystal
@@ -44,12 +41,11 @@ import json
 import platform
 import sys
 from pathlib import Path
-from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
 from jaxtyping import Array, Complex128, Float64
 
 DIRAC_K: Tuple[float, float, float] = (2.0 / 3.0, 1.0 / 3.0, 0.0)
@@ -82,14 +78,15 @@ def _sha256(path: Path) -> str:
     Parameters
     ----------
     path : Path
-        File whose bytes are hashed.
+        Input file for byte hashing.
 
     Returns
     -------
     digest : str
         Hexadecimal SHA-256 digest.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _fixtures() -> Any:
@@ -104,9 +101,10 @@ def _fixtures() -> Any:
     root: Path = Path(__file__).resolve().parents[2]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from tests import _factories
+    from tests import _factories  # noqa: PLC0415 -- path resolves first.
 
-    return _factories
+    factories: Any = _factories
+    return factories
 
 
 def _resolvent_intensity(
@@ -138,7 +136,10 @@ def _resolvent_intensity(
         dimension, dtype=jnp.complex128
     ) - hamiltonian
     solved: Complex128[Array, " n_orb"] = jnp.linalg.solve(operator, source)
-    return -jnp.imag(jnp.vdot(source, solved)) / jnp.pi
+    intensity: Float64[Array, ""] = (
+        -jnp.imag(jnp.vdot(source, solved)) / jnp.pi
+    )
+    return intensity
 
 
 def _projected_intensity(
@@ -167,10 +168,9 @@ def _projected_intensity(
 
     Notes
     -----
-    Summing full degenerate multiplets keeps the observable invariant
-    under intra-multiplet basis rotations, so central finite differences
-    of this value are well defined at exact degeneracies even though the
-    eigenvector autodiff path is not.
+    Sum complete degenerate multiplets. This keeps the observable invariant
+    under intra-multiplet basis rotations. Central finite differences remain
+    valid at exact degeneracies. The eigenvector autodiff path does not.
     """
     eigenvalues: Float64[Array, " n_orb"]
     eigenvectors: Complex128[Array, "n_orb n_orb"]
@@ -181,13 +181,14 @@ def _projected_intensity(
     lorentzian: Float64[Array, " n_orb"] = (gamma / jnp.pi) / (
         (omega - eigenvalues) ** 2 + gamma**2
     )
-    return jnp.sum(weights * lorentzian)
+    intensity: Float64[Array, ""] = jnp.sum(weights * lorentzian)
+    return intensity
 
 
 def _central_fd_ladder(
     function: Any,
     center: float,
-) -> list[float]:
+) -> List[float]:
     """PRIVATE: Evaluate the three registered central finite-difference rungs.
 
     Parameters
@@ -199,10 +200,10 @@ def _central_fd_ladder(
 
     Returns
     -------
-    derivatives : list[float]
+    derivatives : List[float]
         Central differences at steps ``2**-12``, ``2**-14``, ``2**-16``.
     """
-    derivatives: list[float] = []
+    derivatives: List[float] = []
     step: float
     for step in FD_STEPS:
         upper: float = float(function(center + step))
@@ -221,10 +222,10 @@ def _graphene_payload(factories: Any) -> Dict[str, Any]:
 
     Returns
     -------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Frozen graphene witness section of the fixture.
     """
-    from diffpes.tightb import (
+    from diffpes.tightb import (  # noqa: PLC0415 -- load after x64 setup.
         bloch_hamiltonian,
         eigvalsh_bands,
         tb_parameter_view,
@@ -232,6 +233,7 @@ def _graphene_payload(factories: Any) -> Dict[str, Any]:
 
     model: Any = factories.make_graphene_model(t=GRAPHENE_HOPPING_EV)
     parameters: Float64[Array, " n_par"]
+    rebuild: Any
     parameters, rebuild = tb_parameter_view(model)
     dirac_k: Float64[Array, " 3"] = jnp.asarray(DIRAC_K, dtype=jnp.float64)
     source: Complex128[Array, " 2"] = jnp.asarray(
@@ -244,38 +246,106 @@ def _graphene_payload(factories: Any) -> Dict[str, Any]:
     def bond_hamiltonian(
         theta: Float64[Array, ""],
     ) -> Complex128[Array, "2 2"]:
-        """Assemble H(K) with one bond perturbed as ``t1 + theta``."""
+        """Assemble H(K) with one perturbed bond.
+
+        Parameters
+        ----------
+        theta : Float64[Array, ""]
+            Additive hopping perturbation in eV.
+
+        Returns
+        -------
+        hamiltonian : Complex128[Array, "2 2"]
+            Perturbed Bloch Hamiltonian at the Dirac point in eV.
+
+        Notes
+        -----
+        The update changes only the registered first bond coordinate.
+        """
         perturbed: Float64[Array, " n_par"] = parameters.at[
             ONE_BOND_VIEW_INDEX
         ].add(theta)
-        return bloch_hamiltonian(model=rebuild(perturbed), k=dirac_k)
+        hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(
+            model=rebuild(perturbed), k=dirac_k
+        )
+        return hamiltonian
 
     def scale_hamiltonian(
         scale: Float64[Array, ""],
     ) -> Complex128[Array, "2 2"]:
-        """Assemble H(K) with every bond scaled by the common factor."""
+        """Assemble H(K) with one common bond scale.
+
+        Parameters
+        ----------
+        scale : Float64[Array, ""]
+            Dimensionless scale for all nearest-neighbor hoppings.
+
+        Returns
+        -------
+        hamiltonian : Complex128[Array, "2 2"]
+            Scaled Bloch Hamiltonian at the Dirac point in eV.
+
+        Notes
+        -----
+        The update keeps every non-hopping parameter fixed.
+        """
         scaled: Float64[Array, " n_par"] = jnp.where(
             scale_mask == 1.0, parameters * scale, parameters
         )
-        return bloch_hamiltonian(model=rebuild(scaled), k=dirac_k)
+        hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(
+            model=rebuild(scaled), k=dirac_k
+        )
+        return hamiltonian
 
     def bond_intensity(theta: Float64[Array, ""]) -> Float64[Array, ""]:
-        """Evaluate the resolvent intensity along the one-bond witness."""
-        return _resolvent_intensity(
+        """Evaluate the resolvent intensity along the one-bond witness.
+
+        Parameters
+        ----------
+        theta : Float64[Array, ""]
+            Additive hopping perturbation in eV.
+
+        Returns
+        -------
+        intensity : Float64[Array, ""]
+            Gauge-invariant resolvent intensity at the registered energy.
+
+        Notes
+        -----
+        The function keeps the source, energy, and regulator fixed.
+        """
+        intensity: Float64[Array, ""] = _resolvent_intensity(
             bond_hamiltonian(theta),
             source,
             GRAPHENE_OMEGA_EV,
             GRAPHENE_ETA_EV,
         )
+        return intensity
 
     def scale_intensity(scale: Float64[Array, ""]) -> Float64[Array, ""]:
-        """Evaluate the resolvent intensity along the forbidden scale."""
-        return _resolvent_intensity(
+        """Evaluate the resolvent intensity along the common bond scale.
+
+        Parameters
+        ----------
+        scale : Float64[Array, ""]
+            Dimensionless scale for all nearest-neighbor hoppings.
+
+        Returns
+        -------
+        intensity : Float64[Array, ""]
+            Gauge-invariant resolvent intensity at the registered energy.
+
+        Notes
+        -----
+        This coordinate supplies the structural zero-sensitivity control.
+        """
+        intensity: Float64[Array, ""] = _resolvent_intensity(
             scale_hamiltonian(scale),
             source,
             GRAPHENE_OMEGA_EV,
             GRAPHENE_ETA_EV,
         )
+        return intensity
 
     bands: Float64[Array, " 2"] = eigvalsh_bands(model, dirac_k[None, :])[0]
     hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(model, dirac_k)
@@ -289,20 +359,36 @@ def _graphene_payload(factories: Any) -> Dict[str, Any]:
     )
     grad_rev: float = float(jax.grad(bond_intensity)(zero))
     grad_fwd: float = float(jax.jacfwd(bond_intensity)(zero))
-    fd_bond: list[float] = _central_fd_ladder(bond_intensity, 0.0)
+    fd_bond: List[float] = _central_fd_ladder(bond_intensity, 0.0)
     grad_scale_rev: float = float(jax.grad(scale_intensity)(one))
-    fd_scale: list[float] = _central_fd_ladder(scale_intensity, 1.0)
+    fd_scale: List[float] = _central_fd_ladder(scale_intensity, 1.0)
 
     def omega_zero_intensity(
         theta: Float64[Array, ""],
     ) -> Float64[Array, ""]:
-        """Evaluate the documented omega=0 symmetric-zero intensity."""
-        return _resolvent_intensity(
+        """Evaluate the symmetric-zero intensity at zero energy.
+
+        Parameters
+        ----------
+        theta : Float64[Array, ""]
+            Additive hopping perturbation in eV.
+
+        Returns
+        -------
+        intensity : Float64[Array, ""]
+            Gauge-invariant intensity at zero energy.
+
+        Notes
+        -----
+        This probe confirms the analytic zero-gradient control.
+        """
+        intensity: Float64[Array, ""] = _resolvent_intensity(
             bond_hamiltonian(theta), source, 0.0, GRAPHENE_ETA_EV
         )
+        return intensity
 
     grad_omega_zero: float = float(jax.grad(omega_zero_intensity)(zero))
-    return {
+    payload: Dict[str, Any] = {
         "model": {
             "factory": "tests._factories.make_graphene_model",
             "factory_kwargs": {"t": GRAPHENE_HOPPING_EV},
@@ -407,6 +493,7 @@ def _graphene_payload(factories: Any) -> Dict[str, Any]:
             "frequency is therefore off the degenerate energy"
         ),
     }
+    return payload
 
 
 def _t2g_payload(factories: Any) -> Dict[str, Any]:
@@ -419,10 +506,10 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
 
     Returns
     -------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Frozen Kramers witness section of the fixture.
     """
-    from diffpes.tightb import (
+    from diffpes.tightb import (  # noqa: PLC0415 -- load after x64 setup.
         bloch_hamiltonian,
         eigvalsh_bands,
         tb_parameter_view,
@@ -430,6 +517,7 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
 
     model: Any = factories.make_t2g_soc_model(coupling=T2G_COUPLING_EV)
     parameters: Float64[Array, " n_par"]
+    rebuild: Any
     parameters, rebuild = tb_parameter_view(model)
     kramers_k: Float64[Array, " 3"] = jnp.asarray(KRAMERS_K, dtype=jnp.float64)
     source: Complex128[Array, " 6"] = jnp.asarray(
@@ -442,14 +530,30 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
     )
 
     def field_intensity(delta: Float64[Array, ""]) -> Float64[Array, ""]:
-        """Evaluate the projected intensity along the crystal field."""
+        """Evaluate the projected intensity along the crystal field.
+
+        Parameters
+        ----------
+        delta : Float64[Array, ""]
+            Common tetragonal onsite shift in eV.
+
+        Returns
+        -------
+        intensity : Float64[Array, ""]
+            Gauge-invariant projected intensity at the registered energy.
+
+        Notes
+        -----
+        The rebuild shifts both spin partners and preserves time reversal.
+        """
         candidate: Any = rebuild(parameters + delta * direction)
-        return _projected_intensity(
+        intensity: Float64[Array, ""] = _projected_intensity(
             bloch_hamiltonian(candidate, kramers_k),
             source,
             T2G_OMEGA_EV,
             T2G_GAMMA_EV,
         )
+        return intensity
 
     bands: Float64[Array, " 6"] = eigvalsh_bands(model, kramers_k[None, :])[0]
     pair_gaps: Float64[Array, " 3"] = bands[1::2] - bands[0::2]
@@ -462,10 +566,10 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
     perturbed_gaps: Float64[Array, " 3"] = (
         perturbed_bands[1::2] - perturbed_bands[0::2]
     )
-    fd_field: list[float] = _central_fd_ladder(field_intensity, 0.0)
+    fd_field: List[float] = _central_fd_ladder(field_intensity, 0.0)
     zero: Float64[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
     eigen_path_grad: float = float(jax.grad(field_intensity)(zero))
-    return {
+    payload: Dict[str, Any] = {
         "model": {
             "factory": "tests._factories.make_t2g_soc_model",
             "factory_kwargs": {"coupling": T2G_COUPLING_EV},
@@ -554,12 +658,19 @@ def _t2g_payload(factories: Any) -> Dict[str, Any]:
             "instead"
         ),
     }
+    return payload
 
 
 def main() -> None:
-    """Measure both witnesses and write the frozen JSON fixture."""
+    """Measure both witnesses and write the frozen JSON fixture.
+
+    Notes
+    -----
+    The generator evaluates the graphene and Kramers witnesses with public
+    diffpes interfaces. It writes their fixed finite-difference evidence.
+    """
     factories: Any = _fixtures()
-    import diffpes
+    import diffpes  # noqa: PLC0415 -- record the loaded package version.
 
     root: Path = Path(__file__).resolve().parents[2]
     data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"

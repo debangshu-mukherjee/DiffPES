@@ -7,7 +7,7 @@ jaxtyping import hook is active. The hook decorates every function and class
 with ``@jaxtyped(typechecker=beartype)``. Decoration evaluates each annotation.
 An invalid annotation therefore raises at import time.
 
-The gate reports three defect classes without running one test:
+The check reports three defect classes without running one test:
 
 - a malformed jaxtyping specification, such as a wrong dtype name or a wrong
   shape string;
@@ -15,14 +15,14 @@ The gate reports three defect classes without running one test:
 - a hint that beartype cannot use, such as a bare ``NDArray`` that carries an
   unbound ``_ScalarT`` type variable.
 
-The gate does not detect a wrong dtype at runtime. Only the test suite detects
+The check does not detect a wrong dtype at runtime. Only the test suite detects
 that defect, because it requires real array values.
 
-The gate skips ``conftest`` modules. Pytest drives the fixtures in those
+The check skips ``conftest`` modules. Pytest drives the fixtures in those
 modules, and the jaxtyping wrapper hides ``inspect.isgeneratorfunction``. A
 hooked yield fixture therefore loses its teardown.
 
-Run the gate directly::
+Run the check directly::
 
     .venv/bin/python tests/_preflight_types.py
 
@@ -35,7 +35,7 @@ Routine Listings
 :func:`check_annotations`
     Import every target module and collect annotation defects.
 :func:`main`
-    Run the gate and return a process exit status.
+    Run the annotation check and return a process exit status.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def check_annotations() -> Tuple[int, List[Tuple[str, str]]]:
     Returns
     -------
     checked : int
-        Count of modules that the gate imported.
+        Count of modules that the check imported.
     failures : List[Tuple[str, str]]
         One ``(module_name, message)`` pair for each defect.
     """
@@ -115,7 +115,7 @@ def check_annotations() -> Tuple[int, List[Tuple[str, str]]]:
 
 
 def main() -> int:
-    """Run the gate and return a process exit status.
+    """Run the annotation check and return a process exit status.
 
     Returns
     -------

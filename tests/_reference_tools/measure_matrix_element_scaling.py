@@ -19,20 +19,20 @@ import resource
 import statistics
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, cast
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, NamedTuple, Tuple, Union, cast
 from jax.extend.core import ClosedJaxpr, Jaxpr
-from jaxtyping import Array, Complex128, Float64, Shaped
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
-from diffpes.simul.matrixel import (
+from diffpes.simul import (
     contract_polarization,
     orbital_transition_channels,
     project_band_channels,
@@ -70,7 +70,7 @@ class DynamicInputs(NamedTuple):
 
 @dataclass(frozen=True)
 class Fixture:
-    """Hold static metadata and dynamic arrays for one benchmark shape."""
+    """Store static metadata and dynamic arrays for one benchmark shape."""
 
     basis: OrbitalBasis
     dynamic: DynamicInputs
@@ -80,7 +80,7 @@ class Fixture:
 
 
 def _recursive_equation_count(value: object) -> int:
-    """PRIVATE: Count equations recursively through nested JAXPRs.
+    """PRIVATE: Measure equations recursively through nested JAXPRs.
 
     Parameters
     ----------
@@ -94,24 +94,28 @@ def _recursive_equation_count(value: object) -> int:
 
     Implementation Logic
     --------------------
-    Closed JAXPRs unwrap to their JAXPR; a JAXPR contributes its own
-    equations plus a recursive walk over every equation parameter;
-    tuples, lists, and dictionaries recurse over their items; every
-    other object contributes zero.
+    Unwrap each closed JAXPR. Add each JAXPR's equations and recursively walk
+    every equation parameter. Recurse through tuples, lists, and dictionaries.
+    Give every other object a zero count.
     """
     if isinstance(value, ClosedJaxpr):
-        return _recursive_equation_count(value.jaxpr)
+        count: int = _recursive_equation_count(value.jaxpr)
+        return count
     if isinstance(value, Jaxpr):
-        return len(value.eqns) + sum(
+        count = len(value.eqns) + sum(
             _recursive_equation_count(parameter)
             for equation in value.eqns
             for parameter in equation.params.values()
         )
+        return count
     if isinstance(value, (tuple, list)):
-        return sum(_recursive_equation_count(item) for item in value)
+        count = sum(_recursive_equation_count(item) for item in value)
+        return count
     if isinstance(value, dict):
-        return sum(_recursive_equation_count(item) for item in value.values())
-    return 0
+        count = sum(_recursive_equation_count(item) for item in value.values())
+        return count
+    count = 0
+    return count
 
 
 def _basis(n_orbitals: int) -> OrbitalBasis:
@@ -156,16 +160,15 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
     Returns
     -------
     fixture : Fixture
-        Static basis plus dynamic arrays: smooth analytic momenta in
-        1/Angstrom, positions in Angstrom, depths in Angstrom, complex
-        radial values, matrix-element parameters, a 9 Angstrom mean
-        free path, identity eigenvectors, eight energy scales, and six
-        polarizations.
+        Static metadata and all dynamic benchmark arrays.
 
     Notes
     -----
-    Every array comes from closed-form expressions of the linspace
-    coordinates, so the fixture is bit-reproducible without a seed.
+    Include analytic momenta, positions, depths, and complex radial values.
+    Include matrix-element parameters and a 9 Angstrom mean free path. Use
+    identity eigenvectors, eight energy scales, and six polarizations. Every
+    array comes from closed-form linspace expressions. The fixture therefore
+    needs no random seed and remains bit-reproducible.
     """
     basis: OrbitalBasis = _basis(n_orbitals)
     shell_index: Tuple[int, ...] = tuple(range(n_orbitals))
@@ -253,7 +256,7 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
         ),
         dtype=jnp.complex128,
     )
-    dynamic = DynamicInputs(
+    dynamic: DynamicInputs = DynamicInputs(
         initial_momentum,
         final_momentum,
         positions,
@@ -262,16 +265,19 @@ def _fixture(n_k: int = N_K, n_orbitals: int = N_ORBITALS) -> Fixture:
         matrix_params,
         jnp.asarray(9.0, dtype=jnp.float64),
     )
-    return Fixture(
+    fixture: Fixture = Fixture(
         basis,
         dynamic,
         eigenvectors,
         energy_scales,
         polarizations,
     )
+    return fixture
 
 
-def _channel_function(basis: OrbitalBasis) -> Any:
+def _channel_function(
+    basis: OrbitalBasis,
+) -> Callable[[DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]]:
     """PRIVATE: Return the scalar-energy channel primitive.
 
     Parameters
@@ -281,7 +287,7 @@ def _channel_function(basis: OrbitalBasis) -> Any:
 
     Returns
     -------
-    channel : Any
+    channel : Callable[[DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]]
         Function of one ``DynamicInputs`` tuple that calls
         ``orbital_transition_channels`` with every array argument
         dynamic and only the basis static.
@@ -289,22 +295,44 @@ def _channel_function(basis: OrbitalBasis) -> Any:
     Notes
     -----
     Keeping arrays out of the closure means retracing happens only on
-    shape changes, which the S1 cache measurements rely on.
+    shape changes, which the compile-reuse measurements rely on.
     """
 
     def channel(dynamic: DynamicInputs) -> Complex128[Array, "n_k 1 n_orb 3"]:
-        return orbital_transition_channels(
-            dynamic.initial_momentum,
-            dynamic.final_momentum,
-            dynamic.positions,
-            dynamic.depths,
-            dynamic.bvals,
-            dynamic.matrix_params,
-            dynamic.mean_free_path,
-            basis,
-        )
+        """Compute scalar-energy orbital transition channels.
 
-    return channel
+        Parameters
+        ----------
+        dynamic : DynamicInputs
+            Dynamic numerical inputs for the channel primitive.
+
+        Returns
+        -------
+        channels : Complex128[Array, "n_k 1 n_orb 3"]
+            Orbital transition channels for one energy sample.
+
+        Notes
+        -----
+        The closure contains only the static orbital basis.
+        """
+        channels: Complex128[Array, "n_k 1 n_orb 3"] = (
+            orbital_transition_channels(
+                dynamic.initial_momentum,
+                dynamic.final_momentum,
+                dynamic.positions,
+                dynamic.depths,
+                dynamic.bvals,
+                dynamic.matrix_params,
+                dynamic.mean_free_path,
+                basis,
+            )
+        )
+        return channels
+
+    channel_function: Callable[
+        [DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]
+    ] = channel
+    return channel_function
 
 
 def _group_weights(
@@ -330,10 +358,10 @@ def _group_weights(
 
     Implementation Logic
     --------------------
-    Band projection and polarization contraction give per-band
-    amplitudes; ``|amplitude|^2`` sums over the energy axis and then
-    over equal-size band blocks into ``N_GROUPS`` groups, which keeps
-    the retained output far smaller than the channel tensor.
+    Project bands and contract polarization to obtain per-band amplitudes.
+    Sum ``|amplitude|^2`` over the energy axis. Then sum equal-size band blocks
+    into ``N_GROUPS`` groups. This keeps retained output much smaller than the
+    channel tensor.
     """
     band_channels: Complex128[Array, "n_k n_band 1 3"] = project_band_channels(
         channels,
@@ -354,7 +382,17 @@ def _group_weights(
     return groups
 
 
-def _scan_function(basis: OrbitalBasis) -> Any:
+def _scan_function(
+    basis: OrbitalBasis,
+) -> Callable[
+    [
+        DynamicInputs,
+        Complex128[Array, "n_k n_band n_orb"],
+        Float64[Array, " n_energy"],
+        Complex128[Array, " 3"],
+    ],
+    Float64[Array, "n_energy n_k n_group"],
+]:
     """PRIVATE: Return the eight-energy reduced-output scan function.
 
     Parameters
@@ -364,19 +402,20 @@ def _scan_function(basis: OrbitalBasis) -> Any:
 
     Returns
     -------
-    scan_weights : Any
+    scan_weights : Callable
         Function of the dynamic inputs, eigenvectors, energy scales,
         and one polarization that scans over the energy axis and
         stacks the reduced group weights.
 
     Implementation Logic
     --------------------
-    Each scan step rescales the out-of-plane final momentum and the
-    complex radial values for one energy, rebuilds the channels, and
-    reduces them immediately, so no ``(K, E, B)`` cube ever
-    materializes.
+    Rescale out-of-plane final momentum and complex radial values for one
+    energy per scan step. Rebuild channels and reduce them immediately. Never
+    materialize a ``(K, E, B)`` cube.
     """
-    channel = _channel_function(basis)
+    channel: Callable[[DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]] = (
+        _channel_function(basis)
+    )
 
     def scan_weights(
         dynamic: DynamicInputs,
@@ -384,10 +423,51 @@ def _scan_function(basis: OrbitalBasis) -> Any:
         energy_scales: Float64[Array, " n_energy"],
         polarization: Complex128[Array, " 3"],
     ) -> Float64[Array, "n_energy n_k n_group"]:
+        """Stream reduced group weights over the energy scale.
+
+        Parameters
+        ----------
+        dynamic : DynamicInputs
+            Dynamic numerical inputs for the channel primitive.
+        eigenvectors : Complex128[Array, "n_k n_band n_orb"]
+            Band eigenvectors for each momentum.
+        energy_scales : Float64[Array, " n_energy"]
+            Dimensionless final-state and radial scales.
+        polarization : Complex128[Array, " 3"]
+            Cartesian complex polarization vector.
+
+        Returns
+        -------
+        groups : Float64[Array, "n_energy n_k n_group"]
+            Reduced complete-group weights for each energy.
+
+        Notes
+        -----
+        The scan reduces each energy before the next iteration.
+        """
+
         def body(
             carry: Float64[Array, ""],
             scale: Float64[Array, ""],
         ) -> Tuple[Float64[Array, ""], Float64[Array, "n_k n_group"]]:
+            """Compute one reduced energy-scan step.
+
+            Parameters
+            ----------
+            carry : Float64[Array, ""]
+                Running diagnostic sum of all group weights.
+            scale : Float64[Array, ""]
+                Dimensionless scale for this energy step.
+
+            Returns
+            -------
+            result : Tuple[Float64[Array, ""], Float64[Array, "n_k n_group"]]
+                Updated diagnostic sum and reduced group weights.
+
+            Notes
+            -----
+            The step rebuilds only the scaled dynamic leaves.
+            """
             scaled_final: Float64[Array, "n_k 3"] = dynamic.final_momentum.at[
                 :, 2
             ].multiply(scale)
@@ -405,19 +485,47 @@ def _scan_function(basis: OrbitalBasis) -> Any:
                 polarization,
             )
             next_carry: Float64[Array, ""] = carry + jnp.sum(groups)
-            return next_carry, groups
+            result: Tuple[
+                Float64[Array, ""], Float64[Array, "n_k n_group"]
+            ] = (next_carry, groups)
+            return result
 
-        _, groups = jax.lax.scan(
+        final_carry: Float64[Array, ""]
+        groups: Float64[Array, "n_energy n_k n_group"]
+        final_carry, groups = jax.lax.scan(
             body,
             jnp.asarray(0.0, dtype=jnp.float64),
             energy_scales,
         )
-        return groups
+        del final_carry
+        scanned_groups: Float64[Array, "n_energy n_k n_group"] = groups
+        return scanned_groups
 
-    return scan_weights
+    scan_function: Callable[
+        [
+            DynamicInputs,
+            Complex128[Array, "n_k n_band n_orb"],
+            Float64[Array, " n_energy"],
+            Complex128[Array, " 3"],
+        ],
+        Float64[Array, "n_energy n_k n_group"],
+    ] = scan_weights
+    return scan_function
 
 
-def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
+def _scalar_gradient_function(
+    basis: OrbitalBasis,
+) -> Callable[
+    [
+        DynamicInputs,
+        Complex128[Array, "n_k n_band n_orb"],
+        Complex128[Array, " 3"],
+    ],
+    Tuple[
+        Float64[Array, "n_k n_group"],
+        Float64[Array, " n_shell"],
+    ],
+]:
     """PRIVATE: Return one scalar-energy primitive plus sigma gradient.
 
     Parameters
@@ -438,7 +546,9 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
     reduced pipeline, so the gradient flows through the complete
     channel construction.
     """
-    channel = _channel_function(basis)
+    channel: Callable[[DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]] = (
+        _channel_function(basis)
+    )
 
     def scalar_with_gradient(
         dynamic: DynamicInputs,
@@ -448,6 +558,27 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
         Float64[Array, "n_k n_group"],
         Float64[Array, " n_shell"],
     ]:
+        """Compute group weights and their sigma gradient.
+
+        Parameters
+        ----------
+        dynamic : DynamicInputs
+            Dynamic numerical inputs for the channel primitive.
+        eigenvectors : Complex128[Array, "n_k n_band n_orb"]
+            Band eigenvectors for each momentum.
+        polarization : Complex128[Array, " 3"]
+            Cartesian complex polarization vector.
+
+        Returns
+        -------
+        result : Tuple[Float64[Array, "n_k n_group"],
+            Float64[Array, " n_shell"]]
+            Reduced group weights and the gradient with respect to sigma.
+
+        Notes
+        -----
+        The nested loss rebuilds only the sigma leaf.
+        """
         groups: Float64[Array, "n_k n_group"] = _group_weights(
             channel(dynamic),
             eigenvectors,
@@ -455,6 +586,22 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
         )
 
         def loss(sigma: Float64[Array, " n_shell"]) -> Float64[Array, ""]:
+            """Compute the reduced scalar loss for one sigma vector.
+
+            Parameters
+            ----------
+            sigma : Float64[Array, " n_shell"]
+                Per-shell radial Gaussian widths in 1/Angstrom.
+
+            Returns
+            -------
+            loss_value : Float64[Array, ""]
+                Sum of all reduced group weights.
+
+            Notes
+            -----
+            The update preserves every non-sigma carrier leaf.
+            """
             changed_params: MatrixElementParams = eqx.tree_at(
                 lambda item: item.sigma_shell,
                 dynamic.matrix_params,
@@ -468,18 +615,34 @@ def _scalar_gradient_function(basis: OrbitalBasis) -> Any:
                 eigenvectors,
                 polarization,
             )
-            return jnp.sum(values)
+            loss_value: Float64[Array, ""] = jnp.sum(values)
+            return loss_value
 
         sigma_gradient: Float64[Array, " n_shell"] = jax.grad(loss)(
             dynamic.matrix_params.sigma_shell
         )
-        return groups, sigma_gradient
+        result: Tuple[
+            Float64[Array, "n_k n_group"],
+            Float64[Array, " n_shell"],
+        ] = (groups, sigma_gradient)
+        return result
 
-    return scalar_with_gradient
+    gradient_function: Callable[
+        [
+            DynamicInputs,
+            Complex128[Array, "n_k n_band n_orb"],
+            Complex128[Array, " 3"],
+        ],
+        Tuple[
+            Float64[Array, "n_k n_group"],
+            Float64[Array, " n_shell"],
+        ],
+    ] = scalar_with_gradient
+    return gradient_function
 
 
 def _checksum_fixture(fixture: Fixture) -> str:
-    """PRIVATE: Hash all dynamic numerical leaves in tree order.
+    """PRIVATE: Compute a hash of dynamic leaves in tree order.
 
     Parameters
     ----------
@@ -496,7 +659,7 @@ def _checksum_fixture(fixture: Fixture) -> str:
     ``jax.tree.leaves`` fixes the traversal order, so the digest is
     reproducible across runs and hosts with equal inputs.
     """
-    digest = hashlib.sha256()
+    digest: Any = hashlib.sha256()
     leaf: object
     for leaf in jax.tree.leaves(
         (
@@ -506,15 +669,19 @@ def _checksum_fixture(fixture: Fixture) -> str:
             fixture.polarizations,
         )
     ):
-        array: Shaped[NDArray, "..."] = np.asarray(jax.device_get(leaf))
+        array: Union[
+            Float64[NDArray, "..."],
+            Complex128[NDArray, "..."],
+        ] = np.asarray(jax.device_get(leaf))
         digest.update(str(array.shape).encode())
         digest.update(str(array.dtype).encode())
         digest.update(array.tobytes(order="C"))
-    return digest.hexdigest()
+    checksum: str = digest.hexdigest()
+    return checksum
 
 
 def _time_call(function: Any, *arguments: object) -> float:
-    """PRIVATE: Time one synchronized compiled call.
+    """PRIVATE: Measure one synchronized compiled call.
 
     Parameters
     ----------
@@ -543,18 +710,18 @@ def _time_call(function: Any, *arguments: object) -> float:
 def _time_six(
     function: Any,
     arguments: Tuple[object, ...],
-    pols: Array,
+    pols: Complex128[Array, "n_pol 3"],
 ) -> float:
-    """PRIVATE: Time six independently synchronized polarization calls.
+    """PRIVATE: Measure six synchronized polarization calls.
 
     Parameters
     ----------
     function : Any
         Compiled callable taking the shared arguments plus one
         polarization.
-    arguments : tuple[object, ...]
+    arguments : Tuple[object, ...]
         Shared leading arguments.
-    pols : Array
+    pols : Complex128[Array, "n_pol 3"]
         Six polarization vectors.
 
     Returns
@@ -577,7 +744,7 @@ def _time_six(
 
 
 def _compile(function: Any, *arguments: object) -> Tuple[Any, float]:
-    """PRIVATE: Lower and compile while recording compilation time.
+    """PRIVATE: Compile one function and record compilation time.
 
     Parameters
     ----------
@@ -588,7 +755,7 @@ def _compile(function: Any, *arguments: object) -> Tuple[Any, float]:
 
     Returns
     -------
-    result : tuple[Any, float]
+    result : Tuple[Any, float]
         The compiled executable and the compilation wall-clock
         seconds.
 
@@ -600,7 +767,8 @@ def _compile(function: Any, *arguments: object) -> Tuple[Any, float]:
     start: float = time.perf_counter()
     compiled: Any = jax.jit(function).lower(*arguments).compile()
     elapsed: float = time.perf_counter() - start
-    return compiled, elapsed
+    result: Tuple[Any, float] = (compiled, elapsed)
+    return result
 
 
 def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
@@ -613,7 +781,7 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
 
     Returns
     -------
-    record : dict[str, int | bool | str]
+    record : Dict[str, int | bool | str]
         The four byte counters, the derived live-allocation bytes,
         the limit, and the verdict; or a residual record when the
         backend reports no authority.
@@ -633,10 +801,11 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
     if analysis is None or any(
         getattr(analysis, name, None) is None for name in required
     ):
-        return {
+        record: Dict[str, int | bool | str] = {
             "authority_available": False,
             "result": "residual: XLA memory_analysis unavailable",
         }
+        return record
     argument_bytes: int = int(analysis.argument_size_in_bytes)
     output_bytes: int = int(analysis.output_size_in_bytes)
     temporary_bytes: int = int(analysis.temp_size_in_bytes)
@@ -667,14 +836,14 @@ def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
 
     Returns
     -------
-    shapes : set[tuple[int, ...]]
+    shapes : set[Tuple[int, ...]]
         Every bracketed comma-separated integer list in the text.
 
     Notes
     -----
-    The regex over ``[digits, ...]`` groups deliberately overmatches
-    (any bracketed list counts); the forbidden-shape check only needs
-    the parsed set to be a superset of real array shapes.
+    Deliberately overmatch ``[digits, ...]`` groups. Treat any bracketed list
+    as a shape. The forbidden-shape check needs only a superset of real array
+    shapes.
     """
     shapes: set[Tuple[int, ...]] = set()
     match: re.Match[str]
@@ -687,15 +856,14 @@ def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
     return shapes
 
 
-def _s1() -> Dict[str, object]:
+def _compile_reuse_record() -> Dict[str, object]:
     """PRIVATE: Measure equation-count scaling and compile reuse.
 
     Returns
     -------
-    record : dict[str, object]
-        Equation counts at 9, 18, and 36 orbitals, the count growth,
-        the jit cache sizes around data-only changes, the composed
-        polarization-sweep cache and trace counts, and the verdict.
+    record : Dict[str, object]
+        Equation counts at 9, 18, and 36 orbitals. Also count growth, jit cache
+        sizes, polarization-sweep cache sizes, trace counts, and the verdict.
 
     Implementation Logic
     --------------------
@@ -705,27 +873,29 @@ def _s1() -> Dict[str, object]:
     trace exactly once.
     """
     orbital_counts: Tuple[int, ...] = (9, 18, 36)
-    equation_counts: list[int] = []
+    equation_counts: List[int] = []
     n_orbitals: int
     for n_orbitals in orbital_counts:
         fixture: Fixture = _fixture(n_k=2, n_orbitals=n_orbitals)
-        channel = _channel_function(fixture.basis)
+        channel: Callable[
+            [DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]
+        ] = _channel_function(fixture.basis)
         jaxpr: ClosedJaxpr = jax.make_jaxpr(channel)(fixture.dynamic)
         equation_counts.append(_recursive_equation_count(jaxpr))
 
-    fixture = _fixture(n_k=8, n_orbitals=N_ORBITALS)
+    fixture: Fixture = _fixture(n_k=8, n_orbitals=N_ORBITALS)
     channel_jit: Any = cast(
         Any,
         jax.jit(_channel_function(fixture.basis)),
     )
     cache_before: int = channel_jit._cache_size()
-    first: Array = channel_jit(fixture.dynamic)
+    first: Complex128[Array, "n_k 1 n_orb 3"] = channel_jit(fixture.dynamic)
     jax.block_until_ready(first)
     cache_after_first: int = channel_jit._cache_size()
     changed_dynamic: DynamicInputs = fixture.dynamic._replace(
         bvals=fixture.dynamic.bvals * (1.0 + 0.01j)
     )
-    second: Array = channel_jit(changed_dynamic)
+    second: Complex128[Array, "n_k 1 n_orb 3"] = channel_jit(changed_dynamic)
     jax.block_until_ready(second)
     cache_after_second: int = channel_jit._cache_size()
 
@@ -733,21 +903,27 @@ def _s1() -> Dict[str, object]:
 
     def composed_sweep(
         dynamic: DynamicInputs,
-        polarization: Array,
-    ) -> Array:
+        polarization: Complex128[Array, " 3"],
+    ) -> Complex128[Array, "n_k 1 n_orb"]:
         """Build channels and contract one fixed-shape polarization."""
         nonlocal trace_count
         trace_count += 1
-        channels: Array = _channel_function(fixture.basis)(dynamic)
-        contracted: Array = contract_polarization(channels, polarization)
+        channels: Complex128[Array, "n_k 1 n_orb 3"] = _channel_function(
+            fixture.basis
+        )(dynamic)
+        contracted: Complex128[Array, "n_k 1 n_orb"] = contract_polarization(
+            channels, polarization
+        )
         return contracted
 
     composed_jit: Any = cast(Any, jax.jit(composed_sweep))
-    composed_cache_sizes: list[int] = [composed_jit._cache_size()]
-    composed_trace_counts: list[int] = [trace_count]
-    polarization: Array
+    composed_cache_sizes: List[int] = [composed_jit._cache_size()]
+    composed_trace_counts: List[int] = [trace_count]
+    polarization: Complex128[Array, " 3"]
     for polarization in fixture.polarizations:
-        contracted: Array = composed_jit(changed_dynamic, polarization)
+        contracted: Complex128[Array, "n_k 1 n_orb"] = composed_jit(
+            changed_dynamic, polarization
+        )
         jax.block_until_ready(contracted)
         composed_cache_sizes.append(composed_jit._cache_size())
         composed_trace_counts.append(trace_count)
@@ -760,7 +936,7 @@ def _s1() -> Dict[str, object]:
         and composed_trace_counts == [0, 1, 1, 1, 1, 1, 1]
         else "fail"
     )
-    return {
+    record: Dict[str, object] = {
         "orbital_counts": list(orbital_counts),
         "recursive_jaxpr_equation_counts": equation_counts,
         "equation_count_growth": count_growth,
@@ -773,9 +949,10 @@ def _s1() -> Dict[str, object]:
         "composed_sweep_trace_counts": composed_trace_counts,
         "result": result,
     }
+    return record
 
 
-def _s2(
+def _literal_allocation_record(
     fixture: Fixture,
     artifact_directory: Path,
 ) -> Tuple[Dict[str, object], Any]:
@@ -790,27 +967,26 @@ def _s2(
 
     Returns
     -------
-    result : tuple[dict[str, object], Any]
-        The S2 record (shapes, equation counts, forbidden-shape scan,
+    result : Tuple[Dict[str, object], Any]
+        The literal allocation record, including shapes and equation counts,
         IR digests, memory authority, verdict) and the compiled scan
         executable.
 
     Implementation Logic
     --------------------
-    The routine retains address-sanitized JAXPR and optimized HLO for
-    both executables, writes them with ``mtime=0`` gzip so the bytes
-    stay deterministic, scans the concatenated text for any
-    ``(K, E, B)`` permutation, and records the compiler memory
-    authority for both programs.
+    Retain address-sanitized JAXPR and optimized HLO for both executables.
+    Write them with ``mtime=0`` gzip for deterministic bytes. Scan their
+    concatenated text for every ``(K, E, B)`` permutation. Record compiler
+    memory authority for both programs.
     """
-    scan_function = _scan_function(fixture.basis)
+    scan_function: Any = _scan_function(fixture.basis)
     scan_arguments: Tuple[object, ...] = (
         fixture.dynamic,
         fixture.eigenvectors,
         fixture.energy_scales,
         fixture.polarizations[0],
     )
-    scalar_function = _scalar_gradient_function(fixture.basis)
+    scalar_function: Any = _scalar_gradient_function(fixture.basis)
     scalar_arguments: Tuple[object, ...] = (
         fixture.dynamic,
         fixture.eigenvectors,
@@ -825,10 +1001,14 @@ def _s2(
         f"{scalar_jaxpr}\n\nEIGHT-ENERGY REDUCED SCAN\n{scan_jaxpr}\n"
     )
     jaxpr_text = re.sub(r"0x[0-9a-fA-F]+", "0xADDR", jaxpr_text)
+    scalar_compiled: Any
+    scalar_compilation_seconds: float
     scalar_compiled, scalar_compilation_seconds = _compile(
         scalar_function,
         *scalar_arguments,
     )
+    scan_compiled: Any
+    scan_compilation_seconds: float
     scan_compiled, scan_compilation_seconds = _compile(
         scan_function,
         *scan_arguments,
@@ -848,12 +1028,17 @@ def _s2(
     hlo_path.write_bytes(
         gzip.compress(hlo_text.encode(), compresslevel=9, mtime=0)
     )
-    scalar_output: object = scalar_compiled(*scalar_arguments)
-    scan_output: object = scan_compiled(*scan_arguments)
+    scalar_output: Tuple[
+        Float64[Array, "n_k n_group"],
+        Float64[Array, " n_shell"],
+    ] = scalar_compiled(*scalar_arguments)
+    scan_output: Float64[Array, "n_energy n_k n_group"] = scan_compiled(
+        *scan_arguments
+    )
     jax.block_until_ready((scalar_output, scan_output))
-    scalar_groups: Array = scalar_output[0]
-    sigma_gradient: Array = scalar_output[1]
-    groups: Array = scan_output
+    scalar_groups: Float64[Array, "n_k n_group"] = scalar_output[0]
+    sigma_gradient: Float64[Array, " n_shell"] = scalar_output[1]
+    groups: Float64[Array, "n_energy n_k n_group"] = scan_output
     parsed_shapes: set[Tuple[int, ...]] = _array_shapes(
         f"{jaxpr_text}\n{hlo_text}"
     )
@@ -862,7 +1047,7 @@ def _s2(
         N_K,
         N_ORBITALS,
     )
-    forbidden_shapes: list[list[int]] = sorted(
+    forbidden_shapes: List[List[int]] = sorted(
         [
             list(shape)
             for shape in parsed_shapes
@@ -940,10 +1125,11 @@ def _s2(
             else "residual"
         ),
     }
-    return record, scan_compiled
+    result: Tuple[Dict[str, object], Any] = (record, scan_compiled)
+    return result
 
 
-def _s3(fixture: Fixture) -> Dict[str, object]:
+def _throughput_record(fixture: Fixture) -> Dict[str, object]:
     """PRIVATE: Record synchronized seven-repetition timing evidence.
 
     Parameters
@@ -953,7 +1139,7 @@ def _s3(fixture: Fixture) -> Dict[str, object]:
 
     Returns
     -------
-    record : dict[str, object]
+    record : Dict[str, object]
         Compilation times, the four raw seven-run timing series,
         their medians, the contraction and pipeline ratios, and the
         verdict.
@@ -966,55 +1152,151 @@ def _s3(fixture: Fixture) -> Dict[str, object]:
     warmup rounds precede seven synchronized repetitions; medians
     form both ratios.
     """
-    channel = _channel_function(fixture.basis)
+    channel: Callable[[DynamicInputs], Complex128[Array, "n_k 1 n_orb 3"]] = (
+        _channel_function(fixture.basis)
+    )
 
     def batch_contract(
         channels: Complex128[Array, "n_k 1 n_orb 3"],
         polarizations: Complex128[Array, "n_pol 3"],
     ) -> Complex128[Array, "n_pol n_k 1 n_orb"]:
-        return jax.vmap(
+        """Compute all polarization contractions in one batched call.
+
+        Parameters
+        ----------
+        channels : Complex128[Array, "n_k 1 n_orb 3"]
+            Orbital transition channels.
+        polarizations : Complex128[Array, "n_pol 3"]
+            Cartesian complex polarization vectors.
+
+        Returns
+        -------
+        contracted : Complex128[Array, "n_pol n_k 1 n_orb"]
+            Polarization-contracted orbital amplitudes.
+
+        Notes
+        -----
+        ``jax.vmap`` maps only the polarization axis.
+        """
+        contracted: Complex128[Array, "n_pol n_k 1 n_orb"] = jax.vmap(
             lambda polarization: contract_polarization(
                 channels,
                 polarization,
             )
         )(polarizations)
+        return contracted
 
     def single_contract(
         channels: Complex128[Array, "n_k 1 n_orb 3"],
         polarization: Complex128[Array, " 3"],
     ) -> Complex128[Array, "n_k 1 n_orb"]:
-        return contract_polarization(channels, polarization)
+        """Compute one registered polarization contraction.
+
+        Parameters
+        ----------
+        channels : Complex128[Array, "n_k 1 n_orb 3"]
+            Orbital transition channels.
+        polarization : Complex128[Array, " 3"]
+            Cartesian complex polarization vector.
+
+        Returns
+        -------
+        contracted : Complex128[Array, "n_k 1 n_orb"]
+            Polarization-contracted orbital amplitudes.
+
+        Notes
+        -----
+        The function is the sequential timing primitive.
+        """
+        contracted: Complex128[Array, "n_k 1 n_orb"] = contract_polarization(
+            channels, polarization
+        )
+        return contracted
 
     def late_pipeline(
         dynamic: DynamicInputs,
         polarizations: Complex128[Array, "n_pol 3"],
     ) -> Complex128[Array, "n_pol n_k 1 n_orb"]:
-        return batch_contract(channel(dynamic), polarizations)
+        """Build channels once and contract all polarizations.
+
+        Parameters
+        ----------
+        dynamic : DynamicInputs
+            Dynamic numerical inputs for the channel primitive.
+        polarizations : Complex128[Array, "n_pol 3"]
+            Cartesian complex polarization vectors.
+
+        Returns
+        -------
+        contracted : Complex128[Array, "n_pol n_k 1 n_orb"]
+            Polarization-contracted orbital amplitudes.
+
+        Notes
+        -----
+        The channel tensor stays coherent until each late contraction.
+        """
+        contracted: Complex128[Array, "n_pol n_k 1 n_orb"] = batch_contract(
+            channel(dynamic), polarizations
+        )
+        return contracted
 
     def rebuild_pipeline(
         dynamic: DynamicInputs,
         polarization: Complex128[Array, " 3"],
     ) -> Complex128[Array, "n_k 1 n_orb"]:
-        return single_contract(channel(dynamic), polarization)
+        """Build channels for one polarization.
 
+        Parameters
+        ----------
+        dynamic : DynamicInputs
+            Dynamic numerical inputs for the channel primitive.
+        polarization : Complex128[Array, " 3"]
+            Cartesian complex polarization vector.
+
+        Returns
+        -------
+        contracted : Complex128[Array, "n_k 1 n_orb"]
+            Polarization-contracted orbital amplitudes.
+
+        Notes
+        -----
+        This function supplies the repeated-construction timing comparator.
+        """
+        contracted: Complex128[Array, "n_k 1 n_orb"] = single_contract(
+            channel(dynamic), polarization
+        )
+        return contracted
+
+    channel_compiled: Any
+    channel_compile: float
     channel_compiled, channel_compile = _compile(channel, fixture.dynamic)
-    channels: Array = channel_compiled(fixture.dynamic)
+    channels: Complex128[Array, "n_k 1 n_orb 3"] = channel_compiled(
+        fixture.dynamic
+    )
     jax.block_until_ready(channels)
+    batch_compiled: Any
+    batch_compile: float
     batch_compiled, batch_compile = _compile(
         batch_contract,
         channels,
         fixture.polarizations,
     )
+    single_compiled: Any
+    single_compile: float
     single_compiled, single_compile = _compile(
         single_contract,
         channels,
         fixture.polarizations[0],
     )
+    late_compiled: Any
+    late_compile: float
     late_compiled, late_compile = _compile(
         late_pipeline,
         fixture.dynamic,
         fixture.polarizations,
     )
+    rebuild_compiled: Any
+    rebuild_compile: float
     rebuild_compiled, rebuild_compile = _compile(
         rebuild_pipeline,
         fixture.dynamic,
@@ -1030,10 +1312,10 @@ def _s3(fixture: Fixture) -> Dict[str, object]:
             fixture.polarizations,
         )
 
-    batch_raw: list[float] = []
-    sequential_raw: list[float] = []
-    late_raw: list[float] = []
-    rebuild_raw: list[float] = []
+    batch_raw: List[float] = []
+    sequential_raw: List[float] = []
+    late_raw: List[float] = []
+    rebuild_raw: List[float] = []
     for _ in range(REPETITIONS):
         batch_raw.append(
             _time_call(batch_compiled, channels, fixture.polarizations)
@@ -1057,7 +1339,7 @@ def _s3(fixture: Fixture) -> Dict[str, object]:
     rebuild_median: float = statistics.median(rebuild_raw)
     contraction_ratio: float = batch_median / sequential_median
     pipeline_ratio: float = late_median / rebuild_median
-    return {
+    record: Dict[str, object] = {
         "n_k": N_K,
         "n_orb": N_ORBITALS,
         "n_polarization": N_POLARIZATIONS,
@@ -1092,11 +1374,20 @@ def _s3(fixture: Fixture) -> Dict[str, object]:
             else "environment-sensitive failure"
         ),
     }
+    return record
 
 
 def main() -> None:
-    """Run all scalability checks and write JSON plus retained compressed IR."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    """Run all scalability checks and write JSON plus retained compressed IR.
+
+    Notes
+    -----
+    The command records compile reuse, literal allocation, and throughput. It
+    writes deterministic compressed compiler representations with the JSON.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__
+    )
     parser.add_argument(
         "--artifact-directory",
         type=Path,
@@ -1118,10 +1409,13 @@ def main() -> None:
         )
     )
     host_setup_seconds: float = time.perf_counter() - host_setup_start
-    s1: Dict[str, object] = _s1()
-    s2: Dict[str, object]
-    s2, _ = _s2(fixture, arguments.artifact_directory)
-    s3: Dict[str, object] = _s3(fixture)
+    compile_reuse: Dict[str, object] = _compile_reuse_record()
+    literal_allocation: Dict[str, object]
+    _compiled_scan: Any
+    literal_allocation, _compiled_scan = _literal_allocation_record(
+        fixture, arguments.artifact_directory
+    )
+    throughput: Dict[str, object] = _throughput_record(fixture)
     peak_rss_raw: int = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     peak_rss_bytes: int = (
         peak_rss_raw if sys.platform == "darwin" else peak_rss_raw * 1024
@@ -1140,7 +1434,7 @@ def main() -> None:
     }
     artifact: Dict[str, object] = {
         "schema": "diffpes.matrix-element-scalability.v2",
-        "gates": [
+        "requirements": [
             "matrix-element-forward-scaling",
             "matrix-element-compiled-graph-scaling",
             "matrix-element-gradient-scaling",
@@ -1155,9 +1449,9 @@ def main() -> None:
         "process_peak_rss_bytes_non_authoritative": peak_rss_bytes,
         "dynamic_input_sha256": _checksum_fixture(fixture),
         "source_sha256": source_sha256,
-        "s1": s1,
-        "s2": s2,
-        "s3": s3,
+        "compile_reuse": compile_reuse,
+        "literal_allocation": literal_allocation,
+        "throughput": throughput,
     }
     output_path: Path = arguments.artifact_directory / "cpu_benchmark.json"
     output_path.write_text(

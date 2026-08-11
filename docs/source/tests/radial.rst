@@ -17,3 +17,33 @@ Validation and regression tests for :mod:`diffpes.radial`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_chinook_screening_reference
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb_composed_assembly
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_gradshteyn_ryzhik_reference
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_radial_profile_envelope
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_screening
+   :members:
+   :undoc-members:
+   :show-inheritance:

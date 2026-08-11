@@ -12,10 +12,9 @@ import json
 import re
 import statistics
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
 
 ARTIFACT_DIRECTORY: Path = (
     Path(__file__).parents[1]
@@ -31,7 +30,7 @@ def _artifact() -> Dict[str, Any]:
 
     Returns
     -------
-    artifact : dict[str, Any]
+    artifact : Dict[str, Any]
         Parsed JSON benchmark artifact.
 
     Notes
@@ -61,7 +60,8 @@ def _sha256(path: Path) -> str:
     -----
     Reads the file bytes in one call and hashes them with SHA-256.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
@@ -94,9 +94,12 @@ def _array_shapes(ir_text: str) -> set[Tuple[int, ...]]:
 
 
 class TestMatrixElementScalabilityEvidence:
-    """Check structural, allocation, and raw-timing evidence."""
+    """Check structural, allocation, and raw-timing evidence.
 
-    def test_s1_sublinear_equations_and_compile_reuse(self) -> None:
+    The cases authenticate the frozen benchmark and enforce each memory bound.
+    """
+
+    def test_sublinear_equations_and_compile_reuse(self) -> None:
         """Require constant graph size and one fixed-shape channel compile.
 
         The test checks all three orbital counts and each recorded cache size.
@@ -113,16 +116,18 @@ class TestMatrixElementScalabilityEvidence:
             source_path: Path = REPOSITORY_ROOT / relative_path
             assert _sha256(source_path) == digest
         assert artifact["process_peak_rss_bytes_non_authoritative"] > 0
-        s1: Dict[str, Any] = artifact["s1"]
-        orbital_counts: list[int] = s1["orbital_counts"]
-        equation_counts: list[int] = s1["recursive_jaxpr_equation_counts"]
+        compile_reuse: Dict[str, Any] = artifact["compile_reuse"]
+        orbital_counts: List[int] = compile_reuse["orbital_counts"]
+        equation_counts: List[int] = compile_reuse[
+            "recursive_jaxpr_equation_counts"
+        ]
         assert orbital_counts == [9, 18, 36]
         assert len(set(equation_counts)) == 1
-        assert s1["equation_count_growth"] < (
+        assert compile_reuse["equation_count_growth"] < (
             orbital_counts[-1] - orbital_counts[0]
         )
-        assert s1["compile_cache_sizes"] == [0, 1, 1]
-        assert s1["composed_sweep_compile_cache_sizes"] == [
+        assert compile_reuse["compile_cache_sizes"] == [0, 1, 1]
+        assert compile_reuse["composed_sweep_compile_cache_sizes"] == [
             0,
             1,
             1,
@@ -131,10 +136,18 @@ class TestMatrixElementScalabilityEvidence:
             1,
             1,
         ]
-        assert s1["composed_sweep_trace_counts"] == [0, 1, 1, 1, 1, 1, 1]
-        assert s1["result"] == "pass"
+        assert compile_reuse["composed_sweep_trace_counts"] == [
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+        ]
+        assert compile_reuse["result"] == "pass"
 
-    def test_s2_dynamic_arguments_live_allocation_and_retained_ir(
+    def test_dynamic_arguments_live_allocation_and_retained_ir(
         self,
     ) -> None:
         """Require literal dimensions, XLA authority, and no K-E-B cube.
@@ -145,15 +158,19 @@ class TestMatrixElementScalabilityEvidence:
         -----
         It recomputes live bytes and verifies both compressed artifact hashes.
         """
-        s2: Dict[str, Any] = _artifact()["s2"]
-        assert (s2["n_k"], s2["n_orb"], s2["n_energy"]) == (4096, 18, 8)
-        assert s2["output_shape"] == [8, 4096, 6]
-        assert s2["scalar_output_shape"] == [4096, 6]
-        assert s2["gradient_shape"] == [18]
-        assert s2["forbidden_k_e_b_shape_present"] is False
-        memory: Dict[str, Any] = s2["memory_analysis"]
+        literal: Dict[str, Any] = _artifact()["literal_allocation"]
+        assert (literal["n_k"], literal["n_orb"], literal["n_energy"]) == (
+            4096,
+            18,
+            8,
+        )
+        assert literal["output_shape"] == [8, 4096, 6]
+        assert literal["scalar_output_shape"] == [4096, 6]
+        assert literal["gradient_shape"] == [18]
+        assert literal["forbidden_k_e_b_shape_present"] is False
+        memory: Dict[str, Any] = literal["memory_analysis"]
         assert memory["authority_available"] is True
-        live_values: list[int] = []
+        live_values: List[int] = []
         name: str
         for name in ("scalar_value_and_gradient", "reduced_scan"):
             record: Dict[str, Any] = memory[name]
@@ -173,10 +190,10 @@ class TestMatrixElementScalabilityEvidence:
         )
         assert max(live_values) < memory["limit_bytes"]
 
-        jaxpr_path: Path = ARTIFACT_DIRECTORY / s2["jaxpr_gzip"]
-        hlo_path: Path = ARTIFACT_DIRECTORY / s2["hlo_gzip"]
-        assert _sha256(jaxpr_path) == s2["jaxpr_gzip_sha256"]
-        assert _sha256(hlo_path) == s2["hlo_gzip_sha256"]
+        jaxpr_path: Path = ARTIFACT_DIRECTORY / literal["jaxpr_gzip"]
+        hlo_path: Path = ARTIFACT_DIRECTORY / literal["hlo_gzip"]
+        assert _sha256(jaxpr_path) == literal["jaxpr_gzip_sha256"]
+        assert _sha256(hlo_path) == literal["hlo_gzip_sha256"]
         jaxpr_text: str = gzip.decompress(jaxpr_path.read_bytes()).decode()
         hlo_text: str = gzip.decompress(hlo_path.read_bytes()).decode()
         text: str
@@ -192,14 +209,14 @@ class TestMatrixElementScalabilityEvidence:
             if len(shape) == 3 and sorted(shape) == [8, 18, 4096]
         }
         assert forbidden_shapes == set()
-        assert s2["forbidden_k_e_b_shapes"] == []
-        assert s2["parsed_array_shape_count"] == len(parsed_shapes)
-        assert s2["result"] == "pass"
+        assert literal["forbidden_k_e_b_shapes"] == []
+        assert literal["parsed_array_shape_count"] == len(parsed_shapes)
+        assert literal["result"] == "pass"
 
-    def test_s3_raw_repetitions_recompute_medians_and_both_ratios(
+    def test_raw_repetitions_recompute_medians_and_both_ratios(
         self,
     ) -> None:
-        """Recompute every reported S3 statistic from seven raw runs.
+        """Recompute every reported throughput statistic from seven raw runs.
 
         The test checks synchronized samples, medians, and both reuse ratios.
 
@@ -207,14 +224,14 @@ class TestMatrixElementScalabilityEvidence:
         -----
         It derives each statistic directly from the four raw timing series.
         """
-        s3: Dict[str, Any] = _artifact()["s3"]
-        assert s3["warmups"] == 2
-        assert s3["repetitions"] == 7
-        assert s3["synchronized"] is True
-        raw: Dict[str, list[float]] = s3["raw_seconds"]
-        medians: Dict[str, float] = s3["median_seconds"]
+        throughput: Dict[str, Any] = _artifact()["throughput"]
+        assert throughput["warmups"] == 2
+        assert throughput["repetitions"] == 7
+        assert throughput["synchronized"] is True
+        raw: Dict[str, List[float]] = throughput["raw_seconds"]
+        medians: Dict[str, float] = throughput["median_seconds"]
         name: str
-        values: list[float]
+        values: List[float]
         for name, values in raw.items():
             assert len(values) == 7
             assert all(value > 0.0 for value in values)
@@ -232,17 +249,17 @@ class TestMatrixElementScalabilityEvidence:
             medians["late_reuse_pipeline"] / medians["six_rebuild_pipelines"]
         )
         np.testing.assert_allclose(
-            s3["contraction_ratio"],
+            throughput["contraction_ratio"],
             contraction_ratio,
             rtol=0.0,
             atol=0.0,
         )
         np.testing.assert_allclose(
-            s3["pipeline_ratio"],
+            throughput["pipeline_ratio"],
             pipeline_ratio,
             rtol=0.0,
             atol=0.0,
         )
         assert contraction_ratio < 1.5
         assert pipeline_ratio < 1.0
-        assert s3["result"] == "pass"
+        assert throughput["result"] == "pass"

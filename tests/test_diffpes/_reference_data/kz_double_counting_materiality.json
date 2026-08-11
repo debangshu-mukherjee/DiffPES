@@ -1,0 +1,677 @@
+{
+  "artifact_id": "kz-double-counting-materiality-v1",
+  "cases": [
+    {
+      "case_id": "lambda=5A/fwhm=0eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.4739321853584852,
+        "peak_energy_shift_ev": -0.062000000000000055,
+        "relative_l1": 0.47393218535848525,
+        "relative_linf": 0.38591277764418563,
+        "signed_integrated_relative": -0.4739321853584852
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.0035126262069368704,
+        "peak_energy_shift_ev": -0.006000000000000005,
+        "relative_l1": 0.12304172296391078,
+        "relative_linf": 0.1007176467280172,
+        "signed_integrated_relative": 0.0035126262069368704
+      },
+      "integrals": {
+        "bulk_kz": 38.859964855374514,
+        "coherent_slab": 20.371419606131933,
+        "combined_forbidden": 20.44297678851294
+      },
+      "mean_free_path_ang": 5.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.7443232924319363,
+          36.903237792616764,
+          21.68954466335909,
+          18.553145352767817,
+          1.6481705034712826
+        ],
+        "coherent_slab": [
+          1.1251462719859442,
+          33.10478962672985,
+          1.8283451410273468,
+          6.364106865474935,
+          0.5947774021245164
+        ],
+        "combined_forbidden": [
+          1.496102634327572,
+          34.05897790889385,
+          4.465264351904636,
+          6.200888552793274,
+          0.8550176449156248
+        ]
+      },
+      "resolution_fwhm_ev": 0.0
+    },
+    {
+      "case_id": "lambda=5A/fwhm=0.06eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.4739551201857987,
+        "peak_energy_shift_ev": -0.040000000000000036,
+        "relative_l1": 0.4739551201857988,
+        "relative_linf": 0.38204906626134966,
+        "signed_integrated_relative": -0.4739551201857987
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.003458001178902517,
+        "peak_energy_shift_ev": -0.010000000000000009,
+        "relative_l1": 0.11741319798261858,
+        "relative_linf": 0.09848150785739655,
+        "signed_integrated_relative": 0.003458001178902517
+      },
+      "integrals": {
+        "bulk_kz": 38.854891162340614,
+        "coherent_slab": 20.36898059278445,
+        "combined_forbidden": 20.43941655168734
+      },
+      "mean_free_path_ang": 5.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.7563220921897411,
+          38.42679322336085,
+          22.429967122205348,
+          18.532802035771358,
+          1.6590573716055572
+        ],
+        "coherent_slab": [
+          1.1346967826937056,
+          34.49157347650853,
+          2.2222084299754066,
+          6.374760503135923,
+          0.5980148919012664
+        ],
+        "combined_forbidden": [
+          1.5074673429379188,
+          35.04714684480374,
+          4.743873733854234,
+          6.198324317787215,
+          0.8590002351247535
+        ]
+      },
+      "resolution_fwhm_ev": 0.06
+    },
+    {
+      "case_id": "lambda=5A/fwhm=0.18eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.47400386147187723,
+        "peak_energy_shift_ev": -0.03400000000000003,
+        "relative_l1": 0.4740038614718773,
+        "relative_linf": 0.3929029163865755,
+        "signed_integrated_relative": -0.47400386147187723
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.003342102284868082,
+        "peak_energy_shift_ev": -0.0040000000000000036,
+        "relative_l1": 0.08767000398089526,
+        "relative_linf": 0.0764834197637662,
+        "signed_integrated_relative": 0.003342102284868082
+      },
+      "integrals": {
+        "bulk_kz": 38.84410877450796,
+        "coherent_slab": 20.363793339708337,
+        "combined_forbidden": 20.431851219957558
+      },
+      "mean_free_path_ang": 5.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.8667493237591208,
+          40.19307348326139,
+          27.37068809456586,
+          18.385722099211733,
+          1.7577922272057755
+        ],
+        "coherent_slab": [
+          1.2240257081321018,
+          34.979417774762865,
+          5.272555327141387,
+          6.187373823968079,
+          0.62736067087875
+        ],
+        "combined_forbidden": [
+          1.6124093721412,
+          34.253118367416896,
+          7.03149964755175,
+          5.99532090658641,
+          0.8940823017859508
+        ]
+      },
+      "resolution_fwhm_ev": 0.18
+    },
+    {
+      "case_id": "lambda=10A/fwhm=0eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.31742462969654106,
+        "peak_energy_shift_ev": -0.050000000000000044,
+        "relative_l1": 0.3174246296965409,
+        "relative_linf": 0.27642527596450944,
+        "signed_integrated_relative": -0.31742462969654106
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.017374411601986346,
+        "peak_energy_shift_ev": -0.006000000000000005,
+        "relative_l1": 0.07555707072102957,
+        "relative_linf": 0.06023407103968699,
+        "signed_integrated_relative": 0.017374411601986346
+      },
+      "integrals": {
+        "bulk_kz": 38.302083775579504,
+        "coherent_slab": 25.69757870688247,
+        "combined_forbidden": 26.144059016510287
+      },
+      "mean_free_path_ang": 10.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.4300619318035988,
+          35.84876565811361,
+          17.613173306752437,
+          19.212196589991184,
+          1.471132946120629
+        ],
+        "coherent_slab": [
+          1.052914089362429,
+          33.60834156921848,
+          4.973724297152083,
+          9.865965721734426,
+          0.7048863944355016
+        ],
+        "combined_forbidden": [
+          1.3514844594165922,
+          34.583875706892414,
+          7.616291903839022,
+          9.93811644887806,
+          0.9438393177567932
+        ]
+      },
+      "resolution_fwhm_ev": 0.0
+    },
+    {
+      "case_id": "lambda=10A/fwhm=0.06eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.3174384382048472,
+        "peak_energy_shift_ev": -0.026000000000000023,
+        "relative_l1": 0.3174384382048473,
+        "relative_linf": 0.2735238394145643,
+        "signed_integrated_relative": -0.3174384382048472
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.017339162789296036,
+        "peak_energy_shift_ev": -0.006000000000000005,
+        "relative_l1": 0.07185900326945033,
+        "relative_linf": 0.05776688506812052,
+        "signed_integrated_relative": 0.017339162789296036
+      },
+      "integrals": {
+        "bulk_kz": 38.297939124529904,
+        "coherent_slab": 25.695168433999324,
+        "combined_forbidden": 26.14070114237482
+      },
+      "mean_free_path_ang": 10.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.4405511393541597,
+          37.652359701415,
+          18.535034606420478,
+          19.16696333310368,
+          1.4818990289408709
+        ],
+        "coherent_slab": [
+          1.0619663774243029,
+          35.331452455498834,
+          5.615756448809178,
+          9.851472425089124,
+          0.7097337566640163
+        ],
+        "combined_forbidden": [
+          1.3619731615617792,
+          36.02757053528874,
+          8.132734936474236,
+          9.921575744284699,
+          0.9494755063511247
+        ]
+      },
+      "resolution_fwhm_ev": 0.06
+    },
+    {
+      "case_id": "lambda=10A/fwhm=0.18eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.31746775549576584,
+        "peak_energy_shift_ev": -0.018000000000000016,
+        "relative_l1": 0.3174677554957658,
+        "relative_linf": 0.27955280738810273,
+        "signed_integrated_relative": -0.31746775549576584
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.017264382106442596,
+        "peak_energy_shift_ev": -0.0020000000000000018,
+        "relative_l1": 0.05282512158389383,
+        "relative_linf": 0.041506863005245066,
+        "signed_integrated_relative": 0.017264382106442596
+      },
+      "integrals": {
+        "bulk_kz": 38.28912555007015,
+        "coherent_slab": 25.6900401326145,
+        "combined_forbidden": 26.1335628017938
+      },
+      "mean_free_path_ang": 10.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.537973621592251,
+          40.36446417960181,
+          24.515668615909867,
+          18.85725410603369,
+          1.580432768436491
+        ],
+        "coherent_slab": [
+          1.1470162324069404,
+          37.28011930671211,
+          10.083294351181348,
+          9.537793280450698,
+          0.7544656527691995
+        ],
+        "combined_forbidden": [
+          1.4594117680219074,
+          37.04461478765911,
+          11.862605730968502,
+          9.629581350763008,
+          1.000439118425159
+        ]
+      },
+      "resolution_fwhm_ev": 0.18
+    },
+    {
+      "case_id": "lambda=20A/fwhm=0eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.18917713341965514,
+        "peak_energy_shift_ev": -0.038000000000000034,
+        "relative_l1": 0.1892116120620529,
+        "relative_linf": 0.1706852619878954,
+        "signed_integrated_relative": -0.18917713341965514
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.013903887922829124,
+        "peak_energy_shift_ev": -0.006000000000000005,
+        "relative_l1": 0.04233323879381211,
+        "relative_linf": 0.034891732761454956,
+        "signed_integrated_relative": 0.013903887922829124
+      },
+      "integrals": {
+        "bulk_kz": 37.836097616711285,
+        "coherent_slab": 30.257673824139246,
+        "combined_forbidden": 30.6783731297956
+      },
+      "mean_free_path_ang": 20.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.235525735456435,
+          35.18488735798874,
+          15.113629829044152,
+          19.327595474957686,
+          1.3313119798242068
+        ],
+        "coherent_slab": [
+          1.022534252001375,
+          33.95021425105337,
+          7.879959129570613,
+          13.350527887357613,
+          0.8536806601551662
+        ],
+        "combined_forbidden": [
+          1.2140732285954914,
+          34.597222339739375,
+          9.839847034069951,
+          13.488285900557134,
+          1.017116914933515
+        ]
+      },
+      "resolution_fwhm_ev": 0.0
+    },
+    {
+      "case_id": "lambda=20A/fwhm=0.06eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.18918415785937523,
+        "peak_energy_shift_ev": -0.014000000000000012,
+        "relative_l1": 0.18920326554831396,
+        "relative_linf": 0.16876453331625105,
+        "signed_integrated_relative": -0.18918415785937523
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.013884437309884562,
+        "peak_energy_shift_ev": -0.0040000000000000036,
+        "relative_l1": 0.04014890762093098,
+        "relative_linf": 0.033373899870625647,
+        "signed_integrated_relative": 0.013884437309884562
+      },
+      "integrals": {
+        "bulk_kz": 37.832560370524746,
+        "coherent_slab": 30.255163377941702,
+        "combined_forbidden": 30.67523929716305
+      },
+      "mean_free_path_ang": 20.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.2450878576787971,
+          37.1602456330734,
+          16.150728099149948,
+          19.269558904713293,
+          1.3417397730032206
+        ],
+        "coherent_slab": [
+          1.031306020915211,
+          35.88159127754747,
+          8.732361878214835,
+          13.31275410187067,
+          0.8603137364537158
+        ],
+        "combined_forbidden": [
+          1.2237548573817012,
+          36.35712162745965,
+          10.59696582003884,
+          13.453816780781423,
+          1.0243233625408168
+        ]
+      },
+      "resolution_fwhm_ev": 0.06
+    },
+    {
+      "case_id": "lambda=20A/fwhm=0.18eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.18919906024113173,
+        "peak_energy_shift_ev": -0.008000000000000007,
+        "relative_l1": 0.18919906024113184,
+        "relative_linf": 0.1718664279592271,
+        "signed_integrated_relative": -0.18919906024113173
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.013843174122982707,
+        "peak_energy_shift_ev": 0.0,
+        "relative_l1": 0.029433253717342654,
+        "relative_linf": 0.024983398346366426,
+        "signed_integrated_relative": 0.013843174122982707
+      },
+      "integrals": {
+        "bulk_kz": 37.8250346911688,
+        "coherent_slab": 30.249820146534077,
+        "combined_forbidden": 30.66857367401146
+      },
+      "mean_free_path_ang": 20.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.334518365476491,
+          40.45416783223197,
+          22.776633839718812,
+          18.87739857755326,
+          1.437810931261275
+        ],
+        "coherent_slab": [
+          1.1139361881011973,
+          38.75597793158808,
+          14.359987613793704,
+          12.916932237395159,
+          0.9218576998507931
+        ],
+        "combined_forbidden": [
+          1.3142321583290708,
+          38.653999371368336,
+          15.688892375198817,
+          13.090802397865096,
+          1.0904450058666662
+        ]
+      },
+      "resolution_fwhm_ev": 0.18
+    },
+    {
+      "case_id": "lambda=50A/fwhm=0eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.08506729329374363,
+        "peak_energy_shift_ev": -0.008000000000000007,
+        "relative_l1": 0.0852602613035873,
+        "relative_linf": 0.07829650651500929,
+        "signed_integrated_relative": -0.08506729329374363
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.006945612758417664,
+        "peak_energy_shift_ev": 0.0,
+        "relative_l1": 0.01843766456712165,
+        "relative_linf": 0.016670854199398517,
+        "signed_integrated_relative": 0.006945612758417664
+      },
+      "integrals": {
+        "bulk_kz": 37.47790316546885,
+        "coherent_slab": 34.05323877515523,
+        "combined_forbidden": 34.28975938485739
+      },
+      "mean_free_path_ang": 50.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.1030875923991519,
+          34.7372531339398,
+          13.45511147532112,
+          19.276605671851417,
+          1.2232737139984189
+        ],
+        "coherent_slab": [
+          1.0105658752071658,
+          34.21046975326434,
+          10.300218771841347,
+          16.473578060854127,
+          1.0026237962121594
+        ],
+        "combined_forbidden": [
+          1.100007712412242,
+          34.51116733570892,
+          11.308750365638849,
+          16.569019113684472,
+          1.0818216801629656
+        ]
+      },
+      "resolution_fwhm_ev": 0.0
+    },
+    {
+      "case_id": "lambda=50A/fwhm=0.06eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.08506996105973141,
+        "peak_energy_shift_ev": -0.006000000000000005,
+        "relative_l1": 0.08523724532132387,
+        "relative_linf": 0.07737517654702974,
+        "signed_integrated_relative": -0.08506996105973141
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.006937475686732802,
+        "peak_energy_shift_ev": 0.0,
+        "relative_l1": 0.017476957986481006,
+        "relative_linf": 0.015948249992622798,
+        "signed_integrated_relative": 0.006937475686732802
+      },
+      "integrals": {
+        "bulk_kz": 37.47479383320444,
+        "coherent_slab": 34.05058944470074,
+        "combined_forbidden": 34.28681458109227
+      },
+      "mean_free_path_ang": 50.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.112023970442177,
+          36.82914733182372,
+          14.571044791326132,
+          19.21090638799489,
+          1.2333601351601544
+        ],
+        "coherent_slab": [
+          1.0191653426078324,
+          36.2837530406187,
+          11.327700616161396,
+          16.417255143849545,
+          1.0109293556486132
+        ],
+        "combined_forbidden": [
+          1.1090282551206014,
+          36.50558757947696,
+          12.286798115999146,
+          16.515917461142802,
+          1.0904146073777254
+        ]
+      },
+      "resolution_fwhm_ev": 0.06
+    },
+    {
+      "case_id": "lambda=50A/fwhm=0.18eV",
+      "combined_vs_bulk_kz": {
+        "absolute_integrated_relative": 0.0850756165842993,
+        "peak_energy_shift_ev": -0.0020000000000000018,
+        "relative_l1": 0.08512360807976074,
+        "relative_linf": 0.07860468739787325,
+        "signed_integrated_relative": -0.0850756165842993
+      },
+      "combined_vs_coherent_slab": {
+        "absolute_integrated_relative": 0.006920213779713011,
+        "peak_energy_shift_ev": 0.0,
+        "relative_l1": 0.01281410415956845,
+        "relative_linf": 0.012069319176772439,
+        "signed_integrated_relative": 0.006920213779713011
+      },
+      "integrals": {
+        "bulk_kz": 37.468175726341855,
+        "coherent_slab": 34.044949247224174,
+        "combined_forbidden": 34.280547574134445
+      },
+      "mean_free_path_ang": 50.0,
+      "probe_values": {
+        "bulk_kz": [
+          1.1960605603845176,
+          40.517594019252996,
+          21.63200215152531,
+          18.770481760106005,
+          1.326767029922868
+        ],
+        "coherent_slab": [
+          1.100304772066019,
+          39.794223009766064,
+          17.910097343587157,
+          15.97306980828826,
+          1.0881238746583486
+        ],
+        "combined_forbidden": [
+          1.1937978060774286,
+          39.74969500532573,
+          18.59702688589009,
+          16.0939348544,
+          1.1699170180366552
+        ]
+      },
+      "resolution_fwhm_ev": 0.18
+    }
+  ],
+  "comparison_metrics": {
+    "peak_energy_shift_ev": "argmax(combined)-argmax(reference)",
+    "relative_l1": "integral(abs(combined-reference))/integral(abs(reference))",
+    "relative_linf": "max(abs(combined-reference))/max(abs(reference))",
+    "signed_integrated_relative": "(integral(combined)-integral(reference))/integral(reference)"
+  },
+  "crop_95_percent_counterexample": {
+    "crop_quadrature_error_estimate": 1.423514145487407e-14,
+    "crop_renormalized_expectation": 1.350460732471151,
+    "division_gain_relative": 0.05263157894736836,
+    "full_expectation": 1.3274923012311928,
+    "gamma": 0.2,
+    "half_window": 2.5412409472349395,
+    "mass_quadrature_error_estimate": 1.057333290814294e-14,
+    "numeric_window_mass": 0.95,
+    "observable": "1 + 0.4*cos(x)",
+    "observable_max": 1.4,
+    "observable_min": 0.6,
+    "raw_crop_relative_bias": -0.03356298589624718,
+    "raw_cropped_expectation": 1.2829376958475935,
+    "renormalized_relative_bias": 0.017302120109213392,
+    "target_mass": 0.95
+  },
+  "generator": {
+    "diagnostic_command": ".venv/bin/python generate_kz_double_counting_materiality.py --diagnostic",
+    "name": "generate_kz_double_counting_materiality.py",
+    "sha256": "68d502e5d3fee0723f3892981af6e3280bf5ce9c2d01bbe9feb5daeca082546f"
+  },
+  "independent_boundary": {
+    "forbidden_imports": [
+      "diffpes",
+      "jax"
+    ],
+    "mutable_numeric_authority_count": 1,
+    "production_calls": 0,
+    "runtime": "NumPy/SciPy only"
+  },
+  "numeric_floor_semantics": "roundoff-separation witness for this frozen fixture only",
+  "numeric_nonidentity_floor": 1e-06,
+  "profile": {
+    "center_frac": 0.173,
+    "energy_axis_ev": {
+      "count": 1801,
+      "maximum": 1.2,
+      "minimum": -2.4,
+      "step": 0.002
+    },
+    "layer_amplitude": {
+      "E1_j_ev": "-0.95 + 0.11*j",
+      "E2_j_ev": "-0.28 - 0.07*cos(0.8*j+0.2)",
+      "G1_j_ev": "0.075 + 0.008*j",
+      "formula": "s_j*[exp(i*(0.31*j+0.07*j^2))/(omega-E1_j+i*G1_j) + 0.42*exp(i*(-0.23*j+0.13))/(omega-E2_j+i*0.14)]",
+      "s_j": "(1 + 0.09*(-1)^j)/sqrt(6)"
+    },
+    "layer_depths_ang": [
+      0.0,
+      2.6,
+      5.2,
+      7.8,
+      10.4,
+      13.0
+    ],
+    "layer_spacing_ang": 2.6,
+    "mean_free_path_ang": [
+      5.0,
+      10.0,
+      20.0,
+      50.0
+    ],
+    "probe_energies_ev": [
+      -1.4,
+      -1.0,
+      -0.6,
+      -0.2,
+      0.2
+    ],
+    "profile_id": "kz-double-counting-lambda-resolution-v1",
+    "reciprocal_period_inv_ang": 2.41660973353061,
+    "resolution_fwhm_ev": [
+      0.0,
+      0.06,
+      0.18
+    ],
+    "resolution_operator": {
+      "implementation": "scipy.ndimage.gaussian_filter1d",
+      "ordering": "after each physical observable",
+      "truncate_sigma": 8.0,
+      "two_sided_tail_bound": 1.2441921148543658e-15
+    },
+    "route_definitions": {
+      "bulk_kz": "wrapped-Cauchy Fourier factor only; no depth attenuation",
+      "coherent_slab": "coherent depth-amplitude attenuation at exact center; no kz broadening",
+      "combined_forbidden": "both wrapped-Cauchy and coherent depth factors"
+    }
+  },
+  "requirements": [
+    "exclusive-escape-depth-routes",
+    "finite-window-mass-conservation"
+  ],
+  "schema_version": 1,
+  "scope": "fixture-specific counterexample evidence; no universal physical materiality threshold or route ranking",
+  "status": "green",
+  "summary": {
+    "maximum_combined_vs_bulk_kz_relative_l1": 0.4740038614718773,
+    "maximum_combined_vs_coherent_slab_relative_l1": 0.12304172296391078,
+    "minimum_combined_vs_bulk_kz_relative_l1": 0.08512360807976074,
+    "minimum_combined_vs_coherent_slab_relative_l1": 0.01281410415956845
+  }
+}

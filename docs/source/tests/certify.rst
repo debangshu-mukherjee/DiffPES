@@ -82,3 +82,8 @@ Validation and regression tests for :mod:`diffpes.certify`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_certify.test_matrix_element_scalability_evidence
+   :members:
+   :undoc-members:
+   :show-inheritance:

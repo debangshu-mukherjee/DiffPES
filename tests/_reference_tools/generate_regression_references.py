@@ -1,11 +1,9 @@
-"""Regenerate the active deterministic spectrum references.
+"""Generate the deterministic SciPy spectrum references.
 
 Extended Summary
 ----------------
-The true-Voigt implementation replaced the production-derived pseudo-Voigt novice baseline with an
-independently assembled SciPy true-Voigt artifact. This compatibility entry
-point delegates to the canonical SciPy reference generator so older developer
-workflows cannot recreate the superseded ``novice_toy.npz`` file.
+This entry point invokes the canonical SciPy generator. The generator writes
+the independently assembled true-Voigt authority and its novice comparison.
 
 Routine Listings
 ----------------
@@ -18,13 +16,18 @@ from __future__ import annotations
 import runpy
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
 
-from beartype.typing import Dict
+from beartype.typing import Dict, cast
 
 
 def main() -> None:
-    """Run the canonical independent Voigt and novice reference generator."""
+    """Run the independent Voigt and novice reference generator.
+
+    Notes
+    -----
+    The function loads the canonical generator as a script namespace. It then
+    invokes that generator's ``main`` function.
+    """
     generator_path: Path = Path(__file__).with_name(
         "generate_voigt_scipy_reference.py"
     )

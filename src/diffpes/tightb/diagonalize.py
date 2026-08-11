@@ -10,14 +10,14 @@ phase-loss policy and now preserves atom-resolved orbital data.
 
 Routine Listings
 ----------------
+:func:`diagonalize_tb`
+    Diagonalize a native tight-binding model over k-points.
 :func:`eigh_safe`
     Diagonalize a Hermitian matrix with a regularized eigenvector JVP.
 :func:`eigvalsh_bands`
     Compute only native tight-binding eigenvalues over k-points.
 :func:`eigvalsh_bands_chunked`
     Compute eigenvalues with bounded live Hamiltonian storage.
-:func:`diagonalize_tb`
-    Diagonalize a native tight-binding model over k-points.
 :func:`vasp_to_diagonalized`
     Convert atom-resolved VASP projections to approximate band vectors.
 
@@ -34,7 +34,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Callable, Dict, Literal, Tuple
+from beartype.typing import Callable, Dict, List, Literal, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.maths import safe_divide, safe_norm, safe_sqrt
@@ -368,9 +368,10 @@ def eigvalsh_bands_chunked(  # noqa: DOC502, DOC503
         )(points)
         return values
 
-    checkpointed_chunk: Callable[[Array], Array] = jax.checkpoint(
-        diagonalize_chunk
-    )
+    checkpointed_chunk: Callable[
+        [Float64[Array, "chunk_size 3"]],
+        Float64[Array, "chunk_size n_bands"],
+    ] = jax.checkpoint(diagonalize_chunk)
 
     def scan_body(
         carry: None,
@@ -560,7 +561,7 @@ def vasp_to_diagonalized(  # noqa: DOC503 -- traced checks raise indirectly.
         (2, 1): 7,
         (2, 2): 8,
     }
-    orbital_channels: list[int] = []
+    orbital_channels: List[int] = []
     angular: int
     magnetic: int
     for angular, magnetic in zip(

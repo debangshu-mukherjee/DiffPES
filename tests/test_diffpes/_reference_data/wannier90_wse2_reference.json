@@ -70,7 +70,7 @@
     "generator_sha256": "9bea0278924325526d458094ecfad5b7896d86bfca31c17505f6dd9cf174bac8",
     "numpy_version": "2.4.2",
     "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
-    "policy": "Generated offline from the normative input with an independent NumPy parser/Fourier assembly. This K artifact checks DiffPES behavior only; analytic and normative-format C gates remain authoritative.",
+    "policy": "Generated offline from the normative input with an independent NumPy parser/Fourier assembly. This K artifact checks DiffPES behavior only; analytic and normative-format correctness requirements remain authoritative.",
     "python_version": "3.13.6",
     "source_qualification": "Wannier90 output publicly distributed by dynamics-w90; the local downloaded snapshot has no verifiable commit metadata or license file.",
     "source_repository": "https://github.com/michaelschueler/dynamics-w90",

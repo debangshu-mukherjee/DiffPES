@@ -2,7 +2,7 @@
 
 Extended Summary
 ----------------
-The tests cover emission thresholds, momentum values, complex out-of-plane roots,
+The tests cover thresholds, momentum values, complex out-of-plane roots,
 emission angles, detector maps, JAX transforms, and certified gradients.
 """
 
@@ -13,12 +13,12 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Dict, Tuple
+from beartype.typing import Any, Callable, Dict, List, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Bool, Complex128, Float64
 
-from diffpes.simul.kinematics import (
+from diffpes.simul import (
     detector_angles_to_kpar,
     emission_angles,
     final_state_k_inv_ang,
@@ -31,7 +31,10 @@ from diffpes.types import (
     K_PREFACTOR_INV_ANG_SQRT_EV,
     TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
 )
-from tests._gradients import assert_grad_matches_fd, gradient_gate
+from tests._gradients import (
+    assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
+)
 
 
 class TestKineticEnergyEv(chex.TestCase):
@@ -221,7 +224,8 @@ class TestKzFromInnerPotential(chex.TestCase):
     def test_exact_threshold_and_aperture_boundary_are_invalid(self) -> None:
         """Reject equality at both open physical boundaries.
 
-        The function forbids exactly zero kinetic energy. At positive kinetic energy,
+        The function forbids exactly zero kinetic energy. At positive kinetic
+        energy,
         a parallel momentum equal to the vacuum final-state magnitude is also
         outside the open emission aperture.
 
@@ -246,7 +250,9 @@ class TestKzFromInnerPotential(chex.TestCase):
         self.assertFalse(bool(energy_valid))
         self.assertFalse(bool(momentum_valid))
 
-        operation: Callable[..., Tuple[Array, Array]]
+        operation: Callable[
+            ..., Tuple[Float64[Array, "..."], Float64[Array, "..."]]
+        ]
         compiled: bool
         for compiled in (False, True):
             operation = kz_from_inner_potential
@@ -343,7 +349,9 @@ class TestKzFromInnerPotential(chex.TestCase):
         Evaluate eager and compiled paths, then differentiate the rejected
         sentinel away from the aperture boundary.
         """
-        operation: Callable[..., Tuple[Array, Array]]
+        operation: Callable[
+            ..., Tuple[Float64[Array, "..."], Float64[Array, "..."]]
+        ]
         compiled: bool
         for compiled in (False, True):
             operation = kz_from_inner_potential
@@ -373,7 +381,8 @@ class TestKzFromInnerPotential(chex.TestCase):
                 jnp.array(0.0),
                 k_parallel,
             )[0]
-            return jnp.real(value)
+            returned: Float64[Array, ""] = jnp.real(value)
+            return returned
 
         gradient: Float64[Array, ""] = jax.grad(rejected_value)(jnp.array(1.0))
         chex.assert_trees_all_equal(gradient, jnp.array(0.0))
@@ -480,7 +489,8 @@ class TestKzFromInnerPotential(chex.TestCase):
                 candidate,
                 jnp.array(0.7),
             )[0]
-            return jnp.real(value)
+            returned: Float64[Array, ""] = jnp.real(value)
+            return returned
 
         assert_grad_matches_fd(real_kz, omega)
         kz_value: Float64[Array, ""] = real_kz(omega)
@@ -516,7 +526,8 @@ class TestKzFromInnerPotential(chex.TestCase):
                 omega,
                 jnp.array(0.7),
             )[0]
-            return jnp.real(value)
+            returned: Float64[Array, ""] = jnp.real(value)
+            return returned
 
         work_gradient: Float64[Array, ""]
         omega_gradient: Float64[Array, ""]
@@ -617,7 +628,8 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
 
         Notes
         -----
-        Read the committed offline artifact for the kz kinematics reference. Vmap the
+        Read the committed offline artifact for the kz kinematics reference.
+        Vmap the
         production function across its rows and compare both formulations at
         the artifact tolerance.
         """
@@ -628,7 +640,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             / "kz_kpt_reference.json"
         )
         document: Dict[str, Any] = json.loads(reference_path.read_text())
-        records: list[Dict[str, float]] = document["records"]
+        records: List[Dict[str, float]] = document["records"]
         self.assertEqual(document["requirement"], "kz-kinematics-reference")
         self.assertEqual(
             document["metadata"]["chinook_commit"],
@@ -676,7 +688,8 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
                 inner_potential,
                 parallel_momentum,
             )[0]
-            return jnp.real(value)
+            returned: Float64[Array, ""] = jnp.real(value)
+            return returned
 
         production_values: Float64[Array, " 168"] = jax.vmap(production_value)(
             photon_energies,
@@ -810,7 +823,7 @@ class TestKzFromInnerPotentialAtFermi(chex.TestCase):
             total: Float64[Array, ""] = jnp.sum(values)
             return total
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             (photon_energies, work_functions, inner_potentials),
             regime="smooth",
@@ -1040,7 +1053,9 @@ class TestEmissionAngles(chex.TestCase):
             value: Float64[Array, ""] = theta + 0.37 * phi
             return value
 
-        gradient_gate(loss, momentum, regime="smooth")
+        assert_gradients_match_finite_differences(
+            loss, momentum, regime="smooth"
+        )
 
     def test_normal_emission_selects_zero_angle_gradients(self) -> None:
         """Verify finite zero angle gradients at normal emission.
@@ -1146,7 +1161,9 @@ class TestDetectorAnglesToKpar(chex.TestCase):
                         Float64[Array, ""],
                         Float64[Array, ""],
                     ],
+                    slit_value: str = slit,
                 ) -> Float64[Array, ""]:
+                    """Return one weighted forward-map scalar."""
                     candidate_tx: Float64[Array, ""]
                     candidate_ty: Float64[Array, ""]
                     candidate_energy: Float64[Array, ""]
@@ -1155,12 +1172,14 @@ class TestDetectorAnglesToKpar(chex.TestCase):
                         candidate_tx,
                         candidate_ty,
                         candidate_energy,
-                        slit,
+                        slit_value,
                     )
                     value: Float64[Array, ""] = jnp.sum(weights * k_parallel)
                     return value
 
-                gradient_gate(loss, (tx, ty, energy), regime="smooth")
+                assert_gradients_match_finite_differences(
+                    loss, (tx, ty, energy), regime="smooth"
+                )
 
     def test_normal_emission_jacobian_matches_frame(self) -> None:
         """Match the Cartesian detector Jacobian at normal emission.
@@ -1182,12 +1201,14 @@ class TestDetectorAnglesToKpar(chex.TestCase):
 
                 def angle_map(
                     candidate: Float64[Array, "2"],
+                    slit_value: str = slit,
                 ) -> Float64[Array, "2"]:
+                    """Return parallel momentum for one angle pair."""
                     result: Float64[Array, "2"] = detector_angles_to_kpar(
                         candidate[0],
                         candidate[1],
                         energy,
-                        slit,
+                        slit_value,
                     )
                     return result
 
@@ -1246,7 +1267,9 @@ class TestDetectorAnglesToKpar(chex.TestCase):
         compiled: bool
         slit: str
         for compiled in (False, True):
-            operation: Callable[..., Array] = detector_angles_to_kpar
+            operation: Callable[..., Float64[Array, "..."]] = (
+                detector_angles_to_kpar
+            )
             if compiled:
                 operation = jax.jit(operation, static_argnames=("slit",))
             for slit in ("H", "V"):
@@ -1410,25 +1433,44 @@ class TestKparToDetectorAngles(chex.TestCase):
         slit: str
         for slit in ("H", "V"):
             with self.subTest(slit=slit):
-                forward: Callable[..., Array] = jax.jit(
-                    jax.vmap(
-                        lambda one_tx, one_ty, energy: detector_angles_to_kpar(
-                            one_tx,
-                            one_ty,
-                            energy,
-                            slit,
-                        )
+
+                def forward_scalar(
+                    one_tx: Float64[Array, ""],
+                    one_ty: Float64[Array, ""],
+                    energy: Float64[Array, ""],
+                    slit_value: str = slit,
+                ) -> Float64[Array, "2"]:
+                    """Map one detector-angle pair to parallel momentum."""
+                    result: Float64[Array, "2"] = detector_angles_to_kpar(
+                        one_tx,
+                        one_ty,
+                        energy,
+                        slit_value,
                     )
-                )
-                inverse: Callable[..., Tuple[Array, Array]] = jax.jit(
-                    jax.vmap(
-                        lambda k_parallel, energy: kpar_to_detector_angles(
-                            k_parallel,
-                            energy,
-                            slit,
-                        )
+                    return result
+
+                def inverse_scalar(
+                    one_k_parallel: Float64[Array, "2"],
+                    energy: Float64[Array, ""],
+                    slit_value: str = slit,
+                ) -> Tuple[Float64[Array, ""], Float64[Array, ""]]:
+                    """Map one parallel momentum to detector angles."""
+                    result: Tuple[
+                        Float64[Array, ""],
+                        Float64[Array, ""],
+                    ] = kpar_to_detector_angles(
+                        one_k_parallel,
+                        energy,
+                        slit_value,
                     )
+                    return result
+
+                forward: Callable[..., Float64[Array, "..."]] = jax.jit(
+                    jax.vmap(forward_scalar)
                 )
+                inverse: Callable[
+                    ..., Tuple[Float64[Array, "..."], Float64[Array, "..."]]
+                ] = jax.jit(jax.vmap(inverse_scalar))
                 k_parallel: Float64[Array, "5 2"] = forward(tx, ty, energies)
                 recovered_tx: Float64[Array, " 5"]
                 recovered_ty: Float64[Array, " 5"]
@@ -1462,7 +1504,9 @@ class TestKparToDetectorAngles(chex.TestCase):
                         Float64[Array, "2"],
                         Float64[Array, ""],
                     ],
+                    slit_value: str = slit,
                 ) -> Float64[Array, ""]:
+                    """Return one weighted inverse-map scalar."""
                     candidate_k: Float64[Array, "2"]
                     candidate_energy: Float64[Array, ""]
                     candidate_k, candidate_energy = parameters
@@ -1471,12 +1515,14 @@ class TestKparToDetectorAngles(chex.TestCase):
                     tx, ty = kpar_to_detector_angles(
                         candidate_k,
                         candidate_energy,
-                        slit,
+                        slit_value,
                     )
                     value: Float64[Array, ""] = tx + 0.37 * ty
                     return value
 
-                gradient_gate(loss, (k_parallel, energy), regime="smooth")
+                assert_gradients_match_finite_differences(
+                    loss, (k_parallel, energy), regime="smooth"
+                )
 
     def test_rejects_invalid_aperture_and_energy(self) -> None:
         """Reject the threshold and closed detector-aperture boundary.
@@ -1505,9 +1551,9 @@ class TestKparToDetectorAngles(chex.TestCase):
         compiled: bool
         slit: str
         for compiled in (False, True):
-            operation: Callable[..., Tuple[Array, Array]] = (
-                kpar_to_detector_angles
-            )
+            operation: Callable[
+                ..., Tuple[Float64[Array, "..."], Float64[Array, "..."]]
+            ] = kpar_to_detector_angles
             if compiled:
                 operation = jax.jit(operation, static_argnames=("slit",))
             for slit in ("H", "V"):

@@ -8,25 +8,25 @@ conventions.
 
 Routine Listings
 ----------------
-:func:`spin_operator`
-    Construct :math:`S_{\widehat n}=\widehat n\cdot\sigma/2`.
+:func:`layer_resolved_group_traces`
+    Compute surface traces over complete, isolated fixed band groups.
+:func:`layer_resolved_weights`
+    Compute per-band surface weights as an off-degeneracy diagnostic.
 :func:`ls_operator`
     Construct unit-strength atomic :math:`L\cdot S` by shell.
 :func:`orbital_projector`
     Construct a diagonal projector onto selected basis orbitals.
+:func:`spin_operator`
+    Construct :math:`S_{\widehat n}=\widehat n\cdot\sigma/2`.
 :func:`surface_projector`
     Construct surface-sensitive orbital probability weights.
-:func:`layer_resolved_weights`
-    Compute per-band surface weights as an off-degeneracy diagnostic.
-:func:`layer_resolved_group_traces`
-    Compute surface traces over complete, isolated fixed band groups.
 """
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from beartype.typing import Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
 from diffpes.types import (
     DEGENERACY_GROUP_TOL_EV,
@@ -65,7 +65,7 @@ def _validate_spin_pairs(basis: OrbitalBasis) -> None:
     if len(basis.spin) != n_orbitals:
         message: str = "spin_operator requires an explicit spinor basis"
         raise ValueError(message)
-    groups: Dict[Tuple[int, int, int, int], list[int]] = {}
+    groups: Dict[Tuple[int, int, int, int], List[int]] = {}
     orbital: int
     for orbital in range(n_orbitals):
         key: Tuple[int, int, int, int] = (
@@ -472,7 +472,7 @@ def surface_projector(  # noqa: DOC503 -- runtime checks use eqx.error_if.
         "surface_projector: intensity escape length must be finite and "
         "positive",
     )
-    ordinary_length: Array = escape_length > EPS
+    ordinary_length: Bool[Array, ""] = escape_length > EPS
     sanitized_length: Float64[Array, ""] = jnp.where(
         ordinary_length,
         escape_length,
@@ -612,14 +612,18 @@ def layer_resolved_group_traces(  # noqa: DOC502, DOC503
             bands.eigenvalues[:, group, None]
             - bands.eigenvalues[:, None, complement]
         )
-        cuts_degeneracy: Array = jnp.any(cross_gaps <= DEGENERACY_GROUP_TOL_EV)
+        cuts_degeneracy: Bool[Array, ""] = jnp.any(
+            cross_gaps <= DEGENERACY_GROUP_TOL_EV
+        )
         checked_eigenvectors = eqx.error_if(
             checked_eigenvectors,
             cuts_degeneracy,
             "layer_resolved_group_traces: fixed group "
             f"{group_index} cuts a degenerate multiplet",
         )
-        closes_gap: Array = jnp.any(cross_gaps < GROUP_COMPLEMENT_GAP_MIN_EV)
+        closes_gap: Bool[Array, ""] = jnp.any(
+            cross_gaps < GROUP_COMPLEMENT_GAP_MIN_EV
+        )
         checked_eigenvectors = eqx.error_if(
             checked_eigenvectors,
             closes_gap,

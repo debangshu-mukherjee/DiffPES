@@ -18,7 +18,7 @@ Routine Listings
 from datetime import UTC, datetime
 
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
@@ -103,7 +103,7 @@ def validate_waiver(
     The function performs static I/O-boundary validation. It does not run in a
     compiled certification kernel.
     """
-    errors: list[str] = []
+    errors: List[str] = []
     issued: datetime | None = None
     expires: datetime | None = None
     selected: datetime | None = None

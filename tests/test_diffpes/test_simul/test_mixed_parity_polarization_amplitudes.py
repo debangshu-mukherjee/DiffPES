@@ -324,7 +324,11 @@ def _single_orbital_channels(
         jnp.asarray(8.0, dtype=jnp.float64),
         basis,
     )
-    return channels[0, 0, 0], basis
+    returned: Tuple[Complex128[Array, " 3"], OrbitalBasis] = (
+        channels[0, 0, 0],
+        basis,
+    )
+    return returned
 
 
 def _complex_metric(
@@ -356,7 +360,7 @@ def _complex_metric(
     return result
 
 
-def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
+def test_all_real_orbitals_match_independent_complex_formula() -> None:
     """Match every supported ``(l,m)`` with the complex-Ylm oracle.
 
     The comparison covers every production real harmonic through the
@@ -405,7 +409,9 @@ def test_g8_all_real_orbitals_match_independent_complex_formula() -> None:
                 expected,
                 rtol=1.0e-12,
                 atol=1.0e-13,
-                err_msg=f"complex amplitude mismatch for l={degree}, m={order}",
+                err_msg=(
+                    f"complex amplitude mismatch for l={degree}, m={order}"
+                ),
             )
 
 
@@ -478,7 +484,10 @@ def test_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
             transition[0, 0],
             jnp.asarray(polarization),
         )
-        return complex(jnp.sum(polarized * jnp.asarray(coefficients)))
+        returned: complex = complex(
+            jnp.sum(polarized * jnp.asarray(coefficients))
+        )
+        return returned
 
     inverse_sqrt_two: float = 1.0 / math.sqrt(2.0)
     polarizations: Tuple[Complex128[NDArray, " 3"], ...] = (
@@ -522,8 +531,8 @@ def test_mixed_parity_pins_plane_wave_phase_and_helicity() -> None:
         assert abs(wrong - correct) > 1.0e-3
 
 
-def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
-    """Match a production transition amplitude in Cartesian, real, and complex bases.
+def test_actual_amplitude_agrees_in_all_polarization_bases() -> None:
+    """Match an amplitude in Cartesian, real, and complex bases.
 
     Cartesian basis vectors, generic elliptic polarization, and both
     helicities cover the three equivalent contraction routes.
@@ -598,7 +607,7 @@ def test_g14_actual_amplitude_agrees_in_all_polarization_bases() -> None:
     )
 
 
-def test_g8_g14_complete_p_shell_single_pz_projection() -> None:
+def test_complete_p_shell_single_pz_projection() -> None:
     """Keep only the pz coefficient and reject an unweighted p-shell sum.
 
     A complete p shell supplies the projection source while one nonzero

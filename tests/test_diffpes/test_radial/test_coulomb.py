@@ -1,5 +1,7 @@
 """Validate Coulomb radial functions and final-state dispatch.
 
+Extended Summary
+----------------
 The tests exercise frozen references, differential identities, and transforms.
 """
 
@@ -7,16 +9,18 @@ import hashlib
 import json
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
-from typing import Any
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64, Shaped
+from beartype import beartype
+from beartype.typing import Any, Dict, Tuple
+from jaxtyping import Array, Complex128, Float64, Shaped, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.radial import (
@@ -28,12 +32,13 @@ from diffpes.radial import (
 from diffpes.types import FinalStateSpec, make_final_state_spec
 
 
+@jaxtyped(typechecker=beartype)
 def _reference() -> Dict[str, Shaped[NDArray, "..."]]:
     """PRIVATE: Load the frozen 80-digit Coulomb value and derivative artifact.
 
     Returns
     -------
-    result : dict[str, Shaped[NDArray, "..."]]
+    result : Dict[str, Shaped[NDArray, "..."]]
         Every array in the archive keyed by its stored name. The
         content includes the dimensionless ``etas`` grid and the frozen
         ``phase`` and ``phase_eta`` rows for orders zero to four.
@@ -55,7 +60,14 @@ def _reference() -> Dict[str, Shaped[NDArray, "..."]]:
 
 
 class TestCoulombPhaseShift:
-    """Validate :func:`diffpes.radial.coulomb_phase_shift`."""
+    """Validate :func:`diffpes.radial.coulomb_phase_shift`.
+
+    The cases cover values and derivatives for orders zero through four on
+    the frozen Sommerfeld grid. They compare arbitrary-precision rows through
+    JVPs and check continuity on a dense no-wrap sweep.
+
+    :see: :func:`~diffpes.radial.coulomb_phase_shift`
+    """
 
     def test_values_derivatives_and_continuous_branch(self) -> None:
         """Match phase values and derivatives on a continuous branch.
@@ -72,7 +84,7 @@ class TestCoulombPhaseShift:
         for order in range(5):
             values: Float64[Array, " n_eta"] = coulomb_phase_shift(order, etas)
             derivatives: Float64[Array, " n_eta"] = jax.jvp(
-                lambda arguments: coulomb_phase_shift(order, arguments),
+                partial(coulomb_phase_shift, order),
                 (etas,),
                 (jnp.ones_like(etas),),
             )[1]
@@ -98,7 +110,14 @@ class TestCoulombPhaseShift:
 
 
 class TestCoulombFg:
-    """Validate :func:`diffpes.radial.coulomb_fg`."""
+    """Validate :func:`diffpes.radial.coulomb_fg`.
+
+    The cases cover artifact authentication, dense values, derivatives, the
+    Wronskian, the Coulomb ODE, and the plane-wave limit. They use frozen
+    arbitrary-precision rows, JVPs, JIT, VMAP, and explicit domain controls.
+
+    :see: :func:`~diffpes.radial.coulomb_fg`
+    """
 
     def test_frozen_artifact_provenance_and_checksums(self) -> None:
         """Bind the independent dense artifact to its generator and manifest.
@@ -164,7 +183,7 @@ class TestCoulombFg:
             / "_reference_tools"
             / "verify_coulomb_dense_reference.py"
         )
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, str(script), str(order)],
             cwd=root,
             check=False,
@@ -179,7 +198,7 @@ class TestCoulombFg:
         self,
         order: int,
     ) -> None:
-        """Match sparse derivatives in both AD modes and every FD rung.
+        """Match sparse derivatives in both AD modes and at each FD step.
 
         All four rows cover both parameter directions on the registered
         7-by-10 value/derivative product, including one-sided boundaries.
@@ -192,7 +211,7 @@ class TestCoulombFg:
         script: Path = (
             root / "tests" / "_reference_tools" / "verify_coulomb_reference.py"
         )
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, str(script), str(order)],
             cwd=root,
             check=False,
@@ -236,10 +255,29 @@ class TestCoulombFg:
         eta: Float64[Array, " n_probe"] = jnp.asarray([-1.0, 0.25, 2.0])
         rho_probe: Float64[Array, " n_probe"] = jnp.asarray([0.2, 1.3, 7.0])
 
-        def returned_values(
+        @jaxtyped(typechecker=beartype)
+        def _returned_values(
             eta_argument: Float64[Array, " n_probe"],
             rho_argument: Float64[Array, " n_probe"],
         ) -> Float64[Array, "4 n_probe"]:
+            """PRIVATE: Return every Coulomb row for differentiation.
+
+            Parameters
+            ----------
+            eta_argument : Float64[Array, " n_probe"]
+                Dimensionless Sommerfeld parameters.
+            rho_argument : Float64[Array, " n_probe"]
+                Dimensionless radial coordinates.
+
+            Returns
+            -------
+            result : Float64[Array, "4 n_probe"]
+                Regular, irregular, and radial-derivative rows.
+
+            Notes
+            -----
+            Evaluates order two and stacks the public tuple result.
+            """
             rows: Tuple[Float64[Array, " n_probe"], ...] = coulomb_fg(
                 2,
                 eta_argument,
@@ -251,12 +289,12 @@ class TestCoulombFg:
         values: Float64[Array, "4 n_probe"]
         eta_tangent: Float64[Array, "4 n_probe"]
         values, eta_tangent = jax.jvp(
-            lambda argument: returned_values(argument, rho_probe),
+            lambda argument: _returned_values(argument, rho_probe),
             (eta,),
             (jnp.ones_like(eta),),
         )
         rho_tangent: Float64[Array, "4 n_probe"] = jax.jvp(
-            lambda argument: returned_values(eta, argument),
+            lambda argument: _returned_values(eta, argument),
             (rho_probe,),
             (jnp.ones_like(rho_probe),),
         )[1]
@@ -304,16 +342,29 @@ class TestCoulombFg:
             rtol=1.0e-10,
             atol=1.0e-12,
         )
-        with pytest.raises(Exception, match="rho"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="rho",
+        ):
             coulomb_fg(0, jnp.asarray(0.0), jnp.asarray(0.0))
-        with pytest.raises(Exception, match="eta"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="eta",
+        ):
             coulomb_fg(0, jnp.asarray(3.1), jnp.asarray(1.0))
         with pytest.raises(ValueError, match="order"):
             coulomb_fg(6, jnp.asarray(0.0), jnp.asarray(1.0))
 
 
 class TestFinalStateRadial:
-    """Validate :func:`diffpes.radial.final_state_radial`."""
+    """Validate :func:`diffpes.radial.final_state_radial`.
+
+    The cases cover plane and Coulomb dispatch at the origin for every
+    supported final-state order. They compare the zero-charge limit with
+    spherical Bessel values and differentiate a charged endpoint.
+
+    :see: :func:`~diffpes.radial.final_state_radial`
+    """
 
     @pytest.mark.rss_limit_mb(700)
     def test_plane_wave_limit_origin_and_charge_gradient(self) -> None:
@@ -354,7 +405,26 @@ class TestFinalStateRadial:
             )
             assert bool(jnp.all(jnp.isfinite(coulomb_zero)))
 
-        def charged_value(charge: Float64[Array, ""]) -> Float64[Array, ""]:
+        @jaxtyped(typechecker=beartype)
+        def _charged_value(
+            charge: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate a charged final-state endpoint.
+
+            Parameters
+            ----------
+            charge : Float64[Array, ""]
+                Effective Coulomb charge in units of the elementary charge.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Real p-wave radial value at the outer radius.
+
+            Notes
+            -----
+            Builds a Coulomb final-state specification for each traced charge.
+            """
             spec: FinalStateSpec = make_final_state_spec(
                 mode="coulomb",
                 effective_charge=charge,
@@ -368,7 +438,7 @@ class TestFinalStateRadial:
             result: Float64[Array, ""] = jnp.real(radial[-1])
             return result
 
-        charge_gradient: Float64[Array, ""] = jax.grad(charged_value)(
+        charge_gradient: Float64[Array, ""] = jax.grad(_charged_value)(
             jnp.asarray(0.3)
         )
         assert bool(jnp.isfinite(charge_gradient))
@@ -387,7 +457,10 @@ class TestFinalStateRadial:
             mode="coulomb",
             effective_charge=0.2,
         )
-        with pytest.raises(Exception, match="positive momentum"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="positive momentum",
+        ):
             final_state_radial(
                 0,
                 jnp.asarray(0.0),

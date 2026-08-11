@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import psutil
 import pytest
 from beartype import beartype
-from beartype.typing import Iterator, Tuple
+from beartype.typing import Iterator, List, Tuple
 from jaxtyping import PRNGKeyArray, jaxtyped
 
 pytest_plugins: Tuple[str, ...] = ("pytester",)
@@ -52,7 +52,8 @@ class _ChinookImportBlocker(MetaPathFinder):
                 "DiffPES tests must consume frozen Chinook artifacts; "
                 f"importing {fullname!r} is forbidden"
             )
-        return None
+        returned: ModuleSpec | None = None
+        return returned
 
 
 _CHINOOK_IMPORT_BLOCKER = _ChinookImportBlocker()
@@ -61,12 +62,12 @@ _CHINOOK_IMPORT_BLOCKER = _ChinookImportBlocker()
 def _run_annotation_preflight(config: pytest.Config) -> None:
     """PRIVATE: Reject invalid annotations before pytest collects test modules.
 
-    The gate runs ``tests/_preflight_types.py`` in a subprocess. A subprocess
+    The check runs ``tests/_preflight_types.py`` in a subprocess. A subprocess
     keeps the jaxtyping import hook out of this process. An in-process run
     leaves decorated modules in ``sys.modules``. Pytest then collects wrapped
     fixtures.
 
-    The gate runs once for each session. It does not run on a pytest-xdist
+    The check runs once for each session. It does not run on a pytest-xdist
     worker, and it does not run inside a nested ``pytester`` session.
 
     Parameters
@@ -88,7 +89,7 @@ def _run_annotation_preflight(config: pytest.Config) -> None:
     script: Path = Path(__file__).resolve().parent / "_preflight_types.py"
     if not script.is_file():
         return
-    completed: subprocess.CompletedProcess[str] = subprocess.run(
+    completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
         [sys.executable, str(script)],
         capture_output=True,
         text=True,
@@ -130,13 +131,8 @@ def pytest_unconfigure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(autouse=True, scope="session")
-def assert_x64_enabled() -> Iterator[None]:
+def assert_x64_enabled() -> None:
     """Require JAX 64-bit precision for the complete test session.
-
-    Yields
-    ------
-    None
-        Control to the test session after validating the default JAX dtype.
 
     Notes
     -----
@@ -148,7 +144,8 @@ def assert_x64_enabled() -> Iterator[None]:
         "diffpes tests require JAX 64-bit mode; "
         f"the default scalar dtype is {actual_dtype}."
     )
-    yield
+    result: None = None
+    return result
 
 
 @pytest.fixture(autouse=True)
@@ -213,7 +210,7 @@ def clear_jax_caches(rss_leak_guard: None) -> Iterator[None]:
 @jaxtyped(typechecker=beartype)
 def pytest_collection_modifyitems(
     config: pytest.Config,
-    items: list[pytest.Item],
+    items: List[pytest.Item],
 ) -> None:
     """Serialize memory-intensive tests on one pytest-xdist worker.
 
@@ -221,7 +218,7 @@ def pytest_collection_modifyitems(
     ----------
     config : pytest.Config
         Active pytest configuration. Required by the pytest hook contract.
-    items : list[pytest.Item]
+    items : List[pytest.Item]
         Collected test items to augment with xdist grouping metadata.
     """
     del config

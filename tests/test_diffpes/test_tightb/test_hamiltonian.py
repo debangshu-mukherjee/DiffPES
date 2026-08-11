@@ -12,11 +12,16 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable
-from jaxtyping import Array
+from beartype.typing import Callable
+from jaxtyping import Array, Complex128, Float64, PRNGKeyArray
 
 import diffpes
-from diffpes.tightb import bloch_hamiltonian, bloch_hamiltonian_batch
+from diffpes.tightb import (
+    bloch_hamiltonian,
+    bloch_hamiltonian_batch,
+    diagonalize_tb,
+    eigvalsh_bands,
+)
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,
@@ -27,7 +32,7 @@ from diffpes.types import (
 )
 from tests._assertions import assert_rejects
 from tests._factories import make_1d_chain_model, make_graphene_model
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 def _make_empty_model() -> TBModel:
@@ -141,8 +146,8 @@ class TestBlochHamiltonian:
         with its conjugate transpose at an absolute tolerance of 1e-12.
         """
         model: diffpes.types.TBModel
-        k: Array
-        H: Array
+        k: Float64[Array, " 3"]
+        H: Complex128[Array, "2 2"]
 
         model = make_graphene_model()
         k = jnp.array([0.3, 0.2, 0.0])
@@ -160,8 +165,8 @@ class TestBlochHamiltonian:
         It compares the output shape with ``(2, 2)``.
         """
         model: diffpes.types.TBModel
-        k: Array
-        H: Array
+        k: Float64[Array, " 3"]
+        H: Complex128[Array, "2 2"]
 
         model = make_graphene_model()
         k = jnp.array([0.1, 0.2, 0.0])
@@ -180,8 +185,8 @@ class TestBlochHamiltonian:
         It checks the result at ``k=(0.25, 0, 0)`` for finite values.
         """
         model: diffpes.types.TBModel
-        f: Callable[..., Any]
-        H: Array
+        f: Callable[[Float64[Array, " 3"]], Complex128[Array, "1 1"]]
+        H: Complex128[Array, "1 1"]
 
         model = make_1d_chain_model()
         f = jax.jit(lambda k: bloch_hamiltonian(model, k))
@@ -200,29 +205,35 @@ class TestBlochHamiltonian:
         Build the cell-origin matrix directly and compare matrices and spectra.
         """
         model: TBModel = _make_gauge_probe_model()
-        kpoint: Array = jnp.asarray([0.23, 0.0, 0.0], dtype=jnp.float64)
-        actual: Array = bloch_hamiltonian(model, kpoint)
-        cell_origin: Array = jnp.diag(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
+            [0.23, 0.0, 0.0], dtype=jnp.float64
+        )
+        actual: Complex128[Array, "2 2"] = bloch_hamiltonian(model, kpoint)
+        cell_origin: Complex128[Array, "2 2"] = jnp.diag(
             model.onsite_energies.astype(jnp.complex128)
         )
         index: int
         orbital_i: int
         orbital_j: int
         for index, (orbital_i, orbital_j) in enumerate(model.hopping_pairs):
-            cell: Array = jnp.asarray(
+            cell: Float64[Array, " 3"] = jnp.asarray(
                 model.hopping_cells[index],
                 dtype=jnp.float64,
             )
-            phase: Array = jnp.exp(2j * jnp.pi * jnp.dot(kpoint, cell))
+            phase: Complex128[Array, ""] = jnp.exp(
+                2j * jnp.pi * jnp.dot(kpoint, cell)
+            )
             cell_origin = cell_origin.at[orbital_i, orbital_j].add(
                 model.hopping_amplitudes[index] * phase
             )
         assert model.orbital_positions is not None
-        orbital_positions: Array = model.orbital_positions
-        unitary: Array = jnp.diag(
+        orbital_positions: Float64[Array, "2 3"] = model.orbital_positions
+        unitary: Complex128[Array, "2 2"] = jnp.diag(
             jnp.exp(2j * jnp.pi * (orbital_positions @ kpoint))
         )
-        expected: Array = unitary.conj().T @ cell_origin @ unitary
+        expected: Complex128[Array, "2 2"] = (
+            unitary.conj().T @ cell_origin @ unitary
+        )
 
         assert jnp.allclose(actual, expected, atol=1e-13)
         assert jnp.allclose(
@@ -230,22 +241,24 @@ class TestBlochHamiltonian:
             jnp.linalg.eigvalsh(cell_origin),
             atol=1e-13,
         )
-        cell_vectors: Array
-        basis_vectors: Array
+        cell_vectors: Complex128[Array, "2 2"]
+        basis_vectors: Complex128[Array, "2 2"]
         _, cell_vectors = jnp.linalg.eigh(cell_origin)
         _, basis_vectors = jnp.linalg.eigh(actual)
-        cell_operator: Array = jnp.asarray(
+        cell_operator: Complex128[Array, "2 2"] = jnp.asarray(
             [[0.2, 0.6 - 0.3j], [0.6 + 0.3j, -0.4]],
             dtype=jnp.complex128,
         )
-        basis_operator: Array = unitary.conj().T @ cell_operator @ unitary
-        cell_expectation: Array = jnp.real(
+        basis_operator: Complex128[Array, "2 2"] = (
+            unitary.conj().T @ cell_operator @ unitary
+        )
+        cell_expectation: Float64[Array, " 2"] = jnp.real(
             jnp.diag(cell_vectors.conj().T @ cell_operator @ cell_vectors)
         )
-        basis_expectation: Array = jnp.real(
+        basis_expectation: Float64[Array, " 2"] = jnp.real(
             jnp.diag(basis_vectors.conj().T @ basis_operator @ basis_vectors)
         )
-        wrong_gauge_expectation: Array = jnp.real(
+        wrong_gauge_expectation: Float64[Array, " 2"] = jnp.real(
             jnp.diag(basis_vectors.conj().T @ cell_operator @ basis_vectors)
         )
 
@@ -264,30 +277,35 @@ class TestBlochHamiltonian:
 
         Notes
         -----
-        Construct reverse amplitudes by conjugation and compare the matrix with its adjoint.
+        Construct reverse amplitudes by conjugation and compare the matrix
+        with its adjoint.
         """
         model: TBModel = make_graphene_model()
-        key: Array = jax.random.key(seed)
-        real_key: Array
-        imaginary_key: Array
-        kpoint_key: Array
+        key: PRNGKeyArray = jax.random.key(seed)
+        real_key: PRNGKeyArray
+        imaginary_key: PRNGKeyArray
+        kpoint_key: PRNGKeyArray
         real_key, imaginary_key, kpoint_key = jax.random.split(key, 3)
-        forward: Array = jax.random.normal(real_key, (3,)) + 1j * (
-            0.7 * jax.random.normal(imaginary_key, (3,))
+        forward: Complex128[Array, " 3"] = jax.random.normal(
+            real_key, (3,)
+        ) + 1j * (0.7 * jax.random.normal(imaginary_key, (3,)))
+        amplitudes: Complex128[Array, " 6"] = jnp.concatenate(
+            (forward, jnp.conj(forward))
         )
-        amplitudes: Array = jnp.concatenate((forward, jnp.conj(forward)))
         candidate: TBModel = eqx.tree_at(
             lambda item: item.hopping_amplitudes,
             model,
             amplitudes,
         )
-        kpoint: Array = jax.random.uniform(
+        kpoint: Float64[Array, " 3"] = jax.random.uniform(
             kpoint_key,
             (3,),
             minval=-0.5,
             maxval=0.5,
         )
-        hamiltonian: Array = bloch_hamiltonian(candidate, kpoint)
+        hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(
+            candidate, kpoint
+        )
 
         assert jnp.allclose(
             hamiltonian,
@@ -302,10 +320,12 @@ class TestBlochHamiltonian:
 
         Notes
         -----
-        Run eager and compiled rejection gates for open and nonfinite amplitudes.
+        Run eager and compiled checks for open and nonfinite amplitudes.
         """
         model: TBModel = make_1d_chain_model()
-        kpoint: Array = jnp.asarray([0.25, 0.0, 0.0], dtype=jnp.float64)
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
+            [0.25, 0.0, 0.0], dtype=jnp.float64
+        )
         open_model: TBModel = eqx.tree_at(
             lambda item: item.hopping_amplitudes,
             model,
@@ -357,7 +377,9 @@ class TestBlochHamiltonian:
             hopping_cells=(),
             shell_index=(0, 1),
         )
-        kpoint: Array = jnp.asarray([0.2, 0.0, 0.0], dtype=jnp.float64)
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
+            [0.2, 0.0, 0.0], dtype=jnp.float64
+        )
         assert_rejects(
             bloch_hamiltonian,
             soc_model,
@@ -371,7 +393,7 @@ class TestBlochHamiltonian:
             m=(0, 0),
             spin=(-1, 1),
         )
-        spin_hoppings: Array = jnp.asarray(
+        spin_hoppings: Complex128[Array, " 4"] = jnp.asarray(
             [-1.0, -1.0, -2.0, -2.0],
             dtype=jnp.complex128,
         )
@@ -391,9 +413,11 @@ class TestBlochHamiltonian:
             shell_index=(0, 0),
             spinor=True,
         )
-        hamiltonian: Array = bloch_hamiltonian(spinor_model, kpoint)
-        cosine: Array = jnp.cos(2.0 * jnp.pi * kpoint[0])
-        expected: Array = jnp.diag(
+        hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(
+            spinor_model, kpoint
+        )
+        cosine: Float64[Array, ""] = jnp.cos(2.0 * jnp.pi * kpoint[0])
+        expected: Complex128[Array, "2 2"] = jnp.diag(
             jnp.asarray(
                 [0.3 - 2.0 * cosine, -0.2 - 4.0 * cosine],
                 dtype=jnp.complex128,
@@ -404,7 +428,11 @@ class TestBlochHamiltonian:
 
 
 class TestBlochHamiltonianBatch:
-    """Validate :func:`~diffpes.tightb.bloch_hamiltonian_batch`."""
+    """Validate :func:`~diffpes.tightb.bloch_hamiltonian_batch`.
+
+    The cases compare batched assembly with a single-point vectorization and
+    cover empty axes.
+    """
 
     def test_matches_single_point_vmap(self) -> None:
         """Verify batched assembly equals explicit single-point stacking.
@@ -416,11 +444,13 @@ class TestBlochHamiltonianBatch:
         Compare the complex matrices at absolute tolerance ``1e-13``.
         """
         model: diffpes.types.TBModel = make_graphene_model()
-        kpoints: Array = jnp.asarray(
+        kpoints: Float64[Array, "2 3"] = jnp.asarray(
             [[0.0, 0.0, 0.0], [0.2, 0.1, 0.0]], dtype=jnp.float64
         )
-        actual: Array = bloch_hamiltonian_batch(model, kpoints)
-        expected: Array = jnp.stack(
+        actual: Complex128[Array, "2 2 2"] = bloch_hamiltonian_batch(
+            model, kpoints
+        )
+        expected: Complex128[Array, "2 2 2"] = jnp.stack(
             tuple(bloch_hamiltonian(model, point) for point in kpoints)
         )
         assert jnp.allclose(actual, expected, atol=1e-13)
@@ -432,14 +462,15 @@ class TestBlochHamiltonianBatch:
 
         Notes
         -----
-        Compare the single matrix with the onsite diagonal and check batch shape.
+        Compare the single matrix with the onsite diagonal and check batch
+        shape.
         """
         model: TBModel = _make_empty_model()
-        hamiltonian: Array = bloch_hamiltonian(
+        hamiltonian: Complex128[Array, "2 2"] = bloch_hamiltonian(
             model,
             jnp.zeros(3, dtype=jnp.float64),
         )
-        batch: Array = bloch_hamiltonian_batch(
+        batch: Complex128[Array, "0 2 2"] = bloch_hamiltonian_batch(
             model,
             jnp.zeros((0, 3), dtype=jnp.float64),
         )
@@ -474,16 +505,14 @@ class TestMake1DChainModel:
         of 1e-10.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "101 3"]
         diag: diffpes.types.DiagonalizedBands
-        expected: Array
+        expected: Float64[Array, " 101"]
 
         model = make_1d_chain_model(t=-1.0)
         kpoints = jnp.linspace(-0.5, 0.5, 101)[:, None] * jnp.array(
             [[1.0, 0.0, 0.0]]
         )
-
-        from diffpes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, kpoints)
         expected = -2.0 * jnp.cos(2.0 * jnp.pi * jnp.linspace(-0.5, 0.5, 101))
@@ -506,15 +535,13 @@ class TestMake1DChainModel:
         compares both extrema at an absolute tolerance of 0.05 eV.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "201 3"]
         diag: diffpes.types.DiagonalizedBands
 
         model = make_1d_chain_model(t=-1.5)
         kpoints = jnp.linspace(-0.5, 0.5, 201)[:, None] * jnp.array(
             [[1.0, 0.0, 0.0]]
         )
-
-        from diffpes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, kpoints)
         assert float(diag.eigenvalues.min()) == pytest.approx(-3.0, abs=0.05)
@@ -542,14 +569,12 @@ class TestMakeGrapheneModel:
         both eigenvalues at an absolute tolerance of 0.01 eV.
         """
         model: diffpes.types.TBModel
-        Gamma: Array
+        Gamma: Float64[Array, "1 3"]
         diag: diffpes.types.DiagonalizedBands
-        evals: Array
+        evals: Float64[Array, " 2"]
 
         model = make_graphene_model(t=-2.7)
         Gamma = jnp.array([[0.0, 0.0, 0.0]])
-
-        from diffpes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, Gamma)
         evals = jnp.sort(diag.eigenvalues[0])
@@ -557,7 +582,8 @@ class TestMakeGrapheneModel:
         assert float(evals[1]) == pytest.approx(8.1, abs=1e-12)
 
     def test_k_point_dirac(self) -> None:
-        """Verify the Dirac point at K=(2/3, 1/3, 0) has zero-energy eigenvalues.
+        """Verify the Dirac point at K=(2/3, 1/3, 0) has zero-energy
+        eigenvalues.
 
         The off-diagonal Bloch sum vanishes at this k-point. Both eigenvalues
         consequently equal zero.
@@ -565,16 +591,15 @@ class TestMakeGrapheneModel:
         Notes
         -----
         The test diagonalizes the model with ``t=-2.7`` eV at the Dirac
-        point. It compares both eigenvalues with zero at a tolerance of 1e-10 eV.
+        point. It compares both eigenvalues with zero at a tolerance of 1e-10
+        eV.
         """
         model: diffpes.types.TBModel
-        K: Array
+        K: Float64[Array, "1 3"]
         diag: diffpes.types.DiagonalizedBands
 
         model = make_graphene_model(t=-2.7)
         K = jnp.array([[2.0 / 3, 1.0 / 3, 0.0]])
-
-        from diffpes.tightb.diagonalize import diagonalize_tb
 
         diag = diagonalize_tb(model, K)
         assert jnp.allclose(
@@ -601,27 +626,41 @@ class TestMakeGrapheneModel:
         """
         hopping: float = -2.7
         model: TBModel = make_graphene_model(t=hopping)
-        gamma: Array = jnp.asarray([0.0, 0.0, 0.0], dtype=jnp.float64)
-        k_point: Array = jnp.asarray(
+        gamma: Float64[Array, " 3"] = jnp.asarray(
+            [0.0, 0.0, 0.0], dtype=jnp.float64
+        )
+        k_point: Float64[Array, " 3"] = jnp.asarray(
             [2.0 / 3.0, 1.0 / 3.0, 0.0],
             dtype=jnp.float64,
         )
-        m_point: Array = jnp.asarray([0.5, 0.0, 0.0], dtype=jnp.float64)
-        interpolation: Array = jnp.linspace(0.0, 1.0, 65)[:, None]
-        gamma_to_k: Array = gamma + interpolation * (k_point - gamma)
-        k_to_m: Array = k_point + interpolation[1:] * (m_point - k_point)
-        kpoints: Array = jnp.concatenate((gamma_to_k, k_to_m), axis=0)
+        m_point: Float64[Array, " 3"] = jnp.asarray(
+            [0.5, 0.0, 0.0], dtype=jnp.float64
+        )
+        interpolation: Float64[Array, "65 1"] = jnp.linspace(0.0, 1.0, 65)[
+            :, None
+        ]
+        gamma_to_k: Float64[Array, "65 3"] = gamma + interpolation * (
+            k_point - gamma
+        )
+        k_to_m: Float64[Array, "64 3"] = k_point + interpolation[1:] * (
+            m_point - k_point
+        )
+        kpoints: Float64[Array, "129 3"] = jnp.concatenate(
+            (gamma_to_k, k_to_m), axis=0
+        )
 
-        from diffpes.tightb.diagonalize import eigvalsh_bands
-
-        actual: Array = eigvalsh_bands(model, kpoints)
-        structure_factor: Array = (
+        actual: Float64[Array, "129 2"] = eigvalsh_bands(model, kpoints)
+        structure_factor: Complex128[Array, " 129"] = (
             1.0
             + jnp.exp(-2j * jnp.pi * kpoints[:, 0])
             + jnp.exp(-2j * jnp.pi * kpoints[:, 1])
         )
-        magnitude: Array = jnp.abs(hopping) * jnp.abs(structure_factor)
-        expected: Array = jnp.stack((-magnitude, magnitude), axis=-1)
+        magnitude: Float64[Array, " 129"] = jnp.abs(hopping) * jnp.abs(
+            structure_factor
+        )
+        expected: Float64[Array, "129 2"] = jnp.stack(
+            (-magnitude, magnitude), axis=-1
+        )
 
         assert jnp.allclose(actual, expected, rtol=0.0, atol=1e-12)
 
@@ -638,28 +677,32 @@ class TestMakeGrapheneModel:
         differentiating ``sum(E**2)`` at ``k=(0.13, 0.21, 0)``.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "1 3"]
         model = make_graphene_model(t=-2.7)
         kpoints = jnp.array([[0.13, 0.21, 0.0]])
 
-        from diffpes.tightb.diagonalize import diagonalize_tb
-
-        def loss(parameters: Array) -> Array:
+        def loss(parameters: Float64[Array, "3 2"]) -> Float64[Array, ""]:
             m: diffpes.types.TBModel
             d: diffpes.types.DiagonalizedBands
-            forward: Array = parameters[:, 0] + 1j * parameters[:, 1]
-            hopping: Array = jnp.concatenate((forward, jnp.conj(forward)))
+            forward: Complex128[Array, " 3"] = (
+                parameters[:, 0] + 1j * parameters[:, 1]
+            )
+            hopping: Complex128[Array, " 6"] = jnp.concatenate(
+                (forward, jnp.conj(forward))
+            )
             m = eqx.tree_at(
                 lambda item: item.hopping_amplitudes,
                 model,
                 hopping,
             )
             d = diagonalize_tb(m, kpoints)
-            result: Array = jnp.sum(d.eigenvalues**2)
+            result: Float64[Array, ""] = jnp.sum(d.eigenvalues**2)
             return result
 
-        parameters: Array = jnp.asarray(
+        parameters: Float64[Array, "3 2"] = jnp.asarray(
             [[-2.7, 0.2], [-2.5, -0.15], [-2.8, 0.35]],
             dtype=jnp.float64,
         )
-        gradient_gate(loss, parameters, regime="smooth", atol=1e-7)
+        assert_gradients_match_finite_differences(
+            loss, parameters, regime="smooth", atol=1e-7
+        )

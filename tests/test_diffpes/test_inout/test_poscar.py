@@ -1,35 +1,18 @@
 """Validate VASP POSCAR parsing.
 
-Covers VASP 4 and VASP 5 headers, direct and Cartesian coordinates, and selective-dynamics records.
+Covers VASP 4 and VASP 5 headers, direct and Cartesian coordinates, and
+selective-dynamics records.
 """
 
-import io
 import tempfile
 from pathlib import Path
 
 import chex
 import jax.numpy as jnp
-import pytest
-from beartype.typing import TextIO
 
 import diffpes
 from diffpes.inout import (
-    read_chgcar,
-    read_doscar,
-    read_eigenval,
-    read_kpoints,
     read_poscar,
-    read_procar,
-)
-from diffpes.types import (
-    BandStructure,
-    FullDensityOfStates,
-    SOCVolumetricData,
-    SpinBandStructure,
-    SpinOrbitalProjection,
-    VolumetricData,
-    make_orbital_projection,
-    make_spin_orbital_projection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -46,7 +29,7 @@ class TestReadPoscar(chex.TestCase):
     """
 
     def test_parses_vasp5_direct(self) -> None:
-        """Read VASP-5 POSCAR with species and Direct coordinates and assert geometry.
+        """Read VASP-5 species and direct coordinates.
 
         Parses the default POSCAR fixture. Asserts lattice (3,3), positions
         (6,3), and the expanded per-atom species tuple.
@@ -54,7 +37,9 @@ class TestReadPoscar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         geom: diffpes.types.CrystalGeometry
 
@@ -73,7 +58,9 @@ class TestReadPoscar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         geom: diffpes.types.CrystalGeometry
 
@@ -91,7 +78,9 @@ class TestReadPoscar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         geom: diffpes.types.CrystalGeometry
 

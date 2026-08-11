@@ -3,10 +3,10 @@
 Extended Summary
 ----------------
 The subpackage provides mathematical utilities for ARPES simulations. The
-Faddeeva function uses a 64-term Taylor series. The Voigt broadening profile
-uses this function. Z-score normalization prepares spectra for comparisons
-with experiments. Complex packing functions provide the required real-valued
-optimizer boundary for complex physics parameters.
+Faddeeva function uses a fixed-order Weideman rational approximation. The
+Voigt broadening profile uses this function. Z-score normalization prepares
+spectra for comparisons with experiments. Complex packing functions provide
+the required real optimizer boundary for complex physics parameters.
 
 The following list describes the submodules:
 
@@ -27,7 +27,7 @@ Routine Listings
 Notes
 -----
 All functions support JAX transformations and automatic differentiation. The
-Faddeeva implementation uses ``jax.lax.scan`` for the coefficient recurrence.
+Faddeeva implementation uses one rational region in the upper half-plane.
 """
 
 from .math import faddeeva, pack_complex, unpack_complex, zscore_normalize

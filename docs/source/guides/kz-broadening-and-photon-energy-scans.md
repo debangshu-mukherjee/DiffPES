@@ -59,7 +59,7 @@ move to a neighboring *detected surface zone* is periodic. That move changes
 physical $k_\parallel$ and $k_f$, so radial and spherical-harmonic
 matrix-element factors retain genuine repeated-zone contrast.
 
-The Plan 08b G6 calibration tested candidate counts
+The registered quadrature calibration tested candidate counts
 $\{32,64,128,256,512,1024,2048\}$ against node doubling and a 4096-node small
 fixture. The smallest count meeting the registered pointwise/count
 $10^{-5}$, integrated-count $10^{-6}$, and gradient $10^{-4}$ budgets was
@@ -83,14 +83,14 @@ combinations fail at the eager boundary.
 
 | Mode | Native Hamiltonian/bands | Bulk model | Surface cell | kz nodes | Meaning |
 |---|---|---|---|---|---|
-| `native_direct` | Required | Absent | Absent | Absent | Retains Plan 08a's already-diagonalized single-kz route exactly. |
+| `native_direct` | Required | Absent | Absent | Absent | Retains the already-diagonalized single-kz route exactly. |
 | `bulk_direct` | Empty/absent | Required | Required | Absent | Evaluates the bulk model once at the exact finite-$\omega$ center; this is the analytic $\gamma=0$ path. |
 | `bulk_kz` | Empty/absent | Required | Required | At least two registered centres | Streams a finite-width wrapped bulk integral; matrix-element depth attenuation is disabled. |
 | `coherent_slab` | Required, with depth-bearing bands | Absent | Required | Absent | Evaluates one coherent slab-depth amplitude sum at exact finite-$\omega$ final momentum; wrapped broadening is disabled. |
 
 For {func}`~diffpes.simul.simulate_arpes` and
 {func}`~diffpes.simul.simulate_arpes_cut`, bulk and surface inputs are
-per-domain tuples. The new inputs are keyword-only; every Plan 08a positional
+per-domain tuples. The new inputs are keyword-only; every existing positional
 argument, the explicit {class}`~diffpes.types.DetectorCalibration`, and the
 detector-space domain mixture remain unchanged. A bulk call therefore uses
 empty native tuples:

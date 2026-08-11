@@ -1,5 +1,7 @@
 """Certify radial screening against inert Chinook sample data.
 
+Extended Summary
+----------------
 The tests check rounded screening values and authenticate the frozen external
 source metadata without importing Chinook.
 """
@@ -8,11 +10,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
-from beartype.typing import Dict
+from beartype.typing import Any, Dict, List
 
-from diffpes.radial.screening import slater_zeff
+from diffpes.radial import slater_zeff
 
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
@@ -22,7 +23,14 @@ REFERENCE_PATH: Path = (
 
 
 class TestChinookScreeningReference:
-    """Compare Slater screening with the authenticated frozen sample."""
+    """Validate Slater screening against authenticated Chinook data.
+
+    The cases cover six inert subshell samples and their provenance boundary.
+    They compare rounded public values and inspect the commit, hashes, and
+    inert-data policy in the frozen JSON artifact.
+
+    :see: :func:`~diffpes.radial.slater_zeff`
+    """
 
     def test_sample_is_bit_equal_after_pinned_rounding(self) -> None:
         """Match each inert Chinook value after its declared rounding.
@@ -38,7 +46,7 @@ class TestChinookScreeningReference:
         )
         assert artifact["requirement"] == "chinook-screening-reference"
         digits: int = int(artifact["round_digits"])
-        samples: list[Dict[str, Any]] = artifact["samples"]
+        samples: List[Dict[str, Any]] = artifact["samples"]
         assert len(samples) == 6
         sample: Dict[str, Any]
         for sample in samples:

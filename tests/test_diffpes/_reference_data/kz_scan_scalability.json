@@ -1,0 +1,366 @@
+{
+  "backend": "cpu",
+  "device": "TFRT_CPU_0",
+  "generator": {
+    "path": "diffpes-plans/verification/measure_kz_scan_scalability.py",
+    "sha256": "78869ee1068268112b64ed341c60444d8d905c09d8ccba06bd049786b39b7b50"
+  },
+  "jax_version": "0.9.0.1",
+  "literal_kz_target": {
+    "checkpoint": true,
+    "cube_bytes": 209715200,
+    "cube_shape": [
+      256,
+      256,
+      400
+    ],
+    "dimensions": {
+      "energy_chunk": 16,
+      "k_chunk": 32,
+      "n_band": 20,
+      "n_energy": 400,
+      "n_k": 65536,
+      "n_kx": 256,
+      "n_ky": 256,
+      "n_kz": 2048
+    },
+    "execution_seconds": null,
+    "finite_execution": null,
+    "forward": {
+      "budget_bytes": 2000000000,
+      "compilation_seconds": 1.5522555299976375,
+      "memory_analysis": {
+        "alias_size_bytes": 0,
+        "argument_size_bytes": 6400,
+        "authority_available": true,
+        "compiler_live_allocation_bytes": 1074870048,
+        "output_size_bytes": 209715200,
+        "result": "measured",
+        "temporary_size_bytes": 865148448
+      },
+      "passes_budget": true
+    },
+    "forward_and_full_h_gradient": {
+      "budget_bytes": 12000000000,
+      "compilation_seconds": 3.5388030469912337,
+      "memory_analysis": {
+        "alias_size_bytes": 0,
+        "argument_size_bytes": 6400,
+        "authority_available": true,
+        "compiler_live_allocation_bytes": 2567802048,
+        "output_size_bytes": 6424,
+        "result": "measured",
+        "temporary_size_bytes": 2567789224
+      },
+      "passes_budget": true
+    },
+    "gradient_shape": [
+      20,
+      20
+    ],
+    "jaxpr_seconds": {
+      "forward": 1.4110759730101563,
+      "forward_and_full_h_gradient": 1.4621437699970556
+    },
+    "jaxpr_shape_audit": {
+      "audit_scope": "recursive forward and value-plus-full-H-gradient JAXPRs, including invars, constvars, outvars, and equation variables",
+      "contains_forbidden_all_node_carrier": false,
+      "forward": {
+        "audit_scope": "recursive invars, constvars, outvars, and equation in/out vars; canonical, transposed, flattened, and K-grid-factored forms",
+        "constvar_shape_matches": {
+          "full_k_band_band_kz": [],
+          "full_k_band_energy_kz": [],
+          "full_k_energy_kz": [],
+          "full_k_kz_cartesian": []
+        },
+        "contains_forbidden_all_node_carrier": false,
+        "distinct_array_shape_count": 99,
+        "forbidden_element_counts": {
+          "full_k_band_band_kz": 53687091200,
+          "full_k_band_energy_kz": 1073741824000,
+          "full_k_energy_kz": 53687091200,
+          "full_k_kz_cartesian": 402653184
+        },
+        "maximum_array_element_count": 26214400,
+        "recursive_equation_count": 2599,
+        "recursive_jaxpr_count": 295,
+        "result": "pass",
+        "shape_matches": {
+          "full_k_band_band_kz": [],
+          "full_k_band_energy_kz": [],
+          "full_k_energy_kz": [],
+          "full_k_kz_cartesian": []
+        }
+      },
+      "forward_and_full_h_gradient": {
+        "audit_scope": "recursive invars, constvars, outvars, and equation in/out vars; canonical, transposed, flattened, and K-grid-factored forms",
+        "constvar_shape_matches": {
+          "full_k_band_band_kz": [],
+          "full_k_band_energy_kz": [],
+          "full_k_energy_kz": [],
+          "full_k_kz_cartesian": []
+        },
+        "contains_forbidden_all_node_carrier": false,
+        "distinct_array_shape_count": 104,
+        "forbidden_element_counts": {
+          "full_k_band_band_kz": 53687091200,
+          "full_k_band_energy_kz": 1073741824000,
+          "full_k_energy_kz": 53687091200,
+          "full_k_kz_cartesian": 402653184
+        },
+        "maximum_array_element_count": 27525120,
+        "recursive_equation_count": 4433,
+        "recursive_jaxpr_count": 529,
+        "result": "pass",
+        "shape_matches": {
+          "full_k_band_band_kz": [],
+          "full_k_band_energy_kz": [],
+          "full_k_energy_kz": [],
+          "full_k_kz_cartesian": []
+        }
+      },
+      "result": "pass"
+    },
+    "nonzero_full_h_gradient": null,
+    "process_peak_rss_after_bytes_non_authoritative": 870510592,
+    "process_peak_rss_before_bytes_non_authoritative": 586825728,
+    "programs_executed": false,
+    "result": "pass"
+  },
+  "numpy_version": "2.4.2",
+  "photon_scan_auxiliary_memory": {
+    "flat_tolerance_bytes": 65536,
+    "forward": {
+      "authority_available": true,
+      "auxiliary_range_bytes": 1536,
+      "result": "pass",
+      "temporary_range_bytes": 1536
+    },
+    "lengths": [
+      1,
+      5,
+      20
+    ],
+    "measurements": [
+      {
+        "forward": {
+          "auxiliary_beyond_scan_and_hv_input_bytes": 42672,
+          "compilation_seconds": 1.6232209039881127,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 8,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 43520,
+            "output_size_bytes": 840,
+            "result": "measured",
+            "temporary_size_bytes": 42672
+          },
+          "temporary_size_bytes": 42672
+        },
+        "n_hv": 1,
+        "output_shape": [
+          1,
+          15,
+          7
+        ],
+        "required_photon_input_bytes": 8,
+        "required_scan_output_bytes": 840,
+        "reverse_hv_gradient": {
+          "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 123048,
+          "compilation_seconds": 6.060269010005868,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 8,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 123912,
+            "output_size_bytes": 880,
+            "result": "measured",
+            "temporary_size_bytes": 123024
+          },
+          "program": "has_aux_value_and_hv_gradient",
+          "required_hv_gradient_output_bytes": 8,
+          "required_scalar_output_bytes": 8,
+          "temporary_size_bytes": 123024
+        }
+      },
+      {
+        "forward": {
+          "auxiliary_beyond_scan_and_hv_input_bytes": 44080,
+          "compilation_seconds": 1.6754580970009556,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 40,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 48320,
+            "output_size_bytes": 4200,
+            "result": "measured",
+            "temporary_size_bytes": 44080
+          },
+          "temporary_size_bytes": 44080
+        },
+        "n_hv": 5,
+        "output_shape": [
+          5,
+          15,
+          7
+        ],
+        "required_photon_input_bytes": 40,
+        "required_scan_output_bytes": 4200,
+        "reverse_hv_gradient": {
+          "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 134696,
+          "compilation_seconds": 5.413369567002519,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 40,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 138984,
+            "output_size_bytes": 4272,
+            "result": "measured",
+            "temporary_size_bytes": 134672
+          },
+          "program": "has_aux_value_and_hv_gradient",
+          "required_hv_gradient_output_bytes": 40,
+          "required_scalar_output_bytes": 8,
+          "temporary_size_bytes": 134672
+        }
+      },
+      {
+        "forward": {
+          "auxiliary_beyond_scan_and_hv_input_bytes": 44208,
+          "compilation_seconds": 2.072307213995373,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 160,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 61168,
+            "output_size_bytes": 16800,
+            "result": "measured",
+            "temporary_size_bytes": 44208
+          },
+          "temporary_size_bytes": 44208
+        },
+        "n_hv": 20,
+        "output_shape": [
+          20,
+          15,
+          7
+        ],
+        "required_photon_input_bytes": 160,
+        "required_scan_output_bytes": 16800,
+        "reverse_hv_gradient": {
+          "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 160040,
+          "compilation_seconds": 5.703980149002746,
+          "memory_analysis": {
+            "alias_size_bytes": 0,
+            "argument_size_bytes": 160,
+            "authority_available": true,
+            "compiler_live_allocation_bytes": 177168,
+            "output_size_bytes": 16992,
+            "result": "measured",
+            "temporary_size_bytes": 160016
+          },
+          "program": "has_aux_value_and_hv_gradient",
+          "required_hv_gradient_output_bytes": 160,
+          "required_scalar_output_bytes": 8,
+          "temporary_size_bytes": 160016
+        }
+      }
+    ],
+    "required_output_scaling": "8*n_hv*n_k*n_energy bytes",
+    "result": "pass",
+    "reverse_hv_gradient": {
+      "authority_available": true,
+      "auxiliary_range_bytes": 36992,
+      "result": "pass",
+      "temporary_range_bytes": 36992
+    }
+  },
+  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
+  "preallocate_environment": "false",
+  "python_version": "3.13.6",
+  "quadrature_convergence_authority": {
+    "artifact": {
+      "path": "diffpes-plans/verification/kz_quadrature_convergence.json",
+      "sha256": "8e5b76f8d1c091bb68e2180f898c1dea4f13b65e68f66f97fe2b715e73e5e168"
+    },
+    "generator": {
+      "path": "diffpes-plans/verification/generate_kz_quadrature_convergence.py",
+      "sha256": "3658d7df5c74c0c748bf67e3f9bee5cff852a3ef5516041930993da19fe5764b"
+    },
+    "manifest": {
+      "path": "diffpes-plans/verification/kz_quadrature_convergence_manifest.json",
+      "sha256": "36718c290f5c8121d2d28c548e1d667821826235f3dfe4114148fe9940116cbd"
+    },
+    "selected_n_kz": 2048
+  },
+  "rematerialization_comparison": {
+    "dimensions": [
+      3,
+      5,
+      7,
+      3,
+      8,
+      5,
+      7
+    ],
+    "gradient_atol": 1e-14,
+    "gradient_passes": true,
+    "gradient_rtol": 1e-12,
+    "maximum_gradient_absolute_error": 1.734723475976807e-18,
+    "maximum_reference_gradient": 0.010309586568000314,
+    "maximum_value_absolute_error": 0.0,
+    "nonzero_full_h_gradient": true,
+    "result": "pass",
+    "value_atol": 1e-14,
+    "value_passes": true,
+    "value_rtol": 1e-12
+  },
+  "requirements": [
+    "kz-node-local-memory",
+    "kz-rematerialization-and-photon-scan-memory"
+  ],
+  "result": "pass",
+  "schema": "org.diffpes.verification.kz-scalability.v1",
+  "schema_version": 1,
+  "selected_n_kz": 2048,
+  "source_sha256": {
+    "pyproject.toml": "0138b1caf0151db298c10ee861f821247beb9fabe203bf3e6e214b85b4824c5d",
+    "src/diffpes/__init__.py": "16781d3ecf614f573ae8e1669730cd0aa99a643d95b798e012e9c188e88a0ca1",
+    "src/diffpes/maths/__init__.py": "ee63eff683d3f2dbf7549b7a79c452088833cb61c678b4ea1c6707bbb52cfa34",
+    "src/diffpes/maths/dipole.py": "d61ca5c5ae1b776096397fb0ffc1d4e63cdba40154697cf7846c647adedb090f",
+    "src/diffpes/maths/gaunt.py": "d19d2f1aa518f205523dc87159f1914d72359d031d5a1ba3209e8ad6603780ca",
+    "src/diffpes/maths/rotations.py": "b06dc0fa036e9d2969091249a8c97692c03ebfc9d41ebb62cf65a2bfb61f0f3f",
+    "src/diffpes/maths/safe.py": "6dda8cedee880c7ba1a31926314fef4a12ab6caf49e0b53c4b9f75f1ba6f7e4f",
+    "src/diffpes/maths/spherical_harmonics.py": "3b99a222623b0f93f9fc91157fc09cf879a8760ace4ec8baf530cb191f7a1741",
+    "src/diffpes/radial/__init__.py": "1e91e92a810739bd80d903807393c086e54192f420e778429bfcc9d04a745500",
+    "src/diffpes/radial/bessel.py": "ee64359dd0b0e2349892e06a7fe2481f38b799b28612baf8baaf2c3114c922d5",
+    "src/diffpes/radial/coulomb.py": "c061296ff6a606df8a70f33c43fb288cf7c5bd347053a46ff2bcc7bbde5f8a8a",
+    "src/diffpes/radial/integrate.py": "ce56faa08b1e928ee855c54d54b933d29b66502bd0b20e2472d44d3b1548d5df",
+    "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
+    "src/diffpes/simul/__init__.py": "a517d3a2c54899dc8459da03ef752833f6ecee442f1119cd6946fe5ef28d7bd3",
+    "src/diffpes/simul/broadening.py": "207235e7ac99a286b94ec21068ca339fb1239e87800d03dcccbbe5ea44727e8c",
+    "src/diffpes/simul/effects.py": "91b62f35a0723589908e2d6fd091e58b88c02fbab7b6cff74c2e488e8e387e91",
+    "src/diffpes/simul/kinematics.py": "1b7ab38dd59467cf4cc3ebc43bc147d37829b580d6356b778738f5c683307b9c",
+    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
+    "src/diffpes/simul/polarization.py": "2ef6af1eca002832b3f3d96c96ed7ac2511e5a936578d9ec38a21e0e75a10f75",
+    "src/diffpes/simul/spectral.py": "5364621f115dcc10dc922aa4a06a4739db4adac144588be963757f23a057b422",
+    "src/diffpes/simul/spectrum.py": "229821d410ca5e0831744a5c8fb8490fb2236aa02eddcb963107b3dde81019dc",
+    "src/diffpes/tightb/__init__.py": "ab7e36ce3b586737a5f52249870699d8c597075e9e078b9f9b53e68224e63b49",
+    "src/diffpes/tightb/hamiltonian.py": "e1446e2cb7f7da831584a0a79b69c8e81c1facee97232ab4583ad5a45b11878e",
+    "src/diffpes/tightb/soc.py": "a9589ffaeac6a1e1b44521b378b48bede30dd8d9009d7fe6704891cb7c25d5b5",
+    "src/diffpes/types/__init__.py": "950757b20e8fc61f180950a48089ff871064fd2e51894253013348d2a48eb7db",
+    "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+    "src/diffpes/types/constants.py": "ca5eaae27401c693415f4cab6424f10525a9f0dc94f7abbf4723639ba3198f1f",
+    "src/diffpes/types/experiment.py": "03e3a2d4142cc0ab61c76b1ff88f78c1d5c15228c213647195215495709fe661",
+    "src/diffpes/types/geometry.py": "7d4748f374399348e31ce191b342faa6c17403a17e7196aff7a86e30566850e3",
+    "src/diffpes/types/kpath.py": "7c60adbd07c9e5549cd994552de5868daf500c3bf7d790c7409ed761455d7eb1",
+    "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
+    "src/diffpes/types/self_energy.py": "46f229f1eb50bdd72e55f69cb72d12d34346ca924a9dc72ef5a514f2ed54c420",
+    "src/diffpes/types/spectral.py": "2c0dd8bb9d670f548715b8b450103b25878ce4161d3ea79c6cdb5e6872f4e12c",
+    "src/diffpes/types/tb_model.py": "259b62e3a9e407fd173e4e63a8113b78d18bfa8614b91c155c9e84b995e57fe9",
+    "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+    "src/diffpes/utils/math.py": "4c2936eb29fa0413dd27d0edfad1a0912d1a40fd5a33b5f1db99ccb4c02a70bf",
+    "uv.lock": "299c8130df47a0ebf73e1ecf6506c590cde2272ac702095e9f1809e22390b9ee"
+  },
+  "x64_enabled": true
+}

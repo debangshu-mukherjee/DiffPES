@@ -114,7 +114,7 @@ def _two_s_channels(
     return channels
 
 
-def test_g9_isolated_amplitude_and_intensity_ratios() -> None:
+def test_isolated_amplitude_and_intensity_ratios() -> None:
     """Match both attenuation exponents on isolated depth contributions.
 
     Two otherwise identical s orbitals isolate the relative depth factor in
@@ -149,7 +149,7 @@ def test_g9_isolated_amplitude_and_intensity_ratios() -> None:
     )
 
 
-def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
+def test_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
     """Match the two-depth coherent amplitude and reject early squaring.
 
     Identical orbital amplitudes at different depths provide a direct
@@ -157,7 +157,8 @@ def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
 
     Notes
     -----
-    Compare coherent summation with its analytic result and an incoherent false control.
+    Compare coherent summation with its analytic result and an incoherent false
+    control.
     """
     depth: float = 5.1
     mean_free_path: Float64[Array, ""] = jnp.asarray(7.4)
@@ -174,7 +175,9 @@ def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
         channels[0, 0],
         polarization,
     )
-    attenuation: Float64[Array, ""] = jnp.exp(-depth / (2.0 * mean_free_path))
+    attenuation: Complex128[Array, ""] = jnp.exp(
+        -depth / (2.0 * mean_free_path)
+    )
     atomic_intensity: Float64[Array, ""] = jnp.abs(orbital_amplitudes[0]) ** 2
     coherent: Float64[Array, ""] = jnp.abs(jnp.sum(orbital_amplitudes)) ** 2
     expected: Float64[Array, ""] = atomic_intensity * (1.0 + attenuation) ** 2
@@ -197,8 +200,8 @@ def test_g9_coherent_depth_interference_is_not_an_incoherent_sum() -> None:
     )
 
 
-def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
-    """Verify noise clamping, negative-depth rejection, and the ``abs`` control.
+def test_negative_depth_clamp_rejection_and_abs_false_control() -> None:
+    """Verify noise clamping, depth rejection, and the ``abs`` control.
 
     Sub-tolerance negative noise maps to the surface while a material negative
     depth triggers the physical-domain guard.
@@ -220,7 +223,7 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
         mean_free_path,
     )
     chex.assert_trees_all_equal(clamped, zero)
-    planted_abs_factor: Float64[Array, ""] = jnp.exp(
+    planted_abs_factor: Complex128[Array, ""] = jnp.exp(
         -abs(tolerance_noise) / (2.0 * mean_free_path)
     )
     assert float(planted_abs_factor) != 1.0
@@ -235,7 +238,7 @@ def test_g9_negative_depth_clamp_rejection_and_abs_false_control() -> None:
             jnp.asarray((material_negative, 0.0)),
             mean_free_path,
         )
-    material_abs_factor: Float64[Array, ""] = jnp.exp(
+    material_abs_factor: Complex128[Array, ""] = jnp.exp(
         -abs(material_negative) / (2.0 * mean_free_path)
     )
     assert bool(jnp.isfinite(material_abs_factor))
@@ -288,10 +291,14 @@ def _displaced_bands() -> Tuple[
         basis,
         orbital_positions=explicit_fractional,
     )
-    return bands, displacement_fractional
+    returned: Tuple[
+        DiagonalizedBands,
+        Float64[Array, " 3"],
+    ] = bands, displacement_fractional
+    return returned
 
 
-def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
+def test_displaced_centre_interference_and_derivative_controls() -> None:
     """Match the explicit-centre phase, interference, and displacement slope.
 
     One displaced Wannier centre changes the relative plane-wave phase and the
@@ -342,7 +349,8 @@ def test_g18_displaced_centre_interference_and_derivative_controls() -> None:
             channels[0, 0],
             polarization,
         )
-        return jnp.abs(jnp.sum(amplitudes)) ** 2
+        returned: Float64[Array, ""] = jnp.abs(jnp.sum(amplitudes)) ** 2
+        return returned
 
     explicit_channels: Complex128[Array, "1 1 2 3"] = _two_s_channels(
         explicit_cart,

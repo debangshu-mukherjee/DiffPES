@@ -8,10 +8,10 @@ that work seamlessly with JAX transformations.
 
 Routine Listings
 ----------------
+:class:`PyTreeDef`
+    Runtime pytree definition with a typed static-analysis stand-in.
 :obj:`NonJaxNumber`
     Union of ``int``, ``float``, and ``complex``.
-:obj:`PyTreeDef`
-    Runtime pytree definition with a typed static-analysis stand-in.
 :obj:`ScalarBool`
     Union of ``bool`` and ``Bool[Array, " "]``.
 :obj:`ScalarComplex`
@@ -26,14 +26,14 @@ Routine Listings
 Notes
 -----
 These aliases mirror those in ``janssen.types`` to maintain a
-consistent type annotation style across JAX-based projects.
+consistent type annotation style across JAX-based code.
 """
 
-from beartype.typing import TYPE_CHECKING, TypeAlias, Union
+from beartype.typing import TYPE_CHECKING, List, TypeAlias, Union
 from jaxtyping import Array, Bool, Complex, Float, Int, Num
 
 if TYPE_CHECKING:
-    from beartype.typing import Any, Iterable, List
+    from beartype.typing import Any, Iterable
 
     class PyTreeDef:
         """Represent the unstubbed jaxlib pytree definition statically.
@@ -79,8 +79,8 @@ ScalarInteger: TypeAlias = Union[int, Int[Array, " "]]
 ScalarNumeric: TypeAlias = Union[int, float, complex, Num[Array, " "]]
 
 __all__: list[str] = [
-    "NonJaxNumber",
     "PyTreeDef",
+    "NonJaxNumber",
     "ScalarBool",
     "ScalarComplex",
     "ScalarFloat",

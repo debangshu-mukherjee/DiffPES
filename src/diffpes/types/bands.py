@@ -60,7 +60,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Tuple, Union
-from jaxtyping import Array, Float64, jaxtyped
+from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from .aliases import ScalarFloat, ScalarNumeric
 from .constants import N_ORBITALS, N_SPIN_COMPONENTS
@@ -105,6 +105,10 @@ class BandStructure(eqx.Module):
     Implemented as an immutable :class:`equinox.Module` PyTree.
     Equinox derives the tree structure from the annotated fields; all
     fields are differentiable leaves and no static metadata is present.
+
+    See Also
+    --------
+    make_band_structure : Validated factory for this type.
     """
 
     eigenvalues: Float64[Array, "K B"]
@@ -131,6 +135,10 @@ class OrbitalProjection(eqx.Module):
         Optional spin projections.
     oam : Optional[Float64[Array, "K B A 3"]]
         Optional orbital-angular-momentum projections.
+
+    See Also
+    --------
+    make_orbital_projection : Validated factory for this type.
     """
 
     projections: Float64[Array, "K B A 9"]
@@ -155,6 +163,10 @@ class SpinOrbitalProjection(eqx.Module):
         Mandatory spin projections.
     oam : Optional[Float64[Array, "K B A 3"]]
         Optional orbital-angular-momentum projections.
+
+    See Also
+    --------
+    make_spin_orbital_projection : Validated factory for this type.
     """
 
     projections: Float64[Array, "K B A 9"]
@@ -564,7 +576,7 @@ class ArpesCube(eqx.Module):
         **Static.** Human-readable source description. Changing it triggers
         retracing. Machine-verifiable provenance belongs in a certificate.
     cartesian_frame_id : str
-        **Static.** Registered Plan-03 Cartesian sample-frame identifier.
+        **Static.** Registered Cartesian sample-frame identifier.
         Changing it triggers retracing.
 
     Notes
@@ -572,6 +584,10 @@ class ArpesCube(eqx.Module):
     This pre-detector carrier is an immutable :class:`equinox.Module`. Its
     numerical leaves remain differentiable. It is not a detector raster:
     nonlinear detector coordinates require an explicit calibrated mapping.
+
+    See Also
+    --------
+    make_arpes_cube : Validated factory for this type.
     """
 
     intensity: Float64[Array, "n_kx n_ky n_e"]
@@ -603,7 +619,7 @@ class ArpesSpectrum(eqx.Module):
         Full Cartesian path in the registered sample frame, in inverse
         angstroms.
     cartesian_frame_id : str
-        **Static.** Registered Plan-03 Cartesian sample-frame identifier.
+        **Static.** Registered Cartesian sample-frame identifier.
         Changing it triggers retracing.
 
     Notes
@@ -612,6 +628,10 @@ class ArpesSpectrum(eqx.Module):
     different directions. The full Cartesian path and its static frame
     identity therefore remain attached to the intensity through detector
     mapping and inversion.
+
+    See Also
+    --------
+    make_arpes_spectrum : Validated factory for this type.
     """
 
     intensity: Float64[Array, "n_k n_e"]
@@ -659,6 +679,10 @@ class DetectorCalibration(eqx.Module):
     -----
     This carrier is the sole authority for target bins and native detector
     PSF widths. The source mesh never infers or replaces these values.
+
+    See Also
+    --------
+    make_detector_calibration : Validated factory for this type.
     """
 
     u_bin_edges: Float64[Array, " n_u_plus_1"]
@@ -706,6 +730,10 @@ class DetectorRaster(eqx.Module):
     -----
     Detector arrays are not relabeled Cartesian momentum grids. This carrier
     keeps native coordinates and expected-count units explicit.
+
+    See Also
+    --------
+    make_detector_raster : Validated factory for this type.
     """
 
     expected_counts: Float64[Array, "n_channel n_u n_v n_e"]
@@ -1034,7 +1062,7 @@ def make_arpes_cube(  # noqa: DOC503
     energy_axis : Float64[Array, " Ea"]
         Energy relative to the Fermi level in eV.
     cartesian_frame_id : str, optional
-        **Static.** Registered Plan-03 sample frame. Changing it triggers
+        **Static.** Registered Cartesian sample frame. Changing it triggers
         retracing.
     provenance : str, optional
         **Static.** Human-readable source description. Changing it triggers
@@ -1159,7 +1187,7 @@ def make_arpes_spectrum(  # noqa: DOC503
     kpoints_cart_inv_ang : Float64[Array, "Kc 3"]
         Full Cartesian path in inverse angstroms.
     cartesian_frame_id : str, optional
-        **Static.** Registered Plan-03 sample frame. Changing it triggers
+        **Static.** Registered Cartesian sample frame. Changing it triggers
         retracing.
 
     Returns
@@ -1595,7 +1623,7 @@ def make_detector_calibration(  # noqa: DOC503
 def _linear_bracket(
     axis: Float64[Array, " N"],
     query: Float64[Array, ""],
-) -> Tuple[Array, Array, Float64[Array, ""]]:
+) -> Tuple[Int32[Array, ""], Int32[Array, ""], Float64[Array, ""]]:
     """PRIVATE: Return adjacent indices and a guarded linear weight.
 
     Parameters
@@ -1607,7 +1635,7 @@ def _linear_bracket(
 
     Returns
     -------
-    bracket : Tuple[Array, Array, Float64[Array, ""]]
+    bracket : Tuple[Int32[Array, ""], Int32[Array, ""], Float64[Array, ""]]
         Lower index, upper index, and piecewise-linear upper weight.
 
     Notes
@@ -1616,12 +1644,12 @@ def _linear_bracket(
     weight to zero if malformed repeated coordinates reach this private seam.
     Public factories prevent that case.
     """
-    upper: Array = jnp.clip(
+    upper: Int32[Array, ""] = jnp.clip(
         jnp.searchsorted(axis, query, side="right"),
         1,
         axis.size - 1,
     )
-    lower: Array = upper - 1
+    lower: Int32[Array, ""] = upper - 1
     lower_value: Float64[Array, ""] = axis[lower]
     upper_value: Float64[Array, ""] = axis[upper]
     denominator: Float64[Array, ""] = upper_value - lower_value
@@ -1630,7 +1658,11 @@ def _linear_bracket(
     )
     weight: Float64[Array, ""] = (query - lower_value) / safe_denominator
     weight = jnp.where(denominator > 0.0, weight, 0.0)
-    bracket: Tuple[Array, Array, Float64[Array, ""]] = (lower, upper, weight)
+    bracket: Tuple[Int32[Array, ""], Int32[Array, ""], Float64[Array, ""]] = (
+        lower,
+        upper,
+        weight,
+    )
     return bracket
 
 
@@ -1710,11 +1742,11 @@ def slice_edc(
     ky_query: Float64[Array, ""] = _validated_query(
         ky_inv_ang, cube.ky_axis, "slice_edc ky"
     )
-    ix0: Array
-    ix1: Array
+    ix0: Int32[Array, ""]
+    ix1: Int32[Array, ""]
     wx: Float64[Array, ""]
-    iy0: Array
-    iy1: Array
+    iy0: Int32[Array, ""]
+    iy1: Int32[Array, ""]
     wy: Float64[Array, ""]
     ix0, ix1, wx = _linear_bracket(cube.kx_axis, kx_query)
     iy0, iy1, wy = _linear_bracket(cube.ky_axis, ky_query)
@@ -1760,8 +1792,8 @@ def slice_mdc(
     energy_query: Float64[Array, ""] = _validated_query(
         energy_ev, cube.energy_axis, "slice_mdc energy"
     )
-    ie0: Array
-    ie1: Array
+    ie0: Int32[Array, ""]
+    ie1: Int32[Array, ""]
     weight: Float64[Array, ""]
     ie0, ie1, weight = _linear_bracket(cube.energy_axis, energy_query)
     mdc: Float64[Array, "n_kx n_ky"] = (1.0 - weight) * cube.intensity[

@@ -22,7 +22,7 @@ trace Python strings. JAX stores all numerical fields as arrays.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple, Union
+from beartype.typing import List, Tuple, Union
 from jaxtyping import Array, Float64, jaxtyped
 
 from .aliases import ScalarNumeric
@@ -133,7 +133,7 @@ def _compute_reciprocal_lattice(
 
 @jaxtyped(typechecker=beartype)
 def make_crystal_geometry(  # noqa: DOC503
-    lattice: Union[Float64[Array, "3 3"], "list[list[ScalarNumeric]]"],
+    lattice: Union[Float64[Array, "3 3"], "List[List[ScalarNumeric]]"],
     positions: Float64[Array, "N 3"],
     species: Tuple[str, ...],
 ) -> CrystalGeometry:
@@ -175,7 +175,7 @@ def make_crystal_geometry(  # noqa: DOC503
 
     Parameters
     ----------
-    lattice : Union[Float64[Array, "3 3"], "list[list[ScalarNumeric]]"]
+    lattice : Union[Float64[Array, "3 3"], "List[List[ScalarNumeric]]"]
         Real-space lattice vectors as rows (angstroms).
     positions : Float64[Array, "N 3"]
         Fractional atomic positions.

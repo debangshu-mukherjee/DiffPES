@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Bool, Shaped, jaxtyped
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -61,7 +61,7 @@ def _scalar_bool(value: Any) -> bool:
     Materializes through :func:`numpy.asarray` and extracts the single
     item, so claim status logic works on plain Python Booleans.
     """
-    array: Shaped[NDArray, "..."] = np.asarray(value)
+    array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         msg: str = (
             f"expected scalar certificate field, received shape {array.shape}"
@@ -91,7 +91,7 @@ def _scalar_text(value: Any) -> str:
     The fixed ``.8g`` float format keeps summaries deterministic across
     platforms and print options.
     """
-    array: Shaped[NDArray, "..."] = np.asarray(value)
+    array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(value)
     if array.shape != ():
         text: str = f"array(shape={array.shape}, dtype={array.dtype})"
         return text  # noqa: RET504
@@ -123,8 +123,10 @@ def _array_text(value: Any) -> str:
     The bound keeps claim explanations readable for large evidence
     arrays while the full shape stays visible.
     """
-    array: Shaped[NDArray, "..."] = np.asarray(value)
-    flat: Shaped[NDArray, " n_flat"] = array.reshape(-1)
+    array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(value)
+    flat: Bool[NDArray, " n_flat"] | Num[NDArray, " n_flat"] = array.reshape(
+        -1
+    )
     preview: str = np.array2string(
         flat[:CERTIFICATE_ARRAY_PREVIEW_ITEMS],
         separator=", ",
@@ -201,7 +203,7 @@ def _optional_static_tuple(value: object, name: str) -> Tuple[str, ...]:
 
 
 def _append_tuple(
-    lines: list[str],
+    lines: List[str],
     heading: str,
     values: Tuple[str, ...],
 ) -> None:
@@ -209,7 +211,7 @@ def _append_tuple(
 
     Parameters
     ----------
-    lines : list[str]
+    lines : List[str]
         Summary lines to extend in place.
     heading : str
         Section heading without a trailing colon.
@@ -263,7 +265,7 @@ def summarize_certificate(certificate: ForwardCertificate) -> str:
     claim: Any
     model: Any = certificate.model
     manifest: Any = certificate.manifest
-    lines: list[str] = [
+    lines: List[str] = [
         "Forward certificate",
         f"Model: {model.model_id}@{model.model_version}",
         f"Observable: {model.observable_id}",
@@ -463,7 +465,7 @@ def explain_claim(
     artifact_ids: Tuple[str, ...] = tuple(
         item.artifact_id for item in certificate.artifacts
     )
-    lines: list[str] = [
+    lines: List[str] = [
         f"Claim: {claim.claim_id}",
         f"Subject: {claim.subject_id}",
         f"Predicate: {claim.predicate_id}",
@@ -685,12 +687,12 @@ def diff_certificates(
         "deterministic",
     )
     audit_names: Tuple[str, ...] = ("execution_id", "started_at_utc")
-    scientific: list[str] = list(
+    scientific: List[str] = list(
         _field_differences(left, right, scientific_names)
     )
     if _different(_artifact_identity(left), _artifact_identity(right)):
         scientific.append("artifacts")
-    audit: list[str] = list(
+    audit: List[str] = list(
         _field_differences(
             left.manifest,
             right.manifest,

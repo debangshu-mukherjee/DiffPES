@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import TextIO, Tuple
+from beartype.typing import List, TextIO, Tuple
 from jaxtyping import Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -119,7 +119,7 @@ def read_poscar(
         raw_scale: float = float(fid.readline().strip())
         lattice: Float64[NDArray, "3 3"] = np.zeros((3, 3), dtype=np.float64)
         for i in range(3):
-            vals: list[float] = [float(x) for x in fid.readline().split()]
+            vals: List[float] = [float(x) for x in fid.readline().split()]
             lattice[i, :] = vals
         scale: float = raw_scale
         if raw_scale < 0.0:
@@ -134,7 +134,7 @@ def read_poscar(
         if not any(c.isdigit() for c in line):
             symbols = tuple(line.split())
             line = fid.readline().strip()
-        atom_counts: list[int] = [int(x) for x in line.split()]
+        atom_counts: List[int] = [int(x) for x in line.split()]
         natoms: int = sum(atom_counts)
         line = fid.readline().strip()
         selective: bool = False

@@ -12,7 +12,6 @@ import json
 import math
 from pathlib import Path
 
-import chex
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -197,7 +196,8 @@ def _spatial_volume_amplitude(
             * radial_point**2
             * np.sum(angular_weights * np.abs(wavefunction) ** 2)
         )
-    return amplitude, norm
+    returned: Tuple[complex, float] = amplitude, norm
+    return returned
 
 
 def _production_amplitude(
@@ -390,7 +390,8 @@ def test_hermite_rejection_makes_derivative_path_inactive() -> None:
 
     Notes
     -----
-    Read the compact artifact summary and exercise every candidate runtime guard.
+    Read the compact artifact summary and exercise every candidate runtime
+    guard.
     """
     reference_path: Path = (
         Path(__file__).resolve().parents[1]

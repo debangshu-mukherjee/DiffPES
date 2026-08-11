@@ -1,9 +1,10 @@
 """Validate VASP PROCAR parsing.
 
-Covers non-spin, spin-polarized, and SOC projections together with orbital ordering and malformed or truncated blocks.
+Covers non-spin, spin-polarized, and SOC projections together with orbital
+ordering and malformed or truncated blocks.
 """
 
-import io
+import os
 import tempfile
 from pathlib import Path
 
@@ -14,22 +15,10 @@ from beartype.typing import TextIO
 
 import diffpes
 from diffpes.inout import (
-    read_chgcar,
-    read_doscar,
-    read_eigenval,
-    read_kpoints,
-    read_poscar,
     read_procar,
 )
 from diffpes.types import (
-    BandStructure,
-    FullDensityOfStates,
-    SOCVolumetricData,
-    SpinBandStructure,
     SpinOrbitalProjection,
-    VolumetricData,
-    make_orbital_projection,
-    make_spin_orbital_projection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -46,7 +35,7 @@ class TestReadProcar(chex.TestCase):
     """
 
     def test_parses_minimal_procar(self) -> None:
-        """Read minimal PROCAR and assert OrbitalProjection shape and sample values.
+        """Read a minimal PROCAR and assert sample projection values.
 
         The test loads the minimal PROCAR fixture. Asserts projections shape
         (2, 2, 1, 9), selected projection values (0.1 and 0.18),
@@ -55,7 +44,9 @@ class TestReadProcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         orb: (
             diffpes.types.OrbitalProjection
@@ -75,7 +66,7 @@ class TestReadProcar(chex.TestCase):
         assert orb.oam is None
 
     def test_spin_procar_legacy(self) -> None:
-        """Read spin-polarized PROCAR in legacy mode and verify only first spin block.
+        """Read only the first PROCAR spin block in legacy mode.
 
         Parses the PROCAR_spin fixture with ``return_mode="legacy"``,
         which extracts only the first spin-up block. The test checks the
@@ -85,7 +76,9 @@ class TestReadProcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         orb: (
             diffpes.types.OrbitalProjection
@@ -102,7 +95,7 @@ class TestReadProcar(chex.TestCase):
         assert orb.spin is None
 
     def test_spin_procar_full(self) -> None:
-        """Read spin-polarized PROCAR in full mode and verify SpinOrbitalProjection output.
+        """Read spin-polarized PROCAR output in full mode.
 
         Parses the PROCAR_spin fixture with ``return_mode="full"``,
         returning a ``SpinOrbitalProjection`` with both ``projections``
@@ -112,7 +105,9 @@ class TestReadProcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         orb: (
             diffpes.types.OrbitalProjection
@@ -145,7 +140,9 @@ class TestReadProcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         fh: TextIO
 
         tmpname: str
@@ -159,8 +156,6 @@ class TestReadProcarErrors(chex.TestCase):
             with pytest.raises(ValueError, match="No valid PROCAR blocks"):
                 read_procar(tmpname)
         finally:
-            import os
-
             os.unlink(tmpname)
 
 
@@ -181,7 +176,9 @@ class TestReadProcarSOC(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         orb: (
             diffpes.types.OrbitalProjection

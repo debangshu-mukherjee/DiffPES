@@ -8,7 +8,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, List, Union
+from jaxtyping import Array, Bool, Float64, Int32
 
 import diffpes.types
 from diffpes.types import (
@@ -212,7 +213,7 @@ def _certificate() -> ForwardCertificate:
         claim_in_domain=jnp.array([True]),
         achieved=jnp.array([True, True]),
     )
-    return make_forward_certificate(
+    certificate: ForwardCertificate = make_forward_certificate(
         manifest=manifest,
         model=model,
         artifacts=(artifact,),
@@ -230,6 +231,7 @@ def _certificate() -> ForwardCertificate:
         certificate_checksum="certificate-1",
         extensions_json='{"future_field":1}',
     )
+    return certificate
 
 
 class TestArtifactref:
@@ -248,9 +250,10 @@ class TestArtifactref:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ArtifactRef")
+        symbol: object = diffpes.types.ArtifactRef
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -264,16 +267,18 @@ class TestCertificationclaim:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``CertificationClaim`` through its canonical types package path.
+        """Expose ``CertificationClaim`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "CertificationClaim")
+        symbol: object = diffpes.types.CertificationClaim
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -287,16 +292,18 @@ class TestCertificationcontext:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``CertificationContext`` through its canonical types package path.
+        """Expose ``CertificationContext`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "CertificationContext")
+        symbol: object = diffpes.types.CertificationContext
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -317,9 +324,10 @@ class TestCheckfunction:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "CheckFunction")
+        symbol: object = diffpes.types.CheckFunction
         assert symbol is not None
 
 
@@ -339,9 +347,10 @@ class TestCertifiedresult:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "CertifiedResult")
+        symbol: object = diffpes.types.CertifiedResult
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -353,7 +362,8 @@ class TestCertifiedresult:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         result: Any
         compiled: Any
@@ -385,9 +395,10 @@ class TestConventionref:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ConventionRef")
+        symbol: object = diffpes.types.ConventionRef
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -408,9 +419,10 @@ class TestDependencymap:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "DependencyMap")
+        symbol: object = diffpes.types.DependencyMap
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -424,16 +436,18 @@ class TestDerivativeevidence:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``DerivativeEvidence`` through its canonical types package path.
+        """Expose ``DerivativeEvidence`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "DerivativeEvidence")
+        symbol: object = diffpes.types.DerivativeEvidence
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -454,9 +468,10 @@ class TestDomainpredicate:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "DomainPredicate")
+        symbol: object = diffpes.types.DomainPredicate
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -477,9 +492,10 @@ class TestDomainresult:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "DomainResult")
+        symbol: object = diffpes.types.DomainResult
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -499,7 +515,7 @@ class TestEvidenceLineage:
         -----
         The test checks the symbol directly without constructing authority.
         """
-        symbol: object = getattr(diffpes.types, "EvidenceLineage")
+        symbol: object = diffpes.types.EvidenceLineage
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -519,7 +535,7 @@ class TestHumanAttestationRef:
         -----
         The test checks the symbol without treating review as evidence.
         """
-        symbol: object = getattr(diffpes.types, "HumanAttestationRef")
+        symbol: object = diffpes.types.HumanAttestationRef
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -540,9 +556,10 @@ class TestEvidenceref:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "EvidenceRef")
+        symbol: object = diffpes.types.EvidenceRef
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -563,9 +580,10 @@ class TestEvidencereport:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "EvidenceReport")
+        symbol: object = diffpes.types.EvidenceReport
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -579,16 +597,18 @@ class TestExecutionmanifest:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``ExecutionManifest`` through its canonical types package path.
+        """Expose ``ExecutionManifest`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ExecutionManifest")
+        symbol: object = diffpes.types.ExecutionManifest
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -602,16 +622,18 @@ class TestForwardcertificate:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``ForwardCertificate`` through its canonical types package path.
+        """Expose ``ForwardCertificate`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ForwardCertificate")
+        symbol: object = diffpes.types.ForwardCertificate
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -623,11 +645,18 @@ class TestForwardcertificate:
 
         Notes
         -----
-        The test constructs the shared complete fixture and inspects its flattened JAX
+        The test constructs the shared complete fixture and inspects its
+        flattened JAX
         leaves while static vocabulary remains outside the numerical tree.
         """
         certificate: ForwardCertificate = _certificate()
-        leaves: list[jax.Array] = jax.tree.leaves(certificate)
+        leaves: List[
+            Union[
+                Float64[Array, "..."],
+                Int32[Array, "..."],
+                Bool[Array, "..."],
+            ]
+        ] = jax.tree.leaves(certificate)
         assert leaves
         assert all(isinstance(leaf, jax.Array) for leaf in leaves)
 
@@ -639,7 +668,8 @@ class TestForwardcertificate:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         certificate: Any
         leaves: Any
@@ -661,16 +691,18 @@ class TestForwardmodelspec:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``ForwardModelSpec`` through its canonical types package path.
+        """Expose ``ForwardModelSpec`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ForwardModelSpec")
+        symbol: object = diffpes.types.ForwardModelSpec
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -684,16 +716,18 @@ class TestInformationspectrum:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``InformationSpectrum`` through its canonical types package path.
+        """Expose ``InformationSpectrum`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "InformationSpectrum")
+        symbol: object = diffpes.types.InformationSpectrum
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -714,9 +748,10 @@ class TestPolicyreport:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "PolicyReport")
+        symbol: object = diffpes.types.PolicyReport
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -737,9 +772,10 @@ class TestRegisteredmodel:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "RegisteredModel")
+        symbol: object = diffpes.types.RegisteredModel
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -753,16 +789,18 @@ class TestRegisteredtransformation:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``RegisteredTransformation`` through its canonical types package path.
+        """Expose ``RegisteredTransformation`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "RegisteredTransformation")
+        symbol: object = diffpes.types.RegisteredTransformation
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -783,9 +821,10 @@ class TestRegistryreport:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "RegistryReport")
+        symbol: object = diffpes.types.RegistryReport
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -799,16 +838,18 @@ class TestRegistrysnapshot:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``RegistrySnapshot`` through its canonical types package path.
+        """Expose ``RegistrySnapshot`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "RegistrySnapshot")
+        symbol: object = diffpes.types.RegistrySnapshot
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -822,16 +863,18 @@ class TestReproductionreport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``ReproductionReport`` through its canonical types package path.
+        """Expose ``ReproductionReport`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "ReproductionReport")
+        symbol: object = diffpes.types.ReproductionReport
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -852,9 +895,10 @@ class TestSensitivitymap:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "SensitivityMap")
+        symbol: object = diffpes.types.SensitivityMap
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -868,16 +912,18 @@ class TestTransformationrecord:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``TransformationRecord`` through its canonical types package path.
+        """Expose ``TransformationRecord`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "TransformationRecord")
+        symbol: object = diffpes.types.TransformationRecord
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -891,16 +937,18 @@ class TestVerificationreport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``VerificationReport`` through its canonical types package path.
+        """Expose ``VerificationReport`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "VerificationReport")
+        symbol: object = diffpes.types.VerificationReport
         assert isinstance(symbol, type)
         assert issubclass(symbol, eqx.Module)
 
@@ -914,16 +962,18 @@ class TestMakeArtifactRef:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_artifact_ref`` through its canonical types package path.
+        """Expose ``make_artifact_ref`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_artifact_ref")
+        symbol: object = diffpes.types.make_artifact_ref
         assert callable(symbol)
 
 
@@ -936,16 +986,18 @@ class TestMakeCertificationClaim:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_certification_claim`` through its canonical types package path.
+        """Expose ``make_certification_claim`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_certification_claim")
+        symbol: object = diffpes.types.make_certification_claim
         assert callable(symbol)
 
     def test_continuous_claim_evidence_is_differentiable(self) -> None:
@@ -956,12 +1008,13 @@ class TestMakeCertificationClaim:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         value: Any
         expected: Any
 
-        def objective(value: jax.Array) -> jax.Array:
+        def objective(value: Float64[Array, ""]) -> Float64[Array, ""]:
             claim: Any
             claim = make_certification_claim(
                 claim_id="claim",
@@ -975,7 +1028,10 @@ class TestMakeCertificationClaim:
                 passed=jnp.abs(value - 1.0) <= 0.1,
                 margin=0.1 - jnp.abs(value - 1.0),
             )
-            return jnp.sum(claim.residual**2) + claim.margin
+            result: Float64[Array, ""] = (
+                jnp.sum(claim.residual**2) + claim.margin
+            )
+            return result
 
         value = jnp.asarray(1.25)
         expected = 2.0 * (value - 1.0) - 1.0
@@ -994,16 +1050,18 @@ class TestMakeCertificationContext:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_certification_context`` through its canonical types package path.
+        """Expose ``make_certification_context`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_certification_context")
+        symbol: object = diffpes.types.make_certification_context
         assert callable(symbol)
 
     def test_context_cross_validates_model_identity(self) -> None:
@@ -1014,7 +1072,8 @@ class TestMakeCertificationContext:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         certificate: Any
         context: Any
@@ -1056,16 +1115,18 @@ class TestMakeCertifiedResult:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_certified_result`` through its canonical types package path.
+        """Expose ``make_certified_result`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_certified_result")
+        symbol: object = diffpes.types.make_certified_result
         assert callable(symbol)
 
     def test_certified_envelope_preserves_primal_jvp_and_vjp(self) -> None:
@@ -1076,7 +1137,8 @@ class TestMakeCertifiedResult:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         certificate: Any
         point: Any
@@ -1091,11 +1153,15 @@ class TestMakeCertifiedResult:
         cotangent: Any
         certificate = _certificate()
 
-        def ordinary(value: jax.Array) -> jax.Array:
-            return jnp.sin(value) + value**2
+        def ordinary(value: Float64[Array, ""]) -> Float64[Array, ""]:
+            result: Float64[Array, ""] = jnp.sin(value) + value**2
+            return result
 
-        def certified(value: jax.Array) -> jax.Array:
-            return make_certified_result(ordinary(value), certificate).value
+        def certified(value: Float64[Array, ""]) -> Float64[Array, ""]:
+            result: Float64[Array, ""] = make_certified_result(
+                ordinary(value), certificate
+            ).value
+            return result
 
         point = jnp.asarray(0.4)
         tangent = jnp.asarray(1.7)
@@ -1127,16 +1193,18 @@ class TestMakeConventionRef:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_convention_ref`` through its canonical types package path.
+        """Expose ``make_convention_ref`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_convention_ref")
+        symbol: object = diffpes.types.make_convention_ref
         assert callable(symbol)
 
 
@@ -1149,16 +1217,18 @@ class TestMakeDependencyMap:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_dependency_map`` through its canonical types package path.
+        """Expose ``make_dependency_map`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_dependency_map")
+        symbol: object = diffpes.types.make_dependency_map
         assert callable(symbol)
 
 
@@ -1171,16 +1241,18 @@ class TestMakeDerivativeEvidence:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_derivative_evidence`` through its canonical types package path.
+        """Expose ``make_derivative_evidence`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_derivative_evidence")
+        symbol: object = diffpes.types.make_derivative_evidence
         assert callable(symbol)
 
 
@@ -1193,16 +1265,18 @@ class TestMakeDomainPredicate:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_domain_predicate`` through its canonical types package path.
+        """Expose ``make_domain_predicate`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_domain_predicate")
+        symbol: object = diffpes.types.make_domain_predicate
         assert callable(symbol)
 
 
@@ -1215,16 +1289,18 @@ class TestMakeDomainResult:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_domain_result`` through its canonical types package path.
+        """Expose ``make_domain_result`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_domain_result")
+        symbol: object = diffpes.types.make_domain_result
         assert callable(symbol)
 
     def test_domain_results_vmap_with_traced_status_and_margin(self) -> None:
@@ -1235,14 +1311,15 @@ class TestMakeDomainResult:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         result: Any
 
-        def evaluate(value: jax.Array) -> Any:
+        def evaluate(value: Float64[Array, ""]) -> Any:
             margin: Any
             margin = 1.0 - jnp.abs(value)
-            return make_domain_result(
+            result: Any = make_domain_result(
                 "bounded",
                 measured=value,
                 reference=0.0,
@@ -1252,6 +1329,7 @@ class TestMakeDomainResult:
                 passed=margin >= 0.0,
                 in_domain=margin >= 0.0,
             )
+            return result
 
         result = eqx.filter_jit(jax.vmap(evaluate))(jnp.array([-0.5, 1.5]))
         assert_trees_close(result.margin, jnp.array([0.5, -0.5]))
@@ -1318,16 +1396,18 @@ class TestMakeEvidenceRef:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_evidence_ref`` through its canonical types package path.
+        """Expose ``make_evidence_ref`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_evidence_ref")
+        symbol: object = diffpes.types.make_evidence_ref
         assert callable(symbol)
 
     def test_factories_reject_bad_numerical_shapes_and_tolerances(
@@ -1340,7 +1420,8 @@ class TestMakeEvidenceRef:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         with pytest.raises(ValueError, match="equal shapes"):
             make_evidence_ref(
@@ -1395,16 +1476,18 @@ class TestMakeEvidenceReport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_evidence_report`` through its canonical types package path.
+        """Expose ``make_evidence_report`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_evidence_report")
+        symbol: object = diffpes.types.make_evidence_report
         assert callable(symbol)
 
 
@@ -1417,16 +1500,18 @@ class TestMakeExecutionManifest:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_execution_manifest`` through its canonical types package path.
+        """Expose ``make_execution_manifest`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_execution_manifest")
+        symbol: object = diffpes.types.make_execution_manifest
         assert callable(symbol)
 
 
@@ -1439,16 +1524,18 @@ class TestMakeForwardCertificate:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_forward_certificate`` through its canonical types package path.
+        """Expose ``make_forward_certificate`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_forward_certificate")
+        symbol: object = diffpes.types.make_forward_certificate
         assert callable(symbol)
 
     def test_certificate_rejects_cross_record_inconsistency(self) -> None:
@@ -1459,7 +1546,8 @@ class TestMakeForwardCertificate:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         certificate: Any
         certificate = _certificate()
@@ -1510,16 +1598,18 @@ class TestMakeForwardModelSpec:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_forward_model_spec`` through its canonical types package path.
+        """Expose ``make_forward_model_spec`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_forward_model_spec")
+        symbol: object = diffpes.types.make_forward_model_spec
         assert callable(symbol)
 
     def test_factories_reject_malformed_static_structure(self) -> None:
@@ -1530,7 +1620,8 @@ class TestMakeForwardModelSpec:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
         with pytest.raises(ValueError, match="artifact_id must be non-empty"):
             make_artifact_ref("", "text/plain", None, "a", "b", None, "input")
@@ -1559,16 +1650,18 @@ class TestMakeInformationSpectrum:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_information_spectrum`` through its canonical types package path.
+        """Expose ``make_information_spectrum`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_information_spectrum")
+        symbol: object = diffpes.types.make_information_spectrum
         assert callable(symbol)
 
 
@@ -1581,16 +1674,18 @@ class TestMakePolicyReport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_policy_report`` through its canonical types package path.
+        """Expose ``make_policy_report`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_policy_report")
+        symbol: object = diffpes.types.make_policy_report
         assert callable(symbol)
 
 
@@ -1603,16 +1698,18 @@ class TestMakeRegisteredModel:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_registered_model`` through its canonical types package path.
+        """Expose ``make_registered_model`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_registered_model")
+        symbol: object = diffpes.types.make_registered_model
         assert callable(symbol)
 
 
@@ -1625,18 +1722,18 @@ class TestMakeRegisteredTransformation:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_registered_transformation`` through its canonical types package path.
+        """Expose ``make_registered_transformation`` through its canonical
+        types package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(
-            diffpes.types, "make_registered_transformation"
-        )
+        symbol: object = diffpes.types.make_registered_transformation
         assert callable(symbol)
 
 
@@ -1649,16 +1746,18 @@ class TestMakeRegistryReport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_registry_report`` through its canonical types package path.
+        """Expose ``make_registry_report`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_registry_report")
+        symbol: object = diffpes.types.make_registry_report
         assert callable(symbol)
 
 
@@ -1671,16 +1770,18 @@ class TestMakeRegistrySnapshot:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_registry_snapshot`` through its canonical types package path.
+        """Expose ``make_registry_snapshot`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_registry_snapshot")
+        symbol: object = diffpes.types.make_registry_snapshot
         assert callable(symbol)
 
 
@@ -1693,16 +1794,18 @@ class TestMakeReproductionReport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_reproduction_report`` through its canonical types package path.
+        """Expose ``make_reproduction_report`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_reproduction_report")
+        symbol: object = diffpes.types.make_reproduction_report
         assert callable(symbol)
 
 
@@ -1715,16 +1818,18 @@ class TestMakeSensitivityMap:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_sensitivity_map`` through its canonical types package path.
+        """Expose ``make_sensitivity_map`` through its canonical types package
+        path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_sensitivity_map")
+        symbol: object = diffpes.types.make_sensitivity_map
         assert callable(symbol)
 
 
@@ -1737,16 +1842,18 @@ class TestMakeTransformationRecord:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_transformation_record`` through its canonical types package path.
+        """Expose ``make_transformation_record`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_transformation_record")
+        symbol: object = diffpes.types.make_transformation_record
         assert callable(symbol)
 
 
@@ -1759,16 +1866,18 @@ class TestMakeVerificationReport:
     """
 
     def test_public_symbol_has_expected_kind(self) -> None:
-        """Expose ``make_verification_report`` through its canonical types package path.
+        """Expose ``make_verification_report`` through its canonical types
+        package path.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test compares the result with explicit numerical or structural
+        assertions.
         """
-        symbol: object = getattr(diffpes.types, "make_verification_report")
+        symbol: object = diffpes.types.make_verification_report
         assert callable(symbol)
 
 
@@ -1789,7 +1898,7 @@ class TestArtifactResolver:
         -----
         The test resolves the alias by its exact public name.
         """
-        symbol: object = getattr(diffpes.types, "ArtifactResolver")
+        symbol: object = diffpes.types.ArtifactResolver
         assert symbol is not None
 
 
@@ -1804,13 +1913,13 @@ class TestRegistrationHandshake:
     def test_public_type_is_an_equinox_module(self) -> None:
         """Expose the handshake type as an Equinox module class.
 
-        The carrier must use the project PyTree base class.
+        The carrier must use the library PyTree base class.
 
         Notes
         -----
         The test checks class inheritance through the canonical package path.
         """
-        symbol: Any = getattr(diffpes.types, "RegistrationHandshake")
+        symbol: Any = diffpes.types.RegistrationHandshake
         assert issubclass(symbol, eqx.Module)
 
 
@@ -1825,13 +1934,13 @@ class TestHandshakeReport:
     def test_public_type_is_an_equinox_module(self) -> None:
         """Expose the handshake report as an Equinox module class.
 
-        The carrier must use the project PyTree base class.
+        The carrier must use the library PyTree base class.
 
         Notes
         -----
         The test checks class inheritance through the canonical package path.
         """
-        symbol: Any = getattr(diffpes.types, "HandshakeReport")
+        symbol: Any = diffpes.types.HandshakeReport
         assert issubclass(symbol, eqx.Module)
 
 
@@ -1846,13 +1955,13 @@ class TestWaiverRecord:
     def test_public_type_is_an_equinox_module(self) -> None:
         """Expose the waiver record as an Equinox module class.
 
-        The carrier must use the project PyTree base class.
+        The carrier must use the library PyTree base class.
 
         Notes
         -----
         The test checks class inheritance through the canonical package path.
         """
-        symbol: Any = getattr(diffpes.types, "WaiverRecord")
+        symbol: Any = diffpes.types.WaiverRecord
         assert issubclass(symbol, eqx.Module)
 
 
@@ -1867,13 +1976,13 @@ class TestWaiverReport:
     def test_public_type_is_an_equinox_module(self) -> None:
         """Expose the waiver report as an Equinox module class.
 
-        The carrier must use the project PyTree base class.
+        The carrier must use the library PyTree base class.
 
         Notes
         -----
         The test checks class inheritance through the canonical package path.
         """
-        symbol: Any = getattr(diffpes.types, "WaiverReport")
+        symbol: Any = diffpes.types.WaiverReport
         assert issubclass(symbol, eqx.Module)
 
 
@@ -1894,7 +2003,7 @@ class TestMakeRegistrationHandshake:
         -----
         The test compares the static owner and model reference fields.
         """
-        factory: Any = getattr(diffpes.types, "make_registration_handshake")
+        factory: Any = diffpes.types.make_registration_handshake
         result: Any = factory("kinematics", model_refs=("model@1.0.0",))
         assert result.owner_id == "kinematics"
         assert result.model_refs == ("model@1.0.0",)
@@ -1917,7 +2026,7 @@ class TestMakeHandshakeReport:
         -----
         The test checks both the Boolean leaf and static identity tuple.
         """
-        factory: Any = getattr(diffpes.types, "make_handshake_report")
+        factory: Any = diffpes.types.make_handshake_report
         result: Any = factory("kinematics", False, ("evidence-03",))
         assert not bool(result.complete)
         assert result.missing_ids == ("evidence-03",)
@@ -1940,7 +2049,7 @@ class TestMakeWaiverRecord:
         -----
         The test compares the two static UTC fields exactly.
         """
-        factory: Any = getattr(diffpes.types, "make_waiver_record")
+        factory: Any = diffpes.types.make_waiver_record
         result: Any = factory(
             "waiver-1",
             "org.diffpes.policy.research.v1",
@@ -1971,7 +2080,7 @@ class TestMakeWaiverReport:
         -----
         The test converts both scalar JAX leaves to Boolean values.
         """
-        factory: Any = getattr(diffpes.types, "make_waiver_report")
+        factory: Any = diffpes.types.make_waiver_report
         result: Any = factory("waiver-1", True, True)
         assert bool(result.valid)
         assert bool(result.active)

@@ -20,7 +20,7 @@ Routine Listings
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Union
+from beartype.typing import List, Optional, Union
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from diffpes.types import (
@@ -31,13 +31,15 @@ from diffpes.types import (
     KPathInfo,
     OrbitalProjection,
     SpinOrbitalProjection,
+    make_orbital_projection,
+    make_spin_orbital_projection,
 )
 
 
 @jaxtyped(typechecker=beartype)
 def select_atoms(
     orb: Union[OrbitalProjection, SpinOrbitalProjection],
-    atom_indices: list[int],
+    atom_indices: List[int],
 ) -> Union[OrbitalProjection, SpinOrbitalProjection]:
     """Extract orbital projections for a subset of atoms.
 
@@ -72,7 +74,7 @@ def select_atoms(
     ----------
     orb : Union[OrbitalProjection, SpinOrbitalProjection]
         Full orbital projections with shape ``(K, B, A, 9)``.
-    atom_indices : list[int]
+    atom_indices : List[int]
         0-based indices of atoms to select.
 
     Returns
@@ -90,22 +92,22 @@ def select_atoms(
     """
     idx: Int32[Array, " N"] = jnp.asarray(atom_indices, dtype=jnp.int32)
     proj_sub: Float64[Array, "K B N 9"] = orb.projections[:, :, idx, :]
-    spin_sub: Optional[Float64[Array, "K B N 9"]] = None
+    spin_sub: Optional[Float64[Array, "K B N 6"]] = None
     if orb.spin is not None:
         spin_sub = orb.spin[:, :, idx, :]
-    oam_sub: Optional[Float64[Array, "K B N 9"]] = None
+    oam_sub: Optional[Float64[Array, "K B N 3"]] = None
     if orb.oam is not None:
         oam_sub = orb.oam[:, :, idx, :]
     if isinstance(orb, SpinOrbitalProjection):
         result: Union[OrbitalProjection, SpinOrbitalProjection] = (
-            SpinOrbitalProjection(
+            make_spin_orbital_projection(
                 projections=proj_sub,
-                spin=spin_sub,
+                spin=orb.spin[:, :, idx, :],
                 oam=oam_sub,
             )
         )
     else:
-        result = OrbitalProjection(
+        result = make_orbital_projection(
             projections=proj_sub,
             spin=spin_sub,
             oam=oam_sub,
@@ -116,7 +118,7 @@ def select_atoms(
 @jaxtyped(typechecker=beartype)
 def aggregate_atoms(
     orb: OrbitalProjection,
-    atom_indices: Optional[list[int]] = None,
+    atom_indices: Optional[List[int]] = None,
 ) -> Float64[Array, "K B 9"]:
     """Sum orbital projections over a set of atoms.
 
@@ -145,7 +147,7 @@ def aggregate_atoms(
     ----------
     orb : OrbitalProjection
         Full orbital projections with shape ``(K, B, A, 9)``.
-    atom_indices : Optional[list[int]], optional
+    atom_indices : Optional[List[int]], optional
         0-based indices of atoms to sum over. If None, sums over
         all atoms.
 

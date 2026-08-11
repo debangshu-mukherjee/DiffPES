@@ -12,12 +12,13 @@ import json
 from pathlib import Path
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, Tuple
+from beartype.typing import Any, Callable, Dict, List, Tuple, Union
 from jax.test_util import check_grads
 from jaxtyping import Array, Complex128, Float64, Shaped, jaxtyped
 from numpy.typing import NDArray
@@ -31,12 +32,13 @@ from diffpes.utils import (
 )
 
 
+@jaxtyped(typechecker=beartype)
 def _faddeeva_reference() -> Dict[str, Shaped[NDArray, "..."]]:
-    """PRIVATE: Load the frozen arbitrary-precision Faddeeva value and derivative reference.
+    """PRIVATE: Load the frozen arbitrary-precision Faddeeva reference.
 
     Returns
     -------
-    result : dict[str, Shaped[NDArray, "..."]]
+    result : Dict[str, Shaped[NDArray, "..."]]
         Every array member of the frozen 100-digit mpmath reference
         archive, keyed by its stored name.
 
@@ -116,8 +118,8 @@ class TestFaddeeva(chex.TestCase):
     :see: :func:`~diffpes.utils.faddeeva`
     """
 
-    def test_g1_artifact_provenance_and_scipy_crosscheck(self) -> None:
-        """Bind the frozen G1 artifact to its generator and SciPy comparator.
+    def test_reference_provenance_and_scipy_crosscheck(self) -> None:
+        """Bind the frozen artifact to its generator and SciPy comparator.
 
         The test verifies immutable digests, the preregistered grid, and an
         independent double-precision cross-check.
@@ -156,11 +158,11 @@ class TestFaddeeva(chex.TestCase):
             atol=2.0e-15,
         )
 
-    def test_g1_primal_full_envelope(self) -> None:
+    def test_primal_full_envelope(self) -> None:
         """Match both Faddeeva components over the complete public envelope.
 
         The test includes logarithmic radii through ``1e8``, both axes, all
-        upper-half-plane angles, and the planted legacy-failure witnesses.
+        upper-half-plane angles, and the known approximation failure cases.
 
         Notes
         -----
@@ -188,7 +190,7 @@ class TestFaddeeva(chex.TestCase):
             imag_bound,
         )
 
-    def test_g1_arbiter_derivative_full_envelope(self) -> None:
+    def test_reference_derivative_full_envelope(self) -> None:
         """Match native JVPs with arbitrary-precision ODE derivatives.
 
         The test differentiates every frozen point in the three registered
@@ -222,16 +224,16 @@ class TestFaddeeva(chex.TestCase):
             ) ** 2 + 2.0e-11 * np.abs(expected)
             np.testing.assert_array_less(np.abs(actual - expected), bound)
 
-    def test_d1_directional_jvps_and_fd(self) -> None:
-        """Compare native JVPs with a multistep central-FD plateau.
+    def test_directional_jvps_match_finite_differences(self) -> None:
+        """Compare native JVPs with multistep central finite differences.
 
         The test probes small, intermediate, and asymptotic interior points in
         generic real and complex directions.
 
         Notes
         -----
-        It uses three relative steps and requires the finest two rungs to agree
-        with the analytic rational derivative inside the D1 mixed budget.
+        It uses three relative steps. The two smallest step sizes must agree
+        with the analytic rational derivative inside the mixed error bound.
         """
         points: Tuple[complex, ...] = (
             0.3 + 0.2j,
@@ -251,7 +253,7 @@ class TestFaddeeva(chex.TestCase):
                 exact: complex = complex(
                     jax.jvp(faddeeva, (argument,), (tangent,))[1]
                 )
-                estimates: list[complex] = []
+                estimates: List[complex] = []
                 for exponent in (12, 14, 16):
                     step: float = scale * 2.0**-exponent
                     estimate: complex = complex(
@@ -266,7 +268,7 @@ class TestFaddeeva(chex.TestCase):
                 assert abs(estimates[-1] - exact) < tolerance
                 assert abs(estimates[-2] - exact) < tolerance
 
-    def test_d1_forward_and_reverse_modes(self) -> None:
+    def test_forward_and_reverse_modes(self) -> None:
         """Check forward and reverse derivatives at generic complex points.
 
         The test projects each complex result to an asymmetric real loss so
@@ -285,8 +287,34 @@ class TestFaddeeva(chex.TestCase):
         point: complex
         for point in points:
 
-            def loss(argument: Complex128[Array, ""]) -> Float64[Array, ""]:
-                normalized: Complex128[Array, ""] = jnp.asarray(argument)
+            @jaxtyped(typechecker=beartype)
+            def _loss(
+                argument: Union[
+                    Complex128[Array, ""],
+                    Complex128[NDArray, ""],
+                ],
+            ) -> Float64[Array, ""]:
+                """PRIVATE: Evaluate a real projection of one Faddeeva value.
+
+                Parameters
+                ----------
+                argument : Union[Complex128[Array, ""],Complex128[NDArray, ""]]
+                    Complex upper-half-plane argument from JAX or NumPy.
+
+                Returns
+                -------
+                result : Float64[Array, ""]
+                    Asymmetric real projection of the Faddeeva value.
+
+                Notes
+                -----
+                Weights the imaginary component by 0.37 so both complex
+                components contribute to the derivative check.
+                """
+                normalized: Complex128[Array, ""] = jnp.asarray(
+                    argument,
+                    dtype=jnp.complex128,
+                )
                 value: Complex128[Array, ""] = faddeeva(normalized)
                 result: Float64[Array, ""] = jnp.real(value) + 0.37 * jnp.imag(
                     value
@@ -294,7 +322,7 @@ class TestFaddeeva(chex.TestCase):
                 return result
 
             check_grads(
-                loss,
+                _loss,
                 (jnp.asarray(point),),
                 order=1,
                 modes=("fwd", "rev"),
@@ -320,9 +348,15 @@ class TestFaddeeva(chex.TestCase):
         )
         argument: complex
         for argument in arguments:
-            with pytest.raises(Exception, match="finite"):
+            with pytest.raises(
+                (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+                match="finite",
+            ):
                 faddeeva(jnp.asarray(argument))
-            with pytest.raises(Exception, match="finite"):
+            with pytest.raises(
+                (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+                match="finite",
+            ):
                 jax.jit(faddeeva)(jnp.asarray(argument))
 
     def test_real_axis_identity_and_vmap(self) -> None:
@@ -360,10 +394,10 @@ class TestFaddeeva(chex.TestCase):
         The test uses 100 complex points across ``[-3, 3]``. It checks shape
         ``(100,)`` and the finite real components under both JAX variants.
         """
-        x: Array
-        z: Array
+        x: Float64[Array, " 100"]
+        z: Complex128[Array, " 100"]
         var_fn: Callable[..., Any]
-        w: Array
+        w: Complex128[Array, " 100"]
 
         x = jnp.linspace(-3.0, 3.0, 100)
         z = x + 0j
@@ -381,11 +415,11 @@ class TestFaddeeva(chex.TestCase):
         Notes
         -----
         The test supplies the complex scalar zero. It compares the real
-        component with 1.0 at an absolute tolerance of 0.05 under both variants.
+        component with 1.0 at absolute tolerance 0.05 under both variants.
         """
-        z: Array
+        z: Complex128[Array, ""]
         var_fn: Callable[..., Any]
-        w: Array
+        w: Complex128[Array, ""]
 
         z = jnp.array(0.0 + 0j)
         var_fn = self.variant(faddeeva)
@@ -404,10 +438,10 @@ class TestFaddeeva(chex.TestCase):
         The test uses ``i*[0.5, 1.0, 2.0]``. It checks shape ``(3,)`` and
         the finite real components under both JAX variants.
         """
-        y: Array
-        z: Array
+        y: Float64[Array, " 3"]
+        z: Complex128[Array, " 3"]
         var_fn: Callable[..., Any]
-        w: Array
+        w: Complex128[Array, " 3"]
 
         y = jnp.array([0.5, 1.0, 2.0])
         z = 1j * y
@@ -438,9 +472,9 @@ class TestZscoreNormalize(chex.TestCase):
         The test normalizes ``[1, 2, 3, 4, 5]``. It compares both statistics
         with their analytic values at an absolute tolerance of 1e-10.
         """
-        data: Array
+        data: Float64[Array, " 5"]
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, " 5"]
 
         data = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=jnp.float64)
         var_fn = self.variant(zscore_normalize)
@@ -461,11 +495,11 @@ class TestZscoreNormalize(chex.TestCase):
         Notes
         -----
         The test normalizes an array of ten ones under both JAX variants.
-        It compares the result with ten zeros at an absolute tolerance of 1e-10.
+        It compares the result with ten zeros at absolute tolerance 1e-10.
         """
-        data: Array
+        data: Float64[Array, " 10"]
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, " 10"]
 
         data = jnp.ones(10, dtype=jnp.float64)
         var_fn = self.variant(zscore_normalize)
@@ -486,9 +520,9 @@ class TestZscoreNormalize(chex.TestCase):
         The test normalizes ``arange(12)`` with shape ``(3, 4)``. It checks the
         shape and compares the global mean with zero at a tolerance of 1e-10.
         """
-        data: Array
+        data: Float64[Array, "3 4"]
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, "3 4"]
 
         data = jnp.arange(12.0).reshape(3, 4)
         var_fn = self.variant(zscore_normalize)
@@ -503,7 +537,7 @@ class TestPackComplex(chex.TestCase):
     """Validate :func:`~diffpes.utils.math.pack_complex`.
 
     The tests cover exact round trips, dtype preservation, JIT, and
-    vectorization. Asymmetric complex values reveal an incorrect coordinate order.
+    vectorization. Asymmetric values reveal an incorrect coordinate order.
 
     :see: :func:`~diffpes.utils.pack_complex`
     """
@@ -541,7 +575,8 @@ class TestPackComplex(chex.TestCase):
         Notes
         -----
         The test applies ``jax.vmap`` to three complex parameter vectors. It
-        compares the result with direct packing and checks the exact round trip.
+        compares the result with direct packing and checks the exact round
+        trip.
         """
         complex_values: Complex128[Array, "3 2"] = jnp.array(
             [
@@ -572,15 +607,15 @@ class TestUnpackComplex(chex.TestCase):
     """
 
     def test_round_trip_and_dtype(self) -> None:
-        """Preserve generic stacked float64 values exactly through a JIT round trip.
+        """Preserve stacked float64 values through a JIT round trip.
 
-        The final input axis contains asymmetric real and imaginary coordinates.
+        The final axis contains asymmetric real and imaginary coordinates.
         These values reveal an incorrect coordinate order.
 
         Notes
         -----
         The test unpacks and packs a ``(2, 3, 2)`` array with ``jax.jit``.
-        It checks the unpacked shape, both dtypes, and exact coordinate equality.
+        It checks the shape, both dtypes, and exact coordinate equality.
         """
         packed_values: Float64[Array, "2 3 2"] = jnp.array(
             [
@@ -601,7 +636,7 @@ class TestUnpackComplex(chex.TestCase):
         chex.assert_trees_all_equal(round_tripped, packed_values)
 
     def test_gradient_equivalence(self) -> None:
-        """Match complex-magnitude gradients to packed real coordinates exactly.
+        """Match complex-magnitude gradients to packed real coordinates.
 
         For ``p = stack([x, y])``, the real gradient equals
         ``stack([2x, 2y])``.

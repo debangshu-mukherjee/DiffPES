@@ -13,7 +13,7 @@ import pytest
 
 
 def _load_loc_badge_module() -> ModuleType:
-    """PRIVATE: Load the badge script without executing its command-line entry point.
+    """PRIVATE: Load the badge script without its command-line entry point.
 
     Returns
     -------
@@ -45,7 +45,7 @@ def test_loc_badge_forces_python_lexer(
 ) -> None:
     """Verify consistent docstring counts without language guessing.
 
-    The test replaces lexer guessing with a planted failure and counts two files.
+    The test replaces lexer guessing with a failure and counts two files.
 
     Notes
     -----

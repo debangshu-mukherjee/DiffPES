@@ -1,0 +1,18 @@
+{
+  "artifact": {
+    "path_from_diffpes_root": "tests/test_diffpes/_reference_data/kz_double_counting_materiality.json",
+    "sha256": "033149757f4b9a72f7fedf8ab7da2bac6504d43a74082b3771176b30e6dc251b"
+  },
+  "classification": "inert mirror of the independent escape-depth double-counting truth",
+  "consumer_boundary": "pytest authenticates and parses this inert record; it never imports or executes the external generator",
+  "generator": {
+    "mutable_authority_count": 1,
+    "name": "generate_kz_double_counting_materiality.py",
+    "sha256": "68d502e5d3fee0723f3892981af6e3280bf5ce9c2d01bbe9feb5daeca082546f"
+  },
+  "authority_artifact": {
+    "name": "kz_double_counting_materiality.json",
+    "sha256": "033149757f4b9a72f7fedf8ab7da2bac6504d43a74082b3771176b30e6dc251b"
+  },
+  "schema_version": 1
+}

@@ -7,24 +7,21 @@ from __future__ import annotations
 
 import math
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Int64
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
     diagonalize_tb,
-    layer_resolved_group_traces,
-)
-from diffpes.tightb.slab import (
-    _propagate_hoppings,
     gen_slab,
     gen_slab_with_operators,
+    layer_resolved_group_traces,
     rotate_tb_model,
 )
+from diffpes.tightb.slab import _propagate_hoppings
 from diffpes.types import (
     TBModel,
     WannierOperatorData,
@@ -46,8 +43,8 @@ def _exact_inverse(
 
     Parameters
     ----------
-    rows : tuple[tuple[int, int, int], tuple[int, int, int],
-        tuple[int, int, int]]
+    rows : Tuple[Tuple[int, int, int], Tuple[int, int, int], \
+Tuple[int, int, int]]
         Rows of an integer three-by-three matrix with determinant plus
         or minus one.
 
@@ -94,7 +91,8 @@ def _exact_inverse(
         dtype=np.int64,
     )
     assert abs(determinant) == 1
-    return cofactors.T // determinant
+    inverse: Int64[NDArray, "3 3"] = cofactors.T // determinant
+    return inverse
 
 
 def _long_range_model(maximum_range: int) -> TBModel:
@@ -127,14 +125,14 @@ def _long_range_model(maximum_range: int) -> TBModel:
     reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         tuple(-component for component in cell) for cell in forward_cells
     )
-    forward: jax.Array = jnp.asarray(
+    forward: Complex128[Array, " n_range"] = jnp.asarray(
         [
             -0.13 * distance + 0.017j * distance
             for distance in range(1, maximum_range + 1)
         ],
         dtype=jnp.complex128,
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate((forward, jnp.conj(forward))),
         onsite_energies=jnp.asarray((0.23,), dtype=jnp.float64),
         soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
@@ -154,6 +152,7 @@ def _long_range_model(maximum_range: int) -> TBModel:
         hopping_cells=forward_cells + reverse_cells,
         shell_index=(-1,),
     )
+    return model
 
 
 def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
@@ -162,7 +161,7 @@ def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
 
     Returns
     -------
-    fixture : tuple[TBModel, WannierOperatorData]
+    fixture : Tuple[TBModel, WannierOperatorData]
         A hopping-free one-atom complete-p model and matching Wannier
         position-operator data with home, forward ``(1, 2, -1)``, and
         reverse cells.
@@ -200,7 +199,7 @@ def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
         hopping_cells=(),
         shell_index=(-1, -1, -1),
     )
-    centres: jax.Array = jnp.asarray(
+    centres: Float64[Array, "3 3"] = jnp.asarray(
         (
             (0.12, -0.11, -0.21),
             (0.24, -0.16, -0.27),
@@ -213,22 +212,22 @@ def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
         (1, 2, -1),
         (-1, -2, 1),
     )
-    zero_seed: jax.Array = jnp.asarray(
+    zero_seed: Complex128[Array, "3 3 3"] = jnp.asarray(
         np.arange(27).reshape(3, 3, 3) / 37.0
         + 1j * np.arange(27, 54).reshape(3, 3, 3) / 53.0,
         dtype=jnp.complex128,
     )
-    zero: jax.Array = 0.5 * (
+    zero: Complex128[Array, "3 3 3"] = 0.5 * (
         zero_seed + jnp.swapaxes(jnp.conj(zero_seed), 0, 1)
     )
-    diagonal: jax.Array = jnp.arange(3)
+    diagonal: Int64[Array, " 3"] = jnp.arange(3)
     zero = zero.at[diagonal, diagonal].set(centres)
-    forward: jax.Array = jnp.asarray(
+    forward: Complex128[Array, "3 3 3"] = jnp.asarray(
         np.arange(54, 81).reshape(3, 3, 3) / 29.0
         + 1j * np.arange(81, 108).reshape(3, 3, 3) / 31.0,
         dtype=jnp.complex128,
     )
-    reverse: jax.Array = jnp.swapaxes(jnp.conj(forward), 0, 1)
+    reverse: Complex128[Array, "3 3 3"] = jnp.swapaxes(jnp.conj(forward), 0, 1)
     operator_data: WannierOperatorData = make_wannier_operator_data(
         position_matrices=jnp.stack((zero, forward, reverse)),
         centres_cart=centres,
@@ -237,12 +236,13 @@ def _p_shell_operator_fixture() -> Tuple[TBModel, WannierOperatorData]:
         spin_layout="block_down_up",
         source_format="tb",
     )
-    return model, operator_data
+    fixture: Tuple[TBModel, WannierOperatorData] = (model, operator_data)
+    return fixture
 
 
 def _graphene_model() -> TBModel:
     """PRIVATE: Return nearest-neighbour graphene for the N=30 edge-state
-    gate.
+    check.
 
     Returns
     -------
@@ -254,8 +254,7 @@ def _graphene_model() -> TBModel:
     -----
     The lattice places the honeycomb plane in x--z with bond length
     one and the 10 Angstrom vacuum axis along y. A (100) cut therefore
-    yields the zigzag nanoribbon whose flat edge band anchors the seam
-    gate.
+    yields the zigzag nanoribbon whose flat edge band checks the seam.
     """
     basis: Any
     geometry: Any
@@ -290,7 +289,7 @@ def _graphene_model() -> TBModel:
     reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         tuple(-component for component in cell) for cell in forward_cells
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.full((6,), -1.0, dtype=jnp.complex128),
         onsite_energies=jnp.zeros((2,), dtype=jnp.float64),
         soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
@@ -300,14 +299,19 @@ def _graphene_model() -> TBModel:
         hopping_cells=forward_cells + reverse_cells,
         shell_index=(-1, -1),
     )
+    return model
 
 
 class TestExactLongRangeGather:
-    """Certify complete-shell operator propagation and hr-sidecar bookkeeping."""
+    """Certify long-range operator propagation and bookkeeping.
+
+    The cases check exact long-range cells, degeneracy weights, gather bounds,
+    serialization, and grid rejection.
+    """
 
     @pytest.mark.parametrize(
         ("n_layers", "maximum_range"),
-        ((6, 2), (13, 4), (20, 5)),
+        [(6, 2), (13, 4), (20, 5)],
     )
     def test_exact_amplitudes_cells_and_gather_bounds(
         self,
@@ -349,9 +353,9 @@ class TestExactLongRangeGather:
             spec.surface_cell.stacking_coeffs,
         )
         inverse: Int64[NDArray, "3 3"] = _exact_inverse(frame)
-        expected_pairs: list[Tuple[int, int]] = []
-        expected_cells: list[Tuple[int, int, int]] = []
-        expected_gather: list[int] = []
+        expected_pairs: List[Tuple[int, int]] = []
+        expected_cells: List[Tuple[int, int, int]] = []
+        expected_gather: List[int] = []
         for source_layer in range(n_layers):
             for hopping, bulk_cell in enumerate(rotated.hopping_cells):
                 transformed: Int64[NDArray, " 3"] = (
@@ -468,7 +472,11 @@ class TestExactLongRangeGather:
 
 
 class TestCompleteShellOperatorPropagation:
-    """Certify Wigner, Cartesian, origin, cell, centre, and depth laws."""
+    """Certify Wigner, Cartesian, origin, cell, centre, and depth laws.
+
+    The cases compare analytic p-shell transformations and the exact effect of
+    an origin shift.
+    """
 
     def test_generic_complex_p_shell_matches_analytic_transformation(
         self,
@@ -501,19 +509,21 @@ class TestCompleteShellOperatorPropagation:
         )
         assert operator_data.position_matrices is not None
         assert propagated.position_matrices is not None
-        rotation: jax.Array = spec.surface_cell.rotation
-        permutation: jax.Array = jnp.asarray(
+        rotation: Float64[Array, "3 3"] = spec.surface_cell.rotation
+        permutation: Float64[Array, "3 3"] = jnp.asarray(
             ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)),
             dtype=jnp.float64,
         )
-        representation: jax.Array = permutation @ rotation @ permutation.T
-        orbital_rotated: jax.Array = jnp.einsum(
+        representation: Float64[Array, "3 3"] = (
+            permutation @ rotation @ permutation.T
+        )
+        orbital_rotated: Complex128[Array, "3 3 3 3"] = jnp.einsum(
             "ai,rijc,bj->rabc",
             representation,
             operator_data.position_matrices,
             representation.conj(),
         )
-        analytically_rotated: jax.Array = jnp.einsum(
+        analytically_rotated: Complex128[Array, "3 3 3 3"] = jnp.einsum(
             "rijc,ac->rija",
             orbital_rotated,
             rotation,
@@ -527,7 +537,9 @@ class TestCompleteShellOperatorPropagation:
         cell_lookup: Dict[Tuple[int, int, int], int] = {
             cell: index for index, cell in enumerate(propagated.cells)
         }
-        expected: jax.Array = jnp.zeros_like(propagated.position_matrices)
+        expected: Complex128[Array, "n_cell n_slab_orb n_slab_orb 3"] = (
+            jnp.zeros_like(propagated.position_matrices)
+        )
         for source_layer in range(spec.n_layers):
             for cell_index, bulk_cell in enumerate(operator_data.cells):
                 transformed: Int64[NDArray, " 3"] = (
@@ -549,7 +561,9 @@ class TestCompleteShellOperatorPropagation:
                             3 * target_layer + target,
                         ].add(analytically_rotated[cell_index, source, target])
         zero_index: int = cell_lookup[(0, 0, 0)]
-        slab_diagonal: jax.Array = jnp.arange(3 * spec.n_layers)
+        slab_diagonal: Int64[Array, " n_slab_orb"] = jnp.arange(
+            3 * spec.n_layers
+        )
         expected = expected.at[
             zero_index,
             slab_diagonal,
@@ -565,7 +579,7 @@ class TestCompleteShellOperatorPropagation:
             atol=1e-12,
         )
         assert slab.orbital_positions is not None
-        model_centres: jax.Array = (
+        model_centres: Float64[Array, "n_slab_orb 3"] = (
             slab.orbital_positions @ slab.geometry.lattice
         )
         assert jnp.allclose(
@@ -604,17 +618,19 @@ class TestCompleteShellOperatorPropagation:
         shifted_spec: Any
         bulk, operator_data = _p_shell_operator_fixture()
         assert operator_data.position_matrices is not None
-        delta: jax.Array = jnp.asarray(
+        delta: Float64[Array, " 3"] = jnp.asarray(
             (0.037, -0.043, 0.071),
             dtype=jnp.float64,
         )
         zero_index: int = operator_data.cells.index((0, 0, 0))
-        diagonal: jax.Array = jnp.arange(3)
-        shifted_matrices: jax.Array = operator_data.position_matrices.at[
-            zero_index,
-            diagonal,
-            diagonal,
-        ].add(delta)
+        diagonal: Int64[Array, " 3"] = jnp.arange(3)
+        shifted_matrices: Complex128[Array, "3 3 3 3"] = (
+            operator_data.position_matrices.at[
+                zero_index,
+                diagonal,
+                diagonal,
+            ].add(delta)
+        )
         shifted_data: WannierOperatorData = make_wannier_operator_data(
             position_matrices=shifted_matrices,
             centres_cart=operator_data.centres_cart + delta,
@@ -639,10 +655,16 @@ class TestCompleteShellOperatorPropagation:
         )
         assert base.position_matrices is not None
         assert shifted.position_matrices is not None
-        rotated_delta: jax.Array = delta @ base_spec.surface_cell.rotation.T
-        expected_difference: jax.Array = jnp.zeros_like(base.position_matrices)
+        rotated_delta: Float64[Array, " 3"] = (
+            delta @ base_spec.surface_cell.rotation.T
+        )
+        expected_difference: Complex128[
+            Array, "n_cell n_slab_orb n_slab_orb 3"
+        ] = jnp.zeros_like(base.position_matrices)
         slab_zero: int = base.cells.index((0, 0, 0))
-        slab_diagonal: jax.Array = jnp.arange(base.centres_cart.shape[0])
+        slab_diagonal: Int64[Array, " n_slab_orb"] = jnp.arange(
+            base.centres_cart.shape[0]
+        )
         expected_difference = expected_difference.at[
             slab_zero,
             slab_diagonal,
@@ -674,7 +696,11 @@ class TestCompleteShellOperatorPropagation:
 
 
 class TestZigzagEdgeSurfaceLocalization:
-    """Validate chinook-surface-state-parity on the N=30 zero-mode group."""
+    """Validate chinook-surface-state-parity on the N=30 zero-mode group.
+
+    The case compares the zero-mode group with the analytic localization on
+    zigzag edges.
+    """
 
     def test_zero_mode_group_is_exactly_edge_localized(self) -> None:
         """Use a complete degenerate trace and both-edge probability.
@@ -700,15 +726,19 @@ class TestZigzagEdgeSurfaceLocalization:
             jnp.asarray(((0.5, 0.0, 0.0),), dtype=jnp.float64),
         )
         zero_group: Tuple[int, int] = (n_chains - 1, n_chains)
-        surface_trace: jax.Array = layer_resolved_group_traces(
+        surface_trace: Float64[Array, ""] = layer_resolved_group_traces(
             bands,
             (zero_group,),
             0.1,
         )[0, 0]
         assert slab.depths is not None
-        zero_vectors: jax.Array = bands.eigenvectors[0, list(zero_group)]
-        probabilities: jax.Array = jnp.abs(zero_vectors) ** 2
-        edge_mask: jax.Array = (slab.depths == 0.0) | (
+        zero_vectors: Complex128[Array, "2 n_slab_orb"] = bands.eigenvectors[
+            0, list(zero_group)
+        ]
+        probabilities: Float64[Array, "2 n_slab_orb"] = (
+            jnp.abs(zero_vectors) ** 2
+        )
+        edge_mask: Bool[Array, " n_slab_orb"] = (slab.depths == 0.0) | (
             slab.depths == jnp.max(slab.depths)
         )
 

@@ -8,6 +8,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from beartype.typing import List
 from jaxtyping import Array, Float64
 
 from diffpes.types import (
@@ -20,7 +21,7 @@ from diffpes.types import (
     make_kpath_info,
 )
 from tests._assertions import assert_rejects
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 class TestKPathInfo:
@@ -39,7 +40,8 @@ class TestKPathInfo:
 
         Notes
         -----
-        The test constructs the carrier through its validated factory, checks the array
+        The test constructs the carrier through its validated factory, checks
+        the array
         shape with Chex, and compares the static metadata exactly.
         """
         kpath: KPathInfo = make_kpath_info(
@@ -180,7 +182,8 @@ class TestKPath:
     def test_preserves_static_and_traced_fields_in_a_tree_round_trip(
         self,
     ) -> None:
-        """Preserve path coordinates and plotting metadata after reconstruction.
+        """Preserve path coordinates and plotting metadata after
+        reconstruction.
 
         The tree must expose only the k-points and fixed ``kz`` as numerical
         leaves.
@@ -197,7 +200,7 @@ class TestKPath:
             n_per_segment=2,
             kz=0.4,
         )
-        leaves: list[Array]
+        leaves: List[Float64[Array, "..."]]
         tree: PyTreeDef
         leaves, tree = jax.tree.flatten(kpath)
         restored: KPath = jax.tree.unflatten(tree, leaves)
@@ -341,7 +344,7 @@ class TestMakeKPath:
 
         Notes
         -----
-        The shared gradient gate checks reverse mode and every component of a
+        The shared gradient check uses reverse mode for every component of a
         generic two-point path.
         """
         points: Float64[Array, "2 3"] = jnp.array(
@@ -360,7 +363,7 @@ class TestMakeKPath:
             result: Float64[Array, ""] = jnp.sum(kpath.kpoints * weights)
             return result
 
-        gradient_gate(loss, points, modes=("rev",))
+        assert_gradients_match_finite_differences(loss, points, modes=("rev",))
 
 
 class TestMakeKGrid:
@@ -452,7 +455,7 @@ class TestMakeKGrid:
 
         Notes
         -----
-        The shared gradient gate checks reverse mode and every component of a
+        The shared gradient check uses reverse mode for every component of a
         generic two-by-two raster.
         """
         points: Float64[Array, "4 3"] = jnp.arange(1.0, 13.0).reshape((4, 3))
@@ -466,4 +469,4 @@ class TestMakeKGrid:
             result: Float64[Array, ""] = jnp.sum(kgrid.kpoints * weights)
             return result
 
-        gradient_gate(loss, points, modes=("rev",))
+        assert_gradients_match_finite_differences(loss, points, modes=("rev",))

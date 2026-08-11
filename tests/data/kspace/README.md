@@ -17,8 +17,8 @@ into this directory; no Chinook-importing Python belongs under `tests/`.
 - Python: `3.11.13`
 
 The offline generator applies a Python 3.11 compatibility shim for Chinook's
-legacy `collections.Iterable` import. It does not change numerical code. The G4
-artifact records the active/passive and slit-axis mappings beside every
+legacy `collections.Iterable` import. It does not change numerical code. The
+kinematics artifact records the active/passive and slit-axis mappings beside every
 raw-source-derived value.
 
 ## Checksums

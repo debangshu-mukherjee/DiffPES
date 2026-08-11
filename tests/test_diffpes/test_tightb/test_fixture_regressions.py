@@ -8,7 +8,7 @@ degenerate groups in the declared down--up spin convention.
 
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float64
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -23,7 +23,11 @@ from tests._factories import make_rashba_model, make_t2g_soc_model
 
 
 class TestRashbaFixtureRegression:
-    """Validate the analytic square-lattice Rashba fixture."""
+    """Validate the analytic square-lattice Rashba fixture.
+
+    The case compares generic and symmetry-point eigenvalues with the
+    closed-form Rashba dispersion.
+    """
 
     def test_eigenvalues_match_closed_form_on_generic_and_symmetry_points(
         self,
@@ -42,7 +46,7 @@ class TestRashbaFixtureRegression:
         """
         hopping: float = -0.63
         rashba: float = 0.27
-        kpoints: Array = jnp.asarray(
+        kpoints: Float64[Array, "5 3"] = jnp.asarray(
             (
                 (0.0, 0.0, 0.0),
                 (0.5, 0.0, 0.0),
@@ -53,7 +57,7 @@ class TestRashbaFixtureRegression:
             dtype=jnp.float64,
         )
         model: TBModel = make_rashba_model(hopping, rashba)
-        actual: Array = eigvalsh_bands(model, kpoints)
+        actual: Float64[Array, "5 2"] = eigvalsh_bands(model, kpoints)
 
         fractional: Float64[NDArray, "nkpt 3"] = np.asarray(kpoints)
         qx: Float64[NDArray, " nkpt"] = 2.0 * np.pi * fractional[:, 0]
@@ -79,7 +83,11 @@ class TestRashbaFixtureRegression:
 
 
 class TestT2gSocFixtureRegression:
-    """Validate the analytic projected-t2g spin--orbit fixture."""
+    """Validate the analytic projected-t2g spin--orbit fixture.
+
+    The cases compare projected-t2g multiplets and fixed-group traces with
+    effective angular-momentum truth.
+    """
 
     def test_projected_t2g_multiplet_matches_effective_l_one_truth(
         self,
@@ -97,7 +105,7 @@ class TestT2gSocFixtureRegression:
         accidental dispersion.
         """
         coupling: float = 0.37
-        kpoints: Array = jnp.asarray(
+        kpoints: Float64[Array, "3 3"] = jnp.asarray(
             (
                 (0.0, 0.0, 0.0),
                 (0.5, 0.0, 0.0),
@@ -106,7 +114,7 @@ class TestT2gSocFixtureRegression:
             dtype=jnp.float64,
         )
         model: TBModel = make_t2g_soc_model(coupling)
-        actual: Array = eigvalsh_bands(model, kpoints)
+        actual: Float64[Array, "3 6"] = eigvalsh_bands(model, kpoints)
         expected_row: Float64[NDArray, " nband"] = np.asarray(
             (-0.5 * coupling,) * 4 + (coupling,) * 2,
         )
@@ -138,15 +146,21 @@ class TestT2gSocFixtureRegression:
         fixed-group trace divided by the registered multiplicity.
         """
         model: TBModel = make_t2g_soc_model(coupling=0.4)
-        kpoints: Array = jnp.asarray(
+        kpoints: Float64[Array, "2 3"] = jnp.asarray(
             ((0.0, 0.0, 0.0), (0.17, -0.29, 0.11)),
             dtype=jnp.float64,
         )
         bands: DiagonalizedBands = diagonalize_tb(model, kpoints)
-        operator: Array = ls_operator(model.basis, model.shell_index)
-        lower_trace: Array = group_trace(bands, operator, (0, 1, 2, 3))
-        upper_trace: Array = group_trace(bands, operator, (4, 5))
-        expectations: Array = expectation_path(bands, operator)
+        operator: Complex128[Array, "6 6"] = ls_operator(
+            model.basis, model.shell_index
+        )
+        lower_trace: Float64[Array, " 2"] = group_trace(
+            bands, operator, (0, 1, 2, 3)
+        )
+        upper_trace: Float64[Array, " 2"] = group_trace(
+            bands, operator, (4, 5)
+        )
+        expectations: Float64[Array, "2 6"] = expectation_path(bands, operator)
 
         assert model.basis.spin == (-1, -1, -1, 1, 1, 1)
         np.testing.assert_allclose(
@@ -182,6 +196,3 @@ class TestT2gSocFixtureRegression:
             rtol=0.0,
             atol=2e-14,
         )
-
-
-__all__: list[str] = []

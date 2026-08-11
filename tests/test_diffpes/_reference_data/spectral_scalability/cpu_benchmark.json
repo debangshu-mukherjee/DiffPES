@@ -1,65 +1,6 @@
 {
   "backend": "cpu",
-  "device": "TFRT_CPU_0",
-  "gate_ids": [
-    "07.S1",
-    "07.S2",
-    "07.S3"
-  ],
-  "jax_version": "0.9.0.1",
-  "numpy_version": "2.4.2",
-  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "preallocate_environment": "false",
-  "python_version": "3.13.6",
-  "result": "pass",
-  "s1_literal_target": {
-    "allocation_model": {
-      "block_radial_bvals_bytes_diagnostic": 1048576,
-      "block_transition_channels_bytes_diagnostic": 1572864,
-      "block_transition_sources_bytes_diagnostic": 524288,
-      "matrix_free_kk_work_bytes_diagnostic": 1048576,
-      "padded_hamiltonian_axis_mask_output_bytes_diagnostic": 5247744,
-      "padded_kinematics_bytes_diagnostic": 10752,
-      "registered_ceiling_bytes": 201326592,
-      "registered_factor": 1.5,
-      "registered_solve_tape_bytes": 134217728
-    },
-    "checkpoint": true,
-    "compilation_seconds": 5.526224321001791,
-    "executed": false,
-    "execution_seconds": null,
-    "k_chunk": 32,
-    "memory_analysis": {
-      "alias_size_bytes": 0,
-      "argument_size_bytes": 4211032,
-      "authority_available": true,
-      "compiler_live_allocation_bytes": 58592608,
-      "output_size_bytes": 4194328,
-      "result": "measured",
-      "temporary_size_bytes": 50187248
-    },
-    "n_k_max": 256,
-    "n_kk": 4096,
-    "n_omega_max": 512,
-    "n_orb": 32,
-    "n_out": 1,
-    "n_tail": 256,
-    "omega_chunk": 32,
-    "passes_registered_1p5x_bound": true,
-    "process_peak_rss_after_bytes_non_authoritative": 688541696,
-    "process_peak_rss_before_bytes_non_authoritative": 463302656,
-    "program": "value_and_hamiltonian_gradient"
-  },
-  "s1_reference_comparison": {
-    "gradient_passes_rtol_1e_12": true,
-    "maximum_gradient_absolute_error": 0.0,
-    "maximum_reference_gradient": 0.10284887664454907,
-    "maximum_reference_value": 0.004221796130197954,
-    "maximum_value_absolute_error": 5.9164567891575885e-31,
-    "nonzero_gradient": true,
-    "value_passes_rtol_1e_12": true
-  },
-  "s2_compile_count": {
+  "compile_reuse": {
     "active_sizes": [
       [
         2,
@@ -93,7 +34,7 @@
     "result": "pass",
     "trace_count": 1
   },
-  "s3_dtype": {
+  "complex128_dtype": {
     "compiler_ir_contains_complex_f32": false,
     "compiler_ir_contains_complex_f64": true,
     "complex64_public_call_rejected": true,
@@ -103,16 +44,76 @@
     "rhs_input_dtype": "complex128",
     "solution_dtype": "complex128"
   },
+  "device": "TFRT_CPU_0",
+  "jax_version": "0.9.0.1",
+  "literal_streaming_target": {
+    "allocation_model": {
+      "block_radial_bvals_bytes_diagnostic": 1048576,
+      "block_transition_channels_bytes_diagnostic": 1572864,
+      "block_transition_sources_bytes_diagnostic": 524288,
+      "matrix_free_kk_work_bytes_diagnostic": 1048576,
+      "padded_hamiltonian_axis_mask_output_bytes_diagnostic": 5247744,
+      "padded_kinematics_bytes_diagnostic": 10752,
+      "registered_ceiling_bytes": 201326592,
+      "registered_factor": 1.5,
+      "registered_solve_tape_bytes": 134217728
+    },
+    "checkpoint": true,
+    "compilation_seconds": 4.914861772005679,
+    "executed": false,
+    "execution_seconds": null,
+    "k_chunk": 32,
+    "memory_analysis": {
+      "alias_size_bytes": 0,
+      "argument_size_bytes": 4211032,
+      "authority_available": true,
+      "compiler_live_allocation_bytes": 58592608,
+      "output_size_bytes": 4194328,
+      "result": "measured",
+      "temporary_size_bytes": 50187248
+    },
+    "n_k_max": 256,
+    "n_kk": 4096,
+    "n_omega_max": 512,
+    "n_orb": 32,
+    "n_out": 1,
+    "n_tail": 256,
+    "omega_chunk": 32,
+    "passes_registered_1p5x_bound": true,
+    "process_peak_rss_after_bytes_non_authoritative": 688840704,
+    "process_peak_rss_before_bytes_non_authoritative": 464891904,
+    "program": "value_and_hamiltonian_gradient"
+  },
+  "numpy_version": "2.4.2",
+  "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
+  "preallocate_environment": "false",
+  "python_version": "3.13.6",
+  "reference_comparison": {
+    "gradient_passes_rtol_1e_12": true,
+    "maximum_gradient_absolute_error": 0.0,
+    "maximum_reference_gradient": 0.10284887664454907,
+    "maximum_reference_value": 0.004221796130197954,
+    "maximum_value_absolute_error": 5.9164567891575885e-31,
+    "nonzero_gradient": true,
+    "value_passes_rtol_1e_12": true
+  },
+  "requirements": [
+    "streamed-forward-memory",
+    "rematerialized-gradient-memory",
+    "fixed-shape-trace-reuse"
+  ],
+  "result": "pass",
   "schema": "diffpes.spectral-scalability.v1",
   "source_sha256": {
-    "pyproject.toml": "ec3f46d2bf1e1658b47feae3c4d3a77a28d93cded26c03f7cdf4ad570bd5a786",
-    "src/diffpes/radial/integrate.py": "00027b99c0214006cb1bbe2ad1afbfc6b0bef6f1386b8ae8deb0f5b1f6a73e42",
-    "src/diffpes/simul/matrixel.py": "667b91fbb518d58a5fa79e5c58af8799a5c4ba6326a1e9a22b1560302cc5e109",
-    "src/diffpes/simul/spectral.py": "49d2ef280aadbd7c797a2d83aeadc7d7cf985180e350cb285b691af3f07f7b6f",
-    "src/diffpes/types/radial_params.py": "888c7ce02cabb7593c0710c95ad8c8147a001de98712f65c8c20417b5bc6de82",
-    "src/diffpes/types/self_energy.py": "cd1eb66c5ee43abf07801fa358deb7990b7a530a98d4ce1081c8e4877caa50c5",
-    "tests/_reference_tools/measure_spectral_scaling.py": "1189fc93b2865adad4107fb094010c1ded7ae86bde77a89c65dec757f92fbac3",
-    "uv.lock": "e8ad862e358bb77a7ca645c49fcfa4d677535a1f8fa78273667e7809156cec1d"
+    "pyproject.toml": "0138b1caf0151db298c10ee861f821247beb9fabe203bf3e6e214b85b4824c5d",
+    "src/diffpes/radial/integrate.py": "ce56faa08b1e928ee855c54d54b933d29b66502bd0b20e2472d44d3b1548d5df",
+    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
+    "src/diffpes/simul/spectral.py": "5364621f115dcc10dc922aa4a06a4739db4adac144588be963757f23a057b422",
+    "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
+    "src/diffpes/types/self_energy.py": "46f229f1eb50bdd72e55f69cb72d12d34346ca924a9dc72ef5a514f2ed54c420",
+    "src/diffpes/types/spectral.py": "2c0dd8bb9d670f548715b8b450103b25878ce4161d3ea79c6cdb5e6872f4e12c",
+    "tests/_reference_tools/measure_spectral_scaling.py": "7d9e5b503ecaa770113ac396da4a562d7c32bdb18ad6a1f58a5f8c7d3a8e1c67",
+    "uv.lock": "299c8130df47a0ebf73e1ecf6506c590cde2272ac702095e9f1809e22390b9ee"
   },
   "x64_enabled": true
 }

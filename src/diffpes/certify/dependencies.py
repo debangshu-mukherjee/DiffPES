@@ -24,20 +24,21 @@ Routine Listings
     Measure scaled JVP sensitivities for a batch of tangent directions.
 """
 
-import threading
 from functools import cache
 
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, Optional, Tuple
+from beartype.typing import Any, Callable, Dict, List, Optional, Tuple
 from jax import core
-from jaxtyping import Array, Float, PyTree, jaxtyped
+from jaxtyping import Array, Bool, Float, Int, Int32, PyTree, Shaped, jaxtyped
 
 from diffpes.types import (
+    DependencyAnalysisCache,
     DependencyMap,
     InformationSpectrum,
     SensitivityMap,
+    make_dependency_analysis_cache,
     make_dependency_map,
     make_information_spectrum,
     make_sensitivity_map,
@@ -45,24 +46,14 @@ from diffpes.types import (
 from diffpes.utils import pack_complex, unpack_complex
 
 
-class _DependencyCacheState:
-    """Store eager structural analyses for static model configurations."""
-
-    def __init__(self) -> None:
-        self.entries: Dict[Tuple[Any, ...], Tuple[PyTree, Array]] = {}
-        self.hits: int = 0
-        self.misses: int = 0
-        self.lock = threading.RLock()
-
-
 @cache
-def _dependency_cache_state() -> _DependencyCacheState:
+def _dependency_cache_state() -> DependencyAnalysisCache:
     """PRIVATE: Return the process-local cache for structural dependency
     analyses.
 
     Returns
     -------
-    state : _DependencyCacheState
+    state : DependencyAnalysisCache
         The single mutable holder of cached analyses, hit and miss
         counters, and their reentrant lock.
 
@@ -72,7 +63,7 @@ def _dependency_cache_state() -> _DependencyCacheState:
     process-local singleton. :func:`_dependency_structure` reads and
     fills it; :func:`clear_dependency_cache` resets it.
     """
-    state: _DependencyCacheState = _DependencyCacheState()
+    state: DependencyAnalysisCache = make_dependency_analysis_cache()
     return state
 
 
@@ -98,7 +89,7 @@ def _abstract_signature(tree: PyTree) -> Tuple[Any, ...]:
     values. The signature joins the model identity and callable identity
     in the structural-cache key.
     """
-    leaves: list[Any] = jax.tree.leaves(tree)
+    leaves: List[Any] = jax.tree.leaves(tree)
     leaf_signatures: Tuple[Tuple[Tuple[int, ...], str], ...] = tuple(
         (tuple(jnp.shape(leaf)), str(jnp.asarray(leaf).dtype))
         for leaf in leaves
@@ -139,7 +130,7 @@ def _path_names(tree: PyTree) -> Tuple[str, ...]:
 
 def _structural_dependencies(
     forward_fn: Callable[[PyTree], PyTree], inputs: PyTree
-) -> Tuple[PyTree, Array]:
+) -> Tuple[PyTree, Bool[Array, "n_output n_input"]]:
     """PRIVATE: Propagate input-leaf dependency sets through a closed
     JAXPR.
 
@@ -162,7 +153,7 @@ def _structural_dependencies(
 
     Returns
     -------
-    result : Tuple[PyTree, Array]
+    result : Tuple[PyTree, Bool[Array, "n_output n_input"]]
         Abstract output PyTree and the Boolean output-by-input
         structural dependency matrix.
     """
@@ -192,7 +183,7 @@ def _structural_dependencies(
         )
         for variable in equation.outvars:
             dependency[variable] = incoming
-    rows: list[Array] = []
+    rows: List[Bool[Array, " n_input"]] = []
     for variable in jaxpr.outvars:
         indices: frozenset[int] = dependency.get(variable, frozenset())
         rows.append(
@@ -201,8 +192,11 @@ def _structural_dependencies(
                 dtype=jnp.bool_,
             )
         )
-    structural: Array = jnp.stack(rows, axis=0)
-    result: Tuple[PyTree, Array] = (output, structural)
+    structural: Bool[Array, "n_output n_input"] = jnp.stack(rows, axis=0)
+    result: Tuple[PyTree, Bool[Array, "n_output n_input"]] = (
+        output,
+        structural,
+    )
     return result
 
 
@@ -210,7 +204,7 @@ def _dependency_structure(
     model_id: str,
     forward_fn: Callable[[PyTree], PyTree],
     inputs: PyTree,
-) -> Tuple[PyTree, Array]:
+) -> Tuple[PyTree, Bool[Array, "n_output n_input"]]:
     """PRIVATE: Resolve one cached structural analysis outside compiled
     execution.
 
@@ -227,7 +221,7 @@ def _dependency_structure(
 
     Returns
     -------
-    result : Tuple[PyTree, Array]
+    result : Tuple[PyTree, Bool[Array, "n_output n_input"]]
         Abstract output and output-by-input structural dependency matrix.
 
     Notes
@@ -239,8 +233,8 @@ def _dependency_structure(
         isinstance(leaf, core.Tracer) for leaf in jax.tree.leaves(inputs)
     )
     if contains_tracer:
-        result: Tuple[PyTree, Array] = _structural_dependencies(
-            forward_fn, inputs
+        result: Tuple[PyTree, Bool[Array, "n_output n_input"]] = (
+            _structural_dependencies(forward_fn, inputs)
         )
         return result
     key: Tuple[Any, ...] = (
@@ -248,16 +242,18 @@ def _dependency_structure(
         id(forward_fn),
         *_abstract_signature(inputs),
     )
-    state: _DependencyCacheState = _dependency_cache_state()
+    state: DependencyAnalysisCache = _dependency_cache_state()
     with state.lock:
-        cached: Tuple[PyTree, Array] | None = state.entries.get(key)
+        cached: Tuple[PyTree, Bool[Array, "n_output n_input"]] | None = (
+            state.entries.get(key)
+        )
         if cached is not None:
-            state.hits += 1
+            object.__setattr__(state, "hits", state.hits + 1)
             return cached
     result = _structural_dependencies(forward_fn, inputs)
     with state.lock:
         state.entries[key] = result
-        state.misses += 1
+        object.__setattr__(state, "misses", state.misses + 1)
     return result
 
 
@@ -274,11 +270,11 @@ def clear_dependency_cache() -> None:
     The function changes orchestration state only. It does not run in a JAX
     numerical kernel.
     """
-    state: _DependencyCacheState = _dependency_cache_state()
+    state: DependencyAnalysisCache = _dependency_cache_state()
     with state.lock:
         state.entries.clear()
-        state.hits = 0
-        state.misses = 0
+        object.__setattr__(state, "hits", 0)
+        object.__setattr__(state, "misses", 0)
 
 
 @jaxtyped(typechecker=beartype)
@@ -299,7 +295,7 @@ def dependency_cache_info() -> Tuple[int, int, int]:
     The counters measure eager structural analysis. They do not measure a JAX
     compilation cache.
     """
-    state: _DependencyCacheState = _dependency_cache_state()
+    state: DependencyAnalysisCache = _dependency_cache_state()
     with state.lock:
         info: Tuple[int, int, int] = (
             len(state.entries),
@@ -331,10 +327,12 @@ def _leaf_direction(inputs: PyTree, leaf_index: int) -> PyTree:
     pushforward when :func:`_dependency_map_from_linearization` builds
     the traced dependency matrix.
     """
-    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
-    leaves: list[Any] = flattened[0]
+    flattened: Tuple[List[Any], Any] = jax.tree_util.tree_flatten(inputs)
+    leaves: List[Any] = flattened[0]
     treedef: Any = flattened[1]
-    tangent_leaves: list[Array] = [jnp.zeros_like(leaf) for leaf in leaves]
+    tangent_leaves: List[Shaped[Array, "..."]] = [
+        jnp.zeros_like(leaf) for leaf in leaves
+    ]
     tangent_leaves[leaf_index] = jnp.ones_like(leaves[leaf_index])
     tangent: PyTree = jax.tree_util.tree_unflatten(treedef, tangent_leaves)
     return tangent
@@ -434,11 +432,11 @@ def dependency_map(
     The traced matrix is differentiable only through its continuous JVP
     source. Thresholded Boolean entries do not carry useful gradients.
     """
-    structural_evaluation: Tuple[PyTree, Array] = _dependency_structure(
-        model_id, forward_fn, inputs
+    structural_evaluation: Tuple[PyTree, Bool[Array, "n_output n_input"]] = (
+        _dependency_structure(model_id, forward_fn, inputs)
     )
     abstract_output: PyTree = structural_evaluation[0]
-    structural: Array = structural_evaluation[1]
+    structural: Bool[Array, "n_output n_input"] = structural_evaluation[1]
     linearized: Tuple[PyTree, Callable[[PyTree], PyTree]] = linearized_forward(
         forward_fn,
         inputs,
@@ -460,7 +458,7 @@ def _dependency_map_from_linearization(
     model_id: str,
     inputs: PyTree,
     output: PyTree,
-    structural: Array,
+    structural: Bool[Array, "n_output n_input"],
     pushforward: Callable[[PyTree], PyTree],
     *,
     threshold: float = 1e-12,
@@ -478,7 +476,7 @@ def _dependency_map_from_linearization(
         Numerical inputs at the linearization point.
     output : PyTree
         Forward output at the linearization point.
-    structural : Array
+    structural : Bool[Array, "n_output n_input"]
         Output-by-input structural dependency matrix.
     pushforward : Callable[[PyTree], PyTree]
         Retained JVP linear map.
@@ -497,11 +495,11 @@ def _dependency_map_from_linearization(
     """
     index: Any
     n_inputs: int = len(jax.tree.leaves(inputs))
-    numerical_rows: list[Array] = []
+    numerical_rows: List[Bool[Array, " n_output"]] = []
     for index in range(n_inputs):
         tangent: PyTree = _leaf_direction(inputs, index)
         response: PyTree = pushforward(tangent)
-        activity: Array = jnp.asarray(
+        activity: Bool[Array, " n_output"] = jnp.asarray(
             [
                 jnp.linalg.norm(jnp.ravel(jnp.asarray(leaf))) > threshold
                 for leaf in jax.tree.leaves(response)
@@ -509,7 +507,9 @@ def _dependency_map_from_linearization(
             dtype=jnp.bool_,
         )
         numerical_rows.append(activity)
-    traced: Array = jnp.stack(numerical_rows, axis=0).T
+    traced: Bool[Array, "n_output n_input"] = jnp.stack(
+        numerical_rows, axis=0
+    ).T
     result: DependencyMap = make_dependency_map(
         model_id=model_id,
         input_paths=_path_names(inputs),
@@ -524,7 +524,7 @@ def _dependency_map_from_linearization(
 def sensitivity_map(
     input_paths: Tuple[str, ...],
     output_projection_ids: Tuple[str, ...],
-    forward_fn: Callable[[PyTree], Array],
+    forward_fn: Callable[[PyTree], Float[Array, " n_output"]],
     inputs: PyTree,
     directions: PyTree,
     scales: Float[Array, " n_input"],
@@ -561,7 +561,7 @@ def sensitivity_map(
         Stable input-coordinate names (**static**).
     output_projection_ids : Tuple[str, ...]
         Stable output-projection names (**static**).
-    forward_fn : Callable[[PyTree], Array]
+    forward_fn : Callable[[PyTree], Float[Array, " n_output"]]
         Pure differentiable forward model.
     inputs : PyTree
         Numerical model inputs in their declared physical units.
@@ -635,10 +635,16 @@ def _sensitivity_map_from_linearization(
     -----
     The function does not evaluate or linearize the nonlinear model again.
     """
-    responses: Array = jax.vmap(pushforward)(directions)
-    response_array: Array = jnp.reshape(responses, (responses.shape[0], -1))
-    scaled: Array = (response_array * scales[:, None]).T
-    active: Array = jnp.abs(scaled) > threshold
+    responses: Float[Array, "n_input n_output"] = jax.vmap(pushforward)(
+        directions
+    )
+    response_array: Float[Array, "n_input n_output"] = jnp.reshape(
+        responses, (responses.shape[0], -1)
+    )
+    scaled: Float[Array, "n_output n_input"] = (
+        response_array * scales[:, None]
+    ).T
+    active: Bool[Array, "n_output n_input"] = jnp.abs(scaled) > threshold
     result: SensitivityMap = make_sensitivity_map(
         input_paths=input_paths,
         output_projection_ids=output_projection_ids,
@@ -650,7 +656,9 @@ def _sensitivity_map_from_linearization(
     return result
 
 
-def _deterministic_subspace(size: int, rank: int, dtype: Any) -> Array:
+def _deterministic_subspace(
+    size: int, rank: int, dtype: Any
+) -> Float[Array, "size rank"]:
     """PRIVATE: Construct a deterministic full-rank starting subspace.
 
     Parameters
@@ -664,7 +672,7 @@ def _deterministic_subspace(size: int, rank: int, dtype: Any) -> Array:
 
     Returns
     -------
-    orthogonal : Array
+    orthogonal : Float[Array, "size rank"]
         ``(size, rank)`` matrix with orthonormal columns.
 
     Notes
@@ -674,14 +682,22 @@ def _deterministic_subspace(size: int, rank: int, dtype: Any) -> Array:
     decomposition. The construction needs no random key, so repeated
     spectrum estimates are bit-reproducible.
     """
-    rows: Array = jnp.arange(1, size + 1, dtype=dtype)[:, None]
-    cols: Array = jnp.arange(1, rank + 1, dtype=dtype)[None, :]
-    initial: Array = jnp.sin(rows * cols) + jnp.cos(rows * (cols + 0.5))
-    decomposition: Tuple[Array, Array] = jnp.linalg.qr(
+    rows: Float[Array, "size 1"] = jnp.arange(1, size + 1, dtype=dtype)[
+        :, None
+    ]
+    cols: Float[Array, "1 rank"] = jnp.arange(1, rank + 1, dtype=dtype)[
+        None, :
+    ]
+    initial: Float[Array, "size rank"] = jnp.sin(rows * cols) + jnp.cos(
+        rows * (cols + 0.5)
+    )
+    decomposition: Tuple[
+        Float[Array, "size rank"], Float[Array, "rank rank"]
+    ] = jnp.linalg.qr(
         initial,
         mode="reduced",
     )
-    orthogonal: Array = decomposition[0]
+    orthogonal: Float[Array, "size rank"] = decomposition[0]
     return orthogonal
 
 
@@ -712,10 +728,10 @@ def _element_paths(tree: PyTree) -> Tuple[str, ...]:
     index: Any
     flattened: Any = jax.tree_util.tree_flatten_with_path(tree)
     path_leaves: Any = flattened[0]
-    names: list[str] = []
+    names: List[str] = []
     for path, leaf in path_leaves:
         base: str = jax.tree_util.keystr(path) or "$"
-        array: Array = jnp.asarray(leaf)
+        array: Shaped[Array, "..."] = jnp.asarray(leaf)
         size: int = array.size
         components: Tuple[str, ...] = (
             ("real", "imag") if jnp.iscomplexobj(array) else ("",)
@@ -732,7 +748,10 @@ def _element_paths(tree: PyTree) -> Tuple[str, ...]:
 
 def _ravel_real_pytree(
     tree: PyTree,
-) -> Tuple[Array, Callable[[Array], PyTree]]:
+) -> Tuple[
+    Float[Array, " n_coordinate"],
+    Callable[[Float[Array, " n_coordinate"]], PyTree],
+]:
     """PRIVATE: Ravel a numerical PyTree in independent real
     coordinates.
 
@@ -752,7 +771,10 @@ def _ravel_real_pytree(
 
     Returns
     -------
-    result : Tuple[Array, Callable[[Array], PyTree]]
+    result : Tuple[
+        Float[Array, " n_coordinate"],
+        Callable[[Float[Array, " n_coordinate"]], PyTree],
+        ]
         Flat real coordinate vector and the inverse map back to the
         PyTree.
 
@@ -762,11 +784,11 @@ def _ravel_real_pytree(
         If a leaf has a non-inexact dtype.
     """
     array: Any
-    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(tree)
-    leaves: list[Any] = flattened[0]
+    flattened: Tuple[List[Any], Any] = jax.tree_util.tree_flatten(tree)
+    leaves: List[Any] = flattened[0]
     treedef: Any = flattened[1]
-    arrays: list[Array] = [jnp.asarray(leaf) for leaf in leaves]
-    parts: list[Array] = []
+    arrays: List[Shaped[Array, "..."]] = [jnp.asarray(leaf) for leaf in leaves]
+    parts: List[Float[Array, " n_part"]] = []
     for array in arrays:
         if jnp.iscomplexobj(array):
             parts.append(jnp.ravel(pack_complex(array)))
@@ -775,17 +797,19 @@ def _ravel_real_pytree(
         else:
             msg: str = "information inputs must contain inexact array leaves"
             raise TypeError(msg)
-    flat: Array = jnp.concatenate(parts) if parts else jnp.zeros(0)
+    flat: Float[Array, " n_coordinate"] = (
+        jnp.concatenate(parts) if parts else jnp.zeros(0)
+    )
 
-    def unravel(vector: Array) -> PyTree:
+    def unravel(vector: Float[Array, " n_coordinate"]) -> PyTree:
         array: Any
         offset: int = 0
-        rebuilt: list[Array] = []
+        rebuilt: List[Shaped[Array, "..."]] = []
         for array in arrays:
             size: int = array.size
             if jnp.iscomplexobj(array):
                 count: int = 2 * size
-                packed: Array = jnp.reshape(
+                packed: Float[Array, "... 2"] = jnp.reshape(
                     vector[offset : offset + count], (*array.shape, 2)
                 )
                 rebuilt.append(unpack_complex(packed).astype(array.dtype))
@@ -800,7 +824,10 @@ def _ravel_real_pytree(
         result: PyTree = jax.tree_util.tree_unflatten(treedef, rebuilt)
         return result
 
-    result: Tuple[Array, Callable[[Array], PyTree]] = (flat, unravel)
+    result: Tuple[
+        Float[Array, " n_coordinate"],
+        Callable[[Float[Array, " n_coordinate"]], PyTree],
+    ] = (flat, unravel)
     return result
 
 
@@ -866,33 +893,44 @@ def information_spectrum(  # noqa: PLR0915
     The subspace iteration and eigendecomposition remain JAX differentiable.
     Degenerate eigenvalues can make individual singular vectors non-unique.
     """
-    flattened_inputs: Tuple[Array, Callable[[Array], PyTree]] = (
-        _ravel_real_pytree(inputs)
+    flattened_inputs: Tuple[
+        Float[Array, " n_input"], Callable[[Float[Array, " n_input"]], PyTree]
+    ] = _ravel_real_pytree(inputs)
+    flat_inputs: Float[Array, " n_input"] = flattened_inputs[0]
+    unravel_inputs: Callable[[Float[Array, " n_input"]], PyTree] = (
+        flattened_inputs[1]
     )
-    flat_inputs: Array = flattened_inputs[0]
-    unravel_inputs: Callable[[Array], PyTree] = flattened_inputs[1]
 
-    def flat_forward(flat: Array) -> Array:
+    def flat_forward(
+        flat: Float[Array, " n_input"],
+    ) -> Float[Array, " n_output"]:
         output: PyTree = forward_fn(unravel_inputs(flat))
-        flattened_output: Tuple[Array, Callable[[Array], PyTree]] = (
-            _ravel_real_pytree(output)
-        )
-        flat_output: Array = flattened_output[0]
+        flattened_output: Tuple[
+            Float[Array, " n_output"],
+            Callable[[Float[Array, " n_output"]], PyTree],
+        ] = _ravel_real_pytree(output)
+        flat_output: Float[Array, " n_output"] = flattened_output[0]
         return flat_output
 
-    linearized: Tuple[Array, Callable[[Array], Array]] = jax.linearize(
-        flat_forward,
-        flat_inputs,
-    )
-    flat_output: Array = linearized[0]
-    pushforward: Callable[[Array], Array] = linearized[1]
-    transposed: Callable[[Array], Tuple[Array]] = jax.linear_transpose(
+    linearized: Tuple[
+        Float[Array, " n_output"],
+        Callable[[Float[Array, " n_input"]], Float[Array, " n_output"]],
+    ] = jax.linearize(flat_forward, flat_inputs)
+    flat_output: Float[Array, " n_output"] = linearized[0]
+    pushforward: Callable[
+        [Float[Array, " n_input"]], Float[Array, " n_output"]
+    ] = linearized[1]
+    transposed: Callable[
+        [Float[Array, " n_output"]], Tuple[Float[Array, " n_input"]]
+    ] = jax.linear_transpose(
         pushforward,
         flat_inputs,
     )
 
-    def pullback(cotangent: Array) -> Array:
-        pulled: Array = transposed(cotangent)[0]
+    def pullback(
+        cotangent: Float[Array, " n_output"],
+    ) -> Float[Array, " n_input"]:
+        pulled: Float[Array, " n_input"] = transposed(cotangent)[0]
         return pulled
 
     result: InformationSpectrum = _information_spectrum_from_linearization(
@@ -913,8 +951,8 @@ def information_spectrum(  # noqa: PLR0915
 def _information_spectrum_from_linearization(  # noqa: PLR0913
     inputs: PyTree,
     flat_output: Float[Array, " n_output"],
-    pushforward: Callable[[Array], Array],
-    pullback: Callable[[Array], Array],
+    pushforward: Callable[[Float[Array, "n_input"]], Float[Array, "n_output"]],
+    pullback: Callable[[Float[Array, "n_output"]], Float[Array, "n_input"]],
     *,
     input_paths: Optional[Tuple[str, ...]] = None,
     output_weights: Optional[Float[Array, " n_output"]] = None,
@@ -934,9 +972,9 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
         Numerical inputs at the linearization point.
     flat_output : Float[Array, " n_output"]
         Forward output in independent real coordinates.
-    pushforward : Callable[[Array], Array]
+    pushforward : Callable[[Float[Array, "n_input"]], Float[Array, "n_output"]]
         Linear map from real input coordinates to real output coordinates.
-    pullback : Callable[[Array], Array]
+    pullback : Callable[[Float[Array, "n_output"]], Float[Array, "n_input"]]
         Transpose map from real output coordinates to real input coordinates.
     input_paths : Optional[Tuple[str, ...]]
         Names for flattened real input coordinates. Default None.
@@ -959,8 +997,8 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
     ValueError
         If metric weights have the wrong shape or the inputs are empty.
     """
-    flat_inputs: Array = _ravel_real_pytree(inputs)[0]
-    weights: Array = (
+    flat_inputs: Float[Array, " n_input"] = _ravel_real_pytree(inputs)[0]
+    weights: Float[Array, " n_output"] = (
         jnp.ones_like(flat_output)
         if output_weights is None
         else jnp.asarray(output_weights, dtype=flat_output.real.dtype)
@@ -971,40 +1009,52 @@ def _information_spectrum_from_linearization(  # noqa: PLR0913
     if effective_rank_limit < 1:
         raise ValueError("rank requires non-empty inputs and outputs")
 
-    def normal(vector: Array) -> Array:
-        response: Array = pushforward(vector)
-        pulled: Array = pullback(weights * response)
-        result: Array = jnp.real(pulled)
+    def normal(
+        vector: Float[Array, " n_input"],
+    ) -> Float[Array, " n_input"]:
+        response: Float[Array, " n_output"] = pushforward(vector)
+        pulled: Float[Array, " n_input"] = pullback(weights * response)
+        result: Float[Array, " n_input"] = jnp.real(pulled)
         return result
 
-    def apply_columns(matrix: Array) -> Array:
-        applied: Array = jax.vmap(normal, in_axes=1, out_axes=1)(matrix)
+    def apply_columns(
+        matrix: Float[Array, "n_input rank"],
+    ) -> Float[Array, "n_input rank"]:
+        applied: Float[Array, "n_input rank"] = jax.vmap(
+            normal, in_axes=1, out_axes=1
+        )(matrix)
         return applied
 
-    subspace: Array = _deterministic_subspace(
+    subspace: Float[Array, "n_input rank"] = _deterministic_subspace(
         flat_inputs.size, effective_rank_limit, flat_inputs.real.dtype
     )
 
-    def iteration(_: Array, basis: Array) -> Array:
-        updated: Array = apply_columns(basis)
-        orthogonal: Array = jnp.linalg.qr(updated, mode="reduced")[0]
+    def iteration(
+        _: Int[Array, ""], basis: Float[Array, "n_input rank"]
+    ) -> Float[Array, "n_input rank"]:
+        updated: Float[Array, "n_input rank"] = apply_columns(basis)
+        orthogonal: Float[Array, "n_input rank"] = jnp.linalg.qr(
+            updated, mode="reduced"
+        )[0]
         return orthogonal
 
     subspace = jax.lax.fori_loop(0, iterations, iteration, subspace)
-    projected: Array = subspace.T @ apply_columns(subspace)
-    eigenvalues: Array
-    eigenvectors_small: Array
+    projected: Float[Array, "rank rank"] = subspace.T @ apply_columns(subspace)
+    eigenvalues: Float[Array, " rank"]
+    eigenvectors_small: Float[Array, "rank rank"]
     eigenvalues, eigenvectors_small = jnp.linalg.eigh(projected)
-    order: Array = jnp.argsort(eigenvalues)[::-1]
+    order: Int[Array, " rank"] = jnp.argsort(eigenvalues)[::-1]
     eigenvalues = jnp.maximum(eigenvalues[order], 0.0)
-    right_vectors: Array = (subspace @ eigenvectors_small[:, order]).T
-    singular_values: Array = jnp.sqrt(eigenvalues)
-    active: Array = singular_values > threshold
-    effective_rank: Array = jnp.sum(active, dtype=jnp.int32)
-    smallest_active: Array = jnp.min(
+    right_vectors: Float[Array, "rank n_input"] = (
+        subspace @ eigenvectors_small[:, order]
+    ).T
+    singular_values: Float[Array, " rank"] = jnp.sqrt(eigenvalues)
+    active: Bool[Array, " rank"] = singular_values > threshold
+    effective_rank: Int32[Array, ""] = jnp.sum(active, dtype=jnp.int32)
+    smallest_active: Float[Array, ""] = jnp.min(
         jnp.where(active, singular_values, jnp.inf)
     )
-    condition: Array = jnp.where(
+    condition: Float[Array, ""] = jnp.where(
         effective_rank > 0,
         singular_values[0] / smallest_active,
         0.0,

@@ -18,7 +18,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Optional, TextIO, Tuple
+from beartype.typing import List, Optional, TextIO, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
@@ -60,7 +60,7 @@ def read_chgcar(
            path: Path = Path(filename)
            with path.open("r") as fid:
                lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
-               rest_lines: list[str] = [
+               rest_lines: List[str] = [
                    line.rstrip("\n") for line in fid
                ]
 
@@ -110,9 +110,9 @@ def read_chgcar(
         lattice: Float64[NDArray, "3 3"]
         coords: Float64[NDArray, "N 3"]
         symbols: Tuple[str, ...]
-        atom_counts: list[int]
+        atom_counts: List[int]
         lattice, coords, symbols, atom_counts = _read_poscar_header(fid)
-        rest_lines: list[str] = [line.rstrip("\n") for line in fid]
+        rest_lines: List[str] = [line.rstrip("\n") for line in fid]
 
     volume: float = abs(
         float(
@@ -145,7 +145,7 @@ def read_chgcar(
         charge_vals.reshape(grid_shape, order="F") / volume
     )
 
-    mag_grids: list[Float64[NDArray, "Nx Ny Nz"]] = []
+    mag_grids: List[Float64[NDArray, "Nx Ny Nz"]] = []
     scan_idx: int = end_idx
     while len(mag_grids) < N_SOC_MAG_BLOCKS:
         next_idx: Optional[int]
@@ -211,7 +211,7 @@ def _read_poscar_header(
     Float64[NDArray, "3 3"],
     Float64[NDArray, "N 3"],
     Tuple[str, ...],
-    list[int],
+    List[int],
 ]:
     """PRIVATE: Read the POSCAR-like header section at the start of a CHGCAR
     file.
@@ -256,7 +256,7 @@ def _read_poscar_header(
         Fractional atomic coordinates, shape ``(natoms, 3)``.
     symbols : Tuple[str, ...]
         Element symbols (empty tuple for VASP-4 style files).
-    atom_counts : list[int]
+    atom_counts : List[int]
         Number of atoms per species.
 
     Raises
@@ -276,7 +276,7 @@ def _read_poscar_header(
         dtype=np.float64,
     )
     for row in range(LATTICE_ROWS):
-        vals: list[float] = [float(x) for x in fid.readline().split()]
+        vals: List[float] = [float(x) for x in fid.readline().split()]
         if len(vals) < XYZ_COMPONENTS:
             msg: str = "Invalid CHGCAR lattice line."
             raise ValueError(msg)
@@ -288,7 +288,7 @@ def _read_poscar_header(
     if line and not any(char.isdigit() for char in line):
         symbols = tuple(line.split())
         line = fid.readline().strip()
-    atom_counts: list[int] = [int(x) for x in line.split()]
+    atom_counts: List[int] = [int(x) for x in line.split()]
     natoms: int = sum(atom_counts)
 
     coord_line: str = fid.readline().strip()
@@ -314,14 +314,14 @@ def _read_poscar_header(
         Float64[NDArray, "3 3"],
         Float64[NDArray, "N 3"],
         Tuple[str, ...],
-        list[int],
+        List[int],
     ] = (lattice, coords, symbols, atom_counts)
     return header_data
 
 
 @jaxtyped(typechecker=beartype)
 def _find_next_grid_line(
-    lines: list[str],
+    lines: List[str],
     start_idx: int,
 ) -> Tuple[Optional[int], Tuple[int, int, int]]:
     """PRIVATE: Find the next line containing exactly three positive
@@ -346,7 +346,7 @@ def _find_next_grid_line(
 
     Parameters
     ----------
-    lines : list[str]
+    lines : List[str]
         All CHGCAR lines after the parser consumes the POSCAR header.
     start_idx : int
         Index within ``lines`` at which to begin scanning.
@@ -365,7 +365,7 @@ def _find_next_grid_line(
         stripped: str = lines[idx].strip()
         if not stripped:
             continue
-        parts: list[str] = stripped.split()
+        parts: List[str] = stripped.split()
         if len(parts) != SCALAR_LINE_COMPONENTS:
             continue
         try:
@@ -388,7 +388,7 @@ def _find_next_grid_line(
 
 @jaxtyped(typechecker=beartype)
 def _parse_float_block(
-    lines: list[str],
+    lines: List[str],
     start_idx: int,
     nvals: int,
 ) -> Tuple[Float64[NDArray, " nvals"], int]:
@@ -417,7 +417,7 @@ def _parse_float_block(
 
     Parameters
     ----------
-    lines : list[str]
+    lines : List[str]
         All remaining lines of the CHGCAR file.
     start_idx : int
         Index within ``lines`` at which to begin reading floats.
@@ -440,7 +440,7 @@ def _parse_float_block(
     """
     token: str
 
-    values: list[float] = []
+    values: List[float] = []
     idx: int = start_idx
 
     while idx < len(lines) and len(values) < nvals:
@@ -449,8 +449,8 @@ def _parse_float_block(
             idx += 1
             continue
 
-        parts: list[str] = stripped.split()
-        row_vals: list[float] = []
+        parts: List[str] = stripped.split()
+        row_vals: List[float] = []
         row_valid: bool = True
         for token in parts:
             try:

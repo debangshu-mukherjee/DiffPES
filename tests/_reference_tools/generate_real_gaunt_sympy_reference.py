@@ -10,13 +10,31 @@ import argparse
 import csv
 import importlib
 from pathlib import Path
-from typing import Any
 
-from beartype.typing import Dict
+from beartype.typing import Any, Dict, List, TextIO
 
 
 def generate(output: Path, l_max: int = 4) -> None:
-    """Write exact and 50-digit real-Gaunt values over the dense domain."""
+    """Write exact and 50-digit real-Gaunt values over the dense domain.
+
+    Parameters
+    ----------
+    output : Path
+        Destination path for the UTF-8 CSV file.
+    l_max : int
+        Largest initial angular momentum. Default 4.
+
+    Raises
+    ------
+    RuntimeError
+        If the offline SymPy dependency is unavailable.
+
+    Notes
+    -----
+    The generator enumerates every magnetic quantum number and dipole
+    component. SymPy supplies both the exact expression and the decimal value.
+    """
+    error: ImportError
     try:
         sp: Any = importlib.import_module("sympy")
         wigner: Any = importlib.import_module("sympy.physics.wigner")
@@ -29,7 +47,7 @@ def generate(output: Path, l_max: int = 4) -> None:
         raise RuntimeError(message) from error
     real_gaunt: Any = wigner.real_gaunt
 
-    rows: list[Dict[str, str]] = []
+    rows: List[Dict[str, str]] = []
     l_initial: int
     m_initial: int
     q_value: int
@@ -67,15 +85,31 @@ def generate(output: Path, l_max: int = 4) -> None:
                             }
                         )
     output.parent.mkdir(parents=True, exist_ok=True)
+    stream: TextIO
     with output.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=tuple(rows[0]))
+        writer: csv.DictWriter[str] = csv.DictWriter(
+            stream, fieldnames=tuple(rows[0])
+        )
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    """Parse generator options and write the frozen CSV."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    """Parse generator options and write the frozen Gaunt authority.
+
+    Raises
+    ------
+    ValueError
+        If ``--l-max`` is negative.
+
+    Notes
+    -----
+    The command uses the repository reference-data path and ``l_max = 4`` by
+    default.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__
+    )
     parser.add_argument(
         "--output",
         type=Path,

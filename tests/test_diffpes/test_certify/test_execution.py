@@ -10,7 +10,8 @@ from pathlib import Path
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from beartype.typing import Any
+from beartype.typing import Any, Callable
+from jaxtyping import PyTree
 
 from diffpes.certify import (
     certify_forward,
@@ -24,6 +25,8 @@ from diffpes.certify import (
 from diffpes.inout import load_certificate_json, save_certificate_json
 from diffpes.types import (
     CertificationContext,
+    ExecutionManifest,
+    ForwardModelSpec,
     make_artifact_ref,
     make_domain_result,
     make_evidence_lineage,
@@ -33,12 +36,12 @@ from diffpes.types import (
 )
 
 
-def _context(executor: Any) -> CertificationContext:
+def _context(executor: Callable[[PyTree], PyTree]) -> CertificationContext:
     """PRIVATE: Prepare a certification context for one fresh test model.
 
     Parameters
     ----------
-    executor : Any
+    executor : Callable[[PyTree], PyTree]
         Callable that the registry runs as the model forward pass.
 
     Returns
@@ -52,10 +55,10 @@ def _context(executor: Any) -> CertificationContext:
     Builds a deterministic CPU float64 manifest. Prepares certification
     for model version 1.0.0.
     """
-    suffix: Any
-    model_id: Any
-    spec: Any
-    manifest: Any
+    suffix: str
+    model_id: str
+    spec: ForwardModelSpec
+    manifest: ExecutionManifest
     suffix = uuid.uuid4().hex
     model_id = f"org.diffpes.model.test{suffix}"
     spec = make_forward_model_spec(
@@ -78,12 +81,13 @@ def _context(executor: Any) -> CertificationContext:
         True,
         "2026-07-21T00:00:00Z",
     )
-    return prepare_certification(
+    context: CertificationContext = prepare_certification(
         model_id,
         "1.0.0",
         manifest,
         policy_id="org.diffpes.policy.exploratory.v1",
     )
+    return context
 
 
 class TestVerifyCertificate:
@@ -102,7 +106,7 @@ class TestVerifyCertificate:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         context: Any
         result: Any
@@ -180,7 +184,8 @@ class TestVerifyCertificate:
     def test_one_sided_domain_claim_is_internally_consistent(self) -> None:
         """Verify a domain claim that uses a signed positive margin.
 
-        Domain claims mirror their predicate result instead of a symmetric test.
+        Domain claims mirror their predicate result rather than a symmetric
+        test.
 
         Notes
         -----
@@ -274,7 +279,8 @@ class TestVerifyCertificate:
 
         Notes
         -----
-        The mutation changes every dependent claim field but leaves evidence intact.
+        The mutation changes every dependent claim field but leaves evidence
+        intact.
         """
         context: Any = _context(lambda value: value**2)
         evidence: Any = evaluate_evidence(
@@ -331,7 +337,7 @@ class TestCertifyForward:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         context: Any
         value_grad: Any
@@ -360,7 +366,7 @@ class TestCertifyForward:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         context: Any
         values: Any
@@ -401,7 +407,8 @@ class TestCertifyForward:
 
         Notes
         -----
-        The model output is constant and its information spectrum has rank zero.
+        The model output is constant, so its information spectrum has rank
+        zero.
         """
 
         def constant(value: Any) -> Any:
@@ -437,7 +444,7 @@ class TestPrepareCertification:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         context: CertificationContext = _context(lambda value: value**2)
         assert context.model.model_id in context.manifest.model_ref

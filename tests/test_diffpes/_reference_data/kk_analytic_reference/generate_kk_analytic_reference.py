@@ -1,5 +1,7 @@
 """Generate the independent analytic Kramers--Kronig reference artifact.
 
+Extended Summary
+----------------
 The generator evaluates closed forms with mpmath and checks their signs by
 direct high-precision principal-value integration. It imports no DiffPES code.
 """
@@ -14,8 +16,8 @@ from pathlib import Path
 
 import mpmath as mp
 import numpy as np
-from beartype.typing import Dict, Tuple
-from jaxtyping import Float
+from beartype.typing import Dict, List, Tuple
+from jaxtyping import Float64
 from numpy.typing import NDArray
 
 _DECIMAL_DIGITS: int = 80
@@ -69,7 +71,8 @@ def _pole_parts(omega_ev: mp.mpf) -> Tuple[mp.mpf, mp.mpf]:
     denominator_ev2: mp.mpf = offset_ev**2 + _POLE_GAMMA_EV**2
     real_ev: mp.mpf = _POLE_G_EV2 * offset_ev / denominator_ev2
     imaginary_ev: mp.mpf = -_POLE_G_EV2 * _POLE_GAMMA_EV / denominator_ev2
-    return real_ev, imaginary_ev
+    parts: Tuple[mp.mpf, mp.mpf] = (real_ev, imaginary_ev)
+    return parts
 
 
 def _semicircle_parts(omega_ev: mp.mpf) -> Tuple[mp.mpf, mp.mpf]:
@@ -99,7 +102,8 @@ def _semicircle_parts(omega_ev: mp.mpf) -> Tuple[mp.mpf, mp.mpf]:
     real_ev: mp.mpf = prefactor * omega_ev
     radicand_ev2: mp.mpf = _SEMICIRCLE_BAND_EV**2 - omega_ev**2
     imaginary_ev: mp.mpf = -prefactor * mp.sqrt(radicand_ev2)
-    return real_ev, imaginary_ev
+    parts: Tuple[mp.mpf, mp.mpf] = (real_ev, imaginary_ev)
+    return parts
 
 
 def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
@@ -130,19 +134,56 @@ def _pole_pv_real(omega_ev: mp.mpf) -> mp.mpf:
     theta_0: mp.mpf = mp.atan(omega_ev)
 
     def transformed_numerator(theta: mp.mpf) -> mp.mpf:
+        """Compute the pole numerator after the tangent map.
+
+        Parameters
+        ----------
+        theta : mp.mpf
+            Integration angle in radians.
+
+        Returns
+        -------
+        numerator_ev : mp.mpf
+            Imaginary self-energy times the tangent-map Jacobian in eV.
+
+        Notes
+        -----
+        The tangent maps the full real-energy axis to the finite angular
+        interval. The squared secant supplies its Jacobian.
+        """
         integration_ev: mp.mpf = mp.tan(theta)
         imaginary_ev: mp.mpf = _pole_parts(integration_ev)[1]
-        return imaginary_ev / mp.cos(theta) ** 2
+        numerator_ev: mp.mpf = imaginary_ev / mp.cos(theta) ** 2
+        return numerator_ev
 
     numerator_0: mp.mpf = transformed_numerator(theta_0)
 
     def regular_integrand(theta: mp.mpf) -> mp.mpf:
+        """Compute the regularized pole integrand.
+
+        Parameters
+        ----------
+        theta : mp.mpf
+            Integration angle in radians.
+
+        Returns
+        -------
+        value_ev : mp.mpf
+            Regularized principal-value integrand in eV.
+
+        Notes
+        -----
+        Numerator subtraction removes the pole. At the singular angle, the
+        function supplies the exact derivative limit.
+        """
         if theta == theta_0:
             derivative: mp.mpf = mp.diff(transformed_numerator, theta_0)
-            return derivative / (1 + omega_ev**2)
-        return (transformed_numerator(theta) - numerator_0) / (
+            value_ev: mp.mpf = derivative / (1 + omega_ev**2)
+            return value_ev
+        value_ev = (transformed_numerator(theta) - numerator_0) / (
             mp.tan(theta) - omega_ev
         )
+        return value_ev
 
     regular_integral_ev: mp.mpf = mp.quad(
         regular_integrand, [-mp.pi / 2, theta_0, mp.pi / 2]
@@ -181,14 +222,33 @@ def _semicircle_pv_real(omega_ev: mp.mpf) -> mp.mpf:
     prefactor: mp.mpf = 2 * _SEMICIRCLE_G_EV2 / _SEMICIRCLE_BAND_EV**2
 
     def regular_integrand(integration_ev: mp.mpf) -> mp.mpf:
+        """Compute the regularized semicircle integrand.
+
+        Parameters
+        ----------
+        integration_ev : mp.mpf
+            Integration energy in eV.
+
+        Returns
+        -------
+        value : mp.mpf
+            Regularized dimensionless principal-value integrand.
+
+        Notes
+        -----
+        Numerator subtraction removes the pole. At the query energy, the
+        function supplies the exact energy derivative.
+        """
         if integration_ev == omega_ev:
-            return (
+            value: mp.mpf = (
                 prefactor
                 * omega_ev
                 / mp.sqrt(_SEMICIRCLE_BAND_EV**2 - omega_ev**2)
             )
+            return value
         imaginary_ev: mp.mpf = _semicircle_parts(integration_ev)[1]
-        return (imaginary_ev - imaginary_0_ev) / (integration_ev - omega_ev)
+        value = (imaginary_ev - imaginary_0_ev) / (integration_ev - omega_ev)
+        return value
 
     regular_integral_ev: mp.mpf = mp.quad(
         regular_integrand,
@@ -206,7 +266,7 @@ def _verify_principal_values() -> Dict[str, str]:
 
     Returns
     -------
-    rendered_errors : dict[str, str]
+    rendered_errors : Dict[str, str]
         Observed maximum absolute errors in eV for the pole and the
         semicircle model, rendered to 12 significant digits for the
         manifest.
@@ -253,12 +313,12 @@ def _verify_principal_values() -> Dict[str, str]:
     return rendered_errors
 
 
-def _build_arrays() -> Dict[str, Float[NDArray, "..."]]:
+def _build_arrays() -> Dict[str, Float64[NDArray, " n_energy"]]:
     """PRIVATE: Build the six frozen float64 arrays from mpmath values.
 
     Returns
     -------
-    arrays : dict[str, Float[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, " n_energy"]]
         Archive members ``pole_omega``, ``pole_sigma_real``,
         ``pole_sigma_imag`` and the three semicircle counterparts,
         each of length 1001 in eV.
@@ -271,14 +331,14 @@ def _build_arrays() -> Dict[str, Float[NDArray, "..."]]:
     Casts every value to float64 only at the end.
     """
     step_ev: mp.mpf = (_GRID_STOP_EV - _GRID_START_EV) / (_GRID_COUNT - 1)
-    omega_mp: list[mp.mpf] = [
+    omega_mp: List[mp.mpf] = [
         _GRID_START_EV + index * step_ev for index in range(_GRID_COUNT)
     ]
     pole_at_subtraction_ev: mp.mpf = _pole_parts(_SUBTRACTION_POINT_EV)[0]
-    pole_real: list[float] = []
-    pole_imaginary: list[float] = []
-    semicircle_real: list[float] = []
-    semicircle_imaginary: list[float] = []
+    pole_real: List[float] = []
+    pole_imaginary: List[float] = []
+    semicircle_real: List[float] = []
+    semicircle_imaginary: List[float] = []
     omega_ev: mp.mpf
     pole_real_ev: mp.mpf
     pole_imaginary_ev: mp.mpf
@@ -293,8 +353,10 @@ def _build_arrays() -> Dict[str, Float[NDArray, "..."]]:
         pole_imaginary.append(float(pole_imaginary_ev))
         semicircle_real.append(float(semicircle_real_ev))
         semicircle_imaginary.append(float(semicircle_imaginary_ev))
-    omega: Float[NDArray, "..."] = np.asarray(omega_mp, dtype=np.float64)
-    arrays: Dict[str, Float[NDArray, "..."]] = {
+    omega: Float64[NDArray, " n_energy"] = np.asarray(
+        omega_mp, dtype=np.float64
+    )
+    arrays: Dict[str, Float64[NDArray, " n_energy"]] = {
         "pole_omega": omega,
         "pole_sigma_real": np.asarray(pole_real, dtype=np.float64),
         "pole_sigma_imag": np.asarray(pole_imaginary, dtype=np.float64),
@@ -308,7 +370,8 @@ def _build_arrays() -> Dict[str, Float[NDArray, "..."]]:
 
 
 def _write_deterministic_npz(
-    archive_path: Path, arrays: Dict[str, Float[NDArray, "..."]]
+    archive_path: Path,
+    arrays: Dict[str, Float64[NDArray, " n_energy"]],
 ) -> None:
     """PRIVATE: Write arrays in a deterministic uncompressed NumPy archive.
 
@@ -316,7 +379,7 @@ def _write_deterministic_npz(
     ----------
     archive_path : Path
         Destination path of the ``.npz`` archive.
-    arrays : dict[str, Float[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, " n_energy"]]
         Named arrays to store, one ``.npy`` member each.
 
     Notes
@@ -328,7 +391,7 @@ def _write_deterministic_npz(
     """
     archive: zipfile.ZipFile
     name: str
-    array: Float[NDArray, "..."]
+    array: Float64[NDArray, " n_energy"]
     with zipfile.ZipFile(archive_path, "w", allowZip64=True) as archive:
         for name, array in arrays.items():
             buffer: io.BytesIO = io.BytesIO()
@@ -342,13 +405,23 @@ def _write_deterministic_npz(
 
 
 def main() -> None:
-    """Generate the archive and its provenance manifest."""
+    """Generate the archive and its provenance manifest.
+
+    Notes
+    -----
+    The function verifies the high-precision principal values first. It then
+    writes deterministic float64 arrays and records their SHA-256 digest.
+    """
     mp.mp.dps = _DECIMAL_DIGITS
     pv_errors: Dict[str, str] = _verify_principal_values()
-    arrays: Dict[str, Float[NDArray, "..."]] = _build_arrays()
+    arrays: Dict[str, Float64[NDArray, " n_energy"]] = _build_arrays()
     output_directory: Path = Path(__file__).resolve().parent
     archive_path: Path = output_directory / "kk_reference.npz"
     manifest_path: Path = output_directory / "manifest.json"
+    generator_path: Path = Path(__file__).resolve()
+    generator_sha256: str = hashlib.sha256(
+        generator_path.read_bytes()
+    ).hexdigest()
     _write_deterministic_npz(archive_path, arrays)
     archive_sha256: str = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     manifest: Dict[str, object] = {
@@ -356,10 +429,13 @@ def main() -> None:
         "archive": archive_path.name,
         "archive_sha256": archive_sha256,
         "generator": Path(__file__).name,
+        "generator_sha256": generator_sha256,
         "arbiter": {
             "name": "mpmath",
             "decimal_digits": _DECIMAL_DIGITS,
-            "method": "closed forms checked by numerical principal-value integration",
+            "method": (
+                "closed forms checked by numerical principal-value integration"
+            ),
             "pv_check_absolute_tolerance_ev": str(_PV_CHECK_ATOL),
             "pv_check_points_ev": list(_PV_CHECK_POINTS_EV),
             "observed_maximum_errors": pv_errors,

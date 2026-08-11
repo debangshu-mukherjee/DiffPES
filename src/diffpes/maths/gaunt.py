@@ -19,12 +19,12 @@ the result as a JAX array for constant-time lookup.
 
 Routine Listings
 ----------------
-:obj:`GAUNT_TABLE`
-    Module-level precomputed Gaunt coefficient table for l_max=4.
 :func:`build_gaunt_table`
     Build the dipole Gaunt coefficient lookup table.
 :func:`gaunt_lookup`
     Look up a single Gaunt coefficient from the precomputed table.
+:obj:`GAUNT_TABLE`
+    Module-level precomputed Gaunt coefficient table for l_max=4.
 """
 
 import math
@@ -33,7 +33,7 @@ from functools import cache
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -313,7 +313,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 
     sqrt2: float = math.sqrt(2.0)
 
-    def _real_to_complex_coeffs(ll: int, mm: int) -> list[Tuple[complex, int]]:
+    def _real_to_complex_coeffs(mm: int) -> List[Tuple[complex, int]]:
         r"""PRIVATE: Return real-to-complex expansion coefficients.
 
         The helper computes the unitary transformation coefficients
@@ -326,8 +326,6 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 
         Parameters
         ----------
-        ll : int
-            Angular momentum (unused in the formula but kept for clarity).
         mm : int
             Magnetic quantum number of the real harmonic.
 
@@ -337,7 +335,7 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
             List of ``(coefficient, mu)`` pairs.
         """
         if mm > 0:
-            coeffs: list[Tuple[complex, int]] = [
+            coeffs: List[Tuple[complex, int]] = [
                 (complex(1.0 / sqrt2), -mm),
                 (complex((-1) ** mm / sqrt2), mm),
             ]
@@ -351,10 +349,10 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
             ]
         return coeffs
 
-    dip_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(1, q)
+    dip_coeffs: List[Tuple[complex, int]] = _real_to_complex_coeffs(q)
 
-    init_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(l, m)
-    final_coeffs: list[Tuple[complex, int]] = _real_to_complex_coeffs(lp, mp)
+    init_coeffs: List[Tuple[complex, int]] = _real_to_complex_coeffs(m)
+    final_coeffs: List[Tuple[complex, int]] = _real_to_complex_coeffs(mp)
 
     total: complex = 0.0 + 0.0j
     for c_init, mu in init_coeffs:
@@ -376,7 +374,10 @@ def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
 @jaxtyped(typechecker=beartype)
 def build_gaunt_table(
     l_max: int = 4,
-) -> Float64[Array, "L_src M_src 3 L_dst M_dst"]:
+) -> Float64[
+    Array,
+    "n_l_initial n_m_initial 3 n_l_final n_m_final",
+]:
     r"""Build the dipole Gaunt coefficient lookup table.
 
     The function computes each nonzero real Gaunt coefficient through
@@ -409,7 +410,11 @@ def build_gaunt_table(
     --------------------
     1. **Allocate the dense coefficient table**::
 
-           table: Float64[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
+           table: Float64[
+               NDArray,
+               "n_l_initial n_m_initial n_dipole_component "
+               "n_l_final n_m_final",
+           ] = np.zeros(
                (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
                dtype=np.float64,
            )
@@ -418,8 +423,9 @@ def build_gaunt_table(
 
     2. **Convert the completed table to JAX**::
 
-           gaunt_table: Float64[
-               Array, "L_src M_src 3 L_dst M_dst"
+           result: Float64[
+               Array,
+               "n_l_initial n_m_initial 3 n_l_final n_m_final",
            ] = jnp.asarray(table, dtype=jnp.float64)
 
        The JAX constant can participate in differentiable forward models.
@@ -431,7 +437,7 @@ def build_gaunt_table(
 
     Returns
     -------
-    gaunt_table : Float64[Array, "..."]
+    result : Float64[Array, "n_l_initial n_m_initial 3 n_l_final n_m_final"]
         Dense array of Gaunt coefficients.
         Shape: ``(l_max+1, 2*l_max+1, 3, l_max+2, 2*(l_max+1)+1)``.
 
@@ -453,7 +459,10 @@ def build_gaunt_table(
     l_dst_dim: int = l_max + 2
     m_dst_dim: int = 2 * (l_max + 1) + 1
 
-    table: Float64[NDArray, "L1 M1 Q L2 M2"] = np.zeros(
+    table: Float64[
+        NDArray,
+        "n_l_initial n_m_initial n_dipole_component n_l_final n_m_final",
+    ] = np.zeros(
         (l_src_dim, m_src_dim, q_dim, l_dst_dim, m_dst_dim),
         dtype=np.float64,
     )
@@ -474,13 +483,17 @@ def build_gaunt_table(
                             mp + l_max + 1,
                         ] = val
 
-    gaunt_table: Float64[Array, "L_src M_src 3 L_dst M_dst"] = jnp.asarray(
-        table, dtype=jnp.float64
-    )
-    return gaunt_table
+    result: Float64[
+        Array,
+        "n_l_initial n_m_initial 3 n_l_final n_m_final",
+    ] = jnp.asarray(table, dtype=jnp.float64)
+    return result
 
 
-GAUNT_TABLE: Float64[Array, "..."] = build_gaunt_table(l_max=L_MAX)
+GAUNT_TABLE: Float64[
+    Array,
+    "n_l_initial n_m_initial 3 n_l_final n_m_final",
+] = build_gaunt_table(l_max=L_MAX)
 """Module-level precomputed Gaunt coefficient table for l_max=4."""
 
 
@@ -540,7 +553,7 @@ def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
 
 
 __all__: list[str] = [
-    "GAUNT_TABLE",
     "build_gaunt_table",
     "gaunt_lookup",
+    "GAUNT_TABLE",
 ]

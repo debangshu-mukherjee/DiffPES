@@ -1072,10 +1072,36 @@ pytest tests/ --cov=src/diffpes --cov-report=term-missing
 **Every tutorial is a Jupyter notebook (`.ipynb`).** The notebook is the
 canonical tutorial format because it is the most common format among
 scientists. Do not ship a tutorial as a plain script, a Markdown page, or
-another format. Tutorials pair Jupyter notebooks in `docs/source/tutorials/`
-with Jupytext percent scripts in `tutorials/`. This split lets Sphinx discover
-the `.ipynb` file and keeps source differences reviewable in the `.py` file.
-The `.py` script is a review aid, not a substitute for the notebook.
+another format.
+
+**The repository `tutorials/` directory is the canonical tutorial path.** It
+contains only the canonical `.ipynb` notebooks. It contains no `.py` scripts
+and no Markdown pages. The policy checker rejects a stray file in either
+category.
+
+**`docs/source/tutorials/` carries the rendered documentation surface.** For
+each canonical notebook, it holds one executed Markdown export with the code
+and its outputs, plus the export's `<name>_files/` image assets. It also
+holds the Markdown-only tutorial pages and the `index.md` toctree. It holds
+no `.ipynb` and no `.py` files. Regenerate an export after every notebook
+change:
+
+```bash
+.venv/bin/jupyter nbconvert --to markdown --execute \
+  --output-dir docs/source/tutorials tutorials/<name>.ipynb
+```
+
+**Canonical notebooks stay output-free; exports carry the outputs.** The
+pre-commit hooks strip execution counts and outputs from `tutorials/*.ipynb`.
+The executed outputs live only in the committed Markdown exports. The
+documentation CI verifies the canon with `tests/_tutorials.py`, regenerates
+every export, and rejects drift with `git diff --exit-code`. The strict
+Sphinx build then renders the exports as static pages.
+
+**Every new tutorial comes from the curated tutorial catalog in the planning
+repository.** Do not invent a tutorial outside that catalog; propose a
+catalog change there first.
+
 **Put explanations in Markdown cells, not code comments.** Put narrative,
 motivation, and physics in Markdown blocks. Keep code cells free of comments.
 Apply these ASD-STE100 rules to all Markdown cells.
@@ -1098,8 +1124,8 @@ label is acceptable; a physics function is not.
 Apply these structural rules to every notebook:
 
 - **Open with a descriptive title and a brief abstract.** The first Markdown
-  cell carries the title as a `#` header and one short paragraph that states
-  the core purpose: what the reader learns and what the notebook produces.
+  cell carries the title as a `#` header. One short paragraph states the core
+  purpose: what the reader learns and what the notebook produces.
 - **Define clear sections.** Group the analysis steps with Markdown headers
   (`#`, `##`, `###`). A reader must be able to navigate the notebook from
   its header outline alone.
@@ -1126,12 +1152,11 @@ Apply these structural rules to every notebook:
   preview. Do not let the reader run three cells blind before the first
   output.
 
-After editing either side, run `jupytext --sync` and keep notebook outputs
-empty. The pre-commit hooks synchronize pairs, strip outputs, and run
-`tests/_tutorials.py`. CI repeats that no-op check before the documentation
-build. MyST-NB executes notebooks in `cache` mode, stores results only under
-`docs/build/.jupyter_cache`, and treats every unexpected cell error as a hard
-failure.
+After editing a notebook, regenerate its Markdown export with the `nbconvert`
+command above and commit both files. The pre-commit hooks strip notebook
+outputs and run `tests/_tutorials.py`. The documentation CI repeats the
+check, re-executes every notebook during export regeneration, and treats an
+execution error or a stale export as a hard failure.
 
 ## Pull Request Process
 

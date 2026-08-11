@@ -8,26 +8,25 @@ uniform-grid Simpson quadrature, the inverse-Angstrom conversion seam, and
 the single partial-wave phase.
 """
 
-from collections.abc import Callable
-from typing import Any
-
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jaxtyping import Array
+from beartype import beartype
+from beartype.typing import Any, Callable, List
+from jaxtyping import Array, Complex128, Float64, TypeCheckError, jaxtyped
 
-from diffpes.radial.bessel import spherical_bessel_jl
-from diffpes.radial.integrate import (
+from diffpes.radial import (
     gauss_legendre_nodes,
     momentum_inv_ang_to_bohr_inv,
     radial_bvals,
     radial_integral,
     radial_integral_simpson,
+    spherical_bessel_jl,
 )
-from diffpes.types.radial_params import (
+from diffpes.types import (
     FinalStateSpec,
     OrbitalBasis,
     RadialQuadratureSpec,
@@ -39,22 +38,23 @@ from diffpes.types.radial_params import (
 )
 
 
+@jaxtyped(typechecker=beartype)
 def _exp_r3_transform(
-    decay: Array,
-    momentum: Array,
-) -> Array:
+    decay: Float64[Array, " ..."],
+    momentum: Float64[Array, " ..."],
+) -> Float64[Array, " ..."]:
     """PRIVATE: Return the analytic exponential r-cubed Bessel transform.
 
     Parameters
     ----------
-    decay : Array
+    decay : Float64[Array, " ..."]
         Exponential decay rate ``a`` in inverse Bohr.
-    momentum : Array
+    momentum : Float64[Array, " ..."]
         Final-state momentum ``k`` in inverse Bohr.
 
     Returns
     -------
-    values : Array
+    values : Float64[Array, " ..."]
         The closed form ``2 * (3*a**2 - k**2) / (a**2 + k**2)**3`` in
         Bohr**4.
 
@@ -64,8 +64,8 @@ def _exp_r3_transform(
     r**3`` over ``r`` from zero to infinity. The quadrature tests
     compare :func:`radial_integral` on a truncated grid against it.
     """
-    denominator: Array = decay * decay + momentum * momentum
-    values: Array = (
+    denominator: Float64[Array, " ..."] = decay * decay + momentum * momentum
+    values: Float64[Array, " ..."] = (
         2.0 * (3.0 * decay * decay - momentum * momentum) / denominator**3
     )
     return values
@@ -87,13 +87,13 @@ class TestGaussLegendreNodes:
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 12"]
+        weights: Float64[Array, " 12"]
         nodes, weights = gauss_legendre_nodes(12, 3.0)
         assert np.all(np.diff(np.asarray(nodes)) > 0.0)
         assert np.all(np.asarray(weights) > 0.0)
         power: int
-        numeric: Array
+        numeric: Float64[Array, ""]
         expected: float
         for power in range(12):
             numeric = jnp.sum(weights * nodes**power)
@@ -138,15 +138,15 @@ class TestRadialIntegral(chex.TestCase):
         The decay ``a=2`` makes the omitted tail beyond 30 Bohr less than
         ``2e-21`` relative, well below the stated numerical tolerance.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 256"]
+        weights: Float64[Array, " 256"]
         nodes, weights = gauss_legendre_nodes(256, 30.0)
-        decay: Array = jnp.asarray(2.0, dtype=jnp.float64)
-        momenta: Array = jnp.asarray(
+        decay: Float64[Array, ""] = jnp.asarray(2.0, dtype=jnp.float64)
+        momenta: Float64[Array, " 4"] = jnp.asarray(
             [0.0, 0.2, 0.8, 1.4],
             dtype=jnp.float64,
         )
-        radial: Array = jnp.exp(-decay * nodes)
+        radial: Float64[Array, " 256"] = jnp.exp(-decay * nodes)
         function: Callable[..., Any] = self.variant(
             lambda values: radial_integral(
                 values,
@@ -156,8 +156,8 @@ class TestRadialIntegral(chex.TestCase):
                 0,
             )
         )
-        actual: Array = jnp.real(function(momenta))
-        expected: Array = _exp_r3_transform(decay, momenta)
+        actual: Float64[Array, " 4"] = jnp.real(function(momenta))
+        expected: Float64[Array, " 4"] = _exp_r3_transform(decay, momenta)
         chex.assert_trees_all_close(
             actual,
             expected,
@@ -175,14 +175,34 @@ class TestRadialIntegral(chex.TestCase):
         The test calls the production public integral rather than a private
         integrand or an r-squared surrogate.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 384"]
+        weights: Float64[Array, " 384"]
         nodes, weights = gauss_legendre_nodes(384, 30.0)
-        decay: Array = jnp.asarray(2.0, dtype=jnp.float64)
-        momentum: Array = jnp.asarray(0.7, dtype=jnp.float64)
+        decay: Float64[Array, ""] = jnp.asarray(2.0, dtype=jnp.float64)
+        momentum: Float64[Array, ""] = jnp.asarray(0.7, dtype=jnp.float64)
 
-        def objective_decay(value: Array) -> Array:
-            return jnp.real(
+        @jaxtyped(typechecker=beartype)
+        def _objective_decay(
+            value: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate the real integral for one decay constant.
+
+            Parameters
+            ----------
+            value : Float64[Array, ""]
+                Exponential decay constant in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Real s-wave radial integral.
+
+            Notes
+            -----
+            Holds the momentum and quadrature fixed while varying the
+            exponential samples.
+            """
+            result: Float64[Array, ""] = jnp.real(
                 radial_integral(
                     momentum,
                     nodes,
@@ -191,9 +211,30 @@ class TestRadialIntegral(chex.TestCase):
                     0,
                 )
             )
+            return result
 
-        def objective_momentum(value: Array) -> Array:
-            return jnp.real(
+        @jaxtyped(typechecker=beartype)
+        def _objective_momentum(
+            value: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate the real integral for one momentum.
+
+            Parameters
+            ----------
+            value : Float64[Array, ""]
+                Momentum in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Real s-wave radial integral.
+
+            Notes
+            -----
+            Holds the decay constant and quadrature fixed while varying the
+            Bessel-function argument.
+            """
+            result: Float64[Array, ""] = jnp.real(
                 radial_integral(
                     value,
                     nodes,
@@ -202,28 +243,29 @@ class TestRadialIntegral(chex.TestCase):
                     0,
                 )
             )
+            return result
 
-        denominator: Array = decay * decay + momentum * momentum
-        expected_decay: Array = (
+        denominator: Float64[Array, ""] = decay * decay + momentum * momentum
+        expected_decay: Float64[Array, ""] = (
             24.0
             * decay
             * (momentum * momentum - decay * decay)
             / denominator**4
         )
-        expected_momentum: Array = (
+        expected_momentum: Float64[Array, ""] = (
             8.0
             * momentum
             * (momentum * momentum - 5.0 * decay * decay)
             / denominator**4
         )
         chex.assert_trees_all_close(
-            jax.grad(objective_decay)(decay),
+            jax.grad(_objective_decay)(decay),
             expected_decay,
             rtol=1.0e-10,
             atol=1.0e-12,
         )
         chex.assert_trees_all_close(
-            jax.grad(objective_momentum)(momentum),
+            jax.grad(_objective_momentum)(momentum),
             expected_momentum,
             rtol=1.0e-10,
             atol=1.0e-12,
@@ -239,11 +281,13 @@ class TestRadialIntegral(chex.TestCase):
         This is a quadrature-only convergence check.  The separately
         registered production envelope owns its missing-tail certification.
         """
-        momentum: Array = jnp.linspace(0.0, 4.0, 41, dtype=jnp.float64)
-        values: list[Array] = []
+        momentum: Float64[Array, " 41"] = jnp.linspace(
+            0.0, 4.0, 41, dtype=jnp.float64
+        )
+        values: List[Complex128[Array, " 41"]] = []
         n_nodes: int
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " n_node"]
+        weights: Float64[Array, " n_node"]
         for n_nodes in (256, 512):
             nodes, weights = gauss_legendre_nodes(n_nodes, 30.0)
             values.append(
@@ -272,16 +316,16 @@ class TestRadialIntegral(chex.TestCase):
         A direct real quadrature supplies the independent magnitude.  The
         public result must equal that magnitude times exactly one phase.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 256"]
+        weights: Float64[Array, " 256"]
         nodes, weights = gauss_legendre_nodes(256, 30.0)
-        momentum: Array = jnp.asarray(0.7, dtype=jnp.float64)
-        radial: Array = jnp.exp(-2.0 * nodes)
+        momentum: Float64[Array, ""] = jnp.asarray(0.7, dtype=jnp.float64)
+        radial: Float64[Array, " 256"] = jnp.exp(-2.0 * nodes)
         order: int
-        kr: Array
-        real_reference: Array
-        actual: Array
-        expected: Array
+        kr: Float64[Array, " 256"]
+        real_reference: Float64[Array, ""]
+        actual: Complex128[Array, ""]
+        expected: Complex128[Array, ""]
         for order in range(5):
             kr = momentum * nodes
             real_reference = jnp.sum(
@@ -310,16 +354,18 @@ class TestRadialIntegral(chex.TestCase):
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 128"]
+        weights: Float64[Array, " 128"]
         nodes, weights = gauss_legendre_nodes(128, 20.0)
-        momenta: Array = jnp.asarray(
+        momenta: Float64[Array, " 3"] = jnp.asarray(
             [0.1, 0.5, 1.3],
             dtype=jnp.float64,
         )
-        radial: Array = jnp.exp(-1.5 * nodes)
-        batched: Array = radial_integral(momenta, nodes, weights, radial, 1)
-        mapped: Array = jax.vmap(
+        radial: Float64[Array, " 128"] = jnp.exp(-1.5 * nodes)
+        batched: Complex128[Array, " 3"] = radial_integral(
+            momenta, nodes, weights, radial, 1
+        )
+        mapped: Complex128[Array, " 3"] = jax.vmap(
             lambda value: radial_integral(value, nodes, weights, radial, 1)
         )(momenta)
         chex.assert_trees_all_close(batched, mapped, atol=1.0e-14)
@@ -341,14 +387,14 @@ class TestRadialIntegralSimpson:
         At zero momentum and order zero, a constant radial row leaves the
         exact integral of r cubed on [0,2], which equals four.
         """
-        radial_grid: Array = jnp.linspace(
+        radial_grid: Float64[Array, " 101"] = jnp.linspace(
             0.0,
             2.0,
             101,
             dtype=jnp.float64,
         )
-        radial: Array = jnp.ones_like(radial_grid)
-        actual: Array = radial_integral_simpson(
+        radial: Float64[Array, " 101"] = jnp.ones_like(radial_grid)
+        actual: Complex128[Array, ""] = radial_integral_simpson(
             jnp.asarray(0.0),
             radial_grid,
             radial,
@@ -371,7 +417,7 @@ class TestRadialIntegralSimpson:
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        even_grid: Array = jnp.linspace(
+        even_grid: Float64[Array, " 100"] = jnp.linspace(
             0.0,
             2.0,
             100,
@@ -384,8 +430,13 @@ class TestRadialIntegralSimpson:
                 jnp.ones_like(even_grid),
                 0,
             )
-        nonuniform: Array = jnp.asarray([0.0, 0.2, 0.5, 1.0, 2.0])
-        with pytest.raises(Exception, match="uniform"):
+        nonuniform: Float64[Array, " 5"] = jnp.asarray(
+            [0.0, 0.2, 0.5, 1.0, 2.0]
+        )
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="uniform",
+        ):
             radial_integral_simpson(
                 jnp.asarray(0.5),
                 nonuniform,
@@ -411,11 +462,13 @@ class TestMomentumInvAngToBohrInv:
         reference.  The reciprocal conversion is a deliberately planted
         failure.
         """
-        momentum_ang: Array = jnp.asarray(2.3, dtype=jnp.float64)
-        converted: Array = momentum_inv_ang_to_bohr_inv(momentum_ang)
-        expected: Array = momentum_ang * 0.529177210903
+        momentum_ang: Float64[Array, ""] = jnp.asarray(2.3, dtype=jnp.float64)
+        converted: Float64[Array, ""] = momentum_inv_ang_to_bohr_inv(
+            momentum_ang
+        )
+        expected: Float64[Array, ""] = momentum_ang * 0.529177210903
         chex.assert_trees_all_close(converted, expected, atol=0.0, rtol=0.0)
-        reciprocal: Array = momentum_ang / 0.529177210903
+        reciprocal: Float64[Array, ""] = momentum_ang / 0.529177210903
         assert not bool(jnp.isclose(converted, reciprocal, rtol=1.0e-6))
 
 
@@ -449,16 +502,18 @@ class TestRadialBvals:
                 [[0.0, 2.0], [3.0, 4.0]], dtype=jnp.float64
             ),
         )
-        values: Array = radial_bvals(
+        values: Complex128[Array, "2 2 2"] = radial_bvals(
             spec,
             jnp.asarray([0.2, 1.1], dtype=jnp.float64),
             make_radial_quadrature_spec(),
             make_final_state_spec(),
         )
-        expected_orbitals: Array = jnp.asarray(
+        expected_orbitals: Complex128[Array, "2 2"] = jnp.asarray(
             [[0.0 + 0.0j, 0.0 + 1.0j], [0.6 + 0.0j, -0.8 + 0.0j]]
         )
-        expected: Array = jnp.broadcast_to(expected_orbitals, (2, 2, 2))
+        expected: Complex128[Array, "2 2 2"] = jnp.broadcast_to(
+            expected_orbitals, (2, 2, 2)
+        )
         chex.assert_trees_all_close(values, expected, atol=1.0e-14)
 
     def test_normalized_slater_s_to_p_matches_closed_form(self) -> None:
@@ -477,25 +532,27 @@ class TestRadialBvals:
             l=(0,),
             m=(0,),
         )
-        zeta: Array = jnp.asarray([[1.0]], dtype=jnp.float64)
+        zeta: Float64[Array, "1 1"] = jnp.asarray([[1.0]], dtype=jnp.float64)
         spec: RadialSpec = make_radial_spec(
             basis,
             (0,),
             mode="slater",
             zeta_shell=zeta,
         )
-        momenta: Array = jnp.asarray(
+        momenta: Float64[Array, " 3"] = jnp.asarray(
             [0.1, 0.7, 1.4],
             dtype=jnp.float64,
         )
-        values: Array = radial_bvals(
+        values: Complex128[Array, "3 1 2"] = radial_bvals(
             spec,
             momenta,
             make_radial_quadrature_spec(),
             make_final_state_spec(),
         )
-        normalization: Array = (2.0 * zeta[0, 0]) ** 1.5 / jnp.sqrt(2.0)
-        expected_upper: Array = (
+        normalization: Float64[Array, ""] = (
+            2.0 * zeta[0, 0]
+        ) ** 1.5 / jnp.sqrt(2.0)
+        expected_upper: Complex128[Array, " 3"] = (
             1j
             * normalization
             * 8.0
@@ -536,44 +593,87 @@ class TestRadialBvals:
         )
         quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
         final_state: FinalStateSpec = make_final_state_spec()
-        momentum: Array = jnp.asarray(0.9, dtype=jnp.float64)
+        momentum: Float64[Array, ""] = jnp.asarray(0.9, dtype=jnp.float64)
 
-        def with_zeta(value: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _with_zeta(
+            value: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate one radial row with a varied exponent.
+
+            Parameters
+            ----------
+            value : Float64[Array, ""]
+                First Slater exponent in inverse Bohr.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Real lower-channel radial value.
+
+            Notes
+            -----
+            Replaces only the first exponent in the closed-over radial
+            specification.
+            """
             candidate: RadialSpec = eqx.tree_at(
                 lambda item: item.zeta_shell,
                 base,
                 base.zeta_shell.at[0, 0].set(value),
             )
-            return jnp.real(
+            result: Float64[Array, ""] = jnp.real(
                 radial_bvals(candidate, momentum, quadrature, final_state)[
                     0, 0
                 ]
             )
+            return result
 
-        def with_scale(value: Array) -> Array:
+        @jaxtyped(typechecker=beartype)
+        def _with_scale(
+            value: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate one radial row after coefficient scaling.
+
+            Parameters
+            ----------
+            value : Float64[Array, ""]
+                Common dimensionless coefficient scale.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Real lower-channel radial value.
+
+            Notes
+            -----
+            Multiplies every contraction coefficient by the same scale.
+            """
             candidate: RadialSpec = eqx.tree_at(
                 lambda item: item.coefficients_shell,
                 base,
                 value * base.coefficients_shell,
             )
-            return jnp.real(
+            result: Float64[Array, ""] = jnp.real(
                 radial_bvals(candidate, momentum, quadrature, final_state)[
                     0, 0
                 ]
             )
+            return result
 
-        zeta_gradient: Array = jax.grad(with_zeta)(base.zeta_shell[0, 0])
-        epsilon: Array = jnp.asarray(2.0e-5)
-        zeta_fd: Array = (
-            with_zeta(base.zeta_shell[0, 0] + epsilon)
-            - with_zeta(base.zeta_shell[0, 0] - epsilon)
+        zeta_gradient: Float64[Array, ""] = jax.grad(_with_zeta)(
+            base.zeta_shell[0, 0]
+        )
+        epsilon: Float64[Array, ""] = jnp.asarray(2.0e-5)
+        zeta_fd: Float64[Array, ""] = (
+            _with_zeta(base.zeta_shell[0, 0] + epsilon)
+            - _with_zeta(base.zeta_shell[0, 0] - epsilon)
         ) / (2.0 * epsilon)
         chex.assert_trees_all_close(
             zeta_gradient, zeta_fd, rtol=2.0e-6, atol=2.0e-8
         )
         assert bool(jnp.abs(zeta_gradient) > 1.0e-6)
         chex.assert_trees_all_close(
-            jax.grad(with_scale)(jnp.asarray(1.0)),
+            jax.grad(_with_scale)(jnp.asarray(1.0)),
             0.0,
             atol=2.0e-12,
         )
@@ -609,31 +709,55 @@ class TestRadialBvals:
             "gl2048-r120-k4-l9-reference-v1"
         )
         final_state: FinalStateSpec = make_final_state_spec()
-        momenta: Array = jnp.asarray(
+        momenta: Float64[Array, " 4"] = jnp.asarray(
             [0.0, 0.4, 1.7, 4.0],
             dtype=jnp.float64,
         )
 
-        def evaluated(
-            exponent: Array,
+        @jaxtyped(typechecker=beartype)
+        def _evaluated(
+            exponent: Float64[Array, ""],
             quadrature: RadialQuadratureSpec,
-        ) -> Array:
+        ) -> Complex128[Array, "4 1 2"]:
+            """PRIVATE: Evaluate the registered radial profile.
+
+            Parameters
+            ----------
+            exponent : Float64[Array, ""]
+                Slater exponent in inverse Bohr.
+            quadrature : RadialQuadratureSpec
+                Fixed quadrature calibration to evaluate.
+
+            Returns
+            -------
+            result : Complex128[Array, "4 1 2"]
+                Radial channels for four momenta and one orbital.
+
+            Notes
+            -----
+            Replaces the sole exponent before calling the public assembler.
+            """
             candidate: RadialSpec = eqx.tree_at(
                 lambda item: item.zeta_shell,
                 base,
                 base.zeta_shell.at[0, 0].set(exponent),
             )
-            return radial_bvals(
+            result: Complex128[Array, "4 1 2"] = radial_bvals(
                 candidate,
                 momenta,
                 quadrature,
                 final_state,
             )
+            return result
 
-        exponent: Array = base.zeta_shell[0, 0]
-        production_values: Array = evaluated(exponent, production)
-        reference_values: Array = evaluated(exponent, reference)
-        value_scale: Array = jnp.maximum(
+        exponent: Float64[Array, ""] = base.zeta_shell[0, 0]
+        production_values: Complex128[Array, "4 1 2"] = _evaluated(
+            exponent, production
+        )
+        reference_values: Complex128[Array, "4 1 2"] = _evaluated(
+            exponent, reference
+        )
+        value_scale: Float64[Array, ""] = jnp.maximum(
             1.0,
             jnp.max(jnp.abs(reference_values)),
         )
@@ -642,22 +766,50 @@ class TestRadialBvals:
             <= production.value_rtol * value_scale
         )
 
-        def scalar_objective(
-            exponent: Array,
+        @jaxtyped(typechecker=beartype)
+        def _scalar_objective(
+            exponent: Float64[Array, ""],
             quadrature: RadialQuadratureSpec,
-        ) -> Array:
-            values: Array = evaluated(exponent, quadrature)
-            return jnp.sum(jnp.real(values) ** 2 + jnp.imag(values) ** 2)
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Sum squared radial-channel magnitudes.
 
-        production_gradient: Array = jax.grad(scalar_objective, argnums=0)(
+            Parameters
+            ----------
+            exponent : Float64[Array, ""]
+                Slater exponent in inverse Bohr.
+            quadrature : RadialQuadratureSpec
+                Fixed quadrature calibration to evaluate.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Sum of squared complex radial-channel magnitudes.
+
+            Notes
+            -----
+            Reduces every momentum, orbital, and branch component.
+            """
+            values: Complex128[Array, "4 1 2"] = _evaluated(
+                exponent, quadrature
+            )
+            result: Float64[Array, ""] = jnp.sum(
+                jnp.real(values) ** 2 + jnp.imag(values) ** 2
+            )
+            return result
+
+        production_gradient: Float64[Array, ""] = jax.grad(
+            _scalar_objective, argnums=0
+        )(
             exponent,
             production,
         )
-        reference_gradient: Array = jax.grad(scalar_objective, argnums=0)(
+        reference_gradient: Float64[Array, ""] = jax.grad(
+            _scalar_objective, argnums=0
+        )(
             exponent,
             reference,
         )
-        gradient_scale: Array = jnp.maximum(
+        gradient_scale: Float64[Array, ""] = jnp.maximum(
             1.0,
             jnp.abs(reference_gradient),
         )
@@ -683,13 +835,15 @@ class TestRadialBvals:
             l=(0,),
             m=(0,),
         )
-        radial_grid: Array = jnp.linspace(
+        radial_grid: Float64[Array, " 1001"] = jnp.linspace(
             0.0,
             20.0,
             1001,
             dtype=jnp.float64,
         )
-        raw_values: Array = jnp.exp(-radial_grid).at[-1].set(0.0)
+        raw_values: Float64[Array, " 1001"] = (
+            jnp.exp(-radial_grid).at[-1].set(0.0)
+        )
         spec: RadialSpec = make_radial_spec(
             basis,
             (0,),
@@ -697,16 +851,16 @@ class TestRadialBvals:
             r_grid=radial_grid,
             grid_values_shell=raw_values[None, :],
         )
-        momentum: Array = jnp.asarray(0.8, dtype=jnp.float64)
-        actual: Array = radial_bvals(
+        momentum: Float64[Array, ""] = jnp.asarray(0.8, dtype=jnp.float64)
+        actual: Complex128[Array, ""] = radial_bvals(
             spec,
             momentum,
             make_radial_quadrature_spec(),
             make_final_state_spec(),
         )[0, 1]
-        stored: Array | None = spec.grid_values_shell
+        stored: Float64[Array, "n_shell n_r"] | None = spec.grid_values_shell
         assert stored is not None
-        expected: Array = radial_integral_simpson(
+        expected: Complex128[Array, ""] = radial_integral_simpson(
             momentum,
             radial_grid,
             stored[0],
@@ -724,7 +878,7 @@ class TestRadialBvals:
         Notes
         -----
         Direct Coulomb evaluation is a distinct complex path. The failed
-        frozen convergence gate makes Hermite acceleration unavailable.
+        fixed convergence check makes Hermite acceleration unavailable.
         """
         basis: OrbitalBasis = make_orbital_basis(
             atom_indices=(0,),
@@ -734,14 +888,17 @@ class TestRadialBvals:
         )
         spec: RadialSpec = make_radial_spec(basis, (0,), mode="slater")
         quadrature: RadialQuadratureSpec = make_radial_quadrature_spec()
-        with pytest.raises(Exception, match="certified quadrature domain"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="certified quadrature domain",
+        ):
             radial_bvals(
                 spec,
                 jnp.asarray(4.01),
                 quadrature,
                 make_final_state_spec(),
             )
-        coulomb_values: Array = radial_bvals(
+        coulomb_values: Complex128[Array, "1 2"] = radial_bvals(
             spec,
             jnp.asarray(1.0),
             quadrature,
@@ -771,8 +928,8 @@ class TestRadialIntegrateErrors:
         The test builds the inputs in the test body and checks the stated
         property with the documented numerical or structural assertions.
         """
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 8"]
+        weights: Float64[Array, " 8"]
         nodes, weights = gauss_legendre_nodes(8, 3.0)
         with pytest.raises(ValueError, match="non-negative"):
             radial_integral(
@@ -782,7 +939,7 @@ class TestRadialIntegrateErrors:
                 jnp.ones_like(nodes),
                 -1,
             )
-        with pytest.raises(Exception, match="weights_bohr"):
+        with pytest.raises(TypeCheckError, match="weights_bohr"):
             radial_integral(
                 jnp.asarray(1.0),
                 nodes,

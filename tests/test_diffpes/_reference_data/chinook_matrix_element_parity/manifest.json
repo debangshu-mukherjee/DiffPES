@@ -11,7 +11,7 @@
   "diffpes_baseline_commit": "303c1d891c9576ccaacaa0f1e08e581a11b1ea30",
   "generator": "run_chinook.py",
   "model_specification": "model_spec.json",
-  "model_specification_sha256": "c1e6679986e8812313f4c75b9b28daa67e82c69c5707a104d4d744e69bf9c439",
+  "model_specification_sha256": "209f1857a5c6816502e00d415482833d9ef6d90e3e583925d485a657137fd559",
   "archive": "chinook_reference.npz",
   "archive_sha256": "9e857413fce56a3d4af45e88b040a0b85d9af0b445f240f53cb7b1de19365cb1",
   "environment_sha256": "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531",

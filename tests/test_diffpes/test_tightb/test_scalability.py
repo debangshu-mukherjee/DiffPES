@@ -2,7 +2,9 @@ r"""Validate tight-binding differentiation and scalability properties.
 
 Extended Summary
 ----------------
-This module supplies bounded CI evidence for holomorphic-phase-gradient, hamiltonian-compile-bounded, diagonalization-shapes-bounded, and eigvalsh-reverse-mode-bounded. It
+This module supplies bounded CI evidence for holomorphic-phase-gradient,
+hamiltonian-compile-bounded, diagonalization-shapes-bounded, and
+eigvalsh-reverse-mode-bounded. It
 checks hopping-count-independent Bloch JAXPRs and one trace per static shape.
 It also runs bounded diagonalization and reverse-mode cases. Shape analysis
 derives the production memory floor without large allocations.
@@ -12,7 +14,8 @@ Notes
 The production Hamiltonian scaling output has shape ``(10000, 64, 64)`` and
 therefore contains 625 MiB of complex128 data. Tests use
 :func:`jax.eval_shape` for that case and execute smaller arrays in CI to avoid
-an intentional out-of-memory hazard. The reverse-mode check compares compiler temporary memory
+an intentional out-of-memory hazard. The reverse-mode check compares compiler
+temporary memory
 across two batch sizes. This comparison detects superlinear reverse-tape
 growth without fragile timing limits.
 """
@@ -23,14 +26,15 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Tuple
+from beartype.typing import Any, Callable, List, Tuple
 from jax.extend.core import ClosedJaxpr, Jaxpr, Literal
 from jaxtyping import Array, Complex128, Float64
 
-from diffpes.tightb.diagonalize import diagonalize_tb, eigvalsh_bands
-from diffpes.tightb.hamiltonian import (
+from diffpes.tightb import (
     bloch_hamiltonian,
     bloch_hamiltonian_batch,
+    diagonalize_tb,
+    eigvalsh_bands,
 )
 from diffpes.types import (
     CrystalGeometry,
@@ -62,7 +66,7 @@ def _one_atom_basis(n_orbitals: int) -> Tuple[CrystalGeometry, OrbitalBasis]:
 
     Returns
     -------
-    geometry_and_basis : tuple[CrystalGeometry, OrbitalBasis]
+    geometry_and_basis : Tuple[CrystalGeometry, OrbitalBasis]
         A one-site cubic geometry in Angstrom and the matching all-s
         basis labeled ``s_0`` to ``s_{n_orbitals - 1}``.
 
@@ -83,7 +87,8 @@ def _one_atom_basis(n_orbitals: int) -> Tuple[CrystalGeometry, OrbitalBasis]:
         m=(0,) * n_orbitals,
         labels=tuple(f"s_{index}" for index in range(n_orbitals)),
     )
-    return geometry, basis
+    result: Tuple[CrystalGeometry, OrbitalBasis] = (geometry, basis)
+    return result
 
 
 def _make_hopping_count_model(n_hoppings: int) -> TBModel:
@@ -264,25 +269,31 @@ def _count_jaxpr_equations(value: object) -> int:
     and dictionaries. Counting nested bodies as well as top-level
     equations catches unrolling hidden behind call primitives.
     """
+    count: int
     if isinstance(value, ClosedJaxpr):
-        return _count_jaxpr_equations(value.jaxpr)
+        count = _count_jaxpr_equations(value.jaxpr)
+        return count
     if isinstance(value, Jaxpr):
         nested: int = sum(
             _count_jaxpr_equations(parameter)
             for equation in value.eqns
             for parameter in equation.params.values()
         )
-        return len(value.eqns) + nested
+        count = len(value.eqns) + nested
+        return count
     if isinstance(value, (tuple, list)):
-        return sum(_count_jaxpr_equations(item) for item in value)
+        count = sum(_count_jaxpr_equations(item) for item in value)
+        return count
     if isinstance(value, dict):
-        return sum(_count_jaxpr_equations(item) for item in value.values())
-    return 0
+        count = sum(_count_jaxpr_equations(item) for item in value.values())
+        return count
+    count = 0
+    return count
 
 
 def _collect_jaxpr_shapes(
     value: object,
-    shapes: list[Tuple[int, ...]],
+    shapes: List[Tuple[int, ...]],
 ) -> None:
     """PRIVATE: Collect every shaped array variable from nested JAXPRs.
 
@@ -291,7 +302,7 @@ def _collect_jaxpr_shapes(
     value : object
         A ``ClosedJaxpr``, ``Jaxpr``, container, or any other object
         found inside JAXPR equation parameters.
-    shapes : list[tuple[int, ...]]
+    shapes : List[Tuple[int, ...]]
         Mutable accumulator that receives one shape tuple per shaped
         variable.
 
@@ -307,7 +318,7 @@ def _collect_jaxpr_shapes(
         _collect_jaxpr_shapes(value.jaxpr, shapes)
         return
     if isinstance(value, Jaxpr):
-        variables: list[object] = [
+        variables: List[object] = [
             *value.constvars,
             *value.invars,
             *value.outvars,
@@ -384,7 +395,11 @@ def hopping_sweep_models() -> Tuple[TBModel, ...]:
 
 
 class TestBlochAssemblyScalability:
-    """Validate the no-unroll and compile-count requirements of hamiltonian-compile-bounded."""
+    """Validate bounded Bloch-assembly compilation.
+
+    The cases count JAX operations and traces across static hopping-size
+    changes.
+    """
 
     def test_jaxpr_op_count_is_constant_across_hopping_sweep(
         self,
@@ -404,7 +419,7 @@ class TestBlochAssemblyScalability:
             [0.17, -0.08, 0.03],
             dtype=jnp.float64,
         )
-        counts: list[int] = []
+        counts: List[int] = []
         model: TBModel
         for model in hopping_sweep_models:
             jaxpr: ClosedJaxpr = jax.make_jaxpr(bloch_hamiltonian)(
@@ -430,7 +445,7 @@ class TestBlochAssemblyScalability:
         -----
         Count Python traces after each original and modified model call.
         """
-        trace_count: list[int] = [0]
+        trace_count: List[int] = [0]
 
         def counted(
             model: TBModel,
@@ -464,7 +479,11 @@ class TestBlochAssemblyScalability:
 
 
 class TestBatchScalability:
-    """Validate static shapes and bounded execution for diagonalization-shapes-bounded."""
+    """Validate static shapes and bounded diagonalization execution.
+
+    The cases derive production memory bounds and execute a
+    continuous-integration-sized diagonalization.
+    """
 
     def test_production_shapes_and_memory_are_derived_without_allocation(
         self,
@@ -633,7 +652,11 @@ class TestBatchScalability:
 
 
 class TestEigenvalueReverseScalability:
-    """Validate the bounded reverse-mode eigvalsh path of eigvalsh-reverse-mode-bounded."""
+    """Validate bounded reverse-mode eigvalsh execution.
+
+    The case executes reverse-mode eigenvalue differentiation and checks linear
+    batch-memory scaling.
+    """
 
     def test_reverse_mode_executes_with_linear_batch_memory(self) -> None:
         """Reject a superlinear tape while matching an analytic gradient.
@@ -724,14 +747,18 @@ class TestEigenvalueReverseScalability:
             initial,
             large_kpoints,
         )
-        shapes: list[Tuple[int, ...]] = []
+        shapes: List[Tuple[int, ...]] = []
         _collect_jaxpr_shapes(reverse_jaxpr, shapes)
         largest_array: int = max(math.prod(shape) for shape in shapes)
         assert largest_array <= large_n_k * n_orbitals**2
 
 
 class TestBlochPhaseDifferentiability:
-    """Validate the holomorphic phase sub-block required by holomorphic-phase-gradient."""
+    """Validate the holomorphic Bloch-phase sub-block.
+
+    The case compares a Bloch-phase directional derivative with a complex-step
+    reference.
+    """
 
     def test_phase_direction_matches_complex_step_at_machine_precision(
         self,
@@ -762,8 +789,8 @@ class TestBlochPhaseDifferentiability:
             dtype=jnp.float64,
         )
 
-        def phase_channels(step: Array) -> Array:
-            angle: Array = (
+        def phase_channels(step: Float64[Array, ""]) -> Float64[Array, " 2"]:
+            angle: Float64[Array, ""] = (
                 2.0
                 * jnp.pi
                 * jnp.dot(
@@ -771,7 +798,9 @@ class TestBlochPhaseDifferentiability:
                     displacement + step * direction,
                 )
             )
-            channels: Array = jnp.stack((jnp.cos(angle), jnp.sin(angle)))
+            channels: Float64[Array, " 2"] = jnp.stack(
+                (jnp.cos(angle), jnp.sin(angle))
+            )
             return channels
 
         origin: Float64[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
@@ -802,9 +831,12 @@ class TestBlochPhaseDifferentiability:
         )
         expected: Complex128[Array, ""] = 1j * angle_rate * phase
 
-        def complex_phase(step: Array) -> Array:
-            shifted: Array = displacement + step * direction
-            return jnp.exp(2j * jnp.pi * jnp.dot(kpoint, shifted))
+        def complex_phase(step: Float64[Array, ""]) -> Complex128[Array, ""]:
+            shifted: Float64[Array, " 3"] = displacement + step * direction
+            result: Complex128[Array, ""] = jnp.exp(
+                2j * jnp.pi * jnp.dot(kpoint, shifted)
+            )
+            return result
 
         _: Complex128[Array, ""]
         jvp: Complex128[Array, ""]
@@ -813,7 +845,7 @@ class TestBlochPhaseDifferentiability:
             (origin,),
             (jnp.ones_like(origin),),
         )
-        baseline_channels: Array = phase_channels(origin)
+        baseline_channels: Float64[Array, " 2"] = phase_channels(origin)
         assert jnp.allclose(
             phase,
             baseline_channels[0] + 1j * baseline_channels[1],

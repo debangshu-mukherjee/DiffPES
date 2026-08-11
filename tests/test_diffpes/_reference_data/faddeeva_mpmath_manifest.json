@@ -1,6 +1,7 @@
 {
   "archive": "faddeeva_mpmath_100digit_reference.npz",
   "archive_sha256": "05cf92701a103af7f7cadd6865398ba49154e6ad9c0294376e59e0e8da29fd89",
+  "authority_status": "algorithm-selected-before-production-edit",
   "componentwise_value_bound": {
     "absolute": 2e-15,
     "relative_to_same_component": 2e-12
@@ -18,7 +19,7 @@
   "environment": {
     "mpmath": "1.4.1",
     "numpy": "2.4.2",
-    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35"
+    "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35"
   },
   "explicit_points": [
     "2.5",
@@ -27,12 +28,8 @@
     "1e8",
     "1e8j"
   ],
-  "gates": [
-    "faddeeva-mpmath-reference",
-    "spectral-broadening-gradient"
-  ],
   "generator": "tests/_reference_tools/generate_faddeeva_mpmath_reference.py",
-  "generator_sha256": "a209519ca90e89d0e8e7c74495adbd121cb1c73d9a567178233a8113ec68e41d",
+  "generator_sha256": "dd4b839b0ec61aabb43b0e563c0ee13b7b965655b9882b784098e568e36f9fdb",
   "grid": {
     "angles": "linspace(0,pi,33)",
     "radii": "{0} union 10**linspace(-12,8,161)"
@@ -42,6 +39,10 @@
     "formula": "exp(-z*z)*erfc(-1j*z)",
     "name": "mpmath"
   },
+  "requirements": [
+    "faddeeva-mpmath-reference",
+    "spectral-broadening-gradient"
+  ],
   "schema": "diffpes.faddeeva-mpmath-reference.v1",
   "seams": [],
   "selected_algorithm": {
@@ -51,6 +52,5 @@
     "seam_count": 0,
     "selection_max_derivative_budget_ratio": 0.00045632,
     "selection_max_value_budget_ratio": 0.022956
-  },
-  "stage": "algorithm-selected-before-production-edit"
+  }
 }

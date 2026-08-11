@@ -8,24 +8,24 @@ matrix element pipeline.
 
 Routine Listings
 ----------------
-:class:`OrbitalBasis`
-    Store orbital quantum-number metadata in a JAX PyTree.
 :class:`FinalStateSpec`
     Store a certified radial final-state selection.
 :class:`MatrixElementParams`
     Store shell-shared matrix-element scales and channel phases.
+:class:`OrbitalBasis`
+    Store orbital quantum-number metadata in a JAX PyTree.
 :class:`RadialQuadratureSpec`
     Store one immutable certified radial-quadrature profile.
 :class:`RadialSpec`
     Store shell-shared radial-wavefunction parameters.
 :class:`SlaterKosterParams`
     Store differentiable Slater--Koster two-center integrals.
-:func:`make_orbital_basis`
-    Create a validated ``OrbitalBasis`` instance.
 :func:`make_final_state_spec`
     Create a validated radial final-state selection.
 :func:`make_matrix_element_params`
     Create validated shell-shared matrix-element parameters.
+:func:`make_orbital_basis`
+    Create a validated ``OrbitalBasis`` instance.
 :func:`make_radial_quadrature_spec`
     Select one immutable certified quadrature profile.
 :func:`make_radial_spec`
@@ -47,7 +47,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Dict, Optional, Tuple
+from beartype.typing import Dict, List, Optional, Tuple
 from jaxtyping import Array, Float, Float64, jaxtyped
 
 _ARRAY_MATRIX_NDIM: int = 2
@@ -166,7 +166,7 @@ def _matrixel_phase_channel_keys(
     and always emit ``(shell, l + 1)``, following the dipole selection
     rule ``l_prime = l +- 1``.
     """
-    keys: list[Tuple[int, int]] = []
+    keys: List[Tuple[int, int]] = []
     shell_index: int
     orbital_index: int
     for shell_index, orbital_index in enumerate(
@@ -633,6 +633,10 @@ class RadialSpec(eqx.Module):
     -----
     Evaluation normalizes every non-fixed shell. The factory normalizes fixed
     rows at construction and excludes radial phases.
+
+    See Also
+    --------
+    make_radial_spec : Validated factory for this type.
     """
 
     zeta_shell: Float64[Array, "n_shell n_contraction"]
@@ -690,6 +694,10 @@ class MatrixElementParams(eqx.Module):
         Orbital-to-shell map (**static**).
     basis : OrbitalBasis
         Orbital metadata (**static**).
+
+    See Also
+    --------
+    make_matrix_element_params : Validated factory for this type.
     """
 
     sigma_shell: Float64[Array, " n_shell"]
@@ -759,6 +767,10 @@ class RadialQuadratureSpec(eqx.Module):
         Minimum certified exponential decay in inverse Bohr (**static**).
     max_decay_parameter : float
         Maximum certified exponential decay in inverse Bohr (**static**).
+
+    See Also
+    --------
+    make_radial_quadrature_spec : Validated factory for this type.
     """
 
     profile_id: str = eqx.field(static=True)
@@ -839,6 +851,10 @@ class FinalStateSpec(eqx.Module):
         validation and raises because the frozen radial accelerator fails.
     table_n_points : int
         Registered Hermite table size (**static**).
+
+    See Also
+    --------
+    make_final_state_spec : Validated factory for this type.
     """
 
     effective_charge: Float64[Array, ""]
@@ -1301,8 +1317,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             | jnp.any(zeta_array > _MAX_DECAY_PARAMETER),
             "slater zeta_shell leaves the certified tail envelope",
         )
-        shell_norms: list[Float64[Array, ""]] = []
-        coefficient_conditions: list[Float64[Array, ""]] = []
+        shell_norms: List[Float64[Array, ""]] = []
+        coefficient_conditions: List[Float64[Array, ""]] = []
         shell_index: int
         for shell_index in range(n_shells):
             effective_principal: float = resolved_n_star[shell_index]
@@ -1538,7 +1554,7 @@ def make_final_state_spec(  # noqa: DOC503
     """Create a validated radial final-state selection.
 
     Plane waves require zero charge. All final states require direct radial
-    evaluation because the frozen Hermite convergence gate failed.
+    evaluation because the frozen Hermite convergence criterion failed.
 
     :see: :class:`~.test_radial_params.TestMakeFinalStateSpec`
 

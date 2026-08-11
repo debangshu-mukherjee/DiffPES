@@ -10,7 +10,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Callable, Dict, Tuple
+from beartype.typing import Callable, Dict, List, Tuple
+from jaxtyping import Array, Float64
 from scipy.interpolate import RegularGridInterpolator
 
 from diffpes.types import (
@@ -42,7 +43,9 @@ from tests._gradients import assert_grad_matches_fd
 _CARTESIAN_FRAME_ID: str = "org.diffpes.frame.sample_cartesian"
 
 
-def _cartesian_path(n_points: int) -> Tuple[jax.Array, jax.Array]:
+def _cartesian_path(
+    n_points: int,
+) -> Tuple[Float64[Array, " n_points"], Float64[Array, "n_points 3"]]:
     """PRIVATE: Build a straight Cartesian path and cumulative coordinate.
 
     Parameters
@@ -52,15 +55,19 @@ def _cartesian_path(n_points: int) -> Tuple[jax.Array, jax.Array]:
 
     Returns
     -------
-    path : Tuple[jax.Array, jax.Array]
+    path : Tuple[Float64[Array, " n_points"], Float64[Array, "n_points 3"]]
         Cumulative coordinate and matching Cartesian three-vectors.
     """
-    k_axis: jax.Array = jnp.linspace(0.0, 1.0, n_points)
-    kpoints: jax.Array = jnp.stack(
+    k_axis: Float64[Array, " n_points"] = jnp.linspace(0.0, 1.0, n_points)
+    kpoints: Float64[Array, "n_points 3"] = jnp.stack(
         (k_axis, jnp.zeros_like(k_axis), jnp.zeros_like(k_axis)),
         axis=1,
     )
-    return k_axis, kpoints
+    path: Tuple[Float64[Array, " n_points"], Float64[Array, "n_points 3"]] = (
+        k_axis,
+        kpoints,
+    )
+    return path
 
 
 class TestBandStructure:
@@ -80,7 +87,8 @@ class TestBandStructure:
 
         Notes
         -----
-        The test constructs the carrier through its factory, flattens and unflattens it
+        The test constructs the carrier through its factory, flattens and
+        unflattens it
         with JAX, and compares every array leaf with Chex.
         """
         bands: BandStructure = make_band_structure(
@@ -89,7 +97,7 @@ class TestBandStructure:
             kpoint_weights=jnp.array([0.25, 0.75]),
             fermi_energy=-0.5,
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: BandStructure = jax.tree_util.tree_unflatten(tree, leaves)
@@ -114,7 +122,8 @@ class TestOrbitalProjection:
 
         Notes
         -----
-        The test constructs one projection through its public factory and uses Chex for
+        The test constructs one projection through its public factory and uses
+        Chex for
         the array shape plus direct identity checks for optional fields.
         """
         projection: OrbitalProjection = make_orbital_projection(
@@ -143,7 +152,8 @@ class TestSpinOrbitalProjection:
 
         Notes
         -----
-        The test constructs the spin carrier through its factory, performs a JAX tree
+        The test constructs the spin carrier through its factory, performs a
+        JAX tree
         round trip, and compares all three array leaves with Chex.
         """
         projection: SpinOrbitalProjection = make_spin_orbital_projection(
@@ -151,7 +161,7 @@ class TestSpinOrbitalProjection:
             spin=jnp.zeros((2, 3, 1, 6)),
             oam=jnp.full((2, 3, 1, 3), 0.5),
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(projection)
         restored: SpinOrbitalProjection = jax.tree_util.tree_unflatten(
@@ -182,7 +192,8 @@ class TestSpinBandStructure:
 
         Notes
         -----
-        The test constructs the spin-resolved carrier, applies JAX flatten and unflatten,
+        The test constructs the spin-resolved carrier, applies JAX flatten and
+        unflatten,
         and compares both energy channels with Chex.
         """
         bands: SpinBandStructure = make_spin_band_structure(
@@ -191,7 +202,7 @@ class TestSpinBandStructure:
             kpoints=jnp.zeros((5, 3)),
             fermi_energy=-1.0,
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: SpinBandStructure = jax.tree_util.tree_unflatten(
@@ -223,7 +234,8 @@ class TestArpesSpectrum:
 
         Notes
         -----
-        The test constructs the spectrum through its public factory and checks both
+        The test constructs the spectrum through its public factory and checks
+        both
         numerical dimensions with Chex.
         """
         spectrum: ArpesSpectrum = make_arpes_spectrum(
@@ -256,7 +268,8 @@ class TestMakeBandStructure(chex.TestCase):
 
         Notes
         -----
-        The test wraps the public factory with ``self.variant`` and compares output
+        The test wraps the public factory with ``self.variant`` and compares
+        output
         shapes, weights, and scalar array type with Chex.
         """
         factory: Callable[..., BandStructure] = self.variant(
@@ -275,16 +288,17 @@ class TestMakeBandStructure(chex.TestCase):
     def test_rejects_nonfinite_eigenvalues(self) -> None:
         """Reject a NaN eigenvalue in eager and compiled execution.
 
-        The check gates the value-threaded ``eqx.error_if`` validation rather
+        The check exercises value-threaded ``eqx.error_if`` validation rather
         than allowing a poisoned carrier to escape.
 
         Notes
         -----
-        The test calls the raw and ``eqx.filter_jit`` factories with one NaN eigenvalue
+        The test calls the raw and ``eqx.filter_jit`` factories with one NaN
+        eigenvalue
         and matches the same runtime diagnostic in both modes.
         """
-        eigenvalues: jax.Array = jnp.array([[jnp.nan]])
-        kpoints: jax.Array = jnp.zeros((1, 3))
+        eigenvalues: Float64[Array, "1 1"] = jnp.array([[jnp.nan]])
+        kpoints: Float64[Array, "1 3"] = jnp.zeros((1, 3))
         under_jit: bool
         for under_jit in (False, True):
             factory: Callable[..., BandStructure] = (
@@ -303,20 +317,23 @@ class TestMakeBandStructure(chex.TestCase):
 
         Notes
         -----
-        The test differentiates an independently defined sum through the carrier factory
+        The test differentiates an independently defined sum through the
+        carrier factory
         and compares it with ``jax.grad(jnp.sum)`` using Chex.
         """
-        eigenvalues: jax.Array = jnp.array([[0.25, -0.5]])
-        kpoints: jax.Array = jnp.zeros((1, 3))
+        eigenvalues: Float64[Array, "1 2"] = jnp.array([[0.25, -0.5]])
+        kpoints: Float64[Array, "1 3"] = jnp.zeros((1, 3))
 
-        def validated_sum(values: jax.Array) -> jax.Array:
+        def validated_sum(
+            values: Float64[Array, "1 2"],
+        ) -> Float64[Array, ""]:
             """Return the sum of validated band energies."""
             bands: BandStructure = make_band_structure(values, kpoints)
-            result: jax.Array = jnp.sum(bands.eigenvalues)
+            result: Float64[Array, ""] = jnp.sum(bands.eigenvalues)
             return result
 
-        actual: jax.Array = jax.grad(validated_sum)(eigenvalues)
-        expected: jax.Array = jax.grad(jnp.sum)(eigenvalues)
+        actual: Float64[Array, "1 2"] = jax.grad(validated_sum)(eigenvalues)
+        expected: Float64[Array, "1 2"] = jax.grad(jnp.sum)(eigenvalues)
 
         chex.assert_trees_all_equal(actual, expected)
 
@@ -356,7 +373,8 @@ class TestMakeOrbitalProjection:
 
         Notes
         -----
-        The test uses the rejection helper with an eight-orbital tensor and then with a
+        The test uses the rejection helper with an eight-orbital tensor and
+        then with a
         negative nine-orbital tensor, matching each diagnostic.
         """
         assert_rejects(
@@ -457,7 +475,8 @@ class TestMakeSpinBandStructure:
 
         Notes
         -----
-        The test uses the rejection helper with compatible spin arrays and a single
+        The test uses the rejection helper with compatible spin arrays and a
+        single
         negative weight, matching the factory diagnostic.
         """
         assert_rejects(
@@ -482,7 +501,7 @@ class TestMakeArpesSpectrum:
     def test_constructs_spectrum_shapes(self) -> None:
         """Construct ten momentum points over 100 energy bins.
 
-        The check gates the exact two-dimensional intensity and one-dimensional
+        The check verifies the two-dimensional intensity and one-dimensional
         energy-axis shapes after float64 normalization.
 
         Notes
@@ -533,9 +552,9 @@ class TestMakeArpesSpectrum:
         Construct orthogonal unit paths with identical cumulative coordinates
         and compare both stored representations.
         """
-        intensity: jax.Array = jnp.ones((2, 3))
-        energy: jax.Array = jnp.array([-1.0, 0.0, 1.0])
-        k_axis: jax.Array = jnp.array([0.0, 1.0])
+        intensity: Float64[Array, "2 3"] = jnp.ones((2, 3))
+        energy: Float64[Array, " 3"] = jnp.array([-1.0, 0.0, 1.0])
+        k_axis: Float64[Array, " 2"] = jnp.array([0.0, 1.0])
         gamma_x: ArpesSpectrum = make_arpes_spectrum(
             intensity,
             energy,
@@ -594,19 +613,19 @@ def _arpes_cube() -> ArpesCube:
     The affine coefficients make every interpolation and query derivative
     available in closed form.
     """
-    kx_axis: jax.Array = jnp.array([-1.0, 0.0, 2.0])
-    ky_axis: jax.Array = jnp.array([-2.0, 1.0])
-    energy_axis: jax.Array = jnp.array([-1.0, 0.0, 2.0, 4.0])
-    kx_grid: jax.Array
-    ky_grid: jax.Array
-    energy_grid: jax.Array
+    kx_axis: Float64[Array, " 3"] = jnp.array([-1.0, 0.0, 2.0])
+    ky_axis: Float64[Array, " 2"] = jnp.array([-2.0, 1.0])
+    energy_axis: Float64[Array, " 4"] = jnp.array([-1.0, 0.0, 2.0, 4.0])
+    kx_grid: Float64[Array, "3 2 4"]
+    ky_grid: Float64[Array, "3 2 4"]
+    energy_grid: Float64[Array, "3 2 4"]
     kx_grid, ky_grid, energy_grid = jnp.meshgrid(
         kx_axis,
         ky_axis,
         energy_axis,
         indexing="ij",
     )
-    intensity: jax.Array = (
+    intensity: Float64[Array, "3 2 4"] = (
         20.0 + 2.0 * kx_grid + 3.0 * ky_grid + 4.0 * energy_grid
     )
     cube: ArpesCube = make_arpes_cube(
@@ -712,18 +731,20 @@ class TestSliceEdc:
             cube.intensity,
             method="linear",
         )
-        points: jax.Array = jnp.column_stack(
+        points: Float64[Array, "4 3"] = jnp.column_stack(
             (
                 jnp.full_like(cube.energy_axis, 0.4),
                 jnp.full_like(cube.energy_axis, -0.25),
                 cube.energy_axis,
             )
         )
-        compiled: jax.Array = eqx.filter_jit(slice_edc)(cube, 0.4, -0.25)
-        vectorized: jax.Array = jax.vmap(
+        compiled: Float64[Array, " 4"] = eqx.filter_jit(slice_edc)(
+            cube, 0.4, -0.25
+        )
+        vectorized: Float64[Array, "3 4"] = jax.vmap(
             lambda kx: slice_edc(cube, kx, -0.25)
         )(jnp.array([-0.5, 0.4, 1.5]))
-        gradient: jax.Array = jax.grad(
+        gradient: Float64[Array, ""] = jax.grad(
             lambda kx: jnp.sum(slice_edc(cube, kx, -0.25))
         )(jnp.asarray(0.4))
 
@@ -754,21 +775,25 @@ class TestSliceEdc:
         """
         cube: ArpesCube = _arpes_cube()
 
-        def query_loss(queries: jax.Array) -> jax.Array:
+        def query_loss(queries: Float64[Array, " 3"]) -> Float64[Array, ""]:
             """Return a joint EDC and MDC query loss."""
-            edc: jax.Array = slice_edc(cube, queries[0], queries[1])
-            mdc: jax.Array = slice_mdc(cube, queries[2])
-            result: jax.Array = jnp.sum(edc) + jnp.sum(mdc)
+            edc: Float64[Array, " 4"] = slice_edc(cube, queries[0], queries[1])
+            mdc: Float64[Array, "3 2"] = slice_mdc(cube, queries[2])
+            result: Float64[Array, ""] = jnp.sum(edc) + jnp.sum(mdc)
             return result
 
-        def intensity_loss(intensity: jax.Array) -> jax.Array:
+        def intensity_loss(
+            intensity: Float64[Array, "3 2 4"],
+        ) -> Float64[Array, ""]:
             """Return an EDC sum after replacing source intensity."""
             candidate: ArpesCube = eqx.tree_at(
                 lambda carrier: carrier.intensity,
                 cube,
                 intensity,
             )
-            result: jax.Array = jnp.sum(slice_edc(candidate, 0.4, -0.25))
+            result: Float64[Array, ""] = jnp.sum(
+                slice_edc(candidate, 0.4, -0.25)
+            )
             return result
 
         assert_grad_matches_fd(
@@ -804,21 +829,21 @@ class TestSliceMdc:
             cube.intensity,
             method="linear",
         )
-        kx_grid: jax.Array
-        ky_grid: jax.Array
+        kx_grid: Float64[Array, "3 2"]
+        ky_grid: Float64[Array, "3 2"]
         kx_grid, ky_grid = jnp.meshgrid(
             cube.kx_axis,
             cube.ky_axis,
             indexing="ij",
         )
-        points: jax.Array = jnp.column_stack(
+        points: Float64[Array, "6 3"] = jnp.column_stack(
             (
                 jnp.ravel(kx_grid),
                 jnp.ravel(ky_grid),
                 jnp.full(kx_grid.size, 0.75),
             )
         )
-        gradient: jax.Array = jax.grad(
+        gradient: Float64[Array, ""] = jax.grad(
             lambda energy: jnp.sum(slice_mdc(cube, energy))
         )(jnp.asarray(0.75))
 
@@ -854,7 +879,9 @@ class TestConstantEnergyMap:
         Compare the public helper with a direct mean over the fixture slice.
         """
         cube: ArpesCube = _arpes_cube()
-        desired: jax.Array = jnp.mean(cube.intensity[..., :2], axis=-1)
+        desired: Float64[Array, "3 2"] = jnp.mean(
+            cube.intensity[..., :2], axis=-1
+        )
 
         chex.assert_trees_all_equal(
             constant_energy_map(cube, -0.5, 0.5), desired
@@ -881,7 +908,7 @@ class TestFermiSurfaceMap:
         source cube.
         """
         cube: ArpesCube = _arpes_cube()
-        desired: jax.Array = constant_energy_map(cube, 0.0, 1.0)
+        desired: Float64[Array, "3 2"] = constant_energy_map(cube, 0.0, 1.0)
 
         chex.assert_trees_all_equal(fermi_surface_map(cube, 1.0), desired)
 
@@ -906,7 +933,7 @@ class TestDetectorRaster:
         Construct two spin channels with one detector row and inspect every
         carrier boundary.
         """
-        quantization_axis: jax.Array = jnp.broadcast_to(
+        quantization_axis: Float64[Array, "2 1 3"] = jnp.broadcast_to(
             jnp.array([0.0, 0.0, 1.0]),
             (2, 1, 3),
         )

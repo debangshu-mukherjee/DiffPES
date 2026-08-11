@@ -5,25 +5,25 @@ factory defaults, dtype normalization, and eager or compiled rejection.
 """
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
 from absl.testing import parameterized
-from beartype.typing import Dict
+from beartype.typing import Dict, List
+from jaxtyping import Array, Float64
 
 from diffpes.types import (
-    OrbitalBasis,
-    PyTreeDef,
-    make_orbital_basis,
-)
-from diffpes.types.radial_params import (
     FinalStateSpec,
     MatrixElementParams,
+    OrbitalBasis,
+    PyTreeDef,
     RadialQuadratureSpec,
     RadialSpec,
     SlaterKosterParams,
     make_final_state_spec,
     make_matrix_element_params,
+    make_orbital_basis,
     make_radial_quadrature_spec,
     make_radial_spec,
     make_slater_koster_params,
@@ -56,7 +56,10 @@ def _basis() -> OrbitalBasis:
 
 
 class TestOrbitalBasis(chex.TestCase):
-    """Validate :class:`~diffpes.types.OrbitalBasis`."""
+    """Validate :class:`~diffpes.types.OrbitalBasis`.
+
+    The case round-trips the PyTree and compares every static orbital field.
+    """
 
     def test_pytree_round_trip_preserves_all_static_fields(self) -> None:
         """Preserve atom, quantum-number, spin, and label tuples exactly.
@@ -75,7 +78,7 @@ class TestOrbitalBasis(chex.TestCase):
             spin=(1, 1, -1, -1),
             labels=("a_px_up", "a_pz_up", "b_px_dn", "b_pz_dn"),
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(basis)
         restored: OrbitalBasis = jax.tree_util.tree_unflatten(tree, leaves)
@@ -90,7 +93,11 @@ class TestOrbitalBasis(chex.TestCase):
 
 
 class TestSlaterKosterParams(chex.TestCase):
-    """Validate :class:`~diffpes.types.SlaterKosterParams`."""
+    """Validate :class:`~diffpes.types.SlaterKosterParams`.
+
+    The cases inspect PyTree leaves and exercise eager and compiled validation
+    for keys and values.
+    """
 
     def test_values_are_the_only_differentiable_leaf(self) -> None:
         """Keep material keys static while differentiating every value.
@@ -106,11 +113,11 @@ class TestSlaterKosterParams(chex.TestCase):
             jnp.asarray((-2.7, 0.8), dtype=jnp.float32),
             ("C-C:pp_pi", "C-C:pp_sigma"),
         )
-        leaves: list[jax.Array] = jax.tree.leaves(params)
+        leaves: List[Float64[Array, "..."]] = jax.tree.leaves(params)
 
-        def loss(candidate: SlaterKosterParams) -> jax.Array:
+        def loss(candidate: SlaterKosterParams) -> Float64[Array, ""]:
             """Return a weighted quadratic parameter loss."""
-            result: jax.Array = jnp.sum(
+            result: Float64[Array, ""] = jnp.sum(
                 jnp.asarray((1.0, 2.0)) * candidate.values**2
             )
             return result
@@ -133,7 +140,7 @@ class TestSlaterKosterParams(chex.TestCase):
 
         Notes
         -----
-        Route factory failures through the shared eager/compiled gate.
+        Route factory failures through the shared eager and compiled check.
         """
         assert_rejects(
             make_slater_koster_params,
@@ -156,7 +163,11 @@ class TestSlaterKosterParams(chex.TestCase):
 
 
 class TestMakeSlaterKosterParams(chex.TestCase):
-    """Validate :func:`~diffpes.types.make_slater_koster_params`."""
+    """Validate :func:`~diffpes.types.make_slater_koster_params`.
+
+    The case checks value normalization and exact preservation of
+    Slater--Koster keys.
+    """
 
     def test_normalizes_values_and_preserves_keys(self) -> None:
         """Normalize input values while preserving static channel identifiers.
@@ -177,7 +188,11 @@ class TestMakeSlaterKosterParams(chex.TestCase):
 
 
 class TestMakeOrbitalBasis(chex.TestCase):
-    """Validate :func:`~diffpes.types.make_orbital_basis`."""
+    """Validate :func:`~diffpes.types.make_orbital_basis`.
+
+    The cases check label generation, spin defaults, static rejection, and
+    direct-constructor invariants.
+    """
 
     def test_generates_labels_and_spinless_default(self) -> None:
         """Generate stable labels and an empty spin tuple by default.
@@ -241,7 +256,7 @@ class TestMakeOrbitalBasis(chex.TestCase):
 
         Notes
         -----
-        Route every case through the shared eager and compiled rejection gate.
+        Route every case through the shared eager and compiled rejection check.
         """
         arguments: Dict[str, object] = {
             "atom_indices": (0,),
@@ -272,7 +287,8 @@ class TestMakeOrbitalBasis(chex.TestCase):
     def test_raw_constructor_reasserts_static_invariants(self) -> None:
         """Prevent direct construction from bypassing spin validation.
 
-        The case supplies an invalid spin channel to the raw module constructor.
+        The case supplies an invalid spin channel to the raw module
+        constructor.
 
         Notes
         -----
@@ -314,7 +330,11 @@ def _complete_p_basis() -> OrbitalBasis:
 
 
 class TestRadialSpec(chex.TestCase):
-    """Validate :class:`diffpes.types.RadialSpec`."""
+    """Validate :class:`diffpes.types.RadialSpec`.
+
+    The case distinguishes traced radial rows from static shell metadata in the
+    PyTree.
+    """
 
     def test_separates_traced_rows_from_static_shell_metadata(self) -> None:
         """Expose active numerical leaves and preserve one shell partition.
@@ -331,14 +351,18 @@ class TestRadialSpec(chex.TestCase):
             zeta_shell=jnp.asarray(((0.8, 1.6),)),
             coefficients_shell=jnp.asarray(((0.6, -0.8),)),
         )
-        leaves: list[jax.Array] = jax.tree.leaves(spec)
+        leaves: List[Float64[Array, "..."]] = jax.tree.leaves(spec)
         assert spec.radial_shell_index == (0, 0, 0)
         assert spec.mode == "slater"
         assert any(leaf.shape == (1, 2) for leaf in leaves)
 
 
 class TestMatrixElementParams(chex.TestCase):
-    """Validate :class:`diffpes.types.MatrixElementParams`."""
+    """Validate :class:`diffpes.types.MatrixElementParams`.
+
+    The case compares shell-shared scales, channel phases, and static orbital
+    mappings.
+    """
 
     def test_preserves_shell_shared_scale_and_phases(self) -> None:
         """Store one scale and two phases for a complete p shell.
@@ -362,12 +386,16 @@ class TestMatrixElementParams(chex.TestCase):
         )
         assert params.phase_channel_keys == ((0, 0), (0, 2))
         assert params.radial_shell_index == (0, 0, 0)
-        leaves: list[jax.Array] = jax.tree.leaves(params)
+        leaves: List[Float64[Array, "..."]] = jax.tree.leaves(params)
         assert all(leaf.shape != (1, 2) for leaf in leaves)
 
 
 class TestRadialQuadratureSpec(chex.TestCase):
-    """Validate :class:`diffpes.types.RadialQuadratureSpec`."""
+    """Validate :class:`diffpes.types.RadialQuadratureSpec`.
+
+    The case rejects a direct construction that asserts an uncertified
+    quadrature tolerance.
+    """
 
     def test_raw_constructor_rejects_self_asserted_tolerance(self) -> None:
         """Reject a profile whose claimed tolerance differs from its identity.
@@ -395,7 +423,11 @@ class TestRadialQuadratureSpec(chex.TestCase):
 
 
 class TestFinalStateSpec(chex.TestCase):
-    """Validate :class:`diffpes.types.FinalStateSpec`."""
+    """Validate :class:`diffpes.types.FinalStateSpec`.
+
+    The case separates the traced Coulomb charge from the static final-state
+    mode.
+    """
 
     def test_keeps_charge_traced_and_mode_static(self) -> None:
         """Preserve a Coulomb charge as the carrier's only numerical leaf.
@@ -410,14 +442,18 @@ class TestFinalStateSpec(chex.TestCase):
             mode="coulomb",
             effective_charge=1.5,
         )
-        leaves: list[jax.Array] = jax.tree.leaves(spec)
+        leaves: List[Float64[Array, "..."]] = jax.tree.leaves(spec)
         assert len(leaves) == 1
         chex.assert_trees_all_close(leaves[0], jnp.asarray(1.5))
         assert spec.mode == "coulomb"
 
 
 class TestMakeRadialSpec(chex.TestCase):
-    """Validate :func:`diffpes.types.make_radial_spec`."""
+    """Validate :func:`diffpes.types.make_radial_spec`.
+
+    The cases check row normalization, compact grids, shell grouping, and
+    certified tail constraints.
+    """
 
     def test_normalizes_fixed_rows_and_compact_grid_rows(self) -> None:
         """Normalize phase-free fixed data and one compact sampled radial.
@@ -440,8 +476,10 @@ class TestMakeRadialSpec(chex.TestCase):
             mode="fixed",
             fixed_integrals_shell=jnp.asarray(((3.0, 4.0),)),
         )
-        grid: jax.Array = jnp.linspace(0.0, 10.0, 101)
-        samples: jax.Array = jnp.exp(-grid).at[-1].set(0.0)[None, :]
+        grid: Float64[Array, " 101"] = jnp.linspace(0.0, 10.0, 101)
+        samples: Float64[Array, "1 101"] = (
+            jnp.exp(-grid).at[-1].set(0.0)[None, :]
+        )
         sampled: RadialSpec = make_radial_spec(
             basis,
             (0,),
@@ -455,7 +493,7 @@ class TestMakeRadialSpec(chex.TestCase):
             jnp.linalg.norm(fixed.fixed_integrals_shell, axis=-1),
             jnp.ones((1,)),
         )
-        grid_norm: jax.Array = jnp.trapezoid(
+        grid_norm: Float64[Array, ""] = jnp.trapezoid(
             sampled.grid_values_shell[0] ** 2 * grid**2,
             x=grid,
         )
@@ -527,8 +565,11 @@ class TestMakeRadialSpec(chex.TestCase):
             l=(0,),
             m=(0,),
         )
-        grid: jax.Array = jnp.asarray((0.0, 1.0, 2.0))
-        with pytest.raises(Exception, match="compact-supported"):
+        grid: Float64[Array, " 3"] = jnp.asarray((0.0, 1.0, 2.0))
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="compact-supported",
+        ):
             make_radial_spec(
                 basis,
                 (0,),
@@ -536,7 +577,10 @@ class TestMakeRadialSpec(chex.TestCase):
                 r_grid=grid,
                 grid_values_shell=jnp.asarray(((1.0, 0.5, 0.1),)),
             )
-        with pytest.raises(Exception, match="uniform grid"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="uniform grid",
+        ):
             make_radial_spec(
                 basis,
                 (0,),
@@ -547,7 +591,11 @@ class TestMakeRadialSpec(chex.TestCase):
 
 
 class TestMakeMatrixElementParams(chex.TestCase):
-    """Validate :func:`diffpes.types.make_matrix_element_params`."""
+    """Validate :func:`diffpes.types.make_matrix_element_params`.
+
+    The cases check physical s-shell channels and reject noncanonical radial
+    phases.
+    """
 
     def test_s_shell_exposes_only_its_physical_upper_channel(self) -> None:
         """Store only the s-to-p phase without a padded lower coordinate.
@@ -605,7 +653,11 @@ class TestMakeMatrixElementParams(chex.TestCase):
 
 
 class TestMakeRadialQuadratureSpec(chex.TestCase):
-    """Validate :func:`diffpes.types.make_radial_quadrature_spec`."""
+    """Validate :func:`diffpes.types.make_radial_quadrature_spec`.
+
+    The case selects both certified profiles and rejects an unknown profile
+    identity.
+    """
 
     def test_selects_both_profiles_and_rejects_unknown_identity(self) -> None:
         """Resolve the production and reference profiles without overrides.
@@ -630,7 +682,11 @@ class TestMakeRadialQuadratureSpec(chex.TestCase):
 
 
 class TestMakeFinalStateSpec(chex.TestCase):
-    """Validate :func:`diffpes.types.make_final_state_spec`."""
+    """Validate :func:`diffpes.types.make_final_state_spec`.
+
+    The case rejects an incompatible plane-wave charge and an uncertified
+    radial accelerator.
+    """
 
     def test_rejects_plane_wave_charge_and_uncertified_acceleration(
         self,

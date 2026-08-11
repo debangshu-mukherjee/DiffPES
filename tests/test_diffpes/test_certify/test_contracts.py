@@ -55,7 +55,7 @@ class TestComposeTransformations:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         amplitude: Any
         intensity: Any
@@ -102,7 +102,7 @@ class TestComposeTransformations:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         contract: Any
         report: Any
@@ -139,7 +139,7 @@ class TestValidateContract:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="preserve/introduce and destroy"):
             make_transformation_contract(
@@ -163,7 +163,10 @@ class TestValidateContract:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=r"transformation_(?:id|version)",
+        ):
             make_transformation_contract(identifier, version)

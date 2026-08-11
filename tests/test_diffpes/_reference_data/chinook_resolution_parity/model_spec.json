@@ -1,0 +1,91 @@
+{
+  "schema": "diffpes.chinook-parity-model.v1",
+  "model_id": "lithium-chain",
+  "model_name": "one-dimensional Li-like 2s chain",
+  "requirements": [
+    "chinook-sampled-gaussian-resolution-parity"
+  ],
+  "classification": "K-type sampled-Gaussian resolution-ordering compatibility",
+  "lattice_angstrom": [
+    [3.0, 0.0, 0.0],
+    [0.0, 10.0, 0.0],
+    [0.0, 0.0, 10.0]
+  ],
+  "sites_fractional": [
+    [0.0, 0.0, 0.0]
+  ],
+  "species_atomic_numbers": [3],
+  "orbitals": ["2s"],
+  "spin": "spinless",
+  "hamiltonian": {
+    "onsite_ev": 0.0,
+    "nearest_neighbor_hopping_ev": -1.0,
+    "analytic_band_ev": "2*t*cos(kx*a)",
+    "records": [
+      [0, 0, 0.0, 0.0, 0.0, 0.0],
+      [0, 0, 3.0, 0.0, 0.0, -1.0],
+      [0, 0, -3.0, 0.0, 0.0, -1.0]
+    ]
+  },
+  "experiment": {
+    "photon_energy_ev": 21.2,
+    "work_function_ev": 4.3,
+    "fermi_energy_ev": 0.0,
+    "temperature_k": 10.0,
+    "polarization_cartesian": [0.0, 0.0, 1.0],
+    "mean_free_path_angstrom": 10.0,
+    "kz_inverse_angstrom": 0.0,
+    "self_energy": {
+      "mode": "poly",
+      "imaginary_retarded_ev": "-(0.05 + 0.1*omega_rel_ev**2)",
+      "coefficients_in_increasing_order": [0.05, 0.0, 0.1],
+      "kk_real_part": "off",
+      "eta_floor_ev": 0.00005
+    },
+    "radial": {
+      "mode": "fixed",
+      "channels": {
+        "0-2-0-1": [1.0, 0.0]
+      },
+      "interpretation": "single-channel complex scale gauge profiled once"
+    },
+    "resolution_fwhm": {
+      "energy_ev": 0.03,
+      "momentum_inverse_angstrom": 0.02
+    }
+  },
+  "axes": {
+    "axis_order": ["ky", "kx", "omega_rel"],
+    "kx_inverse_angstrom": {
+      "start": -1.0471975511965976,
+      "stop": 1.0471975511965976,
+      "points": 241,
+      "definition": "linspace(-pi/3, pi/3, 241)"
+    },
+    "ky_inverse_angstrom": {
+      "start": 0.0,
+      "stop": 0.0,
+      "points": 1
+    },
+    "omega_rel_ev": {
+      "start": -2.5,
+      "stop": 0.5,
+      "points": 601
+    }
+  },
+  "chinook_state_selection": {
+    "rule": "retain eigenstates in [E0 - 5*dE_bin, E1 + 5*dE_bin]",
+    "classification": "authenticated upstream diagnostic, not emulated by the acceptance replay"
+  },
+  "parity_scope": {
+    "acceptance_input": "the identical authenticated Chinook intensity_raw array on both sides",
+    "acceptance_operation": "matched sampled Gaussian response only",
+    "excluded_claims": [
+      "production source assembly",
+      "matrix-element energy sampling",
+      "state-window selection",
+      "detector mapping or ordering",
+      "absolute intensity"
+    ]
+  }
+}

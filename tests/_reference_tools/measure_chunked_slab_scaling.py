@@ -4,7 +4,7 @@
 Run this script explicitly on a CPU worker; routine pytest uses bounded
 fixtures and structural JAXPR checks. The defaults execute the registered
 80-layer, four-orbital-per-layer slab (320 orbitals), 256-k-point, chunk-32
-S1 forward case. The same real slab pipeline can execute the 640-orbital
+forward-memory case. The same real slab pipeline can execute the 640-orbital
 spinor stretch. A smaller 64-orbital case checks the rematerialized band-loss
 gradient against the non-chunked path without intentionally constructing the
 production ``(K, O, O)`` batch.
@@ -17,12 +17,12 @@ import json
 import resource
 import time
 from collections.abc import Callable
-from typing import Any
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.tightb import (
     eigvalsh_bands,
@@ -74,18 +74,20 @@ def _bulk_model() -> TBModel:
         n=(1, 2, 3, 4),
         l=(0,) * 4,
         m=(0,) * 4,
-        labels=("s1", "s2", "s3", "s4"),
+        labels=("1s", "2s", "3s", "4s"),
     )
     pairs: Tuple[Tuple[int, int], ...] = tuple(
         (row, column) for row in range(4) for column in range(4)
     )
-    seed: jax.Array = jnp.arange(16, dtype=jnp.float64).reshape(4, 4)
-    blocks: Tuple[jax.Array, ...] = tuple(
+    seed: Float64[Array, "4 4"] = jnp.arange(16, dtype=jnp.float64).reshape(
+        4, 4
+    )
+    blocks: Tuple[Complex128[Array, "4 4"], ...] = tuple(
         scale
         * (jnp.sin(seed + phase) + 1j * jnp.cos(0.7 * seed + 0.3 * phase))
         for scale, phase in ((0.11, 0.2), (0.08, 0.7), (0.19, 1.1))
     )
-    directed_blocks: Tuple[jax.Array, ...] = (
+    directed_blocks: Tuple[Complex128[Array, "4 4"], ...] = (
         blocks[0],
         blocks[0].conj().T,
         blocks[1],
@@ -101,7 +103,7 @@ def _bulk_model() -> TBModel:
         (0, 0, 1),
         (0, 0, -1),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.concatenate(
             tuple(block.reshape(-1) for block in directed_blocks)
         ),
@@ -113,6 +115,7 @@ def _bulk_model() -> TBModel:
         hopping_cells=tuple(cell for cell in cells for _ in range(len(pairs))),
         shell_index=(-1,) * 4,
     )
+    return model
 
 
 def _slab_model(
@@ -120,7 +123,7 @@ def _slab_model(
     *,
     spinor: bool = False,
 ) -> Tuple[TBModel, SlabSpec]:
-    """PRIVATE: Extrude one actual four-orbital-per-layer slab design.
+    """PRIVATE: Build one actual four-orbital-per-layer slab design.
 
     Parameters
     ----------
@@ -131,7 +134,7 @@ def _slab_model(
 
     Returns
     -------
-    slab : tuple[TBModel, SlabSpec]
+    slab : Tuple[TBModel, SlabSpec]
         Extruded slab model and its specification.
 
     Raises
@@ -161,7 +164,8 @@ def _slab_model(
         raise RuntimeError(
             "real slab extrusion produced the wrong orbital count"
         )
-    return model, specification
+    slab: Tuple[TBModel, SlabSpec] = (model, specification)
+    return slab
 
 
 def _termination_bulk_model() -> TBModel:
@@ -192,9 +196,9 @@ def _termination_bulk_model() -> TBModel:
         n=(1, 2, 1, 2),
         l=(0,) * 4,
         m=(0,) * 4,
-        labels=("X-s1", "X-s2", "Y-s1", "Y-s2"),
+        labels=("X-1s", "X-2s", "Y-1s", "Y-2s"),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=reference.hopping_amplitudes,
         onsite_energies=reference.onsite_energies,
         soc_lambdas=reference.soc_lambdas,
@@ -204,24 +208,25 @@ def _termination_bulk_model() -> TBModel:
         hopping_cells=reference.hopping_cells,
         shell_index=reference.shell_index,
     )
+    return model
 
 
 def _termination_slab(
     thickness_ang: float,
     termination: Tuple[str, str],
 ) -> Tuple[TBModel, SlabSpec]:
-    """PRIVATE: Extrude one actual alternating-species termination design.
+    """PRIVATE: Build one alternating-species termination design.
 
     Parameters
     ----------
     thickness_ang : float
         Slab thickness in Angstrom.
-    termination : tuple[str, str]
+    termination : Tuple[str, str]
         Requested bottom and top species.
 
     Returns
     -------
-    slab : tuple[TBModel, SlabSpec]
+    slab : Tuple[TBModel, SlabSpec]
         Extruded slab model and its specification.
 
     Notes
@@ -229,16 +234,17 @@ def _termination_slab(
     The call fixes the (001) direction and 8 Angstrom of vacuum and
     forwards the termination request to ``gen_slab``.
     """
-    return gen_slab(
+    slab: Tuple[TBModel, SlabSpec] = gen_slab(
         _termination_bulk_model(),
         miller=(0, 0, 1),
         thickness_ang=thickness_ang,
         vacuum_ang=8.0,
         termination=termination,
     )
+    return slab
 
 
-def _kpoints(n_kpoints: int) -> jax.Array:
+def _kpoints(n_kpoints: int) -> Float64[Array, "n_k 3"]:
     """PRIVATE: Build one generic padded path.
 
     Parameters
@@ -248,7 +254,7 @@ def _kpoints(n_kpoints: int) -> jax.Array:
 
     Returns
     -------
-    kpoints : jax.Array
+    kpoints : Float64[Array, "n_k 3"]
         ``(n_kpoints, 3)`` fractional coordinates on a slanted
         in-plane line with zero third component.
 
@@ -257,11 +263,12 @@ def _kpoints(n_kpoints: int) -> jax.Array:
     The incommensurate slope keeps the path free of symmetry
     coincidences, so no eigenvalue degeneracy is accidental.
     """
-    k_x = jnp.linspace(-0.47, 0.43, n_kpoints)
-    return jnp.stack(
+    k_x: Float64[Array, " n_k"] = jnp.linspace(-0.47, 0.43, n_kpoints)
+    kpoints: Float64[Array, "n_k 3"] = jnp.stack(
         (k_x, 0.17 * k_x + 0.03, jnp.zeros_like(k_x)),
         axis=-1,
     )
+    return kpoints
 
 
 def _statistics_dict(statistics: Any) -> Dict[str, int]:
@@ -274,7 +281,7 @@ def _statistics_dict(statistics: Any) -> Dict[str, int]:
 
     Returns
     -------
-    memory : dict[str, int]
+    memory : Dict[str, int]
         The eight argument/output/alias/temp byte counters, with
         absent or ``None`` fields as zero.
 
@@ -293,7 +300,10 @@ def _statistics_dict(statistics: Any) -> Dict[str, int]:
         "host_alias_size_in_bytes",
         "host_temp_size_in_bytes",
     )
-    return {field: int(getattr(statistics, field, 0) or 0) for field in fields}
+    memory: Dict[str, int] = {
+        field: int(getattr(statistics, field, 0) or 0) for field in fields
+    }
+    return memory
 
 
 def _maximum_rss_bytes() -> int:
@@ -308,10 +318,15 @@ def _maximum_rss_bytes() -> int:
     -----
     Linux reports ``ru_maxrss`` in KiB, so the value scales by 1024.
     """
-    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+    rss_bytes: int = (
+        int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+    )
+    return rss_bytes
 
 
-def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> Dict:
+def _gradient_check(
+    n_layers: int, n_kpoints: int, chunk_size: int
+) -> Dict[str, Any]:
     """PRIVATE: Compare rematerialized and ordinary band-loss derivatives.
 
     Parameters
@@ -325,43 +340,66 @@ def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> Dict:
 
     Returns
     -------
-    record : dict
+    record : Dict[str, Any]
         Both scalar gradients, their relative error, the nonzero
         witness, and the 1e-12 relative-tolerance verdict.
 
     Implementation Logic
     --------------------
     A scalar loss sums a smooth function of the bands of a globally
-    scaled model.  ``jax.grad`` with respect to the scale runs once
-    through ``eigvalsh_bands_chunked`` and once through the ordinary
-    path; both must agree to 1e-12 relative on a nonzero gradient.
+    scaled model. Run ``jax.grad`` once through
+    ``eigvalsh_bands_chunked``. Run it again through the ordinary path. Require
+    1e-12 relative agreement on a nonzero gradient.
     """
-    model, _ = _slab_model(n_layers)
+    model: TBModel = _slab_model(n_layers)[0]
     n_orbitals: int = model.onsite_energies.shape[0]
-    kpoints: jax.Array = _kpoints(n_kpoints)
+    kpoints: Float64[Array, "n_k 3"] = _kpoints(n_kpoints)
 
-    def loss(scale: jax.Array, chunked: bool) -> jax.Array:
+    def loss(scale: Float64[Array, ""], chunked: bool) -> Float64[Array, ""]:
+        """Compute the smooth band loss for one hopping scale.
+
+        Parameters
+        ----------
+        scale : Float64[Array, ""]
+            Dimensionless scale for all hopping amplitudes.
+        chunked : bool
+            Whether to use the rematerialized chunked eigensolver.
+
+        Returns
+        -------
+        value : Float64[Array, ""]
+            Scalar smooth band loss.
+
+        Notes
+        -----
+        The branch changes only the eigensolver assembly path.
+        """
         changed: TBModel = eqx.tree_at(
             lambda item: item.hopping_amplitudes,
             model,
             scale * model.hopping_amplitudes,
         )
-        bands: jax.Array = (
+        bands: Float64[Array, "n_k n_band"] = (
             eigvalsh_bands_chunked(changed, kpoints, chunk_size)
             if chunked
             else eigvalsh_bands(changed, kpoints)
         )
-        return jnp.sum(jnp.sin(0.7 * bands) + 0.13 * bands**2)
+        value: Float64[Array, ""] = jnp.sum(
+            jnp.sin(0.7 * bands) + 0.13 * bands**2
+        )
+        return value
 
-    chunked_gradient: jax.Array = jax.grad(loss, argnums=0)(1.1, True)
-    ordinary_gradient: jax.Array = jax.grad(loss, argnums=0)(1.1, False)
-    relative_error: jax.Array = jnp.abs(
+    chunked_gradient: Float64[Array, ""] = jax.grad(loss, argnums=0)(1.1, True)
+    ordinary_gradient: Float64[Array, ""] = jax.grad(loss, argnums=0)(
+        1.1, False
+    )
+    relative_error: Float64[Array, ""] = jnp.abs(
         (chunked_gradient - ordinary_gradient) / ordinary_gradient
     )
     nonzero_gradient: bool = bool(
         jnp.abs(ordinary_gradient) > _NONZERO_GRADIENT_MIN
     )
-    return {
+    record: Dict[str, Any] = {
         "orbitals": n_orbitals,
         "kpoints": n_kpoints,
         "chunked_gradient": float(chunked_gradient),
@@ -374,55 +412,84 @@ def _gradient_check(n_layers: int, n_kpoints: int, chunk_size: int) -> Dict:
             and relative_error <= _GRADIENT_RTOL
         ),
     }
+    return record
 
 
 def _compile_count(
-    kpoints: jax.Array,
+    kpoints: Float64[Array, "n_k 3"],
     chunk_size: int,
-) -> Dict:
-    """PRIVATE: Count traces across padded lengths and design changes.
+) -> Dict[str, Any]:
+    """PRIVATE: Measure traces across padded lengths and design changes.
 
     Parameters
     ----------
-    kpoints : jax.Array
+    kpoints : Float64[Array, "n_k 3"]
         Full padded k-point path.
     chunk_size : int
         Chunk length of the rematerialized path.
 
     Returns
     -------
-    record : dict
+    record : Dict[str, Any]
         The three design descriptions, the padded lengths, the trace
-        count after each stage, and the pass verdict.
+        count after each design change, and the pass verdict.
 
     Implementation Logic
     --------------------
-    A counting wrapper under ``eqx.filter_jit`` runs three padded
-    active lengths on one fixed design (one trace expected, since the
-    mask changes only data), then a thickness change and a
-    termination change (one new trace each, since both change the
-    design structure).
+    Run three padded active lengths through an ``eqx.filter_jit`` counting
+    wrapper. Keep the design fixed, so only the data mask changes. Expect one
+    trace. Then change thickness and termination separately. Each structural
+    design change adds one trace.
     """
-    trace_count: list[int] = [0]
+    trace_count: List[int] = [0]
 
     def counted(
         candidate: TBModel,
-        points: jax.Array,
-        active_mask: jax.Array,
-    ) -> jax.Array:
-        trace_count[0] += 1
-        values = eigvalsh_bands_chunked(candidate, points, chunk_size)
-        return jnp.sum(values * active_mask[:, None])
+        points: Float64[Array, "n_k 3"],
+        active_mask: Bool[Array, " n_k"],
+    ) -> Float64[Array, ""]:
+        """Compute one masked sum and count the JAX trace.
 
-    compiled: Callable[..., jax.Array] = eqx.filter_jit(counted)
+        Parameters
+        ----------
+        candidate : TBModel
+            Slab model for the compiled calculation.
+        points : Float64[Array, "n_k 3"]
+            Padded fractional k-point path.
+        active_mask : Bool[Array, " n_k"]
+            Mask for the active prefix of the path.
+
+        Returns
+        -------
+        value : Float64[Array, ""]
+            Sum of the active band energies in eV.
+
+        Notes
+        -----
+        The Python counter increments only during tracing.
+        """
+        trace_count[0] += 1
+        values: Float64[Array, "n_k n_band"] = eigvalsh_bands_chunked(
+            candidate, points, chunk_size
+        )
+        value: Float64[Array, ""] = jnp.sum(values * active_mask[:, None])
+        return value
+
+    compiled: Callable[..., Float64[Array, ""]] = eqx.filter_jit(counted)
+    fixed_model: TBModel
+    fixed_specification: SlabSpec
     fixed_model, fixed_specification = _termination_slab(
         79 * 1.3,
         ("X", "Y"),
     )
+    thickness_model: TBModel
+    thickness_specification: SlabSpec
     thickness_model, thickness_specification = _termination_slab(
         80 * 1.3,
         ("X", "Y"),
     )
+    termination_model: TBModel
+    termination_specification: SlabSpec
     termination_model, termination_specification = _termination_slab(
         80 * 1.3,
         ("Y", "X"),
@@ -432,8 +499,11 @@ def _compile_count(
         kpoints.shape[0] // 2,
         kpoints.shape[0],
     )
+    active_length: int
     for active_length in lengths:
-        mask = jnp.arange(kpoints.shape[0]) < active_length
+        mask: Bool[Array, " n_k"] = (
+            jnp.arange(kpoints.shape[0]) < active_length
+        )
         compiled(fixed_model, kpoints, mask).block_until_ready()
     fixed_design_traces: int = trace_count[0]
     compiled(
@@ -448,7 +518,7 @@ def _compile_count(
         jnp.ones((kpoints.shape[0],), dtype=bool),
     ).block_until_ready()
     termination_traces: int = trace_count[0]
-    return {
+    record: Dict[str, Any] = {
         "fixed_design": {
             "layers": fixed_specification.n_layers,
             "termination": fixed_specification.termination,
@@ -471,18 +541,29 @@ def _compile_count(
             and termination_traces == _TERMINATION_TRACE_COUNT
         ),
     }
+    return record
 
 
 def main() -> None:
-    """Execute the production forward measurement and bounded gradient check."""
-    parser = argparse.ArgumentParser()
+    """Execute the forward measurement and bounded gradient check.
+
+    Raises
+    ------
+    RuntimeError
+        If the active JAX backend provides no compiler memory statistics.
+
+    Notes
+    -----
+    The command writes the complete measurement record to standard output.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, default=80)
     parser.add_argument("--spinor", action="store_true")
     parser.add_argument("--kpoints", type=int, default=256)
     parser.add_argument("--chunk-size", type=int, default=32)
     parser.add_argument("--gradient-layers", type=int, default=16)
     parser.add_argument("--gradient-kpoints", type=int, default=64)
-    arguments = parser.parse_args()
+    arguments: argparse.Namespace = parser.parse_args()
     if arguments.kpoints % arguments.chunk_size:
         parser.error("--kpoints must be divisible by --chunk-size")
     if arguments.gradient_kpoints % arguments.chunk_size:
@@ -495,8 +576,8 @@ def main() -> None:
         spinor=arguments.spinor,
     )
     n_orbitals: int = model.onsite_energies.shape[0]
-    kpoints: jax.Array = _kpoints(arguments.kpoints)
-    forward = jax.jit(
+    kpoints: Float64[Array, "n_k 3"] = _kpoints(arguments.kpoints)
+    forward: Any = jax.jit(
         lambda points: eigvalsh_bands_chunked(
             model,
             points,
@@ -505,16 +586,16 @@ def main() -> None:
     )
     rss_before: int = _maximum_rss_bytes()
     compile_start: float = time.perf_counter()
-    executable = forward.lower(kpoints).compile()
+    executable: Any = forward.lower(kpoints).compile()
     compile_seconds: float = time.perf_counter() - compile_start
-    statistics = executable.memory_analysis()
+    statistics: Any = executable.memory_analysis()
     if statistics is None:
         raise RuntimeError(
             "active JAX backend did not report memory statistics"
         )
     memory: Dict[str, int] = _statistics_dict(statistics)
     run_start: float = time.perf_counter()
-    values: jax.Array = executable(kpoints)
+    values: Float64[Array, "n_k n_band"] = executable(kpoints)
     values.block_until_ready()
     run_seconds: float = time.perf_counter() - run_start
     rss_after: int = _maximum_rss_bytes()
@@ -528,7 +609,9 @@ def main() -> None:
         arguments.chunk_size * n_orbitals * n_orbitals * _COMPLEX128_BYTES
     )
     result: Dict[str, Any] = {
-        "gate": "chunked-slab-forward-memory and chunked-slab-gradient-retracing",
+        "requirement": (
+            "chunked-slab-forward-memory and chunked-slab-gradient-retracing"
+        ),
         "backend": jax.default_backend(),
         "jax_version": jax.__version__,
         "layers": specification.n_layers,

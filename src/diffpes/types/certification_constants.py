@@ -37,22 +37,22 @@ Routine Listings
     Pattern matching supported certificate schema versions.
 :obj:`CERTIFICATION_IDENTIFIER_PATTERN`
     Pattern matching permanent certification identifiers.
+:obj:`CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES`
+    Claim prefixes requiring independent evidence.
 :obj:`CERTIFICATION_LEVEL_IDS`
     Ordered cumulative scientific-certification level identifiers.
 :obj:`CERTIFICATION_LEVEL_PREFIXES`
     Evidence prefixes required by each certification level.
 :obj:`CERTIFICATION_LINEAGE_RELATIONSHIPS`
     Typed lineage relationships accepted by certification policy.
-:obj:`CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES`
-    Claim prefixes requiring independent evidence.
 :obj:`CERTIFICATION_POLICY_IDS`
     Stable identifiers of built-in cumulative policies.
 :obj:`CERTIFICATION_POLICY_LEVEL_COUNT`
     Number of required levels for each built-in policy.
-:obj:`CERTIFICATION_SHARED_RELATIONSHIPS`
-    Lineage relationships that share implementation ancestry.
 :obj:`CERTIFICATION_SEMVER_PATTERN`
     Pattern matching certification semantic versions.
+:obj:`CERTIFICATION_SHARED_RELATIONSHIPS`
+    Lineage relationships that share implementation ancestry.
 :obj:`CHECKSUM_ALGORITHM`
     Name of the scientific-identity digest algorithm.
 :obj:`CHECKSUM_FILE_CHUNK_BYTES`
@@ -206,14 +206,14 @@ __all__: list[str] = [
     "CERTIFICATE_SCHEMA_MINOR",
     "CERTIFICATE_SCHEMA_PATTERN",
     "CERTIFICATION_IDENTIFIER_PATTERN",
-    "CERTIFICATION_LEVEL_IDS",
     "CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES",
-    "CERTIFICATION_LINEAGE_RELATIONSHIPS",
+    "CERTIFICATION_LEVEL_IDS",
     "CERTIFICATION_LEVEL_PREFIXES",
+    "CERTIFICATION_LINEAGE_RELATIONSHIPS",
     "CERTIFICATION_POLICY_IDS",
     "CERTIFICATION_POLICY_LEVEL_COUNT",
-    "CERTIFICATION_SHARED_RELATIONSHIPS",
     "CERTIFICATION_SEMVER_PATTERN",
+    "CERTIFICATION_SHARED_RELATIONSHIPS",
     "CHECKSUM_ALGORITHM",
     "CHECKSUM_FILE_CHUNK_BYTES",
     "CHECKSUM_FORMAT_VERSION",

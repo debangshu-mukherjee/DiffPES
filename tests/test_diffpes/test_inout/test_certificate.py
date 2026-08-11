@@ -248,7 +248,7 @@ def sample_certificate(
         claim_in_domain=jnp.array([True]),
         achieved=jnp.array([True, True, True, True, False, False]),
     )
-    return make_forward_certificate(
+    certificate: ForwardCertificate = make_forward_certificate(
         manifest=manifest,
         model=model,
         artifacts=(artifact,),
@@ -269,9 +269,10 @@ def sample_certificate(
         ),
         extensions_json=extensions_json,
     )
+    return certificate
 
 
-def _read_json(path: Path) -> Dict:
+def _read_json(path: Path) -> Dict[str, Any]:
     """PRIVATE: Load one certificate JSON document from disk.
 
     Parameters
@@ -281,24 +282,25 @@ def _read_json(path: Path) -> Dict:
 
     Returns
     -------
-    document : dict
+    document : Dict[str, Any]
         Parsed top-level JSON object of the file.
 
     Notes
     -----
     Reads the file as UTF-8 text and parses it with ``json.loads``.
     """
-    return json.loads(path.read_text(encoding="utf-8"))
+    document: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return document
 
 
-def _write_document(path: Path, document: Dict) -> None:
+def _write_document(path: Path, document: Dict[str, Any]) -> None:
     """PRIVATE: Write one mutated certificate document back to disk.
 
     Parameters
     ----------
     path : Path
         Destination path of the JSON file.
-    document : dict
+    document : Dict[str, Any]
         Certificate document, usually mutated by the calling test.
 
     Notes
@@ -307,7 +309,6 @@ def _write_document(path: Path, document: Dict) -> None:
     helper so the mutated document stays internally consistent, then
     writes the compact key-sorted JSON with one trailing newline.
     """
-    document: Any
     document["consistency_checksum"] = _storage_checksum(document)
     path.write_text(
         json.dumps(
@@ -337,8 +338,8 @@ class TestSaveCertificateJson:
 
         Notes
         -----
-        The test writes the shared complete certificate fixture and reloads it before
-        comparing the permanent model identity.
+        The test writes the shared complete certificate fixture and reloads it
+        before comparing the permanent model identity.
         """
         path: Path = tmp_path / "certificate-class.json"
         certificate: ForwardCertificate = sample_certificate()
@@ -356,7 +357,7 @@ class TestSaveCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         certificate: Any
         first: Any
@@ -403,7 +404,7 @@ class TestSaveCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         path = tmp_path / "certificate.json"
@@ -492,7 +493,7 @@ class TestLoadCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         document: Any
@@ -510,7 +511,7 @@ class TestLoadCertificateJson:
     def test_internal_identity_mismatch_is_rejected(
         self, tmp_path: Path
     ) -> None:
-        """Reject an internal identity mismatch after storage CRC recalculation.
+        """Reject an identity mismatch after CRC recalculation.
 
         The reader must validate the internal identity independently.
 
@@ -562,7 +563,7 @@ class TestLoadCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         document: Any
@@ -585,7 +586,7 @@ class TestLoadCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         source: Any
         restored: Any
@@ -638,7 +639,7 @@ class TestLoadCertificateJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         document: Any
@@ -670,7 +671,7 @@ class TestAttachCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         file: Any
         path: Any
@@ -710,7 +711,7 @@ class TestAttachCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         file: Any
         path: Any
@@ -747,7 +748,7 @@ class TestAttachCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="one nonblank group component"):
             attach_certificate_h5(
@@ -771,7 +772,7 @@ class TestLoadCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         path: Any
         newer: Any
@@ -798,7 +799,7 @@ class TestLoadCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         file: Any
         path: Any
@@ -822,7 +823,7 @@ class TestLoadCertificateH5:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         file: Any
         path: Any

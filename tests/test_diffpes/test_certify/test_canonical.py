@@ -49,7 +49,7 @@ class TestCanonicalPytree:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         numpy_value: Any
         jax_value: Any
@@ -68,14 +68,14 @@ class TestCanonicalPytree:
     def test_array_canonicalization_retains_dtype_shape_and_complex_values(
         self,
     ) -> None:
-        """Keep numerical layout semantics and canonical complex bytes distinct.
+        """Keep layout semantics and canonical complex bytes distinct.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         values: Any
         values = np.array([1.0, 2.0], dtype=np.float64)
@@ -95,7 +95,7 @@ class TestCanonicalPytree:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         value: Any
         expected: Any
@@ -109,7 +109,7 @@ class TestCanonicalPytree:
             "{'unit': 'eV', 'axis': ('energy', 'momentum')}"
             ").hex())"
         )
-        observed = subprocess.check_output(
+        observed = subprocess.check_output(  # noqa: S603
             [sys.executable, "-c", code],
             text=True,
         ).strip()
@@ -127,7 +127,7 @@ class TestCanonicalPytree:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="NaN|nonfinite|infinity"):
             canonical_pytree(value)
@@ -149,7 +149,7 @@ class TestCanonicalJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         value: Any
         expected_hex: Any
@@ -177,7 +177,7 @@ class TestCanonicalJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         assert canonical_json([1, 2]) != canonical_json((1, 2))
         assert canonical_json({"x": None}) != canonical_json({})
@@ -192,7 +192,7 @@ class TestCanonicalJson:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         decomposed: Any
         composed: Any
@@ -219,7 +219,7 @@ class TestIterCanonicalPytreeChunks:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         values: Any
         streamed: Any
@@ -239,7 +239,7 @@ class TestIterCanonicalPytreeChunks:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(ValueError, match="unsupported"):
             canonical_pytree({1, 2})

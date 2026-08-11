@@ -4,8 +4,8 @@ Extended Summary
 ----------------
 Counts logical lines of code in ``src/diffpes`` with pygount and
 writes ``.github/badges/loc.json`` in the shields.io endpoint schema.
-Runs as a local pre-commit hook so the badge updates inside normal
-commits — no CI job ever commits to the repository for this badge.
+The local pre-commit hook updates the badge during a normal commit.
+No continuous-integration job commits this file.
 The file is rewritten only when the count changes, keeping the hook
 silent on unrelated commits.
 
@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 
 import pygount.analysis
+from beartype.typing import Any, Iterable
 from pygments.lexers.python import PythonLexer
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -27,7 +28,7 @@ _COUNT_TARGET: Path = _REPO_ROOT / "src" / "diffpes"
 
 
 def _count_python_loc(count_target: Path) -> int:
-    """Count Python source lines without Pygments language guessing.
+    """PRIVATE: Count Python lines without Pygments language guessing.
 
     Parameters
     ----------
@@ -47,15 +48,39 @@ def _count_python_loc(count_target: Path) -> int:
     docstrings as comments but IPython docstrings as code, so the badge count
     would otherwise depend on the invocation environment.
     """
-    duplicate_pool = pygount.analysis.DuplicatePool()
-    original_guess_lexer = pygount.analysis.guess_lexer
+    duplicate_pool: pygount.analysis.DuplicatePool = (
+        pygount.analysis.DuplicatePool()
+    )
+    original_guess_lexer: Any = pygount.analysis.guess_lexer
 
-    def python_lexer(_source_path: str, _source_code: str) -> PythonLexer:
-        return PythonLexer()
+    def _python_lexer(
+        _source_path: str,
+        _source_code: str,
+    ) -> PythonLexer:
+        """PRIVATE: Select the Python lexer for one source file.
 
-    pygount.analysis.guess_lexer = python_lexer
+        Parameters
+        ----------
+        _source_path : str
+            Path supplied by pygount.
+        _source_code : str
+            Source text supplied by pygount.
+
+        Returns
+        -------
+        lexer : PythonLexer
+            Fresh Python lexer for the source analysis.
+
+        Notes
+        -----
+        The fixed lexer removes environment-dependent language guessing.
+        """
+        lexer: PythonLexer = PythonLexer()
+        return lexer
+
+    pygount.analysis.guess_lexer = _python_lexer
     try:
-        analyses = (
+        analyses: Iterable[pygount.analysis.SourceAnalysis] = (
             pygount.analysis.SourceAnalysis.from_file(
                 str(source_path),
                 group="diffpes",
@@ -63,13 +88,32 @@ def _count_python_loc(count_target: Path) -> int:
             )
             for source_path in sorted(count_target.rglob("*.py"))
         )
-        return sum(analysis.source_count for analysis in analyses)
+        loc: int = sum(analysis.source_count for analysis in analyses)
+        return loc
     finally:
         pygount.analysis.guess_lexer = original_guess_lexer
 
 
 def main() -> int:
-    """Count lines of code and rewrite the badge JSON if it changed.
+    r"""Count lines of code and rewrite the badge JSON if it changed.
+
+    Implementation Logic
+    --------------------
+    1. **Count source lines**::
+
+           loc = str(_count_python_loc(_COUNT_TARGET))
+
+       The fixed Python lexer makes the count independent of plugins.
+    2. **Serialize badge data**::
+
+           badge = json.dumps(payload, indent=2) + "\\n"
+
+       The trailing newline keeps the generated JSON text stable.
+    3. **Write only changed content**::
+
+           _BADGE_PATH.write_text(badge)
+
+       An unchanged badge leaves the working tree clean.
 
     Returns
     -------
@@ -90,11 +134,16 @@ def main() -> int:
         + "\n"
     )
     if _BADGE_PATH.exists() and _BADGE_PATH.read_text() == badge:
-        return 0
-    _BADGE_PATH.write_text(badge)
-    print(f"updated {_BADGE_PATH.relative_to(_REPO_ROOT)}: {loc} lines")
-    return 0
+        exit_code: int = 0
+    else:
+        _BADGE_PATH.write_text(badge)
+        print(f"updated {_BADGE_PATH.relative_to(_REPO_ROOT)}: {loc} lines")
+        exit_code = 0
+    return exit_code
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+__all__: list[str] = ["main"]

@@ -13,8 +13,8 @@ from pathlib import Path
 import chex
 import equinox as eqx
 import jax.numpy as jnp
-from beartype.typing import Any, Callable, Dict
-from jaxtyping import Array
+from beartype.typing import Dict
+from jaxtyping import Array, Float64
 
 import diffpes
 from diffpes.inout import load_from_h5, save_to_h5
@@ -43,9 +43,9 @@ from diffpes.types import (
     make_spin_orbital_projection,
     make_tb_model,
     make_volumetric_data,
+    make_wannier_operator_data,
     make_workflow_context,
 )
-from diffpes.types.wannier import make_wannier_operator_data
 from tests._factories import make_1d_chain_model
 
 
@@ -54,7 +54,7 @@ def _all_carriers() -> Dict[str, eqx.Module]:
 
     Returns
     -------
-    carriers : dict[str, eqx.Module]
+    carriers : Dict[str, eqx.Module]
         Mapping from a short label to one instance of each registered
         types-owned Equinox carrier. Nested carriers such as the
         tight-binding model keep their geometry and basis.
@@ -66,23 +66,23 @@ def _all_carriers() -> Dict[str, eqx.Module]:
     tight-binding pieces, so every HDF5 round-trip test sees
     identical inputs.
     """
-    energy: Array
-    kpoints: Array
+    energy: Float64[Array, " 2"]
+    kpoints: Float64[Array, "2 3"]
     bands: diffpes.types.BandStructure
     projections: diffpes.types.OrbitalProjection
     tb_model: diffpes.types.TBModel
     geometry: diffpes.types.CrystalGeometry
     basis: diffpes.types.OrbitalBasis
     diagonalized: diffpes.types.DiagonalizedBands
-    charge: Array
-    cartesian_path: Array
+    charge: Float64[Array, "2 2 2"]
+    cartesian_path: Float64[Array, "2 3"]
 
     energy = jnp.array([-1.0, 1.0], dtype=jnp.float64)
     kpoints = jnp.zeros((2, 3), dtype=jnp.float64)
     bands = make_band_structure(energy[:, None], kpoints)
     projections = make_orbital_projection(jnp.ones((2, 1, 1, 9)))
     template: diffpes.types.TBModel = make_1d_chain_model()
-    orbital_positions: Array = jnp.asarray(
+    orbital_positions: Float64[Array, "1 3"] = jnp.asarray(
         [[0.125, 0.0, 0.0]],
         dtype=jnp.float64,
     )

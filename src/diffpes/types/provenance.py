@@ -10,12 +10,16 @@ Routine Listings
 ----------------
 :class:`InformationState`
     Store effective semantic state for one artifact or result node.
+:class:`ProvenanceAnalysis`
+    Store the complete result of one provenance-graph analysis.
 :class:`ProvenanceGraph`
     Store a validated lineage graph and its propagated semantics.
 :class:`ProvenanceReport`
     Store a structural and semantic provenance-validation report.
 :func:`make_information_state`
     Create a validated semantic-information state for one graph node.
+:func:`make_provenance_analysis`
+    Create an immutable provenance-analysis carrier.
 :func:`make_provenance_graph`
     Create a validated immutable provenance graph carrier.
 :func:`make_provenance_report`
@@ -70,6 +74,55 @@ class InformationState(eqx.Module):
     active_semantics: Tuple[str, ...] = eqx.field(static=True)
     destroyed_information: Tuple[str, ...] = eqx.field(static=True)
     invalidated_claims: Tuple[str, ...] = eqx.field(static=True)
+
+
+class ProvenanceAnalysis(eqx.Module):
+    """Store the complete result of one provenance-graph analysis.
+
+    This carrier retains the ordered transformations, propagated information,
+    graph endpoints, and structural diagnostics from one deterministic walk.
+
+    :see: :class:`~.test_provenance.TestProvenanceAnalysis`
+
+    Attributes
+    ----------
+    ordered_records : Tuple[TransformationRecord, ...]
+        Transformation records in deterministic graph order.
+    topological_order : Tuple[str, ...]
+        Output node identities in deterministic order (**static** -- changing
+        them triggers retracing).
+    information : Tuple[InformationState, ...]
+        Propagated semantic state for every known graph node.
+    errors : Tuple[str, ...]
+        Structural and semantic diagnostics (**static** -- changing them
+        triggers retracing).
+    roots : Tuple[str, ...]
+        Root node identities (**static** -- changing them triggers retracing).
+    terminal_outputs : Tuple[str, ...]
+        Terminal output identities (**static** -- changing them triggers
+        retracing).
+    orphaned_inputs : Tuple[str, ...]
+        Unconsumed external input identities (**static** -- changing them
+        triggers retracing).
+
+    Notes
+    -----
+    The carrier records graph analysis only. It does not alter physical arrays
+    or introduce a differentiable reduction.
+
+    See Also
+    --------
+    make_provenance_analysis : Create an immutable provenance-analysis
+        carrier.
+    """
+
+    ordered_records: Tuple[TransformationRecord, ...]
+    topological_order: Tuple[str, ...] = eqx.field(static=True)
+    information: Tuple[InformationState, ...]
+    errors: Tuple[str, ...] = eqx.field(static=True)
+    roots: Tuple[str, ...] = eqx.field(static=True)
+    terminal_outputs: Tuple[str, ...] = eqx.field(static=True)
+    orphaned_inputs: Tuple[str, ...] = eqx.field(static=True)
 
 
 class ProvenanceGraph(eqx.Module):
@@ -330,6 +383,75 @@ def make_information_state(  # noqa: DOC502
 
 
 @jaxtyped(typechecker=beartype)
+def make_provenance_analysis(  # noqa: PLR0913
+    ordered_records: Tuple[TransformationRecord, ...],
+    topological_order: Tuple[str, ...],
+    information: Tuple[InformationState, ...],
+    errors: Tuple[str, ...],
+    roots: Tuple[str, ...],
+    terminal_outputs: Tuple[str, ...],
+    orphaned_inputs: Tuple[str, ...],
+) -> ProvenanceAnalysis:
+    """Create an immutable provenance-analysis carrier.
+
+    Freeze the complete result of one deterministic graph walk without a
+    second policy or physics reduction.
+
+    :see: :class:`~.test_provenance.TestMakeProvenanceAnalysis`
+
+    Implementation Logic
+    --------------------
+    1. **Freeze the analysis fields**::
+
+           analysis = ProvenanceAnalysis(...)
+
+       Convert each input sequence to a tuple and construct the canonical
+       carrier.
+
+    Parameters
+    ----------
+    ordered_records : Tuple[TransformationRecord, ...]
+        Transformation records in deterministic graph order.
+    topological_order : Tuple[str, ...]
+        Output node identities in deterministic order (**static** -- changing
+        them triggers retracing).
+    information : Tuple[InformationState, ...]
+        Propagated semantic state for every known graph node.
+    errors : Tuple[str, ...]
+        Structural and semantic diagnostics (**static** -- changing them
+        triggers retracing).
+    roots : Tuple[str, ...]
+        Root node identities (**static** -- changing them triggers retracing).
+    terminal_outputs : Tuple[str, ...]
+        Terminal output identities (**static** -- changing them triggers
+        retracing).
+    orphaned_inputs : Tuple[str, ...]
+        Unconsumed external input identities (**static** -- changing them
+        triggers retracing).
+
+    Returns
+    -------
+    analysis : ProvenanceAnalysis
+        Immutable result of the provenance-graph analysis.
+
+    Notes
+    -----
+    The factory preserves diagnostic order and repeated errors. Invalid graph
+    analyses therefore remain inspectable by the certification layer.
+    """
+    analysis: ProvenanceAnalysis = ProvenanceAnalysis(
+        ordered_records=tuple(ordered_records),
+        topological_order=tuple(topological_order),
+        information=tuple(information),
+        errors=tuple(errors),
+        roots=tuple(roots),
+        terminal_outputs=tuple(terminal_outputs),
+        orphaned_inputs=tuple(orphaned_inputs),
+    )
+    return analysis
+
+
+@jaxtyped(typechecker=beartype)
 def make_provenance_graph(  # noqa: PLR0913
     records: Tuple[TransformationRecord, ...],
     external_inputs: Tuple[str, ...],
@@ -553,9 +675,11 @@ def make_provenance_report(
 
 __all__: list[str] = [
     "InformationState",
+    "ProvenanceAnalysis",
     "ProvenanceGraph",
     "ProvenanceReport",
     "make_information_state",
+    "make_provenance_analysis",
     "make_provenance_graph",
     "make_provenance_report",
 ]

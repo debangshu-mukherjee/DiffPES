@@ -1,5 +1,7 @@
 """Certify radial transforms against frozen G&R 6.621.3 references.
 
+Extended Summary
+----------------
 The tests compare normalized radial transforms and retain arbitrary-precision
 authority metadata for every frozen case.
 """
@@ -8,15 +10,18 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import TextIO
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict
-from jaxtyping import Array
+from beartype.typing import Dict, List, TextIO
+from jaxtyping import Array, Float64
 
-from diffpes.radial.integrate import gauss_legendre_nodes, radial_integral
-from diffpes.radial.wavefunctions import hydrogenic_radial, slater_radial
+from diffpes.radial import (
+    gauss_legendre_nodes,
+    hydrogenic_radial,
+    radial_integral,
+    slater_radial,
+)
 
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
@@ -26,7 +31,12 @@ REFERENCE_PATH: Path = (
 
 
 class TestGradshteynRyzhikReference:
-    """Compare production STO and hydrogenic dipole transforms with G&R."""
+    """Compare production STO and hydrogenic dipole transforms with G&R.
+
+    The battery covers nine normalized Slater and hydrogenic radial cases.
+    It applies 1,024-node Gauss--Legendre quadrature through the public API and
+    compares the results with frozen 50-digit formula values.
+    """
 
     def test_normalized_radial_battery_matches_frozen_50_digit_values(
         self,
@@ -43,22 +53,22 @@ class TestGradshteynRyzhikReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
+            rows: List[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert {row["mode"] for row in rows} == {"slater", "hydrogenic"}
         assert len(rows) == 9
-        nodes: Array
-        weights: Array
+        nodes: Float64[Array, " 1024"]
+        weights: Float64[Array, " 1024"]
         nodes, weights = gauss_legendre_nodes(1024, 120.0)
         row: Dict[str, str]
         for row in rows:
             n_value: int = int(row["n"])
             angular_momentum: int = int(row["angular_momentum"])
-            parameter: Array = jnp.asarray(
+            parameter: Float64[Array, ""] = jnp.asarray(
                 float(row["radial_parameter"]),
                 dtype=jnp.float64,
             )
-            radial_values: Array
+            radial_values: Float64[Array, " 1024"]
             if row["mode"] == "slater":
                 radial_values = slater_radial(
                     nodes,
@@ -107,7 +117,7 @@ class TestGradshteynRyzhikReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
+            rows: List[Dict[str, str]] = list(csv.DictReader(stream))
 
         row: Dict[str, str]
         for row in rows:

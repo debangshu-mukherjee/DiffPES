@@ -26,10 +26,19 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Dict, Optional, Tuple
+from beartype.typing import Any, Dict, List, Optional, Tuple
 from jax import core
 from jax.experimental import checkify
-from jaxtyping import Array, Float, PyTree, jaxtyped
+from jaxtyping import (
+    Array,
+    Bool,
+    Float,
+    Float64,
+    Int,
+    PyTree,
+    Shaped,
+    jaxtyped,
+)
 
 from diffpes.types import (
     ArtifactRef,
@@ -101,7 +110,7 @@ def _path_names(tree: PyTree) -> Tuple[str, ...]:
     leaf: Any
     flattened: Any = jax.tree_util.tree_flatten_with_path(tree)
     path_leaves: Any = flattened[0]
-    paths: list[str] = []
+    paths: List[str] = []
     for path, leaf in path_leaves:
         name: str = jax.tree_util.keystr(path) or "$"
         if jnp.iscomplexobj(jnp.asarray(leaf)):
@@ -183,7 +192,7 @@ def _certify_forward_checked(
         _probe_directions(inputs) if directions is None else directions
     )
     n_probes: int = jax.tree.leaves(resolved_directions)[0].shape[0]
-    resolved_scales: Array = (
+    resolved_scales: Float64[Array, " n_probe"] = (
         jnp.ones(n_probes, dtype=jnp.float64)
         if scales is None
         else jnp.asarray(scales, dtype=jnp.float64)
@@ -191,12 +200,12 @@ def _certify_forward_checked(
     domain_checks: Tuple[CheckFunction, ...] = tuple(
         get_check(check_id) for check_id in context.check_ids
     )
-    structural_evaluation: Tuple[PyTree, Array] = _dependency_structure(
-        context.model.model_id,
-        registered.executor,
-        inputs,
+    structural_evaluation: Tuple[PyTree, Bool[Array, "n_output n_input"]] = (
+        _dependency_structure(
+            context.model.model_id, registered.executor, inputs
+        )
     )
-    structural: Array = structural_evaluation[1]
+    structural: Bool[Array, "n_output n_input"] = structural_evaluation[1]
     checked: Tuple[Any, CertifiedResult] = _checked_kernel()(
         registered.executor,
         context,
@@ -233,18 +242,18 @@ def _probe_directions(inputs: PyTree) -> PyTree:
     sensitivity maps.
     """
     array: Any
-    flattened: Tuple[list[Any], Any] = jax.tree_util.tree_flatten(inputs)
-    leaves: list[Any] = flattened[0]
+    flattened: Tuple[List[Any], Any] = jax.tree_util.tree_flatten(inputs)
+    leaves: List[Any] = flattened[0]
     treedef: Any = flattened[1]
-    arrays: list[Array] = [jnp.asarray(leaf) for leaf in leaves]
+    arrays: List[Shaped[Array, "..."]] = [jnp.asarray(leaf) for leaf in leaves]
     n_leaves: int = sum(
         2 if jnp.iscomplexobj(array) else 1 for array in arrays
     )
-    batched: list[Array] = []
+    batched: List[Shaped[Array, "..."]] = []
     selected: int = 0
     for array in arrays:
         shape: Tuple[int, ...] = (n_leaves, *array.shape)
-        probe: Array = jnp.zeros(shape, dtype=array.dtype)
+        probe: Shaped[Array, "..."] = jnp.zeros(shape, dtype=array.dtype)
         probe = probe.at[selected].set(jnp.ones_like(array))
         selected += 1
         if jnp.iscomplexobj(array):
@@ -379,7 +388,7 @@ def _evidence_claims(
     evidence record.
     """
     item: Any
-    claims: list[CertificationClaim] = []
+    claims: List[CertificationClaim] = []
     for item in evidence:
         claim: CertificationClaim = evaluate_claim(
             claim_id=f"claim.{item.evidence_id}",
@@ -400,9 +409,9 @@ def _certify_kernel(  # noqa: PLR0915
     context: CertificationContext,
     inputs: PyTree,
     directions: PyTree,
-    scales: Float[Array, " n_probe"],
+    scales: Float64[Array, " n_probe"],
     domain_checks: Tuple[CheckFunction, ...],
-    structural: Array,
+    structural: Bool[Array, "n_output n_input"],
     *,
     spectrum_rank: int,
 ) -> CertifiedResult:
@@ -431,11 +440,11 @@ def _certify_kernel(  # noqa: PLR0915
         Numerical model inputs in the declared physical units.
     directions : PyTree
         Batched tangent probes with a leading probe axis.
-    scales : Float[Array, " n_probe"]
+    scales : Float64[Array, " n_probe"]
         Positive physical scale for each probe.
     domain_checks : Tuple[CheckFunction, ...]
         Resolved pure domain predicates.
-    structural : Array
+    structural : Bool[Array, "n_output n_input"]
         Precomputed Boolean output-by-input structural matrix.
     spectrum_rank : int
         Requested information-spectrum rank (**static**).
@@ -455,34 +464,42 @@ def _certify_kernel(  # noqa: PLR0915
     value: PyTree = linearized[0]
     tree_pushforward: Any = linearized[1]
 
-    def vector_pushforward(tangent: PyTree) -> Array:
+    def vector_pushforward(tangent: PyTree) -> Float[Array, " n_output"]:
         output_tangent: PyTree = tree_pushforward(tangent)
-        result: Array = _ravel_real_pytree(output_tangent)[0]
+        result: Float[Array, " n_output"] = _ravel_real_pytree(output_tangent)[
+            0
+        ]
         return result
 
-    flat_value: Array = _ravel_real_pytree(value)[0]
+    flat_value: Float[Array, " n_output"] = _ravel_real_pytree(value)[0]
     output_size: int = flat_value.size
     input_paths: Tuple[str, ...] = _path_names(inputs)
     n_probes: int = len(input_paths)
-    cotangent_indices: Array = jnp.arange(n_probes) % output_size
-    cotangents: Array = jnp.eye(output_size, dtype=jnp.float64)[
-        cotangent_indices
-    ]
+    cotangent_indices: Int[Array, " n_probe"] = (
+        jnp.arange(n_probes) % output_size
+    )
+    cotangents: Float64[Array, "n_probe n_output"] = jnp.eye(
+        output_size, dtype=jnp.float64
+    )[cotangent_indices]
     output_ids: Tuple[str, ...] = tuple(
         f"output[{index}]" for index in range(output_size)
     )
     transposed: Any = jax.linear_transpose(vector_pushforward, inputs)
 
-    def pullback(cotangent: Array) -> PyTree:
+    def pullback(cotangent: Float[Array, " n_output"]) -> PyTree:
         pulled: PyTree = transposed(cotangent)[0]
         return pulled
 
-    flat_inputs: Array
+    flat_inputs: Float[Array, " n_input"]
     unravel_inputs: Any
     flat_inputs, unravel_inputs = _ravel_real_pytree(inputs)
 
-    def flat_pushforward(tangent: Array) -> Array:
-        result: Array = vector_pushforward(unravel_inputs(tangent))
+    def flat_pushforward(
+        tangent: Float[Array, " n_input"],
+    ) -> Float[Array, " n_output"]:
+        result: Float[Array, " n_output"] = vector_pushforward(
+            unravel_inputs(tangent)
+        )
         return result
 
     flat_transposed: Any = jax.linear_transpose(
@@ -490,8 +507,10 @@ def _certify_kernel(  # noqa: PLR0915
         flat_inputs,
     )
 
-    def flat_pullback(cotangent: Array) -> Array:
-        pulled: Array = flat_transposed(cotangent)[0]
+    def flat_pullback(
+        cotangent: Float[Array, " n_output"],
+    ) -> Float[Array, " n_input"]:
+        pulled: Float[Array, " n_input"] = flat_transposed(cotangent)[0]
         return pulled
 
     information: InformationSpectrum
@@ -504,9 +523,11 @@ def _certify_kernel(  # noqa: PLR0915
         rank=spectrum_rank,
     )
 
-    def forward_vector(candidate: PyTree) -> Array:
+    def forward_vector(candidate: PyTree) -> Float[Array, " n_output"]:
         candidate_value: PyTree = executor(candidate)
-        result: Array = _ravel_real_pytree(candidate_value)[0]
+        result: Float[Array, " n_output"] = _ravel_real_pytree(
+            candidate_value
+        )[0]
         return result
 
     derivatives: DerivativeEvidence = _derivative_evidence_from_linearization(
@@ -541,7 +562,7 @@ def _certify_kernel(  # noqa: PLR0915
     domain: DomainResult
     hard_severity_code: int = 2
     for domain in domains:
-        hard_passed: Array = (
+        hard_passed: Bool[Array, ""] = (
             domain.severity_code < hard_severity_code
         ) | domain.passed
         checkify.check(
@@ -574,7 +595,7 @@ def _certify_kernel(  # noqa: PLR0915
         reference=jnp.zeros(1),
         tolerance=jnp.zeros(1),
     )
-    nonfinite_count: Array = jnp.sum(~jnp.isfinite(flat_value))
+    nonfinite_count: Int[Array, ""] = jnp.sum(~jnp.isfinite(flat_value))
     output_claim: CertificationClaim = evaluate_claim(
         claim_id="claim.output.finite",
         subject_id=context.model.observable_id,
@@ -583,10 +604,10 @@ def _certify_kernel(  # noqa: PLR0915
         reference=jnp.zeros(1),
         tolerance=jnp.zeros(1),
     )
-    derivative_error: Array = jnp.max(
+    derivative_error: Float64[Array, ""] = jnp.max(
         jnp.abs(derivatives.derivative_residuals)
     )
-    derivative_tolerance: Array = 1e-9 + 1e-6 * jnp.max(
+    derivative_tolerance: Float64[Array, ""] = 1e-9 + 1e-6 * jnp.max(
         jnp.abs(derivatives.reference_derivatives)
     )
     derivative_claim: CertificationClaim = evaluate_claim(
@@ -796,11 +817,13 @@ def _claim_is_consistent(
             bool(jnp.array_equal(left, right)) for left, right in comparisons
         )
         return consistent  # noqa: RET504
-    expected_residual: Array = claim.measured - claim.reference
-    expected_margin: Array = jnp.min(
+    expected_residual: Float64[Array, " n_measure"] = (
+        claim.measured - claim.reference
+    )
+    expected_margin: Float64[Array, ""] = jnp.min(
         claim.tolerance - jnp.abs(expected_residual)
     )
-    expected_passed: Array = (
+    expected_passed: Bool[Array, ""] = (
         claim.checked
         & claim.in_domain
         & jnp.all(jnp.abs(expected_residual) <= claim.tolerance)

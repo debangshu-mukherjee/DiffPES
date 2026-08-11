@@ -13,16 +13,12 @@ Routine Listings
 ----------------
 :class:`ArtifactRef`
     Store static identity and role for one source or derived artifact.
-:obj:`ArtifactResolver`
-    Resolve an artifact to normalized content and optional source bytes.
 :class:`CertificationClaim`
     Store a named claim and its continuous numerical evidence.
 :class:`CertificationContext`
     Store prepared selections and references for compiled certification.
 :class:`CertifiedResult`
     Store a numerical result paired with its differentiable certificate.
-:obj:`CheckFunction`
-    Callable signature for a pure JAX certification check.
 :class:`ConventionRef`
     Store a versioned semantic convention used by a scientific model.
 :class:`DependencyMap`
@@ -45,6 +41,8 @@ Routine Listings
     Store the complete assurance record for one forward execution.
 :class:`ForwardModelSpec`
     Store the identity of a differentiable forward model.
+:class:`HandshakeReport`
+    Store the validation outcome for one registration handshake.
 :class:`HumanAttestationRef`
     Record a human review separately from computational evidence.
 :class:`InformationSpectrum`
@@ -55,16 +53,14 @@ Routine Listings
     Store a frozen binding between a model spec and its executor.
 :class:`RegisteredTransformation`
     Store a frozen transformation and its consistency checksum.
+:class:`RegistrationHandshake`
+    Store registration requirements for one certification owner.
 :class:`RegistryReport`
     Store the structural validation result for one registry snapshot.
 :class:`RegistrySnapshot`
     Store an immutable deterministic snapshot of registry entries.
-:class:`RegistrationHandshake`
-    Store declarative registration requirements for one plan owner.
 :class:`ReproductionReport`
     Store a numerical comparison from deliberate forward re-execution.
-:class:`HandshakeReport`
-    Store the validation outcome for one registration handshake.
 :class:`SensitivityMap`
     Store scaled sensitivities from inputs to output projections.
 :class:`TransformationRecord`
@@ -105,6 +101,8 @@ Routine Listings
     Create and cross-validate a complete forward certificate.
 :func:`make_forward_model_spec`
     Create a validated stable forward-model specification.
+:func:`make_handshake_report`
+    Create a report for one registration handshake.
 :func:`make_human_attestation_ref`
     Create a named human-review record.
 :func:`make_information_spectrum`
@@ -115,16 +113,14 @@ Routine Listings
     Create a validated model-registry binding.
 :func:`make_registered_transformation`
     Create a validated transformation-registry binding.
+:func:`make_registration_handshake`
+    Create registration requirements for one certification owner.
 :func:`make_registry_report`
     Create a validated structural registry report.
 :func:`make_registry_snapshot`
     Create an immutable registry snapshot.
-:func:`make_registration_handshake`
-    Create declarative registration requirements for one plan owner.
 :func:`make_reproduction_report`
     Create a report comparing a result with its re-execution.
-:func:`make_handshake_report`
-    Create a report for one registration handshake.
 :func:`make_sensitivity_map`
     Create a named, scaled local-sensitivity map.
 :func:`make_transformation_record`
@@ -135,6 +131,10 @@ Routine Listings
     Create a bounded policy-waiver declaration.
 :func:`make_waiver_report`
     Create a temporal waiver-validation report.
+:obj:`ArtifactResolver`
+    Resolve an artifact to normalized content and optional source bytes.
+:obj:`CheckFunction`
+    Callable signature for a pure JAX certification check.
 """
 
 import json
@@ -179,6 +179,10 @@ class ArtifactRef(eqx.Module):
     role : str
         Role (**static** -- a compile-time constant; changing it
         triggers retracing).
+
+    See Also
+    --------
+    make_artifact_ref : Validated factory for this type.
     """
 
     artifact_id: str = eqx.field(static=True)
@@ -212,6 +216,10 @@ class ConventionRef(eqx.Module):
     parameters_json : str
         Parameters json (**static** -- a compile-time constant;
         changing it triggers retracing).
+
+    See Also
+    --------
+    make_convention_ref : Validated factory for this type.
     """
 
     convention_id: str = eqx.field(static=True)
@@ -241,6 +249,10 @@ class DomainPredicate(eqx.Module):
     severity : str
         Severity (**static** -- a compile-time constant; changing it
         triggers retracing).
+
+    See Also
+    --------
+    make_domain_predicate : Validated factory for this type.
     """
 
     predicate_id: str = eqx.field(static=True)
@@ -289,6 +301,10 @@ class DomainResult(eqx.Module):
     severity_code : Int32[Array, ""]
         Severity code retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_domain_result : Validated factory for this type.
     """
 
     predicate_id: str = eqx.field(static=True)
@@ -343,6 +359,10 @@ class ForwardModelSpec(eqx.Module):
     nondifferentiable_paths : Tuple[str, ...]
         Nondifferentiable paths (**static** -- a compile-time constant;
         changing it triggers retracing).
+
+    See Also
+    --------
+    make_forward_model_spec : Validated factory for this type.
     """
 
     model_id: str = eqx.field(static=True)
@@ -375,6 +395,10 @@ class RegisteredModel(eqx.Module):
     registration_checksum : str
         Registration checksum (**static** -- a compile-time constant;
         changing it triggers retracing).
+
+    See Also
+    --------
+    make_registered_model : Validated factory for this type.
     """
 
     spec: ForwardModelSpec
@@ -398,6 +422,10 @@ class RegisteredTransformation(eqx.Module):
     registration_checksum : str
         Registration checksum (**static** -- a compile-time constant;
         changing it triggers retracing).
+
+    See Also
+    --------
+    make_registered_transformation : Validated factory for this type.
     """
 
     contract: TransformationContract
@@ -423,6 +451,10 @@ class RegistrySnapshot(eqx.Module):
     checksum : str
         Checksum (**static** -- a compile-time constant; changing it
         triggers retracing).
+
+    See Also
+    --------
+    make_registry_snapshot : Validated factory for this type.
     """
 
     models: Tuple[RegisteredModel, ...]
@@ -458,6 +490,10 @@ class RegistryReport(eqx.Module):
     frozen : bool
         Frozen (**static** -- a compile-time constant; changing it
         triggers retracing).
+
+    See Also
+    --------
+    make_registry_report : Validated factory for this type.
     """
 
     valid: bool = eqx.field(static=True)
@@ -469,7 +505,7 @@ class RegistryReport(eqx.Module):
 
 
 class RegistrationHandshake(eqx.Module):
-    """Store declarative registration requirements for one plan owner.
+    """Store registration requirements for one certification owner.
 
     The record names required identities without importing an unfinished
     scientific kernel.
@@ -479,7 +515,8 @@ class RegistrationHandshake(eqx.Module):
     Attributes
     ----------
     owner_id : str
-        Plan owner identity (**static**; changing it causes retracing).
+        Certification owner identity (**static**; changing it causes
+        retracing).
     model_refs : Tuple[str, ...]
         Required model identities (**static**; changing them causes retracing).
     transformation_refs : Tuple[str, ...]
@@ -490,6 +527,10 @@ class RegistrationHandshake(eqx.Module):
     evidence_ids : Tuple[str, ...]
         Required evidence identities (**static**; changing them causes
         retracing).
+
+    See Also
+    --------
+    make_registration_handshake : Validated factory for this type.
     """
 
     owner_id: str = eqx.field(static=True)
@@ -509,11 +550,16 @@ class HandshakeReport(eqx.Module):
     Attributes
     ----------
     owner_id : str
-        Plan owner identity (**static**; changing it causes retracing).
+        Certification owner identity (**static**; changing it causes
+        retracing).
     complete : Bool[Array, ""]
         Whether every declared identity has a registry binding.
     missing_ids : Tuple[str, ...]
         Missing declared identities (**static**; changes cause retracing).
+
+    See Also
+    --------
+    make_handshake_report : Validated factory for this type.
     """
 
     owner_id: str = eqx.field(static=True)
@@ -558,6 +604,10 @@ class TransformationRecord(eqx.Module):
     parameters_checksum : str
         Parameters checksum (**static** -- a compile-time constant;
         changing it triggers retracing).
+
+    See Also
+    --------
+    make_transformation_record : Validated factory for this type.
     """
 
     transformation_id: str = eqx.field(static=True)
@@ -593,6 +643,10 @@ class EvidenceLineage(eqx.Module):
         Known conflicts requiring an explicit resolution relationship.
     relationship_ids : Tuple[str, ...]
         Typed lineage relationships.
+
+    See Also
+    --------
+    make_evidence_lineage : Validated factory for this type.
     """
 
     implementation_refs: Tuple[str, ...] = eqx.field(static=True)
@@ -622,6 +676,10 @@ class HumanAttestationRef(eqx.Module):
         Review statement.
     recorded_at_utc : str
         Absolute UTC record time.
+
+    See Also
+    --------
+    make_human_attestation_ref : Validated factory for this type.
     """
 
     attestation_id: str = eqx.field(static=True)
@@ -666,6 +724,10 @@ class EvidenceRef(eqx.Module):
     tolerance : Float64[Array, " n_measure"]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_evidence_ref : Validated factory for this type.
     """
 
     evidence_id: str = eqx.field(static=True)
@@ -728,6 +790,10 @@ class CertificationClaim(eqx.Module):
     severity_code : Int32[Array, ""]
         Severity code retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_certification_claim : Validated factory for this type.
     """
 
     claim_id: str = eqx.field(static=True)
@@ -795,6 +861,10 @@ class DerivativeEvidence(eqx.Module):
     fd_correct : Bool[Array, ""]
         Fd correct retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_derivative_evidence : Validated factory for this type.
     """
 
     input_paths: Tuple[str, ...] = eqx.field(static=True)
@@ -837,6 +907,10 @@ class DependencyMap(eqx.Module):
     traced : Bool[Array, "n_output n_input"]
         Traced retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_dependency_map : Validated factory for this type.
     """
 
     model_id: str = eqx.field(static=True)
@@ -874,6 +948,10 @@ class SensitivityMap(eqx.Module):
     active : Bool[Array, "n_output n_input"]
         Active retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_sensitivity_map : Validated factory for this type.
     """
 
     input_paths: Tuple[str, ...] = eqx.field(static=True)
@@ -913,6 +991,10 @@ class InformationSpectrum(eqx.Module):
     threshold : Float64[Array, ""]
         Threshold retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_information_spectrum : Validated factory for this type.
     """
 
     input_paths: Tuple[str, ...] = eqx.field(static=True)
@@ -963,6 +1045,10 @@ class ExecutionManifest(eqx.Module):
     started_at_utc : str
         Started at utc (**static** -- a compile-time constant; changing
         it triggers retracing).
+
+    See Also
+    --------
+    make_execution_manifest : Validated factory for this type.
     """
 
     execution_id: str = eqx.field(static=True)
@@ -1008,6 +1094,10 @@ class PolicyReport(eqx.Module):
     achieved : Bool[Array, " n_level"]
         Achieved retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_policy_report : Validated factory for this type.
     """
 
     policy_id: str = eqx.field(static=True)
@@ -1057,6 +1147,10 @@ class CertificationContext(eqx.Module):
         changing it triggers retracing).
     waivers : Tuple[WaiverRecord, ...]
         Policy-waiver records (**static**; changing them causes retracing).
+
+    See Also
+    --------
+    make_certification_context : Validated factory for this type.
     """
 
     manifest: ExecutionManifest
@@ -1130,6 +1224,10 @@ class ForwardCertificate(eqx.Module):
         changing it triggers retracing).
     waivers : Tuple[WaiverRecord, ...]
         Policy-waiver records (**static**; changing them causes retracing).
+
+    See Also
+    --------
+    make_forward_certificate : Validated factory for this type.
     """
 
     manifest: ExecutionManifest
@@ -1167,6 +1265,10 @@ class CertifiedResult(eqx.Module):
     certificate : ForwardCertificate
         Certificate retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_certified_result : Validated factory for this type.
     """
 
     value: Any
@@ -1198,6 +1300,10 @@ class EvidenceReport(eqx.Module):
     residual_norm : Float64[Array, ""]
         Residual norm retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_evidence_report : Validated factory for this type.
     """
 
     evidence_id: str = eqx.field(static=True)
@@ -1232,6 +1338,10 @@ class VerificationReport(eqx.Module):
     policy_report : PolicyReport
         Policy report retained as a differentiable JAX leaf in the
         declared physical units.
+
+    See Also
+    --------
+    make_verification_report : Validated factory for this type.
     """
 
     certificate_checksum: str = eqx.field(static=True)
@@ -1269,6 +1379,10 @@ class ReproductionReport(eqx.Module):
     tolerance : Float64[Array, ""]
         Tolerance retained as a differentiable JAX leaf in the declared
         physical units.
+
+    See Also
+    --------
+    make_reproduction_report : Validated factory for this type.
     """
 
     execution_id: str = eqx.field(static=True)
@@ -1303,6 +1417,10 @@ class WaiverRecord(eqx.Module):
         Absolute UTC issue time (**static**; changing it causes retracing).
     expires_at_utc : str
         Absolute UTC expiry time (**static**; changing it causes retracing).
+
+    See Also
+    --------
+    make_waiver_record : Validated factory for this type.
     """
 
     waiver_id: str = eqx.field(static=True)
@@ -1331,6 +1449,10 @@ class WaiverReport(eqx.Module):
         Whether the waiver covers the selected UTC time.
     errors : Tuple[str, ...]
         Validation errors (**static**; changing them causes retracing).
+
+    See Also
+    --------
+    make_waiver_report : Validated factory for this type.
     """
 
     waiver_id: str = eqx.field(static=True)
@@ -1471,7 +1593,7 @@ def _json_object(value: str, name: str) -> str:
     return value
 
 
-def _float(value: Any, name: str, ndim: int) -> Array:
+def _float(value: Any, name: str, ndim: int) -> Float64[Array, "..."]:
     """PRIVATE: Cast a numerical value to float64 and enforce its rank.
 
     Parameters
@@ -1485,7 +1607,7 @@ def _float(value: Any, name: str, ndim: int) -> Array:
 
     Returns
     -------
-    array : Array
+    array : Float64[Array, "..."]
         The value cast to a float64 JAX array.
 
     Raises
@@ -1499,13 +1621,13 @@ def _float(value: Any, name: str, ndim: int) -> Array:
     The rank check is static shape metadata. The numerical content
     stays a traced leaf.
     """
-    array: Array = jnp.asarray(value, dtype=jnp.float64)
+    array: Float64[Array, "..."] = jnp.asarray(value, dtype=jnp.float64)
     if array.ndim != ndim:
         raise ValueError(f"{name} must have rank {ndim}")
     return array
 
 
-def _bool(value: Any, name: str, ndim: int) -> Array:
+def _bool(value: Any, name: str, ndim: int) -> Bool[Array, "..."]:
     """PRIVATE: Cast a logical value to bool and enforce its rank.
 
     Parameters
@@ -1519,7 +1641,7 @@ def _bool(value: Any, name: str, ndim: int) -> Array:
 
     Returns
     -------
-    array : Array
+    array : Bool[Array, "..."]
         The value cast to a boolean JAX array.
 
     Raises
@@ -1533,13 +1655,13 @@ def _bool(value: Any, name: str, ndim: int) -> Array:
     The rank check is static shape metadata. The logical content stays
     a traced leaf.
     """
-    array: Array = jnp.asarray(value, dtype=jnp.bool_)
+    array: Bool[Array, "..."] = jnp.asarray(value, dtype=jnp.bool_)
     if array.ndim != ndim:
         raise ValueError(f"{name} must have rank {ndim}")
     return array
 
 
-def _int(value: Any, name: str, ndim: int) -> Array:
+def _int(value: Any, name: str, ndim: int) -> Int32[Array, "..."]:
     """PRIVATE: Cast an integer value to int32 and enforce its rank.
 
     Parameters
@@ -1553,7 +1675,7 @@ def _int(value: Any, name: str, ndim: int) -> Array:
 
     Returns
     -------
-    array : Array
+    array : Int32[Array, "..."]
         The value cast to an int32 JAX array.
 
     Raises
@@ -1567,25 +1689,27 @@ def _int(value: Any, name: str, ndim: int) -> Array:
     The rank check is static shape metadata. The integer content stays
     a traced leaf.
     """
-    array: Array = jnp.asarray(value, dtype=jnp.int32)
+    array: Int32[Array, "..."] = jnp.asarray(value, dtype=jnp.int32)
     if array.ndim != ndim:
         raise ValueError(f"{name} must have rank {ndim}")
     return array
 
 
-def _nonnegative(array: Array, name: str) -> Array:
+def _nonnegative(
+    array: Float64[Array, "..."], name: str
+) -> Float64[Array, "..."]:
     """PRIVATE: Require finite, nonnegative tolerance-like leaves under JIT.
 
     Parameters
     ----------
-    array : Array
+    array : Float64[Array, "..."]
         Traced numerical leaf to guard.
     name : str
         Field name used in the traced error message.
 
     Returns
     -------
-    result : Array
+    result : Float64[Array, "..."]
         The same values with the runtime check attached.
 
     Notes
@@ -1594,7 +1718,7 @@ def _nonnegative(array: Array, name: str) -> Array:
     ``ValueError``. The check runs under JIT and fails at run time when
     any element is nonfinite or negative.
     """
-    result: Array = eqx.error_if(
+    result: Float64[Array, "..."] = eqx.error_if(
         array,
         ~jnp.all(jnp.isfinite(array) & (array >= 0.0)),
         f"{name} must be finite and nonnegative",
@@ -1602,19 +1726,21 @@ def _nonnegative(array: Array, name: str) -> Array:
     return result
 
 
-def _positive(array: Array, name: str) -> Array:
+def _positive(
+    array: Float64[Array, "..."], name: str
+) -> Float64[Array, "..."]:
     """PRIVATE: Require finite, positive scale leaves under JIT.
 
     Parameters
     ----------
-    array : Array
+    array : Float64[Array, "..."]
         Traced numerical leaf to guard.
     name : str
         Field name used in the traced error message.
 
     Returns
     -------
-    result : Array
+    result : Float64[Array, "..."]
         The same values with the runtime check attached.
 
     Notes
@@ -1623,7 +1749,7 @@ def _positive(array: Array, name: str) -> Array:
     ``ValueError``. The check runs under JIT and fails at run time when
     any element is nonfinite or not strictly positive.
     """
-    result: Array = eqx.error_if(
+    result: Float64[Array, "..."] = eqx.error_if(
         array,
         ~jnp.all(jnp.isfinite(array) & (array > 0.0)),
         f"{name} must be finite and positive",
@@ -2453,10 +2579,16 @@ def make_evidence_ref(
     The factory checks static structure eagerly. JAX array operations validate
     numerical values and preserve differentiation behavior.
     """
-    measured_array: Array = _float(measured, "measured", 1)
-    reference_array: Array = _float(reference, "reference", 1)
-    residual_array: Array = _float(residual, "residual", 1)
-    tolerance_array: Array = _nonnegative(
+    measured_array: Float64[Array, " n_value"] = _float(
+        measured, "measured", 1
+    )
+    reference_array: Float64[Array, " n_value"] = _float(
+        reference, "reference", 1
+    )
+    residual_array: Float64[Array, " n_value"] = _float(
+        residual, "residual", 1
+    )
+    tolerance_array: Float64[Array, " n_value"] = _nonnegative(
         _float(tolerance, "tolerance", 1), "tolerance"
     )
     shape: Tuple[int, ...] = measured_array.shape
@@ -2567,10 +2699,16 @@ def make_certification_claim(  # noqa: PLR0913, PLR0917
     The factory checks static structure eagerly. JAX array operations validate
     numerical values and preserve differentiation behavior.
     """
-    measured_array: Array = _float(measured, "measured", 1)
-    reference_array: Array = _float(reference, "reference", 1)
-    residual_array: Array = _float(residual, "residual", 1)
-    tolerance_array: Array = _nonnegative(
+    measured_array: Float64[Array, " n_value"] = _float(
+        measured, "measured", 1
+    )
+    reference_array: Float64[Array, " n_value"] = _float(
+        reference, "reference", 1
+    )
+    residual_array: Float64[Array, " n_value"] = _float(
+        residual, "residual", 1
+    )
+    tolerance_array: Float64[Array, " n_value"] = _nonnegative(
         _float(tolerance, "tolerance", 1), "tolerance"
     )
     shape: Tuple[int, ...] = measured_array.shape
@@ -2688,20 +2826,26 @@ def make_derivative_evidence(  # noqa: PLR0913, PLR0917
         output_projection_ids,
         "output_projection_ids",
     )
-    scales_array: Array = _positive(_float(scales, "scales", 1), "scales")
-    jvp_array: Array = _float(jvp_probes, "jvp_probes", 2)
-    vjp_array: Array = _float(vjp_probes, "vjp_probes", 2)
-    reference_array: Array = _float(
+    scales_array: Float64[Array, " n_input"] = _positive(
+        _float(scales, "scales", 1), "scales"
+    )
+    jvp_array: Float64[Array, "n_probe n_output"] = _float(
+        jvp_probes, "jvp_probes", 2
+    )
+    vjp_array: Float64[Array, "n_probe n_input"] = _float(
+        vjp_probes, "vjp_probes", 2
+    )
+    reference_array: Float64[Array, "n_probe n_reference"] = _float(
         reference_derivatives,
         "reference_derivatives",
         2,
     )
-    residual_array: Array = _float(
+    residual_array: Float64[Array, "n_probe n_reference"] = _float(
         derivative_residuals,
         "derivative_residuals",
         2,
     )
-    singular_array: Array = _nonnegative(
+    singular_array: Float64[Array, " n_singular"] = _nonnegative(
         _float(singular_values, "singular_values", 1), "singular_values"
     )
     if scales_array.shape[0] != len(paths):
@@ -2783,8 +2927,10 @@ def make_dependency_map(
     """
     inputs: Tuple[str, ...] = _text_tuple(input_paths, "input_paths")
     outputs: Tuple[str, ...] = _text_tuple(output_paths, "output_paths")
-    structural_array: Array = _bool(structural, "structural", 2)
-    traced_array: Array = _bool(traced, "traced", 2)
+    structural_array: Bool[Array, "n_output n_input"] = _bool(
+        structural, "structural", 2
+    )
+    traced_array: Bool[Array, "n_output n_input"] = _bool(traced, "traced", 2)
     expected: Tuple[int, int] = (len(outputs), len(inputs))
     if structural_array.shape != expected or traced_array.shape != expected:
         raise ValueError(
@@ -2858,13 +3004,15 @@ def make_sensitivity_map(
         output_projection_ids,
         "output_projection_ids",
     )
-    scales_array: Array = _positive(_float(scales, "scales", 1), "scales")
-    sensitivities_array: Array = _float(
+    scales_array: Float64[Array, " n_input"] = _positive(
+        _float(scales, "scales", 1), "scales"
+    )
+    sensitivities_array: Float64[Array, "n_output n_input"] = _float(
         sensitivities,
         "sensitivities",
         2,
     )
-    active_array: Array = _bool(active, "active", 2)
+    active_array: Bool[Array, "n_output n_input"] = _bool(active, "active", 2)
     expected: Tuple[int, int] = (len(outputs), len(inputs))
     if sensitivities_array.shape != expected or active_array.shape != expected:
         raise ValueError(
@@ -2937,10 +3085,10 @@ def make_information_spectrum(
     numerical values and preserve differentiation behavior.
     """
     paths: Tuple[str, ...] = _text_tuple(input_paths, "input_paths")
-    singular_array: Array = _nonnegative(
+    singular_array: Float64[Array, " n_singular"] = _nonnegative(
         _float(singular_values, "singular_values", 1), "singular_values"
     )
-    vectors_array: Array = _float(
+    vectors_array: Float64[Array, "n_singular n_input"] = _float(
         right_singular_vectors,
         "right_singular_vectors",
         2,
@@ -3110,10 +3258,16 @@ def make_policy_report(
         required_claim_ids,
         "required_claim_ids",
     )
-    passed_array: Array = _bool(claim_passed, "claim_passed", 1)
-    checked_array: Array = _bool(claim_checked, "claim_checked", 1)
-    domain_array: Array = _bool(claim_in_domain, "claim_in_domain", 1)
-    achieved_array: Array = _bool(achieved, "achieved", 1)
+    passed_array: Bool[Array, " n_claim"] = _bool(
+        claim_passed, "claim_passed", 1
+    )
+    checked_array: Bool[Array, " n_claim"] = _bool(
+        claim_checked, "claim_checked", 1
+    )
+    domain_array: Bool[Array, " n_claim"] = _bool(
+        claim_in_domain, "claim_in_domain", 1
+    )
+    achieved_array: Bool[Array, " n_level"] = _bool(achieved, "achieved", 1)
     if not (
         passed_array.shape
         == checked_array.shape
@@ -3631,7 +3785,7 @@ def make_registration_handshake(
     convention_refs: Tuple[str, ...] = (),
     evidence_ids: Tuple[str, ...] = (),
 ) -> RegistrationHandshake:
-    """Create declarative registration requirements for one plan owner.
+    """Create registration requirements for one certification owner.
 
     The factory validates each static identity without importing a scientific
     executor.
@@ -3641,7 +3795,8 @@ def make_registration_handshake(
     Parameters
     ----------
     owner_id : str
-        Plan owner identity (**static**; changing it causes retracing).
+        Certification owner identity (**static**; changing it causes
+        retracing).
     model_refs : Tuple[str, ...]
         Required model identities. Default is an empty tuple.
     transformation_refs : Tuple[str, ...]
@@ -3687,7 +3842,8 @@ def make_handshake_report(
     Parameters
     ----------
     owner_id : str
-        Plan owner identity (**static**; changing it causes retracing).
+        Certification owner identity (**static**; changing it causes
+        retracing).
     complete : Any
         Whether every declared identity has a registry binding.
     missing_ids : Tuple[str, ...]
@@ -3818,10 +3974,8 @@ def make_waiver_report(
 
 __all__: list[str] = [
     "ArtifactRef",
-    "ArtifactResolver",
     "CertificationClaim",
     "CertificationContext",
-    "CheckFunction",
     "CertifiedResult",
     "ConventionRef",
     "DependencyMap",
@@ -3840,9 +3994,9 @@ __all__: list[str] = [
     "PolicyReport",
     "RegisteredModel",
     "RegisteredTransformation",
+    "RegistrationHandshake",
     "RegistryReport",
     "RegistrySnapshot",
-    "RegistrationHandshake",
     "ReproductionReport",
     "SensitivityMap",
     "TransformationRecord",
@@ -3870,13 +4024,15 @@ __all__: list[str] = [
     "make_policy_report",
     "make_registered_model",
     "make_registered_transformation",
+    "make_registration_handshake",
     "make_registry_report",
     "make_registry_snapshot",
-    "make_registration_handshake",
     "make_reproduction_report",
     "make_sensitivity_map",
     "make_transformation_record",
     "make_verification_report",
     "make_waiver_record",
     "make_waiver_report",
+    "ArtifactResolver",
+    "CheckFunction",
 ]

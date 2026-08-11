@@ -13,8 +13,8 @@ import chex
 import jax
 import jax.numpy as jnp
 import mpmath as mp
-from beartype.typing import Any, Callable, Tuple
-from jaxtyping import Array, Float64
+from beartype.typing import Any, Callable, List, Tuple
+from jaxtyping import Array, Float64, Int64
 from scipy import stats
 
 from diffpes.simul import (
@@ -111,8 +111,8 @@ class TestGaussian(chex.TestCase):
     def test_normalization(self) -> None:
         """Verify that the Gaussian profile integrates to unity.
 
-        The test establishes the normalization contract for gaussian with the concrete
-        values and array shapes described below.
+        The test establishes the normalization contract for gaussian with the
+        concrete values and array shapes described below.
 
         Notes
         -----
@@ -131,12 +131,12 @@ class TestGaussian(chex.TestCase):
         The numerical integral is within 1e-3 of 1.0, confirming
         proper normalization of the Gaussian density.
         """
-        e_range: Array
+        e_range: Float64[Array, "..."]
         sigma: float
         var_fn: Callable[..., Any]
-        profile: Array
-        de: Array
-        integral: Array
+        profile: Float64[Array, "..."]
+        de: Float64[Array, "..."]
+        integral: Float64[Array, "..."]
 
         e_range = jnp.linspace(-10.0, 10.0, 100000)
         sigma = 0.5
@@ -150,8 +150,8 @@ class TestGaussian(chex.TestCase):
     def test_peak_position(self) -> None:
         """Verify that the Gaussian peak occurs at the specified center energy.
 
-        The test establishes the peak position contract for gaussian with the concrete
-        values and array shapes described below.
+        The test establishes the peak position contract for gaussian with the
+        concrete values and array shapes described below.
 
         Notes
         -----
@@ -170,12 +170,12 @@ class TestGaussian(chex.TestCase):
         The peak energy is within 0.01 eV of the requested center (1.5 eV),
         confirming the centering parameter works correctly.
         """
-        e_range: Array
+        e_range: Float64[Array, "..."]
         center: float
         var_fn: Callable[..., Any]
-        profile: Array
-        peak_idx: Array
-        peak_energy: Array
+        profile: Float64[Array, "..."]
+        peak_idx: Int64[Array, "..."]
+        peak_energy: Float64[Array, "..."]
 
         e_range = jnp.linspace(-5.0, 5.0, 10001)
         center = 1.5
@@ -191,8 +191,8 @@ class TestGaussian(chex.TestCase):
     def test_symmetry(self) -> None:
         """Verify that the Gaussian profile is symmetric about its center.
 
-        The test establishes the symmetry contract for gaussian with the concrete
-        values and array shapes described below.
+        The test establishes the symmetry contract for gaussian with the
+        concrete values and array shapes described below.
 
         Notes
         -----
@@ -210,9 +210,9 @@ class TestGaussian(chex.TestCase):
         Each element matches its mirror element to within 1e-10,
         confirming the even-function symmetry G(-E) = G(E).
         """
-        e_range: Array
+        e_range: Float64[Array, "..."]
         var_fn: Callable[..., Any]
-        profile: Array
+        profile: Float64[Array, "..."]
 
         e_range = jnp.linspace(-5.0, 5.0, 1001)
         var_fn = self.variant(gaussian)
@@ -282,9 +282,9 @@ class TestVoigt(chex.TestCase):
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_reduces_to_gaussian(self) -> None:
-        """Verify that the Voigt profile reduces to a Gaussian when gamma is negligible.
+        """Verify the Voigt profile becomes Gaussian for negligible gamma.
 
-        The test establishes the reduces to gaussian contract for voigt with the
+        The test establishes the Gaussian-limit contract for Voigt with the
         concrete values and array shapes described below.
 
         Notes
@@ -305,12 +305,12 @@ class TestVoigt(chex.TestCase):
         All values agree to within 1e-3, confirming the correct
         Gaussian limiting behavior of the true Voigt profile.
         """
-        e_range: Array
+        e_range: Float64[Array, "..."]
         sigma: float
         gamma: float
         var_fn: Callable[..., Any]
-        v_profile: Array
-        g_profile: Array
+        v_profile: Float64[Array, "..."]
+        g_profile: Float64[Array, "..."]
 
         e_range = jnp.linspace(-5.0, 5.0, 10001)
         sigma = 0.5
@@ -324,8 +324,8 @@ class TestVoigt(chex.TestCase):
     def test_peak_position(self) -> None:
         """Verify that the Voigt profile peaks at the specified center energy.
 
-        The test establishes the peak position contract for voigt with the concrete
-        values and array shapes described below.
+        The test establishes the peak position contract for voigt with the
+        concrete values and array shapes described below.
 
         Notes
         -----
@@ -343,12 +343,12 @@ class TestVoigt(chex.TestCase):
         The peak is within 0.01 eV of the requested center. Both profile
         components share this center.
         """
-        e_range: Array
-        center: Array
+        e_range: Float64[Array, "..."]
+        center: Float64[Array, "..."]
         var_fn: Callable[..., Any]
-        profile: Array
-        peak_idx: Array
-        peak_energy: Array
+        profile: Float64[Array, "..."]
+        peak_idx: Int64[Array, "..."]
+        peak_energy: Float64[Array, "..."]
 
         e_range = jnp.linspace(-5.0, 5.0, 10001)
         center = -1.0
@@ -364,8 +364,8 @@ class TestVoigt(chex.TestCase):
     def test_positive_values(self) -> None:
         """Verify that the Voigt profile produces finite values everywhere.
 
-        The test establishes the positive values contract for voigt with the concrete
-        values and array shapes described below.
+        The test establishes the positive-values contract for voigt with the
+        concrete values and array shapes described below.
 
         Notes
         -----
@@ -380,9 +380,9 @@ class TestVoigt(chex.TestCase):
         All profile values are finite (no NaN or Inf), confirming
         numerical stability of the true Voigt implementation.
         """
-        e_range: Array
+        e_range: Float64[Array, "..."]
         var_fn: Callable[..., Any]
-        profile: Array
+        profile: Float64[Array, "..."]
 
         e_range = jnp.linspace(-5.0, 5.0, 1001)
         var_fn = self.variant(voigt)
@@ -400,8 +400,8 @@ class TestVoigt(chex.TestCase):
 
         Notes
         -----
-        The test evaluates both rays eagerly and under JIT on an asymmetric energy
-        grid, then compares against ``scipy.stats.norm.pdf`` and
+        The test evaluates both rays eagerly and under JIT on an asymmetric
+        energy grid, then compares against ``scipy.stats.norm.pdf`` and
         ``scipy.stats.cauchy.pdf`` as independent external truths.
         """
         var_fn: Callable[..., Any]
@@ -476,8 +476,8 @@ class TestVoigt(chex.TestCase):
 
         Notes
         -----
-        The test uses the shared rejection helper on a finite energy grid, exercising
-        both direct execution and ``equinox.filter_jit``.
+        The test uses the shared rejection helper on a finite energy grid,
+        exercising both direct execution and ``equinox.filter_jit``.
         """
         energy_axis: Float64[Array, "5"] = jnp.linspace(-1.0, 1.0, 5)
         assert_rejects(
@@ -532,7 +532,7 @@ class TestFermiDirac(chex.TestCase):
     def test_at_fermi_level(self) -> None:
         """Verify that the Fermi-Dirac function equals 0.5 at the Fermi energy.
 
-        The test establishes the at fermi level contract for fermi dirac with the
+        The test establishes the Fermi-level contract for Fermi--Dirac with the
         concrete values and array shapes described below.
 
         Notes
@@ -549,7 +549,7 @@ class TestFermiDirac(chex.TestCase):
         property f(Ef) = 0.5 at finite temperature.
         """
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, "..."]
 
         var_fn = self.variant(fermi_dirac)
         result = var_fn(0.0, 0.0, 300.0)
@@ -559,8 +559,8 @@ class TestFermiDirac(chex.TestCase):
     def test_deep_below_fermi(self) -> None:
         """Verify full occupation deep below the Fermi level.
 
-        The test establishes the deep below fermi contract for fermi dirac with the
-        concrete values and array shapes described below.
+        The test establishes the deep-below-Fermi contract for Fermi--Dirac
+        with concrete values and array shapes described below.
 
         Notes
         -----
@@ -577,7 +577,7 @@ class TestFermiDirac(chex.TestCase):
         of deeply bound states.
         """
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, "..."]
 
         var_fn = self.variant(fermi_dirac)
         result = var_fn(-5.0, 0.0, 15.0)
@@ -587,8 +587,8 @@ class TestFermiDirac(chex.TestCase):
     def test_high_above_fermi(self) -> None:
         """Verify zero occupation far above the Fermi level.
 
-        The test establishes the high above fermi contract for fermi dirac with the
-        concrete values and array shapes described below.
+        The test establishes the high-above-Fermi contract for Fermi--Dirac
+        with concrete values and array shapes described below.
 
         Notes
         -----
@@ -606,7 +606,7 @@ class TestFermiDirac(chex.TestCase):
         well above the Fermi energy are effectively empty.
         """
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, "..."]
 
         var_fn = self.variant(fermi_dirac)
         result = var_fn(5.0, 0.0, 15.0)
@@ -634,7 +634,7 @@ class TestFermiDirac(chex.TestCase):
         hold for any valid probability/occupation function.
         """
         var_fn: Callable[..., Any]
-        result: Array
+        result: Float64[Array, "..."]
 
         var_fn = self.variant(fermi_dirac)
         result = var_fn(-0.5, 0.0, 300.0)
@@ -648,7 +648,8 @@ class TestFermiDirac(chex.TestCase):
         Extended Summary
         ----------------
         The test compares values with a high-precision ``mpmath`` logistic.
-        It compares three derivatives with analytical formulas at ``rtol=1e-12``.
+        It compares three derivatives with analytical formulas at
+        ``rtol=1e-12``.
 
         Notes
         -----
@@ -660,7 +661,7 @@ class TestFermiDirac(chex.TestCase):
         temperature: float
         x_value: float
 
-        occupation_high_precision: Array
+        occupation_high_precision: Float64[Array, "..."]
         var_fn: Callable[..., Any]
 
         x_values: Tuple[float, ...] = (
@@ -675,8 +676,8 @@ class TestFermiDirac(chex.TestCase):
             -700.0,
         )
         temperatures: Tuple[float, ...] = (5.0, 15.0, 300.0)
-        parameters: list[list[float]] = []
-        expected_rows: list[list[float]] = []
+        parameters: List[List[float]] = []
+        expected_rows: List[List[float]] = []
         with mp.workdps(50):
             for temperature in temperatures:
                 thermal_energy: float = KB_EV_PER_K * temperature
@@ -721,9 +722,9 @@ class TestFermiDirac(chex.TestCase):
 
         Notes
         -----
-        The test evaluates the occupation and all three gradients eagerly and under
-        JIT, then checks the positive audit/tail values and every saturated
-        derivative exactly.
+        The test evaluates the occupation and all three gradients eagerly and
+        under JIT, then checks the positive audit/tail values and every
+        saturated derivative exactly.
         """
         var_fn: Callable[..., Any]
 
@@ -750,14 +751,15 @@ class TestFermiDirac(chex.TestCase):
 
         Extended Summary
         ----------------
-        The test verifies energy, Fermi-energy, and temperature sensitivities are
+        The test verifies energy, Fermi-energy, and temperature sensitivities
+        are
         finite, nonzero, and central-FD-correct at ``x = 1`` and 15 K to the
-        smooth ``rtol=1e-6`` gate.
+        smooth ``rtol=1e-6`` check.
 
         Notes
         -----
-        The test runs the shared gradient harness against eager and JIT-transformed
-        scalar functions on the three-parameter vector.
+        The test runs the shared gradient harness against eager and
+        JIT-transformed scalar functions on the three-parameter vector.
         """
         var_fn: Callable[..., Any]
 

@@ -1,15 +1,18 @@
-"""Verify one frozen Coulomb order in an isolated process."""
+"""Verify one frozen Coulomb order in an isolated process.
+
+Measure value, derivative, recurrence, symmetry, and branch evidence against
+the frozen mpmath authority. Emit one JSON report for the parent verifier.
+"""
 
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
-from jaxtyping import Float64, Shaped
+from beartype.typing import Any, Dict, List, Tuple, Union
+from jaxtyping import Array, Bool, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.radial import coulomb_fg
@@ -31,14 +34,14 @@ RHO_FD_SCALE_RULE: str = (
 
 
 def _mixed_budget_ratio(
-    actual: jax.Array,
+    actual: Float64[Array, "..."],
     reference: Float64[NDArray, "..."],
 ) -> float:
-    """PRIVATE: Return the maximum D11 mixed-tolerance consumption.
+    """PRIVATE: Return the maximum mixed-tolerance consumption.
 
     Parameters
     ----------
-    actual : jax.Array
+    actual : Float64[Array, "..."]
         Production values under test.
     reference : Float64[NDArray, "..."]
         Frozen 80-digit mpmath truth of the same shape.
@@ -46,23 +49,35 @@ def _mixed_budget_ratio(
     Returns
     -------
     ratio : float
-        Worst ``|actual - reference| / (1e-10 + 1e-7 |reference|)``
-        over all entries; one means the budget is exactly consumed.
+        Worst ``|actual - reference| / (1e-10 + 1e-7 |reference|)`` over all
+        entries. A ratio of one exactly consumes the budget.
 
     Notes
     -----
     The mixed absolute-plus-relative denominator matches the
-    registered D11 acceptance rule, so the report stays comparable
+    registered Coulomb-assembly rule, so the report stays comparable
     across rows of very different magnitude.
     """
-    ratio: jax.Array = jnp.abs(actual - jnp.asarray(reference)) / (
+    ratio: Float64[Array, "..."] = jnp.abs(actual - jnp.asarray(reference)) / (
         1.0e-10 + 1.0e-7 * jnp.abs(jnp.asarray(reference))
     )
-    return float(jnp.max(ratio))
+    maximum_ratio: float = float(jnp.max(ratio))
+    return maximum_ratio
 
 
 def main() -> None:  # noqa: PLR0915
-    """Check sparse values, both AD modes, and registered FD ladders."""
+    """Check sparse values, both AD modes, and registered FD ladders.
+
+    Raises
+    ------
+    AssertionError
+        If a global five-point Richardson result exceeds the mixed budget.
+
+    Notes
+    -----
+    The isolated command reads one angular-momentum order from ``sys.argv``.
+    It prints the complete derivative and invariant record.
+    """
     order: int = int(sys.argv[1])
     path: Path = (
         Path(__file__).parents[2]
@@ -72,10 +87,15 @@ def main() -> None:  # noqa: PLR0915
         / "data"
         / "coulomb_mpmath_80digit.npz"
     )
+    archive: Any
     with np.load(path) as archive:
-        reference: Dict[str, Shaped[NDArray, "..."]] = {
-            name: archive[name] for name in archive.files
-        }
+        reference: Dict[
+            str,
+            Union[
+                Float64[NDArray, "..."],
+                Int64[NDArray, "..."],
+            ],
+        ] = {name: archive[name] for name in archive.files}
     eta_grid_numpy: Float64[NDArray, "n_eta n_rho"]
     rho_grid_numpy: Float64[NDArray, "n_eta n_rho"]
     eta_grid_numpy, rho_grid_numpy = np.meshgrid(
@@ -83,19 +103,42 @@ def main() -> None:  # noqa: PLR0915
         reference["rhos"],
         indexing="ij",
     )
-    eta_grid: jax.Array = jnp.asarray(eta_grid_numpy)
-    rho_grid: jax.Array = jnp.asarray(rho_grid_numpy)
+    eta_grid: Float64[Array, "n_eta n_rho"] = jnp.asarray(eta_grid_numpy)
+    rho_grid: Float64[Array, "n_eta n_rho"] = jnp.asarray(rho_grid_numpy)
 
     @jax.jit
-    def values(eta: jax.Array, rho: jax.Array) -> jax.Array:
-        """Return all production Coulomb rows on the sparse product."""
-        return jnp.stack(coulomb_fg(order, eta, rho))
+    def values(
+        eta: Float64[Array, "n_eta n_rho"],
+        rho: Float64[Array, "n_eta n_rho"],
+    ) -> Float64[Array, "4 n_eta n_rho"]:
+        """Compute all Coulomb rows on the sparse product.
 
-    actual: jax.Array = values(eta_grid, rho_grid)
+        Parameters
+        ----------
+        eta : Float64[Array, "n_eta n_rho"]
+            Sommerfeld-parameter product grid.
+        rho : Float64[Array, "n_eta n_rho"]
+            Radial-coordinate product grid.
+
+        Returns
+        -------
+        rows : Float64[Array, "4 n_eta n_rho"]
+            Regular, irregular, and radial-derivative rows.
+
+        Notes
+        -----
+        The closure fixes one angular-momentum order.
+        """
+        rows: Float64[Array, "4 n_eta n_rho"] = jnp.stack(
+            coulomb_fg(order, eta, rho)
+        )
+        return rows
+
+    actual: Float64[Array, "4 n_eta n_rho"] = values(eta_grid, rho_grid)
     jax.block_until_ready(actual)
     names: Tuple[str, ...] = ("f", "g", "df_drho", "dg_drho")
     name: str
-    row: jax.Array
+    row: Float64[Array, "n_eta n_rho"]
     for name, row in zip(names, actual, strict=True):
         np.testing.assert_allclose(
             row,
@@ -105,9 +148,29 @@ def main() -> None:  # noqa: PLR0915
         )
 
     @jax.jit
-    def eta_forward(eta: jax.Array, rho: jax.Array) -> jax.Array:
-        """Return the unit-eta forward-mode tangent."""
-        tangent: jax.Array = jax.jvp(
+    def eta_forward(
+        eta: Float64[Array, "n_eta n_rho"],
+        rho: Float64[Array, "n_eta n_rho"],
+    ) -> Float64[Array, "4 n_eta n_rho"]:
+        """Compute the unit-eta forward-mode tangent.
+
+        Parameters
+        ----------
+        eta : Float64[Array, "n_eta n_rho"]
+            Sommerfeld-parameter product grid.
+        rho : Float64[Array, "n_eta n_rho"]
+            Radial-coordinate product grid.
+
+        Returns
+        -------
+        tangent : Float64[Array, "4 n_eta n_rho"]
+            Unit-eta directional derivative of all Coulomb rows.
+
+        Notes
+        -----
+        ``jax.jvp`` differentiates the complete sparse product.
+        """
+        tangent: Float64[Array, "4 n_eta n_rho"] = jax.jvp(
             lambda argument: values(argument, rho),
             (eta,),
             (jnp.ones_like(eta),),
@@ -115,17 +178,41 @@ def main() -> None:  # noqa: PLR0915
         return tangent
 
     @jax.jit
-    def rho_forward(eta: jax.Array, rho: jax.Array) -> jax.Array:
-        """Return the unit-rho forward-mode tangent."""
-        tangent: jax.Array = jax.jvp(
+    def rho_forward(
+        eta: Float64[Array, "n_eta n_rho"],
+        rho: Float64[Array, "n_eta n_rho"],
+    ) -> Float64[Array, "4 n_eta n_rho"]:
+        """Compute the unit-rho forward-mode tangent.
+
+        Parameters
+        ----------
+        eta : Float64[Array, "n_eta n_rho"]
+            Sommerfeld-parameter product grid.
+        rho : Float64[Array, "n_eta n_rho"]
+            Radial-coordinate product grid.
+
+        Returns
+        -------
+        tangent : Float64[Array, "4 n_eta n_rho"]
+            Unit-rho directional derivative of all Coulomb rows.
+
+        Notes
+        -----
+        ``jax.jvp`` differentiates the complete sparse product.
+        """
+        tangent: Float64[Array, "4 n_eta n_rho"] = jax.jvp(
             lambda argument: values(eta, argument),
             (rho,),
             (jnp.ones_like(rho),),
         )[1]
         return tangent
 
-    eta_tangent: jax.Array = eta_forward(eta_grid, rho_grid)
-    rho_tangent: jax.Array = rho_forward(eta_grid, rho_grid)
+    eta_tangent: Float64[Array, "4 n_eta n_rho"] = eta_forward(
+        eta_grid, rho_grid
+    )
+    rho_tangent: Float64[Array, "4 n_eta n_rho"] = rho_forward(
+        eta_grid, rho_grid
+    )
     jax.block_until_ready((eta_tangent, rho_tangent))
     eta_names: Tuple[str, ...] = (
         "df_deta",
@@ -154,40 +241,86 @@ def main() -> None:  # noqa: PLR0915
             atol=1.0e-10,
         )
 
-    weights: jax.Array = jnp.sin(
+    weights: Float64[Array, "4 n_eta n_rho"] = jnp.sin(
         jnp.arange(actual.size, dtype=jnp.float64).reshape(actual.shape) + 0.37
     )
 
     @jax.jit
-    def eta_objective(eta: jax.Array, rho: jax.Array) -> jax.Array:
-        """Return one generic weighted scalar for reverse eta AD."""
-        return jnp.sum(values(eta, rho) * weights)
+    def eta_objective(
+        eta: Float64[Array, "n_eta n_rho"],
+        rho: Float64[Array, "n_eta n_rho"],
+    ) -> Float64[Array, ""]:
+        """Compute one weighted scalar for reverse eta AD.
+
+        Parameters
+        ----------
+        eta : Float64[Array, "n_eta n_rho"]
+            Sommerfeld-parameter product grid.
+        rho : Float64[Array, "n_eta n_rho"]
+            Radial-coordinate product grid.
+
+        Returns
+        -------
+        objective : Float64[Array, ""]
+            Generic weighted sum of all Coulomb rows.
+
+        Notes
+        -----
+        Fixed sinusoidal weights prevent accidental cancellation.
+        """
+        objective: Float64[Array, ""] = jnp.sum(values(eta, rho) * weights)
+        return objective
 
     @jax.jit
-    def rho_objective(eta: jax.Array, rho: jax.Array) -> jax.Array:
-        """Return one generic weighted scalar for reverse rho AD."""
-        return jnp.sum(values(eta, rho) * weights)
+    def rho_objective(
+        eta: Float64[Array, "n_eta n_rho"],
+        rho: Float64[Array, "n_eta n_rho"],
+    ) -> Float64[Array, ""]:
+        """Compute one weighted scalar for reverse rho AD.
 
-    eta_reverse: jax.Array = jax.grad(eta_objective, argnums=0)(
+        Parameters
+        ----------
+        eta : Float64[Array, "n_eta n_rho"]
+            Sommerfeld-parameter product grid.
+        rho : Float64[Array, "n_eta n_rho"]
+            Radial-coordinate product grid.
+
+        Returns
+        -------
+        objective : Float64[Array, ""]
+            Generic weighted sum of all Coulomb rows.
+
+        Notes
+        -----
+        Fixed sinusoidal weights prevent accidental cancellation.
+        """
+        objective: Float64[Array, ""] = jnp.sum(values(eta, rho) * weights)
+        return objective
+
+    eta_reverse: Float64[Array, "n_eta n_rho"] = jax.grad(
+        eta_objective, argnums=0
+    )(
         eta_grid,
         rho_grid,
     )
-    rho_reverse: jax.Array = jax.grad(rho_objective, argnums=1)(
+    rho_reverse: Float64[Array, "n_eta n_rho"] = jax.grad(
+        rho_objective, argnums=1
+    )(
         eta_grid,
         rho_grid,
     )
     jax.block_until_ready((eta_reverse, rho_reverse))
-    eta_reference: jax.Array = jnp.stack(
+    eta_reference: Float64[Array, "4 n_eta n_rho"] = jnp.stack(
         tuple(jnp.asarray(reference[name][order]) for name in eta_names)
     )
-    rho_reference: jax.Array = jnp.stack(
+    rho_reference: Float64[Array, "4 n_eta n_rho"] = jnp.stack(
         tuple(jnp.asarray(reference[name][order]) for name in rho_names)
     )
-    expected_eta_reverse: jax.Array = jnp.sum(
+    expected_eta_reverse: Float64[Array, "n_eta n_rho"] = jnp.sum(
         weights * eta_reference,
         axis=0,
     )
-    expected_rho_reverse: jax.Array = jnp.sum(
+    expected_rho_reverse: Float64[Array, "n_eta n_rho"] = jnp.sum(
         weights * rho_reference,
         axis=0,
     )
@@ -204,36 +337,42 @@ def main() -> None:  # noqa: PLR0915
         atol=1.0e-10,
     )
 
-    eta_fd_ratios: list[float] = []
-    eta_fd_rows: list[jax.Array] = []
-    eta_scale: jax.Array = jnp.maximum(1.0, jnp.abs(eta_grid))
+    eta_fd_ratios: List[float] = []
+    eta_fd_rows: List[Float64[Array, "4 n_eta n_rho"]] = []
+    eta_scale: Float64[Array, "n_eta n_rho"] = jnp.maximum(
+        1.0, jnp.abs(eta_grid)
+    )
     eta_exponent: int
     for eta_exponent in ETA_FD_EXPONENTS:
-        eta_step: jax.Array = eta_scale * 2.0**-eta_exponent
-        plus_one: jax.Array = values(
+        eta_step: Float64[Array, "n_eta n_rho"] = (
+            eta_scale * 2.0**-eta_exponent
+        )
+        plus_one: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.minimum(eta_grid + eta_step, ETA_MAX),
             rho_grid,
         )
-        plus_two: jax.Array = values(
+        plus_two: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.minimum(eta_grid + 2.0 * eta_step, ETA_MAX),
             rho_grid,
         )
-        minus_one: jax.Array = values(
+        minus_one: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.maximum(eta_grid - eta_step, ETA_MIN),
             rho_grid,
         )
-        minus_two: jax.Array = values(
+        minus_two: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.maximum(eta_grid - 2.0 * eta_step, ETA_MIN),
             rho_grid,
         )
-        eta_central: jax.Array = (plus_one - minus_one) / (2.0 * eta_step)
-        eta_forward_edge: jax.Array = (
+        eta_central: Float64[Array, "4 n_eta n_rho"] = (
+            plus_one - minus_one
+        ) / (2.0 * eta_step)
+        eta_forward_edge: Float64[Array, "4 n_eta n_rho"] = (
             -3.0 * actual + 4.0 * plus_one - plus_two
         ) / (2.0 * eta_step)
-        eta_backward_edge: jax.Array = (
+        eta_backward_edge: Float64[Array, "4 n_eta n_rho"] = (
             3.0 * actual - 4.0 * minus_one + minus_two
         ) / (2.0 * eta_step)
-        eta_fd: jax.Array = jnp.where(
+        eta_fd: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             (eta_grid == ETA_MIN)[None, ...],
             eta_forward_edge,
             jnp.where(
@@ -248,8 +387,8 @@ def main() -> None:  # noqa: PLR0915
             _mixed_budget_ratio(eta_fd, np.asarray(eta_reference))
         )
 
-    eta_five_point_ratios: list[float] = []
-    eta_five_point_rows: list[jax.Array] = []
+    eta_five_point_ratios: List[float] = []
+    eta_five_point_rows: List[Float64[Array, "4 n_eta n_rho"]] = []
     for eta_exponent in ETA_FIVE_POINT_FD_EXPONENTS:
         eta_step = (
             ETA_FIVE_POINT_FD_MULTIPLIER * eta_scale * 2.0**-eta_exponent
@@ -262,11 +401,11 @@ def main() -> None:  # noqa: PLR0915
             jnp.minimum(eta_grid + 2.0 * eta_step, ETA_MAX),
             rho_grid,
         )
-        plus_three = values(
+        plus_three: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.minimum(eta_grid + 3.0 * eta_step, ETA_MAX),
             rho_grid,
         )
-        plus_four = values(
+        plus_four: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.minimum(eta_grid + 4.0 * eta_step, ETA_MAX),
             rho_grid,
         )
@@ -278,34 +417,38 @@ def main() -> None:  # noqa: PLR0915
             jnp.maximum(eta_grid - 2.0 * eta_step, ETA_MIN),
             rho_grid,
         )
-        minus_three = values(
+        minus_three: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.maximum(eta_grid - 3.0 * eta_step, ETA_MIN),
             rho_grid,
         )
-        minus_four = values(
+        minus_four: Float64[Array, "4 n_eta n_rho"] = values(
             jnp.maximum(eta_grid - 4.0 * eta_step, ETA_MIN),
             rho_grid,
         )
-        eta_five_point_central: jax.Array = (
+        eta_five_point_central: Float64[Array, "4 n_eta n_rho"] = (
             minus_two - 8.0 * minus_one + 8.0 * plus_one - plus_two
         ) / (12.0 * eta_step)
-        eta_five_point_forward: jax.Array = (
+        eta_five_point_forward: Float64[Array, "4 n_eta n_rho"] = (
             -25.0 * actual
             + 48.0 * plus_one
             - 36.0 * plus_two
             + 16.0 * plus_three
             - 3.0 * plus_four
         ) / (12.0 * eta_step)
-        eta_five_point_backward: jax.Array = (
+        eta_five_point_backward: Float64[Array, "4 n_eta n_rho"] = (
             25.0 * actual
             - 48.0 * minus_one
             + 36.0 * minus_two
             - 16.0 * minus_three
             + 3.0 * minus_four
         ) / (12.0 * eta_step)
-        use_forward_stencil = eta_grid - 2.0 * eta_step < ETA_MIN
-        use_backward_stencil = eta_grid + 2.0 * eta_step > ETA_MAX
-        eta_five_point: jax.Array = jnp.where(
+        use_forward_stencil: Bool[Array, "n_eta n_rho"] = (
+            eta_grid - 2.0 * eta_step < ETA_MIN
+        )
+        use_backward_stencil: Bool[Array, "n_eta n_rho"] = (
+            eta_grid + 2.0 * eta_step > ETA_MAX
+        )
+        eta_five_point: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             use_forward_stencil[None, ...],
             eta_five_point_forward,
             jnp.where(
@@ -323,62 +466,87 @@ def main() -> None:  # noqa: PLR0915
             )
         )
 
-    rho_fd_ratios: list[float] = []
-    rho_fd_rows: list[jax.Array] = []
-    rho_five_point_ratios: list[float] = []
-    rho_five_point_rows: list[jax.Array] = []
-    regular_regime_five_point_ratios: list[float] = []
-    irregular_regime_five_point_ratios: list[float] = []
-    regular_row_mask: jax.Array = jnp.asarray(
+    rho_fd_ratios: List[float] = []
+    rho_fd_rows: List[Float64[Array, "4 n_eta n_rho"]] = []
+    rho_five_point_ratios: List[float] = []
+    rho_five_point_rows: List[Float64[Array, "4 n_eta n_rho"]] = []
+    regular_regime_five_point_ratios: List[float] = []
+    irregular_regime_five_point_ratios: List[float] = []
+    regular_row_mask: Bool[Array, "4 1 1"] = jnp.asarray(
         (True, False, True, False),
     )[:, None, None]
 
     def rho_fd_rows_for_step(
-        rho_step: jax.Array,
-    ) -> Tuple[jax.Array, jax.Array]:
-        """Return second- and fourth-order rows for one global step field."""
-        plus_one: jax.Array = values(
+        rho_step: Float64[Array, "n_eta n_rho"],
+    ) -> Tuple[
+        Float64[Array, "4 n_eta n_rho"],
+        Float64[Array, "4 n_eta n_rho"],
+    ]:
+        """Compute second- and fourth-order rows for one step field.
+
+        Parameters
+        ----------
+        rho_step : Float64[Array, "n_eta n_rho"]
+            Positive radial finite-difference step at each product point.
+
+        Returns
+        -------
+        result : Tuple[Float64[Array, "4 n_eta n_rho"],
+            Float64[Array, "4 n_eta n_rho"]]
+            Second-order and five-point radial derivative rows.
+
+        Notes
+        -----
+        One-sided fourth-order stencils protect both radial boundaries.
+        """
+        plus_one: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.minimum(rho_grid + rho_step, RHO_MAX),
         )
-        plus_two: jax.Array = values(
+        plus_two: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.minimum(rho_grid + 2.0 * rho_step, RHO_MAX),
         )
-        minus_one: jax.Array = values(
+        minus_one: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.maximum(rho_grid - rho_step, RHO_MIN),
         )
-        minus_two: jax.Array = values(
+        minus_two: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.maximum(rho_grid - 2.0 * rho_step, RHO_MIN),
         )
-        plus_three: jax.Array = values(
+        plus_three: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.minimum(rho_grid + 3.0 * rho_step, RHO_MAX),
         )
-        plus_four: jax.Array = values(
+        plus_four: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.minimum(rho_grid + 4.0 * rho_step, RHO_MAX),
         )
-        minus_three: jax.Array = values(
+        minus_three: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.maximum(rho_grid - 3.0 * rho_step, RHO_MIN),
         )
-        minus_four: jax.Array = values(
+        minus_four: Float64[Array, "4 n_eta n_rho"] = values(
             eta_grid,
             jnp.maximum(rho_grid - 4.0 * rho_step, RHO_MIN),
         )
-        use_forward_stencil: jax.Array = rho_grid - 2.0 * rho_step < RHO_MIN
-        use_backward_stencil: jax.Array = rho_grid + 2.0 * rho_step > RHO_MAX
-        rho_central: jax.Array = (plus_one - minus_one) / (2.0 * rho_step)
-        rho_forward_edge: jax.Array = (
+        use_forward_stencil: Bool[Array, "n_eta n_rho"] = (
+            rho_grid - 2.0 * rho_step < RHO_MIN
+        )
+        use_backward_stencil: Bool[Array, "n_eta n_rho"] = (
+            rho_grid + 2.0 * rho_step > RHO_MAX
+        )
+        rho_central: Float64[Array, "4 n_eta n_rho"] = (
+            plus_one - minus_one
+        ) / (2.0 * rho_step)
+        rho_forward_edge: Float64[Array, "4 n_eta n_rho"] = (
             -3.0 * actual + 4.0 * plus_one - plus_two
         ) / (2.0 * rho_step)
-        rho_backward_edge: jax.Array = (
+        rho_backward_edge: Float64[Array, "4 n_eta n_rho"] = (
             3.0 * actual - 4.0 * minus_one + minus_two
         ) / (2.0 * rho_step)
-        rho_second_order: jax.Array = jnp.where(
+        rho_second_order: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             use_forward_stencil[None, ...],
             rho_forward_edge,
             jnp.where(
@@ -387,24 +555,24 @@ def main() -> None:  # noqa: PLR0915
                 rho_central,
             ),
         )
-        rho_five_point_central: jax.Array = (
+        rho_five_point_central: Float64[Array, "4 n_eta n_rho"] = (
             minus_two - 8.0 * minus_one + 8.0 * plus_one - plus_two
         ) / (12.0 * rho_step)
-        rho_five_point_forward: jax.Array = (
+        rho_five_point_forward: Float64[Array, "4 n_eta n_rho"] = (
             -25.0 * actual
             + 48.0 * plus_one
             - 36.0 * plus_two
             + 16.0 * plus_three
             - 3.0 * plus_four
         ) / (12.0 * rho_step)
-        rho_five_point_backward: jax.Array = (
+        rho_five_point_backward: Float64[Array, "4 n_eta n_rho"] = (
             25.0 * actual
             - 48.0 * minus_one
             + 36.0 * minus_two
             - 16.0 * minus_three
             + 3.0 * minus_four
         ) / (12.0 * rho_step)
-        rho_five_point: jax.Array = jnp.where(
+        rho_five_point: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             use_forward_stencil[None, ...],
             rho_five_point_forward,
             jnp.where(
@@ -413,34 +581,38 @@ def main() -> None:  # noqa: PLR0915
                 rho_five_point_central,
             ),
         )
-        return rho_second_order, rho_five_point
+        result: Tuple[
+            Float64[Array, "4 n_eta n_rho"],
+            Float64[Array, "4 n_eta n_rho"],
+        ] = (rho_second_order, rho_five_point)
+        return result
 
     rho_exponent: int
     for rho_exponent in RHO_FD_EXPONENTS:
-        regular_rho_step: jax.Array = (
+        regular_rho_step: Float64[Array, "n_eta n_rho"] = (
             jnp.maximum(REGULAR_RHO_FD_SCALE_FLOOR, jnp.abs(rho_grid))
             * 2.0**-rho_exponent
         )
-        irregular_rho_step: jax.Array = (
+        irregular_rho_step: Float64[Array, "n_eta n_rho"] = (
             jnp.maximum(IRREGULAR_RHO_FD_SCALE_FLOOR, jnp.abs(rho_grid))
             * 2.0**-rho_exponent
         )
-        regular_rho_fd: jax.Array
-        regular_rho_five_point: jax.Array
+        regular_rho_fd: Float64[Array, "4 n_eta n_rho"]
+        regular_rho_five_point: Float64[Array, "4 n_eta n_rho"]
         regular_rho_fd, regular_rho_five_point = rho_fd_rows_for_step(
             regular_rho_step
         )
-        irregular_rho_fd: jax.Array
-        irregular_rho_five_point: jax.Array
+        irregular_rho_fd: Float64[Array, "4 n_eta n_rho"]
+        irregular_rho_five_point: Float64[Array, "4 n_eta n_rho"]
         irregular_rho_fd, irregular_rho_five_point = rho_fd_rows_for_step(
             irregular_rho_step
         )
-        rho_fd: jax.Array = jnp.where(
+        rho_fd: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             regular_row_mask,
             regular_rho_fd,
             irregular_rho_fd,
         )
-        rho_five_point: jax.Array = jnp.where(
+        rho_five_point: Float64[Array, "4 n_eta n_rho"] = jnp.where(
             regular_row_mask,
             regular_rho_five_point,
             irregular_rho_five_point,
@@ -470,17 +642,21 @@ def main() -> None:  # noqa: PLR0915
                 np.asarray(rho_reference),
             )
         )
-    eta_fd_stack: jax.Array = jnp.stack(eta_fd_rows)
-    eta_five_point_stack: jax.Array = jnp.stack(eta_five_point_rows)
-    rho_fd_stack: jax.Array = jnp.stack(rho_fd_rows)
-    rho_five_point_stack: jax.Array = jnp.stack(rho_five_point_rows)
-    eta_richardson: jax.Array = (
+    eta_fd_stack: Float64[Array, "3 4 n_eta n_rho"] = jnp.stack(eta_fd_rows)
+    eta_five_point_stack: Float64[Array, "3 4 n_eta n_rho"] = jnp.stack(
+        eta_five_point_rows
+    )
+    rho_fd_stack: Float64[Array, "3 4 n_eta n_rho"] = jnp.stack(rho_fd_rows)
+    rho_five_point_stack: Float64[Array, "3 4 n_eta n_rho"] = jnp.stack(
+        rho_five_point_rows
+    )
+    eta_richardson: Float64[Array, "4 n_eta n_rho"] = (
         16.0 * eta_fd_stack[1] - eta_fd_stack[0]
     ) / 15.0
-    eta_five_point_richardson: jax.Array = (
+    eta_five_point_richardson: Float64[Array, "4 n_eta n_rho"] = (
         256.0 * eta_five_point_stack[1] - eta_five_point_stack[0]
     ) / 255.0
-    eta_five_point_fine_richardson: jax.Array = (
+    eta_five_point_fine_richardson: Float64[Array, "4 n_eta n_rho"] = (
         256.0 * eta_five_point_stack[2] - eta_five_point_stack[1]
     ) / 255.0
     eta_five_point_fine_pair_spread_ratio: float = float(
@@ -489,16 +665,16 @@ def main() -> None:  # noqa: PLR0915
             / (1.0e-10 + 1.0e-7 * jnp.abs(eta_reference))
         )
     )
-    rho_richardson_coarse: jax.Array = (
+    rho_richardson_coarse: Float64[Array, "4 n_eta n_rho"] = (
         16.0 * rho_fd_stack[1] - rho_fd_stack[0]
     ) / 15.0
-    rho_richardson_fine: jax.Array = (
+    rho_richardson_fine: Float64[Array, "4 n_eta n_rho"] = (
         16.0 * rho_fd_stack[2] - rho_fd_stack[1]
     ) / 15.0
-    rho_richardson: jax.Array = (
+    rho_richardson: Float64[Array, "4 n_eta n_rho"] = (
         256.0 * rho_richardson_fine - rho_richardson_coarse
     ) / 255.0
-    rho_five_point_richardson: jax.Array = (
+    rho_five_point_richardson: Float64[Array, "4 n_eta n_rho"] = (
         256.0 * rho_five_point_stack[2] - rho_five_point_stack[1]
     ) / 255.0
     rho_five_point_fine_pair_spread_ratio: float = float(
@@ -507,18 +683,22 @@ def main() -> None:  # noqa: PLR0915
             / (1.0e-10 + 1.0e-7 * jnp.abs(rho_reference))
         )
     )
-    eta_plateau_candidates: jax.Array = jnp.concatenate(
-        (eta_fd_stack, eta_richardson[None, ...]),
-        axis=0,
+    eta_plateau_candidates: Float64[Array, "4 4 n_eta n_rho"] = (
+        jnp.concatenate(
+            (eta_fd_stack, eta_richardson[None, ...]),
+            axis=0,
+        )
     )
-    rho_plateau_candidates: jax.Array = jnp.concatenate(
-        (
-            rho_fd_stack,
-            rho_richardson_coarse[None, ...],
-            rho_richardson_fine[None, ...],
-            rho_richardson[None, ...],
-        ),
-        axis=0,
+    rho_plateau_candidates: Float64[Array, "6 4 n_eta n_rho"] = (
+        jnp.concatenate(
+            (
+                rho_fd_stack,
+                rho_richardson_coarse[None, ...],
+                rho_richardson_fine[None, ...],
+                rho_richardson[None, ...],
+            ),
+            axis=0,
+        )
     )
     eta_best_ratio: float = float(
         jnp.max(
@@ -529,7 +709,7 @@ def main() -> None:  # noqa: PLR0915
             )
         )
     )
-    rho_elementwise_best: jax.Array = jnp.min(
+    rho_elementwise_best: Float64[Array, "4 n_eta n_rho"] = jnp.min(
         jnp.abs(rho_plateau_candidates - rho_reference[None, ...])
         / (1.0e-10 + 1.0e-7 * jnp.abs(rho_reference[None, ...])),
         axis=0,
@@ -554,7 +734,7 @@ def main() -> None:  # noqa: PLR0915
         eta_five_point_fine_richardson,
         np.asarray(eta_reference),
     )
-    eta_five_point_error_ratio: jax.Array = jnp.abs(
+    eta_five_point_error_ratio: Float64[Array, "4 n_eta n_rho"] = jnp.abs(
         eta_five_point_richardson - eta_reference
     ) / (1.0e-10 + 1.0e-7 * jnp.abs(eta_reference))
     eta_five_point_worst_index: Tuple[int, ...] = tuple(
@@ -572,7 +752,7 @@ def main() -> None:  # noqa: PLR0915
         rho_five_point_richardson,
         np.asarray(rho_reference),
     )
-    rho_five_point_error_ratio: jax.Array = jnp.abs(
+    rho_five_point_error_ratio: Float64[Array, "4 n_eta n_rho"] = jnp.abs(
         rho_five_point_richardson - rho_reference
     ) / (1.0e-10 + 1.0e-7 * jnp.abs(rho_reference))
     rho_five_point_worst_index: Tuple[int, ...] = tuple(
@@ -583,11 +763,11 @@ def main() -> None:  # noqa: PLR0915
         )
     )
 
-    regular: jax.Array = actual[0]
-    irregular: jax.Array = actual[1]
-    regular_derivative: jax.Array = actual[2]
-    irregular_derivative: jax.Array = actual[3]
-    wronskian: jax.Array = (
+    regular: Float64[Array, "n_eta n_rho"] = actual[0]
+    irregular: Float64[Array, "n_eta n_rho"] = actual[1]
+    regular_derivative: Float64[Array, "n_eta n_rho"] = actual[2]
+    irregular_derivative: Float64[Array, "n_eta n_rho"] = actual[3]
+    wronskian: Float64[Array, "n_eta n_rho"] = (
         regular_derivative * irregular - regular * irregular_derivative
     )
     np.testing.assert_allclose(
@@ -680,13 +860,13 @@ def main() -> None:  # noqa: PLR0915
     }
     print(json.dumps(metrics, sort_keys=True))
     if eta_five_point_richardson_ratio > 1.0:
-        message = (
+        message: str = (
             "eta global five-point Richardson plateau failed mixed budget: "
             f"{eta_five_point_richardson_ratio}"
         )
         raise AssertionError(message)
     if rho_five_point_richardson_ratio > 1.0:
-        message = (
+        message: str = (
             "rho global five-point Richardson plateau failed mixed budget: "
             f"{rho_five_point_richardson_ratio}"
         )

@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Tuple
-from jaxtyping import Array, Bool, Complex128, Float64
+from jaxtyping import Array, Bool, Complex128, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.maths import real_spherical_harmonics_all
@@ -58,7 +58,10 @@ from diffpes.types import (
     make_radial_quadrature_spec,
     make_radial_spec,
 )
-from tests._gradients import assert_grad_matches_fd, gradient_gate
+from tests._gradients import (
+    assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
+)
 
 type MatrixFixture = Tuple[
     DiagonalizedBands,
@@ -305,7 +308,8 @@ class TestPackMatrixelParams:
     def test_packs_only_active_physical_coordinates(self) -> None:
         """Verify mode-aware packing and compact physical phase coordinates.
 
-        The exact coordinate count exposes accidental calibration or padding entries.
+        The exact coordinate count exposes accidental calibration or padding
+        entries.
 
         Notes
         -----
@@ -635,7 +639,7 @@ class TestBandGroupWeightSensitivity:
         """
         del experiment
         n_orbitals: int = bands.eigenvectors.shape[-1]
-        index: Float64[Array, " n_orb"] = jnp.arange(
+        index: Int64[Array, " n_orb"] = jnp.arange(
             1,
             n_orbitals + 1,
             dtype=jnp.float64,
@@ -746,9 +750,10 @@ class TestBandGroupWeightSensitivity:
         )
 
     def test_jacobian_matches_fd_and_rejects_partial_groups(self) -> None:
-        """Verify the shared gradient gate and incomplete-group rejection.
+        """Verify the shared gradient check and incomplete-group rejection.
 
-        A degenerate partner in the complement makes the singleton group partial.
+        A degenerate partner in the complement makes the singleton group
+        partial.
 
         Notes
         -----
@@ -772,9 +777,10 @@ class TestBandGroupWeightSensitivity:
                     ((0, 1),),
                 )[0]
             )
-            return candidate_weights[0, 0]
+            returned: Float64[Array, ""] = candidate_weights[0, 0]
+            return returned
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             group_weight,
             flat,
             regime="smooth",
@@ -863,7 +869,8 @@ class TestBandGroupWeightSensitivity:
                     ((0,),),
                 )[0]
             )
-            return candidate_weights[0, 0]
+            returned: Float64[Array, ""] = candidate_weights[0, 0]
+            return returned
 
         dark: Float64[Array, " 2"] = jnp.zeros(2)
         assert_grad_matches_fd(
@@ -898,7 +905,7 @@ class TestBandGroupWeightSensitivity:
         )
 
         positive: Float64[Array, " 2"] = jnp.array([0.2, -0.15])
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             dark_weight,
             positive,
             regime="smooth",
@@ -1016,7 +1023,8 @@ class TestResolveOrbitalPositionsCart:
     def test_none_matches_atom_derived_path(self) -> None:
         """Verify host-atom gathering before the fractional-to-Cartesian map.
 
-        The reversed basis assignment exposes an omitted orbital-to-atom gather.
+        The reversed basis assignment exposes an omitted orbital-to-atom
+        gather.
 
         Notes
         -----
@@ -1090,7 +1098,7 @@ class TestRealSphericalHarmonicsCartesianAll:
             assert actual[1, centre_index] == pytest.approx(
                 ((-1) ** degree) * magnitude
             )
-        off_axis: Array = jnp.delete(
+        off_axis: Float64[Array, "..."] = jnp.delete(
             actual,
             jnp.asarray([degree * degree + degree for degree in range(6)]),
             axis=-1,
@@ -1139,7 +1147,10 @@ class TestRealSphericalHarmonicsCartesianAll:
         )(directions)
         chex.assert_shape(actual, (2, 16))
         chex.assert_tree_all_finite(actual)
-        with pytest.raises(eqx.EquinoxRuntimeError):
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="directions must be finite and nonzero",
+        ):
             real_spherical_harmonics_cartesian_all(jnp.zeros(3), 1)
 
 
@@ -1223,7 +1234,7 @@ class TestOrbitalTransitionChannels:
             atol=1e-14,
         )
 
-    def test_g6_analytic_graphene_structure_factor(self) -> None:
+    def test_analytic_graphene_structure_factor(self) -> None:
         """Match analytic zeros, maxima, and opposite-valley orientations.
 
         Equal two-sublattice atomic rows isolate the complete centre-phase
@@ -1357,7 +1368,7 @@ class TestOrbitalTransitionChannels:
         params: MatrixElementParams = _matrix_params(basis, (0, 1))
         depth: float = 4.5
         mean_free_path: Float64[Array, ""] = jnp.array(8.0)
-        common_arguments: Tuple[Array, ...] = (
+        common_arguments: Tuple[Float64[Array, "..."], ...] = (
             jnp.zeros((1, 3)),
             jnp.array([[0.0, 0.0, 1.0]]),
             jnp.zeros((2, 3)),
@@ -1430,7 +1441,8 @@ class TestContractPolarization:
 
         Notes
         -----
-        Compute the expected direct matrix-vector product in real-channel order.
+        Compute the expected direct matrix-vector product in real-channel
+        order.
         """
         channels: Complex128[Array, "2 3"] = jnp.array(
             [[1.0 + 2.0j, -0.3 + 0.4j, 0.7 - 0.2j], [2.0j, 3.0, -1.0j]]
@@ -1523,7 +1535,8 @@ class TestTransitionSource:
 
         Notes
         -----
-        Build an independent NumPy resolvent and compare its spectral expansion.
+        Build an independent NumPy resolvent and compare its spectral
+        expansion.
         Differentiate the same source convention and check a centered quotient.
         """
         hamiltonian: Complex128[NDArray, "4 4"] = np.asarray(
@@ -1616,7 +1629,7 @@ class TestTransitionSource:
             atol=1.0e-12,
         )
 
-    def test_g10_spinless_generic_complex_dense_resolvent(self) -> None:
+    def test_spinless_generic_complex_dense_resolvent(self) -> None:
         """Match a spinless generic-complex dense resolvent and its slope.
 
         A three-orbital Hermitian fixture independently exercises the one-spin
@@ -1722,7 +1735,8 @@ class TestProjectBandChannels:
 
         Notes
         -----
-        Compare with direct and deliberately conjugated coefficient contractions.
+        Compare with direct and deliberately conjugated coefficient
+        contractions.
         """
         transition: Complex128[Array, "1 1 2 3"] = jnp.array(
             [[[[1.0 + 0.3j, 0.2j, -0.4], [0.7j, 1.2, 0.5 - 0.1j]]]]
@@ -1753,11 +1767,13 @@ class TestProjectBandChannels:
     def test_band_gauge_phase_leaves_intensity_invariant(self) -> None:
         """Verify band-phase cancellation after the late modulus square.
 
-        The complex band gauge changes amplitude phase but not physical intensity.
+        The complex band gauge changes amplitude phase but not physical
+        intensity.
 
         Notes
         -----
-        Multiply every coefficient by one phase and compare reduced intensities.
+        Multiply every coefficient by one phase and compare reduced
+        intensities.
         """
         transition: Complex128[Array, "1 1 2 3"] = jnp.array(
             [[[[1.0j, 0.4, -0.2j], [0.3 + 0.7j, -0.1j, 0.8]]]]
@@ -1789,7 +1805,7 @@ class TestMatrixElementIntensity:
     """
 
     def test_relative_spin_phase_is_unobservable(self) -> None:
-        """Keep incoherent spin intensity fixed while a coherent sum oscillates.
+        """Keep spin intensity fixed while a coherent sum oscillates.
 
         Several relative phases expose an unphysical amplitude-level spin sum.
 
@@ -1868,11 +1884,13 @@ class TestAssembleOrbitalTransitionChannels:
     def test_consumes_explicit_vacuum_momentum_and_ignores_v0(self) -> None:
         """Verify fixed vacuum momentum across an inner-potential change.
 
-        This false control catches accidental use of the internal final-state kz.
+        This false control catches accidental use of the internal final-state
+        kz.
 
         Notes
         -----
-        Replace only the inner potential and compare the complete transition tensor.
+        Replace only the inner potential and compare the complete transition
+        tensor.
         """
         fixture: MatrixFixture = self._fixture()
         final_momentum: Float64[Array, "1 3"] = jnp.array([[0.0, 0.0, 1.0]])
@@ -1911,7 +1929,7 @@ class TestAssembleOrbitalTransitionChannels:
     def test_rejects_nonzero_gparallel_invalidity_and_zero_momentum(
         self,
         final_momentum: Float64[Array, "1 3"],
-        validity: Array,
+        validity: Float64[Array, "..."],
     ) -> None:
         """Reject every forbidden explicit vacuum-momentum boundary.
 
@@ -1921,7 +1939,10 @@ class TestAssembleOrbitalTransitionChannels:
         -----
         Call the same assembler fixture with each planted invalid input.
         """
-        with pytest.raises(eqx.EquinoxRuntimeError):
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="valid nonzero vacuum momentum",
+        ):
             assemble_orbital_transition_channels(
                 *self._fixture(),
                 final_momentum,

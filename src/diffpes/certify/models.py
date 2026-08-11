@@ -1003,7 +1003,7 @@ def _packaged_handshake(owner_id: str) -> RegistrationHandshake:
 
     Notes
     -----
-    Plan-owned downstream handshakes compare these complete immutable records,
+    Downstream handshakes compare these complete immutable records,
     rather than accepting a matching owner label with drifted transformations
     or evidence.
     """

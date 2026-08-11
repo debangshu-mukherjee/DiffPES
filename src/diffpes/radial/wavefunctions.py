@@ -7,10 +7,10 @@ wavefunctions for differentiable ARPES matrix element computations.
 
 Routine Listings
 ----------------
-:func:`hydrogenic_radial`
-    Evaluate normalized hydrogenic radial function.
 :func:`evaluate_radial`
     Evaluate normalized shell-shared radial rows on their declared grid.
+:func:`hydrogenic_radial`
+    Evaluate normalized hydrogenic radial function.
 :func:`slater_radial`
     Evaluate normalized Slater-type radial function.
 """
@@ -21,7 +21,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Float64, Integer, jaxtyped
 
 from diffpes.types import RadialSpec, ScalarFloat
@@ -382,6 +382,38 @@ def _contracted_slater_row(
 ) -> Float64[Array, " n_r"]:
     """PRIVATE: Evaluate and analytically normalize one contracted Slater row.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the normalized primitives**::
+
+           primitive_rows = (
+               primitive_norms[:, None]
+               * radial_power[None, :]
+               * jnp.exp(-zeta_row[:, None] * r[None, :])
+           )
+
+       Each analytic norm uses ``Gamma(2 * n_star + 1)``.
+
+    2. **Compute the contraction norm**::
+
+           norm_squared = jnp.einsum(
+               "i,ij,j->",
+               coefficient_row,
+               overlap,
+               coefficient_row,
+           )
+
+       The analytic primitive overlap matrix defines the quadratic form.
+
+    3. **Validate and normalize the row**::
+
+           values = (
+               checked_coefficients @ primitive_rows
+           ) / jnp.sqrt(norm_squared)
+
+       The runtime check rejects nonpositive norms and condition numbers above
+       32. The final division normalizes the contracted radial function.
+
     Parameters
     ----------
     r : Float64[Array, " n_r"]
@@ -399,19 +431,6 @@ def _contracted_slater_row(
         Normalized contracted radial values in inverse Bohr to the
         power 3/2.
 
-    Implementation Logic
-    --------------------
-    Builds each primitive ``N_i * r**(n_star - 1) * exp(-zeta_i * r)``
-    with the analytic norm ``N_i = (2 zeta_i)**(n_star + 1/2) /
-    sqrt(Gamma(2 n_star + 1))``.  At ``r == 0`` the radial power
-    evaluates to one when ``n_star`` equals one and to zero otherwise.
-    The analytic primitive overlap matrix ``Gamma(2 n_star + 1) *
-    N_i N_j / (zeta_i + zeta_j)**(2 n_star + 1)`` gives the squared
-    contraction norm as a quadratic form.  The contracted row divides
-    by its square root once.  A traced
-    :func:`equinox.error_if` check rejects rows without a positive
-    finite norm and rows whose coefficient condition number
-    ``sum(abs(c)) / norm`` exceeds 32.
     """
     gamma_value: Float64[Array, ""] = jnp.asarray(
         math.gamma(2.0 * effective_principal + 1.0),
@@ -538,7 +557,7 @@ def evaluate_radial(  # noqa: DOC503
                 "coefficients_shell must be finite",
             )
         )
-        slater_rows: list[Float64[Array, " n_r"]] = []
+        slater_rows: List[Float64[Array, " n_r"]] = []
         shell_index: int
         for shell_index in range(n_shells):
             slater_rows.append(
@@ -569,7 +588,7 @@ def evaluate_radial(  # noqa: DOC503
             ),
             "hydrogenic effective charge leaves the certified tail envelope",
         )
-        hydrogenic_rows: list[Float64[Array, " n_r"]] = []
+        hydrogenic_rows: List[Float64[Array, " n_r"]] = []
         for shell_index in range(n_shells):
             orbital_index: int = representatives[shell_index]
             hydrogenic_rows.append(

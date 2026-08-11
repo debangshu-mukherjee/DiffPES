@@ -1,16 +1,3 @@
----
-jupytext:
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.16.4
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
----
-
 # Complete-Group Sensitivity at a Dark Corridor
 
 This executable example isolates the semantics of
@@ -22,7 +9,7 @@ The synthetic callback stands in for the longer
 `unpack_matrixel_params` → channel assembly → band projection → polarization
 contraction pipeline. Its required output shape is `[K, B, S]`.
 
-```{code-cell} ipython3
+```python
 import diffpes
 import jax.numpy as jnp
 
@@ -66,7 +53,7 @@ $\theta=0$. The second band is a bright reference. Each singleton group is
 complete and remains separated from its complement by more than the required
 energy gap.
 
-```{code-cell} ipython3
+```python
 def rebuild(candidate, bands, experiment):
     del experiment
     angle = candidate[0]
@@ -103,7 +90,7 @@ $d\log w/d\theta=(dw/d\theta)/w$ has no value at the dark corridor. The
 helper returns a zero sentinel there and a false validity mask. Downstream
 code must use the mask.
 
-```{code-cell} ipython3
+```python
 log_derivative, valid = (
     diffpes.simul.log_band_group_weight_sensitivity(
         weights,
@@ -123,7 +110,7 @@ Move away from the corridor and the first group becomes valid. Its analytic
 weight is $4\sin^2\theta$, so
 $d\log w/d\theta=2\cot\theta$.
 
-```{code-cell} ipython3
+```python
 theta_lit = jnp.array([0.2])
 weights_lit, dweights_lit = (
     diffpes.simul.band_group_weight_sensitivity(

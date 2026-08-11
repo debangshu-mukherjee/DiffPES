@@ -1,6 +1,6 @@
 """Distinguish bulk reciprocal covariance from physical repeated-zone contrast.
 
-Plan 08b wraps the normal bulk integration coordinate over one primitive
+The bulk-kz driver wraps the normal integration coordinate over one primitive
 reciprocal period.  That operation relies on basis-gauge covariance at fixed
 parallel momentum and fixed outgoing state.  It does not make a measured
 ARPES matrix element periodic when the detected parallel momentum moves into
@@ -16,14 +16,14 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any, Dict, Tuple, cast
-from jaxtyping import Float64
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import special
 
-import diffpes.simul.effects as effects
 from diffpes.simul import (
     assemble_spectral_intensity_chunk,
     contract_polarization,
+    effects,
     matrix_element_intensity,
     orbital_transition_channels,
     project_band_channels,
@@ -43,36 +43,40 @@ from tests.test_diffpes.test_simul import test_kz_driver_scans as driver_tests
 
 
 def _gauge_shifted_hamiltonian(
-    hamiltonian: jax.Array,
-    fractional_positions: jax.Array,
-    reciprocal_shift: jax.Array,
-) -> jax.Array:
+    hamiltonian: Float64[Array, "..."],
+    fractional_positions: Float64[Array, "..."],
+    reciprocal_shift: Float64[Array, "..."],
+) -> Float64[Array, "..."]:
     """PRIVATE: Apply the basis-position gauge for one integer shift.
 
     Parameters
     ----------
-    hamiltonian : jax.Array
+    hamiltonian : Float64[Array, "..."]
         Hermitian orbital Hamiltonian at the unshifted momentum.
-    fractional_positions : jax.Array
+    fractional_positions : Float64[Array, "..."]
         Fractional orbital centres.
-    reciprocal_shift : jax.Array
+    reciprocal_shift : Float64[Array, "..."]
         Integer reciprocal-lattice shift in fractional coordinates.
 
     Returns
     -------
-    shifted : jax.Array
+    shifted : Float64[Array, "..."]
         Gauge-covariant Hamiltonian at the shifted momentum.
     """
-    phases: jax.Array = jnp.exp(
+    phases: Complex128[Array, "..."] = jnp.exp(
         2.0j * jnp.pi * (fractional_positions @ reciprocal_shift)
     )
-    gauge: jax.Array = jnp.diag(phases)
-    shifted: jax.Array = gauge.conj().T @ hamiltonian @ gauge
+    gauge: Float64[Array, "..."] = jnp.diag(phases)
+    shifted: Float64[Array, "..."] = gauge.conj().T @ hamiltonian @ gauge
     return shifted
 
 
 class TestKzReciprocalGauge:
-    """Verify the scientifically restricted Plan-08b G8 periodicity claim."""
+    """Verify the scientifically restricted reciprocal-periodicity claim.
+
+    The case applies a reciprocal normal shift and requires covariance without
+    erasing the physical contrast between repeated zones.
+    """
 
     def test_normal_covariance_does_not_erase_repeated_zone_contrast(
         self,
@@ -92,15 +96,17 @@ class TestKzReciprocalGauge:
         equal to one inverse Angstrom.  The second orbital has generic x/z
         fractional coordinates, exposing both gauge transformations.
         """
-        fractional_positions: jax.Array = jnp.asarray(
+        fractional_positions: Float64[Array, "2 3"] = jnp.asarray(
             ((0.0, 0.0, 0.0), (0.27, 0.0, 0.31)),
             dtype=jnp.float64,
         )
-        positions_cart: jax.Array = 2.0 * jnp.pi * fractional_positions
-        normal_shift: jax.Array = jnp.asarray((0.0, 0.0, 1.0))
-        in_plane_shift: jax.Array = jnp.asarray((1.0, 0.0, 0.0))
-        initial_base: jax.Array = jnp.asarray((0.12, 0.0, 0.17))
-        initial_momenta: jax.Array = jnp.stack(
+        positions_cart: Float64[Array, "..."] = (
+            2.0 * jnp.pi * fractional_positions
+        )
+        normal_shift: Float64[Array, "3"] = jnp.asarray((0.0, 0.0, 1.0))
+        in_plane_shift: Float64[Array, "3"] = jnp.asarray((1.0, 0.0, 0.0))
+        initial_base: Float64[Array, "3"] = jnp.asarray((0.12, 0.0, 0.17))
+        initial_momenta: Float64[Array, "..."] = jnp.stack(
             (
                 initial_base,
                 initial_base + normal_shift,
@@ -113,10 +119,10 @@ class TestKzReciprocalGauge:
         zone_final_z: float = math.sqrt(
             final_norm**2 - (initial_base[0] + in_plane_shift[0]) ** 2
         )
-        final_base: jax.Array = jnp.asarray(
+        final_base: Float64[Array, "..."] = jnp.asarray(
             (initial_base[0], initial_base[1], base_final_z)
         )
-        final_momenta: jax.Array = jnp.stack(
+        final_momenta: Float64[Array, "..."] = jnp.stack(
             (
                 final_base,
                 final_base,
@@ -143,37 +149,39 @@ class TestKzReciprocalGauge:
             sigma_shell=jnp.asarray((1.0, 0.83)),
             phase_shift_angles_shell=jnp.asarray((0.19, -0.23)),
         )
-        radial_values: jax.Array = jnp.broadcast_to(
+        radial_values: Complex128[Array, "..."] = jnp.broadcast_to(
             jnp.asarray(
                 ((0.0j, 1.0j), (0.0j, 0.74j)),
                 dtype=jnp.complex128,
             ),
             (3, 2, 2),
         )
-        orbital_channels: jax.Array = orbital_transition_channels(
-            initial_momenta,
-            final_momenta,
-            positions_cart,
-            jnp.zeros((2,), dtype=jnp.float64),
-            radial_values,
-            matrix_params,
-            jnp.asarray(8.0),
-            basis,
+        orbital_channels: Complex128[Array, "..."] = (
+            orbital_transition_channels(
+                initial_momenta,
+                final_momenta,
+                positions_cart,
+                jnp.zeros((2,), dtype=jnp.float64),
+                radial_values,
+                matrix_params,
+                jnp.asarray(8.0),
+                basis,
+            )
         )
-        polarization: jax.Array = jnp.asarray(
+        polarization: Complex128[Array, "3"] = jnp.asarray(
             (0.62 + 0.11j, -0.27 + 0.43j, 0.51 - 0.08j),
             dtype=jnp.complex128,
         )
-        orbital_rows: jax.Array = contract_polarization(
+        orbital_rows: Complex128[Array, "..."] = contract_polarization(
             orbital_channels,
             polarization,
         )
 
-        base_hamiltonian: jax.Array = jnp.asarray(
+        base_hamiltonian: Complex128[Array, "2 2"] = jnp.asarray(
             ((-0.31, 0.28 + 0.17j), (0.28 - 0.17j, 0.43)),
             dtype=jnp.complex128,
         )
-        hamiltonians: jax.Array = jnp.stack(
+        hamiltonians: Complex128[Array, "..."] = jnp.stack(
             (
                 base_hamiltonian,
                 _gauge_shifted_hamiltonian(
@@ -188,30 +196,36 @@ class TestKzReciprocalGauge:
                 ),
             )
         )
-        sources: jax.Array = transition_source(orbital_rows)[:, None, :, :]
+        sources: Complex128[Array, "..."] = transition_source(orbital_rows)[
+            :, None, :, :
+        ]
         self_energy: SelfEnergyModel = make_self_energy_model(gamma=0.06)
-        spectral_intensity: jax.Array = assemble_spectral_intensity_chunk(
-            hamiltonians,
-            sources,
-            jnp.asarray((-0.12,)),
-            self_energy,
-            jnp.asarray(0.0),
-            jnp.asarray(35.0),
-        )[:, 0]
+        spectral_intensity: Float64[Array, "..."] = (
+            assemble_spectral_intensity_chunk(
+                hamiltonians,
+                sources,
+                jnp.asarray((-0.12,)),
+                self_energy,
+                jnp.asarray(0.0),
+                jnp.asarray(35.0),
+            )[:, 0]
+        )
 
-        eigenvalues: jax.Array
-        eigenvectors: jax.Array
+        eigenvalues: Float64[Array, "..."]
+        eigenvectors: Complex128[Array, "..."]
         eigenvalues, eigenvectors = jax.vmap(jnp.linalg.eigh)(hamiltonians)
         del eigenvalues
-        band_channels: jax.Array = project_band_channels(
+        band_channels: Complex128[Array, "..."] = project_band_channels(
             orbital_channels,
             jnp.swapaxes(eigenvectors, -1, -2),
         )
-        band_amplitudes: jax.Array = contract_polarization(
+        band_amplitudes: Complex128[Array, "..."] = contract_polarization(
             band_channels,
             polarization,
         )
-        band_intensity: jax.Array = matrix_element_intensity(band_amplitudes)
+        band_intensity: Float64[Array, "..."] = matrix_element_intensity(
+            band_amplitudes
+        )
 
         chex.assert_trees_all_close(
             spectral_intensity[1],
@@ -240,9 +254,13 @@ class TestKzReciprocalGauge:
 
 
 class TestKzRegisteredNodeBoundary:
-    """Verify that traced bulk scans consume the checked node array."""
+    """Verify that traced bulk scans consume the checked node array.
 
-    def test_g9_shifted_grid_rejects_eager_and_jit(self) -> None:
+    The case supplies a shifted quadrature grid and requires rejection in both
+    eager and compiled execution.
+    """
+
+    def test_shifted_grid_rejects_eager_and_jit(self) -> None:
         """Reject a shape-correct but nonregistered midpoint schedule.
 
         The candidate differs from every registered centre by ``0.01``. The
@@ -257,12 +275,16 @@ class TestKzRegisteredNodeBoundary:
         the only violated contract.
         """
         fixture: Dict[str, object] = driver_tests._driver_fixture()  # noqa: SLF001
-        shifted_nodes: jax.Array = effects.kz_fractional_nodes(4) + 0.01
-        photon_energies: jax.Array = jnp.asarray((28.0,))
+        shifted_nodes: Float64[Array, "..."] = (
+            effects.kz_fractional_nodes(4) + 0.01
+        )
+        photon_energies: Float64[Array, "1"] = jnp.asarray((28.0,))
 
-        def evaluate(candidate_nodes: jax.Array) -> jax.Array:
+        def evaluate(
+            candidate_nodes: Float64[Array, "..."],
+        ) -> Float64[Array, "..."]:
             """Run the public finite-width scan with candidate nodes."""
-            result: jax.Array = driver_tests._simulate_scan(  # noqa: SLF001
+            result: Float64[Array, "..."] = driver_tests._simulate_scan(  # noqa: SLF001
                 fixture,
                 photon_energies,
                 mode="bulk_kz",
@@ -283,7 +305,11 @@ class TestKzRegisteredNodeBoundary:
 
 
 class TestCoherentSlabSurfaceFrame:
-    """Bind each coherent slab to its consumed Plan-05 surface frame."""
+    """Bind each coherent slab to its consumed surface frame.
+
+    The case supplies inconsistent surface cells and requires the coherent
+    slab path to reject them in eager and compiled execution.
+    """
 
     def test_mismatched_surface_cell_rejects_eager_and_jit(self) -> None:
         """Reject a valid surface cell from a different slab geometry.
@@ -303,21 +329,23 @@ class TestCoherentSlabSurfaceFrame:
             SurfaceCell,
             fixture["surface_cell"],
         )
-        mismatched_vectors: jax.Array = matched_cell.in_plane_vectors.at[
-            0, 0
-        ].set(matched_cell.in_plane_vectors[0, 0] + 0.1)
+        mismatched_vectors: Float64[Array, "..."] = (
+            matched_cell.in_plane_vectors.at[0, 0].set(
+                matched_cell.in_plane_vectors[0, 0] + 0.1
+            )
+        )
         mismatched_cell: SurfaceCell = eqx.tree_at(
             lambda item: item.in_plane_vectors,
             matched_cell,
             mismatched_vectors,
         )
-        photon_energies: jax.Array = jnp.asarray((28.0,))
+        photon_energies: Float64[Array, "1"] = jnp.asarray((28.0,))
 
-        def evaluate(candidate_cell: SurfaceCell) -> jax.Array:
+        def evaluate(candidate_cell: SurfaceCell) -> Float64[Array, "..."]:
             """Run the coherent public scan with one candidate cell."""
             candidate_fixture: Dict[str, object] = dict(fixture)
             candidate_fixture["surface_cell"] = candidate_cell
-            result: jax.Array = driver_tests._simulate_scan(  # noqa: SLF001
+            result: Float64[Array, "..."] = driver_tests._simulate_scan(  # noqa: SLF001
                 candidate_fixture,
                 photon_energies,
                 mode="coherent_slab",
@@ -337,11 +365,15 @@ class TestCoherentSlabSurfaceFrame:
 
 
 class TestKzProductionQuadratureReplay:
-    """Bind the selected G6 node count to the public production scan."""
+    """Bind the selected node count to the public production scan.
+
+    The case replays the selected quadrature values, sum, and mean-free-path
+    directional derivative against the authenticated reference.
+    """
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3200)
-    def test_g6_selected_value_sum_and_lambda_jvp_match_reference(
+    def test_selected_value_sum_and_mean_free_path_jvp_match_reference(
         self,
     ) -> None:
         """Compare the 2048-node production replay with 4096 nodes.
@@ -361,24 +393,32 @@ class TestKzProductionQuadratureReplay:
             ExperimentGeometry,
             fixture["geometry"],
         )
-        energy_axis: jax.Array = cast(jax.Array, fixture["energy_axis"])[:2]
-        photon_energies: jax.Array = jnp.asarray((28.0,))
-        mean_free_path: jax.Array = base_geometry.mean_free_path_ang
+        energy_axis: Float64[Array, "..."] = cast(
+            Float64[Array, "..."], fixture["energy_axis"]
+        )[:2]
+        photon_energies: Float64[Array, "1"] = jnp.asarray((28.0,))
+        mean_free_path: Float64[Array, "..."] = (
+            base_geometry.mean_free_path_ang
+        )
 
         def replay(
             node_count: int,
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> Tuple[Float64[Array, "..."], Float64[Array, "..."]]:
             """Return one public value and lambda-direction JVP replay."""
-            nodes: jax.Array = effects.kz_fractional_nodes(node_count)
+            nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(
+                node_count
+            )
 
-            def evaluate(candidate_length: jax.Array) -> jax.Array:
+            def evaluate(
+                candidate_length: Float64[Array, "..."],
+            ) -> Float64[Array, "..."]:
                 """Evaluate the public scan at one escape length."""
                 candidate_geometry: ExperimentGeometry = eqx.tree_at(
                     lambda item: item.mean_free_path_ang,
                     base_geometry,
                     candidate_length,
                 )
-                value: jax.Array = driver_tests._simulate_scan(  # noqa: SLF001
+                value: Float64[Array, "..."] = driver_tests._simulate_scan(  # noqa: SLF001
                     fixture,
                     photon_energies,
                     mode="bulk_kz",
@@ -390,42 +430,48 @@ class TestKzProductionQuadratureReplay:
                 return value
 
             def value_and_jvp(
-                candidate_length: jax.Array,
-            ) -> Tuple[jax.Array, jax.Array]:
+                candidate_length: Float64[Array, "..."],
+            ) -> Tuple[Float64[Array, "..."], Float64[Array, "..."]]:
                 """Differentiate one replay in the unit lambda direction."""
-                result: Tuple[jax.Array, jax.Array] = jax.jvp(
-                    evaluate,
-                    (candidate_length,),
-                    (jnp.ones_like(candidate_length),),
+                result: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
+                    jax.jvp(
+                        evaluate,
+                        (candidate_length,),
+                        (jnp.ones_like(candidate_length),),
+                    )
                 )
                 return result
 
             compiled: Any = jax.jit(value_and_jvp)
-            result: Tuple[jax.Array, jax.Array] = compiled(mean_free_path)
+            result: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
+                compiled(mean_free_path)
+            )
             return result
 
-        selected: jax.Array
-        selected_jvp: jax.Array
-        reference: jax.Array
-        reference_jvp: jax.Array
+        selected: Float64[Array, "..."]
+        selected_jvp: Float64[Array, "..."]
+        reference: Float64[Array, "..."]
+        reference_jvp: Float64[Array, "..."]
         selected, selected_jvp = replay(2048)
         reference, reference_jvp = replay(4096)
 
         relative_floor: float = 1.0e-14
-        pointwise_scale: jax.Array = jnp.maximum(
+        pointwise_scale: Float64[Array, "..."] = jnp.maximum(
             jnp.abs(reference),
             relative_floor,
         )
-        pointwise_error: jax.Array = jnp.max(
+        pointwise_error: Float64[Array, "..."] = jnp.max(
             jnp.abs(selected - reference) / pointwise_scale
         )
-        selected_sum: jax.Array = jnp.sum(selected)
-        reference_sum: jax.Array = jnp.sum(reference)
-        summed_error: jax.Array = jnp.abs(selected_sum - reference_sum) / (
-            jnp.maximum(jnp.abs(reference_sum), relative_floor)
+        selected_sum: Float64[Array, "..."] = jnp.sum(selected)
+        reference_sum: Float64[Array, "..."] = jnp.sum(reference)
+        summed_error: Float64[Array, "..."] = jnp.abs(
+            selected_sum - reference_sum
+        ) / (jnp.maximum(jnp.abs(reference_sum), relative_floor))
+        reference_jvp_norm: Float64[Array, "..."] = jnp.max(
+            jnp.abs(reference_jvp)
         )
-        reference_jvp_norm: jax.Array = jnp.max(jnp.abs(reference_jvp))
-        jvp_error: jax.Array = jnp.max(
+        jvp_error: Float64[Array, "..."] = jnp.max(
             jnp.abs(selected_jvp - reference_jvp)
         ) / jnp.maximum(reference_jvp_norm, relative_floor)
 
@@ -436,9 +482,13 @@ class TestKzProductionQuadratureReplay:
 
 
 class TestKzLargePeriodVoigtLimit:
-    """Verify the secondary Plan-08b G4 full-line parity limit."""
+    """Verify the secondary periodized-Voigt full-line parity limit.
 
-    def test_g4_scipy_periodization_matches_wrapped_fourier(self) -> None:
+    The cases compare the wrapped Fourier form with SciPy periodization and
+    require convergence to the full-line profile for a large period.
+    """
+
+    def test_scipy_periodization_matches_wrapped_fourier(self) -> None:
         """Bind SciPy image periodization to the wrapped-Voigt authority.
 
         The explicit Fourier coefficients equal the product of Gaussian and
@@ -537,10 +587,10 @@ class TestKzLargePeriodVoigtLimit:
             atol=image_remainder_bound + fourier_remainder_bound,
         )
 
-    def test_g4_periodized_voigt_reduces_to_scipy_full_line(self) -> None:
+    def test_periodized_voigt_reduces_to_scipy_full_line(self) -> None:
         """Match a large-period image sum to ``scipy``'s full-line Voigt.
 
-        The primary G4 truth is the independent wrapped-Fourier fixture. This
+        The primary truth is the independent wrapped-Fourier fixture. This
         secondary test instead periodizes SciPy's full-line profile explicitly
         and verifies that its central image is the large-period limit. A
         conservative tail bound covers every omitted image.

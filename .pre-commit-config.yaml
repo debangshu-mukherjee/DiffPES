@@ -4,40 +4,34 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^(pyproject\.toml|src/.*\.py|tests/.*\.py|tutorials/.*\.py)$
+        files: ^(pyproject\.toml|src/.*\.py|tests/.*\.py)$
       - id: ruff-format
-        files: ^(src/.*\.py|tests/.*\.py|tutorials/.*\.py)$
+        files: ^(src/.*\.py|tests/.*\.py)$
 
   - repo: local
     hooks:
       - id: ty
         name: ty
-        entry: uv run ty check
+        entry: uv run --frozen ty check
         language: system
         pass_filenames: false
-      - id: jupytext-sync
-        name: jupytext tutorial pair sync
-        entry: uv run --frozen jupytext --sync
-        language: system
-        files: ^(docs/source/tutorials/.*\.ipynb|tutorials/.*\.py)$
-        require_serial: true
       - id: notebook-output-strip
         name: strip tutorial notebook outputs
         entry: uv run --frozen python tests/_tutorials.py --strip
         language: system
         pass_filenames: false
-        files: ^docs/source/tutorials/.*\.ipynb$
+        files: ^tutorials/.*\.ipynb$
         require_serial: true
       - id: tutorial-policy
-        name: tutorial pair and output policy
+        name: tutorial canonical layout and output policy
         entry: uv run --frozen python tests/_tutorials.py
         language: system
         pass_filenames: false
         files: >-
-          ^(docs/source/tutorials/.*\.ipynb|tutorials/.*\.py|pyproject\.toml)$
+          ^(docs/source/tutorials/.*|tests/_tutorials\.py|tutorials/.*|pyproject\.toml)$
       - id: loc-badge
         name: loc badge (local count, no CI commits)
-        entry: uv run python .github/badges/loc_badge.py
+        entry: uv run --frozen python .github/badges/loc_badge.py
         language: system
         pass_filenames: false
         always_run: true

@@ -51,6 +51,10 @@ class WorkflowContext(eqx.Module):
         Parsed KPOINTS metadata when available.
     dos : Optional[DosType]
         Parsed DOSCAR data when available.
+
+    See Also
+    --------
+    make_workflow_context : Validated factory for this type.
     """
 
     bands: BandStructure
@@ -124,8 +128,8 @@ def make_workflow_context(
 
 
 __all__: list[str] = [
-    "DosType",
-    "ProjectionType",
     "WorkflowContext",
     "make_workflow_context",
+    "DosType",
+    "ProjectionType",
 ]

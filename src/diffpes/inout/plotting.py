@@ -29,7 +29,7 @@ them for analysis visualizations. Do not include them in functions that
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Literal, Optional, Tuple, Union
+from beartype.typing import Dict, List, Literal, Optional, Tuple, Union
 from jaxtyping import Float64, Int32, jaxtyped
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
@@ -260,17 +260,17 @@ def apply_kpath_ticks(
     --------------------
     1. **Normalize label positions and text**::
 
-           indices: list[int] = np.asarray(
+           indices: List[int] = np.asarray(
                kpath.label_indices, dtype=np.int32
            ).tolist()
-           labels: list[str] = list(kpath.labels)
+           labels: List[str] = list(kpath.labels)
 
        Host-side lists match the Matplotlib tick API and preserve label order.
 
     2. **Apply the shared label count**::
 
            n_labels: int = min(len(indices), len(labels))
-           ticks: list[float] = [float(idx) for idx in indices[:n_labels]]
+           ticks: List[float] = [float(idx) for idx in indices[:n_labels]]
 
        Truncation tolerates incomplete legacy metadata without shifting labels.
 
@@ -306,15 +306,15 @@ def apply_kpath_ticks(
     """
     tick: float
 
-    indices: list[int] = np.asarray(
+    indices: List[int] = np.asarray(
         kpath.label_indices, dtype=np.int32
     ).tolist()
-    labels: list[str] = list(kpath.labels)
+    labels: List[str] = list(kpath.labels)
     n_labels: int = min(len(indices), len(labels))
     if n_labels == 0:
         return ax
 
-    ticks: list[float] = [float(idx) for idx in indices[:n_labels]]
+    ticks: List[float] = [float(idx) for idx in indices[:n_labels]]
     ax.set_xticks(ticks)
     ax.set_xticklabels(labels[:n_labels])
 
@@ -525,7 +525,7 @@ def _prepare_band_arrays(
 @beartype
 def _subset_atom_axis(
     data: Float64[NDArray, "K B A C"],
-    atom_indices: Optional[list[int]],
+    atom_indices: Optional[List[int]],
 ) -> Float64[NDArray, "K B A2 C"]:
     """PRIVATE: Subset an array on atom axis when the caller provides atom
     indices.
@@ -534,7 +534,7 @@ def _subset_atom_axis(
     ----------
     data : Float64[NDArray, "K B A C"]
         Projection data with the atom axis in position two.
-    atom_indices : Optional[list[int]]
+    atom_indices : Optional[List[int]]
         Zero-based atom indices to keep, or ``None`` for all atoms.
 
     Returns
@@ -561,7 +561,7 @@ def _subset_atom_axis(
 def _weights_from_preset(  # noqa: PLR0912
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     preset: str,
-    atom_indices: Optional[list[int]],
+    atom_indices: Optional[List[int]],
 ) -> Tuple[Float64[NDArray, "K B"], bool]:
     """PRIVATE: Resolve a band-weight matrix from a preset name.
 
@@ -571,7 +571,7 @@ def _weights_from_preset(  # noqa: PLR0912
         Projection carrier containing orbital and optional spin/OAM data.
     preset : str
         Preset name selecting the reduction to compute.
-    atom_indices : Optional[list[int]]
+    atom_indices : Optional[List[int]]
         Optional zero-based atom subset.
 
     Returns
@@ -680,7 +680,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913, PLR0917
     bands: BandStructure,
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     preset: str = "p",
-    atom_indices: Optional[list[int]] = None,
+    atom_indices: Optional[List[int]] = None,
     ax: Optional[Axes] = None,
     shift_fermi: bool = True,
     size_scale: float = 250.0,
@@ -735,7 +735,7 @@ def plot_band_scatter_preset(  # noqa: PLR0913, PLR0917
         Projection object containing orbital weights and optional spin/OAM.
     preset : str, optional
         Preset key from :func:`list_band_scatter_presets`.
-    atom_indices : Optional[list[int]], optional
+    atom_indices : Optional[List[int]], optional
         Optional 0-based atom indices used before reduction.
     ax : Optional[Axes], optional
         Existing axis for the plot. If ``None``, the function creates a figure
@@ -847,7 +847,7 @@ def plot_band_scatter_with_kpath(  # noqa: PLR0913, PLR0917
     orb_proj: Union[OrbitalProjection, SpinOrbitalProjection],
     kpath: KPathInfo,
     preset: str = "p",
-    atom_indices: Optional[list[int]] = None,
+    atom_indices: Optional[List[int]] = None,
     ax: Optional[Axes] = None,
     shift_fermi: bool = True,
     size_scale: float = 250.0,
@@ -920,7 +920,7 @@ def plot_band_scatter_with_kpath(  # noqa: PLR0913, PLR0917
         Symmetry labels and indices for the plotted k-point path.
     preset : str, optional
         Preset key from :func:`list_band_scatter_presets`.
-    atom_indices : Optional[list[int]], optional
+    atom_indices : Optional[List[int]], optional
         Optional zero-based atom indices used before reduction.
     ax : Optional[Axes], optional
         Existing axis to draw on, or ``None`` to create one.

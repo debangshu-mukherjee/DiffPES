@@ -102,3 +102,18 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_differentiability
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_fixture_regressions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Dict, Tuple
+from beartype.typing import Dict, List, Tuple, Union
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Complex128, Float64
 
@@ -20,7 +20,7 @@ from diffpes.types import (
     make_experiment_geometry,
 )
 from tests._assertions import assert_rejects
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 class TestExperimentGeometry:
@@ -49,7 +49,7 @@ class TestExperimentGeometry:
         geometry: ExperimentGeometry = make_experiment_geometry(
             21.2, polarization, sample_azimuth=0.2, slit="V"
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree.flatten(geometry)
         restored: ExperimentGeometry = jax.tree.unflatten(tree, leaves)
@@ -73,7 +73,9 @@ class TestExperimentGeometry:
         dynamic: ExperimentGeometry
         static: ExperimentGeometry
         dynamic, static = eqx.partition(geometry, eqx.is_array)
-        leaves: list[Array] = jax.tree.leaves(dynamic)
+        leaves: List[
+            Union[Float64[Array, "..."], Complex128[Array, "..."]]
+        ] = jax.tree.leaves(dynamic)
 
         chex.assert_equal(len(leaves), 9)
         chex.assert_equal(dynamic.slit, "V")
@@ -287,12 +289,13 @@ class TestMakeExperimentGeometry:
                 ],
                 dtype=jnp.complex128,
             )
-            return make_experiment_geometry(
+            geometry: ExperimentGeometry = make_experiment_geometry(
                 21.2,
                 polarization,
                 incidence_theta=theta,
                 incidence_phi=phi,
             )
+            return geometry
 
         geometries: ExperimentGeometry = eqx.filter_vmap(one_geometry)(phis)
         directions: Float64[Array, "4 3"] = jnp.stack(
@@ -346,7 +349,7 @@ class TestMakeExperimentGeometry:
 
         Notes
         -----
-        A weighted scalar loss reads all eight scalar fields. The shared gate
+        A weighted scalar loss reads all eight scalar fields. The shared check
         checks reverse mode, finite differences, and every gradient entry.
         """
         values: Float64[Array, "8"] = jnp.array(
@@ -390,4 +393,4 @@ class TestMakeExperimentGeometry:
             result: Float64[Array, ""] = jnp.sum(weights * fields)
             return result
 
-        gradient_gate(loss, values, modes=("rev",))
+        assert_gradients_match_finite_differences(loss, values, modes=("rev",))

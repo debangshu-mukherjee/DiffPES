@@ -35,8 +35,8 @@ from pathlib import Path
 
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Tuple, cast
-from jaxtyping import Shaped, jaxtyped
+from beartype.typing import Any, List, Tuple, cast
+from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -230,7 +230,7 @@ def _json_node(value: object) -> object:  # noqa: PLR0911
     elif isinstance(value, list):
         node = {"$list": [_json_node(item) for item in value]}
     elif isinstance(value, Mapping):
-        normalized: list[Tuple[str, object]] = []
+        normalized: List[Tuple[str, object]] = []
         seen: set[str] = set()
         for key, item in value.items():
             if not isinstance(key, str):
@@ -327,7 +327,9 @@ def _is_array(value: object) -> bool:
     return is_array
 
 
-def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
+def _canonical_array(
+    value: object,
+) -> Bool[NDArray, "..."] | Num[NDArray, "..."]:
     """PRIVATE: Materialize one array in the canonical dtype and memory
     order.
 
@@ -347,7 +349,7 @@ def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
 
     Returns
     -------
-    canonical : Shaped[NDArray, "..."]
+    canonical : Bool[NDArray, "..."] | Num[NDArray, "..."]
         NumPy array with a little-endian dtype in C order.
 
     Raises
@@ -359,7 +361,7 @@ def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
     """
     exc: Exception
     try:
-        array: Shaped[NDArray, "..."] = np.asarray(value)
+        array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(value)
     except Exception as exc:
         msg: str = (
             "canonicalization requires concrete arrays and cannot consume "
@@ -375,7 +377,7 @@ def _canonical_array(value: object) -> Shaped[NDArray, "..."]:
         msg: str = "canonical records reject arrays containing NaN or infinity"
         raise ValueError(msg)
     dtype: np.dtype[Any] = array.dtype.newbyteorder("<")
-    canonical: Shaped[NDArray, "..."] = np.asarray(
+    canonical: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(
         array, dtype=dtype, order="C"
     )
     return canonical
@@ -412,7 +414,7 @@ def _iter_array_chunks(
     """
     dimension: Any
     offset: Any
-    array: Shaped[NDArray, "..."] = _canonical_array(value)
+    array: Bool[NDArray, "..."] | Num[NDArray, "..."] = _canonical_array(value)
     dtype_text: bytes = array.dtype.str.encode("ascii")
     yield b"A" + _length(len(dtype_text)) + dtype_text
     yield _length(array.ndim)
@@ -460,7 +462,7 @@ def _iter_mapping_chunks(
     """
     key: Any
     item: Any
-    normalized: list[Tuple[str, object]] = []
+    normalized: List[Tuple[str, object]] = []
     seen: set[str] = set()
     for key, item in value.items():
         if not isinstance(key, str):

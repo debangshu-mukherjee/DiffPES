@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Literal, Optional, TextIO, Union
+from beartype.typing import List, Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -76,7 +76,7 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
            path: Path = Path(filename)
            with path.open("r") as fid:
-               header: list[str] = fid.readline().split()
+               header: List[str] = fid.readline().split()
                natoms: int = int(header[0])
 
        This establishes the atom count before the function allocates the
@@ -126,25 +126,25 @@ def read_doscar(  # noqa: PLR0912, PLR0915
 
     path: Path = Path(filename)
     with path.open("r") as fid:
-        header: list[str] = fid.readline().split()
+        header: List[str] = fid.readline().split()
         natoms: int = int(header[0])
         fid.readline()
         fid.readline()
         fid.readline()
         fid.readline()
-        meta: list[float] = [float(x) for x in fid.readline().split()]
+        meta: List[float] = [float(x) for x in fid.readline().split()]
         nedos: int = int(meta[2])
         efermi: float = meta[3]
 
         first_line: str = fid.readline()
-        first_vals: list[float] = [float(x) for x in first_line.split()]
+        first_vals: List[float] = [float(x) for x in first_line.split()]
         ncols: int = len(first_vals)
         data: Float64[NDArray, "E C"] = np.zeros(
             (nedos, ncols), dtype=np.float64
         )
         data[0, :] = first_vals
         for i in range(1, nedos):
-            vals: list[float] = [float(x) for x in fid.readline().split()]
+            vals: List[float] = [float(x) for x in fid.readline().split()]
             data[i, :] = vals
 
         dos: DensityOfStates | FullDensityOfStates
@@ -181,17 +181,17 @@ def read_doscar(  # noqa: PLR0912, PLR0915
             int_up_arr = jnp.asarray(data[:, 2], dtype=jnp.float64)
 
         pdos_arr: Optional[Float64[Array, "A E C"]] = None
-        pdos_blocks: list[Float64[NDArray, "E C"]] = []
+        pdos_blocks: List[Float64[NDArray, "E C"]] = []
         for _atom in range(natoms):
             line: str = fid.readline()
             if not line or not line.strip():
                 break
-            line_vals: list[float] = [float(x) for x in line.split()]
+            line_vals: List[float] = [float(x) for x in line.split()]
             if NONSPIN_COLS <= len(line_vals) <= SPIN_COLS:
                 pdos_ncols_check: str = fid.readline()
                 if not pdos_ncols_check.strip():
                     break
-                pdos_first: list[float] = [
+                pdos_first: List[float] = [
                     float(x) for x in pdos_ncols_check.split()
                 ]
                 pdos_ncols: int = len(pdos_first)

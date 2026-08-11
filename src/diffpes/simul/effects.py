@@ -3,7 +3,7 @@ r"""Apply calibrated instrument effects and assemble expected counts.
 Extended Summary
 ----------------
 This module implements native-coordinate Gaussian resolution, the fixed-domain
-analyser-transmission model, and the WP8.8 detector-effects foundation. The
+analyser-transmission model, and the detector-effects foundation. The
 canonical ordering is true-kinetic-energy transmission, finite-volume detector
 resolution, background, sensitivity, bin-volume conversion, exposure, and an
 optional calibrated post-count response. Sampling takes explicit JAX PRNG keys
@@ -66,8 +66,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Tuple, Union
-from jaxtyping import Array, Bool, Float64, Int, PRNGKeyArray, jaxtyped
+from beartype.typing import List, Tuple, Union
+from jaxtyping import Array, Bool, Float64, Int64, PRNGKeyArray, jaxtyped
+from numpy.typing import NDArray
 
 from diffpes.maths import safe_arctan2, safe_norm
 from diffpes.types import (
@@ -374,7 +375,7 @@ def _integrated_bernstein(
         Analytic values :math:`\int_0^x B_j^{degree}(t)\,dt`.
     """
     elevated_degree: int = degree + 1
-    elevated: list[Float64[Array, "..."]] = [
+    elevated: List[Float64[Array, "..."]] = [
         math.comb(elevated_degree, index)
         * x**index
         * (1.0 - x) ** (elevated_degree - index)
@@ -566,7 +567,7 @@ def _surface_kz_frame(  # noqa: DOC502, DOC503
     Parameters
     ----------
     surface_cell : SurfaceCell
-        Plan-05 surface vectors, rotation, and exact integer provenance.
+        Surface vectors, rotation, and exact integer provenance.
     bulk_geometry : CrystalGeometry
         Bulk direct and reciprocal lattices associated with the surface.
 
@@ -722,7 +723,7 @@ def _map_surface_fractional_to_bulk(  # noqa: DOC502, DOC503
         Folded third-surface-fractional coordinates. Their leading shape must
         begin with the complete non-Cartesian shape of ``k_parallel``.
     surface_cell : SurfaceCell
-        Validated Plan-05 surface frame.
+        Validated surface frame.
     bulk_geometry : CrystalGeometry
         Bulk geometry associated with ``surface_cell``.
 
@@ -886,7 +887,7 @@ def _map_surface_kz_nodes_to_bulk_fractional(  # noqa: DOC502, DOC503
     kz_nodes_frac : Float64[Array, " n_kz"]
         Registered uniform third-surface-fractional bin centres.
     surface_cell : SurfaceCell
-        Validated Plan-05 surface frame.
+        Validated surface frame.
     bulk_geometry : CrystalGeometry
         Bulk geometry associated with ``surface_cell``.
 
@@ -1637,8 +1638,8 @@ def transmission_shape(  # noqa: DOC503
     query_log_response: Float64[Array, " n_e"] = _transmission_log_response(
         normalized_query, slopes, calibration.transmission_monotonic_sign
     )
-    gauss_nodes: Float64[np.ndarray, " n_quad"]
-    gauss_weights: Float64[np.ndarray, " n_quad"]
+    gauss_nodes: Float64[NDArray, " n_quad"]
+    gauss_weights: Float64[NDArray, " n_quad"]
     gauss_nodes, gauss_weights = np.polynomial.legendre.leggauss(64)
     quadrature_nodes: Float64[Array, " n_quad"] = jnp.asarray(
         0.5 * (gauss_nodes + 1.0), dtype=jnp.float64
@@ -1842,7 +1843,7 @@ def _active_legendre_fields(
         coordinate_fields = (u_field, v_field, energy_field)
     else:
         coordinate_fields = (u_field, energy_field)
-    basis_fields: list[Float64[Array, "U V E"]] = []
+    basis_fields: List[Float64[Array, "U V E"]] = []
     coordinate: Float64[Array, "U V E"]
     for coordinate in coordinate_fields:
         basis_fields.extend(
@@ -2456,7 +2457,7 @@ def fixed_total_probabilities(  # noqa: DOC503
 def sample_poisson_counts(  # noqa: DOC503
     key: PRNGKeyArray,
     rates: Float64[Array, "..."],
-) -> Int[Array, "..."]:
+) -> Int64[Array, "..."]:
     """Generate independent Poisson counts for a rate tensor.
 
     The sampler maps each expected rate to an independent integer variate
@@ -2473,7 +2474,7 @@ def sample_poisson_counts(  # noqa: DOC503
 
     Returns
     -------
-    counts : Int[Array, "..."]
+    counts : Int64[Array, "..."]
         Integer sample with the same shape as ``rates``.
 
     Raises
@@ -2495,7 +2496,7 @@ def sample_poisson_counts(  # noqa: DOC503
         ~jnp.all(jnp.isfinite(rate_array)) | ~jnp.all(rate_array >= 0.0),
         "Poisson rates must be finite and nonnegative",
     )
-    counts: Int[Array, "..."] = jax.random.poisson(
+    counts: Int64[Array, "..."] = jax.random.poisson(
         key, rate_array, dtype=jnp.int64
     )
     return counts
@@ -2506,7 +2507,7 @@ def sample_fixed_total_counts(  # noqa: DOC503
     key: PRNGKeyArray,
     rates: Float64[Array, "..."],
     total_count: int,
-) -> Int[Array, "..."]:
+) -> Int64[Array, "..."]:
     """Generate one fixed-total multinomial count tensor.
 
     The sampler normalizes all rates and returns one integer realization with
@@ -2525,7 +2526,7 @@ def sample_fixed_total_counts(  # noqa: DOC503
 
     Returns
     -------
-    counts : Int[Array, "..."]
+    counts : Int64[Array, "..."]
         One multinomial count tensor summing exactly to ``total_count``.
 
     Raises
@@ -2543,11 +2544,11 @@ def sample_fixed_total_counts(  # noqa: DOC503
     if type(total_count) is not int or total_count <= 0:
         raise ValueError("total_count must be a positive integer")
     probabilities: Float64[Array, "..."] = fixed_total_probabilities(rates)
-    flat_counts: Int[Array, " N"] = jax.random.multinomial(
+    flat_counts: Int64[Array, " N"] = jax.random.multinomial(
         key,
         total_count,
         probabilities.reshape((-1,)),
         dtype=jnp.float64,
     ).astype(jnp.int64)
-    counts: Int[Array, "..."] = flat_counts.reshape(probabilities.shape)
+    counts: Int64[Array, "..."] = flat_counts.reshape(probabilities.shape)
     return counts

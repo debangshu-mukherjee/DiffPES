@@ -19,8 +19,8 @@ Routine Listings
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Dict, Iterable, Tuple
-from jaxtyping import Array, jaxtyped
+from beartype.typing import Any, Dict, Iterable, List, Tuple
+from jaxtyping import Array, Bool, Int32, jaxtyped
 
 from diffpes.types import (
     CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES,
@@ -195,8 +195,8 @@ def _required_indices(
     """
     level_index: Any
     maximum_level: int = CERTIFICATION_POLICY_LEVEL_COUNT[policy_id]
-    indices_by_level: list[Tuple[int, ...]] = []
-    required_ids: list[str] = []
+    indices_by_level: List[Tuple[int, ...]] = []
+    required_ids: List[str] = []
     for level_index in range(len(CERTIFICATION_LEVEL_IDS)):
         if level_index >= maximum_level:
             indices_by_level.append(())
@@ -288,22 +288,24 @@ def evaluate_policy(
     )
     indices_by_level: Tuple[Tuple[int, ...], ...] = selection[0]
     required_ids: Tuple[str, ...] = selection[1]
-    all_passed: Array = jnp.asarray(
+    all_passed: Bool[Array, " n_claim"] = jnp.asarray(
         [claim.passed for claim in claim_tuple], dtype=jnp.bool_
     )
-    all_checked: Array = jnp.asarray(
+    all_checked: Bool[Array, " n_claim"] = jnp.asarray(
         [claim.checked for claim in claim_tuple], dtype=jnp.bool_
     )
-    all_in_domain: Array = jnp.asarray(
+    all_in_domain: Bool[Array, " n_claim"] = jnp.asarray(
         [claim.in_domain for claim in claim_tuple], dtype=jnp.bool_
     )
-    valid_claim: Array = all_passed & all_checked & all_in_domain
+    valid_claim: Bool[Array, " n_claim"] = (
+        all_passed & all_checked & all_in_domain
+    )
     maximum_level: int = CERTIFICATION_POLICY_LEVEL_COUNT[policy_id]
-    achieved_values: list[Array] = []
-    cumulative: Array = jnp.asarray(True, dtype=jnp.bool_)
+    achieved_values: List[Bool[Array, ""]] = []
+    cumulative: Bool[Array, ""] = jnp.asarray(True, dtype=jnp.bool_)
     for level_index, indices in enumerate(indices_by_level):
         if level_index >= maximum_level:
-            level_passed: Array = jnp.asarray(False, dtype=jnp.bool_)
+            level_passed: Bool[Array, ""] = jnp.asarray(False, dtype=jnp.bool_)
         elif not indices:
             level_passed = jnp.asarray(False, dtype=jnp.bool_)
         else:
@@ -313,13 +315,15 @@ def evaluate_policy(
     id_to_index: Dict[str, int] = {
         claim.claim_id: index for index, claim in enumerate(claim_tuple)
     }
-    required_indices: Array = jnp.asarray(
+    required_indices: Int32[Array, " n_required"] = jnp.asarray(
         [id_to_index[claim_id] for claim_id in required_ids], dtype=jnp.int32
     )
-    claim_passed: Array = all_passed[required_indices]
-    claim_checked: Array = all_checked[required_indices]
-    claim_in_domain: Array = all_in_domain[required_indices]
-    achieved: Array = jnp.stack(achieved_values)
+    claim_passed: Bool[Array, " n_required"] = all_passed[required_indices]
+    claim_checked: Bool[Array, " n_required"] = all_checked[required_indices]
+    claim_in_domain: Bool[Array, " n_required"] = all_in_domain[
+        required_indices
+    ]
+    achieved: Bool[Array, " n_level"] = jnp.stack(achieved_values)
     if policy_id in {
         "org.diffpes.policy.publication.v1",
         "org.diffpes.policy.parity.v1",

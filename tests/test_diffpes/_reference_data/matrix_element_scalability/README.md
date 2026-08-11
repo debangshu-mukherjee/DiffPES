@@ -22,9 +22,9 @@ The scan returns only `(8, 4096, 6)` complete-group weights and contains no
 
 `memory_analysis` is the XLA compiler allocation authority. The separately
 recorded whole-process peak RSS includes Python, compiler state, allocator
-caches, and all S1--S3 executables and is diagnostic only.
+caches, and all scalability executables and is diagnostic only.
 
-S3 timing is host-specific. The JSON retains two warmups, all seven
+Throughput timing is host-specific. The JSON retains two warmups, all seven
 synchronized repetitions for each of four routes, compilation times, medians,
 and both ratios. The executable test recomputes every statistic from the raw
 measurements. Another host need not reproduce identical wall-clock durations.

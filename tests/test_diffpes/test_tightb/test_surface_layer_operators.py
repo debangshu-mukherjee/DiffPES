@@ -9,8 +9,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any
-from jaxtyping import Array
+from beartype.typing import Any, Union
+from jaxtyping import Array, Complex128, Float64, PRNGKeyArray
 
 from diffpes.tightb import (
     layer_resolved_group_traces,
@@ -28,20 +28,24 @@ from diffpes.types import (
 
 
 def _bands(
-    eigenvalues: Array,
-    eigenvectors: Array,
-    depths: Array | None,
+    eigenvalues: Float64[Array, "nkpt nband"],
+    eigenvectors: Union[
+        Float64[Array, "nkpt nband norb"],
+        Complex128[Array, "nkpt nband norb"],
+    ],
+    depths: Float64[Array, " norb"] | None,
 ) -> DiagonalizedBands:
     """PRIVATE: Attach a minimal geometry and depth carrier to an
     eigensystem.
 
     Parameters
     ----------
-    eigenvalues : Array
+    eigenvalues : Float64[Array, "nkpt nband"]
         Band energies in eV, cast to float64.
-    eigenvectors : Array
+    eigenvectors : Union[Float64[Array, "nkpt nband norb"], \
+Complex128[Array, "nkpt nband norb"]]
         Band-major eigenvector rows, cast to complex128.
-    depths : Array | None
+    depths : Float64[Array, " norb"] | None
         Optional per-orbital depths below the surface in Angstrom.
 
     Returns
@@ -58,7 +62,7 @@ def _bands(
     rejection directions.
     """
     n_orbitals: int = eigenvectors.shape[-1]
-    return make_diagonalized_bands(
+    bands: DiagonalizedBands = make_diagonalized_bands(
         eigenvalues=jnp.asarray(eigenvalues, dtype=jnp.float64),
         eigenvectors=jnp.asarray(eigenvectors, dtype=jnp.complex128),
         kpoints=jnp.zeros((eigenvalues.shape[0], 3), dtype=jnp.float64),
@@ -76,19 +80,20 @@ def _bands(
         ),
         depths=depths,
     )
+    return bands
 
 
 def _weighted_identity_bands(
-    weights: Array,
-    eigenvalues: Array,
+    weights: Float64[Array, " nband"],
+    eigenvalues: Float64[Array, " nband"],
 ) -> DiagonalizedBands:
     """PRIVATE: Build canonical eigenvectors from declared surface weights.
 
     Parameters
     ----------
-    weights : Array
+    weights : Float64[Array, " nband"]
         Intended per-band surface probabilities in ``(0, 1]``.
-    eigenvalues : Array
+    eigenvalues : Float64[Array, " nband"]
         Band energies in eV for the single k-point.
 
     Returns
@@ -105,11 +110,12 @@ def _weighted_identity_bands(
     the expected surface weight of each band exactly the declared
     input.
     """
-    depths: Array = -jnp.log(weights)
-    vectors: Array = jnp.eye(weights.shape[0], dtype=jnp.complex128)[
-        None, :, :
-    ]
-    return _bands(eigenvalues[None, :], vectors, depths)
+    depths: Float64[Array, " nband"] = -jnp.log(weights)
+    vectors: Complex128[Array, "1 nband nband"] = jnp.eye(
+        weights.shape[0], dtype=jnp.complex128
+    )[None, :, :]
+    bands: DiagonalizedBands = _bands(eigenvalues[None, :], vectors, depths)
+    return bands
 
 
 class TestSurfaceProjector(chex.TestCase):
@@ -127,11 +133,13 @@ class TestSurfaceProjector(chex.TestCase):
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = jnp.asarray([0.0, 1.5, 4.0], dtype=jnp.float64)
+        depths: Float64[Array, " 3"] = jnp.asarray(
+            [0.0, 1.5, 4.0], dtype=jnp.float64
+        )
         escape_length: float = 2.5
 
-        actual: Array = surface_projector(depths, escape_length)
-        expected: Array = jnp.exp(-depths / escape_length)
+        actual: Float64[Array, " 3"] = surface_projector(depths, escape_length)
+        expected: Float64[Array, " 3"] = jnp.exp(-depths / escape_length)
 
         assert jnp.allclose(actual, expected, rtol=0.0, atol=1e-15)
         assert actual[0] == 1.0
@@ -173,22 +181,22 @@ class TestSurfaceProjector(chex.TestCase):
         -----
         Compare outputs with declared numerical or structural references.
         """
-        base_depths: Array = jnp.asarray([0.0, 0.7, 2.1])
+        base_depths: Float64[Array, " 3"] = jnp.asarray([0.0, 0.7, 2.1])
         escape_length: float = 1.9
-        value_grad: Array = jax.grad(
+        value_grad: Float64[Array, ""] = jax.grad(
             lambda length: jnp.sum(surface_projector(base_depths, length))
         )(escape_length)
-        expected_value_grad: Array = jnp.sum(
+        expected_value_grad: Float64[Array, ""] = jnp.sum(
             base_depths
             / escape_length**2
             * jnp.exp(-base_depths / escape_length)
         )
-        depth_scale_grad: Array = jax.grad(
+        depth_scale_grad: Float64[Array, ""] = jax.grad(
             lambda scale: jnp.sum(
                 surface_projector(scale * base_depths, escape_length)
             )
         )(1.3)
-        expected_depth_scale_grad: Array = jnp.sum(
+        expected_depth_scale_grad: Float64[Array, ""] = jnp.sum(
             -base_depths
             / escape_length
             * jnp.exp(-1.3 * base_depths / escape_length)
@@ -217,10 +225,12 @@ class TestSurfaceProjector(chex.TestCase):
         Compare outputs with declared numerical or structural references.
         """
         escape_length: Any
-        depths: Array = jnp.asarray([0.0, 0.2, 3.0])
+        depths: Float64[Array, " 3"] = jnp.asarray([0.0, 0.2, 3.0])
         for escape_length in (1e-8, 1e-16):
-            value: Array = jnp.sum(surface_projector(depths, escape_length))
-            derivative: Array = jax.grad(
+            value: Float64[Array, ""] = jnp.sum(
+                surface_projector(depths, escape_length)
+            )
+            derivative: Float64[Array, ""] = jax.grad(
                 lambda length: jnp.sum(surface_projector(depths, length))
             )(escape_length)
 
@@ -238,10 +248,12 @@ class TestSurfaceProjector(chex.TestCase):
         Compare outputs with declared numerical or structural references.
         """
         evaluate: Any
-        depth_batches: Array = jnp.asarray([[0.0, 1.0, 2.0], [0.0, 0.5, 1.5]])
-        expected: Array = jnp.exp(-depth_batches / 2.0)
+        depth_batches: Float64[Array, "2 3"] = jnp.asarray(
+            [[0.0, 1.0, 2.0], [0.0, 0.5, 1.5]]
+        )
+        expected: Float64[Array, "2 3"] = jnp.exp(-depth_batches / 2.0)
         evaluate = self.variant(jax.vmap(surface_projector, in_axes=(0, None)))
-        actual: Array = evaluate(
+        actual: Float64[Array, "2 3"] = evaluate(
             depth_batches,
             2.0,
         )
@@ -266,24 +278,30 @@ class TestLayerResolvedWeights(chex.TestCase):
         Compare outputs with declared numerical or structural references.
         """
         n_sites: int = 5
-        sites: Array = jnp.arange(1, n_sites + 1, dtype=jnp.float64)
-        modes: Array = jnp.arange(1, n_sites + 1, dtype=jnp.float64)
-        standing_waves: Array = jnp.sqrt(2.0 / (n_sites + 1)) * jnp.sin(
-            jnp.pi * modes[:, None] * sites[None, :] / (n_sites + 1)
+        sites: Float64[Array, " 5"] = jnp.arange(
+            1, n_sites + 1, dtype=jnp.float64
         )
-        depths: Array = jnp.arange(n_sites, dtype=jnp.float64) * 0.8
+        modes: Float64[Array, " 5"] = jnp.arange(
+            1, n_sites + 1, dtype=jnp.float64
+        )
+        standing_waves: Float64[Array, "5 5"] = jnp.sqrt(
+            2.0 / (n_sites + 1)
+        ) * jnp.sin(jnp.pi * modes[:, None] * sites[None, :] / (n_sites + 1))
+        depths: Float64[Array, " 5"] = (
+            jnp.arange(n_sites, dtype=jnp.float64) * 0.8
+        )
         bands: DiagonalizedBands = _bands(
             jnp.arange(n_sites, dtype=jnp.float64)[None, :] * 1e-2,
             standing_waves[None, :, :],
             depths,
         )
 
-        actual: Array = layer_resolved_weights(bands, 2.3)[0]
-        expected: Array = jnp.sum(
+        actual: Float64[Array, " 5"] = layer_resolved_weights(bands, 2.3)[0]
+        expected: Float64[Array, " 5"] = jnp.sum(
             standing_waves**2 * jnp.exp(-depths / 2.3)[None, :],
             axis=-1,
         )
-        trace: Array = layer_resolved_group_traces(
+        trace: Float64[Array, ""] = layer_resolved_group_traces(
             bands,
             ((0, 1),),
             2.3,
@@ -326,11 +344,13 @@ class TestLayerResolvedWeights(chex.TestCase):
         Compare outputs with declared numerical or structural references.
         """
         evaluate: Any
-        key: Array = jax.random.key(55)
-        raw: Array = jax.random.normal(key, (3, 3, 3))
-        columns: Array
+        key: PRNGKeyArray = jax.random.key(55)
+        raw: Float64[Array, "3 3 3"] = jax.random.normal(key, (3, 3, 3))
+        columns: Float64[Array, "3 3 3"]
         columns, _ = jnp.linalg.qr(raw)
-        vectors: Array = jnp.swapaxes(columns, -1, -2).astype(jnp.complex128)
+        vectors: Complex128[Array, "3 3 3"] = jnp.swapaxes(
+            columns, -1, -2
+        ).astype(jnp.complex128)
         bands: DiagonalizedBands = _bands(
             jnp.asarray(
                 [[0.0, 0.01, 0.02], [0.03, 0.04, 0.05], [0.06, 0.07, 0.08]]
@@ -339,17 +359,22 @@ class TestLayerResolvedWeights(chex.TestCase):
             jnp.asarray([0.0, 0.4, 1.1]),
         )
 
-        def one_k(vector: Array) -> Array:
+        def one_k(
+            vector: Complex128[Array, "3 3"],
+        ) -> Float64[Array, " 3"]:
             single: DiagonalizedBands = eqx.tree_at(
                 lambda item: item.eigenvectors,
                 bands,
                 vector[None, :, :],
             )
-            return layer_resolved_weights(single, 1.7)[0]
+            weights: Float64[Array, " 3"] = layer_resolved_weights(
+                single, 1.7
+            )[0]
+            return weights
 
-        expected: Array = jax.vmap(one_k)(vectors)
+        expected: Float64[Array, "3 3"] = jax.vmap(one_k)(vectors)
         evaluate = self.variant(lambda item: layer_resolved_weights(item, 1.7))
-        actual: Array = evaluate(bands)
+        actual: Float64[Array, "3 3"] = evaluate(bands)
 
         assert actual.shape == (3, 3)
         assert jnp.allclose(actual, expected, rtol=1e-13, atol=1e-13)
@@ -362,7 +387,8 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
     """
 
     def test_u2_mixing_changes_individuals_but_preserves_trace(self) -> None:
-        """Pin the unequal-weight Hadamard counterexample from layer-group-trace-basis-invariance.
+        """Pin the unequal-weight Hadamard counterexample from
+        layer-group-trace-basis-invariance.
 
         Exercise this slab condition with fixed fixtures.
 
@@ -374,10 +400,12 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             jnp.asarray([0.2, 0.8, 0.4]),
             jnp.asarray([0.0, 0.0, 2e-3]),
         )
-        hadamard: Array = jnp.asarray([[1.0, 1.0], [1.0, -1.0]]) / jnp.sqrt(
-            2.0
-        )
-        rotated_vectors: Array = bands.eigenvectors.at[:, :2, :].set(
+        hadamard: Float64[Array, "2 2"] = jnp.asarray(
+            [[1.0, 1.0], [1.0, -1.0]]
+        ) / jnp.sqrt(2.0)
+        rotated_vectors: Complex128[Array, "1 3 3"] = bands.eigenvectors.at[
+            :, :2, :
+        ].set(
             jnp.einsum(
                 "ab,kbo->kao",
                 hadamard,
@@ -390,14 +418,18 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             rotated_vectors,
         )
 
-        original_weights: Array = layer_resolved_weights(bands, 1.0)[0]
-        rotated_weights: Array = layer_resolved_weights(rotated, 1.0)[0]
-        original_trace: Array = layer_resolved_group_traces(
+        original_weights: Float64[Array, " 3"] = layer_resolved_weights(
+            bands, 1.0
+        )[0]
+        rotated_weights: Float64[Array, " 3"] = layer_resolved_weights(
+            rotated, 1.0
+        )[0]
+        original_trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             bands,
             ((0, 1),),
             1.0,
         )
-        rotated_trace: Array = layer_resolved_group_traces(
+        rotated_trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             rotated,
             ((0, 1),),
             1.0,
@@ -448,7 +480,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             jnp.asarray([0.1, 0.4, 0.9]),
             jnp.zeros((3,), dtype=jnp.float64),
         )
-        rotation: Array = (
+        rotation: Float64[Array, "3 3"] = (
             jnp.asarray(
                 [
                     [1.0, 0.0, 0.0],
@@ -463,10 +495,10 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             bands,
             jnp.einsum("ab,kbo->kao", rotation, bands.eigenvectors),
         )
-        original_partial: Array = jnp.sum(
+        original_partial: Float64[Array, ""] = jnp.sum(
             layer_resolved_weights(bands, 1.0)[0, :2]
         )
-        rotated_partial: Array = jnp.sum(
+        rotated_partial: Float64[Array, ""] = jnp.sum(
             layer_resolved_weights(rotated, 1.0)[0, :2]
         )
 
@@ -474,12 +506,12 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
         assert jnp.allclose(rotated_partial, 0.75, atol=1e-14)
         with pytest.raises(RuntimeError, match="cuts a degenerate multiplet"):
             layer_resolved_group_traces(bands, ((0, 1),), 1.0)
-        original_full: Array = layer_resolved_group_traces(
+        original_full: Float64[Array, "1 1"] = layer_resolved_group_traces(
             bands,
             ((0, 1, 2),),
             1.0,
         )
-        rotated_full: Array = layer_resolved_group_traces(
+        rotated_full: Float64[Array, "1 1"] = layer_resolved_group_traces(
             rotated,
             ((0, 1, 2),),
             1.0,
@@ -519,7 +551,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
         -----
         Compare outputs with declared numerical or structural references.
         """
-        weights: Array = jnp.asarray([0.2, 0.8, 0.4])
+        weights: Float64[Array, " 3"] = jnp.asarray([0.2, 0.8, 0.4])
         isolated: DiagonalizedBands = _weighted_identity_bands(
             weights,
             jnp.asarray([0.0, 0.0, GROUP_COMPLEMENT_GAP_MIN_EV]),
@@ -529,7 +561,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             jnp.asarray([0.0, 0.0, DEGENERACY_GROUP_TOL_EV]),
         )
 
-        trace: Array = layer_resolved_group_traces(
+        trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             isolated,
             ((0, 1),),
             1.0,
@@ -576,9 +608,10 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
             jnp.asarray([0.2, 0.8, 0.4]),
             jnp.asarray([0.0, 0.0, 2e-3]),
         )
-        depths: Array = bands.depths
+        assert bands.depths is not None
+        depths: Float64[Array, " 3"] = bands.depths
         escape_length: float = 1.7
-        derivative: Array = jax.grad(
+        derivative: Float64[Array, ""] = jax.grad(
             lambda length: jnp.sum(
                 layer_resolved_group_traces(
                     bands,
@@ -587,7 +620,7 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
                 )
             )
         )(escape_length)
-        expected: Array = jnp.sum(
+        expected: Float64[Array, ""] = jnp.sum(
             depths[:2]
             / escape_length**2
             * jnp.exp(-depths[:2] / escape_length)
@@ -599,14 +632,11 @@ class TestLayerResolvedGroupTraces(chex.TestCase):
                 length,
             )
         )
-        actual: Array = evaluate(escape_length)
-        expected_trace: Array = layer_resolved_group_traces(
+        actual: Float64[Array, "1 1"] = evaluate(escape_length)
+        expected_trace: Float64[Array, "1 1"] = layer_resolved_group_traces(
             bands, ((0, 1),), escape_length
         )
 
         assert jnp.abs(derivative) > 0.0
         assert jnp.allclose(derivative, expected, rtol=1e-13, atol=1e-13)
         assert jnp.allclose(actual, expected_trace, rtol=0.0, atol=0.0)
-
-
-__all__: list[str] = []

@@ -11,7 +11,6 @@ import pytest
 from beartype.typing import Any, Dict, Tuple
 
 from diffpes.certify import (
-    freeze_registry,
     get_model,
     get_transformation,
     list_handshakes,
@@ -31,6 +30,7 @@ from diffpes.certify import (
     validate_registry_manifest,
 )
 from diffpes.types import (
+    ForwardModelSpec,
     make_convention_ref,
     make_forward_model_spec,
     make_registration_handshake,
@@ -38,7 +38,7 @@ from diffpes.types import (
 )
 
 
-def _model_spec(name: str) -> Any:
+def _model_spec(name: str) -> ForwardModelSpec:
     """PRIVATE: Build one registry-test forward-model spec from a name.
 
     Parameters
@@ -49,7 +49,7 @@ def _model_spec(name: str) -> Any:
 
     Returns
     -------
-    spec : Any
+    spec : ForwardModelSpec
         Forward-model spec at version 1.0.0 for the ARPES intensity
         observable with one differentiable scale path.
 
@@ -59,13 +59,14 @@ def _model_spec(name: str) -> Any:
     ``org.diffpes.model.registry_test.<name>`` and in the implementation
     reference ``tests.registry:<name>``.
     """
-    return make_forward_model_spec(
+    spec: ForwardModelSpec = make_forward_model_spec(
         model_id=f"org.diffpes.model.registry_test.{name}",
         model_version="1.0.0",
         observable_id="org.diffpes.observable.arpes.intensity",
         implementation_ref=f"tests.registry:{name}",
         differentiable_paths=("parameters.scale",),
     )
+    return spec
 
 
 class TestValidateRegistry:
@@ -96,7 +97,7 @@ class TestValidateRegistry:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         report: Any
         report = validate_registry()
@@ -117,14 +118,14 @@ class TestRegistrySnapshot:
     def test_models_are_sorted_and_resolved_independent_of_registration_order(
         self,
     ) -> None:
-        """Expose deterministic immutable snapshots after reverse-order inserts.
+        """Expose deterministic snapshots after reverse-order inserts.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         zulu: Any
         alpha: Any
@@ -145,7 +146,9 @@ class TestRegistrySnapshot:
                 key=lambda item: (item.spec.model_id, item.spec.model_version),
             )
         )
-        with pytest.raises(TypeError):
+        with pytest.raises(
+            TypeError, match="does not support item assignment"
+        ):
             snapshot.models[0] = snapshot.models[-1]
 
 
@@ -167,7 +170,7 @@ class TestRegisterModel:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         spec: Any
         spec = _model_spec("duplicate")
@@ -189,7 +192,7 @@ class TestRegisterModel:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         spec: Any
         spec = make_forward_model_spec(
@@ -198,7 +201,7 @@ class TestRegisterModel:
             observable_id="org.diffpes.observable.arpes.intensity",
             implementation_ref="tests.registry:invalid",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"model_(?:id|version)"):
             register_model(spec, lambda value: value)
 
 
@@ -220,7 +223,7 @@ class TestRegisterTransformation:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         zulu: Any
         alpha: Any
@@ -265,7 +268,7 @@ class TestGetModel:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(KeyError, match="unknown model"):
             get_model("org.diffpes.model.registry_test.absent", "1.0.0")
@@ -292,7 +295,7 @@ class TestGetTransformation:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         contract: Any
         resolved: Any
@@ -322,7 +325,7 @@ class TestListModels:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         models: Any
         models = list_models()
@@ -348,7 +351,7 @@ class TestListRegisteredModels:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         models: Any
         models = list_registered_models()
@@ -374,7 +377,7 @@ class TestListTransformations:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         contracts: Any
         contracts = list_transformations()
@@ -401,7 +404,7 @@ class TestFreezeRegistry:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         program: str = """
 from diffpes.certify import freeze_registry, register_model
@@ -420,7 +423,7 @@ except ValueError as exc:
 else:
     raise AssertionError('registration unexpectedly succeeded')
 """
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],
             check=False,
             capture_output=True,
@@ -486,7 +489,8 @@ class TestValidateHandshake:
     def test_reports_missing_then_complete_references(self) -> None:
         """Report missing evidence and then complete the same handshake.
 
-        The same declaration must become complete when evidence becomes available.
+        The same declaration must become complete when evidence becomes
+        available.
 
         Notes
         -----
@@ -523,15 +527,16 @@ class TestValidateHandshake:
         assert bool(complete.complete)
 
     def test_detector_rejects_drifted_spectral_owner(self) -> None:
-        """Require the exact upstream spectral handshake before detector registration.
+        """Require the exact spectral handshake before detector registration.
 
-        A matching owner label without the spectral transformations and evidence
-        wall must not satisfy the detector lifecycle dependency.
+        A matching owner label without the spectral transformations and
+        evidence wall must not satisfy the detector lifecycle dependency.
 
         Notes
         -----
-        Isolate the append-only process registry, preempt the spectral owner with
-        an empty declaration, and require public builtin registration to fail.
+        Isolate the append-only process registry, preempt the spectral owner
+        with an empty declaration, and require public builtin registration to
+        fail.
         """
         program: str = """
 from diffpes.certify import register_builtin_models, register_handshake
@@ -547,7 +552,7 @@ except RuntimeError as exc:
 else:
     raise AssertionError('detector accepted a drifted spectral handshake')
 """
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],
             check=False,
             capture_output=True,
@@ -560,7 +565,8 @@ else:
     ) -> None:
         """Verify the built-in kinematics handshake with exact evidence IDs.
 
-        The registered transformation contracts and supplied evidence must suffice.
+        The registered transformation contracts and supplied evidence must
+        suffice.
 
         Notes
         -----
@@ -604,20 +610,20 @@ else:
         )
         assert bool(report.complete), report.missing_ids
 
-    def test_tight_binding_handshake_is_idempotent_and_green_with_declared_evidence(
+    def test_tight_binding_handshake_is_complete_and_idempotent(
         self,
     ) -> None:
         """Validate tight-binding contracts and all declared evidence.
 
-        The tight-binding registration records transformation semantics without inventing a new
-        executable model identity. Repeated built-in registration must leave
-        the complete process-local registry unchanged.
+        The tight-binding registration records transformation semantics
+        without inventing a new executable model identity. Repeated built-in
+        registration must leave the complete process-local registry unchanged.
 
         Notes
         -----
         Resolve the packaged declaration by owner instead of list position.
-        Require evidence for every declared verification category. Validate exactly that
-        evidence.
+        Require evidence for every declared verification category. Validate
+        exactly that evidence.
         """
         register_builtin_models()
         transformations_before: Tuple[Any, ...] = list_transformations()
@@ -906,9 +912,10 @@ else:
     def test_slab_split_handshakes_are_complete_and_acyclic(self) -> None:
         """Validate the separate carrier and full-slab lifecycle records.
 
-        The carrier registration must certify only the depth-carrier release. The slab
-        registration enumerates every retained verification requirement. It must not acquire
-        amplitude, intensity, or matrix-element dependencies.
+        The carrier registration must certify only the depth-carrier release.
+        The slab registration enumerates every retained verification
+        requirement. It must not acquire amplitude, intensity, or
+        matrix-element dependencies.
 
         Notes
         -----
@@ -965,7 +972,7 @@ else:
             f"{item['transformation_id']}@{item['transformation_version']}"
             for item in manifest["transformations"]
         }
-        assert set((*carrier_refs, *slab_refs)) <= manifest_transformation_refs
+        assert {*carrier_refs, *slab_refs} <= manifest_transformation_refs
         assert tuple(declarations) == tuple(sorted(declarations))
 
         expected: Tuple[Tuple[str, Tuple[str, ...], Tuple[str, ...]], ...] = (
@@ -1159,7 +1166,10 @@ class TestPackagedModelCard:
         -----
         Confirm the resource layer reports a missing generated card.
         """
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(
+            FileNotFoundError,
+            match=r"registry_test\.missing@1\.0\.0\.md",
+        ):
             packaged_model_card(
                 "org.diffpes.model.registry_test.missing",
                 "1.0.0",

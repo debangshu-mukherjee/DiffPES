@@ -17,7 +17,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, TextIO, Tuple
+from beartype.typing import List, Optional, TextIO, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
 from diffpes.types import (
@@ -94,13 +94,13 @@ def read_kpoints(  # noqa: PLR0915
         scheme_or_mode: str = fid.readline().strip()
         mode_line: str = scheme_or_mode.lower()
 
-        labels: list[str] = []
-        label_indices: list[int] = []
-        line_endpoints: list[list[float]] = []
-        explicit_kpoints: list[list[float]] = []
-        explicit_weights: list[float] = []
-        grid: Optional[list[int]] = None
-        shift: Optional[list[float]] = None
+        labels: List[str] = []
+        label_indices: List[int] = []
+        line_endpoints: List[List[float]] = []
+        explicit_kpoints: List[List[float]] = []
+        explicit_weights: List[float] = []
+        grid: Optional[List[int]] = None
+        shift: Optional[List[float]] = None
         coord_mode: str = ""
         segments: int = 0
         total_kpts: int
@@ -108,7 +108,7 @@ def read_kpoints(  # noqa: PLR0915
         if "line" in mode_line:
             mode: str = "Line-mode"
             coord_mode = fid.readline().strip()
-            raw_lines: list[str] = [
+            raw_lines: List[str] = [
                 line.strip() for line in fid if line.strip()
             ]
             segments = len(raw_lines) // 2
@@ -135,7 +135,7 @@ def read_kpoints(  # noqa: PLR0915
             total_kpts = 0
         else:
             mode = "Explicit"
-            remaining_lines: list[str] = [
+            remaining_lines: List[str] = [
                 line.strip() for line in fid if line.strip()
             ]
             coord_mode = scheme_or_mode
@@ -190,9 +190,9 @@ def read_kpoints(  # noqa: PLR0915
 
 
 def _parse_explicit_kpoints(
-    lines: list[str],
+    lines: List[str],
     num_kpoints: int,
-) -> Tuple[list[list[float]], list[float]]:
+) -> Tuple[List[List[float]], List[float]]:
     """PRIVATE: Parse explicit-mode k-point coordinates and optional weights.
 
     Extended Summary
@@ -213,16 +213,16 @@ def _parse_explicit_kpoints(
 
     Parameters
     ----------
-    lines : list[str]
+    lines : List[str]
         Remaining lines from the KPOINTS file after the mode line.
     num_kpoints : int
         Expected number of k-points to parse.
 
     Returns
     -------
-    points : list[list[float]]
+    points : List[List[float]]
         Parsed k-point coordinates, each a 3-element list.
-    weights : list[float]
+    weights : List[float]
         Corresponding k-point weights.
 
     Raises
@@ -234,12 +234,12 @@ def _parse_explicit_kpoints(
     stripped: str
 
     exc: ValueError
-    points: list[list[float]] = []
-    weights: list[float] = []
+    points: List[List[float]] = []
+    weights: List[float] = []
     for stripped in lines:
         if len(points) >= num_kpoints:
             break
-        parts: list[float]
+        parts: List[float]
         try:
             parts = [float(x) for x in stripped.split()]
         except ValueError as exc:
@@ -255,7 +255,7 @@ def _parse_explicit_kpoints(
             weights.append(parts[WEIGHT_COMPONENT_INDEX])
         else:
             weights.append(1.0)
-    explicit_kpoints: Tuple[list[list[float]], list[float]] = (
+    explicit_kpoints: Tuple[List[List[float]], List[float]] = (
         points,
         weights,
     )
@@ -284,7 +284,7 @@ def _looks_like_kpoint_line(line: str) -> bool:
         ``True`` if ``float`` can convert each of the first three tokens;
         otherwise, ``False``.
     """
-    parts: list[str] = line.split()
+    parts: List[str] = line.split()
     looks_like_kpoint: bool = False
     if len(parts) < XYZ_COMPONENTS:
         looks_like_kpoint = False
@@ -300,7 +300,7 @@ def _looks_like_kpoint_line(line: str) -> bool:
     return looks_like_kpoint
 
 
-def _parse_grid(line: str) -> list[int]:
+def _parse_grid(line: str) -> List[int]:
     """PRIVATE: Parse automatic-mode grid line into three integers.
 
     Extended Summary
@@ -316,7 +316,7 @@ def _parse_grid(line: str) -> list[int]:
 
     Returns
     -------
-    list[int]
+    List[int]
         Three-element list ``[N1, N2, N3]``.
 
     Raises
@@ -324,11 +324,11 @@ def _parse_grid(line: str) -> list[int]:
     ValueError
         If the line contains fewer than 3 whitespace-separated tokens.
     """
-    vals: list[str] = line.split()
+    vals: List[str] = line.split()
     if len(vals) < XYZ_COMPONENTS:
         msg: str = "Automatic KPOINTS grid line must have 3 values."
         raise ValueError(msg)
-    grid: list[int] = [
+    grid: List[int] = [
         int(round(float(vals[0]))),
         int(round(float(vals[1]))),
         int(round(float(vals[2]))),
@@ -336,7 +336,7 @@ def _parse_grid(line: str) -> list[int]:
     return grid
 
 
-def _parse_shift(line: str) -> list[float]:
+def _parse_shift(line: str) -> List[float]:
     """PRIVATE: Parse automatic-mode shift line into three floats.
 
     Extended Summary
@@ -353,7 +353,7 @@ def _parse_shift(line: str) -> list[float]:
 
     Returns
     -------
-    list[float]
+    List[float]
         Three-element list ``[s1, s2, s3]``.
 
     Raises
@@ -361,15 +361,15 @@ def _parse_shift(line: str) -> list[float]:
     ValueError
         If the line contains fewer than 3 whitespace-separated tokens.
     """
-    vals: list[str] = line.split()
+    vals: List[str] = line.split()
     if len(vals) < XYZ_COMPONENTS:
         msg: str = "Automatic KPOINTS shift line must have 3 values."
         raise ValueError(msg)
-    shift: list[float] = [float(vals[0]), float(vals[1]), float(vals[2])]
+    shift: List[float] = [float(vals[0]), float(vals[1]), float(vals[2])]
     return shift
 
 
-def _extract_coords(line: str) -> list[float]:
+def _extract_coords(line: str) -> List[float]:
     """PRIVATE: Extract first three float tokens from a KPOINTS coordinate
     line.
 
@@ -386,7 +386,7 @@ def _extract_coords(line: str) -> list[float]:
 
     Returns
     -------
-    list[float]
+    List[float]
         Three-element list of the first three float values found.
 
     Raises
@@ -394,11 +394,11 @@ def _extract_coords(line: str) -> list[float]:
     ValueError
         If the helper finds fewer than three float tokens on the line.
     """
-    tokens: list[str] = FLOAT_TOKEN_RE.findall(line)
+    tokens: List[str] = FLOAT_TOKEN_RE.findall(line)
     if len(tokens) < XYZ_COMPONENTS:
         msg: str = f"Could not parse k-point coordinates from line: {line!r}"
         raise ValueError(msg)
-    coordinates: list[float] = [
+    coordinates: List[float] = [
         float(tokens[0]),
         float(tokens[1]),
         float(tokens[2]),
@@ -445,7 +445,7 @@ def _extract_label(line: str) -> str:
     if match:
         label: str = match.group(1)
     else:
-        parts: list[str] = line.split()
+        parts: List[str] = line.split()
         label = parts[-1] if len(parts) > _min_parts_with_label else ""
     return label
 

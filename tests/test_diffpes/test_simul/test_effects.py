@@ -1,10 +1,11 @@
 """Verify resolution, transmission, detector effects, and count sampling.
 
-The tests pin the bounded WP8.8 deterministic and stochastic contracts. They
+The tests pin deterministic and stochastic detector-effect contracts. They
 also cover the implemented expected-rate and event-probability derivatives.
 """
 
 import math
+from itertools import pairwise
 
 import chex
 import equinox as eqx
@@ -12,14 +13,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Callable, Dict, Tuple
+from beartype.typing import Callable, Dict, List, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Float64
+from jaxtyping import Array, Bool, Float64
+from numpy.typing import NDArray
 from scipy import ndimage, special
 
-import diffpes.simul.effects as effects_module
-from diffpes.simul.effects import (
+from diffpes.simul import (
     apply_detector_effects,
     apply_post_count_response,
     apply_resolution,
@@ -30,6 +31,7 @@ from diffpes.simul.effects import (
     convolve_kpath,
     convolve_momentum_map,
     detector_bin_volumes,
+    effects,
     expected_counts,
     fixed_total_probabilities,
     gaussian_kernel_1d,
@@ -60,7 +62,7 @@ from diffpes.types import (
     make_surface_cell,
 )
 from tests._assertions import assert_rejects
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 _FRAME_ID: str = "org.diffpes.frame.sample_cartesian"
 _DETERMINISTIC_RTOL: float = 1.0e-10
@@ -85,7 +87,7 @@ def _calibration(*, slit: bool = False) -> DetectorCalibration:
     calibration : DetectorCalibration
         Validated unequal-bin detector calibration.
     """
-    v_edges: jax.Array = (
+    v_edges: Float64[Array, "..."] = (
         jnp.array([-0.4, 0.6]) if slit else jnp.array([-0.4, 0.1, 0.8])
     )
     calibration: DetectorCalibration = make_detector_calibration(
@@ -131,7 +133,7 @@ def _effects(**overrides: object) -> DetectorEffects:
     return effects
 
 
-def _inverse_softplus(value: float) -> jax.Array:
+def _inverse_softplus(value: float) -> Float64[Array, "..."]:
     """PRIVATE: Return the raw coordinate for one positive amplitude.
 
     The transform creates exact physical amplitudes for analytic fixtures.
@@ -143,20 +145,25 @@ def _inverse_softplus(value: float) -> jax.Array:
 
     Returns
     -------
-    raw_value : jax.Array
+    raw_value : Float64[Array, "..."]
         Unconstrained softplus coordinate.
     """
-    raw_value: jax.Array = jnp.log(jnp.expm1(value))
+    raw_value: Float64[Array, "..."] = jnp.log(jnp.expm1(value))
     return raw_value
 
 
-def _d8_fixture() -> Tuple[
+def _smooth_effects_fixture() -> Tuple[
     DetectorCalibration,
-    jax.Array,
-    jax.Array,
-    Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    Float64[Array, "..."],
+    Float64[Array, "..."],
+    Tuple[
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+    ],
 ]:
-    """PRIVATE: Build the shared smooth-effects D8 fixture.
+    """PRIVATE: Build the shared smooth detector-effects fixture.
 
     The fixture uses asymmetric values to expose every implemented leaf.
 
@@ -166,8 +173,10 @@ def _d8_fixture() -> Tuple[
         Calibration, density, loss weights, and continuous effects leaves.
     """
     calibration: DetectorCalibration = _calibration(slit=False)
-    density: jax.Array = jnp.linspace(0.2, 1.4, 12).reshape((1, 2, 2, 3))
-    weights: jax.Array = jnp.array(
+    density: Float64[Array, "..."] = jnp.linspace(0.2, 1.4, 12).reshape(
+        (1, 2, 2, 3)
+    )
+    weights: Float64[Array, "1 2 2 3"] = jnp.array(
         [
             [
                 [[0.7, -0.2, 0.4], [0.1, 0.9, -0.5]],
@@ -175,7 +184,12 @@ def _d8_fixture() -> Tuple[
             ]
         ]
     )
-    theta: Tuple[jax.Array, jax.Array, jax.Array, jax.Array] = (
+    theta: Tuple[
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+    ] = (
         jnp.array([-0.2, 0.08, -0.05, 0.12, 0.04, -0.07, 0.03]),
         jnp.array([0.11, -0.06, 0.08, 0.03, -0.09, 0.05]),
         jnp.array(2.3),
@@ -183,9 +197,14 @@ def _d8_fixture() -> Tuple[
     )
     fixture: Tuple[
         DetectorCalibration,
-        jax.Array,
-        jax.Array,
-        Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        Float64[Array, "..."],
+        Float64[Array, "..."],
+        Tuple[
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+        ],
     ] = (calibration, density, weights, theta)
     return fixture
 
@@ -223,81 +242,81 @@ def _resolution_calibration(
 
 
 def _normal_second_antiderivative(
-    displacement: Float64[np.ndarray, "..."], sigma: float
-) -> Float64[np.ndarray, "..."]:
+    displacement: Float64[NDArray, "..."], sigma: float
+) -> Float64[NDArray, "..."]:
     """PRIVATE: Evaluate the independent Gaussian second antiderivative.
 
     Parameters
     ----------
-    displacement : Float64[np.ndarray, "..."]
+    displacement : Float64[NDArray, "..."]
         Edge-to-edge displacements.
     sigma : float
         Positive Gaussian standard deviation.
 
     Returns
     -------
-    values : Float64[np.ndarray, "..."]
+    values : Float64[NDArray, "..."]
         ``z * Phi(z/sigma) + sigma * phi(z/sigma)``.
     """
-    scaled: Float64[np.ndarray, "..."] = displacement / sigma
-    values: Float64[np.ndarray, "..."] = displacement * special.ndtr(
+    scaled: Float64[NDArray, "..."] = displacement / sigma
+    values: Float64[NDArray, "..."] = displacement * special.ndtr(
         scaled
     ) + sigma * np.exp(-0.5 * scaled**2) / np.sqrt(2.0 * np.pi)
     return values
 
 
 def _reference_finite_volume_matrix(
-    edges: Float64[np.ndarray, " Np1"], sigma: float
-) -> Float64[np.ndarray, "N N"]:
+    edges: Float64[NDArray, " Np1"], sigma: float
+) -> Float64[NDArray, "N N"]:
     """PRIVATE: Build an independent analytic finite-volume Gaussian matrix.
 
     Parameters
     ----------
-    edges : Float64[np.ndarray, " Np1"]
+    edges : Float64[NDArray, " Np1"]
         Explicit common source and target cell edges.
     sigma : float
         Positive Gaussian standard deviation.
 
     Returns
     -------
-    matrix : Float64[np.ndarray, "N N"]
+    matrix : Float64[NDArray, "N N"]
         Output-density by input-density matrix without row normalization.
     """
-    left: Float64[np.ndarray, " N"] = edges[:-1]
-    right: Float64[np.ndarray, " N"] = edges[1:]
-    integrated: Float64[np.ndarray, "N N"] = (
+    left: Float64[NDArray, " N"] = edges[:-1]
+    right: Float64[NDArray, " N"] = edges[1:]
+    integrated: Float64[NDArray, "N N"] = (
         _normal_second_antiderivative(right[:, None] - left[None, :], sigma)
         - _normal_second_antiderivative(left[:, None] - left[None, :], sigma)
         - _normal_second_antiderivative(right[:, None] - right[None, :], sigma)
         + _normal_second_antiderivative(left[:, None] - right[None, :], sigma)
     )
-    matrix: Float64[np.ndarray, "N N"] = (
+    matrix: Float64[NDArray, "N N"] = (
         np.maximum(integrated, 0.0) / np.diff(edges)[:, None]
     )
     return matrix
 
 
 def _reference_resolution(
-    density: Float64[np.ndarray, "... U V E"],
+    density: Float64[NDArray, "... U V E"],
     calibration: DetectorCalibration,
-) -> Tuple[Float64[np.ndarray, "... U V E"], Float64[np.ndarray, " 3"]]:
+) -> Tuple[Float64[NDArray, "... U V E"], Float64[NDArray, " 3"]]:
     """PRIVATE: Apply independent separable finite-volume resolution.
 
     Parameters
     ----------
-    density : Float64[np.ndarray, "... U V E"]
+    density : Float64[NDArray, "... U V E"]
         Input native-bin density.
     calibration : DetectorCalibration
         Native edges and FWHM widths.
 
     Returns
     -------
-    blurred : Float64[np.ndarray, "... U V E"]
+    blurred : Float64[NDArray, "... U V E"]
         Independently assembled blurred density.
-    fractions : Float64[np.ndarray, " 3"]
+    fractions : Float64[NDArray, " 3"]
         Sequential native-axis captured fractions.
     """
-    edges: Tuple[Float64[np.ndarray, " Np1"], ...] = (
+    edges: Tuple[Float64[NDArray, " Np1"], ...] = (
         np.asarray(calibration.u_bin_edges),
         np.asarray(calibration.v_bin_edges),
         np.asarray(calibration.energy_bin_edges_ev),
@@ -307,63 +326,68 @@ def _reference_resolution(
         float(calibration.psf_fwhm_v),
         float(calibration.psf_fwhm_energy_ev),
     )
-    matrices: Tuple[Float64[np.ndarray, "N N"], ...] = tuple(
+    matrices: Tuple[Float64[NDArray, "N N"], ...] = tuple(
         _reference_finite_volume_matrix(axis_edges, width * _FWHM_TO_SIGMA)
         for axis_edges, width in zip(edges, fwhm, strict=True)
     )
-    volumes: Float64[np.ndarray, "U V E"] = (
+    volumes: Float64[NDArray, "U V E"] = (
         np.diff(edges[0])[:, None, None]
         * np.diff(edges[1])[None, :, None]
         * np.diff(edges[2])[None, None, :]
     )
 
-    def flux(candidate: Float64[np.ndarray, "... U V E"]) -> float:
-        return float(np.sum(candidate * volumes))
+    def flux(candidate: Float64[NDArray, "... U V E"]) -> float:
+        returned: float = float(np.sum(candidate * volumes))
+        return returned
 
     initial_flux: float = flux(density)
-    after_u: Float64[np.ndarray, "... U V E"] = np.einsum(
+    after_u: Float64[NDArray, "... U V E"] = np.einsum(
         "ij,...jve->...ive", matrices[0], density
     )
     flux_u: float = flux(after_u)
-    after_v: Float64[np.ndarray, "... U V E"] = np.einsum(
+    after_v: Float64[NDArray, "... U V E"] = np.einsum(
         "ij,...uje->...uie", matrices[1], after_u
     )
     flux_v: float = flux(after_v)
-    blurred: Float64[np.ndarray, "... U V E"] = np.einsum(
+    blurred: Float64[NDArray, "... U V E"] = np.einsum(
         "ij,...uvj->...uvi", matrices[2], after_v
     )
     flux_energy: float = flux(blurred)
-    fractions: Float64[np.ndarray, " 3"] = np.asarray(
+    fractions: Float64[NDArray, " 3"] = np.asarray(
         [flux_u / initial_flux, flux_v / flux_u, flux_energy / flux_v]
     )
-    return blurred, fractions
+    returned: Tuple[Float64[NDArray, "... U V E"], Float64[NDArray, " 3"]] = (
+        blurred,
+        fractions,
+    )
+    return returned
 
 
 def _reference_integrated_bernstein(
-    x: Float64[np.ndarray, "..."], degree: int
-) -> Float64[np.ndarray, "... q"]:
+    x: Float64[NDArray, "..."], degree: int
+) -> Float64[NDArray, "... q"]:
     """PRIVATE: Integrate Bernstein basis functions independently.
 
     Parameters
     ----------
-    x : Float64[np.ndarray, "..."]
+    x : Float64[NDArray, "..."]
         Normalized domain coordinates.
     degree : int
         Bernstein derivative degree.
 
     Returns
     -------
-    values : Float64[np.ndarray, "... q"]
+    values : Float64[NDArray, "... q"]
         Integrated basis values for every slope coordinate.
     """
     elevated_degree: int = degree + 1
-    elevated: list[Float64[np.ndarray, "..."]] = [
+    elevated: List[Float64[NDArray, "..."]] = [
         float(math.comb(elevated_degree, index))
         * x**index
         * (1.0 - x) ** (elevated_degree - index)
         for index in range(elevated_degree + 1)
     ]
-    values: Float64[np.ndarray, "... q"] = np.stack(
+    values: Float64[NDArray, "... q"] = np.stack(
         [
             np.sum(np.stack(elevated[index + 1 :]), axis=0) / elevated_degree
             for index in range(degree + 1)
@@ -374,17 +398,17 @@ def _reference_integrated_bernstein(
 
 
 def _wrapped_cauchy_fourier_bin_masses(
-    edges: Float64[np.ndarray, " Np1"],
+    edges: Float64[NDArray, " Np1"],
     center: float,
     gamma_frac: float,
     *,
     n_harmonics: int = 256,
-) -> Float64[np.ndarray, " N"]:
+) -> Float64[NDArray, " N"]:
     """PRIVATE: Integrate wrapped-Cauchy bins by a Fourier reference.
 
     Parameters
     ----------
-    edges : Float64[np.ndarray, " Np1"]
+    edges : Float64[NDArray, " Np1"]
         Fractional edges spanning one period.
     center : float
         Folded fractional distribution centre.
@@ -395,7 +419,7 @@ def _wrapped_cauchy_fourier_bin_masses(
 
     Returns
     -------
-    masses : Float64[np.ndarray, " N"]
+    masses : Float64[NDArray, " N"]
         Independently integrated Fourier-series bin masses.
 
     Notes
@@ -403,19 +427,19 @@ def _wrapped_cauchy_fourier_bin_masses(
     The coefficient of harmonic ``m`` is ``exp(-2*pi*gamma_frac*m)``.
     Integrating each cosine analytically avoids sharing the production CDF.
     """
-    harmonics: Float64[np.ndarray, " M"] = np.arange(
+    harmonics: Float64[NDArray, " M"] = np.arange(
         1, n_harmonics + 1, dtype=np.float64
     )
-    coefficients: Float64[np.ndarray, " M"] = np.exp(
+    coefficients: Float64[NDArray, " M"] = np.exp(
         -2.0 * np.pi * gamma_frac * harmonics
     ) / (np.pi * harmonics)
-    right_phases: Float64[np.ndarray, "M N"] = (
+    right_phases: Float64[NDArray, "M N"] = (
         2.0 * np.pi * (harmonics[:, None] * (edges[None, 1:] - center))
     )
-    left_phases: Float64[np.ndarray, "M N"] = (
+    left_phases: Float64[NDArray, "M N"] = (
         2.0 * np.pi * (harmonics[:, None] * (edges[None, :-1] - center))
     )
-    masses: Float64[np.ndarray, " N"] = np.diff(edges) + np.sum(
+    masses: Float64[NDArray, " N"] = np.diff(edges) + np.sum(
         coefficients[:, None] * (np.sin(right_phases) - np.sin(left_phases)),
         axis=0,
     )
@@ -440,7 +464,7 @@ def _surface_kz_fixture(
     Returns
     -------
     fixture : Tuple[CrystalGeometry, SurfaceCell]
-        Bulk geometry and its nominal Plan-05 surface carrier.
+        Bulk geometry and its nominal surface-frame carrier.
 
     Notes
     -----
@@ -448,7 +472,7 @@ def _surface_kz_fixture(
     ``(0.4,0.2,2)``. Identity coefficients and rotation make every expected
     row independently explicit.
     """
-    lattice: jax.Array = (
+    lattice: Float64[Array, "..."] = (
         jnp.array(
             [
                 [1.0, 0.0, 0.0],
@@ -482,7 +506,7 @@ def _surface_kz_fixture(
 class TestKzFractionalNodes:
     """Verify :func:`diffpes.simul.kz_fractional_nodes`.
 
-    The class owns the static midpoint grid and G5 one-node rejection.
+    The class owns the static midpoint grid and one-node rejection.
     """
 
     def test_returns_exact_uniform_centres_and_jits(self) -> None:
@@ -494,16 +518,20 @@ class TestKzFractionalNodes:
         -----
         Marking ``n_kz`` static preserves one compiled shape per node count.
         """
-        desired: jax.Array = jnp.array([-0.375, -0.125, 0.125, 0.375])
-        eager: jax.Array = kz_fractional_nodes(4)
-        compiled: jax.Array = jax.jit(kz_fractional_nodes, static_argnums=0)(4)
+        desired: Float64[Array, "4"] = jnp.array(
+            [-0.375, -0.125, 0.125, 0.375]
+        )
+        eager: Float64[Array, "..."] = kz_fractional_nodes(4)
+        compiled: Float64[Array, "..."] = jax.jit(
+            kz_fractional_nodes, static_argnums=0
+        )(4)
 
         chex.assert_trees_all_equal(eager, desired)
         chex.assert_trees_all_equal(compiled, desired)
         chex.assert_trees_all_equal(jnp.diff(eager), jnp.full(3, 0.25))
 
     @pytest.mark.parametrize("invalid_count", [0, 1, True])
-    def test_g5_rejects_nonquadrature_counts(self, invalid_count: int) -> None:
+    def test_rejects_nonquadrature_counts(self, invalid_count: int) -> None:
         """Reject empty, one-node, and boolean finite-width grids.
 
         A one-node midpoint erases every mean-free-path dependence.
@@ -519,10 +547,10 @@ class TestKzFractionalNodes:
 class TestKzWrappedLorentzianBinWeights:
     """Verify :func:`diffpes.simul.kz_wrapped_lorentzian_bin_weights`.
 
-    The class owns analytic G4 bin mass, units, wrapping, and validation.
+    The class owns analytic wrapped bin mass, units, and validation.
     """
 
-    def test_g4_matches_fourier_bin_masses_across_period_seam(self) -> None:
+    def test_matches_fourier_bin_masses_across_period_seam(self) -> None:
         """Match an independent Fourier integral on unequal fractional bins.
 
         The centre at ``0.487`` forces probability across the period seam.
@@ -532,17 +560,17 @@ class TestKzWrappedLorentzianBinWeights:
         The omitted Fourier tail is below ``1e-22`` for this fixture, well
         inside the registered ``1e-12`` reference-remainder ceiling.
         """
-        edges_np: Float64[np.ndarray, " Np1"] = (
+        edges_np: Float64[NDArray, " Np1"] = (
             -0.5 + np.linspace(0.0, 1.0, 18) ** 1.3
         )
         center: float = 0.487
         mean_free_path: float = 7.5
         period: float = 2.2
         gamma_frac: float = 0.5 / (mean_free_path * period)
-        desired: Float64[np.ndarray, " N"] = (
-            _wrapped_cauchy_fourier_bin_masses(edges_np, center, gamma_frac)
+        desired: Float64[NDArray, " N"] = _wrapped_cauchy_fourier_bin_masses(
+            edges_np, center, gamma_frac
         )
-        actual: jax.Array = kz_wrapped_lorentzian_bin_weights(
+        actual: Float64[Array, "..."] = kz_wrapped_lorentzian_bin_weights(
             jnp.asarray(edges_np),
             jnp.asarray(center),
             mean_free_path,
@@ -571,31 +599,29 @@ class TestKzWrappedLorentzianBinWeights:
         intact. A driver can therefore scan without a complete K-by-E-by-node
         carrier.
         """
-        edges: jax.Array = jnp.linspace(-0.5, 0.5, 33)
-        centres: jax.Array = jnp.array([-0.49, 0.0, 0.49])
-        public: jax.Array = kz_wrapped_lorentzian_bin_weights(
+        edges: Float64[Array, "33"] = jnp.linspace(-0.5, 0.5, 33)
+        centres: Float64[Array, "3"] = jnp.array([-0.49, 0.0, 0.49])
+        public: Float64[Array, "..."] = kz_wrapped_lorentzian_bin_weights(
             edges, centres, 10.0, 1.8
         )
-        node_first: jax.Array = jax.vmap(
-            lambda lower, upper: (
-                effects_module._kz_wrapped_lorentzian_bin_weight(  # noqa: SLF001
-                    lower,
-                    upper,
-                    centres,
-                    10.0,
-                    1.8,
-                )
+        node_first: Float64[Array, "..."] = jax.vmap(
+            lambda lower, upper: effects._kz_wrapped_lorentzian_bin_weight(  # noqa: SLF001
+                lower,
+                upper,
+                centres,
+                10.0,
+                1.8,
             )
         )(edges[:-1], edges[1:])
-        streamed: jax.Array = jnp.moveaxis(node_first, 0, -1)
-        compiled: jax.Array = jax.jit(kz_wrapped_lorentzian_bin_weights)(
-            edges, centres, 10.0, 1.8
-        )
+        streamed: Float64[Array, "..."] = jnp.moveaxis(node_first, 0, -1)
+        compiled: Float64[Array, "..."] = jax.jit(
+            kz_wrapped_lorentzian_bin_weights
+        )(edges, centres, 10.0, 1.8)
 
         chex.assert_trees_all_equal(streamed, public)
         chex.assert_trees_all_close(compiled, public, rtol=1.0e-13, atol=0.0)
 
-    def test_g4_uses_fractional_width_and_preserves_physical_units(
+    def test_uses_fractional_width_and_preserves_physical_units(
         self,
     ) -> None:
         """Keep weights invariant at fixed ``lambda * G_perp``.
@@ -607,16 +633,16 @@ class TestKzWrappedLorentzianBinWeights:
         This executable counterexample prevents mixing fractional bin edges
         with the inverse-angstrom Lorentzian HWHM.
         """
-        edges: jax.Array = jnp.linspace(-0.5, 0.5, 65)
-        center: jax.Array = jnp.asarray(0.173)
-        first: jax.Array = kz_wrapped_lorentzian_bin_weights(
+        edges: Float64[Array, "65"] = jnp.linspace(-0.5, 0.5, 65)
+        center: Float64[Array, ""] = jnp.asarray(0.173)
+        first: Float64[Array, "..."] = kz_wrapped_lorentzian_bin_weights(
             edges, center, 5.0, 2.0
         )
-        rescaled: jax.Array = kz_wrapped_lorentzian_bin_weights(
+        rescaled: Float64[Array, "..."] = kz_wrapped_lorentzian_bin_weights(
             edges, center, 10.0, 1.0
         )
-        planted_wrong_units: jax.Array = kz_wrapped_lorentzian_bin_weights(
-            edges, center, 5.0, 1.0
+        planted_wrong_units: Float64[Array, "..."] = (
+            kz_wrapped_lorentzian_bin_weights(edges, center, 5.0, 1.0)
         )
 
         chex.assert_trees_all_equal(first, rescaled)
@@ -657,8 +683,8 @@ class TestKzWrappedLorentzianBinWeights:
     )
     def test_rejects_invalid_physical_domains_eager_and_jit(
         self,
-        edges: jax.Array,
-        center: jax.Array,
+        edges: Float64[Array, "..."],
+        center: Float64[Array, "..."],
         mean_free_path: float,
         period: float,
         message: str,
@@ -685,10 +711,11 @@ class TestKzWrappedLorentzianBinWeights:
 class TestBroadenKz:
     """Verify :func:`diffpes.simul.broaden_kz`.
 
-    The class owns G4/G5 averaging and the local D2 lambda derivative.
+    The class owns wrapped quadrature averaging and the local lambda
+    derivative.
     """
 
-    def test_g4_preserves_constant_and_matches_wrapped_voigt_fourier(
+    def test_preserves_constant_and_matches_wrapped_voigt_fourier(
         self,
     ) -> None:
         """Preserve unit density and match the wrapped-Voigt Fourier truth.
@@ -702,23 +729,21 @@ class TestBroadenKz:
         analytic wrapped-Voigt value at the requested centre.
         """
         n_kz: int = 16_384
-        nodes_np: Float64[np.ndarray, " N"] = np.asarray(
+        nodes_np: Float64[NDArray, " N"] = np.asarray(
             kz_fractional_nodes(n_kz)
         )
-        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        edges: Float64[Array, "..."] = jnp.linspace(-0.5, 0.5, n_kz + 1)
         center: float = 0.18
         gaussian_center: float = -0.23
         sigma_frac: float = 0.07
         mean_free_path: float = 8.0
         period: float = 1.6
         gamma_frac: float = 0.5 / (mean_free_path * period)
-        harmonics: Float64[np.ndarray, " M"] = np.arange(
-            1, 65, dtype=np.float64
-        )
-        gaussian_coefficients: Float64[np.ndarray, " M"] = np.exp(
+        harmonics: Float64[NDArray, " M"] = np.arange(1, 65, dtype=np.float64)
+        gaussian_coefficients: Float64[NDArray, " M"] = np.exp(
             -0.5 * np.square(2.0 * np.pi * sigma_frac * harmonics)
         )
-        wrapped_gaussian: Float64[np.ndarray, " N"] = 1.0 + 2.0 * np.sum(
+        wrapped_gaussian: Float64[NDArray, " N"] = 1.0 + 2.0 * np.sum(
             gaussian_coefficients[:, None]
             * np.cos(
                 2.0
@@ -728,28 +753,30 @@ class TestBroadenKz:
             ),
             axis=0,
         )
-        weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
+        weights: Float64[Array, "..."] = kz_wrapped_lorentzian_bin_weights(
             edges,
             jnp.asarray(center),
             mean_free_path,
             period,
         )
-        actual: jax.Array = broaden_kz(jnp.asarray(wrapped_gaussian), weights)
+        actual: Float64[Array, "..."] = broaden_kz(
+            jnp.asarray(wrapped_gaussian), weights
+        )
         desired: float = 1.0 + 2.0 * np.sum(
             np.exp(-2.0 * np.pi * gamma_frac * harmonics)
             * gaussian_coefficients
             * np.cos(2.0 * np.pi * harmonics * (center - gaussian_center))
         )
-        constant: jax.Array = broaden_kz(jnp.ones(n_kz), weights)
+        constant: Float64[Array, "..."] = broaden_kz(jnp.ones(n_kz), weights)
 
         np.testing.assert_allclose(actual, desired, rtol=1.0e-8, atol=0.0)
         np.testing.assert_allclose(constant, 1.0, rtol=1.0e-13, atol=0.0)
 
     @pytest.mark.parametrize("mean_free_path", [5.0, 10.0, 50.0])
-    def test_d2_lambda_gradient_matches_fd_and_is_nonzero(
+    def test_mean_free_path_gradient_matches_fd_and_is_nonzero(
         self, mean_free_path: float
     ) -> None:
-        """Match forward/reverse lambda derivatives at all D2 lengths.
+        """Match forward/reverse lambda derivatives at all tested lengths.
 
         The asymmetric periodic intensity keeps every gradient nonzero.
 
@@ -759,24 +786,29 @@ class TestBroadenKz:
         central-finite-difference comparisons.
         """
         n_kz: int = 96
-        nodes: jax.Array = kz_fractional_nodes(n_kz)
-        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
-        intensity: jax.Array = (
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(n_kz)
+        edges: Float64[Array, "..."] = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        intensity: Float64[Array, "..."] = (
             1.2
             + 0.31 * jnp.cos(2.0 * jnp.pi * nodes)
             + 0.17 * jnp.sin(4.0 * jnp.pi * nodes)
         )
 
-        def loss(candidate: jax.Array) -> jax.Array:
-            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
-                edges,
-                jnp.asarray(0.173),
-                candidate,
-                jnp.asarray(1.8),
+        def loss(candidate: Float64[Array, "..."]) -> Float64[Array, "..."]:
+            candidate_weights: Float64[Array, "..."] = (
+                kz_wrapped_lorentzian_bin_weights(
+                    edges,
+                    jnp.asarray(0.173),
+                    candidate,
+                    jnp.asarray(1.8),
+                )
             )
-            return broaden_kz(intensity, candidate_weights)
+            returned: Float64[Array, "..."] = broaden_kz(
+                intensity, candidate_weights
+            )
+            return returned
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             jnp.asarray(mean_free_path),
             regime="smooth",
@@ -793,31 +825,40 @@ class TestBroadenKz:
         Direct scalar evaluations provide the independent batched comparison.
         """
         n_kz: int = 64
-        nodes: jax.Array = kz_fractional_nodes(n_kz)
-        edges: jax.Array = jnp.linspace(-0.5, 0.5, n_kz + 1)
-        intensity: jax.Array = 1.1 + 0.2 * jnp.cos(
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(n_kz)
+        edges: Float64[Array, "..."] = jnp.linspace(-0.5, 0.5, n_kz + 1)
+        intensity: Float64[Array, "..."] = 1.1 + 0.2 * jnp.cos(
             2.0 * jnp.pi * (nodes - 0.07)
         )
-        centres: jax.Array = jnp.array([-0.31, 0.04, 0.39])
-        lengths: jax.Array = jnp.array([5.0, 10.0, 50.0])
+        centres: Float64[Array, "3"] = jnp.array([-0.31, 0.04, 0.39])
+        lengths: Float64[Array, "3"] = jnp.array([5.0, 10.0, 50.0])
 
-        def evaluate(center: jax.Array, length: jax.Array) -> jax.Array:
-            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
-                edges, center, length, jnp.asarray(1.8)
+        def evaluate(
+            center: Float64[Array, "..."], length: Float64[Array, "..."]
+        ) -> Float64[Array, "..."]:
+            candidate_weights: Float64[Array, "..."] = (
+                kz_wrapped_lorentzian_bin_weights(
+                    edges, center, length, jnp.asarray(1.8)
+                )
             )
-            return broaden_kz(intensity, candidate_weights)
+            returned: Float64[Array, "..."] = broaden_kz(
+                intensity, candidate_weights
+            )
+            return returned
 
-        direct: jax.Array = jnp.stack(
+        direct: Float64[Array, "..."] = jnp.stack(
             [
                 evaluate(center, length)
                 for center, length in zip(centres, lengths, strict=True)
             ]
         )
-        batched: jax.Array = jax.jit(jax.vmap(evaluate))(centres, lengths)
+        batched: Float64[Array, "..."] = jax.jit(jax.vmap(evaluate))(
+            centres, lengths
+        )
 
         chex.assert_trees_all_close(batched, direct, rtol=1.0e-13, atol=0.0)
 
-    def test_g5_joint_refinement_approaches_off_grid_direct_value(
+    def test_joint_refinement_approaches_off_grid_direct_value(
         self,
     ) -> None:
         """Verify convergence toward a periodic direct value during refinement.
@@ -838,22 +879,26 @@ class TestBroadenKz:
             + 0.3 * np.cos(2.0 * np.pi * center)
             + 0.1 * np.sin(4.0 * np.pi * center)
         )
-        errors: list[float] = []
-        ratios: list[float] = []
+        errors: List[float] = []
+        ratios: List[float] = []
         count: int
         length: float
         for count, length in zip(counts, lengths, strict=True):
-            nodes: jax.Array = kz_fractional_nodes(count)
-            edges: jax.Array = jnp.linspace(-0.5, 0.5, count + 1)
-            intensity: jax.Array = (
+            nodes: Float64[Array, "..."] = kz_fractional_nodes(count)
+            edges: Float64[Array, "..."] = jnp.linspace(-0.5, 0.5, count + 1)
+            intensity: Float64[Array, "..."] = (
                 1.0
                 + 0.3 * jnp.cos(2.0 * jnp.pi * nodes)
                 + 0.1 * jnp.sin(4.0 * jnp.pi * nodes)
             )
-            candidate_weights: jax.Array = kz_wrapped_lorentzian_bin_weights(
-                edges, jnp.asarray(center), length, period
+            candidate_weights: Float64[Array, "..."] = (
+                kz_wrapped_lorentzian_bin_weights(
+                    edges, jnp.asarray(center), length, period
+                )
             )
-            broadened: jax.Array = broaden_kz(intensity, candidate_weights)
+            broadened: Float64[Array, "..."] = broaden_kz(
+                intensity, candidate_weights
+            )
             errors.append(abs(float(broadened) - direct))
             gamma_frac: float = 0.5 / (length * period)
             ratios.append((1.0 / count) / gamma_frac)
@@ -892,11 +937,12 @@ class TestBroadenKz:
 class TestSurfaceKzFrame:
     """Verify the private primitive surface reciprocal-frame seam.
 
-    The class owns G8 unit advance and reciprocal identities. It rejects stale
+    The class owns unit-cell advance and reciprocal identities. It rejects
+    stale
     data before any bulk model evaluation.
     """
 
-    def test_g8_cubic_frame_is_exact_and_jittable(self) -> None:
+    def test_cubic_frame_is_exact_and_jittable(self) -> None:
         """Recover the cubic direct, reciprocal, normal, and period values.
 
         Identity coefficients and rotation make the external truth explicit.
@@ -908,15 +954,20 @@ class TestSurfaceKzFrame:
         geometry: CrystalGeometry
         cell: SurfaceCell
         geometry, cell = _surface_kz_fixture(oblique=False)
-        direct: jax.Array
-        reciprocal: jax.Array
-        normal: jax.Array
-        period: jax.Array
-        direct, reciprocal, normal, period = effects_module._surface_kz_frame(  # noqa: SLF001
+        direct: Float64[Array, "..."]
+        reciprocal: Float64[Array, "..."]
+        normal: Float64[Array, "..."]
+        period: Float64[Array, "..."]
+        direct, reciprocal, normal, period = effects._surface_kz_frame(  # noqa: SLF001
             cell, geometry
         )
-        compiled: Tuple[jax.Array, jax.Array, jax.Array, jax.Array] = jax.jit(
-            effects_module._surface_kz_frame  # noqa: SLF001
+        compiled: Tuple[
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+        ] = jax.jit(
+            effects._surface_kz_frame  # noqa: SLF001
         )(cell, geometry)
 
         chex.assert_trees_all_close(direct, jnp.eye(3))
@@ -927,7 +978,7 @@ class TestSurfaceKzFrame:
             compiled, (direct, reciprocal, normal, period)
         )
 
-    def test_g8_rejects_stale_doubled_stacking_before_mapping(self) -> None:
+    def test_rejects_stale_doubled_stacking_before_mapping(self) -> None:
         """Reject numerical ``g=2`` data carrying stale unit-advance metadata.
 
         The carrier factory alone accepts the internally shaped planted cell.
@@ -943,7 +994,7 @@ class TestSurfaceKzFrame:
             oblique=False, doubled_stacking=True
         )
         assert_rejects(
-            effects_module._surface_kz_frame,  # noqa: SLF001
+            effects._surface_kz_frame,  # noqa: SLF001
             stale_cell,
             geometry,
             match="coefficient @ bulk lattice @ rotation",
@@ -951,7 +1002,7 @@ class TestSurfaceKzFrame:
 
 
 class TestMapSurfaceFractionalToBulk:
-    """Verify the private G8 arbitrary surface-to-bulk momentum map.
+    """Verify the private arbitrary surface-to-bulk momentum map.
 
     The class owns bulk-direct centres, oblique coupling, and periodicity.
     """
@@ -968,26 +1019,26 @@ class TestMapSurfaceFractionalToBulk:
         geometry: CrystalGeometry
         cell: SurfaceCell
         geometry, cell = _surface_kz_fixture(oblique=True)
-        k_parallel: jax.Array = jnp.array(
+        k_parallel: Float64[Array, "2 3"] = jnp.array(
             [[0.21, -0.17, 0.0], [-0.31, 0.23, 0.0]]
         )
-        centres: jax.Array = jnp.array(
+        centres: Float64[Array, "2 3"] = jnp.array(
             [[-0.37, 0.04, 0.29], [-0.42, -0.11, 0.33]]
         )
-        surface: jax.Array
-        bulk_fractional: jax.Array
-        surface, bulk_fractional = (
-            effects_module._map_surface_fractional_to_bulk(  # noqa: SLF001
-                k_parallel, centres, cell, geometry
-            )
+        surface: Float64[Array, "..."]
+        bulk_fractional: Float64[Array, "..."]
+        surface, bulk_fractional = effects._map_surface_fractional_to_bulk(  # noqa: SLF001
+            k_parallel, centres, cell, geometry
         )
-        compiled: Tuple[jax.Array, jax.Array] = jax.jit(
-            effects_module._map_surface_fractional_to_bulk  # noqa: SLF001
-        )(k_parallel, centres, cell, geometry)
-        direct: jax.Array = effects_module._surface_kz_frame(  # noqa: SLF001
+        compiled: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
+            jax.jit(
+                effects._map_surface_fractional_to_bulk  # noqa: SLF001
+            )(k_parallel, centres, cell, geometry)
+        )
+        direct: Float64[Array, "..."] = effects._surface_kz_frame(  # noqa: SLF001
             cell, geometry
         )[0]
-        recovered: jax.Array = surface @ direct.T / (2.0 * jnp.pi)
+        recovered: Float64[Array, "..."] = surface @ direct.T / (2.0 * jnp.pi)
 
         chex.assert_trees_all_close(
             recovered[..., 2], centres, rtol=1.0e-12, atol=1.0e-14
@@ -996,12 +1047,12 @@ class TestMapSurfaceFractionalToBulk:
 
 
 class TestMapSurfaceKzNodesToBulkFractional:
-    """Verify the private G8 registered-node surface-to-bulk map.
+    """Verify the private registered-node surface-to-bulk map.
 
     The class owns lateral stacking coupling, folding, and periodicity.
     """
 
-    def test_g8_oblique_map_round_trips_and_preserves_periodicity(
+    def test_oblique_map_round_trips_and_preserves_periodicity(
         self,
     ) -> None:
         """Verify an oblique cell and reciprocal-translation periodicity.
@@ -1018,33 +1069,37 @@ class TestMapSurfaceKzNodesToBulkFractional:
         geometry: CrystalGeometry
         cell: SurfaceCell
         geometry, cell = _surface_kz_fixture(oblique=True)
-        nodes: jax.Array = kz_fractional_nodes(8)
-        k_parallel: jax.Array = jnp.array(
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
+        k_parallel: Float64[Array, "2 3"] = jnp.array(
             [[0.21, -0.17, 0.0], [-0.31, 0.23, 0.0]]
         )
-        direct: jax.Array
-        reciprocal: jax.Array
-        normal: jax.Array
-        direct, reciprocal, normal, _ = effects_module._surface_kz_frame(  # noqa: SLF001
+        direct: Float64[Array, "..."]
+        reciprocal: Float64[Array, "..."]
+        normal: Float64[Array, "..."]
+        direct, reciprocal, normal, _ = effects._surface_kz_frame(  # noqa: SLF001
             cell, geometry
         )
-        in_plane_reciprocal_shift: jax.Array = (
+        in_plane_reciprocal_shift: Float64[Array, "..."] = (
             reciprocal[0] - jnp.dot(reciprocal[0], normal) * normal
         )
-        surface: jax.Array
-        bulk_fractional: jax.Array
+        surface: Float64[Array, "..."]
+        bulk_fractional: Float64[Array, "..."]
         surface, bulk_fractional = (
-            effects_module._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
+            effects._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
                 k_parallel, nodes, cell, geometry
             )
         )
-        shifted_surface: jax.Array
-        shifted_bulk_fractional: jax.Array
+        shifted_surface: Float64[Array, "..."]
+        shifted_bulk_fractional: Float64[Array, "..."]
         shifted_surface, shifted_bulk_fractional = jax.jit(
-            effects_module._map_surface_kz_nodes_to_bulk_fractional  # noqa: SLF001
+            effects._map_surface_kz_nodes_to_bulk_fractional  # noqa: SLF001
         )(k_parallel + in_plane_reciprocal_shift, nodes, cell, geometry)
-        surface_fractional: jax.Array = surface @ direct.T / (2.0 * jnp.pi)
-        shift_difference: jax.Array = shifted_bulk_fractional - bulk_fractional
+        surface_fractional: Float64[Array, "..."] = (
+            surface @ direct.T / (2.0 * jnp.pi)
+        )
+        shift_difference: Float64[Array, "..."] = (
+            shifted_bulk_fractional - bulk_fractional
+        )
 
         chex.assert_trees_all_close(
             surface_fractional[..., 2],
@@ -1060,10 +1115,10 @@ class TestMapSurfaceKzNodesToBulkFractional:
             rtol=1.0e-12,
             atol=1.0e-14,
         )
-        intensity: jax.Array = 1.3 + 0.2 * jnp.sum(
+        intensity: Float64[Array, "..."] = 1.3 + 0.2 * jnp.sum(
             jnp.cos(2.0 * jnp.pi * bulk_fractional), axis=-1
         )
-        shifted_intensity: jax.Array = 1.3 + 0.2 * jnp.sum(
+        shifted_intensity: Float64[Array, "..."] = 1.3 + 0.2 * jnp.sum(
             jnp.cos(2.0 * jnp.pi * shifted_bulk_fractional), axis=-1
         )
         chex.assert_trees_all_close(
@@ -1071,7 +1126,7 @@ class TestMapSurfaceKzNodesToBulkFractional:
         )
         assert bool(jnp.all(jnp.isfinite(shifted_surface)))
 
-    def test_g8_planted_scalar_append_loses_oblique_lateral_coupling(
+    def test_planted_scalar_append_loses_oblique_lateral_coupling(
         self,
     ) -> None:
         """Make the forbidden scalar-fractional append disagree visibly.
@@ -1086,13 +1141,13 @@ class TestMapSurfaceKzNodesToBulkFractional:
         geometry: CrystalGeometry
         cell: SurfaceCell
         geometry, cell = _surface_kz_fixture(oblique=True)
-        nodes: jax.Array = kz_fractional_nodes(4)
-        k_parallel: jax.Array = jnp.array([0.27, -0.19, 0.0])
-        actual: jax.Array
-        _, actual = effects_module._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(4)
+        k_parallel: Float64[Array, "3"] = jnp.array([0.27, -0.19, 0.0])
+        actual: Float64[Array, "..."]
+        _, actual = effects._map_surface_kz_nodes_to_bulk_fractional(  # noqa: SLF001
             k_parallel, nodes, cell, geometry
         )
-        planted_wrong: jax.Array = jnp.stack(
+        planted_wrong: Float64[Array, "..."] = jnp.stack(
             (
                 jnp.full_like(nodes, k_parallel[0]),
                 jnp.full_like(nodes, k_parallel[1]),
@@ -1115,9 +1170,9 @@ class TestMapSurfaceKzNodesToBulkFractional:
         geometry: CrystalGeometry
         cell: SurfaceCell
         geometry, cell = _surface_kz_fixture(oblique=True)
-        nodes: jax.Array = kz_fractional_nodes(4)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(4)
         assert_rejects(
-            effects_module._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
+            effects._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
             jnp.array([0.2, 0.1, 0.03]),
             nodes,
             cell,
@@ -1125,7 +1180,7 @@ class TestMapSurfaceKzNodesToBulkFractional:
             match="surface plane",
         )
         assert_rejects(
-            effects_module._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
+            effects._map_surface_kz_nodes_to_bulk_fractional,  # noqa: SLF001
             jnp.array([0.2, 0.1, 0.0]),
             nodes + 0.01,
             cell,
@@ -1152,7 +1207,7 @@ class TestGaussianKernel1D:
         The test compares the sampled kernel directly before exercising the
         support rejection.
         """
-        kernel: jax.Array = gaussian_kernel_1d(6.0)
+        kernel: Float64[Array, "..."] = gaussian_kernel_1d(6.0)
 
         chex.assert_shape(kernel, (97,))
         np.testing.assert_allclose(np.sum(kernel), 1.0, rtol=0.0, atol=3.0e-16)
@@ -1188,11 +1243,11 @@ class TestGaussianKernel1D:
 class TestConvolveEnergy:
     """Verify :func:`diffpes.simul.convolve_energy`.
 
-    The class owns G1 sampled energy parity and validation.
+    The class owns sampled-energy parity and validation.
     """
 
     @pytest.mark.parametrize("sigma_over_dx", [0.5, 1.0, 2.0, 6.0])
-    def test_g1_matches_scipy_sampled_stencil(
+    def test_matches_scipy_sampled_energy_stencil(
         self, sigma_over_dx: float
     ) -> None:
         """Match SciPy constant-boundary filtering at all registered widths.
@@ -1205,15 +1260,17 @@ class TestConvolveEnergy:
         independent SciPy output.
         """
         rng: np.random.Generator = np.random.default_rng(8101)
-        samples: Float64[np.ndarray, "A B E"] = rng.normal(size=(2, 3, 31))
+        samples: Float64[NDArray, "A B E"] = rng.normal(size=(2, 3, 31))
         spacing: float = 0.04
-        energy: jax.Array = jnp.arange(samples.shape[-1]) * spacing - 0.6
-        actual: jax.Array = convolve_energy(
+        energy: Float64[Array, "..."] = (
+            jnp.arange(samples.shape[-1]) * spacing - 0.6
+        )
+        actual: Float64[Array, "..."] = convolve_energy(
             jnp.asarray(samples),
             energy,
             sigma_over_dx * spacing,
         )
-        desired: Float64[np.ndarray, "A B E"] = ndimage.gaussian_filter1d(
+        desired: Float64[NDArray, "A B E"] = ndimage.gaussian_filter1d(
             samples,
             sigma=sigma_over_dx,
             axis=-1,
@@ -1245,10 +1302,10 @@ class TestConvolveEnergy:
 class TestConvolveMomentumMap:
     """Verify :func:`diffpes.simul.convolve_momentum_map`.
 
-    The class owns G2 Cartesian-map SciPy parity with explicit physical axes.
+    The class owns Cartesian-map SciPy parity with explicit physical axes.
     """
 
-    def test_g2_matches_separable_scipy_filter(self) -> None:
+    def test_matches_separable_scipy_filter(self) -> None:
         """Match SciPy on unequal uniform Cartesian momentum spacings.
 
         The case pins separable physical-axis scaling on a nonsquare map.
@@ -1259,14 +1316,14 @@ class TestConvolveMomentumMap:
         spacing and the registered static radius.
         """
         rng: np.random.Generator = np.random.default_rng(8102)
-        samples: Float64[np.ndarray, "Kx Ky E"] = rng.normal(size=(9, 7, 4))
-        kx: jax.Array = jnp.linspace(-0.24, 0.24, 9)
-        ky: jax.Array = jnp.linspace(-0.15, 0.15, 7)
+        samples: Float64[NDArray, "Kx Ky E"] = rng.normal(size=(9, 7, 4))
+        kx: Float64[Array, "9"] = jnp.linspace(-0.24, 0.24, 9)
+        ky: Float64[Array, "7"] = jnp.linspace(-0.15, 0.15, 7)
         sigma: float = 0.06
-        actual: jax.Array = convolve_momentum_map(
+        actual: Float64[Array, "..."] = convolve_momentum_map(
             jnp.asarray(samples), kx, ky, sigma
         )
-        desired: Float64[np.ndarray, "Kx Ky E"] = ndimage.gaussian_filter(
+        desired: Float64[NDArray, "Kx Ky E"] = ndimage.gaussian_filter(
             samples,
             sigma=(sigma / 0.06, sigma / 0.05),
             axes=(0, 1),
@@ -1301,13 +1358,14 @@ class TestConvolveMomentumMap:
 class TestConvolveKPath:
     """Verify :func:`diffpes.simul.convolve_kpath`.
 
-    The class owns G3 numerical parity and G3C physical path semantics.
+    The class owns sampled numerical parity and finite-volume path semantics.
     """
 
-    def test_g3_shared_sampled_stencil_matches_scipy(self) -> None:
+    def test_shared_sampled_stencil_matches_scipy(self) -> None:
         """Match SciPy through the shared uniform-axis sampled implementation.
 
-        The case pins the private G3 sampled-parity path without changing G3C.
+        The case pins the sampled-parity path without changing finite-volume
+        behavior.
 
         Notes
         -----
@@ -1315,15 +1373,15 @@ class TestConvolveKPath:
         helper and compares independent SciPy output.
         """
         rng: np.random.Generator = np.random.default_rng(8103)
-        samples: Float64[np.ndarray, "K E"] = rng.normal(size=(25, 3))
-        centres: jax.Array = jnp.linspace(-0.6, 0.6, 25)
+        samples: Float64[NDArray, "K E"] = rng.normal(size=(25, 3))
+        centres: Float64[Array, "25"] = jnp.linspace(-0.6, 0.6, 25)
         sigma: float = 0.075
-        sampled: jax.Array = convolve_energy(
+        sampled: Float64[Array, "..."] = convolve_energy(
             jnp.asarray(samples).T,
             centres,
             sigma,
         ).T
-        desired: Float64[np.ndarray, "K E"] = ndimage.gaussian_filter1d(
+        desired: Float64[NDArray, "K E"] = ndimage.gaussian_filter1d(
             samples,
             sigma=sigma / 0.05,
             axis=0,
@@ -1335,20 +1393,21 @@ class TestConvolveKPath:
             sampled, desired, rtol=1.0e-10, atol=1.0e-13
         )
 
-    def test_g3c_matches_nonuniform_analytic_finite_volume(self) -> None:
+    def test_matches_nonuniform_analytic_finite_volume(self) -> None:
         """Match analytic nonuniform cells without row normalization.
 
-        The case verifies physical density transport and captured boundary flux.
+        The case verifies physical density transport and captured boundary
+        flux.
 
         Notes
         -----
         The test constructs cell edges and an independent analytic Gaussian
         matrix before comparing density and flux diagnostics.
         """
-        centres_np: Float64[np.ndarray, " K"] = np.array(
+        centres_np: Float64[NDArray, " K"] = np.array(
             [-0.8, -0.35, -0.1, 0.4, 1.1]
         )
-        density_np: Float64[np.ndarray, "K E"] = np.array(
+        density_np: Float64[NDArray, "K E"] = np.array(
             [
                 [0.2, 0.7],
                 [1.1, 0.4],
@@ -1358,29 +1417,29 @@ class TestConvolveKPath:
             ]
         )
         sigma: float = 0.22
-        interior: Float64[np.ndarray, " Km1"] = 0.5 * (
+        interior: Float64[NDArray, " Km1"] = 0.5 * (
             centres_np[:-1] + centres_np[1:]
         )
-        edges: Float64[np.ndarray, " Kp1"] = np.concatenate(
+        edges: Float64[NDArray, " Kp1"] = np.concatenate(
             (
                 [centres_np[0] - 0.5 * (centres_np[1] - centres_np[0])],
                 interior,
                 [centres_np[-1] + 0.5 * (centres_np[-1] - centres_np[-2])],
             )
         )
-        matrix: Float64[np.ndarray, "K K"] = _reference_finite_volume_matrix(
+        matrix: Float64[NDArray, "K K"] = _reference_finite_volume_matrix(
             edges, sigma
         )
-        desired: Float64[np.ndarray, "K E"] = matrix @ density_np
-        widths: Float64[np.ndarray, " K"] = np.diff(edges)
+        desired: Float64[NDArray, "K E"] = matrix @ density_np
+        widths: Float64[NDArray, " K"] = np.diff(edges)
         desired_fraction: float = float(
             np.sum(desired * widths[:, None])
             / np.sum(density_np * widths[:, None])
         )
 
-        actual: jax.Array
-        fraction: jax.Array
-        valid: jax.Array
+        actual: Float64[Array, "..."]
+        fraction: Float64[Array, "..."]
+        valid: Bool[Array, "..."]
         actual, fraction, valid = convolve_kpath(
             jnp.asarray(density_np), jnp.asarray(centres_np), sigma
         )
@@ -1394,7 +1453,7 @@ class TestConvolveKPath:
         assert bool(valid)
         assert 0.0 <= float(fraction) <= 1.0
 
-    def test_g3c_two_center_counterexample_rejects_sampled_flux_creation(
+    def test_two_center_counterexample_rejects_sampled_flux_creation(
         self,
     ) -> None:
         """Pin the coarse two-centre analytic result and sampled-rule failure.
@@ -1406,11 +1465,11 @@ class TestConvolveKPath:
         The test compares the finite-volume captured fraction with the analytic
         value produced by the planted sampled counterexample.
         """
-        centres: jax.Array = jnp.array([0.0, 1.0])
-        density: jax.Array = jnp.ones((2, 1))
+        centres: Float64[Array, "2"] = jnp.array([0.0, 1.0])
+        density: Float64[Array, "2 1"] = jnp.ones((2, 1))
         sigma: float = 0.01
-        finite_volume_fraction: jax.Array
-        valid: jax.Array
+        finite_volume_fraction: Float64[Array, "..."]
+        valid: Bool[Array, "..."]
         _, finite_volume_fraction, valid = convolve_kpath(
             density, centres, sigma
         )
@@ -1426,35 +1485,38 @@ class TestConvolveKPath:
         assert former_sampled_fraction == pytest.approx(19.947114020071634)
         assert former_sampled_fraction > 1.0
 
-    def test_g3c_domain_enlargement_recovers_flux_and_zero_is_invalid(
+    def test_domain_enlargement_recovers_flux_and_zero_is_invalid(
         self,
     ) -> None:
-        """Recover escaped mass with source-covered padding and flag zero input.
+        """Recover escaped mass with source padding and flag zero input.
 
-        The case distinguishes physical boundary loss from an invalid zero rate.
+        The case distinguishes physical boundary loss from an invalid zero
+        rate.
 
         Notes
         -----
         The test enlarges the source domain and compares captured fractions
         before checking exact zero-output diagnostics.
         """
-        compact_centres: jax.Array = jnp.arange(-1.0, 2.0)
-        compact_density: jax.Array = jnp.array([[0.0], [1.0], [0.0]])
-        extended_centres: jax.Array = jnp.arange(-3.0, 4.0)
-        extended_density: jax.Array = jnp.array(
+        compact_centres: Float64[Array, "..."] = jnp.arange(-1.0, 2.0)
+        compact_density: Float64[Array, "3 1"] = jnp.array(
+            [[0.0], [1.0], [0.0]]
+        )
+        extended_centres: Float64[Array, "..."] = jnp.arange(-3.0, 4.0)
+        extended_density: Float64[Array, "7 1"] = jnp.array(
             [[0.0], [0.0], [0.0], [1.0], [0.0], [0.0], [0.0]]
         )
-        compact_fraction: jax.Array
+        compact_fraction: Float64[Array, "..."]
         _, compact_fraction, _ = convolve_kpath(
             compact_density, compact_centres, 0.7
         )
-        extended_fraction: jax.Array
+        extended_fraction: Float64[Array, "..."]
         _, extended_fraction, _ = convolve_kpath(
             extended_density, extended_centres, 0.7
         )
-        zero: jax.Array
-        zero_fraction: jax.Array
-        zero_valid: jax.Array
+        zero: Float64[Array, "..."]
+        zero_fraction: Float64[Array, "..."]
+        zero_valid: Bool[Array, "..."]
         zero, zero_fraction, zero_valid = convolve_kpath(
             jnp.zeros_like(compact_density), compact_centres, 0.7
         )
@@ -1492,27 +1554,32 @@ class TestConvolveKPath:
         -----
         Compare two positive widths on one deterministic impulse density.
         """
-        centres: jax.Array = jnp.linspace(-4.0, 4.0, 17)
-        density: jax.Array = jnp.zeros((17, 1)).at[8, 0].set(1.0)
+        centres: Float64[Array, "17"] = jnp.linspace(-4.0, 4.0, 17)
+        density: Float64[Array, "..."] = jnp.zeros((17, 1)).at[8, 0].set(1.0)
         broader: float = narrower + increment
-        narrow_density: jax.Array
-        narrow_fraction: jax.Array
-        broad_density: jax.Array
-        broad_fraction: jax.Array
+        narrow_density: Float64[Array, "..."]
+        narrow_fraction: Float64[Array, "..."]
+        broad_density: Float64[Array, "..."]
+        broad_fraction: Float64[Array, "..."]
         narrow_density, narrow_fraction, _ = convolve_kpath(
             density, centres, narrower
         )
         broad_density, broad_fraction, _ = convolve_kpath(
             density, centres, broader
         )
-        widths: jax.Array = jnp.full((17,), centres[1] - centres[0])
+        widths: Float64[Array, "17"] = jnp.full((17,), centres[1] - centres[0])
 
-        def variance(candidate: jax.Array) -> jax.Array:
+        def variance(
+            candidate: Float64[Array, "..."],
+        ) -> Float64[Array, "..."]:
             """Return the captured-density variance."""
-            mass: jax.Array = candidate[:, 0] * widths
-            probability: jax.Array = mass / jnp.sum(mass)
-            mean: jax.Array = jnp.sum(probability * centres)
-            return jnp.sum(probability * (centres - mean) ** 2)
+            mass: Float64[Array, "..."] = candidate[:, 0] * widths
+            probability: Float64[Array, "..."] = mass / jnp.sum(mass)
+            mean: Float64[Array, "..."] = jnp.sum(probability * centres)
+            returned: Float64[Array, "..."] = jnp.sum(
+                probability * (centres - mean) ** 2
+            )
+            return returned
 
         assert float(variance(broad_density)) > float(variance(narrow_density))
         fraction_tolerance: float = 5.0e-15
@@ -1535,11 +1602,12 @@ class TestConvolveKPath:
 class TestApplyResolution:
     """Verify :func:`diffpes.simul.apply_resolution`.
 
-    The class owns G1C/G2C finite-volume resolution and D1 gradients.
+    The class owns finite-volume energy/momentum resolution and width
+    gradients.
     """
 
     @pytest.mark.parametrize("profile", ["delta", "constant", "translated"])
-    def test_g1c_g2c_matches_independent_analytic_reference(
+    def test_finite_volume_matches_independent_analytic_reference(
         self, profile: str
     ) -> None:
         """Match separable analytic truth for three edge-sensitive fixtures.
@@ -1552,7 +1620,7 @@ class TestApplyResolution:
         blurred values and sequential captured fractions.
         """
         calibration: DetectorCalibration = _resolution_calibration()
-        density_np: Float64[np.ndarray, "C U V E"] = np.zeros((1, 3, 2, 4))
+        density_np: Float64[NDArray, "C U V E"] = np.zeros((1, 3, 2, 4))
         if profile == "delta":
             density_np[0, 0, 0, 0] = 2.3
         elif profile == "constant":
@@ -1560,15 +1628,15 @@ class TestApplyResolution:
         else:
             density_np[0, 1, 1, 2] = 1.4
             density_np[0, 2, 0, 1] = 0.6
-        desired: Float64[np.ndarray, "C U V E"]
-        desired_fractions: Float64[np.ndarray, " 3"]
+        desired: Float64[NDArray, "C U V E"]
+        desired_fractions: Float64[NDArray, " 3"]
         desired, desired_fractions = _reference_resolution(
             density_np, calibration
         )
 
-        actual: jax.Array
-        fractions: jax.Array
-        valid: jax.Array
+        actual: Float64[Array, "..."]
+        fractions: Float64[Array, "..."]
+        valid: Bool[Array, "..."]
         actual, fractions, valid = apply_resolution(
             jnp.asarray(density_np), calibration
         )
@@ -1585,7 +1653,7 @@ class TestApplyResolution:
         assert bool(valid)
         assert bool(jnp.all((fractions >= 0.0) & (fractions <= 1.0)))
 
-    def test_g2c_anisotropic_native_widths_do_not_become_stationary_k(
+    def test_anisotropic_native_widths_do_not_become_stationary_k(
         self,
     ) -> None:
         """Expose swapped native angular widths on unequal detector bins.
@@ -1597,33 +1665,36 @@ class TestApplyResolution:
         The test swaps the two angular FWHMs and requires a measurable change
         in the resolved detector density.
         """
-        density: jax.Array = jnp.zeros((1, 3, 2, 4)).at[0, 0, 1, 2].set(1.0)
+        density: Float64[Array, "..."] = (
+            jnp.zeros((1, 3, 2, 4)).at[0, 0, 1, 2].set(1.0)
+        )
         calibrated: DetectorCalibration = _resolution_calibration(
             widths=(0.31, 0.08, 0.2)
         )
         swapped: DetectorCalibration = _resolution_calibration(
             widths=(0.08, 0.31, 0.2)
         )
-        desired: jax.Array
+        desired: Float64[Array, "..."]
         desired, _, _ = apply_resolution(density, calibrated)
-        planted_stationary_k: jax.Array
+        planted_stationary_k: Float64[Array, "..."]
         planted_stationary_k, _, _ = apply_resolution(density, swapped)
 
         assert float(jnp.max(jnp.abs(desired - planted_stationary_k))) > 1.0e-3
 
-    def test_g2c_nonlinear_kinematics_rejects_stationary_k_width(self) -> None:
+    def test_nonlinear_kinematics_rejects_stationary_k_width(self) -> None:
         """Reject a fixed momentum PSF across energy-dependent angle maps.
 
         An independent native-angle calculation supplies the accepted result.
         The planted alternative conserves each bin's mass while transforming
-        to ``k = p(E) sin(u)``, applies one fixed momentum width, and transforms
+        to ``k = p(E) sin(u)``, applies one fixed momentum width, and
+        transforms
         back. Its energy-dependent angular profiles must fail the native truth.
 
         Notes
         -----
         Evaluate all energies and compare the transformed profiles directly.
         """
-        u_edges: Float64[np.ndarray, " U1"] = np.array(
+        u_edges: Float64[NDArray, " U1"] = np.array(
             [-0.30, -0.20, -0.11, -0.03, 0.05, 0.14, 0.24, 0.36]
         )
         calibration: DetectorCalibration = make_detector_calibration(
@@ -1635,55 +1706,51 @@ class TestApplyResolution:
             psf_fwhm_energy_ev=0.03,
             transmission_reference_domain_ev=jnp.array([20.0, 70.0]),
         )
-        profile: Float64[np.ndarray, " U"] = np.array(
+        profile: Float64[NDArray, " U"] = np.array(
             [0.1, 0.4, 1.7, 0.8, 0.25, 0.05, 0.02]
         )
-        density_np: Float64[np.ndarray, "C U V E"] = np.broadcast_to(
+        density_np: Float64[NDArray, "C U V E"] = np.broadcast_to(
             profile[None, :, None, None], (1, 7, 1, 3)
         ).copy()
-        native_truth: Float64[np.ndarray, "C U V E"]
-        native_fractions: Float64[np.ndarray, " 3"]
+        native_truth: Float64[NDArray, "C U V E"]
+        native_fractions: Float64[NDArray, " 3"]
         native_truth, native_fractions = _reference_resolution(
             density_np, calibration
         )
-        actual: jax.Array
-        actual_fractions: jax.Array
+        actual: Float64[Array, "..."]
+        actual_fractions: Float64[Array, "..."]
         actual, actual_fractions, _ = apply_resolution(
             jnp.asarray(density_np), calibration
         )
 
-        energy_centres: Float64[np.ndarray, " E"] = np.array(
-            [-15.0, 0.0, 15.0]
-        )
-        kinetic_energy: Float64[np.ndarray, " E"] = 46.0 + energy_centres
-        momenta: Float64[np.ndarray, " E"] = float(
+        energy_centres: Float64[NDArray, " E"] = np.array([-15.0, 0.0, 15.0])
+        kinetic_energy: Float64[NDArray, " E"] = 46.0 + energy_centres
+        momenta: Float64[NDArray, " E"] = float(
             K_PREFACTOR_INV_ANG_SQRT_EV
         ) * np.sqrt(kinetic_energy)
         sigma_u: float = 0.12 * _FWHM_TO_SIGMA
         sigma_k: float = momenta[1] * sigma_u
-        angular_widths: Float64[np.ndarray, " U"] = np.diff(u_edges)
-        stationary_u: Float64[np.ndarray, "C U V E"] = np.empty_like(
-            density_np
-        )
+        angular_widths: Float64[NDArray, " U"] = np.diff(u_edges)
+        stationary_u: Float64[NDArray, "C U V E"] = np.empty_like(density_np)
         energy_index: int
         momentum: np.float64
         for energy_index, momentum in enumerate(momenta):
-            k_edges: Float64[np.ndarray, " U1"] = momentum * np.sin(u_edges)
-            k_widths: Float64[np.ndarray, " U"] = np.diff(k_edges)
-            source_k: Float64[np.ndarray, " U"] = (
+            k_edges: Float64[NDArray, " U1"] = momentum * np.sin(u_edges)
+            k_widths: Float64[NDArray, " U"] = np.diff(k_edges)
+            source_k: Float64[NDArray, " U"] = (
                 density_np[0, :, 0, energy_index] * angular_widths / k_widths
             )
-            stationary_k: Float64[np.ndarray, " U"] = (
+            stationary_k: Float64[NDArray, " U"] = (
                 _reference_finite_volume_matrix(k_edges, sigma_k) @ source_k
             )
             stationary_u[0, :, 0, energy_index] = (
                 stationary_k * k_widths / angular_widths
             )
-        v_matrix: Float64[np.ndarray, "V V"] = _reference_finite_volume_matrix(
+        v_matrix: Float64[NDArray, "V V"] = _reference_finite_volume_matrix(
             np.asarray(calibration.v_bin_edges),
             float(calibration.psf_fwhm_v) * _FWHM_TO_SIGMA,
         )
-        energy_matrix: Float64[np.ndarray, "E E"] = (
+        energy_matrix: Float64[NDArray, "E E"] = (
             _reference_finite_volume_matrix(
                 np.asarray(calibration.energy_bin_edges_ev),
                 float(calibration.psf_fwhm_energy_ev) * _FWHM_TO_SIGMA,
@@ -1730,17 +1797,17 @@ class TestApplyResolution:
         validity flag.
         """
         calibration: DetectorCalibration = _resolution_calibration()
-        density: jax.Array = jnp.zeros((2, 3, 2, 4))
-        blurred: jax.Array
-        fractions: jax.Array
-        valid: jax.Array
+        density: Float64[Array, "2 3 2 4"] = jnp.zeros((2, 3, 2, 4))
+        blurred: Float64[Array, "..."]
+        fractions: Float64[Array, "..."]
+        valid: Bool[Array, "..."]
         blurred, fractions, valid = apply_resolution(density, calibration)
 
         chex.assert_trees_all_equal(blurred, jnp.zeros_like(density))
         chex.assert_trees_all_equal(fractions, jnp.zeros(3))
         assert not bool(valid)
 
-    def test_d1_width_and_intensity_gradients_match_finite_differences(
+    def test_width_and_intensity_gradients_match_finite_differences(
         self,
     ) -> None:
         """Check fwd/rev gradients through all three FWHMs and density.
@@ -1749,17 +1816,24 @@ class TestApplyResolution:
 
         Notes
         -----
-        The shared gradient gate compares forward and reverse autodiff with its
+        The shared gradient check compares forward and reverse autodiff with
+        its
         finite-difference ladder on a smooth fixture.
         """
         calibration: DetectorCalibration = _resolution_calibration()
-        widths: jax.Array = jnp.array([0.23, 0.17, 0.29])
-        density: jax.Array = jnp.linspace(0.2, 1.3, 24).reshape((1, 3, 2, 4))
-        weights: jax.Array = jnp.linspace(-0.4, 0.8, 24).reshape(density.shape)
+        widths: Float64[Array, "3"] = jnp.array([0.23, 0.17, 0.29])
+        density: Float64[Array, "..."] = jnp.linspace(0.2, 1.3, 24).reshape(
+            (1, 3, 2, 4)
+        )
+        weights: Float64[Array, "..."] = jnp.linspace(-0.4, 0.8, 24).reshape(
+            density.shape
+        )
 
-        def loss(theta: Tuple[jax.Array, jax.Array]) -> jax.Array:
-            candidate_widths: jax.Array
-            candidate_density: jax.Array
+        def loss(
+            theta: Tuple[Float64[Array, "..."], Float64[Array, "..."]],
+        ) -> Float64[Array, "..."]:
+            candidate_widths: Float64[Array, "..."]
+            candidate_density: Float64[Array, "..."]
             candidate_widths, candidate_density = theta
             candidate: DetectorCalibration = eqx.tree_at(
                 lambda item: (
@@ -1774,18 +1848,21 @@ class TestApplyResolution:
                     candidate_widths[2],
                 ),
             )
-            blurred: jax.Array
-            fractions: jax.Array
+            blurred: Float64[Array, "..."]
+            fractions: Float64[Array, "..."]
             blurred, fractions, _ = apply_resolution(
                 candidate_density, candidate
             )
-            return jnp.sum(blurred * weights) + jnp.dot(
-                fractions, jnp.array([0.3, -0.2, 0.4])
-            )
+            returned: Float64[Array, "..."] = jnp.sum(
+                blurred * weights
+            ) + jnp.dot(fractions, jnp.array([0.3, -0.2, 0.4]))
+            return returned
 
-        gradient_gate(loss, (widths, density), regime="smooth")
+        assert_gradients_match_finite_differences(
+            loss, (widths, density), regime="smooth"
+        )
 
-    def test_d1_decreasing_widths_converge_one_sided_to_identity(self) -> None:
+    def test_decreasing_widths_converge_one_sided_to_identity(self) -> None:
         """Verify value convergence as every positive native width decreases.
 
         The sequence stays above the registered positive-width floor and
@@ -1795,7 +1872,7 @@ class TestApplyResolution:
         -----
         Measure successive errors against the unchanged input density.
         """
-        density: jax.Array = jnp.array(
+        density: Float64[Array, "1 3 2 4"] = jnp.array(
             [
                 [
                     [[0.2, 1.1, 0.4, 0.8], [1.3, 0.1, 0.7, 0.5]],
@@ -1805,47 +1882,54 @@ class TestApplyResolution:
             ]
         )
         width_scales: Tuple[float, ...] = (0.18, 0.09, 0.045, 0.0225)
-        errors: list[float] = []
+        errors: List[float] = []
         width: float
         for width in width_scales:
             calibration: DetectorCalibration = _resolution_calibration(
                 widths=(width, width, width)
             )
-            blurred: jax.Array = apply_resolution(density, calibration)[0]
+            blurred: Float64[Array, "..."] = apply_resolution(
+                density, calibration
+            )[0]
             errors.append(float(jnp.linalg.norm(blurred - density)))
 
-        assert all(
-            later < earlier for earlier, later in zip(errors, errors[1:])
-        )
+        assert all(later < earlier for earlier, later in pairwise(errors))
         assert errors[-1] < 0.25 * errors[0]
 
 
 class TestDisplayTopHatDerivatives:
-    """Verify the deliberately nonsmooth display-window derivative contract."""
+    """Verify the deliberately nonsmooth display-window derivative contract.
 
-    def test_d6_top_hat_coordinates_are_documented_exact_zeros(self) -> None:
-        """Assert zero centre and tolerance gradients away from membership seams.
+    The case differentiates the top-hat coordinates and requires the documented
+    zero gradients at the nonsmooth display boundaries.
+    """
+
+    def test_top_hat_coordinates_are_documented_exact_zeros(self) -> None:
+        """Assert zero gradients away from membership seams.
 
         The case covers both constant-energy and Fermi-surface display helpers.
 
         Notes
         -----
-        Differentiate interior membership regions and inspect their documentation.
+        Differentiate interior membership regions and inspect their
+        documentation.
         """
-        energy: jax.Array = jnp.array([-1.0, -0.2, 0.4, 1.2])
-        intensity: jax.Array = jnp.arange(16.0).reshape((2, 2, 4)) + 1.0
+        energy: Float64[Array, "4"] = jnp.array([-1.0, -0.2, 0.4, 1.2])
+        intensity: Float64[Array, "..."] = (
+            jnp.arange(16.0).reshape((2, 2, 4)) + 1.0
+        )
         cube: ArpesCube = make_arpes_cube(
             intensity,
             jnp.array([-0.3, 0.4]),
             jnp.array([-0.5, 0.2]),
             energy,
         )
-        window_grad: jax.Array = jax.grad(
+        window_grad: Float64[Array, "..."] = jax.grad(
             lambda window: jnp.sum(
                 constant_energy_map(cube, window[0], window[1])
             )
         )(jnp.array([-0.15, 0.1]))
-        tolerance_grad: jax.Array = jax.grad(
+        tolerance_grad: Float64[Array, "..."] = jax.grad(
             lambda tolerance: jnp.sum(fermi_surface_map(cube, tolerance))
         )(jnp.array(0.25))
 
@@ -1862,12 +1946,12 @@ class TestDisplayTopHatDerivatives:
 class TestTransmissionShape:
     """Verify :func:`diffpes.simul.transmission_shape`.
 
-    The class owns G9 fixed-domain calibration and D7 shape derivatives.
+    The class owns fixed-domain calibration and shape derivatives.
     """
 
     @pytest.mark.parametrize("sign", [-1, 1])
     @pytest.mark.parametrize("n_slopes", [2, 3])
-    def test_g9_positive_monotone_fixed_domain_mean(
+    def test_positive_monotone_fixed_domain_mean(
         self, sign: int, n_slopes: int
     ) -> None:
         """Normalize the full domain and enforce the registered slope sign.
@@ -1880,18 +1964,18 @@ class TestTransmissionShape:
         strict monotonicity, and unit domain mean.
         """
         calibration: DetectorCalibration = _resolution_calibration(sign=sign)
-        raw: jax.Array = jnp.linspace(-0.4, 0.25, n_slopes)
-        nodes128: Float64[np.ndarray, " Q"]
-        weights128: Float64[np.ndarray, " Q"]
+        raw: Float64[Array, "..."] = jnp.linspace(-0.4, 0.25, n_slopes)
+        nodes128: Float64[NDArray, " Q"]
+        weights128: Float64[NDArray, " Q"]
         nodes128, weights128 = np.polynomial.legendre.leggauss(128)
-        energies: jax.Array = 30.0 + 18.0 * jnp.asarray(nodes128)
-        transmission: jax.Array = transmission_shape(
+        energies: Float64[Array, "..."] = 30.0 + 18.0 * jnp.asarray(nodes128)
+        transmission: Float64[Array, "..."] = transmission_shape(
             energies, raw, calibration
         )
-        weighted_mean: jax.Array = 0.5 * jnp.sum(
+        weighted_mean: Float64[Array, "..."] = 0.5 * jnp.sum(
             jnp.asarray(weights128) * transmission
         )
-        differences: jax.Array = jnp.diff(transmission)
+        differences: Float64[Array, "..."] = jnp.diff(transmission)
 
         assert bool(jnp.all(transmission > 0.0))
         assert bool(jnp.all(sign * differences > 0.0))
@@ -1899,7 +1983,7 @@ class TestTransmissionShape:
             weighted_mean, 1.0, rtol=1.0e-12, atol=1.0e-14
         )
 
-    def test_g9_crop_and_padding_invariance_is_bitwise(self) -> None:
+    def test_crop_and_padding_invariance_is_bitwise(self) -> None:
         """Keep retained transmission bins bitwise identical across windows.
 
         The case pins normalization to the fixed calibration domain.
@@ -1910,16 +1994,18 @@ class TestTransmissionShape:
         equal an independently cropped query bitwise.
         """
         calibration: DetectorCalibration = _resolution_calibration()
-        raw: jax.Array = jnp.array([-0.4, 0.2, -0.1])
-        full_energy: jax.Array = jnp.linspace(12.0, 48.0, 13)
-        full: jax.Array = transmission_shape(full_energy, raw, calibration)
-        cropped: jax.Array = transmission_shape(
+        raw: Float64[Array, "3"] = jnp.array([-0.4, 0.2, -0.1])
+        full_energy: Float64[Array, "13"] = jnp.linspace(12.0, 48.0, 13)
+        full: Float64[Array, "..."] = transmission_shape(
+            full_energy, raw, calibration
+        )
+        cropped: Float64[Array, "..."] = transmission_shape(
             full_energy[3:10], raw, calibration
         )
 
         np.testing.assert_array_equal(cropped, full[3:10])
 
-    def test_g9_matches_independent_integrated_bernstein_reference(
+    def test_matches_independent_integrated_bernstein_reference(
         self,
     ) -> None:
         """Match an independent 128-node basis and normalization calculation.
@@ -1932,35 +2018,33 @@ class TestTransmissionShape:
         normalization with NumPy before comparing production output.
         """
         calibration: DetectorCalibration = _resolution_calibration(sign=-1)
-        raw_np: Float64[np.ndarray, " q"] = np.array([-0.3, 0.15, 0.4])
-        query_np: Float64[np.ndarray, " E"] = np.array(
-            [12.0, 18.5, 31.0, 48.0]
-        )
-        normalized_query: Float64[np.ndarray, " E"] = (query_np - 12.0) / 36.0
-        slopes: Float64[np.ndarray, " q"] = np.logaddexp(0.0, raw_np)
-        log_query: Float64[np.ndarray, " E"] = -np.sum(
+        raw_np: Float64[NDArray, " q"] = np.array([-0.3, 0.15, 0.4])
+        query_np: Float64[NDArray, " E"] = np.array([12.0, 18.5, 31.0, 48.0])
+        normalized_query: Float64[NDArray, " E"] = (query_np - 12.0) / 36.0
+        slopes: Float64[NDArray, " q"] = np.logaddexp(0.0, raw_np)
+        log_query: Float64[NDArray, " E"] = -np.sum(
             _reference_integrated_bernstein(normalized_query, 2) * slopes,
             axis=-1,
         )
-        nodes: Float64[np.ndarray, " Q"]
-        weights: Float64[np.ndarray, " Q"]
+        nodes: Float64[NDArray, " Q"]
+        weights: Float64[NDArray, " Q"]
         nodes, weights = np.polynomial.legendre.leggauss(128)
-        normalized_nodes: Float64[np.ndarray, " Q"] = 0.5 * (nodes + 1.0)
-        log_nodes: Float64[np.ndarray, " Q"] = -np.sum(
+        normalized_nodes: Float64[NDArray, " Q"] = 0.5 * (nodes + 1.0)
+        log_nodes: Float64[NDArray, " Q"] = -np.sum(
             _reference_integrated_bernstein(normalized_nodes, 2) * slopes,
             axis=-1,
         )
         denominator128: float = float(
             0.5 * np.sum(weights * np.exp(log_nodes))
         )
-        desired: Float64[np.ndarray, " E"] = np.exp(log_query) / denominator128
-        actual: jax.Array = transmission_shape(
+        desired: Float64[NDArray, " E"] = np.exp(log_query) / denominator128
+        actual: Float64[Array, "..."] = transmission_shape(
             jnp.asarray(query_np), jnp.asarray(raw_np), calibration
         )
 
         np.testing.assert_allclose(actual, desired, rtol=1.0e-12, atol=1.0e-14)
 
-    def test_g9_rejects_extrapolation_eager_and_jit(self) -> None:
+    def test_rejects_extrapolation_eager_and_jit(self) -> None:
         """Reject any query outside the fixed calibration domain in both modes.
 
         The case prevents silent transmission extrapolation beyond calibration.
@@ -1980,7 +2064,7 @@ class TestTransmissionShape:
         )
 
     @pytest.mark.parametrize("n_slopes", [2, 3])
-    def test_d7_every_shape_coefficient_matches_fd_and_is_nonzero(
+    def test_every_shape_coefficient_matches_fd_and_is_nonzero(
         self, n_slopes: int
     ) -> None:
         """Check each raw-slope derivative with the shared f64 FD ladder.
@@ -1989,42 +2073,48 @@ class TestTransmissionShape:
 
         Notes
         -----
-        The shared gradient gate compares every coordinate with finite
+        The shared gradient check compares every coordinate with finite
         differences and requires a nonzero smooth derivative.
         """
         calibration: DetectorCalibration = _resolution_calibration(sign=1)
-        raw: jax.Array = jnp.linspace(-0.35, 0.28, n_slopes)
-        energy: jax.Array = jnp.array([13.0, 19.0, 28.0, 39.0, 47.0])
-        weights: jax.Array = jnp.array([0.8, -0.2, 0.5, -0.7, 1.1])
+        raw: Float64[Array, "..."] = jnp.linspace(-0.35, 0.28, n_slopes)
+        energy: Float64[Array, "5"] = jnp.array([13.0, 19.0, 28.0, 39.0, 47.0])
+        weights: Float64[Array, "5"] = jnp.array([0.8, -0.2, 0.5, -0.7, 1.1])
 
-        def loss(candidate: jax.Array) -> jax.Array:
-            return jnp.sum(
+        def loss(candidate: Float64[Array, "..."]) -> Float64[Array, "..."]:
+            returned: Float64[Array, "..."] = jnp.sum(
                 transmission_shape(energy, candidate, calibration) * weights
             )
+            return returned
 
-        gradient_gate(loss, raw, regime="smooth", elementwise=True)
+        assert_gradients_match_finite_differences(
+            loss, raw, regime="smooth", elementwise=True
+        )
 
-    def test_d7_energy_gradients_match_fd(self) -> None:
+    def test_energy_gradients_match_fd(self) -> None:
         """Check transmission derivatives for every query energy.
 
         The case verifies the continuous kinetic-energy dependence directly.
 
         Notes
         -----
-        The shared gradient gate compares every energy coordinate with its
+        The shared gradient check compares every energy coordinate with its
         finite-difference estimate.
         """
         calibration: DetectorCalibration = _resolution_calibration(sign=-1)
-        raw: jax.Array = jnp.array([-0.3, 0.15, 0.4])
-        energy: jax.Array = jnp.array([13.0, 20.0, 31.0, 45.0])
-        weights: jax.Array = jnp.array([0.7, -0.4, 1.1, 0.3])
+        raw: Float64[Array, "3"] = jnp.array([-0.3, 0.15, 0.4])
+        energy: Float64[Array, "4"] = jnp.array([13.0, 20.0, 31.0, 45.0])
+        weights: Float64[Array, "4"] = jnp.array([0.7, -0.4, 1.1, 0.3])
 
-        def loss(candidate: jax.Array) -> jax.Array:
-            return jnp.sum(
+        def loss(candidate: Float64[Array, "..."]) -> Float64[Array, "..."]:
+            returned: Float64[Array, "..."] = jnp.sum(
                 transmission_shape(candidate, raw, calibration) * weights
             )
+            return returned
 
-        gradient_gate(loss, energy, regime="smooth", elementwise=True)
+        assert_gradients_match_finite_differences(
+            loss, energy, regime="smooth", elementwise=True
+        )
 
 
 class TestApplyTransmission:
@@ -2044,11 +2134,15 @@ class TestApplyTransmission:
         requires exact tree equality.
         """
         calibration: DetectorCalibration = _resolution_calibration()
-        energy: jax.Array = jnp.array([14.0, 25.0, 37.0, 46.0])
-        raw: jax.Array = jnp.array([-0.4, 0.2])
-        intensity: jax.Array = jnp.arange(24.0).reshape((2, 3, 4)) + 0.2
-        shape: jax.Array = transmission_shape(energy, raw, calibration)
-        actual: jax.Array = apply_transmission(
+        energy: Float64[Array, "4"] = jnp.array([14.0, 25.0, 37.0, 46.0])
+        raw: Float64[Array, "2"] = jnp.array([-0.4, 0.2])
+        intensity: Float64[Array, "..."] = (
+            jnp.arange(24.0).reshape((2, 3, 4)) + 0.2
+        )
+        shape: Float64[Array, "..."] = transmission_shape(
+            energy, raw, calibration
+        )
+        actual: Float64[Array, "..."] = apply_transmission(
             intensity, energy, raw, calibration
         )
 
@@ -2056,7 +2150,11 @@ class TestApplyTransmission:
 
 
 class TestResolutionTransmissionVariants(chex.TestCase):
-    """Verify eager and JIT success paths for both canonical effects."""
+    """Verify eager and JIT success paths for both canonical effects.
+
+    The cases apply the resolution and transmission operators in eager and
+    compiled execution, then compare the results with expected arrays.
+    """
 
     @chex.variants(with_jit=True, without_jit=True)
     def test_apply_resolution_success_path(self) -> None:
@@ -2071,10 +2169,12 @@ class TestResolutionTransmissionVariants(chex.TestCase):
         """
         operator: Callable[..., object] = self.variant(apply_resolution)
         calibration: DetectorCalibration = _resolution_calibration()
-        density: jax.Array = jnp.linspace(0.2, 1.3, 24).reshape((1, 3, 2, 4))
-        blurred: jax.Array
-        fractions: jax.Array
-        valid: jax.Array
+        density: Float64[Array, "..."] = jnp.linspace(0.2, 1.3, 24).reshape(
+            (1, 3, 2, 4)
+        )
+        blurred: Float64[Array, "..."]
+        fractions: Float64[Array, "..."]
+        valid: Bool[Array, "..."]
         blurred, fractions, valid = operator(density, calibration)
 
         chex.assert_shape(blurred, density.shape)
@@ -2093,11 +2193,13 @@ class TestResolutionTransmissionVariants(chex.TestCase):
         The Chex variant applies one fixture eagerly and through JIT before
         checking shape and finiteness.
         """
-        operator: Callable[..., jax.Array] = self.variant(apply_transmission)
+        operator: Callable[..., Float64[Array, "..."]] = self.variant(
+            apply_transmission
+        )
         calibration: DetectorCalibration = _resolution_calibration()
-        energy: jax.Array = jnp.array([14.0, 25.0, 37.0, 46.0])
-        intensity: jax.Array = jnp.ones((2, 3, 4))
-        actual: jax.Array = operator(
+        energy: Float64[Array, "4"] = jnp.array([14.0, 25.0, 37.0, 46.0])
+        intensity: Float64[Array, "2 3 4"] = jnp.ones((2, 3, 4))
+        actual: Float64[Array, "..."] = operator(
             intensity, energy, jnp.array([-0.4, 0.2]), calibration
         )
 
@@ -2119,11 +2221,11 @@ class TestDetectorBinVolumes:
         Notes
         -----
         The test constructs a two-dimensional detector map and compares every
-        target bin at the deterministic G8 tolerance.
+        target bin at the deterministic registered tolerance.
         """
         calibration: DetectorCalibration = _calibration(slit=False)
-        actual: jax.Array = detector_bin_volumes(calibration)
-        desired: Float64[np.ndarray, "U V E"] = (
+        actual: Float64[Array, "..."] = detector_bin_volumes(calibration)
+        desired: Float64[NDArray, "U V E"] = (
             np.diff(np.array([-1.0, -0.25, 1.5]))[:, None, None]
             * np.diff(np.array([-0.4, 0.1, 0.8]))[None, :, None]
             * np.diff(np.array([-2.0, -0.75, 0.5, 2.5]))[None, None, :]
@@ -2159,7 +2261,7 @@ class TestBackgroundDensity:
                 -0.3, 0.4, 1 + 2 * active_axes
             ),
         )
-        signal: jax.Array = jnp.ones(
+        signal: Float64[Array, "..."] = jnp.ones(
             (
                 1,
                 calibration.u_bin_edges.size - 1,
@@ -2168,7 +2270,7 @@ class TestBackgroundDensity:
             )
         )
 
-        background: jax.Array = background_density(
+        background: Float64[Array, "..."] = background_density(
             signal, calibration, effects
         )
         assert bool(jnp.all(background >= 0.0))
@@ -2184,7 +2286,7 @@ class TestBackgroundDensity:
         differentiates the production background at an all-zero signal.
         """
         calibration: DetectorCalibration = _calibration(slit=True)
-        density: jax.Array = jnp.broadcast_to(
+        density: Float64[Array, "..."] = jnp.broadcast_to(
             jnp.array([[[[1.0, 2.0, 4.0]]]]), (1, 2, 1, 3)
         )
         base: float = 0.3
@@ -2195,16 +2297,18 @@ class TestBackgroundDensity:
                 [_inverse_softplus(base), _inverse_softplus(scale)]
             ),
         )
-        delta_energy: Float64[np.ndarray, " E"] = np.array([1.25, 1.25, 2.0])
-        weighted: Float64[np.ndarray, " E"] = (
+        delta_energy: Float64[NDArray, " E"] = np.array([1.25, 1.25, 2.0])
+        weighted: Float64[NDArray, " E"] = (
             np.array([1.0, 2.0, 4.0]) * delta_energy
         )
-        tail: Float64[np.ndarray, " E"] = np.flip(
+        tail: Float64[NDArray, " E"] = np.flip(
             np.cumsum(np.flip(weighted))
         ) / np.sum(weighted)
-        desired: Float64[np.ndarray, " E"] = base + scale * tail
+        desired: Float64[NDArray, " E"] = base + scale * tail
 
-        actual: jax.Array = background_density(density, calibration, effects)
+        actual: Float64[Array, "..."] = background_density(
+            density, calibration, effects
+        )
         np.testing.assert_allclose(
             actual[0, 0, 0],
             desired,
@@ -2213,14 +2317,18 @@ class TestBackgroundDensity:
         )
         assert bool(actual[0, 0, 0, 0] > actual[0, 0, 0, -1])
 
-        def zero_branch_loss(candidate: jax.Array) -> jax.Array:
-            loss: jax.Array = jnp.sum(
+        def zero_branch_loss(
+            candidate: Float64[Array, "..."],
+        ) -> Float64[Array, "..."]:
+            loss: Float64[Array, "..."] = jnp.sum(
                 background_density(candidate, calibration, effects)
             )
             return loss
 
-        zero_density: jax.Array = jnp.zeros_like(density)
-        gradient: jax.Array = jax.grad(zero_branch_loss)(zero_density)
+        zero_density: Float64[Array, "..."] = jnp.zeros_like(density)
+        gradient: Float64[Array, "..."] = jax.grad(zero_branch_loss)(
+            zero_density
+        )
         chex.assert_trees_all_equal(gradient, jnp.zeros_like(zero_density))
 
 
@@ -2252,11 +2360,13 @@ class TestSensitivityField:
             ),
         )
 
-        sensitivity: jax.Array = sensitivity_field(calibration, effects)
-        volumes: jax.Array = detector_bin_volumes(calibration)
-        weighted_mean: jax.Array = jnp.sum(sensitivity * volumes) / jnp.sum(
-            volumes
+        sensitivity: Float64[Array, "..."] = sensitivity_field(
+            calibration, effects
         )
+        volumes: Float64[Array, "..."] = detector_bin_volumes(calibration)
+        weighted_mean: Float64[Array, "..."] = jnp.sum(
+            sensitivity * volumes
+        ) / jnp.sum(volumes)
 
         assert bool(jnp.all(sensitivity > 0.0))
         np.testing.assert_allclose(
@@ -2284,9 +2394,13 @@ class TestApplyPostCountResponse:
             post_count_mode="calibrated",
             post_count_kernel=jnp.array([1.0, 2.0, 4.0]),
         )
-        rates: jax.Array = jnp.array([[[[1.0, 3.0, 5.0, 9.0]]]])
-        actual: jax.Array = apply_post_count_response(rates, effects)
-        desired: Float64[np.ndarray, " E"] = np.convolve(
+        rates: Float64[Array, "1 1 1 4"] = jnp.array(
+            [[[[1.0, 3.0, 5.0, 9.0]]]]
+        )
+        actual: Float64[Array, "..."] = apply_post_count_response(
+            rates, effects
+        )
+        desired: Float64[NDArray, " E"] = np.convolve(
             np.array([1.0, 3.0, 5.0, 9.0]),
             np.array([1.0, 2.0, 4.0]) / 7.0,
             mode="same",
@@ -2311,7 +2425,7 @@ class TestApplyPostCountResponse:
         and under JIT.
         """
         effects: DetectorEffects = _effects()
-        empty_rates: jax.Array = jnp.empty((0, 2, 1, 3))
+        empty_rates: Float64[Array, "0 2 1 3"] = jnp.empty((0, 2, 1, 3))
         assert_rejects(
             apply_post_count_response,
             empty_rates,
@@ -2334,10 +2448,10 @@ class TestExpectedCounts:
         Notes
         -----
         The test compares every channel and bin with an independent analytic
-        rate expression at the G8 tolerance.
+        rate expression at the registered tolerance.
         """
         calibration: DetectorCalibration = _calibration(slit=False)
-        density: jax.Array = jnp.full((2, 2, 2, 3), 1.75)
+        density: Float64[Array, "2 2 2 3"] = jnp.full((2, 2, 2, 3), 1.75)
         background_amplitude: float = 0.4
         effects: DetectorEffects = _effects(
             background_coefficients=jnp.array(
@@ -2345,11 +2459,13 @@ class TestExpectedCounts:
             ),
             exposure=3.2,
         )
-        volumes: jax.Array = detector_bin_volumes(calibration)
-        desired: jax.Array = (
+        volumes: Float64[Array, "..."] = detector_bin_volumes(calibration)
+        desired: Float64[Array, "..."] = (
             3.2 * (1.75 + background_amplitude) * volumes[None, ...]
         )
-        actual: jax.Array = expected_counts(density, calibration, effects)
+        actual: Float64[Array, "..."] = expected_counts(
+            density, calibration, effects
+        )
 
         np.testing.assert_allclose(
             actual,
@@ -2370,7 +2486,7 @@ class TestExpectedCounts:
         """
         calibration: DetectorCalibration = _calibration(slit=True)
         effects: DetectorEffects = _effects()
-        empty_density: jax.Array = jnp.empty((0, 2, 1, 3))
+        empty_density: Float64[Array, "0 2 1 3"] = jnp.empty((0, 2, 1, 3))
         assert_rejects(
             expected_counts,
             empty_density,
@@ -2382,7 +2498,8 @@ class TestExpectedCounts:
     def test_rates_pass_fd_jit_and_vmap(self) -> None:
         """Differentiate every implemented continuous rate leaf.
 
-        The gate covers background, sensitivity, exposure, and response kernel.
+        The check covers background, sensitivity, exposure, and response
+        kernel.
 
         Notes
         -----
@@ -2390,18 +2507,28 @@ class TestExpectedCounts:
         JIT output and vmaps a batch over every tested leaf.
         """
         calibration: DetectorCalibration
-        density: jax.Array
-        weights: jax.Array
-        theta: Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
-        calibration, density, weights, theta = _d8_fixture()
+        density: Float64[Array, "..."]
+        weights: Float64[Array, "..."]
+        theta: Tuple[
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+        ]
+        calibration, density, weights, theta = _smooth_effects_fixture()
 
         def rate_loss(
-            candidate: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> jax.Array:
-            background: jax.Array
-            sensitivity: jax.Array
-            exposure: jax.Array
-            kernel: jax.Array
+            candidate: Tuple[
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+            ],
+        ) -> Float64[Array, "..."]:
+            background: Float64[Array, "..."]
+            sensitivity: Float64[Array, "..."]
+            exposure: Float64[Array, "..."]
+            kernel: Float64[Array, "..."]
             background, sensitivity, exposure, kernel = candidate
             effects: DetectorEffects = _effects(
                 background_mode="smooth",
@@ -2412,23 +2539,29 @@ class TestExpectedCounts:
                 post_count_mode="calibrated",
                 post_count_kernel=kernel,
             )
-            rates: jax.Array = expected_counts(density, calibration, effects)
-            loss: jax.Array = jnp.sum(rates * weights)
+            rates: Float64[Array, "..."] = expected_counts(
+                density, calibration, effects
+            )
+            loss: Float64[Array, "..."] = jnp.sum(rates * weights)
             return loss
 
-        gradient_gate(rate_loss, theta, regime="smooth")
-        eager_loss: jax.Array = rate_loss(theta)
-        compiled_loss: jax.Array = jax.jit(rate_loss)(theta)
+        assert_gradients_match_finite_differences(
+            rate_loss, theta, regime="smooth"
+        )
+        eager_loss: Float64[Array, "..."] = rate_loss(theta)
+        compiled_loss: Float64[Array, "..."] = jax.jit(rate_loss)(theta)
         chex.assert_trees_all_close(
             compiled_loss,
             eager_loss,
             rtol=_DETERMINISTIC_RTOL,
             atol=0.0,
         )
-        batched_theta: Tuple[jax.Array, ...] = jax.tree.map(
+        batched_theta: Tuple[Float64[Array, "..."], ...] = jax.tree.map(
             lambda leaf: jnp.stack((leaf, leaf * 1.04)), theta
         )
-        batched_loss: jax.Array = jax.jit(jax.vmap(rate_loss))(batched_theta)
+        batched_loss: Float64[Array, "..."] = jax.jit(jax.vmap(rate_loss))(
+            batched_theta
+        )
         chex.assert_shape(batched_loss, (2,))
 
     def test_stage_local_counts_exclude_map_and_transmission_leaves(
@@ -2445,33 +2578,45 @@ class TestExpectedCounts:
         rotations, and transmission coordinates and require structural zeros.
         """
         calibration: DetectorCalibration = _calibration(slit=True)
-        density: jax.Array = jnp.linspace(0.3, 1.1, 6).reshape((1, 2, 1, 3))
-        theta: Tuple[jax.Array, jax.Array, jax.Array] = (
+        density: Float64[Array, "..."] = jnp.linspace(0.3, 1.1, 6).reshape(
+            (1, 2, 1, 3)
+        )
+        theta: Tuple[
+            Float64[Array, "..."], Float64[Array, "..."], Float64[Array, "..."]
+        ] = (
             jnp.array([0.2]),
             jnp.array([[0.1, -0.2, 0.3]]),
             jnp.array([0.15, -0.25]),
         )
 
         def loss(
-            candidate: Tuple[jax.Array, jax.Array, jax.Array],
-        ) -> jax.Array:
-            logits: jax.Array
-            rotations: jax.Array
-            transmission: jax.Array
+            candidate: Tuple[
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+            ],
+        ) -> Float64[Array, "..."]:
+            logits: Float64[Array, "..."]
+            rotations: Float64[Array, "..."]
+            transmission: Float64[Array, "..."]
             logits, rotations, transmission = candidate
             effects: DetectorEffects = _effects(
                 domain_logits=logits,
                 domain_euler_angles_rad=rotations,
                 transmission_raw_slopes=transmission,
             )
-            rates: jax.Array = expected_counts(density, calibration, effects)
-            total: jax.Array = jnp.sum(rates)
+            rates: Float64[Array, "..."] = expected_counts(
+                density, calibration, effects
+            )
+            total: Float64[Array, "..."] = jnp.sum(rates)
             return total
 
-        gradient: Tuple[jax.Array, jax.Array, jax.Array] = jax.grad(loss)(
-            theta
+        gradient: Tuple[
+            Float64[Array, "..."], Float64[Array, "..."], Float64[Array, "..."]
+        ] = jax.grad(loss)(theta)
+        zeros: Tuple[Float64[Array, "..."], ...] = jax.tree.map(
+            jnp.zeros_like, theta
         )
-        zeros: Tuple[jax.Array, ...] = jax.tree.map(jnp.zeros_like, theta)
         chex.assert_trees_all_equal(gradient, zeros)
 
 
@@ -2491,9 +2636,9 @@ class TestFixedTotalProbabilities:
         The test compares a nonnormalized matrix with its direct global ratio.
         It also rejects an all-zero rate tensor.
         """
-        rates: jax.Array = jnp.array([[2.0, 3.0], [1.0, 4.0]])
-        probabilities: jax.Array = fixed_total_probabilities(rates)
-        desired: jax.Array = rates / jnp.sum(rates)
+        rates: Float64[Array, "2 2"] = jnp.array([[2.0, 3.0], [1.0, 4.0]])
+        probabilities: Float64[Array, "..."] = fixed_total_probabilities(rates)
+        desired: Float64[Array, "..."] = rates / jnp.sum(rates)
 
         np.testing.assert_allclose(
             probabilities,
@@ -2514,26 +2659,37 @@ class TestFixedTotalProbabilities:
 
         Notes
         -----
-        The test applies the shared finite-difference gate to background,
+        The test applies the shared finite-difference check to background,
         sensitivity, and kernel leaves before JIT and vmap comparisons.
         """
         calibration: DetectorCalibration
-        density: jax.Array
-        weights: jax.Array
-        rate_theta: Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
-        calibration, density, weights, rate_theta = _d8_fixture()
-        theta: Tuple[jax.Array, jax.Array, jax.Array] = (
+        density: Float64[Array, "..."]
+        weights: Float64[Array, "..."]
+        rate_theta: Tuple[
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+            Float64[Array, "..."],
+        ]
+        calibration, density, weights, rate_theta = _smooth_effects_fixture()
+        theta: Tuple[
+            Float64[Array, "..."], Float64[Array, "..."], Float64[Array, "..."]
+        ] = (
             rate_theta[0],
             rate_theta[1],
             rate_theta[3],
         )
 
         def probability_loss(
-            candidate: Tuple[jax.Array, jax.Array, jax.Array],
-        ) -> jax.Array:
-            background: jax.Array
-            sensitivity: jax.Array
-            kernel: jax.Array
+            candidate: Tuple[
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+            ],
+        ) -> Float64[Array, "..."]:
+            background: Float64[Array, "..."]
+            sensitivity: Float64[Array, "..."]
+            kernel: Float64[Array, "..."]
             background, sensitivity, kernel = candidate
             effects: DetectorEffects = _effects(
                 background_mode="smooth",
@@ -2544,26 +2700,32 @@ class TestFixedTotalProbabilities:
                 post_count_mode="calibrated",
                 post_count_kernel=kernel,
             )
-            rates: jax.Array = expected_counts(density, calibration, effects)
-            probabilities: jax.Array = fixed_total_probabilities(rates)
-            loss: jax.Array = jnp.sum(probabilities * weights)
+            rates: Float64[Array, "..."] = expected_counts(
+                density, calibration, effects
+            )
+            probabilities: Float64[Array, "..."] = fixed_total_probabilities(
+                rates
+            )
+            loss: Float64[Array, "..."] = jnp.sum(probabilities * weights)
             return loss
 
-        gradient_gate(probability_loss, theta, regime="smooth")
-        eager_loss: jax.Array = probability_loss(theta)
-        compiled_loss: jax.Array = jax.jit(probability_loss)(theta)
+        assert_gradients_match_finite_differences(
+            probability_loss, theta, regime="smooth"
+        )
+        eager_loss: Float64[Array, "..."] = probability_loss(theta)
+        compiled_loss: Float64[Array, "..."] = jax.jit(probability_loss)(theta)
         chex.assert_trees_all_close(
             compiled_loss,
             eager_loss,
             rtol=_DETERMINISTIC_RTOL,
             atol=0.0,
         )
-        batched_theta: Tuple[jax.Array, ...] = jax.tree.map(
+        batched_theta: Tuple[Float64[Array, "..."], ...] = jax.tree.map(
             lambda leaf: jnp.stack((leaf, leaf * 1.04)), theta
         )
-        batched_loss: jax.Array = jax.jit(jax.vmap(probability_loss))(
-            batched_theta
-        )
+        batched_loss: Float64[Array, "..."] = jax.jit(
+            jax.vmap(probability_loss)
+        )(batched_theta)
         chex.assert_shape(batched_loss, (2,))
 
 
@@ -2578,24 +2740,26 @@ class TestSamplePoissonCounts:
     def test_moments_stay_within_five_standard_errors(self) -> None:
         """Match Poisson means and variances at three rate scales.
 
-        The fixed-seed gate uses 200,000 draws at rates 0.5, 5, and 50.
+        The fixed-seed check uses 200,000 draws at rates 0.5, 5, and 50.
 
         Notes
         -----
         The test computes analytic standard errors from exact Poisson fourth
         moments and applies the preregistered five-error bound.
         """
-        rates: jax.Array = jnp.array([0.5, 5.0, 50.0])
-        keys: jax.Array = jax.random.split(jax.random.key(8201), _SAMPLE_DRAWS)
-        draws: jax.Array = jax.jit(
+        rates: Float64[Array, "3"] = jnp.array([0.5, 5.0, 50.0])
+        keys: Float64[Array, "..."] = jax.random.split(
+            jax.random.key(8201), _SAMPLE_DRAWS
+        )
+        draws: Float64[Array, "..."] = jax.jit(
             jax.vmap(sample_poisson_counts, in_axes=(0, None))
         )(keys, rates)
-        empirical_mean: jax.Array = jnp.mean(draws, axis=0)
-        empirical_variance: jax.Array = jnp.mean(
+        empirical_mean: Float64[Array, "..."] = jnp.mean(draws, axis=0)
+        empirical_variance: Float64[Array, "..."] = jnp.mean(
             jnp.square(draws - rates), axis=0
         )
-        mean_error: jax.Array = jnp.sqrt(rates / _SAMPLE_DRAWS)
-        variance_error: jax.Array = jnp.sqrt(
+        mean_error: Float64[Array, "..."] = jnp.sqrt(rates / _SAMPLE_DRAWS)
+        variance_error: Float64[Array, "..."] = jnp.sqrt(
             (rates + 2.0 * jnp.square(rates)) / _SAMPLE_DRAWS
         )
 
@@ -2611,17 +2775,18 @@ class TestSamplePoissonCounts:
     def test_replays_and_rejects_a_gradient_claim(self) -> None:
         """Replay one key and keep integer draws outside autodiff.
 
-        The case requires bitwise equality and an integer-output gradient error.
+        The case requires bitwise equality and an integer-output gradient
+        error.
 
         Notes
         -----
         The test calls the public sampler twice with one key. It then asks JAX
         for an unsupported gradient of the integer sum.
         """
-        rates: jax.Array = jnp.array([0.2, 0.3, 0.5])
-        key: jax.Array = jax.random.key(881)
-        first: jax.Array = sample_poisson_counts(key, rates)
-        second: jax.Array = sample_poisson_counts(key, rates)
+        rates: Float64[Array, "3"] = jnp.array([0.2, 0.3, 0.5])
+        key: Float64[Array, "..."] = jax.random.key(881)
+        first: Float64[Array, "..."] = sample_poisson_counts(key, rates)
+        second: Float64[Array, "..."] = sample_poisson_counts(key, rates)
 
         chex.assert_trees_all_equal(first, second)
         assert jnp.issubdtype(first.dtype, jnp.integer)
@@ -2636,7 +2801,8 @@ class TestSamplePoissonCounts:
 class TestSampleFixedTotalCounts:
     """Verify :func:`diffpes.simul.sample_fixed_total_counts`.
 
-    The class owns multinomial moments, exact totals, replay, and gradient scope.
+    The class owns multinomial moments, exact totals, replay, and gradient
+    scope.
     """
 
     @pytest.mark.big_mem
@@ -2644,7 +2810,7 @@ class TestSampleFixedTotalCounts:
     def test_moments_stay_within_five_standard_errors(self) -> None:
         """Match multinomial means and full covariance.
 
-        The fixed-seed gate uses 200,000 draws with total 100.
+        The fixed-seed check uses 200,000 draws with total 100.
 
         Notes
         -----
@@ -2652,26 +2818,28 @@ class TestSampleFixedTotalCounts:
         fourth moments and checks all nine covariance entries.
         """
         total_count: int = 100
-        probabilities: jax.Array = jnp.array([0.2, 0.3, 0.5])
-        keys: jax.Array = jax.random.split(jax.random.key(8202), _SAMPLE_DRAWS)
-        draws: jax.Array = jax.jit(
+        probabilities: Float64[Array, "3"] = jnp.array([0.2, 0.3, 0.5])
+        keys: Float64[Array, "..."] = jax.random.split(
+            jax.random.key(8202), _SAMPLE_DRAWS
+        )
+        draws: Float64[Array, "..."] = jax.jit(
             jax.vmap(sample_fixed_total_counts, in_axes=(0, None, None)),
             static_argnums=2,
         )(keys, probabilities, total_count)
-        totals: jax.Array = jnp.sum(draws, axis=1)
-        event_covariance: jax.Array = jnp.diag(probabilities) - jnp.outer(
-            probabilities, probabilities
-        )
-        covariance: jax.Array = total_count * event_covariance
-        expected_mean: jax.Array = total_count * probabilities
-        centred: jax.Array = draws - expected_mean
-        empirical_mean: jax.Array = jnp.mean(draws, axis=0)
-        empirical_covariance: jax.Array = (
+        totals: Float64[Array, "..."] = jnp.sum(draws, axis=1)
+        event_covariance: Float64[Array, "..."] = jnp.diag(
+            probabilities
+        ) - jnp.outer(probabilities, probabilities)
+        covariance: Float64[Array, "..."] = total_count * event_covariance
+        expected_mean: Float64[Array, "..."] = total_count * probabilities
+        centred: Float64[Array, "..."] = draws - expected_mean
+        empirical_mean: Float64[Array, "..."] = jnp.mean(draws, axis=0)
+        empirical_covariance: Float64[Array, "..."] = (
             jnp.einsum("ni,nj->ij", centred, centred) / _SAMPLE_DRAWS
         )
-        one_hot: jax.Array = jnp.eye(probabilities.size)
-        centred_event: jax.Array = one_hot - probabilities[None, :]
-        event_fourth: jax.Array = jnp.einsum(
+        one_hot: Float64[Array, "..."] = jnp.eye(probabilities.size)
+        centred_event: Float64[Array, "..."] = one_hot - probabilities[None, :]
+        event_fourth: Float64[Array, "..."] = jnp.einsum(
             "k,ki,ki,kj,kj->ij",
             probabilities,
             centred_event,
@@ -2679,15 +2847,22 @@ class TestSampleFixedTotalCounts:
             centred_event,
             centred_event,
         )
-        event_variance: jax.Array = probabilities * (1.0 - probabilities)
-        count_fourth: jax.Array = total_count * event_fourth + total_count * (
-            total_count - 1
-        ) * (
-            jnp.outer(event_variance, event_variance)
-            + 2.0 * jnp.square(event_covariance)
+        event_variance: Float64[Array, "..."] = probabilities * (
+            1.0 - probabilities
         )
-        mean_error: jax.Array = jnp.sqrt(jnp.diag(covariance) / _SAMPLE_DRAWS)
-        covariance_error: jax.Array = jnp.sqrt(
+        count_fourth: Float64[Array, "..."] = (
+            total_count * event_fourth
+            + total_count
+            * (total_count - 1)
+            * (
+                jnp.outer(event_variance, event_variance)
+                + 2.0 * jnp.square(event_covariance)
+            )
+        )
+        mean_error: Float64[Array, "..."] = jnp.sqrt(
+            jnp.diag(covariance) / _SAMPLE_DRAWS
+        )
+        covariance_error: Float64[Array, "..."] = jnp.sqrt(
             (count_fourth - jnp.square(covariance)) / _SAMPLE_DRAWS
         )
 
@@ -2711,13 +2886,18 @@ class TestSampleFixedTotalCounts:
 
         Notes
         -----
-        The test compares two fixed-key draws bitwise and checks their dtype and
+        The test compares two fixed-key draws bitwise and checks their dtype
+        and
         sum. It then requests an unsupported gradient of the integer sum.
         """
-        rates: jax.Array = jnp.array([0.2, 0.3, 0.5])
-        key: jax.Array = jax.random.key(881)
-        first: jax.Array = sample_fixed_total_counts(key, rates, 113)
-        second: jax.Array = sample_fixed_total_counts(key, rates, 113)
+        rates: Float64[Array, "3"] = jnp.array([0.2, 0.3, 0.5])
+        key: Float64[Array, "..."] = jax.random.key(881)
+        first: Float64[Array, "..."] = sample_fixed_total_counts(
+            key, rates, 113
+        )
+        second: Float64[Array, "..."] = sample_fixed_total_counts(
+            key, rates, 113
+        )
 
         chex.assert_trees_all_equal(first, second)
         assert int(jnp.sum(first)) == 113
@@ -2743,10 +2923,10 @@ def _detector_chain_fixture() -> Tuple[
     fixture : Tuple
         Source cube, geometry, explicit target calibration, and effects state.
     """
-    kx: jax.Array = jnp.array([-0.5, 0.0, 0.5])
-    ky: jax.Array = jnp.array([-0.45, 0.05, 0.55])
-    energy: jax.Array = jnp.array([-0.4, 0.0, 0.4])
-    intensity: jax.Array = (
+    kx: Float64[Array, "3"] = jnp.array([-0.5, 0.0, 0.5])
+    ky: Float64[Array, "3"] = jnp.array([-0.45, 0.05, 0.55])
+    energy: Float64[Array, "3"] = jnp.array([-0.4, 0.0, 0.4])
+    intensity: Float64[Array, "..."] = (
         2.0
         + 0.35 * kx[:, None, None]
         + 0.22 * ky[None, :, None]
@@ -2800,15 +2980,15 @@ class TestMapSourceToDetector:
 
         Notes
         -----
-        The focused public gate complements the private analytic/Jacobian
+        The focused public check complements the private analytic/Jacobian
         battery and preserves the reported boundary-loss diagnostic.
         """
         source: ArpesCube
         geometry: ExperimentGeometry
         calibration: DetectorCalibration
         source, geometry, calibration, _ = _detector_chain_fixture()
-        density: jax.Array
-        captured: jax.Array
+        density: Float64[Array, "..."]
+        captured: Float64[Array, "..."]
         density, captured = map_source_to_detector(
             source, geometry, calibration
         )
@@ -2841,25 +3021,27 @@ class TestApplyDetectorEffects:
         calibration: DetectorCalibration
         effects: DetectorEffects
         source, geometry, calibration, effects = _detector_chain_fixture()
-        mapped: jax.Array
+        mapped: Float64[Array, "..."]
         mapped, _ = map_source_to_detector(source, geometry, calibration)
-        recorded_energy: jax.Array = 0.5 * (
+        recorded_energy: Float64[Array, "..."] = 0.5 * (
             calibration.energy_bin_edges_ev[:-1]
             + calibration.energy_bin_edges_ev[1:]
         )
-        kinetic_energy: jax.Array = (
+        kinetic_energy: Float64[Array, "..."] = (
             geometry.photon_energy_ev
             - geometry.work_function_ev
             + recorded_energy
         )
-        transmitted: jax.Array = apply_transmission(
+        transmitted: Float64[Array, "..."] = apply_transmission(
             mapped,
             kinetic_energy,
             effects.transmission_raw_slopes,
             calibration,
         )
-        resolved: jax.Array = apply_resolution(transmitted, calibration)[0]
-        desired: jax.Array = expected_counts(
+        resolved: Float64[Array, "..."] = apply_resolution(
+            transmitted, calibration
+        )[0]
+        desired: Float64[Array, "..."] = expected_counts(
             resolved[None, ...], calibration, effects
         )
 

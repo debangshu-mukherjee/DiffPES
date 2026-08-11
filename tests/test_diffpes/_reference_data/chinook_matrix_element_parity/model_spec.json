@@ -1,8 +1,8 @@
 {
   "schema": "diffpes.chinook-matrix-element-model.v1",
-  "gates": ["chinook-pointwise-matrix-element-parity", "chinook-polarization-intensity-parity"],
+  "requirements": ["chinook-pointwise-matrix-element-parity", "chinook-polarization-intensity-parity"],
   "graphene": {
-    "model_id": "RM-1-chinook-matrixel",
+    "model_id": "graphene-chinook-matrix-element",
     "lattice_constant_angstrom": 2.46,
     "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
     "positions_fractional": [[0.0, 0.0, 0.0], [0.3333333333333333, 0.3333333333333333, 0.0]],

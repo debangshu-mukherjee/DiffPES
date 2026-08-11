@@ -13,59 +13,68 @@ import json
 import platform
 import zipfile
 from pathlib import Path
-from typing import Any
 
 import mpmath as mp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Complex128, Float64, Shaped
+from numpy.typing import NDArray
 
 REFERENCE_DPS: int = 100
-RADII: np.ndarray = np.concatenate(
+MAXIMUM_RADIUS: float = 1.0e8
+RADII: Float64[NDArray, " n_radius"] = np.concatenate(
     (np.asarray([0.0]), np.logspace(-12.0, 8.0, 161))
 )
-ANGLES: np.ndarray = np.linspace(0.0, np.pi, 33)
-EXPLICIT_POINTS: np.ndarray = np.asarray(
-    [2.5 + 0.0j, 3.0 + 1.0j, 6.0 + 0.0j, 1.0e8 + 0.0j, 1.0e8j],
+ANGLES: Float64[NDArray, " n_angle"] = np.linspace(0.0, np.pi, 33)
+EXPLICIT_POINTS: Complex128[NDArray, " n_explicit"] = np.asarray(
+    [
+        2.5 + 0.0j,
+        3.0 + 1.0j,
+        6.0 + 0.0j,
+        MAXIMUM_RADIUS + 0.0j,
+        MAXIMUM_RADIUS * 1.0j,
+    ],
     dtype=np.complex128,
 )
-DIRECTIONS: np.ndarray = np.asarray(
+DIRECTIONS: Complex128[NDArray, " n_direction"] = np.asarray(
     [1.0 + 0.0j, 0.0 + 1.0j, 0.6 + 0.8j],
     dtype=np.complex128,
 )
 
 
-def _reference_points() -> np.ndarray:
+def _reference_points() -> Complex128[NDArray, " n_point"]:
     """PRIVATE: Return the preregistered grid with duplicate zeros removed.
 
     Returns
     -------
-    result : np.ndarray
+    result : Complex128[NDArray, " n_point"]
         Unique complex128 evaluation points in the closed upper half
         plane with ``|z| <= 1e8``.
 
     Implementation Logic
     --------------------
-    The polar product of the frozen radii and angles fills the upper
-    half plane; a clamped ``sin`` keeps every imaginary part
-    nonnegative, points beyond ``|z| = 1e8`` rescale onto that
-    envelope, the explicit spot points append, and a first-seen filter
-    removes exact duplicates while it preserves order.
+    Form the polar product of frozen radii and angles. Clamp ``sin`` to keep
+    every imaginary part nonnegative. Rescale points beyond ``|z| = 1e8``
+    onto that envelope. Append the explicit spot points. Remove exact
+    duplicates with a first-seen filter that preserves order.
     """
-    radial_points: np.ndarray = (
+    radial_points: Complex128[NDArray, " n_radial"] = (
         RADII[:, None] * np.cos(ANGLES)[None, :]
         + 1j * RADII[:, None] * np.maximum(np.sin(ANGLES), 0.0)[None, :]
     ).reshape(-1)
-    magnitudes: np.ndarray = np.abs(radial_points)
-    scales: np.ndarray = np.ones_like(magnitudes)
+    magnitudes: Float64[NDArray, " n_radial"] = np.abs(radial_points)
+    scales: Float64[NDArray, " n_radial"] = np.ones_like(magnitudes)
     np.divide(
-        1.0e8,
+        MAXIMUM_RADIUS,
         magnitudes,
         out=scales,
-        where=magnitudes > 1.0e8,
+        where=magnitudes > MAXIMUM_RADIUS,
     )
     radial_points = radial_points * scales
-    combined: np.ndarray = np.concatenate((radial_points, EXPLICIT_POINTS))
-    unique: list[complex] = []
+    combined: Complex128[NDArray, " n_combined"] = np.concatenate(
+        (radial_points, EXPLICIT_POINTS)
+    )
+    unique: List[complex] = []
     seen: set[Tuple[float, float]] = set()
     value: complex
     for value in combined:
@@ -73,16 +82,18 @@ def _reference_points() -> np.ndarray:
         if key not in seen:
             seen.add(key)
             unique.append(value)
-    result: np.ndarray = np.asarray(unique, dtype=np.complex128)
+    result: Complex128[NDArray, " n_point"] = np.asarray(
+        unique, dtype=np.complex128
+    )
     return result
 
 
-def _array_bytes(array: np.ndarray) -> bytes:
+def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
     """PRIVATE: Serialize one NumPy array without timestamp metadata.
 
     Parameters
     ----------
-    array : np.ndarray
+    array : Shaped[NDArray, "..."]
         Array to serialize.
 
     Returns
@@ -103,7 +114,7 @@ def _array_bytes(array: np.ndarray) -> bytes:
 
 def _write_deterministic_npz(
     path: Path,
-    arrays: Dict[str, np.ndarray],
+    arrays: Dict[str, Shaped[NDArray, "..."]],
 ) -> None:
     """PRIVATE: Write an NPZ whose members have stable order and dates.
 
@@ -111,15 +122,16 @@ def _write_deterministic_npz(
     ----------
     path : Path
         Destination NPZ path.
-    arrays : dict[str, np.ndarray]
+    arrays : Dict[str, Shaped[NDArray, "..."]]
         Named arrays to store.
 
     Notes
     -----
-    Members enter in sorted name order with the fixed 1980-01-01 ZIP
-    timestamp, a fixed file mode, and DEFLATE level 9, so identical
-    arrays always produce byte-identical archives.
+    Sort members by name. Give each member the fixed 1980-01-01 timestamp and
+    file mode. Use DEFLATE level 9. Identical arrays then produce identical
+    archive bytes.
     """
+    archive: zipfile.ZipFile
     with zipfile.ZipFile(
         path,
         mode="w",
@@ -127,7 +139,7 @@ def _write_deterministic_npz(
         compresslevel=9,
     ) as archive:
         name: str
-        array: np.ndarray
+        array: Shaped[NDArray, "..."]
         for name, array in sorted(arrays.items()):
             member: zipfile.ZipInfo = zipfile.ZipInfo(
                 filename=f"{name}.npy",
@@ -166,11 +178,21 @@ def _sha256(path: Path) -> str:
 
 
 def main() -> None:
-    """Write the 100-digit values, derivatives, and provenance manifest."""
+    """Write the 100-digit values, derivatives, and provenance manifest.
+
+    Notes
+    -----
+    The generator evaluates the registered upper-half-plane grid with mpmath.
+    It writes a deterministic NPZ archive and its authenticated manifest.
+    """
     mp.mp.dps = REFERENCE_DPS
-    points: np.ndarray = _reference_points()
-    values: np.ndarray = np.empty(points.shape, dtype=np.complex128)
-    derivatives: np.ndarray = np.empty(points.shape, dtype=np.complex128)
+    points: Complex128[NDArray, " n_point"] = _reference_points()
+    values: Complex128[NDArray, " n_point"] = np.empty(
+        points.shape, dtype=np.complex128
+    )
+    derivatives: Complex128[NDArray, " n_point"] = np.empty(
+        points.shape, dtype=np.complex128
+    )
     index: int
     point: complex
     for index, point in enumerate(points):
@@ -209,7 +231,7 @@ def main() -> None:
             "2e-14*(1+abs(z))^-2 + 2e-11*abs(reference_derivative)"
         ),
         "directions": ["1", "1j", "(3+4j)/5"],
-        "domain": {"abs_max": 1.0e8, "imag_min": 0.0},
+        "domain": {"abs_max": MAXIMUM_RADIUS, "imag_min": 0.0},
         "environment": {
             "mpmath": mp.__version__,
             "numpy": np.__version__,
@@ -222,7 +244,10 @@ def main() -> None:
             "1e8",
             "1e8j",
         ],
-        "gates": ["faddeeva-mpmath-reference", "spectral-broadening-gradient"],
+        "requirements": [
+            "faddeeva-mpmath-reference",
+            "spectral-broadening-gradient",
+        ],
         "generator": "tests/_reference_tools/"
         "generate_faddeeva_mpmath_reference.py",
         "generator_sha256": _sha256(generator_path),
@@ -245,7 +270,7 @@ def main() -> None:
         },
         "schema": "diffpes.faddeeva-mpmath-reference.v1",
         "seams": [],
-        "stage": "algorithm-selected-before-production-edit",
+        "authority_status": "algorithm-selected-before-production-edit",
     }
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

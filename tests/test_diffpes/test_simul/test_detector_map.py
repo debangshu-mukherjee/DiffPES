@@ -10,10 +10,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
+from diffpes.simul import detector_angles_to_kpar
 from diffpes.simul._detector_map import (
     _analytic_angle_jacobian,
     _inverse_map_abs_jacobian,
@@ -21,7 +22,6 @@ from diffpes.simul._detector_map import (
     _map_source_to_detector,
     _map_source_to_detector_with_order,
 )
-from diffpes.simul.kinematics import detector_angles_to_kpar
 from diffpes.types import (
     K_PREFACTOR_INV_ANG_SQRT_EV,
     ArpesCube,
@@ -36,7 +36,7 @@ from diffpes.types import (
     make_experiment_geometry,
 )
 from tests._assertions import assert_rejects
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 _FRAME_ID: str = "org.diffpes.frame.sample_cartesian"
 
@@ -51,7 +51,7 @@ def _geometry(
     sample_azimuth : Float64[Array, ""], optional
         Traced sample-to-laboratory azimuth. Default is zero.
     slit : str, optional
-        Static Plan-03 slit orientation. Default is ``"H"``.
+        Static detector slit orientation. Default is ``"H"``.
 
     Returns
     -------
@@ -201,7 +201,11 @@ def _effects(
 
 
 class TestAnalyticDetectorJacobian:
-    """Verify the Plan-03 analytic inverse-map Jacobian."""
+    """Verify the detector inverse map's analytic Jacobian.
+
+    The case compares the closed-form Jacobian with automatic differentiation
+    in the horizontal-slit and vertical-slit frames.
+    """
 
     def test_matches_autodiff_for_both_slit_frames(self) -> None:
         """Match determinant and inverse matrix against independent autodiff.
@@ -223,10 +227,11 @@ class TestAnalyticDetectorJacobian:
 
             def coordinate_map(
                 candidate: Float64[Array, " 2"],
+                slit_value: str = slit,
             ) -> Float64[Array, " 2"]:
                 """Compute laboratory momentum from one angle pair."""
                 mapped: Float64[Array, " 2"] = detector_angles_to_kpar(
-                    candidate[0], candidate[1], kinetic_energy, slit
+                    candidate[0], candidate[1], kinetic_energy, slit_value
                 )
                 return mapped
 
@@ -254,7 +259,11 @@ class TestAnalyticDetectorJacobian:
 
 
 class TestCubeDetectorMap:
-    """Verify conservative mapping of a Cartesian source cube."""
+    """Verify conservative mapping of a Cartesian source cube.
+
+    The cases check bin mass, boundary behavior, convergence, validation, and
+    geometry derivatives against analytic or finite-difference references.
+    """
 
     def test_uses_explicit_target_bins_and_converges_at_eight_points(
         self,
@@ -459,7 +468,9 @@ class TestCubeDetectorMap:
             jnp.array(0.13),
             jnp.array([0.08, 0.045, -0.025]),
         )
-        gradient_gate(loss, theta, regime="smooth", elementwise=True)
+        assert_gradients_match_finite_differences(
+            loss, theta, regime="smooth", elementwise=True
+        )
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1100)
@@ -545,7 +556,7 @@ class TestCubeDetectorMap:
             jnp.array(4.0),
             intensity,
         )
-        gradient_gate(loss, theta, regime="smooth")
+        assert_gradients_match_finite_differences(loss, theta, regime="smooth")
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1100)
@@ -608,8 +619,8 @@ class TestCubeDetectorMap:
 
         coarse_step: float = 2.0e-5
         fine_step: float = 0.5 * coarse_step
-        coarse_derivatives: list[float] = []
-        fine_derivatives: list[float] = []
+        coarse_derivatives: List[float] = []
+        fine_derivatives: List[float] = []
         coordinate: int
         for coordinate in range(design.shape[0]):
             coarse_plus: Float64[Array, " 9"] = design.at[coordinate].add(
@@ -712,12 +723,16 @@ class TestCubeDetectorMap:
         geometry: ExperimentGeometry = _geometry(sample_azimuth=jnp.array(0.1))
         calibration: DetectorCalibration = _map_calibration()
         angles: Float64[Array, " 3"] = jnp.array([0.05, 0.03, -0.02])
-        eager: Tuple[Array, Array] = _map_source_to_detector_with_order(
-            source, geometry, calibration, angles, order=4
+        eager: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
+            _map_source_to_detector_with_order(
+                source, geometry, calibration, angles, order=4
+            )
         )
-        compiled: Tuple[Array, Array] = eqx.filter_jit(
-            _map_source_to_detector_with_order
-        )(source, geometry, calibration, angles, order=4)
+        compiled: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (
+            eqx.filter_jit(_map_source_to_detector_with_order)(
+                source, geometry, calibration, angles, order=4
+            )
+        )
         chex.assert_trees_all_close(eager, compiled, rtol=1.0e-13, atol=0.0)
 
         angle_batch: Float64[Array, "d 3"] = jnp.array(
@@ -750,7 +765,11 @@ class TestCubeDetectorMap:
 
 
 class TestSpectrumDetectorMap:
-    """Verify the explicitly bound slit-line-density interpretation."""
+    """Verify the explicitly bound slit-line-density interpretation.
+
+    The cases check the transverse aperture, detector rotations, mixture
+    semantics, path monotonicity, and transverse-domain rejection.
+    """
 
     def test_line_flux_includes_declared_transverse_aperture(self) -> None:
         """Recover line flux after multiplying by the explicit v width.

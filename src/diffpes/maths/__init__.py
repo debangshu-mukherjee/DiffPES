@@ -21,12 +21,10 @@ The following list describes the submodules:
 
 Routine Listings
 ----------------
-:obj:`GAUNT_TABLE`
-    Module-level precomputed Gaunt coefficient table for l_max=4.
-:func:`build_gaunt_table`
-    Build the dipole Gaunt coefficient lookup table.
 :func:`bond_angles`
     Convert a Cartesian bond to safe polar and azimuthal angles.
+:func:`build_gaunt_table`
+    Build the dipole Gaunt coefficient lookup table.
 :func:`channel_tables`
     Build padded real-harmonic dipole channel tables.
 :func:`dipole_length_cartesian`
@@ -43,12 +41,12 @@ Routine Listings
     Convert complex spherical polarization to Cartesian components.
 :func:`polarization_real_to_cart`
     Convert real-harmonic polarization back to Cartesian order.
+:func:`real_harmonic_unitary`
+    Construct the complex-to-real harmonic basis-function unitary.
 :func:`real_spherical_harmonic`
     Evaluate a single real spherical harmonic.
 :func:`real_spherical_harmonics_all`
     Evaluate all real spherical harmonics up to l_max.
-:func:`real_harmonic_unitary`
-    Construct the complex-to-real harmonic basis-function unitary.
 :func:`rodrigues_rotation`
     Construct a rotation matrix with Rodrigues' formula.
 :func:`safe_arccos`
@@ -69,6 +67,8 @@ Routine Listings
     Construct a Wigner D matrix for an active z--y--z rotation.
 :func:`wigner_small_d`
     Construct a Wigner small-d matrix from its finite factorial sum.
+:obj:`GAUNT_TABLE`
+    Module-level precomputed Gaunt coefficient table for l_max=4.
 
 Notes
 -----
@@ -109,7 +109,6 @@ from .spherical_harmonics import (
 )
 
 __all__: list[str] = [
-    "GAUNT_TABLE",
     "bond_angles",
     "build_gaunt_table",
     "channel_tables",
@@ -120,9 +119,9 @@ __all__: list[str] = [
     "polarization_cart_to_real",
     "polarization_complex_to_cart",
     "polarization_real_to_cart",
+    "real_harmonic_unitary",
     "real_spherical_harmonic",
     "real_spherical_harmonics_all",
-    "real_harmonic_unitary",
     "rodrigues_rotation",
     "safe_arccos",
     "safe_arctan2",
@@ -133,4 +132,5 @@ __all__: list[str] = [
     "safe_sqrt",
     "wigner_d",
     "wigner_small_d",
+    "GAUNT_TABLE",
 ]

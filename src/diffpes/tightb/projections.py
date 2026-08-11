@@ -9,25 +9,25 @@ fixed group rather than selecting a group from a differentiable threshold.
 
 Routine Listings
 ----------------
-:func:`orbital_weights`
-    Compute the squared orbital amplitudes of normalized eigenvectors.
 :func:`band_projectors`
     Materialize each U(1)-gauge-invariant rank-one band projector.
-:func:`group_projector`
-    Construct the projector onto one registered, fixed band group.
-:func:`group_trace`
-    Trace a Hermitian operator over one fixed band group.
 :func:`expectation_path`
     Compute operator expectations with diagnostic degeneracy averaging.
 :func:`fat_bands`
     Compute degeneracy-averaged weights of selected model orbitals.
+:func:`group_projector`
+    Construct the projector onto one registered, fixed band group.
+:func:`group_trace`
+    Trace a Hermitian operator over one fixed band group.
+:func:`orbital_weights`
+    Compute the squared orbital amplitudes of normalized eigenvectors.
 """
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
 from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
 
@@ -376,7 +376,7 @@ def expectation_path(  # noqa: DOC502 -- validation is delegated.
     gaps: Float64[Array, "n_k n_bands n_bands"] = jnp.abs(
         bands.eigenvalues[:, :, None] - bands.eigenvalues[:, None, :]
     )
-    connected: Array = gaps < tolerance
+    connected: Bool[Array, "n_k n_bands n_bands"] = gaps < tolerance
     pivot: int
     for pivot in range(bands.eigenvalues.shape[1]):
         connected = connected | (

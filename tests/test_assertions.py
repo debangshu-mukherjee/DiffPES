@@ -25,8 +25,8 @@ class TestAssertRejects:
     def test_assert_rejects_eager_and_jit(self) -> None:
         """Accept a value-threaded eager and compiled rejection.
 
-        The test confirms the helper recognizes the same Equinox runtime error with and
-        without JIT compilation for the scalar value ``-1``.
+        The test confirms the helper recognizes the same Equinox runtime error
+        with and without JIT compilation for the scalar value ``-1``.
 
         Notes
         -----
@@ -54,13 +54,13 @@ class TestAssertRejects:
     def test_assert_rejects_fails_for_passing_callable(self) -> None:
         """Fail when a callable accepts invalid test data.
 
-        The test confirms the helper raises ``AssertionError`` instead of silently
+        The test confirms the helper raises ``AssertionError`` instead of
         accepting a callable with no validation behavior.
 
         Notes
         -----
-        The test passes the scalar ``-1`` through an identity function, disables the
-        redundant JIT repeat, and matches the missing-exception diagnostic.
+        The test passes scalar ``-1`` through an identity function. It disables
+        the redundant JIT repeat and matches the missing-exception diagnostic.
         """
 
         @jaxtyped(typechecker=beartype)

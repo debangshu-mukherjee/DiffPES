@@ -15,11 +15,7 @@ from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
-from diffpes.simul._detector_map import (
-    _map_and_mix_domains,
-    _map_source_to_detector_with_order,
-)
-from diffpes.simul.effects import (
+from diffpes.simul import (
     apply_detector_effects,
     apply_resolution,
     apply_transmission,
@@ -28,6 +24,10 @@ from diffpes.simul.effects import (
     expected_counts,
     fixed_total_probabilities,
     sensitivity_field,
+)
+from diffpes.simul._detector_map import (
+    _map_and_mix_domains,
+    _map_source_to_detector_with_order,
 )
 from diffpes.types import (
     ArpesCube,
@@ -40,7 +40,10 @@ from diffpes.types import (
     make_detector_effects,
     make_experiment_geometry,
 )
-from tests._gradients import assert_grad_matches_fd, gradient_gate
+from tests._gradients import (
+    assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
+)
 
 _FRAME_ID: str = "org.diffpes.frame.sample_cartesian"
 _REFERENCE_PATH: Path = (
@@ -267,7 +270,12 @@ def _effects_leaves() -> _EffectsLeaves:
 
 
 class TestManufacturedDetectorChain:
-    """Verify independent truth and deliberately broken detector chains."""
+    """Verify independent truth and deliberately broken detector chains.
+
+    The cases compare each detector seam with segmented reference values.
+    Planted mixing, measure, and ordering defects must disagree with that
+    truth.
+    """
 
     def test_domain_maps_match_independent_segmented_truth(self) -> None:
         """Match both rotated maps and captured fractions independently.
@@ -332,6 +340,7 @@ class TestManufacturedDetectorChain:
             atol=5.0e-15,
         )
 
+    @pytest.mark.rss_limit_mb(800)
     def test_every_physical_seam_and_final_counts_match(self) -> None:
         """Match mapping, transmission, resolution, sensitivity, and counts.
 
@@ -514,7 +523,11 @@ class TestManufacturedDetectorChain:
 
 
 class TestDetectorChainDerivatives:
-    """Verify every continuous effects leaf through the complete chain."""
+    """Verify every continuous effects leaf through the complete chain.
+
+    The cases compare rate and probability gradients with finite differences.
+    They also exercise the same leaves under JIT and vectorization.
+    """
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2500)
@@ -546,7 +559,9 @@ class TestDetectorChainDerivatives:
             )
             return value
 
-        gradient_gate(rate_loss, theta, regime="smooth")
+        assert_gradients_match_finite_differences(
+            rate_loss, theta, regime="smooth"
+        )
         eager: Float64[Array, ""] = rate_loss(theta)
         compiled: Float64[Array, ""] = jax.jit(rate_loss)(theta)
         chex.assert_trees_all_close(compiled, eager, rtol=1.0e-10, atol=0.0)

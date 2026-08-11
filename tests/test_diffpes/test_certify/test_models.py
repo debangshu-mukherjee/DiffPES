@@ -20,7 +20,10 @@ from diffpes.types import RegistrationHandshake, TransformationContract
 
 
 class TestRegisterBuiltinModels:
-    """Verify :func:`~diffpes.certify.register_builtin_models`."""
+    """Verify :func:`~diffpes.certify.register_builtin_models`.
+
+    The cases exercise idempotent registration and exact owner handshakes.
+    """
 
     def test_builtin_registration_is_idempotent(self) -> None:
         """Register each transformation and owner handshake exactly once.
@@ -245,7 +248,7 @@ except RuntimeError as exc:
 else:
     raise AssertionError('kz owner accepted missing upstream handshakes')
 """
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],
             check=False,
             capture_output=True,
@@ -287,7 +290,7 @@ except RuntimeError as exc:
 else:
     raise AssertionError('kz owner accepted a drifted upstream handshake')
 """
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],
             check=False,
             capture_output=True,

@@ -10,7 +10,7 @@ total channel equals the sum of the p and d channels.
 
 import chex
 import jax.numpy as jnp
-from jaxtyping import Array
+from jaxtyping import Array, Float64
 
 from diffpes.simul import compute_oam
 
@@ -43,8 +43,8 @@ class TestComputeOam(chex.TestCase):
         k: int
         b: int
         a: int
-        projections: Array
-        oam: Array
+        projections: Float64[Array, "..."]
+        oam: Float64[Array, "..."]
 
         k, b, a = 4, 3, 2
         projections = jnp.ones((k, b, a, 9), dtype=jnp.float64) * 0.1
@@ -53,9 +53,9 @@ class TestComputeOam(chex.TestCase):
         chex.assert_tree_all_finite(oam)
 
     def test_total_is_p_plus_d(self) -> None:
-        """Verify that the total OAM channel equals the sum of p and d channels.
+        """Verify the total OAM channel equals the p- and d-channel sum.
 
-        The test establishes the total is p plus d contract for compute oam with the
+        The test establishes the p-plus-d contract for compute OAM with the
         concrete values and array shapes described below.
 
         Notes
@@ -72,8 +72,8 @@ class TestComputeOam(chex.TestCase):
         oam[..., 0] + oam[..., 1] equals oam[..., 2] to within 1e-12,
         confirming the total OAM is the sum of p and d contributions.
         """
-        projections: Array
-        oam: Array
+        projections: Float64[Array, "..."]
+        oam: Float64[Array, "..."]
 
         projections = jnp.ones((2, 2, 1, 9), dtype=jnp.float64) * 0.2
         oam = compute_oam(projections)

@@ -7,24 +7,24 @@ grids. It also keeps :class:`KPathInfo` for metadata from VASP KPOINTS files.
 
 Routine Listings
 ----------------
-:class:`KPathInfo`
-    Store k-point path metadata in a JAX PyTree.
-:class:`KPath`
-    Store a generated path through fractional k-space.
 :class:`KGrid`
     Store a fixed-shape raster in fractional k-space.
-:func:`make_kpath_info`
-    Create a validated KPathInfo instance.
-:func:`make_kpath`
-    Create a validated path through fractional k-space.
+:class:`KPath`
+    Store a generated path through fractional k-space.
+:class:`KPathInfo`
+    Store k-point path metadata in a JAX PyTree.
 :func:`make_kgrid`
     Create a validated fixed-shape k-space raster.
+:func:`make_kpath`
+    Create a validated path through fractional k-space.
+:func:`make_kpath_info`
+    Create a validated KPathInfo instance.
 """
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Tuple, Union
+from beartype.typing import List, Optional, Tuple, Union
 from jax.core import Tracer
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
@@ -188,12 +188,12 @@ class KGrid(eqx.Module):
 @jaxtyped(typechecker=beartype)
 def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
     num_kpoints: Union[int, Int32[Array, " "]],
-    label_indices: Union[Int32[Array, " L"], "list[int]"],
+    label_indices: Union[Int32[Array, " L"], "List[int]"],
     points_per_segment: Union[int, Int32[Array, " "]] = 0,
     segments: Union[int, Int32[Array, " "]] = 0,
     kpoints: Optional[Float64[Array, "K 3"]] = None,
     weights: Optional[Float64[Array, " K"]] = None,
-    grid: Optional[Union[Int32[Array, " 3"], "list[int]"]] = None,
+    grid: Optional[Union[Int32[Array, " 3"], "List[int]"]] = None,
     shift: Optional[Float64[Array, " 3"]] = None,
     mode: str = "Line-mode",
     labels: Tuple[str, ...] = (),
@@ -253,7 +253,7 @@ def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
     ----------
     num_kpoints : Union[int, Int32[Array, " "]]
         Total number of k-points along the path.
-    label_indices : Union[Int32[Array, " L"], list[int]]
+    label_indices : Union[Int32[Array, " L"], List[int]]
         Indices of symmetry points along the path.
     points_per_segment : Union[int, Int32[Array, " "]], optional
         Raw value from line 2 of KPOINTS. Default is 0.
@@ -263,7 +263,7 @@ def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
         Mode-specific k-point coordinates. Default is None.
     weights : Optional[Float64[Array, " K"]], optional
         Explicit-mode weights. Default is None.
-    grid : Optional[Union[Int32[Array, " 3"], list[int]]], optional
+    grid : Optional[Union[Int32[Array, " 3"], List[int]]], optional
         Automatic-mode MP/Gamma grid. Default is None.
     shift : Optional[Float64[Array, " 3"]], optional
         Automatic-mode grid shift. Default is None.

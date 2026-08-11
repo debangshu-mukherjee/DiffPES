@@ -10,9 +10,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 from absl.testing import parameterized
-from beartype.typing import Dict, Tuple
+from beartype.typing import Dict, List, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from jaxtyping import Array, Complex128, Float64
 
 from diffpes.types import (
     CrystalGeometry,
@@ -24,6 +25,7 @@ from diffpes.types import (
     make_crystal_geometry,
     make_diagonalized_bands,
     make_orbital_basis,
+    make_slab_topology,
     make_tb_model,
 )
 from tests._assertions import assert_rejects
@@ -48,7 +50,9 @@ def _geometry(n_atoms: int = 1) -> CrystalGeometry:
     The identity lattice keeps the cell volume positive, so factory
     validation of handedness passes without further data.
     """
-    positions: jax.Array = jnp.zeros((n_atoms, 3), dtype=jnp.float64)
+    positions: Float64[Array, "n_atoms 3"] = jnp.zeros(
+        (n_atoms, 3), dtype=jnp.float64
+    )
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
         positions=positions,
@@ -94,11 +98,12 @@ def _basis(
 
 
 def _model_arguments() -> Dict[str, object]:
-    """PRIVATE: Return a minimal complex Hermitian-closed model argument mapping.
+    """PRIVATE: Return a minimal complex Hermitian-closed model argument
+    mapping.
 
     Returns
     -------
-    arguments : dict[str, object]
+    arguments : Dict[str, object]
         Keyword arguments for ``make_tb_model``: one orbital, one
         0.25 eV onsite energy, and one complex-conjugate hopping pair
         on opposite ``(+/-1, 0, 0)`` cells.
@@ -127,7 +132,11 @@ def _model_arguments() -> Dict[str, object]:
 
 
 class TestDiagonalizedBands(chex.TestCase):
-    """Validate :class:`~diffpes.types.DiagonalizedBands`."""
+    """Validate :class:`~diffpes.types.DiagonalizedBands`.
+
+    The case round-trips numerical leaves and compares the attached geometry
+    and basis context.
+    """
 
     def test_pytree_round_trip_preserves_context(self) -> None:
         """Preserve numerical leaves and the static basis on reconstruction.
@@ -147,7 +156,7 @@ class TestDiagonalizedBands(chex.TestCase):
             geometry=geometry,
             basis=basis,
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(bands)
         restored: DiagonalizedBands = jax.tree_util.tree_unflatten(
@@ -162,7 +171,11 @@ class TestDiagonalizedBands(chex.TestCase):
 
 
 class TestTBModel(chex.TestCase):
-    """Validate :class:`~diffpes.types.TBModel`."""
+    """Validate :class:`~diffpes.types.TBModel`.
+
+    The cases round-trip the nine-field carrier and differentiate its numerical
+    model fields.
+    """
 
     def test_pytree_round_trip_preserves_nine_field_contract(self) -> None:
         """Preserve all differentiable leaves and static connectivity.
@@ -174,7 +187,7 @@ class TestTBModel(chex.TestCase):
         Compare leaves, exact hopping metadata, shell indices, and spin mode.
         """
         model: TBModel = make_tb_model(**_model_arguments())
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(model)
         restored: TBModel = jax.tree_util.tree_unflatten(tree, leaves)
@@ -197,9 +210,9 @@ class TestTBModel(chex.TestCase):
         """
         model: TBModel = make_tb_model(**_model_arguments())
 
-        def loss(candidate: TBModel) -> jax.Array:
+        def loss(candidate: TBModel) -> Float64[Array, ""]:
             """Return a real quadratic loss over traced model leaves."""
-            result: jax.Array = (
+            result: Float64[Array, ""] = (
                 jnp.sum(jnp.abs(candidate.hopping_amplitudes) ** 2)
                 + jnp.sum(candidate.onsite_energies**2)
                 + jnp.sum(candidate.geometry.positions**2)
@@ -214,23 +227,42 @@ class TestTBModel(chex.TestCase):
 
 
 class TestSurfaceCell:
-    """Mirror coverage for :class:`diffpes.types.SurfaceCell`."""
+    """Mirror coverage for :class:`diffpes.types.SurfaceCell`.
+
+    The detailed carrier cases check traced frame data, exact coefficients, and
+    factory rejection.
+    """
 
 
 class TestSlabSpec:
-    """Mirror coverage for :class:`diffpes.types.SlabSpec`."""
+    """Mirror coverage for :class:`diffpes.types.SlabSpec`.
+
+    The detailed carrier cases check slab choices, atom provenance, and
+    persistence behavior.
+    """
 
 
 class TestMakeSurfaceCell:
-    """Mirror coverage for :func:`diffpes.types.make_surface_cell`."""
+    """Mirror coverage for :func:`diffpes.types.make_surface_cell`.
+
+    The detailed factory cases construct a surface frame and reject invalid
+    exact geometry metadata.
+    """
 
 
 class TestMakeSlabSpec:
-    """Mirror coverage for :func:`diffpes.types.make_slab_spec`."""
+    """Mirror coverage for :func:`diffpes.types.make_slab_spec`.
+
+    The detailed factory cases construct slab metadata and reject inconsistent
+    species or provenance.
+    """
 
 
 class TestSlabTopology:
-    """Validate :class:`~diffpes.types.SlabTopology`."""
+    """Validate :class:`~diffpes.types.SlabTopology`.
+
+    The cases bind frozen surface and atom provenance to static PyTree fields.
+    """
 
     def test_fields_are_static_pytree_metadata(self) -> None:
         """Keep every frozen topology choice outside differentiable leaves.
@@ -241,7 +273,7 @@ class TestSlabTopology:
         -----
         Flatten the carrier and compare representative integer metadata.
         """
-        topology: SlabTopology = SlabTopology(
+        topology: SlabTopology = make_slab_topology(
             miller=(0, 0, 1),
             in_plane_coeffs=((1, 0, 0), (0, 1, 0)),
             stacking_coeffs=(0, 0, 1),
@@ -262,8 +294,93 @@ class TestSlabTopology:
         assert topology.n_layers == 1
 
 
+class TestMakeSlabTopology:
+    """Validate :func:`~diffpes.types.make_slab_topology`.
+
+    The cases cover valid static metadata and mismatched atom provenance.
+    """
+
+    @staticmethod
+    def _valid_topology() -> SlabTopology:
+        """PRIVATE: Build one primitive single-atom topology.
+
+        Returns
+        -------
+        topology : SlabTopology
+            Validated topology for one layer and one bulk atom.
+
+        Notes
+        -----
+        Keep all exact coefficient rows in the cubic identity frame.
+        """
+        topology: SlabTopology = make_slab_topology(
+            miller=(0, 0, 1),
+            in_plane_coeffs=((1, 0, 0), (0, 1, 0)),
+            stacking_coeffs=(0, 0, 1),
+            atom_shifts=((0, 0, 0),),
+            bulk_atom_of_slab_atom=(0,),
+            layer_of_slab_atom=(0,),
+            termination=("X", "X"),
+            thickness_ang=0.0,
+            vacuum_ang=3.0,
+            fine=(0.0, 0.0),
+            n_layers=1,
+            bulk_atom_count=1,
+            basis_atom_indices=(0,),
+        )
+        return topology
+
+    def test_builds_validated_static_metadata(self) -> None:
+        """Construct one topology through its public factory.
+
+        The case compares exact surface coefficients and atom provenance.
+
+        Notes
+        -----
+        Flatten the result to confirm that no differentiable leaves appear.
+        """
+        topology: SlabTopology = self._valid_topology()
+
+        assert jax.tree_util.tree_leaves(topology) == []
+        assert topology.stacking_coeffs == (0, 0, 1)
+        assert topology.bulk_atom_of_slab_atom == (0,)
+
+    def test_rejects_mismatched_atom_provenance(self) -> None:
+        """Reject topology records that omit one selected atom mapping.
+
+        The case plants two atom shifts for one frozen bulk atom.
+
+        Notes
+        -----
+        Match the factory's explicit static length-validation message.
+        """
+        with pytest.raises(
+            ValueError,
+            match="atom_shifts must contain one entry per frozen bulk atom",
+        ):
+            make_slab_topology(
+                miller=(0, 0, 1),
+                in_plane_coeffs=((1, 0, 0), (0, 1, 0)),
+                stacking_coeffs=(0, 0, 1),
+                atom_shifts=((0, 0, 0), (0, 0, 1)),
+                bulk_atom_of_slab_atom=(0,),
+                layer_of_slab_atom=(0,),
+                termination=("X", "X"),
+                thickness_ang=0.0,
+                vacuum_ang=3.0,
+                fine=(0.0, 0.0),
+                n_layers=1,
+                bulk_atom_count=1,
+                basis_atom_indices=(0,),
+            )
+
+
 class TestMakeDiagonalizedBands(chex.TestCase):
-    """Validate :func:`~diffpes.types.make_diagonalized_bands`."""
+    """Validate :func:`~diffpes.types.make_diagonalized_bands`.
+
+    The cases check context construction plus eager and compiled rejection of
+    structural and numerical defects.
+    """
 
     def test_constructs_geometry_and_basis_context(self) -> None:
         """Store the frozen geometry and basis contract with normalized dtypes.
@@ -321,7 +438,7 @@ class TestMakeDiagonalizedBands(chex.TestCase):
         -----
         Match the factory diagnostic for each isolated structural mismatch.
         """
-        eigenvectors: jax.Array = jnp.ones(
+        eigenvectors: Complex128[Array, "1 1 1"] = jnp.ones(
             (1, 1, 1),
             dtype=jnp.complex128,
         )
@@ -351,7 +468,7 @@ class TestMakeDiagonalizedBands(chex.TestCase):
 
         Notes
         -----
-        Use the shared eager and compiled rejection helper for the runtime gate.
+        Use the shared helper for eager and compiled runtime rejection.
         """
         assert_rejects(
             make_diagonalized_bands,
@@ -365,7 +482,11 @@ class TestMakeDiagonalizedBands(chex.TestCase):
 
 
 class TestMakeTBModel(chex.TestCase):
-    """Validate :func:`~diffpes.types.make_tb_model`."""
+    """Validate :func:`~diffpes.types.make_tb_model`.
+
+    The cases check model construction, validation tiers, direct construction,
+    and randomized Hermitian closure.
+    """
 
     def test_constructs_complex_nine_field_model(self) -> None:
         """Normalize dtypes while preserving exact closed metadata.
@@ -616,9 +737,9 @@ class TestMakeTBModel(chex.TestCase):
     )
     def test_random_closed_lists_accept_and_corruption_rejects(
         self,
-        cells: list[int],
-        real_parts: list[float],
-        imaginary_parts: list[float],
+        cells: List[int],
+        real_parts: List[float],
+        imaginary_parts: List[float],
     ) -> None:
         """Accept random closed lists and reject one corrupted reverse entry.
 
@@ -626,14 +747,15 @@ class TestMakeTBModel(chex.TestCase):
 
         Notes
         -----
-        Build exact reverse entries, then perturb one amplitude and require rejection.
+        Build exact reverse entries, then perturb one amplitude and require
+        rejection.
         """
         n_hoppings: int = len(cells)
-        forward_values: list[complex] = [
+        forward_values: List[complex] = [
             complex(real_parts[index], imaginary_parts[index])
             for index in range(n_hoppings)
         ]
-        amplitudes: jax.Array = jnp.asarray(
+        amplitudes: Complex128[Array, " n_hop"] = jnp.asarray(
             forward_values + [value.conjugate() for value in forward_values],
             dtype=jnp.complex128,
         )
@@ -652,7 +774,7 @@ class TestMakeTBModel(chex.TestCase):
         model: TBModel = make_tb_model(**arguments)
         chex.assert_trees_all_close(model.hopping_amplitudes, amplitudes)
 
-        corrupted: jax.Array = amplitudes.at[0].add(0.25j)
+        corrupted: Complex128[Array, " n_hop"] = amplitudes.at[0].add(0.25j)
         arguments["hopping_amplitudes"] = corrupted
         with pytest.raises(RuntimeError, match="complex conjugates"):
             make_tb_model(**arguments)

@@ -33,7 +33,7 @@ import math
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Float64, Int64, jaxtyped
 
 
@@ -330,7 +330,7 @@ def real_spherical_harmonics_all(
     l_max: int,
     theta: Float64[Array, " ..."],
     phi: Float64[Array, " ..."],
-) -> Float64[Array, " ... N"]:
+) -> Float64[Array, " ... n_harmonic"]:
     r"""Evaluate all real spherical harmonics up to l_max.
 
     The function computes every real spherical harmonic
@@ -370,7 +370,7 @@ def real_spherical_harmonics_all(
 
     2. **Stack the harmonic fields**::
 
-           ylm_all: Float64[Array, " ... N"] = jnp.stack(
+           ylm_all: Float64[Array, " ... n_harmonic"] = jnp.stack(
                results, axis=-1
            )
 
@@ -387,18 +387,18 @@ def real_spherical_harmonics_all(
 
     Returns
     -------
-    ylm_all : Float64[Array, " ... N"]
+    ylm_all : Float64[Array, " ... n_harmonic"]
         All spherical harmonics stacked along the last axis,
         where ``N = (l_max + 1)**2``.
     """
     l: int
     m: int
 
-    results: list[Float64[Array, " ..."]] = []
+    results: List[Float64[Array, " ..."]] = []
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             results.append(real_spherical_harmonic(l, m, theta, phi))
-    ylm_all: Float64[Array, " ... N"] = jnp.stack(results, axis=-1)
+    ylm_all: Float64[Array, " ... n_harmonic"] = jnp.stack(results, axis=-1)
     return ylm_all
 
 

@@ -1,19 +1,18 @@
 """Compare tight-binding bands with frozen offline Chinook artifacts.
 
-These K-type tests establish behavioral compatibility only after the
-Slater--Koster, Hamiltonian, and spin--orbit C gates have independently
+These independent tests establish behavioral compatibility only after the
+Slater--Koster, Hamiltonian, and spin--orbit checks have independently
 established correctness. Chinook is never imported or executed by pytest.
 """
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict
-from jaxtyping import Array
+from beartype.typing import Any, Dict
+from jaxtyping import Array, Float64
 
 from diffpes.tightb import eigvalsh_bands
 from diffpes.types import TBModel
@@ -40,7 +39,7 @@ def _reference() -> Dict[str, Any]:
 
     Returns
     -------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Parsed JSON content of ``chinook_tightb_reference.json`` with
         per-model k-points, eigenvalues in eV, and conventions.
 
@@ -76,9 +75,13 @@ def _reference() -> Dict[str, Any]:
 
 
 class TestChinookCompatibility:
-    """Resolve the three-model Chinook K-type compatibility battery."""
+    """Resolve the three-model Chinook K-type compatibility battery.
 
-    def test_graphene_bands_agree_after_the_c_gates(self) -> None:
+    The cases compare graphene, Rashba, and projected-t2g spectra after
+    independent analytic checks.
+    """
+
+    def test_graphene_bands_agree_after_independent_checks(self) -> None:
         """Match frozen Chinook nearest-neighbor graphene eigenvalues.
 
         The case uses an authenticated inert compatibility artifact.
@@ -88,11 +91,13 @@ class TestChinookCompatibility:
         Compare the complete registered k-point path after native construction.
         """
         reference: Dict[str, Any] = _reference()["graphene"]
-        kpoints: Array = jnp.asarray(reference["kpoints_fractional"])
+        kpoints: Float64[Array, "nkpt 3"] = jnp.asarray(
+            reference["kpoints_fractional"]
+        )
         model: TBModel = make_graphene_model(
             t=reference["conventions"]["hopping_ev"]
         )
-        actual: Array = eigvalsh_bands(model, kpoints)
+        actual: Float64[Array, "nkpt nband"] = eigvalsh_bands(model, kpoints)
 
         np.testing.assert_allclose(
             actual,
@@ -101,7 +106,7 @@ class TestChinookCompatibility:
             atol=_COMPATIBILITY_ATOL,
         )
 
-    def test_rashba_bands_agree_after_the_c_gates(self) -> None:
+    def test_rashba_bands_agree_after_independent_checks(self) -> None:
         """Match frozen Chinook square-lattice Rashba eigenvalues.
 
         The case checks the spinful square-lattice convention independently.
@@ -116,7 +121,7 @@ class TestChinookCompatibility:
             hopping=conventions["kinetic_ev"],
             rashba=conventions["rashba_ev"],
         )
-        actual: Array = eigvalsh_bands(
+        actual: Float64[Array, "nkpt nband"] = eigvalsh_bands(
             model,
             jnp.asarray(reference["kpoints_fractional"]),
         )
@@ -128,7 +133,7 @@ class TestChinookCompatibility:
             atol=_COMPATIBILITY_ATOL,
         )
 
-    def test_t2g_soc_bands_agree_after_the_c_gates(self) -> None:
+    def test_t2g_soc_bands_agree_after_independent_checks(self) -> None:
         """Match frozen Chinook projected atomic t2g SOC multiplets.
 
         The case checks the registered real-cubic basis convention.
@@ -141,7 +146,7 @@ class TestChinookCompatibility:
         model: TBModel = make_t2g_soc_model(
             coupling=reference["conventions"]["lambda_ev"],
         )
-        actual: Array = eigvalsh_bands(
+        actual: Float64[Array, "nkpt nband"] = eigvalsh_bands(
             model,
             jnp.asarray(reference["kpoints_fractional"]),
         )
@@ -152,6 +157,3 @@ class TestChinookCompatibility:
             rtol=_COMPATIBILITY_RTOL,
             atol=_COMPATIBILITY_ATOL,
         )
-
-
-__all__: list[str] = []

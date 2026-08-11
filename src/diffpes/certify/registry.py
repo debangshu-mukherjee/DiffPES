@@ -53,17 +53,17 @@ Routine Listings
 from __future__ import annotations
 
 import json
-import threading
 from functools import cache
 from importlib import resources
 
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, Tuple
+from beartype.typing import Any, Callable, Dict, List, Tuple
 from jaxtyping import jaxtyped
 
 from diffpes.types import (
     CERTIFICATION_IDENTIFIER_PATTERN,
     CERTIFICATION_SEMVER_PATTERN,
+    CertificationRegistryState,
     ForwardModelSpec,
     HandshakeReport,
     RegisteredModel,
@@ -72,6 +72,7 @@ from diffpes.types import (
     RegistryReport,
     RegistrySnapshot,
     TransformationContract,
+    make_certification_registry_state,
     make_handshake_report,
     make_registered_model,
     make_registered_transformation,
@@ -84,25 +85,14 @@ from .checksums import checksum_pytree
 from .contracts import validate_contract
 
 
-class _RegistryState:
-    """Store mutable process-local state behind immutable public snapshots."""
-
-    def __init__(self) -> None:
-        self.models: Tuple[RegisteredModel, ...] = ()
-        self.transformations: Tuple[RegisteredTransformation, ...] = ()
-        self.handshakes: Tuple[RegistrationHandshake, ...] = ()
-        self.frozen = False
-        self.lock = threading.RLock()
-
-
 @cache
-def _registry_state() -> _RegistryState:
+def _registry_state() -> CertificationRegistryState:
     """PRIVATE: Return the lazily initialized process-local registry
     state.
 
     Returns
     -------
-    state : _RegistryState
+    state : CertificationRegistryState
         The single mutable holder of registered models,
         transformations, handshakes, the frozen flag, and their
         reentrant lock.
@@ -113,7 +103,7 @@ def _registry_state() -> _RegistryState:
     process-local singleton. All registration, lookup, and snapshot
     functions synchronize on its lock.
     """
-    state: _RegistryState = _RegistryState()
+    state: CertificationRegistryState = make_certification_registry_state()
     return state
 
 
@@ -267,7 +257,11 @@ def register_model(
     --------------------
     1. **Bind the documented output**::
 
-           state.models = tuple(sorted((*state.models, entry), key=_model_key))
+           object.__setattr__(
+               state,
+               "models",
+               tuple(sorted((*state.models, entry), key=_model_key)),
+           )
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -297,13 +291,17 @@ def register_model(
         registration_checksum=checksum,
     )
     key: Tuple[str, str] = _model_key(entry)
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         _ensure_open()
         if any(_model_key(existing) == key for existing in state.models):
             msg: str = f"duplicate model identity: {key[0]}@{key[1]}"
             raise ValueError(msg)
-        state.models = tuple(sorted((*state.models, entry), key=_model_key))
+        object.__setattr__(
+            state,
+            "models",
+            tuple(sorted((*state.models, entry), key=_model_key)),
+        )
 
 
 @jaxtyped(typechecker=beartype)
@@ -321,12 +319,16 @@ def register_transformation(contract: TransformationContract) -> None:
     --------------------
     1. **Bind the documented output**::
 
-           state.transformations = tuple(
-                       sorted(
-                           (*state.transformations, entry),
-                           key=_transformation_key,
-                       )
+           object.__setattr__(
+               state,
+               "transformations",
+               tuple(
+                   sorted(
+                       (*state.transformations, entry),
+                       key=_transformation_key,
                    )
+               ),
+           )
 
        The function validates and transforms the inputs before it binds the
        documented output.
@@ -355,7 +357,7 @@ def register_transformation(contract: TransformationContract) -> None:
         registration_checksum=checksum,
     )
     key: Tuple[str, str] = _transformation_key(entry)
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         _ensure_open()
         if any(
@@ -364,11 +366,15 @@ def register_transformation(contract: TransformationContract) -> None:
         ):
             msg: str = f"duplicate transformation identity: {key[0]}@{key[1]}"
             raise ValueError(msg)
-        state.transformations = tuple(
-            sorted(
-                (*state.transformations, entry),
-                key=_transformation_key,
-            )
+        object.__setattr__(
+            state,
+            "transformations",
+            tuple(
+                sorted(
+                    (*state.transformations, entry),
+                    key=_transformation_key,
+                )
+            ),
         )
 
 
@@ -411,7 +417,7 @@ def get_model(model_id: str, model_version: str) -> RegisteredModel:
     """
     entry: Any
     key: Tuple[str, str] = (model_id, model_version)
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         for entry in state.models:
             if _model_key(entry) == key:
@@ -466,7 +472,7 @@ def get_transformation(
     """
     entry: Any
     key: Tuple[str, str] = (transformation_id, transformation_version)
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         for entry in state.transformations:
             if _transformation_key(entry) == key:
@@ -505,7 +511,7 @@ def list_models() -> Tuple[ForwardModelSpec, ...]:
     models : Tuple[ForwardModelSpec, ...]
         Immutable sorted model specifications without executor callables.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         models: Tuple[ForwardModelSpec, ...] = tuple(
             entry.spec for entry in state.models
@@ -537,7 +543,7 @@ def list_registered_models() -> Tuple[RegisteredModel, ...]:
     models : Tuple[RegisteredModel, ...]
         Immutable sorted model bindings including static executor callables.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         models: Tuple[RegisteredModel, ...] = state.models
     return models
@@ -569,7 +575,7 @@ def list_transformations() -> Tuple[TransformationContract, ...]:
     transformations : Tuple[TransformationContract, ...]
         Immutable sorted semantic and information-loss contracts.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         transformations: Tuple[TransformationContract, ...] = tuple(
             entry.contract for entry in state.transformations
@@ -589,8 +595,12 @@ def register_handshake(handshake: RegistrationHandshake) -> None:
     --------------------
     1. **Store the sorted declaration**::
 
-           state.handshakes = tuple(
-               sorted((*state.handshakes, handshake), key=_handshake_key)
+           object.__setattr__(
+               state,
+               "handshakes",
+               tuple(
+                   sorted((*state.handshakes, handshake), key=_handshake_key)
+               ),
            )
 
        Stable owner ordering removes import-order effects.
@@ -605,7 +615,7 @@ def register_handshake(handshake: RegistrationHandshake) -> None:
     ValueError
         If the owner has a handshake or the registry has a frozen state.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         _ensure_open()
         if any(
@@ -613,8 +623,10 @@ def register_handshake(handshake: RegistrationHandshake) -> None:
         ):
             msg: str = f"duplicate handshake owner: {handshake.owner_id}"
             raise ValueError(msg)
-        state.handshakes = tuple(
-            sorted((*state.handshakes, handshake), key=_handshake_key)
+        object.__setattr__(
+            state,
+            "handshakes",
+            tuple(sorted((*state.handshakes, handshake), key=_handshake_key)),
         )
 
 
@@ -635,7 +647,7 @@ def list_handshakes() -> Tuple[RegistrationHandshake, ...]:
     -----
     The function reads the tuple while the registry lock is active.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         handshakes: Tuple[RegistrationHandshake, ...] = state.handshakes
     return handshakes
@@ -862,7 +874,7 @@ def validate_registry_manifest() -> Tuple[str, ...]:
         Sorted missing-entry and generated-card drift messages.
     """
     manifest: Dict[str, Any] = registry_manifest()
-    errors: list[str] = []
+    errors: List[str] = []
     models: Dict[Tuple[str, str], ForwardModelSpec] = {
         (item.model_id, item.model_version): item for item in list_models()
     }
@@ -986,7 +998,7 @@ def registry_snapshot() -> RegistrySnapshot:
     snapshot : RegistrySnapshot
         Models, transformations, and their non-security consistency checksum.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         models: Tuple[RegisteredModel, ...] = state.models
         transformations: Tuple[RegisteredTransformation, ...] = (
@@ -1021,9 +1033,9 @@ def freeze_registry() -> RegistrySnapshot:
     Freezing is process-local eager registry control and is never invoked from
     a traced numerical kernel.
     """
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
-        state.frozen = True
+        object.__setattr__(state, "frozen", True)
         snapshot: RegistrySnapshot = registry_snapshot()
     return snapshot
 
@@ -1062,14 +1074,14 @@ def validate_registry() -> RegistryReport:
         state. The checksum has bookkeeping meaning only.
     """
     entry: Any
-    state: _RegistryState = _registry_state()
+    state: CertificationRegistryState = _registry_state()
     with state.lock:
         models: Tuple[RegisteredModel, ...] = state.models
         transformations: Tuple[RegisteredTransformation, ...] = (
             state.transformations
         )
         frozen: bool = state.frozen
-    errors: list[str] = []
+    errors: List[str] = []
     model_keys: Tuple[Tuple[str, str], ...] = tuple(
         _model_key(entry) for entry in models
     )

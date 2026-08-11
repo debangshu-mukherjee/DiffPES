@@ -39,8 +39,8 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Dict, Mapping, Optional, Tuple, Union
-from jaxtyping import Shaped, jaxtyped
+from beartype.typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -352,7 +352,7 @@ def _optional_migration_fields() -> Mapping[str, frozenset[str]]:
 
 @beartype
 def _dataset_write_kwargs(
-    data: Shaped[NDArray, "..."],
+    data: Bool[NDArray, "..."] | Num[NDArray, "..."],
     compression: Optional[str],
     compression_opts: Any,  # noqa: ANN401
     shuffle: bool,
@@ -379,7 +379,7 @@ def _dataset_write_kwargs(
 
     Parameters
     ----------
-    data : Shaped[NDArray, "..."]
+    data : Bool[NDArray, "..."] | Num[NDArray, "..."]
         The NumPy array for the dataset. Its ``ndim`` determines whether the
         filters apply.
     compression : Optional[str]
@@ -550,7 +550,7 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
         grp.attrs[ATTR_TYPE] = type_name
         grp.attrs[ATTR_AUX] = json.dumps(_encode_static(aux_data))
 
-        none_fields: list[str] = []
+        none_fields: List[str] = []
         for field_name in meta["children_fields"]:
             child: Any = getattr(pytree, field_name)
             if child is None:
@@ -559,7 +559,9 @@ def save_to_h5(  # noqa: DOC503 -- recursive helper raises TypeError.
                 child_group: h5py.Group = grp.create_group(field_name)
                 _write_module(child_group, child)
             else:
-                child_arr: Shaped[NDArray, "..."] = np.asarray(child)
+                child_arr: Bool[NDArray, "..."] | Num[NDArray, "..."] = (
+                    np.asarray(child)
+                )
                 ds_kwargs: Dict[str, Any] = _dataset_write_kwargs(
                     data=child_arr,
                     compression=compression,
@@ -686,11 +688,11 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
         aux_json: Any = json.loads(str(grp.attrs[ATTR_AUX]))
         aux_data: Any = _decode_aux_data(type_name, aux_json)
 
-        none_fields: list[str] = json.loads(str(grp.attrs[ATTR_NONE]))
+        none_fields: List[str] = json.loads(str(grp.attrs[ATTR_NONE]))
         required_spectrum_geometry: frozenset[str] = frozenset(
             {"k_axis", "kpoints_cart_inv_ang"}
         )
-        missing_spectrum_geometry: list[str] = sorted(
+        missing_spectrum_geometry: List[str] = sorted(
             required_spectrum_geometry.difference(grp.keys())
         )
         if type_name == "ArpesSpectrum" and (
@@ -704,7 +706,7 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
             )
             raise ValueError(msg)
 
-        children: list[Any] = []
+        children: List[Any] = []
         for field_name in meta["children_fields"]:
             if field_name in none_fields or (
                 field_name not in grp
@@ -715,7 +717,9 @@ def load_from_h5(  # noqa: DOC502 -- raises occur under the HDF5 context.
             elif isinstance(grp[field_name], h5py.Group):
                 children.append(_load_group(grp[field_name]))
             else:
-                arr: Shaped[NDArray, "..."] = grp[field_name][()]
+                arr: Bool[NDArray, "..."] | Num[NDArray, "..."] = grp[
+                    field_name
+                ][()]
                 children.append(jnp.asarray(arr))
 
         constructor_fields: Dict[str, Any] = dict(

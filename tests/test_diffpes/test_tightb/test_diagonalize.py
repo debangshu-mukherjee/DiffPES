@@ -12,8 +12,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Tuple
-from jaxtyping import Array
+from beartype.typing import Callable, Tuple
+from jaxtyping import Array, Complex128, Float64, TypeCheckError
 
 import diffpes
 from diffpes.tightb import (
@@ -31,7 +31,7 @@ from diffpes.types import (
     make_orbital_projection,
 )
 from tests._factories import make_1d_chain_model, make_graphene_model
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 def _geometry(n_atoms: int) -> diffpes.types.CrystalGeometry:
@@ -81,9 +81,9 @@ class TestEighSafe:
         The test diagonalizes a 2x2 matrix with complex off-diagonal entries.
         It compares the eigenvalue dtype with ``jnp.float64``.
         """
-        H: Array
-        evals: Array
-        evecs: Array
+        H: Complex128[Array, "2 2"]
+        evals: Float64[Array, " 2"]
+        evecs: Complex128[Array, "2 2"]
 
         H = jnp.array(
             [[1.0, 0.5 + 0.1j], [0.5 - 0.1j, 2.0]], dtype=jnp.complex128
@@ -102,10 +102,10 @@ class TestEighSafe:
         The test diagonalizes a real-symmetric 2x2 matrix. It compares
         ``U^dag U`` with the identity at an absolute tolerance of 1e-10.
         """
-        H: Array
-        evals: Array
-        evecs: Array
-        overlap: Array
+        H: Complex128[Array, "2 2"]
+        evals: Float64[Array, " 2"]
+        evecs: Complex128[Array, "2 2"]
+        overlap: Complex128[Array, "2 2"]
 
         H = jnp.array([[1.0, 0.5], [0.5, 2.0]], dtype=jnp.complex128)
         evals, evecs = eigh_safe(H)
@@ -115,18 +115,21 @@ class TestEighSafe:
     def test_degenerate_jvp_is_finite(self) -> None:
         """Verify the regularized JVP remains finite at exact degeneracy.
 
-        The case differentiates an identity Hamiltonian along a Hermitian direction.
+        The case differentiates an identity Hamiltonian along a Hermitian
+        direction.
 
         Notes
         -----
         Require finite eigenvalue and eigenvector tangent arrays.
         """
-        hamiltonian: Array = jnp.eye(2, dtype=jnp.complex128)
-        direction: Array = jnp.asarray(
+        hamiltonian: Complex128[Array, "2 2"] = jnp.eye(
+            2, dtype=jnp.complex128
+        )
+        direction: Complex128[Array, "2 2"] = jnp.asarray(
             [[0.2, 0.1 + 0.3j], [0.1 - 0.3j, -0.2]],
             dtype=jnp.complex128,
         )
-        tangents: Tuple[Array, Array]
+        tangents: Tuple[Float64[Array, " 2"], Complex128[Array, "2 2"]]
         _, tangents = jax.jvp(eigh_safe, (hamiltonian,), (direction,))
         assert jnp.all(jnp.isfinite(tangents[0]))
         assert jnp.all(jnp.isfinite(tangents[1]))
@@ -142,7 +145,7 @@ class TestEighSafe:
         Exercise one NaN matrix and one finite matrix with unequal conjugate
         off-diagonal entries through both execution modes.
         """
-        cases: Tuple[Tuple[Array, str], ...] = (
+        cases: Tuple[Tuple[Complex128[Array, "2 2"], str], ...] = (
             (
                 jnp.asarray(
                     [[jnp.nan, 0.0], [0.0, 1.0]],
@@ -159,12 +162,13 @@ class TestEighSafe:
             ),
         )
         under_jit: bool
-        hamiltonian: Array
+        hamiltonian: Complex128[Array, "2 2"]
         expected_message: str
         for under_jit in (False, True):
-            solver: Callable[[Array], Tuple[Array, Array]] = (
-                eqx.filter_jit(eigh_safe) if under_jit else eigh_safe
-            )
+            solver: Callable[
+                [Complex128[Array, "2 2"]],
+                Tuple[Float64[Array, " 2"], Complex128[Array, "2 2"]],
+            ] = eqx.filter_jit(eigh_safe) if under_jit else eigh_safe
             for hamiltonian, expected_message in cases:
                 with pytest.raises(RuntimeError, match=expected_message):
                     solver(hamiltonian)
@@ -182,10 +186,10 @@ class TestEighSafe:
         Differentiate a Hermitian three-level model through both automatic
         modes and the shared central-finite-difference harness.
         """
-        base: Array = jnp.diag(
+        base: Complex128[Array, "3 3"] = jnp.diag(
             jnp.asarray([0.0, 0.0, 2.0], dtype=jnp.complex128)
         )
-        direction: Array = jnp.asarray(
+        direction: Complex128[Array, "3 3"] = jnp.asarray(
             [
                 [0.3, 0.2 + 0.4j, -0.15 + 0.21j],
                 [0.2 - 0.4j, -0.1, 0.37 - 0.19j],
@@ -193,7 +197,7 @@ class TestEighSafe:
             ],
             dtype=jnp.complex128,
         )
-        observable: Array = jnp.asarray(
+        observable: Complex128[Array, "3 3"] = jnp.asarray(
             [
                 [0.4, -0.3 + 0.11j, 0.28 + 0.23j],
                 [-0.3 - 0.11j, -0.2, -0.17 + 0.31j],
@@ -202,19 +206,21 @@ class TestEighSafe:
             dtype=jnp.complex128,
         )
 
-        def loss(theta: Array) -> Array:
+        def loss(theta: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return a real expectation of the lowest-group projector."""
-            eigensystem: Tuple[Array, Array] = eigh_safe(
-                base + theta * direction
+            eigensystem: Tuple[
+                Float64[Array, " 3"], Complex128[Array, "3 3"]
+            ] = eigh_safe(base + theta * direction)
+            eigenvectors: Complex128[Array, "3 3"] = eigensystem[1]
+            occupied: Complex128[Array, "3 2"] = eigenvectors[:, :2]
+            projector: Complex128[Array, "3 3"] = occupied @ occupied.conj().T
+            value: Float64[Array, ""] = jnp.real(
+                jnp.trace(observable @ projector)
             )
-            eigenvectors: Array = eigensystem[1]
-            occupied: Array = eigenvectors[:, :2]
-            projector: Array = occupied @ occupied.conj().T
-            value: Array = jnp.real(jnp.trace(observable @ projector))
             return value
 
-        theta: Array = jnp.asarray(0.0, dtype=jnp.float64)
-        gradient_gate(loss, theta, regime="smooth")
+        theta: Float64[Array, ""] = jnp.asarray(0.0, dtype=jnp.float64)
+        assert_gradients_match_finite_differences(loss, theta, regime="smooth")
 
     def test_regularization_bias_matches_analytic_gap_law(self) -> None:
         r"""Measure the eigenvector-gradient bias over an avoided-gap sweep.
@@ -233,43 +239,51 @@ class TestEighSafe:
         directly from the declared quadratic law. A ``1e3`` threshold implies
         ``1e-6`` relative bias instead of ``1e-10``.
         """
-        theta: Array = jnp.asarray(0.37, dtype=jnp.float64)
-        gap_ratios: Array = jnp.asarray(
+        theta: Float64[Array, ""] = jnp.asarray(0.37, dtype=jnp.float64)
+        gap_ratios: Float64[Array, " 8"] = jnp.asarray(
             [2.0, 5.0, 10.0, 1e2, 1e3, 1e4, 1e5, 1e6],
             dtype=jnp.float64,
         )
-        exact_derivative: Array = -jnp.sin(2.0 * theta)
+        exact_derivative: Float64[Array, ""] = -jnp.sin(2.0 * theta)
 
-        def derivative_for_gap(gap: Array) -> Array:
-            def loss(angle: Array) -> Array:
-                cosine: Array = jnp.cos(angle)
-                sine: Array = jnp.sin(angle)
-                rotation: Array = jnp.asarray(
+        def derivative_for_gap(
+            gap: Float64[Array, ""],
+        ) -> Float64[Array, ""]:
+            def loss(angle: Float64[Array, ""]) -> Float64[Array, ""]:
+                cosine: Float64[Array, ""] = jnp.cos(angle)
+                sine: Float64[Array, ""] = jnp.sin(angle)
+                rotation: Float64[Array, "2 2"] = jnp.asarray(
                     [[cosine, -sine], [sine, cosine]],
                     dtype=jnp.float64,
                 )
-                diagonal: Array = jnp.diag(
+                diagonal: Float64[Array, "2 2"] = jnp.diag(
                     jnp.asarray(
                         [-gap / 2.0, gap / 2.0],
                         dtype=jnp.float64,
                     )
                 )
-                hamiltonian: Array = (rotation @ diagonal @ rotation.T).astype(
-                    jnp.complex128
+                hamiltonian: Complex128[Array, "2 2"] = (
+                    rotation @ diagonal @ rotation.T
+                ).astype(jnp.complex128)
+                eigenvectors: Complex128[Array, "2 2"] = eigh_safe(
+                    hamiltonian
+                )[1]
+                observable: Float64[Array, ""] = (
+                    jnp.abs(eigenvectors[0, 0]) ** 2
                 )
-                eigenvectors: Array = eigh_safe(hamiltonian)[1]
-                observable: Array = jnp.abs(eigenvectors[0, 0]) ** 2
                 return observable
 
-            derivative: Array = jax.grad(loss)(theta)
+            derivative: Float64[Array, ""] = jax.grad(loss)(theta)
             return derivative
 
-        gaps: Array = gap_ratios * EPS_DEG
-        derivatives: Array = jax.vmap(derivative_for_gap)(gaps)
-        measured_bias: Array = jnp.abs(
+        gaps: Float64[Array, " 8"] = gap_ratios * EPS_DEG
+        derivatives: Float64[Array, " 8"] = jax.vmap(derivative_for_gap)(gaps)
+        measured_bias: Float64[Array, " 8"] = jnp.abs(
             (derivatives - exact_derivative) / exact_derivative
         )
-        expected_bias: Array = EPS_DEG**2 / (gaps**2 + EPS_DEG**2)
+        expected_bias: Float64[Array, " 8"] = EPS_DEG**2 / (
+            gaps**2 + EPS_DEG**2
+        )
 
         assert jnp.allclose(
             measured_bias,
@@ -282,7 +296,11 @@ class TestEighSafe:
 
 
 class TestEigvalshBands:
-    """Validate :func:`~diffpes.tightb.eigvalsh_bands`."""
+    """Validate :func:`~diffpes.tightb.eigvalsh_bands`.
+
+    The case compares the eigenvalue-only path with full Hermitian
+    diagonalization.
+    """
 
     def test_matches_full_diagonalization(self) -> None:
         """Verify the fast path matches full band eigenvalues.
@@ -294,16 +312,22 @@ class TestEigvalshBands:
         Compare ascending eigenvalues at absolute tolerance ``1e-13``.
         """
         model: diffpes.types.TBModel = make_graphene_model()
-        kpoints: Array = jnp.asarray(
+        kpoints: Float64[Array, "2 3"] = jnp.asarray(
             [[0.0, 0.0, 0.0], [0.2, 0.1, 0.0]], dtype=jnp.float64
         )
-        actual: Array = eigvalsh_bands(model, kpoints)
-        expected: Array = diagonalize_tb(model, kpoints).eigenvalues
+        actual: Float64[Array, "2 2"] = eigvalsh_bands(model, kpoints)
+        expected: Float64[Array, "2 2"] = diagonalize_tb(
+            model, kpoints
+        ).eigenvalues
         assert jnp.allclose(actual, expected, atol=1e-13)
 
 
 class TestEigvalshBandsChunked:
-    """Validate :func:`~diffpes.tightb.eigvalsh_bands_chunked`."""
+    """Validate :func:`~diffpes.tightb.eigvalsh_bands_chunked`.
+
+    The case compares chunked eigenvalues with the ordinary batched eigenvalue
+    path.
+    """
 
     def test_matches_ordinary_eigenvalue_path(self) -> None:
         """Match the ordinary solver without a full k-point Hamiltonian batch.
@@ -315,13 +339,15 @@ class TestEigvalshBandsChunked:
         Compare every sorted eigenvalue with the non-chunked public path.
         """
         model: diffpes.types.TBModel = make_graphene_model()
-        k_x: Array = jnp.linspace(-0.4, 0.4, 8)
-        kpoints: Array = jnp.stack(
+        k_x: Float64[Array, " 8"] = jnp.linspace(-0.4, 0.4, 8)
+        kpoints: Float64[Array, "8 3"] = jnp.stack(
             (k_x, 0.2 * k_x, jnp.zeros_like(k_x)),
             axis=-1,
         )
-        actual: Array = eigvalsh_bands_chunked(model, kpoints, 4)
-        expected: Array = eigvalsh_bands(model, kpoints)
+        actual: Float64[Array, "8 2"] = eigvalsh_bands_chunked(
+            model, kpoints, 4
+        )
+        expected: Float64[Array, "8 2"] = eigvalsh_bands(model, kpoints)
 
         assert jnp.allclose(actual, expected, rtol=1e-13, atol=1e-13)
 
@@ -336,7 +362,8 @@ class TestDiagonalizeTB:
     """
 
     def test_output_shapes(self) -> None:
-        """Verify output shapes match (K, B) eigenvalues and (K, B, O) eigenvectors.
+        """Verify output shapes match (K, B) eigenvalues and (K, B, O)
+        eigenvectors.
 
         The solver retains both k-points and both orbitals in the
         ``DiagonalizedBands`` fields.
@@ -347,7 +374,7 @@ class TestDiagonalizeTB:
         It compares all three output shapes with their specified values.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "2 3"]
         diag: diffpes.types.DiagonalizedBands
 
         model = make_graphene_model()
@@ -369,7 +396,7 @@ class TestDiagonalizeTB:
         the downstream carrier field exactly.
         """
         template: diffpes.types.TBModel = make_graphene_model()
-        centres: Array = jnp.asarray(
+        centres: Float64[Array, "2 3"] = jnp.asarray(
             [[0.13, 0.07, 0.0], [0.41, 0.22, 0.0]],
             dtype=jnp.float64,
         )
@@ -408,7 +435,7 @@ class TestDiagonalizeTB:
         i: int
 
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "3 3"]
         diag: diffpes.types.DiagonalizedBands
 
         model = make_graphene_model()
@@ -422,7 +449,8 @@ class TestDiagonalizeTB:
             )
 
     def test_differentiable(self) -> None:
-        """Verify JAX differentiates the eigenvalue sum with respect to hopping parameters.
+        """Verify JAX differentiates the eigenvalue sum with respect to
+        hopping parameters.
 
         The eigenspectrum carries hopping sensitivity through the Hamiltonian
         and the eigendecomposition.
@@ -433,13 +461,15 @@ class TestDiagonalizeTB:
         ``jax.grad``. It checks every hopping gradient for a finite value.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
-        grad: Array
+        kpoints: Float64[Array, "1 3"]
+        grad: Complex128[Array, " n_hop"]
 
         model = make_1d_chain_model(t=-1.0)
         kpoints = jnp.array([[0.25, 0.0, 0.0]])
 
-        def loss(hop):
+        def loss(
+            hop: Complex128[Array, " 2"],
+        ) -> Float64[Array, ""]:
             m: diffpes.types.TBModel
             d: diffpes.types.DiagonalizedBands
 
@@ -449,7 +479,8 @@ class TestDiagonalizeTB:
                 hop,
             )
             d = diagonalize_tb(m, kpoints)
-            return jnp.sum(d.eigenvalues)
+            result: Float64[Array, ""] = jnp.sum(d.eigenvalues)
+            return result
 
         grad = jax.grad(loss)(model.hopping_amplitudes)
         assert jnp.all(jnp.isfinite(grad))
@@ -466,9 +497,9 @@ class TestDiagonalizeTB:
         ``(1, 2, 2)`` and compares each norm with 1.0 at a tolerance of 1e-10.
         """
         model: diffpes.types.TBModel
-        kpoints: Array
+        kpoints: Float64[Array, "1 3"]
         diag: diffpes.types.DiagonalizedBands
-        norms: Array
+        norms: Float64[Array, " 2"]
 
         model = make_graphene_model()
         kpoints = jnp.array([[0.0, 0.0, 0.0]])
@@ -530,7 +561,8 @@ class TestVaspToDiagonalized:
         assert diag.eigenvectors.shape == (K, B, 3)
 
     def test_eigenvectors_normalized(self) -> None:
-        """Verify the VASP projection adapter normalizes approximate eigenvectors.
+        """Verify the VASP projection adapter normalizes approximate
+        eigenvectors.
 
         The adapter produces unit eigenvector norms from approximate orbital
         weights. This property holds when the raw weights do not sum to one.
@@ -544,11 +576,11 @@ class TestVaspToDiagonalized:
         B: int
         A: int
         bands: diffpes.types.BandStructure
-        proj: Array
+        proj: Float64[Array, "K B A 9"]
         orb_proj: diffpes.types.OrbitalProjection
         basis: diffpes.types.OrbitalBasis
         diag: diffpes.types.DiagonalizedBands
-        norms: Array
+        norms: Float64[Array, "K B"]
 
         K, B, A = 3, 2, 1
         bands = make_band_structure(
@@ -586,7 +618,9 @@ class TestVaspToDiagonalized:
             eigenvalues=jnp.zeros((1, 1)),
             kpoints=jnp.zeros((1, 3)),
         )
-        projections: Array = jnp.zeros((1, 1, 2, 9), dtype=jnp.float64)
+        projections: Float64[Array, "1 1 2 9"] = jnp.zeros(
+            (1, 1, 2, 9), dtype=jnp.float64
+        )
         projections = projections.at[0, 0, 1, 3].set(0.09)
         projections = projections.at[0, 0, 0, 0].set(0.16)
         projections = projections.at[0, 0, 1, 4].set(0.25)
@@ -609,7 +643,9 @@ class TestVaspToDiagonalized:
             basis,
             phase_loss="ignore",
         )
-        expected: Array = jnp.asarray([0.3, 0.4, 0.5]) / jnp.sqrt(0.5)
+        expected: Float64[Array, " 3"] = jnp.asarray(
+            [0.3, 0.4, 0.5]
+        ) / jnp.sqrt(0.5)
         assert jnp.allclose(
             diagonalized.eigenvectors[0, 0],
             expected,
@@ -642,7 +678,9 @@ class TestVaspToDiagonalized:
             m=(0,),
         )
 
-        def adapt(candidate: diffpes.types.OrbitalProjection) -> Array:
+        def adapt(
+            candidate: diffpes.types.OrbitalProjection,
+        ) -> Complex128[Array, "1 1 1"]:
             """Return coefficients after adapting one projection carrier."""
             diagonalized: diffpes.types.DiagonalizedBands = (
                 vasp_to_diagonalized(
@@ -653,13 +691,16 @@ class TestVaspToDiagonalized:
                     phase_loss="ignore",
                 )
             )
-            return diagonalized.eigenvectors
+            eigenvectors: Complex128[Array, "1 1 1"] = (
+                diagonalized.eigenvectors
+            )
+            return eigenvectors
 
         under_jit: bool
         for under_jit in (False, True):
-            adapter: Callable[[diffpes.types.OrbitalProjection], Array] = (
-                eqx.filter_jit(adapt) if under_jit else adapt
-            )
+            adapter: Callable[
+                [diffpes.types.OrbitalProjection], Complex128[Array, "1 1 1"]
+            ] = eqx.filter_jit(adapt) if under_jit else adapt
             with pytest.raises(
                 RuntimeError,
                 match="selected projection norm must be nonzero",
@@ -748,7 +789,8 @@ class TestVaspToDiagonalized:
         Notes
         -----
         The test calls the adapter with a minimal input and no policy argument.
-        It expects a ``RuntimeWarning`` that contains ``cannot recover complex``.
+        It expects a ``RuntimeWarning`` that contains ``cannot recover
+        complex``.
         """
         bands: diffpes.types.BandStructure
         orb_proj: diffpes.types.OrbitalProjection
@@ -834,7 +876,10 @@ class TestVaspToDiagonalized:
             l=(0,),
             m=(0,),
         )
-        with pytest.raises(Exception):
+        with pytest.raises(
+            TypeCheckError,
+            match="phase_loss",
+        ):
             _ = vasp_to_diagonalized(
                 bands,
                 orb_proj,

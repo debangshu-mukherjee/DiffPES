@@ -6,7 +6,9 @@ scientific identity in the supported certification regime.
 
 import jax
 import jax.numpy as jnp
+from beartype import beartype
 from beartype.typing import Any, Tuple
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.certify import (
     clear_dependency_cache,
@@ -34,17 +36,21 @@ class TestDependencyMap:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         inputs: Any
         result: Any
 
-        def forward(inputs: Any) -> Any:
-            x: Any
-            unused: Any
+        @jaxtyped(typechecker=beartype)
+        def forward(
+            inputs: Tuple[Float64[Array, " 1"], Float64[Array, " 1"]],
+        ) -> Float64[Array, " 1"]:
+            x: Float64[Array, " 1"]
+            unused: Float64[Array, " 1"]
             x, unused = inputs
             del unused
-            return x**2
+            squared: Float64[Array, " 1"] = x**2
+            return squared
 
         inputs = (jnp.array([2.0]), jnp.array([7.0]))
         result = dependency_map("org.diffpes.model.test", forward, inputs)
@@ -69,7 +75,7 @@ class TestLinearizedForward:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         value: Any
         pushforward: Any
@@ -96,11 +102,12 @@ class TestInformationSpectrum:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         x: Any
 
-        def singular(x: Any) -> Any:
+        @jaxtyped(typechecker=beartype)
+        def singular(x: Float64[Array, " 1"]) -> Float64[Array, ""]:
             spectrum: Any
             spectrum = information_spectrum(
                 lambda candidate: candidate**2,
@@ -108,7 +115,8 @@ class TestInformationSpectrum:
                 rank=1,
                 iterations=3,
             )
-            return spectrum.singular_values[0]
+            singular_value: Float64[Array, ""] = spectrum.singular_values[0]
+            return singular_value
 
         x = jnp.array([2.0])
         assert jnp.allclose(singular(x), 4.0, rtol=1e-12)
@@ -155,7 +163,7 @@ class TestSensitivityMap:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         inputs: Any
         directions: Any

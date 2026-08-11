@@ -8,7 +8,8 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Dict
+from beartype.typing import Dict, List
+from jaxtyping import Array, Float64
 
 from diffpes.types import DetectorEffects, make_detector_effects
 from tests._assertions import assert_rejects
@@ -70,7 +71,7 @@ class TestDetectorEffects:
             acquisition_mode="fixed_total",
             fixed_total_count=137,
         )
-        leaves: list[object] = jax.tree.leaves(effects)
+        leaves: List[object] = jax.tree.leaves(effects)
 
         chex.assert_trees_all_close(
             effects.post_count_kernel,
@@ -154,7 +155,7 @@ class TestMakeDetectorEffects:
         The shared rejection helper calls the same local factory eagerly and
         through Equinox filtered JIT for both numerical failures.
         """
-        parameters: Dict[str, jax.Array] = {
+        parameters: Dict[str, Float64[Array, "..."]] = {
             "logits": jnp.array([jnp.nan]),
             "rotations": jnp.zeros((1, 3)),
             "slopes": jnp.zeros(2),
@@ -164,12 +165,12 @@ class TestMakeDetectorEffects:
         }
 
         def build(
-            logits: jax.Array,
-            rotations: jax.Array,
-            slopes: jax.Array,
-            background: jax.Array,
-            sensitivity: jax.Array,
-            exposure: jax.Array,
+            logits: Float64[Array, " n_domain"],
+            rotations: Float64[Array, "n_domain 3"],
+            slopes: Float64[Array, " n_slope"],
+            background: Float64[Array, " n_background"],
+            sensitivity: Float64[Array, " n_sensitivity"],
+            exposure: Float64[Array, ""],
         ) -> DetectorEffects:
             effects: DetectorEffects = make_detector_effects(
                 logits,

@@ -1,9 +1,10 @@
 """Validate VASP EIGENVAL parsing.
 
-Covers scalar and spin-resolved band carriers, multiple k-points, Fermi-level shifts, and malformed or truncated input.
+Covers scalar and spin-resolved band carriers, multiple k-points, Fermi-level
+shifts, and malformed or truncated input.
 """
 
-import io
+import os
 import tempfile
 from pathlib import Path
 
@@ -14,22 +15,11 @@ from beartype.typing import TextIO
 
 import diffpes
 from diffpes.inout import (
-    read_chgcar,
-    read_doscar,
     read_eigenval,
-    read_kpoints,
-    read_poscar,
-    read_procar,
 )
 from diffpes.types import (
     BandStructure,
-    FullDensityOfStates,
-    SOCVolumetricData,
     SpinBandStructure,
-    SpinOrbitalProjection,
-    VolumetricData,
-    make_orbital_projection,
-    make_spin_orbital_projection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -46,7 +36,7 @@ class TestReadEigenval(chex.TestCase):
     """
 
     def test_parses_minimal_eigenval(self) -> None:
-        """Read minimal EIGENVAL (1 k-point, 1 band) and assert BandStructure shape and values.
+        """Read a minimal one-k-point, one-band EIGENVAL.
 
         The test uses the minimal EIGENVAL fixture and fermi_energy=-0.5.
         The test asserts eigenvalues shape (1, 1), kpoints (1, 3),
@@ -55,7 +45,9 @@ class TestReadEigenval(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         bands: diffpes.types.BandStructure | diffpes.types.SpinBandStructure
 
@@ -75,7 +67,7 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_parses_eigenval_two_kpoints(self) -> None:
-        """Read EIGENVAL with 2 k-points and assert both k-points and eigenvalues.
+        """Read both k-points and eigenvalues from EIGENVAL.
 
         The test uses EIGENVAL_two_kp fixture to exercise the parser's loop
         over multiple k-points (including the branch between k-point
@@ -84,7 +76,9 @@ class TestReadEigenval(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         bands: diffpes.types.BandStructure | diffpes.types.SpinBandStructure
 
@@ -106,7 +100,7 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_spin_polarized_legacy(self) -> None:
-        """Read spin-polarized EIGENVAL in legacy mode and verify only spin-up eigenvalues.
+        """Read only spin-up eigenvalues in legacy mode.
 
         Parses the EIGENVAL_spin fixture with ``return_mode="legacy"``,
         which should discard spin-down data and return a plain
@@ -117,7 +111,9 @@ class TestReadEigenval(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         bands: diffpes.types.BandStructure | diffpes.types.SpinBandStructure
 
@@ -136,7 +132,7 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_spin_polarized_full(self) -> None:
-        """Read spin-polarized EIGENVAL in full mode and verify both spin channels.
+        """Read both spin channels from EIGENVAL in full mode.
 
         Parses the EIGENVAL_spin fixture with ``return_mode="full"``,
         which returns a ``SpinBandStructure`` containing separate
@@ -146,7 +142,9 @@ class TestReadEigenval(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         bands: diffpes.types.BandStructure | diffpes.types.SpinBandStructure
 
@@ -168,7 +166,7 @@ class TestReadEigenval(chex.TestCase):
         )
 
     def test_nonspin_full_returns_bandstructure(self) -> None:
-        """Verify that full mode with a non-spin-polarized file returns plain BandStructure.
+        """Return a plain BandStructure for non-spin full mode.
 
         Parses the standard EIGENVAL fixture (ISPIN=1) with
         ``return_mode="full"``. Asserts the result is a plain
@@ -177,7 +175,9 @@ class TestReadEigenval(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         bands: diffpes.types.BandStructure | diffpes.types.SpinBandStructure
 
@@ -245,21 +245,21 @@ class TestReadEigenvalErrors(chex.TestCase):
         Calls ``os.unlink`` on the path after the error assertion so
         the temporary file does not accumulate between test runs.
         """
-        import os
-
         os.unlink(path)
 
     def test_eof_on_kpoint_line_raises(self) -> None:
         """Verify that EOF in a k-point block raises ``ValueError``.
 
-        The test writes an EIGENVAL with a valid 6-line header followed by a blank
-        separator but no k-point data line. ``_read_next_nonempty_line``
+        The test writes an EIGENVAL with a valid 6-line header followed by a
+        blank separator but no k-point data line. ``_read_next_nonempty_line``
         returns ``""`` at EOF (line 255), then line 169 detects the empty
         string and raises ValueError.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -274,12 +274,15 @@ class TestReadEigenvalErrors(chex.TestCase):
     def test_invalid_kpoint_line_raises(self) -> None:
         """Verify that a short k-point line raises ``ValueError``.
 
-        The test writes an EIGENVAL where the first k-point line has only 2 values.
-        The test asserts ``ValueError`` matching ``"Invalid EIGENVAL k-point line"``.
+        The test writes an EIGENVAL where the first k-point line has only two
+        values. It asserts ``ValueError`` matching
+        ``"Invalid EIGENVAL k-point line"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -302,7 +305,9 @@ class TestReadEigenvalErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -317,18 +322,18 @@ class TestReadEigenvalErrors(chex.TestCase):
     def test_invalid_band_line_raises(self) -> None:
         """Verify that a band line without numbers raises ``ValueError``.
 
-        The test writes an EIGENVAL with a valid k-point line but an empty-looking
-        band line that has no parseable eigenvalue. Asserts ``ValueError``
+        The test writes an EIGENVAL with a valid k-point line but an
+        empty-looking band line that has no parseable eigenvalue. Asserts
+        ``ValueError``
         matching ``"Invalid EIGENVAL band line"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        content: str
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content2: str
         path: str
-
-        content = _EIGENVAL_HEADER + "  0.0  0.0  0.0  1.0\n" + "  \n"
 
         content2 = _EIGENVAL_HEADER + "  0.0  0.0  0.0  1.0\nNaN\n"
         path = _write_tmpfile(content2)
@@ -341,14 +346,17 @@ class TestReadEigenvalErrors(chex.TestCase):
     def test_spin_polarized_band_missing_spin_down_raises(self) -> None:
         """Verify that a short spin-polarized band line raises ``ValueError``.
 
-        The test writes an ``ISPIN=2`` EIGENVAL with a value of 2 in its header.
+        The test writes an ``ISPIN=2`` EIGENVAL with a value of 2 in its
+        header.
         The band line has a spin-up energy but no spin-down energy.
         The test expects a ``ValueError`` that matches
         ``"Invalid spin-polarized"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         spin_header: str
         content: str
         path: str

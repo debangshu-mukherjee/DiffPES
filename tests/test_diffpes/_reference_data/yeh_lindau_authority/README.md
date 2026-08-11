@@ -1,7 +1,7 @@
 # Yeh–Lindau authority metadata
 
-These inert snapshots support the dated G5 authority amendment. They were
-downloaded on 2026-07-28 from:
+These inert snapshots authenticate the cross-section data authority. They
+were downloaded on 2026-07-28 from:
 
 - `https://api.figshare.com/v2/articles/12389750/versions/3`
 - `https://regoutzgroup.org/research/cross-sections/`

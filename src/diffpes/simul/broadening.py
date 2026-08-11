@@ -25,7 +25,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex128, Float, Float64, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float, Float64, jaxtyped
 
 from diffpes.types import KB_EV_PER_K, ScalarFloat
 from diffpes.utils import faddeeva
@@ -208,7 +208,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
         "sigma and gamma must not both be zero",
     )
     maximum_absolute_value: float = 1.0e8
-    interior: Array = (checked_sigma > 0.0) & (checked_gamma > 0.0)
+    interior: Bool[Array, ""] = (checked_sigma > 0.0) & (checked_gamma > 0.0)
     safe_sigma: Float64[Array, ""] = jnp.where(
         checked_sigma > 0.0,
         checked_sigma,
@@ -229,7 +229,7 @@ def voigt(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
         candidate_z,
         inactive_z,
     )
-    invalid_z: Array = interior & jnp.any(
+    invalid_z: Bool[Array, ""] = interior & jnp.any(
         ~jnp.isfinite(candidate_z)
         | (jnp.abs(candidate_z) > maximum_absolute_value)
     )

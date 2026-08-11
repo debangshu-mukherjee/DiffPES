@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Literal, Optional, TextIO, Union
+from beartype.typing import Any, Dict, List, Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -148,7 +148,7 @@ def read_procar(
     with path.open("r") as fid:
         content: str = fid.read()
 
-    blocks: list[Dict] = _parse_procar_blocks(content)
+    blocks: List[Dict[str, Any]] = _parse_procar_blocks(content)
 
     if not blocks:
         msg: str = "No valid PROCAR blocks found."
@@ -216,7 +216,7 @@ def read_procar(
 
 def _parse_procar_blocks(
     content: str,
-) -> list[Dict]:
+) -> List[Dict[str, Any]]:
     """PRIVATE: Parse all PROCAR blocks from the full file content string.
 
     Extended Summary
@@ -259,7 +259,7 @@ def _parse_procar_blocks(
 
     Returns
     -------
-    blocks : list[dict]
+    blocks : List[Dict[str, Any]]
         List of parsed blocks. Each dict contains:
 
         * ``'nkpts'`` (int): number of k-points.
@@ -278,8 +278,8 @@ def _parse_procar_blocks(
     b: int
     a: int
 
-    blocks: list[Dict] = []
-    lines: list[str] = content.splitlines()
+    blocks: List[Dict[str, Any]] = []
+    lines: List[str] = content.splitlines()
     i: int = 0
 
     while i < len(lines):
@@ -287,7 +287,7 @@ def _parse_procar_blocks(
             i += 1
             continue
         header: str = lines[i]
-        params: list[int] = [int(x) for x in re.findall(r"\d+", header)]
+        params: List[int] = [int(x) for x in re.findall(r"\d+", header)]
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
@@ -313,7 +313,7 @@ def _parse_procar_blocks(
                 i += 1
                 i += 1
                 for a in range(natoms):
-                    vals: list[float] = [float(x) for x in lines[i].split()]
+                    vals: List[float] = [float(x) for x in lines[i].split()]
                     projections[k_idx, b, a, :] = vals[1 : N_ORBITALS + 1]
                     i += 1
                 i += 1

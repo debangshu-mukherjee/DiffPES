@@ -44,7 +44,7 @@ import math
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.types import L_MAX, ScalarFloat
@@ -128,12 +128,12 @@ def wigner_small_d(  # noqa: DOC502 -- validation is shared in _validate_l.
     beta_array: Float64[Array, ""] = jnp.asarray(beta)
     cosine_half: Float64[Array, ""] = jnp.cos(0.5 * beta_array)
     sine_half: Float64[Array, ""] = jnp.sin(0.5 * beta_array)
-    rows: list[Float64[Array, " m2"]] = []
+    rows: List[Float64[Array, " m2"]] = []
     m_prime: int
     m: int
     k: int
     for m_prime in range(-l, l + 1):
-        entries: list[Float64[Array, ""]] = []
+        entries: List[Float64[Array, ""]] = []
         for m in range(-l, l + 1):
             prefactor: float = math.sqrt(
                 math.factorial(l + m)

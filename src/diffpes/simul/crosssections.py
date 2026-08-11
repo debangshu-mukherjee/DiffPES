@@ -223,7 +223,7 @@ def _interval_index(
     )
     left_index: Int32[Array, ""] = jnp.clip(right_index - 1, 0, count - 2)
 
-    def interval_valid(index: Array) -> Bool[Array, ""]:
+    def interval_valid(index: Int32[Array, ""]) -> Bool[Array, ""]:
         is_valid: Bool[Array, ""] = (
             jnp.isfinite(sigma_nodes[index])
             & jnp.isfinite(sigma_nodes[index + 1])

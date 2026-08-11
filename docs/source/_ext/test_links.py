@@ -1,131 +1,261 @@
-"""Sphinx extension: resolve compact ``:see:`` references into test pages.
+"""Resolve compact test references for the Sphinx API pages.
 
-Throughout the diffpes docstrings, functions and classes point at the test
-that exercises them via lines such as::
+Extended Summary
+----------------
+The extension scans the test tree once during a documentation build. It maps
+test classes and top-level test functions to their complete import paths.
+The processor then rewrites compact ``:see:`` targets before Sphinx parses
+each docstring.
 
-    :see: :class:`~.test_bessel.TestSphericalBesselJl`
-    :see: :func:`~.test_faddeeva_taylor_series_accuracy`
-
-The referenced objects live in ``tests/`` and are documented in the Test
-Reference. This extension scans ``tests/`` once at build start, maps every
-test class and top-level test function to its import path, and rewrites compact
-relative references into fully qualified Python-domain references so Sphinx can
-link source API docs to rendered validation pages.
+Routine Listings
+----------------
+:func:`setup`
+    Register the compact test-reference resolver.
 """
 
 from __future__ import annotations
 
 import ast
-import os
 import re
-from typing import Any
+from pathlib import Path
 
-_ROLE_RE = re.compile(
+from beartype.typing import Any, Callable, Dict, List, Optional, Tuple
+from sphinx.application import Sphinx
+
+_ROLE_RE: re.Pattern[str] = re.compile(
     r":(?P<role>class|func|meth|obj):`(?P<target>~?\.?[\w.]+)`"
 )
 
 
 def _scan_tests(
-    repo_root: str,
-) -> tuple[dict[str, dict[str, tuple[str, str]]], dict[str, tuple[str, str]]]:
-    """Index every documented test object under ``tests/``."""
-    by_module: dict[str, dict[str, tuple[str, str]]] = {}
-    global_names: dict[str, tuple[str, str]] = {}
-    tests_dir = os.path.join(repo_root, "tests")
-    for dirpath, _dirnames, filenames in os.walk(tests_dir):
-        for filename in filenames:
-            if not (filename.startswith("test_") and filename.endswith(".py")):
-                continue
-            abspath = os.path.join(dirpath, filename)
-            relpath = os.path.relpath(abspath, repo_root)
-            module_name = os.path.splitext(relpath)[0].replace(os.sep, ".")
-            try:
-                with open(abspath, encoding="utf-8") as handle:
-                    tree = ast.parse(handle.read(), filename=abspath)
-            except (OSError, SyntaxError):
-                continue
+    repository_root: Path,
+) -> Tuple[
+    Dict[str, Dict[str, Tuple[str, str]]],
+    Dict[str, Tuple[str, str]],
+]:
+    """PRIVATE: Index each documented test object under the test tree.
 
-            names: dict[str, tuple[str, str]] = {}
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef):
-                    qualified_name = f"{module_name}.{node.name}"
-                    names.setdefault(node.name, ("class", qualified_name))
-                    global_names.setdefault(
-                        node.name,
-                        ("class", qualified_name),
-                    )
-                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if node.name.startswith("test_"):
-                        qualified_name = f"{module_name}.{node.name}"
-                        names.setdefault(node.name, ("func", qualified_name))
-                        global_names.setdefault(
-                            node.name,
-                            ("func", qualified_name),
-                        )
-            by_module[filename[:-3]] = names
-    return by_module, global_names
+    Parameters
+    ----------
+    repository_root : Path
+        Root directory of the repository.
+
+    Returns
+    -------
+    test_index : Dict[str, Dict[str, Tuple[str, str]]]
+        Test objects grouped by their module basename.
+    global_names : Dict[str, Tuple[str, str]]
+        First registered role and import path for each test object name.
+
+    Notes
+    -----
+    The scan skips files that the parser cannot read. Sphinx reports a missing
+    target later if a skipped file owns a requested object.
+    """
+    by_module: Dict[str, Dict[str, Tuple[str, str]]] = {}
+    global_names: Dict[str, Tuple[str, str]] = {}
+    tests_directory: Path = repository_root / "tests"
+    test_path: Path
+    for test_path in sorted(tests_directory.rglob("test_*.py")):
+        relative_path: Path = test_path.relative_to(repository_root)
+        module_name: str = ".".join(relative_path.with_suffix("").parts)
+        try:
+            source_text: str = test_path.read_text(encoding="utf-8")
+            tree: ast.Module = ast.parse(source_text, filename=str(test_path))
+        except (OSError, SyntaxError):
+            continue
+
+        names: Dict[str, Tuple[str, str]] = {}
+        node: ast.stmt
+        for node in tree.body:
+            role: Optional[str] = None
+            node_name: Optional[str] = None
+            if isinstance(node, ast.ClassDef):
+                role = "class"
+                node_name = node.name
+            elif isinstance(
+                node, (ast.FunctionDef, ast.AsyncFunctionDef)
+            ) and node.name.startswith("test_"):
+                role = "func"
+                node_name = node.name
+            if role is None or node_name is None:
+                continue
+            qualified_name: str = f"{module_name}.{node_name}"
+            entry: Tuple[str, str] = (role, qualified_name)
+            names.setdefault(node_name, entry)
+            global_names.setdefault(node_name, entry)
+        by_module[test_path.stem] = names
+    scan_result: Tuple[
+        Dict[str, Dict[str, Tuple[str, str]]],
+        Dict[str, Tuple[str, str]],
+    ] = (by_module, global_names)
+    return scan_result
 
 
 def _resolve(
     core: str,
-    by_module: dict[str, dict[str, tuple[str, str]]],
-    global_names: dict[str, tuple[str, str]],
-) -> tuple[str, str] | None:
-    """Resolve a stripped test target to ``(role, qualified_name)``."""
-    parts = core.split(".")
-    if len(parts) >= 2:
-        module_basename = parts[-2]
-        name = parts[-1]
-        entry = by_module.get(module_basename)
-        if entry and name in entry:
-            return entry[name]
+    by_module: Dict[str, Dict[str, Tuple[str, str]]],
+    global_names: Dict[str, Tuple[str, str]],
+) -> Optional[Tuple[str, str]]:
+    """PRIVATE: Resolve one stripped target to its role and import path.
 
-    name = parts[-1]
-    if name in global_names:
-        return global_names[name]
-    return None
+    Parameters
+    ----------
+    core : str
+        Compact target without Sphinx display prefixes.
+    by_module : Dict[str, Dict[str, Tuple[str, str]]]
+        Test objects grouped by their module basename.
+    global_names : Dict[str, Tuple[str, str]]
+        First registered role and path for each test object name.
+
+    Returns
+    -------
+    resolved : Optional[Tuple[str, str]]
+        The role and import path, or ``None`` when no target matches.
+
+    Notes
+    -----
+    A module-qualified match takes precedence over a global name match.
+    """
+    parts: List[str] = core.split(".")
+    name: str = parts[-1]
+    if "." in core:
+        module_basename: str = parts[-2]
+        module_entry: Optional[Dict[str, Tuple[str, str]]] = by_module.get(
+            module_basename
+        )
+        if module_entry is not None and name in module_entry:
+            resolved_by_module: Tuple[str, str] = module_entry[name]
+            return resolved_by_module
+    resolved: Optional[Tuple[str, str]] = global_names.get(name)
+    return resolved
 
 
-def _make_processor(app: Any) -> Any:
-    """Create an autodoc docstring processor with a cached test index."""
-    state: dict[str, Any] = {"by_module": None, "global_names": None}
+def _make_processor(
+    app: Sphinx,
+) -> Callable[[Sphinx, str, str, object, object, List[str]], None]:
+    """PRIVATE: Create a processor with a cached test-object index.
 
-    def process_docstring(
-        _app: Any,
+    Parameters
+    ----------
+    app : Sphinx
+        Active Sphinx application.
+
+    Returns
+    -------
+    processor : Callable[[Sphinx, str, str, object, object, List[str]], None]
+        Callback for the ``autodoc-process-docstring`` event.
+
+    Notes
+    -----
+    The callback creates the index on its first docstring event. It reuses
+    that index for the remainder of the build.
+    """
+    state: Dict[str, Any] = {"by_module": None, "global_names": None}
+
+    def _process_docstring(
+        _app: Sphinx,
         _what: str,
         _name: str,
         _obj: object,
         _options: object,
-        lines: list[str],
+        lines: List[str],
     ) -> None:
-        """Rewrite compact test refs before Sphinx parses the docstring."""
-        if state["by_module"] is None:
-            repo_root = os.path.abspath(
-                os.path.join(app.srcdir, os.pardir, os.pardir)
-            )
-            state["by_module"], state["global_names"] = _scan_tests(repo_root)
+        """PRIVATE: Rewrite compact test targets in one docstring.
 
-        def replace(match: re.Match[str]) -> str:
-            target = match.group("target")
-            core = target.lstrip("~.")
-            resolved = _resolve(
+        Parameters
+        ----------
+        _app : Sphinx
+            Sphinx application supplied by the event.
+        _what : str
+            Documented object category supplied by autodoc.
+        _name : str
+            Complete name of the documented object.
+        _obj : object
+            Documented Python object.
+        _options : object
+            Active autodoc options.
+        lines : List[str]
+            Mutable lines of the current docstring.
+
+        Notes
+        -----
+        The processor changes only lines that contain a compact test target.
+        """
+        if state["by_module"] is None:
+            repository_root: Path = Path(app.srcdir).resolve().parents[1]
+            state["by_module"], state["global_names"] = _scan_tests(
+                repository_root
+            )
+
+        def _replace(match: re.Match[str]) -> str:
+            """PRIVATE: Replace one compact Sphinx role target.
+
+            Parameters
+            ----------
+            match : re.Match[str]
+                Regular-expression match for one Sphinx role.
+
+            Returns
+            -------
+            replacement : str
+                Complete target when resolution succeeds, or the input text.
+
+            Notes
+            -----
+            The replacement preserves unresolved targets for Sphinx to report.
+            """
+            target: str = match.group("target")
+            core: str = target.lstrip("~.")
+            resolved: Optional[Tuple[str, str]] = _resolve(
                 core,
                 state["by_module"],
                 state["global_names"],
             )
             if resolved is None:
-                return match.group(0)
+                unresolved: str = match.group(0)
+                return unresolved
+            role: str
+            qualified_name: str
             role, qualified_name = resolved
-            return f":{role}:`~{qualified_name}`"
+            replacement: str = f":{role}:`~{qualified_name}`"
+            return replacement
 
+        index: int
+        line: str
         for index, line in enumerate(lines):
-            if "test_" in line and _ROLE_RE.search(line):
-                lines[index] = _ROLE_RE.sub(replace, line)
+            if "test_" in line and _ROLE_RE.search(line) is not None:
+                lines[index] = _ROLE_RE.sub(_replace, line)
 
-    return process_docstring
+    processor: Callable[
+        [Sphinx, str, str, object, object, List[str]], None
+    ] = _process_docstring
+    return processor
 
 
-def setup(app: Any) -> dict[str, object]:
-    """Register the compact test-reference resolver."""
+def setup(app: Sphinx) -> Dict[str, object]:
+    """Register the compact test-reference resolver.
+
+    Parameters
+    ----------
+    app : Sphinx
+        Active Sphinx application.
+
+    Returns
+    -------
+    metadata : Dict[str, object]
+        Extension version and parallel-read safety metadata.
+
+    Notes
+    -----
+    Sphinx invokes this function when it loads the extension.
+    """
     app.connect("autodoc-process-docstring", _make_processor(app))
-    return {"version": "1.0", "parallel_read_safe": True}
+    metadata: Dict[str, object] = {
+        "version": "1.0",
+        "parallel_read_safe": True,
+    }
+    return metadata
+
+
+__all__: list[str] = ["setup"]

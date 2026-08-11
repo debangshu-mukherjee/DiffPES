@@ -31,22 +31,23 @@ class TestSummarizeCertificate:
 
         Notes
         -----
-        The test builds the shared certificate fixture and searches its compact text.
+        The test builds the shared certificate fixture and searches its
+        compact text.
         """
         summary: str = summarize_certificate(sample_certificate())
         assert "org.diffpes.model.arpes.test" in summary
 
-    def test_summary_answers_identity_provenance_claim_and_derivative_questions(
+    def test_summary_answers_certification_questions(
         self,
     ) -> None:
-        """Verify summary answers identity provenance claim and derivative questions.
+        """Verify the summary answers key certification questions.
 
         The case uses explicit inputs in the supported certification regime.
         It checks the public result or the documented failure state.
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         summary: Any
         summary = summarize_certificate(sample_certificate())
@@ -89,7 +90,7 @@ class TestExplainClaim:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         rationale: Any
         rationale = explain_claim(sample_certificate(), "claim.output.finite")
@@ -110,7 +111,7 @@ class TestExplainClaim:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(KeyError, match="not present"):
             explain_claim(sample_certificate(), "claim.missing")
@@ -134,7 +135,7 @@ class TestDiffCertificates:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         original: Any
         audit_changed: Any
@@ -175,7 +176,7 @@ class TestDiffCertificates:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         certificate: Any
         difference: Any

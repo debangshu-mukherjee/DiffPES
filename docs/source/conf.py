@@ -1,9 +1,28 @@
+"""Configure the static Sphinx documentation build.
+
+Extended Summary
+----------------
+The configuration loads package metadata, enables MyST Markdown, and connects
+the local test-reference extension. The documentation workflow regenerates
+tutorial exports before Sphinx reads this tree.
+
+Routine Listings
+----------------
+:func:`setup`
+    Register the local autodoc callbacks.
+"""
+
+from __future__ import annotations
+
 import os
 import sys
 import tomllib
 from datetime import datetime
 
-# Disable JAX GPU usage during doc building to prevent timeouts
+from beartype.typing import Any, Dict, Optional, Tuple
+from sphinx.application import Sphinx
+
+# Keep the documentation build on the CPU.
 os.environ["JAX_PLATFORM_NAME"] = "cpu"
 os.environ["JAX_PLATFORMS"] = "cpu"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -11,16 +30,55 @@ os.environ["JAX_ENABLE_X64"] = "True"
 os.environ["BUILDING_DOCS"] = "1"
 
 
-# Make jaxtyped decorator a no-op during doc building to preserve docstrings
-# This MUST be done before any diffpes imports
-def _noop_decorator(*args, **kwargs):
-    """No-op decorator for documentation building."""
+def _identity(function: Any) -> Any:
+    """PRIVATE: Return one callable without modification.
+
+    Parameters
+    ----------
+    function : Any
+        Callable or descriptor supplied to the documentation decorator.
+
+    Returns
+    -------
+    unchanged : Any
+        The original object.
+
+    Notes
+    -----
+    The documentation decorator uses this helper in its factory form.
+    """
+    unchanged: Any = function
+    return unchanged
+
+
+def _noop_decorator(*args: Any, **kwargs: Any) -> Any:
+    """PRIVATE: Preserve a callable while Sphinx imports the package.
+
+    Parameters
+    ----------
+    *args : Any
+        Positional decorator arguments or one directly decorated callable.
+    **kwargs : Any
+        Keyword arguments supplied to the decorator factory.
+
+    Returns
+    -------
+    decorator_or_callable : Any
+        The input callable or an identity decorator.
+
+    Notes
+    -----
+    The replacement keeps original docstrings available to autodoc. The
+    package import occurs only after this replacement becomes active.
+    """
     if len(args) == 1 and callable(args[0]) and not kwargs:
-        return args[0]
-    return lambda fn: fn
+        decorator_or_callable: Any = args[0]
+    else:
+        decorator_or_callable = _identity
+    return decorator_or_callable
 
 
-import jaxtyping
+import jaxtyping  # noqa: E402
 
 jaxtyping.jaxtyped = _noop_decorator
 
@@ -39,8 +97,6 @@ if os.path.isdir(venv_bin_path):
     os.environ["PATH"] = os.pathsep.join(
         [venv_bin_path, os.environ.get("PATH", "")]
     )
-
-print(f"Added to sys.path: {src_path}")
 
 # Read project metadata from pyproject.toml
 pyproject_path = os.path.join(project_root, "pyproject.toml")
@@ -68,14 +124,13 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
-    "myst_nb",
+    "myst_parser",
     "test_links",
 ]
 
 source_suffix = {
     ".rst": "restructuredtext",
-    ".md": "myst-nb",
-    ".ipynb": "myst-nb",
+    ".md": "markdown",
 }
 
 # MyST-Parser configuration for LaTeX math rendering
@@ -98,16 +153,6 @@ suppress_warnings = [
 myst_dmath_double_inline = True
 myst_heading_anchors = 3
 
-# Execute notebooks through jupyter-cache. Unexpected cell errors are fatal
-# even without Sphinx's ``-W`` flag; CI also uses ``-W`` for documentation
-# warnings. Source notebooks stay output-free because execution results live
-# under ``docs/build/.jupyter_cache``.
-nb_execution_mode = "cache"
-nb_execution_allow_errors = False
-nb_execution_raise_on_error = True
-nb_execution_show_tb = True
-nb_execution_timeout = 300
-
 # MathJax configuration to ensure math renders properly
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 mathjax3_config = {
@@ -119,7 +164,9 @@ mathjax3_config = {
     },
     "options": {
         "ignoreHtmlClass": "tex2jax_ignore",
-        "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area|content",
+        "processHtmlClass": (
+            "tex2jax_process|mathjax_process|math|output_area|content"
+        ),
     },
     "chtml": {
         "scale": 1.0,
@@ -156,18 +203,6 @@ html_theme_options = {
     "source_repository": "https://github.com/debangshu-mukherjee/diffpes/",
     "source_branch": "main",
     "source_directory": "docs/source/",
-    "footer_icons": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/debangshu-mukherjee/diffpes/",
-            "html": """
-                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
-                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-                </svg>
-            """,
-            "class": "",
-        },
-    ],
 }
 
 # -- Extension configuration -------------------------------------------------
@@ -241,7 +276,7 @@ napoleon_type_aliases = {
 typehints_defaults = "comma"
 typehints_type_aliases = napoleon_type_aliases
 
-# Staged for a future strict-nitpicky (-n) build (inert while nitpicky = False):
+# Keep these names ready for a future strict cross-reference build.
 # jaxtyping/beartype type names autodoc cannot resolve as Python classes.
 nitpick_ignore = [
     ("py:class", "Float"),
@@ -269,11 +304,42 @@ intersphinx_mapping = {
 # -- Custom setup ------------------------------------------------------------
 
 
-def skip_member(app, what, name, obj, skip, options):
+def _skip_member(
+    _app: Sphinx,
+    what: str,
+    name: str,
+    obj: object,
+    skip: bool,
+    _options: object,
+) -> bool:
+    """PRIVATE: Select members that autodoc must omit.
+
+    Parameters
+    ----------
+    _app : Sphinx
+        Active Sphinx application.
+    what : str
+        Category of the documented Python object.
+    name : str
+        Candidate member name.
+    obj : object
+        Candidate Python object.
+    skip : bool
+        Previous skip decision from autodoc.
+    _options : object
+        Active autodoc options.
+
+    Returns
+    -------
+    skip_result : bool
+        ``True`` when autodoc must omit the candidate member.
+
+    Notes
+    -----
+    The callback hides imported annotation helpers and private members. It
+    also hides tuple-field descriptors that duplicate class attributes.
     """
-    Skip specific members in documentation.
-    """
-    skip_names = [
+    skip_names: Tuple[str, ...] = (
         "Float",
         "Array",
         "Int",
@@ -284,36 +350,94 @@ def skip_member(app, what, name, obj, skip, options):
         "jaxtyped",
         "tree_flatten",
         "tree_unflatten",
-    ]
-    if name in skip_names:
-        return True
-    if name.startswith("_") and not name.startswith("__"):
-        return True
-
-    # Skip NamedTuple field descriptors to avoid duplicate object descriptions
-    # when both class attributes and module-level data entries are documented
-    if what == "data" and hasattr(obj, "_field_types"):
-        return True
-
-    return skip
+    )
+    if name in skip_names or (
+        name.startswith("_") and not name.startswith("__")
+    ):
+        skip_result: bool = True
+    elif what == "data" and hasattr(obj, "_field_types"):
+        skip_result = True
+    else:
+        skip_result = skip
+    return skip_result
 
 
-def process_signature(
-    app, what, name, obj, options, signature, return_annotation
-):
+def _process_signature(
+    _app: Sphinx,
+    _what: str,
+    _name: str,
+    _obj: object,
+    _options: object,
+    signature: Optional[str],
+    return_annotation: Any,
+) -> Tuple[Optional[str], Any]:
+    """PRIVATE: Shorten jaxtyping arrays in one displayed signature.
+
+    Parameters
+    ----------
+    _app : Sphinx
+        Active Sphinx application.
+    _what : str
+        Category of the documented Python object.
+    _name : str
+        Complete name of the documented object.
+    _obj : object
+        Documented Python object.
+    _options : object
+        Active autodoc options.
+    signature : Optional[str]
+        Signature text produced by autodoc.
+    return_annotation : Any
+        Return annotation produced by autodoc.
+
+    Returns
+    -------
+    processed : Optional[str]
+        Signature with compact array names, or ``None``.
+    returned_annotation : Any
+        Unchanged return annotation.
+
+    Notes
+    -----
+    The replacements affect displayed text only. They do not change runtime
+    annotations or their validation.
     """
-    Process signatures to handle jaxtyping annotations.
+    processed: Optional[str] = signature
+    if processed:
+        processed = processed.replace('Float[Array, " ', "FloatArray[")
+        processed = processed.replace('Int[Array, " ', "IntArray[")
+        processed = processed.replace('Bool[Array, " ', "BoolArray[")
+        processed = processed.replace('Num[Array, " ', "NumArray[")
+        processed = processed.replace('Complex[Array, " ', "ComplexArray[")
+        processed = processed.replace('"]', "]")
+    result: Tuple[Optional[str], Any] = (processed, return_annotation)
+    return result
+
+
+def setup(app: Sphinx) -> Dict[str, object]:
+    """Register the local autodoc callbacks.
+
+    Parameters
+    ----------
+    app : Sphinx
+        Active Sphinx application.
+
+    Returns
+    -------
+    metadata : Dict[str, object]
+        Configuration version and parallel-read safety metadata.
+
+    Notes
+    -----
+    Sphinx calls this function after it evaluates the configuration module.
     """
-    if isinstance(signature, str) and signature:
-        signature = signature.replace('Float[Array, " ', "FloatArray[")
-        signature = signature.replace('Int[Array, " ', "IntArray[")
-        signature = signature.replace('Bool[Array, " ', "BoolArray[")
-        signature = signature.replace('Num[Array, " ', "NumArray[")
-        signature = signature.replace('Complex[Array, " ', "ComplexArray[")
-        signature = signature.replace('"]', "]")
-    return signature, return_annotation
+    app.connect("autodoc-skip-member", _skip_member)
+    app.connect("autodoc-process-signature", _process_signature)
+    metadata: Dict[str, object] = {
+        "version": "1.0",
+        "parallel_read_safe": True,
+    }
+    return metadata
 
 
-def setup(app):
-    app.connect("autodoc-skip-member", skip_member)
-    app.connect("autodoc-process-signature", process_signature)
+__all__: list[str] = ["setup"]

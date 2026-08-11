@@ -2,8 +2,8 @@ r"""Compose the coherent ARPES forward and photon-energy-scan drivers.
 
 Extended Summary
 ----------------
-This module composes the intrinsic Plan-06/07 observable with the Plan-08a
-detector chain and the Plan-08b bulk-:math:`k_z` integral.  It builds
+This module composes the intrinsic coherent observable with the canonical
+detector chain and the bulk-:math:`k_z` integral. It builds
 matrix-element source kets only inside each live energy/k-point/node chunk.
 It solves the explicit orbital Hamiltonian through the degeneracy-safe
 resolvent and multiplies by sampled Fermi occupation.  It materializes a
@@ -15,7 +15,7 @@ The Hamiltonian is an explicit input.  ``DiagonalizedBands`` supplies orbital,
 crystal, Fermi-level, and source-coordinate metadata, but this module never
 reconstructs a Hamiltonian from its eigenvectors.  Such a value-only
 reconstruction silently replaces the native Hamiltonian derivative with an
-eigensystem derivative.  The complete Plan-06 parameter
+eigensystem derivative. The complete matrix-element parameter
 surface is likewise explicit: ``RadialSpec``, ``MatrixElementParams``,
 ``RadialQuadratureSpec``, and ``FinalStateSpec`` all cross the driver boundary.
 
@@ -58,8 +58,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Any, Tuple, Union
-from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
+from beartype.typing import Any, List, Tuple, Union
+from jaxtyping import Array, Bool, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.tightb import bloch_hamiltonian_batch
 from diffpes.types import (
@@ -83,8 +83,10 @@ from diffpes.types import (
     SelfEnergyModel,
     SurfaceCell,
     TBModel,
+    TransitionSourceSchedule,
     make_arpes_cube,
     make_arpes_spectrum,
+    make_transition_source_schedule,
 )
 
 from . import effects as _effects
@@ -607,23 +609,19 @@ def _stream_cartesian_intensity(  # noqa: DOC503, PLR0913, PLR0917
         geometry.polarization,
         sample_orientation,
     )
-    schedule: _spectral._TransitionSourceSchedule = (
-        _spectral._TransitionSourceSchedule(
-            k_i_cart=padded_k_cart,
-            final_norm=padded_final_norm,
-            emission_energy_valid=padded_emission_energy_valid,
-            positions_cart=positions_cart,
-            depths=depths,
-            polarization_sample_cart=polarization_sample,
-            mean_free_path_ang=geometry.mean_free_path_ang,
-            radial=radial_spec,
-            matrix_element=matrix_element_params,
-            quadrature=radial_quadrature,
-            final_state=final_state,
-            inner_potential_geometry=(
-                geometry if use_inner_potential else None
-            ),
-        )
+    schedule: TransitionSourceSchedule = make_transition_source_schedule(
+        k_i_cart=padded_k_cart,
+        final_norm=padded_final_norm,
+        emission_energy_valid=padded_emission_energy_valid,
+        positions_cart=positions_cart,
+        depths=depths,
+        polarization_sample_cart=polarization_sample,
+        mean_free_path_ang=geometry.mean_free_path_ang,
+        radial=radial_spec,
+        matrix_element=matrix_element_params,
+        quadrature=radial_quadrature,
+        final_state=final_state,
+        inner_potential_geometry=(geometry if use_inner_potential else None),
     )
     padded_intensity: Float64[Array, "n_k_padded n_e_padded"] = (
         _spectral._stream_spectral_intensity(
@@ -649,7 +647,7 @@ def _checked_coherent_slab_bands(  # noqa: DOC502, DOC503
     bands: DiagonalizedBands,
     surface_cell: SurfaceCell,
 ) -> DiagonalizedBands:
-    """PRIVATE: Bind one slab eigensystem to its Plan-05 surface frame.
+    """PRIVATE: Bind one slab eigensystem to its surface frame.
 
     Parameters
     ----------
@@ -657,7 +655,7 @@ def _checked_coherent_slab_bands(  # noqa: DOC502, DOC503
         Depth-bearing slab data whose geometry is already in the surface
         frame.
     surface_cell : SurfaceCell
-        Surface carrier returned by the same Plan-05 slab construction.
+        Surface carrier returned by the same slab construction.
 
     Returns
     -------
@@ -673,7 +671,7 @@ def _checked_coherent_slab_bands(  # noqa: DOC502, DOC503
 
     Notes
     -----
-    Plan 05 reconstructibly guarantees only that the slab lattice begins
+    The slab construction guarantees only that the slab lattice begins
     with ``surface_cell.in_plane_vectors`` and ends with
     ``(0, 0, height > 0)``. ``DiagonalizedBands`` does not retain enough bulk
     provenance to reconstruct or compare Miller coefficients or rotations.
@@ -771,7 +769,7 @@ def _stream_domain_intensity(  # noqa: DOC503, PLR0913, PLR0917
     use_inner_potential : bool, optional
         Use exact finite-energy internal final kz. Default is ``False``.
     surface_cell : SurfaceCell | None, optional
-        Plan-05 surface frame required by coherent-slab mode. Default is
+        Surface frame required by coherent-slab mode. Default is
         ``None``.
 
     Returns
@@ -785,7 +783,7 @@ def _stream_domain_intensity(  # noqa: DOC503, PLR0913, PLR0917
         If the public sampled-energy axis contains fewer than two points.
         If the coherent-slab route lacks its surface cell.
     EquinoxRuntimeError
-        If a coherent slab geometry disagrees with its Plan-05 surface frame.
+        If a coherent slab geometry disagrees with its surface frame.
 
     Notes
     -----
@@ -798,7 +796,7 @@ def _stream_domain_intensity(  # noqa: DOC503, PLR0913, PLR0917
     checked_bands: DiagonalizedBands = bands
     if use_inner_potential:
         if surface_cell is None:
-            raise ValueError("coherent_slab requires its Plan-05 surface cell")
+            raise ValueError("coherent_slab requires its surface cell")
         checked_bands = _checked_coherent_slab_bands(bands, surface_cell)
     k_cart: Float64[Array, "n_k 3"] = _checked_source_axes(
         checked_bands, source_kpoints
@@ -915,7 +913,7 @@ def _bulk_orbital_positions_surface_cartesian(
     """
     positions_fractional: Float64[Array, "n_orb 3"]
     if model.orbital_positions is None:
-        atom_indices: Array = jnp.asarray(
+        atom_indices: Int32[Array, " n_orb"] = jnp.asarray(
             model.basis.atom_indices,
             dtype=jnp.int32,
         )
@@ -1663,7 +1661,7 @@ def _physical_cubes(  # noqa: DOC105, PLR0913, PLR0917
             "simulate_arpes requires an explicit fixed-kz grid without a "
             "photon-energy axis"
         )
-    cubes: list[ArpesCube] = []
+    cubes: List[ArpesCube] = []
     reference_axes: (
         Tuple[Float64[Array, " n_kx"], Float64[Array, " n_ky"]] | None
     ) = None
@@ -1870,7 +1868,7 @@ def _physical_spectra(  # noqa: DOC105, DOC503, PLR0913, PLR0917
         )
     if kpath.kz is None:
         raise ValueError("simulate_arpes_cut requires an explicit fixed kz")
-    spectra: list[ArpesSpectrum] = []
+    spectra: List[ArpesSpectrum] = []
     reference_points: Float64[Array, "n_k 3"] | None = None
     bulk_mode: bool = kz_mode in {"bulk_direct", "bulk_kz"}
     n_domains: int = (
@@ -2058,9 +2056,9 @@ def simulate_arpes(  # noqa: DOC105, DOC502, DOC503, PLR0913, PLR0917
         Per-domain exact surface frames for bulk/coherent modes. Default is
         ``None``.
     kz_nodes_frac : Float64[Array, " n_kz"] | None, optional
-        Explicit registered midpoint nodes for ``bulk_kz``. The library G6
-        profile certifies 2048 nodes. Every other explicit uniform count is a
-        caller-owned recalibration or reduced diagnostic and carries no
+        Explicit registered midpoint nodes for ``bulk_kz``. The independent
+        convergence profile certifies 2048 nodes. Every other uniform count
+        is a caller-owned recalibration or reduced diagnostic and carries no
         library accuracy claim. Default is ``None``.
     kz_mode : str, optional
         ``"native_direct"``, ``"bulk_direct"``, ``"bulk_kz"``, or
@@ -2201,9 +2199,9 @@ def simulate_arpes_cut(  # noqa: DOC105, DOC502, DOC503, PLR0913, PLR0917
         Per-domain exact surface frames for bulk/coherent modes. Default is
         ``None``.
     kz_nodes_frac : Float64[Array, " n_kz"] | None, optional
-        Explicit registered midpoint nodes for ``bulk_kz``. The library G6
-        profile certifies 2048 nodes. Every other explicit uniform count is a
-        caller-owned recalibration or reduced diagnostic and carries no
+        Explicit registered midpoint nodes for ``bulk_kz``. The independent
+        convergence profile certifies 2048 nodes. Every other uniform count
+        is a caller-owned recalibration or reduced diagnostic and carries no
         library accuracy claim. Default is ``None``.
     kz_mode : str, optional
         ``"native_direct"``, ``"bulk_direct"``, ``"bulk_kz"``, or
@@ -2337,9 +2335,9 @@ def simulate_hv_scan(  # noqa: DOC105, DOC502, DOC503, PLR0913, PLR0917
     surface_cell : SurfaceCell | None, optional
         Exact surface frame for bulk/coherent mode. Default is ``None``.
     kz_nodes_frac : Float64[Array, " n_kz"] | None, optional
-        Explicit registered midpoint nodes for ``bulk_kz``. The library G6
-        profile certifies 2048 nodes. Every other explicit uniform count is a
-        caller-owned recalibration or reduced diagnostic and carries no
+        Explicit registered midpoint nodes for ``bulk_kz``. The independent
+        convergence profile certifies 2048 nodes. Every other uniform count
+        is a caller-owned recalibration or reduced diagnostic and carries no
         library accuracy claim. Default is ``None``.
     kz_mode : str, optional
         Registered mutually exclusive mode. Default is ``"native_direct"``.
@@ -2529,12 +2527,12 @@ def hv_map_at_energy(  # noqa: DOC503
         | (query > energy_axis[-1]),
         "energy axis must increase and the query must lie in its domain",
     )
-    upper: Array = jnp.clip(
+    upper: Int32[Array, ""] = jnp.clip(
         jnp.searchsorted(checked_axis, query, side="right"),
         1,
         checked_axis.shape[0] - 1,
     )
-    lower: Array = upper - 1
+    lower: Int32[Array, ""] = upper - 1
     fraction: Float64[Array, ""] = (query - checked_axis[lower]) / (
         checked_axis[upper] - checked_axis[lower]
     )

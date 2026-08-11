@@ -54,7 +54,7 @@ from diffpes.types import (
     make_radial_spec,
     make_slater_koster_params,
 )
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 type Capstone = Tuple[
     Float64[Array, " 1"],
@@ -121,7 +121,7 @@ def _bulk_context() -> Tuple[
     return context
 
 
-def _capstone() -> Capstone:
+def _capstone() -> Capstone:  # noqa: PLR0915
     """PRIVATE: Build the frozen-topology loss and registered group callback.
 
     Returns
@@ -318,7 +318,11 @@ def _capstone() -> Capstone:
 
 
 class TestSlaterKosterDepthGradient:
-    """Certify the SK-to-depth-to-group-weight derivative capstone."""
+    """Certify the SK-to-depth-to-group-weight derivative capstone.
+
+    The case perturbs one Slater-Koster parameter and compares its complete
+    group-weight gradient with a central finite difference.
+    """
 
     @pytest.mark.rss_limit_mb(1800)
     def test_sk_parameter_reaches_complete_group_weight(self) -> None:
@@ -330,7 +334,8 @@ class TestSlaterKosterDepthGradient:
 
         Notes
         -----
-        Run the stiff finite-difference ladder and compare the registered group helper.
+        Run the stiff finite-difference ladder and compare the registered group
+        helper.
         """
         active: Float64[Array, " 1"]
         loss: Callable[[Float64[Array, " 1"]], Float64[Array, ""]]
@@ -353,7 +358,7 @@ class TestSlaterKosterDepthGradient:
             experiment,
         ) = _capstone()
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             active,
             regime="stiff",

@@ -30,7 +30,7 @@
     "note": "identical environment identity (same freeze hash) as the committed slab and matrix-element Chinook artifacts"
   },
   "offline_generation": {
-    "runner": "diffpes-plans/verification/spectral_chinook_crosscheck/run_chinook_spectral.py",
+    "runner": "run_chinook_spectral.py",
     "runner_generator_field": "run_chinook_spectral.py",
     "raw_archive": "chinook_spectral_raw.npz",
     "raw_archive_sha256": "47d15ec2db3dbc60068c914756280db8c7053822e438bb8b42ec6ac4002076b1",
@@ -111,13 +111,13 @@
   },
   "assembler": {
     "script": "tests/_reference_tools/generate_chinook_spectral_reference.py",
-    "script_sha256": "0236bb1206d65581c05af21b017890c4508e2351105632fe9cf150db5197c0cc",
+    "script_sha256": "059bb7024d9199afcbecdf63763b4572791b311172f4ede0bb1358b147389c87",
     "boundary": "imports NumPy only; consumes the offline raw archive and re-freezes it after full parameter revalidation"
   },
   "diffpes_baseline_commit": "551f7fca10dde5adbd856a526b63c6e77ad8f1d3",
   "model_and_axis_parameters": {
-    "model_id": "RM-1-spectral",
-    "protocol_model": "chinook-parity protocol section 2.2 graphene p_z two-site reference model (RM-1)",
+    "model_id": "graphene-two-site-spectral",
+    "protocol_model": "chinook-parity protocol section 2.2 graphene p_z two-site reference model",
     "lattice_constant_angstrom": 2.46,
     "lattice_vectors": "a1=a*(sqrt(3)/2,-1/2,0), a2=a*(sqrt(3)/2,1/2,0), a3=(0,0,10)",
     "positions_fractional": [
@@ -157,7 +157,7 @@
       "sigma_ev": "-i*0.02",
       "gamma_ev": 0.02,
       "eta_floor_ev": 5e-05,
-      "eta_floor_origin": "Chinook ARPES_lib.experiment.spectral hard-codes -0.00005j in the resolvent denominator (protocol declared difference D-3)"
+      "eta_floor_origin": "Chinook ARPES_lib.experiment.spectral hard-codes -0.00005j in the resolvent denominator (declared eta-floor difference)"
     },
     "radial_mode": "fixed; p-to-s and p-to-d values (1, -1) after the i**lprime phase, matching the committed Chinook matrix-element parity artifact",
     "valley_centre": "(2*pi/a)*(1/sqrt(3), 1/3, 0)",
@@ -323,7 +323,7 @@
   "state_count": 1004,
   "forensic_self_energy_sign_convention": {
     "name": "self-energy-sign-convention-divergence",
-    "non_gating": true,
+    "diagnostic_only": true,
     "acceptance_tolerance": null,
     "classification": "documented expected divergence; forensic evidence only (chinook-parity protocol section 9 triage doctrine)",
     "diffpes_convention": "retarded self-energy with Sigma''(omega) <= 0 everywhere; KK real part from the verified causal-pair/KK operator",

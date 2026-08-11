@@ -1,44 +1,35 @@
-"""Generate the preproduction Kramers--Kronig operator-selection artifact.
+"""Generate the independent Kramers--Kronig operator-selection artifact.
 
 Extended Summary
 ----------------
-This generator drives the candidate principal-value operators through the
-frozen convergence battery and writes the deterministic evidence archive
-used to select the immutable production KK operator.  It compares the
-cell-integrated piecewise-quadratic and piecewise-cubic operators on the
-two analytic fixtures, retains the rejected opposite-parity Maclaurin
-control, and adds four evidence families:
+Evaluate candidate principal-value operators with the frozen convergence
+battery. Write the deterministic evidence archive that selects the immutable
+production operator. Compare the quadratic and cubic cell operators on two
+analytic fixtures. Retain the rejected opposite-parity Maclaurin control.
+Record four evidence families:
 
-- carrier-consistency rows: the binding grid-mode carrier is the
-  piecewise-linear hat interpolant, for which the cell-integrated linear
-  transform is analytically exact and sign-preserving; a planted kinked
-  hat fixture measures that exactness against a closed-form segment
-  arbiter and records the cubic operator's kink error and positivity
-  overshoot as the counter-witness;
-- query-derivative rows through the finite-core composite route: the
-  transform of the sampled derivative of Sigma'' plus the two boundary
-  terms ``Sigma''(a)/(a-omega) - Sigma''(b)/(b-omega)`` and the exact
-  forward-mode derivative of the tail quadrature;
-- reverse-mode rows: gradients of a scalar contraction of the subtracted
-  output with respect to query positions, core Sigma'' samples, and the
-  raw tail coordinates, cross-checked against forward mode and finite
-  differences, including queries placed exactly on grid nodes so the
-  node-cancellation ``where`` pair is exercised in reverse mode;
-- two-band spectral observable rows: shape, integrated weight, and peak
-  location stability of a frozen complex-Hermitian two-band intensity
-  fed by the retarded-pole self-energy (analytic Sigma'', operator
-  Sigma', subtracted at 0 eV).
+- Carrier consistency uses a piecewise-linear hat carrier. Its linear
+  transform is exact and sign-preserving. A kinked fixture compares this
+  result with a closed-form segment arbiter. It records cubic kink error and
+  positivity overshoot as counter-witnesses.
+- Query derivatives follow the finite-core composite route. Transform the
+  sampled Sigma'' derivative and add both analytic boundary terms. Add the
+  exact forward derivative of the tail quadrature.
+- Reverse-mode rows differentiate query positions, core samples, and raw tail
+  coordinates. Compare them with forward mode and finite differences. Include
+  exact grid-node queries to exercise reverse-mode node cancellation.
+- Spectral rows measure shape, integrated weight, and peak stability for a
+  frozen complex-Hermitian two-band intensity. The retarded-pole self-energy
+  supplies analytic Sigma'' and operator Sigma'. Subtract Sigma' at 0 eV.
 
-The battery grids: base domain [-8, 8] eV with ``n_kk = 4096`` and 256
-tail nodes; grid refinement ``n_kk = 8192`` on the same domain; the
-phase-aligned domain extension ``x_j = -8 + (j - 2048) h`` for
-``j = 0..8191`` with ``h = 16/4095`` (every base node embedded bitwise);
-and 512 tail nodes.  Carrier raw tail coordinates are held fixed across
-refinements whenever the model domain is unchanged and recomputed only
-when the domain changes; the domain-extension row records both
-conventions.  The analytic truth is the committed 80-digit mpmath
-archive, loaded only after SHA-256 verification.  The script imports no
-DiffPES production code.
+Use a base domain of [-8, 8] eV with ``n_kk = 4096`` and 256 tail nodes.
+Refine the same domain to ``n_kk = 8192``. Use the phase-aligned extension
+``x_j = -8 + (j - 2048) h`` with ``h = 16/4095``. Every base node remains
+bitwise embedded. Also use 512 tail nodes. Keep raw tail coordinates fixed
+when the model domain stays unchanged. Recompute them only after a domain
+change. Record both conventions for the extension. Authenticate the 80-digit
+mpmath archive with SHA-256 before loading it. Import no DiffPES production
+code.
 
 Run the generator with::
 
@@ -60,14 +51,13 @@ import platform
 import sys
 import zipfile
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64
+from beartype.typing import Any, Callable, Dict, List, NamedTuple, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, Int64
 from numpy.typing import NDArray
 
 jax.config.update("jax_enable_x64", True)
@@ -84,7 +74,7 @@ import _kk_control_opposite_parity_maclaurin  # noqa: E402
 
 
 class GridConfig(NamedTuple):
-    """One frozen quadrature configuration of the convergence battery."""
+    """Represent one frozen convergence-battery configuration."""
 
     domain_low_ev: float
     domain_high_ev: float
@@ -187,22 +177,26 @@ def _core_grid_np(config: GridConfig) -> Float64[NDArray, " n_kk"]:
 
     Implementation Logic
     --------------------
-    Uniform configurations use the index construction
-    ``x_j = low + j*h`` with ``h = (high-low)/(n_kk-1)``.  The
-    phase-aligned extension keeps the base spacing
-    ``h = (high-low)/(n_base-1)`` and uses
-    ``x_j = low + (j - 2048)*h`` for ``j = 0..8191``, so every base node
-    is reproduced bitwise and the enlarged domain strictly contains the
-    doubled interval.
+    Use ``x_j = low + j*h`` for uniform configurations. Set
+    ``h = (high-low)/(n_kk-1)``. Keep the base spacing
+    ``h = (high-low)/(n_base-1)`` for the phase-aligned extension. Use
+    ``x_j = low + (j - 2048)*h`` there. This preserves every base node
+    bitwise and extends beyond the doubled interval.
     """
     if config.construction == "uniform":
-        spacing = (config.domain_high_ev - config.domain_low_ev) / (
+        spacing: float = (config.domain_high_ev - config.domain_low_ev) / (
             config.n_kk - 1
         )
-        return config.domain_low_ev + np.arange(config.n_kk) * spacing
+        grid_ev: Float64[NDArray, " n_kk"] = (
+            config.domain_low_ev + np.arange(config.n_kk) * spacing
+        )
+        return grid_ev
     spacing = (config.domain_high_ev - config.domain_low_ev) / (BASE_N_KK - 1)
-    indices = np.arange(config.n_kk) - float(EXTENSION_SHIFT_CELLS)
-    return config.domain_low_ev + indices * spacing
+    indices: Float64[NDArray, " n_kk"] = np.arange(config.n_kk) - float(
+        EXTENSION_SHIFT_CELLS
+    )
+    grid_ev = config.domain_low_ev + indices * spacing
+    return grid_ev
 
 
 def _sigma_imag(
@@ -229,17 +223,23 @@ def _sigma_imag(
 
     Implementation Logic
     --------------------
-    The Wigner branch keeps its square root JVP-safe: a ``where`` swaps
-    the radicand for one outside the band before the square root, and
-    the outside branch is exactly zero.
+    Keep the Wigner square root JVP-safe with ``where``. Substitute a positive
+    radicand outside the band before taking the square root. Set the outer
+    branch exactly to zero.
     """
     if fixture_key == "pole":
-        offset = grid_ev - params[0]
-        return -params[2] * params[1] / (offset * offset + params[1] ** 2)
-    inside = jnp.abs(grid_ev) < params[0]
-    radicand = jnp.where(inside, params[0] ** 2 - grid_ev**2, 1.0)
-    scale = 2.0 * params[1] / params[0] ** 2
-    return jnp.where(inside, -scale * jnp.sqrt(radicand), 0.0)
+        offset: Float64[Array, " n_kk"] = grid_ev - params[0]
+        sigma_imag: Float64[Array, " n_kk"] = (
+            -params[2] * params[1] / (offset * offset + params[1] ** 2)
+        )
+        return sigma_imag
+    inside: Bool[Array, " n_kk"] = jnp.abs(grid_ev) < params[0]
+    radicand: Float64[Array, " n_kk"] = jnp.where(
+        inside, params[0] ** 2 - grid_ev**2, 1.0
+    )
+    scale: Float64[Array, ""] = 2.0 * params[1] / params[0] ** 2
+    sigma_imag = jnp.where(inside, -scale * jnp.sqrt(radicand), 0.0)
+    return sigma_imag
 
 
 def _pole_sigma_imag_derivative(
@@ -266,9 +266,12 @@ def _pole_sigma_imag_derivative(
     omega0)**2 + gamma**2)**2``, the exact derivative of the Lorentzian
     ``Sigma'' = -g gamma / ((omega - omega0)**2 + gamma**2)``.
     """
-    offset = grid_ev - params[0]
-    denominator = offset * offset + params[1] ** 2
-    return 2.0 * params[2] * params[1] * offset / denominator**2
+    offset: Float64[Array, " n_kk"] = grid_ev - params[0]
+    denominator: Float64[Array, " n_kk"] = offset * offset + params[1] ** 2
+    derivative: Float64[Array, " n_kk"] = (
+        2.0 * params[2] * params[1] * offset / denominator**2
+    )
+    return derivative
 
 
 def _edge_slopes(
@@ -290,7 +293,7 @@ def _edge_slopes(
 
     Returns
     -------
-    slopes : tuple[Float64[Array, ""], Float64[Array, ""]]
+    slopes : Tuple[Float64[Array, ""], Float64[Array, ""]]
         Left and right edge slopes in eV per eV.
 
     Notes
@@ -302,9 +305,10 @@ def _edge_slopes(
     clamped four-node stencil (third order, one-sided).
     """
     if candidate_key == "pwlinear":
-        left = (values[1] - values[0]) / spacing_ev
-        right = (values[-1] - values[-2]) / spacing_ev
-        return left, right
+        left: Float64[Array, ""] = (values[1] - values[0]) / spacing_ev
+        right: Float64[Array, ""] = (values[-1] - values[-2]) / spacing_ev
+        slopes: Tuple[Float64[Array, ""], Float64[Array, ""]] = (left, right)
+        return slopes
     if candidate_key == "pwquadratic":
         left = (-3.0 * values[0] + 4.0 * values[1] - values[2]) / (
             2.0 * spacing_ev
@@ -312,7 +316,8 @@ def _edge_slopes(
         right = (3.0 * values[-1] - 4.0 * values[-2] + values[-3]) / (
             2.0 * spacing_ev
         )
-        return left, right
+        slopes = (left, right)
+        return slopes
     left = (
         -11.0 * values[0]
         + 18.0 * values[1]
@@ -325,7 +330,8 @@ def _edge_slopes(
         + 9.0 * values[-3]
         - 2.0 * values[-4]
     ) / (6.0 * spacing_ev)
-    return left, right
+    slopes = (left, right)
+    return slopes
 
 
 def _pole_tail_raw_parameters(
@@ -343,28 +349,32 @@ def _pole_tail_raw_parameters(
 
     Returns
     -------
-    record : dict[str, Any]
-        Per-side tail parameters (amplitude in eV, alpha in 1/eV, beta
-        target in 1/eV^2, raw coordinate, clamp flag) plus the frozen
-        ``raw_left``/``raw_right`` pair.
+    record : Dict[str, Any]
+        Per-side amplitude, alpha, beta target, raw coordinate, and clamp
+        flag. Units are eV, 1/eV, and 1/eV^2. The record also contains the
+        frozen ``raw_left`` and ``raw_right`` pair.
 
     Implementation Logic
     --------------------
-    Amplitudes and alphas are derived from the core interpolant at the
-    edges of the supplied grid.  The free coordinate ``raw_delta_beta``
-    is then chosen so that ``beta = alpha**2/4 + softplus(raw)``
-    reproduces the pole's exact analytic tail curvature
-    ``beta = 1/((edge-omega0)**2 + gamma**2)`` whenever that target is
-    representable; otherwise raw is clamped to the -30 identifiability
-    floor and the clamp is recorded.  The choice is made from the
-    analytic fixture before any candidate output is inspected.  Raw
-    coordinates are carrier state: one frozen pair per model domain,
-    held fixed across refinements that keep the domain unchanged.
+    Derive amplitudes and alphas from the core interpolant at both grid edges.
+    Choose ``raw_delta_beta`` through
+    ``beta = alpha**2/4 + softplus(raw)``. Match the pole curvature
+    ``beta = 1/((edge-omega0)**2 + gamma**2)`` when possible. Otherwise,
+    clamp raw to the -30 identifiability floor and record that clamp. Make
+    this choice from the analytic fixture before inspecting candidate output.
+    Store one frozen raw pair per model domain. Keep that pair fixed across
+    refinements with the same domain.
     """
+    omega0: float
+    gamma: float
     omega0, gamma, _ = POLE_PARAMS
-    spacing = grid[1] - grid[0]
-    offset = grid - omega0
-    values = -POLE_PARAMS[2] * gamma / (offset * offset + gamma * gamma)
+    spacing: float = grid[1] - grid[0]
+    offset: Float64[NDArray, " n_kk"] = grid - omega0
+    values: Float64[NDArray, " n_kk"] = (
+        -POLE_PARAMS[2] * gamma / (offset * offset + gamma * gamma)
+    )
+    slope_left: float
+    slope_right: float
     slope_left, slope_right = (
         float(x)
         for x in _edge_slopes(
@@ -372,18 +382,21 @@ def _pole_tail_raw_parameters(
         )
     )
     record: Dict[str, Any] = {}
-    raws: list[float] = []
+    raws: List[float] = []
+    side: str
+    edge: float
+    slope: float
     for side, edge, slope in (
         ("left", float(grid[0]), slope_left),
         ("right", float(grid[-1]), slope_right),
     ):
-        amplitude = float(-values[0] if side == "left" else -values[-1])
-        alpha = (-slope if side == "left" else slope) / amplitude
-        beta_target = 1.0 / ((edge - omega0) ** 2 + gamma**2)
-        delta_beta = beta_target - alpha**2 / 4.0
-        floor = float(np.log1p(np.exp(RAW_DELTA_BETA_FLOOR)))
-        clamped = bool(delta_beta <= floor)
-        raw = (
+        amplitude: float = float(-values[0] if side == "left" else -values[-1])
+        alpha: float = (-slope if side == "left" else slope) / amplitude
+        beta_target: float = 1.0 / ((edge - omega0) ** 2 + gamma**2)
+        delta_beta: float = beta_target - alpha**2 / 4.0
+        floor: float = float(np.log1p(np.exp(RAW_DELTA_BETA_FLOOR)))
+        clamped: bool = bool(delta_beta <= floor)
+        raw: float = (
             RAW_DELTA_BETA_FLOOR
             if clamped
             else float(np.log(np.expm1(delta_beta)))
@@ -425,7 +438,7 @@ def _sigma_prime_unsubtracted(
         Frozen quadrature configuration for the core grid and tail.
     params : Float64[Array, " n_params"]
         Fixture parameters in eV units.
-    raws : tuple[float, float] | None
+    raws : Tuple[float, float] | None
         Frozen raw tail coordinates for the pole; ``None`` for Wigner.
     queries_ev : Float64[Array, " n_query"]
         Query energies in eV.
@@ -440,41 +453,49 @@ def _sigma_prime_unsubtracted(
     ValueError
         If a pole scenario arrives without frozen raw tail values.
 
-    Implementation Logic
-    --------------------
+    Notes
+    -----
     1. Sample Sigma'' on the frozen uniform KK grid of ``config``.
     2. Apply the candidate's cell-integrated core PV transform directly
        at the queries (no post-transform interpolation).
-    3. Pole: attach the C1 ``power2`` tails derived from the core
-       interpolant edges with the frozen raw carrier coordinates and add
-       the declared semi-infinite Gauss--Legendre tail contributions.
-       Wigner: zero-tail contract.
+    3. For the pole, attach C1 ``power2`` tails from the core edges. Use the
+       frozen raw carrier coordinates. Add the declared semi-infinite
+       Gauss--Legendre contributions. For Wigner, use the zero-tail contract.
     """
-    grid_np = _core_grid_np(config)
-    grid = jnp.asarray(grid_np)
-    values = _sigma_imag(fixture_key, grid, params)
-    core = candidate_module.core_pv_transform(grid, values, queries_ev)
+    grid_np: Float64[NDArray, " n_kk"] = _core_grid_np(config)
+    grid: Float64[Array, " n_kk"] = jnp.asarray(grid_np)
+    values: Float64[Array, " n_kk"] = _sigma_imag(fixture_key, grid, params)
+    core: Float64[Array, " n_query"] = candidate_module.core_pv_transform(
+        grid, values, queries_ev
+    )
     if fixture_key != "pole":
         return core
     if raws is None:
         raise ValueError("pole scenarios require frozen raw tail values")
-    spacing = grid[1] - grid[0]
+    spacing: Float64[Array, ""] = grid[1] - grid[0]
+    slope_left: Float64[Array, ""]
+    slope_right: Float64[Array, ""]
     slope_left, slope_right = _edge_slopes(candidate_key, values, spacing)
-    tail_spec = _kk_candidate_common.construct_power2_tail_spec(
-        values[0],
-        slope_left,
-        values[-1],
-        slope_right,
-        raws[0],
-        raws[1],
+    tail_spec: _kk_candidate_common.Power2TailSpec = (
+        _kk_candidate_common.construct_power2_tail_spec(
+            values[0],
+            slope_left,
+            values[-1],
+            slope_right,
+            raws[0],
+            raws[1],
+        )
     )
-    tail = _kk_candidate_common.semi_infinite_tail_contribution(
-        jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
-        tail_spec,
-        queries_ev,
-        n_tail=config.n_tail,
+    tail: Float64[Array, " n_query"] = (
+        _kk_candidate_common.semi_infinite_tail_contribution(
+            jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
+            tail_spec,
+            queries_ev,
+            n_tail=config.n_tail,
+        )
     )
-    return core + tail
+    sigma_prime: Float64[Array, " n_query"] = core + tail
+    return sigma_prime
 
 
 def _composite_query_derivative(
@@ -497,7 +518,7 @@ def _composite_query_derivative(
         Frozen quadrature configuration for the core grid and tail.
     params : Float64[Array, " n_params"]
         Pole parameters ``(omega0, gamma, g)`` in eV units.
-    raws : tuple[float, float]
+    raws : Tuple[float, float]
         Frozen raw tail coordinates for the pole tails.
     queries_ev : Float64[Array, " n_query"]
         Query energies in eV.
@@ -512,48 +533,78 @@ def _composite_query_derivative(
     On the finite core ``[a, b]`` the derivative identity is
     ``d/domega Sigma'_core = (1/pi) [ PV int_a^b dSigma''/dw / (w-omega)
     dw + Sigma''(a)/(a-omega) - Sigma''(b)/(b-omega) ]``; the two
-    boundary terms are mandatory.  The sampled analytic derivative of
-    Sigma'' feeds the same cell-integrated operator, and the tail
-    contribution is differentiated exactly by forward-mode AD.  The
-    subtraction constant has zero query derivative, so this equals the
-    derivative of the subtracted output.
+    boundary terms are mandatory. Feed the sampled analytic Sigma''
+    derivative to the same cell-integrated operator. Differentiate the tail
+    contribution exactly with forward-mode AD. The subtraction constant has
+    zero query derivative. Therefore, this also differentiates the subtracted
+    output.
     """
-    grid_np = _core_grid_np(config)
-    grid = jnp.asarray(grid_np)
-    values = _sigma_imag("pole", grid, params)
-    derivative_values = _pole_sigma_imag_derivative(grid, params)
-    core = candidate_module.core_pv_transform(
+    grid_np: Float64[NDArray, " n_kk"] = _core_grid_np(config)
+    grid: Float64[Array, " n_kk"] = jnp.asarray(grid_np)
+    values: Float64[Array, " n_kk"] = _sigma_imag("pole", grid, params)
+    derivative_values: Float64[Array, " n_kk"] = _pole_sigma_imag_derivative(
+        grid, params
+    )
+    core: Float64[Array, " n_query"] = candidate_module.core_pv_transform(
         grid, derivative_values, queries_ev
     )
-    boundary = (
+    boundary: Float64[Array, " n_query"] = (
         values[0] / (grid[0] - queries_ev)
         - values[-1] / (grid[-1] - queries_ev)
     ) / jnp.pi
-    spacing = grid[1] - grid[0]
+    spacing: Float64[Array, ""] = grid[1] - grid[0]
+    slope_left: Float64[Array, ""]
+    slope_right: Float64[Array, ""]
     slope_left, slope_right = _edge_slopes(candidate_key, values, spacing)
-    tail_spec = _kk_candidate_common.construct_power2_tail_spec(
-        values[0],
-        slope_left,
-        values[-1],
-        slope_right,
-        raws[0],
-        raws[1],
+    tail_spec: _kk_candidate_common.Power2TailSpec = (
+        _kk_candidate_common.construct_power2_tail_spec(
+            values[0],
+            slope_left,
+            values[-1],
+            slope_right,
+            raws[0],
+            raws[1],
+        )
     )
 
-    def tail_only(
+    def _tail_only(
         query_values: Float64[Array, " n_any"],
     ) -> Float64[Array, " n_any"]:
-        return _kk_candidate_common.semi_infinite_tail_contribution(
-            jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
-            tail_spec,
-            query_values,
-            n_tail=config.n_tail,
-        )
+        """PRIVATE: Evaluate the tail contribution at arbitrary queries.
 
+        Parameters
+        ----------
+        query_values : Float64[Array, " n_any"]
+            Query energies in eV.
+
+        Returns
+        -------
+        tail_values : Float64[Array, " n_any"]
+            Semi-infinite tail contributions in eV.
+
+        Notes
+        -----
+        The closure uses the fixed domain, tail parameters, and quadrature
+        order. JAX differentiates only the query values.
+        """
+        tail_values: Float64[Array, " n_any"] = (
+            _kk_candidate_common.semi_infinite_tail_contribution(
+                jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
+                tail_spec,
+                query_values,
+                n_tail=config.n_tail,
+            )
+        )
+        return tail_values
+
+    tail_derivative: Float64[Array, " n_query"]
     _, tail_derivative = jax.jvp(
-        tail_only, (queries_ev,), (jnp.ones_like(queries_ev),)
+        _tail_only, (queries_ev,), (jnp.ones_like(queries_ev),)
     )
-    return np.asarray(core + boundary + tail_derivative)
+    derivative: Float64[NDArray, " n_query"] = np.asarray(
+        core + boundary + tail_derivative
+    )
+    return derivative
 
 
 def _evaluate_scenario(
@@ -577,7 +628,7 @@ def _evaluate_scenario(
         Fixture selector, ``"pole"`` or ``"wigner"``.
     config : GridConfig
         Frozen quadrature configuration for the core grid and tail.
-    raws : tuple[float, float] | None
+    raws : Tuple[float, float] | None
         Frozen raw tail coordinates for the pole; ``None`` for Wigner.
     queries : Float64[NDArray, " n_query"]
         Query energies in eV.
@@ -586,7 +637,7 @@ def _evaluate_scenario(
 
     Returns
     -------
-    result : dict[str, Float64[NDArray, " n_query"]]
+    result : Dict[str, Float64[NDArray, " n_query"]]
         Row dictionary with ``sigma_sub_ev`` and, unless
         ``values_only``, the direct and composite query derivatives,
         the identity spot deviation, and one JVP row per parameter.
@@ -597,28 +648,46 @@ def _evaluate_scenario(
         If the forward JVP and ``jax.grad`` disagree beyond the
         scale-aware tolerance at a spot-check query.
 
-    Implementation Logic
-    --------------------
-    The direct query derivative uses one forward-mode JVP with an
-    all-ones query tangent: every output row depends on exactly one
-    query, so the tangent equals the per-query derivative.  That
-    identity is asserted against ``jax.grad`` at three spot-check
-    queries with a scale-aware tolerance that grows with the summation
-    length.  Pole scenarios additionally evaluate the composite
-    derivative route with its finite-core boundary terms.  Parameter
-    JVPs differentiate the subtracted output with respect to each
-    dimensionless coordinate ``q_p = p/p_fixture`` at ``q = 1`` while
-    the raw tail coordinates stay fixed (they are separate carrier
-    coordinates, not physical fixture parameters).
+    Notes
+    -----
+    Use one forward-mode JVP with an all-ones query tangent. Every output row
+    depends on exactly one query. Therefore, the tangent equals the per-query
+    derivative. Compare this identity with ``jax.grad`` at three spot checks.
+    Use a scale-aware tolerance that grows with summation length. For pole
+    scenarios, also evaluate the composite derivative with finite-core
+    boundary terms. Parameter JVPs vary each dimensionless coordinate
+    ``q_p = p/p_fixture`` at ``q = 1``. Keep raw tail coordinates fixed
+    because they represent separate carrier coordinates.
     """
-    queries_jnp = jnp.asarray(queries, dtype=jnp.float64)
-    base_params = jnp.asarray(FIXTURE_PARAMS[fixture_key], dtype=jnp.float64)
-    n_params = base_params.shape[0]
+    queries_jnp: Float64[Array, " n_query"] = jnp.asarray(
+        queries, dtype=jnp.float64
+    )
+    base_params: Float64[Array, " n_param"] = jnp.asarray(
+        FIXTURE_PARAMS[fixture_key], dtype=jnp.float64
+    )
+    n_params: int = base_params.shape[0]
 
-    def unsubtracted(
+    def _unsubtracted(
         query_values: Float64[Array, " n_any"],
     ) -> Float64[Array, " n_any"]:
-        return _sigma_prime_unsubtracted(
+        """PRIVATE: Evaluate the unsubtracted operator at arbitrary queries.
+
+        Parameters
+        ----------
+        query_values : Float64[Array, " n_any"]
+            Query energies in eV.
+
+        Returns
+        -------
+        sigma_prime : Float64[Array, " n_any"]
+            Unsubtracted real self-energy values in eV.
+
+        Notes
+        -----
+        The closure fixes the candidate, fixture, grid, parameters, and tail
+        coordinates. JAX differentiates the query values.
+        """
+        sigma_prime: Float64[Array, " n_any"] = _sigma_prime_unsubtracted(
             candidate_module,
             candidate_key,
             fixture_key,
@@ -627,11 +696,29 @@ def _evaluate_scenario(
             raws,
             query_values,
         )
+        return sigma_prime
 
-    def subtracted_of_scale(
+    def _subtracted_of_scale(
         scales: Float64[Array, " n_params"],
     ) -> Float64[Array, " n_query"]:
-        total = _sigma_prime_unsubtracted(
+        """PRIVATE: Evaluate the subtracted output for parameter scales.
+
+        Parameters
+        ----------
+        scales : Float64[Array, " n_params"]
+            Dimensionless multipliers for the physical fixture parameters.
+
+        Returns
+        -------
+        sigma_subtracted : Float64[Array, " n_query"]
+            Real self-energy relative to the subtraction point in eV.
+
+        Notes
+        -----
+        The closure appends the subtraction point to the query vector. It
+        subtracts that final value from every physical query value.
+        """
+        total: Float64[Array, "..."] = _sigma_prime_unsubtracted(
             candidate_module,
             candidate_key,
             fixture_key,
@@ -642,25 +729,32 @@ def _evaluate_scenario(
                 (queries_jnp, jnp.asarray([OMEGA_S_EV], dtype=jnp.float64))
             ),
         )
-        return total[:-1] - total[-1]
+        sigma_subtracted: Float64[Array, " n_query"] = total[:-1] - total[-1]
+        return sigma_subtracted
 
-    sigma_sub = np.asarray(subtracted_of_scale(jnp.ones(n_params)))
+    sigma_sub: Float64[NDArray, " n_query"] = np.asarray(
+        _subtracted_of_scale(jnp.ones(n_params))
+    )
     result: Dict[str, Float64[NDArray, " n_query"]] = {
         "sigma_sub_ev": sigma_sub
     }
     if values_only:
         return result
 
+    dsigma: Float64[Array, " n_query"]
     _, dsigma = jax.jvp(
-        unsubtracted, (queries_jnp,), (jnp.ones_like(queries_jnp),)
+        _unsubtracted, (queries_jnp,), (jnp.ones_like(queries_jnp),)
     )
-    dsigma_np = np.asarray(dsigma)
-    identity_deviation = 0.0
+    dsigma_np: Float64[NDArray, " n_query"] = np.asarray(dsigma)
+    identity_deviation: float = 0.0
+    index: int
     for index in JVP_SPOT_CHECK_INDICES:
-        spot = jax.grad(lambda q: unsubtracted(q[None])[0])(queries_jnp[index])
-        deviation = abs(float(spot) - dsigma_np[index])
+        spot: Float64[Array, ""] = jax.grad(
+            lambda q: _unsubtracted(q[None])[0]
+        )(queries_jnp[index])
+        deviation: float = abs(float(spot) - dsigma_np[index])
         identity_deviation = max(identity_deviation, deviation)
-        tolerance = (
+        tolerance: float = (
             IDENTITY_SPOT_RTOL
             * (config.n_kk / float(BASE_N_KK))
             * max(1.0, abs(float(spot)), abs(dsigma_np[index]))
@@ -681,10 +775,15 @@ def _evaluate_scenario(
             raws,
             queries_jnp,
         )
+    param_index: int
+    param_name: str
     for param_index, param_name in enumerate(FIXTURE_PARAM_NAMES[fixture_key]):
-        direction = jnp.zeros(n_params).at[param_index].set(1.0)
+        direction: Float64[Array, " n_param"] = (
+            jnp.zeros(n_params).at[param_index].set(1.0)
+        )
+        tangent: Float64[Array, " n_query"]
         _, tangent = jax.jvp(
-            subtracted_of_scale, (jnp.ones(n_params),), (direction,)
+            _subtracted_of_scale, (jnp.ones(n_params),), (direction,)
         )
         result[f"jvp_{param_name}"] = np.asarray(tangent)
     return result
@@ -711,7 +810,7 @@ def _five_point_fd(
         Fixture selector, ``"pole"`` or ``"wigner"``.
     config : GridConfig
         Frozen quadrature configuration for the core grid and tail.
-    raws : tuple[float, float] | None
+    raws : Tuple[float, float] | None
         Frozen raw tail coordinates for the pole; ``None`` for Wigner.
     queries : Float64[NDArray, " n_query"]
         Query energies in eV.
@@ -729,13 +828,34 @@ def _five_point_fd(
     The stencil acts on the dimensionless coordinate ``q_p`` around 1
     with step :data:`FD_STEP` and truncation order ``FD_STEP**4``.
     """
-    queries_jnp = jnp.asarray(queries, dtype=jnp.float64)
-    base_params = np.asarray(FIXTURE_PARAMS[fixture_key], dtype=np.float64)
+    queries_jnp: Float64[Array, " n_query"] = jnp.asarray(
+        queries, dtype=jnp.float64
+    )
+    base_params: Float64[NDArray, " n_param"] = np.asarray(
+        FIXTURE_PARAMS[fixture_key], dtype=np.float64
+    )
 
-    def subtracted(step_multiple: float) -> Float64[NDArray, " n_query"]:
-        scales = np.ones_like(base_params)
+    def _subtracted(step_multiple: float) -> Float64[NDArray, " n_query"]:
+        """PRIVATE: Evaluate one finite-difference stencil displacement.
+
+        Parameters
+        ----------
+        step_multiple : float
+            Signed multiple of the dimensionless finite-difference step.
+
+        Returns
+        -------
+        sigma_subtracted : Float64[NDArray, " n_query"]
+            Subtracted real self-energy values in eV.
+
+        Notes
+        -----
+        The closure perturbs one physical parameter through its dimensionless
+        scale. It keeps the tail coordinates fixed.
+        """
+        scales: Float64[NDArray, " n_param"] = np.ones_like(base_params)
         scales[param_index] += step_multiple * FD_STEP
-        total = _sigma_prime_unsubtracted(
+        total: Float64[Array, "..."] = _sigma_prime_unsubtracted(
             candidate_module,
             candidate_key,
             fixture_key,
@@ -746,14 +866,18 @@ def _five_point_fd(
                 (queries_jnp, jnp.asarray([OMEGA_S_EV], dtype=jnp.float64))
             ),
         )
-        return np.asarray(total[:-1] - total[-1])
+        sigma_subtracted: Float64[NDArray, " n_query"] = np.asarray(
+            total[:-1] - total[-1]
+        )
+        return sigma_subtracted
 
-    return (
-        subtracted(-2.0)
-        - 8.0 * subtracted(-1.0)
-        + 8.0 * subtracted(1.0)
-        - subtracted(2.0)
+    difference: Float64[NDArray, " n_query"] = (
+        _subtracted(-2.0)
+        - 8.0 * _subtracted(-1.0)
+        + 8.0 * _subtracted(1.0)
+        - _subtracted(2.0)
     ) / (12.0 * FD_STEP)
+    return difference
 
 
 def _five_point_scalar_fd(
@@ -779,12 +903,13 @@ def _five_point_scalar_fd(
     -----
     The stencil is ``(f(-2s) - 8 f(-s) + 8 f(s) - f(2s)) / (12 s)``.
     """
-    return (
+    derivative: float = (
         function(-2.0 * step)
         - 8.0 * function(-step)
         + 8.0 * function(step)
         - function(2.0 * step)
     ) / (12.0 * step)
+    return derivative
 
 
 def _analytic_truth(
@@ -799,7 +924,7 @@ def _analytic_truth(
 
     Returns
     -------
-    truths : dict[str, Float64[NDArray, " n_query"]]
+    truths : Dict[str, Float64[NDArray, " n_query"]]
         Arrays ``truth_pole_dsigma_domega`` and
         ``truth_wigner_dsigma_domega`` in eV per eV.
 
@@ -809,22 +934,28 @@ def _analytic_truth(
     omega0)^2 + gamma^2)^2``. The in-band Wigner truth is the constant
     ``2 g / half_width^2``.
     """
+    omega0: float
+    gamma: float
+    coupling: float
     omega0, gamma, coupling = POLE_PARAMS
-    offset = queries - omega0
-    denominator = offset * offset + gamma * gamma
-    pole_dsigma = (
+    offset: Float64[NDArray, " n_query"] = queries - omega0
+    denominator: Float64[NDArray, " n_query"] = offset * offset + gamma * gamma
+    pole_dsigma: Float64[NDArray, " n_query"] = (
         coupling
         * (gamma * gamma - offset * offset)
         / (denominator * denominator)
     )
+    half_width: float
+    wigner_coupling: float
     half_width, wigner_coupling = WIGNER_PARAMS
-    wigner_dsigma = np.full_like(
+    wigner_dsigma: Float64[NDArray, " n_query"] = np.full_like(
         queries, 2.0 * wigner_coupling / half_width**2
     )
-    return {
+    truth: Dict[str, Float64[NDArray, " n_query"]] = {
         "truth_pole_dsigma_domega": pole_dsigma,
         "truth_wigner_dsigma_domega": wigner_dsigma,
     }
+    return truth
 
 
 def _mixed_criterion_statistics(
@@ -845,7 +976,7 @@ def _mixed_criterion_statistics(
 
     Returns
     -------
-    statistics : dict[str, Any]
+    statistics : Dict[str, Any]
         Maximum absolute error in eV, worst mixed-criterion ratio, the
         worst query in eV, the violating row count, and the verdict.
 
@@ -855,17 +986,20 @@ def _mixed_criterion_statistics(
     |truth|``; the criterion passes when every ``|error|/allowance``
     ratio stays at or below one.
     """
-    error = np.abs(observed - truth)
-    allowance = PAIR_TRUTH_ATOL_EV + PAIR_TRUTH_RTOL * np.abs(truth)
-    ratio = error / allowance
-    worst = int(np.argmax(ratio))
-    return {
+    error: Float64[NDArray, " n_query"] = np.abs(observed - truth)
+    allowance: Float64[NDArray, " n_query"] = (
+        PAIR_TRUTH_ATOL_EV + PAIR_TRUTH_RTOL * np.abs(truth)
+    )
+    ratio: Float64[NDArray, " n_query"] = error / allowance
+    worst: int = int(np.argmax(ratio))
+    statistics: Dict[str, Any] = {
         "max_abs_error_ev": float(np.max(error)),
         "mixed_criterion_max_ratio": float(ratio[worst]),
         "worst_query_ev": float(queries[worst]),
         "violating_rows": int(np.sum(ratio > 1.0)),
         "pass": bool(np.all(ratio <= 1.0)),
     }
+    return statistics
 
 
 def _refinement_deltas(
@@ -877,16 +1011,16 @@ def _refinement_deltas(
 
     Parameters
     ----------
-    base : dict[str, Float64[NDArray, " n_query"]]
+    base : Dict[str, Float64[NDArray, " n_query"]]
         Scenario rows evaluated on the base configuration.
-    refined : dict[str, Float64[NDArray, " n_query"]]
+    refined : Dict[str, Float64[NDArray, " n_query"]]
         Scenario rows evaluated on the refined configuration.
-    param_names : tuple[str, ...]
+    param_names : Tuple[str, ...]
         Fixture parameter names whose JVP rows the delta covers.
 
     Returns
     -------
-    deltas : dict[str, Any]
+    deltas : Dict[str, Any]
         Maximum absolute value delta in eV, derivative deltas when both
         rows exist, and one per-parameter JVP delta mapping.
 
@@ -910,7 +1044,7 @@ def _refinement_deltas(
                 np.abs(refined["dsigma_composite"] - base["dsigma_composite"])
             )
         )
-    per_param = {
+    per_param: Dict[str, Any] = {
         name: float(
             np.max(np.abs(refined[f"jvp_{name}"] - base[f"jvp_{name}"]))
         )
@@ -929,14 +1063,14 @@ def _pole_refinement_metrics(
 
     Parameters
     ----------
-    deltas : dict[str, Any]
+    deltas : Dict[str, Any]
         Raw refinement deltas from :func:`_refinement_deltas`.
     is_tail_refinement : bool
         Whether the row compares the 512-node tail against the base.
 
     Returns
     -------
-    metrics : dict[str, Any]
+    metrics : Dict[str, Any]
         The deltas plus boolean verdicts against the registered value,
         composite-derivative, and JVP budgets; tail refinements gain
         the two 1e-13 tail-only verdicts.
@@ -946,14 +1080,14 @@ def _pole_refinement_metrics(
     The registered budgets are module constants; the function copies
     the delta dictionary and never mutates its input.
     """
-    metrics = dict(deltas)
+    metrics: Dict[str, Any] = dict(deltas)
     metrics["pass_delta_sigma_2em6"] = bool(
         deltas["max_delta_sigma_ev"] <= BUDGET_DELTA_SIGMA_EV
     )
     metrics["pass_delta_dsigma_composite_2em5"] = bool(
         deltas["max_delta_dsigma_composite"] <= BUDGET_DELTA_DSIGMA
     )
-    max_jvp = max(deltas["max_delta_jvp_per_param_ev"].values())
+    max_jvp: float = max(deltas["max_delta_jvp_per_param_ev"].values())
     metrics["max_delta_jvp_ev"] = max_jvp
     metrics["pass_delta_jvp_2em5"] = bool(max_jvp <= BUDGET_DELTA_JVP_EV)
     if is_tail_refinement:
@@ -971,51 +1105,48 @@ def _wigner_refinement_metrics(deltas: Dict[str, Any]) -> Dict[str, Any]:
 
     Parameters
     ----------
-    deltas : dict[str, Any]
+    deltas : Dict[str, Any]
         Raw refinement deltas from :func:`_refinement_deltas`.
 
     Returns
     -------
-    metrics : dict[str, Any]
+    metrics : Dict[str, Any]
         The deltas plus the coupling-JVP verdict and the recorded
-        half-width gating exclusion.
+        half-width requirement exclusion.
 
     Notes
     -----
-    The half-width JVP stays measured and recorded but excluded from
-    gating: the band edge is a square-root branch point whose sampled
-    parameter tangent lacks uniform integrability on a static grid.
-    The coupling JVP gates under the value budget.
+    Measure and record the half-width JVP without using it for acceptance.
+    Its band edge is a square-root branch point. The sampled parameter tangent
+    lacks uniform integrability on a static grid. Compare the coupling JVP
+    with the value budget.
     """
-    metrics = dict(deltas)
-    coupling_delta = deltas["max_delta_jvp_per_param_ev"]["g"]
+    metrics: Dict[str, Any] = dict(deltas)
+    coupling_delta: float = deltas["max_delta_jvp_per_param_ev"]["g"]
     metrics["pass_delta_jvp_g_value_budget_2em6"] = bool(
         coupling_delta <= BUDGET_DELTA_SIGMA_EV
     )
-    metrics["jvp_half_width_gating"] = "excluded (band-edge branch point)"
+    metrics["jvp_half_width_requirement"] = "excluded (band-edge branch point)"
     return metrics
 
 
 def _verify_wigner_zero_edges() -> None:
     """PRIVATE: Assert the compact-support zero-tail contract per domain.
 
-    Raises
-    ------
-    ValueError
-        If a Wigner grid edge carries a nonzero Sigma'' value, raised
-        by ``construct_wigner_zero_tail``.
-
     Notes
     -----
-    The check samples the Wigner Sigma'' on every registered Wigner
-    configuration grid and passes both edge values to the zero-tail
-    constructor, which rejects any nonzero amplitude.
+    Sample Wigner Sigma'' on every registered configuration grid. Pass both
+    edge values to the zero-tail constructor. The constructor rejects any
+    nonzero amplitude.
     """
-    params = jnp.asarray(WIGNER_PARAMS, dtype=jnp.float64)
+    params: Float64[Array, " n_wigner_param"] = jnp.asarray(
+        WIGNER_PARAMS, dtype=jnp.float64
+    )
+    config_key: str
     for config_key in FIXTURE_CONFIG_KEYS["wigner"]:
-        config = CONFIGS[config_key]
-        grid = jnp.asarray(_core_grid_np(config))
-        values = _sigma_imag("wigner", grid, params)
+        config: GridConfig = CONFIGS[config_key]
+        grid: Float64[Array, " n_kk"] = jnp.asarray(_core_grid_np(config))
+        values: Float64[Array, " n_kk"] = _sigma_imag("wigner", grid, params)
         _kk_candidate_common.construct_wigner_zero_tail(values[0], values[-1])
 
 
@@ -1031,107 +1162,117 @@ def _carrier_consistency(
 
     Returns
     -------
-    evidence : tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]
+    evidence : Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]
         Metrics dictionary (exactness, sign preservation, seam
         verdicts) and the arrays for the archive (node values, arbiter,
         linear and cubic transforms, all in eV).
 
     Implementation Logic
     --------------------
-    The binding grid-mode carrier is the piecewise-linear hat
-    interpolant.  Node values are planted as a piecewise-linear function
-    with interior kinks at exact grid nodes, so the hat through the fine
-    samples equals the coarse kinked function exactly.  The closed-form
-    segment arbiter sums the exact PV integral over the six coarse
-    segments; the cell-integrated linear transform must match it to
-    roundoff.  The cubic operator's error and its reconstruction
-    positivity overshoot on the same fixture are the counter-witness:
-    the near-zero plateau after a steep rise makes the four-node cubic
-    interpolant cross zero between strictly negative samples, while the
-    hat reconstruction can never leave the sample range.
+    Use a piecewise-linear hat as the binding grid carrier. Plant interior
+    kinks at exact grid nodes. The fine-sample hat then equals the coarse
+    kinked function exactly. Sum exact principal-value integrals over six
+    coarse segments with the closed-form arbiter. Require the cell-integrated
+    linear transform to match at roundoff. Record cubic error and positivity
+    overshoot as counter-witnesses. A near-zero plateau follows a steep rise.
+    This makes the cubic interpolant cross zero between negative samples. The
+    hat reconstruction always stays within the sample range.
     """
-    config = CONFIGS["base"]
-    grid = _core_grid_np(config)
-    spacing = grid[1] - grid[0]
-    node_values = np.interp(
+    config: GridConfig = CONFIGS["base"]
+    grid: Float64[NDArray, " n_kk"] = _core_grid_np(config)
+    spacing: float = grid[1] - grid[0]
+    node_values: Float64[NDArray, " n_kk"] = np.interp(
         np.arange(config.n_kk),
         np.asarray(CARRIER_BREAK_INDICES, dtype=np.float64),
         np.asarray(CARRIER_BREAK_VALUES_EV, dtype=np.float64),
     )
 
-    arbiter = np.zeros_like(queries)
+    arbiter: Float64[NDArray, " n_query"] = np.zeros_like(queries)
+    segment: int
     for segment in range(len(CARRIER_BREAK_INDICES) - 1):
-        x_start = grid[CARRIER_BREAK_INDICES[segment]]
-        x_stop = grid[CARRIER_BREAK_INDICES[segment + 1]]
-        f_start = CARRIER_BREAK_VALUES_EV[segment]
-        f_stop = CARRIER_BREAK_VALUES_EV[segment + 1]
-        slope = (f_stop - f_start) / (x_stop - x_start)
-        extension = f_start + slope * (queries - x_start)
+        x_start: float = grid[CARRIER_BREAK_INDICES[segment]]
+        x_stop: float = grid[CARRIER_BREAK_INDICES[segment + 1]]
+        f_start: float = CARRIER_BREAK_VALUES_EV[segment]
+        f_stop: float = CARRIER_BREAK_VALUES_EV[segment + 1]
+        slope: float = (f_stop - f_start) / (x_stop - x_start)
+        extension: Float64[NDArray, " n_query"] = f_start + slope * (
+            queries - x_start
+        )
         arbiter += slope * (x_stop - x_start) + extension * np.log(
             np.abs((x_stop - queries) / (x_start - queries))
         )
     arbiter /= np.pi
 
-    grid_jnp = jnp.asarray(grid)
-    values_jnp = jnp.asarray(node_values)
-    queries_jnp = jnp.asarray(queries)
-    linear_core = np.asarray(
+    grid_jnp: Float64[Array, " n_kk"] = jnp.asarray(grid)
+    values_jnp: Float64[Array, " n_kk"] = jnp.asarray(node_values)
+    queries_jnp: Float64[Array, " n_query"] = jnp.asarray(queries)
+    linear_core: Float64[NDArray, " n_query"] = np.asarray(
         GRID_CARRIER_MODULE.core_pv_transform(
             grid_jnp, values_jnp, queries_jnp
         )
     )
-    cubic_core = np.asarray(
+    cubic_core: Float64[NDArray, " n_query"] = np.asarray(
         _kk_candidate_piecewise_cubic.core_pv_transform(
             grid_jnp, values_jnp, queries_jnp
         )
     )
-    scale = max(1.0, float(np.max(np.abs(arbiter))))
-    linear_error = float(np.max(np.abs(linear_core - arbiter)))
-    cubic_error = float(np.max(np.abs(cubic_core - arbiter)))
+    scale: float = max(1.0, float(np.max(np.abs(arbiter))))
+    linear_error: float = float(np.max(np.abs(linear_core - arbiter)))
+    cubic_error: float = float(np.max(np.abs(cubic_core - arbiter)))
 
-    subdivisions = np.linspace(0.0, 1.0, 9)[:-1]
-    cells = np.arange(config.n_kk - 1)
-    starts = np.clip(cells - 1, 0, config.n_kk - 4)
-    y0 = node_values[starts]
-    y1 = node_values[starts + 1]
-    y2 = node_values[starts + 2]
-    y3 = node_values[starts + 3]
-    linear_c = (-11.0 * y0 + 18.0 * y1 - 9.0 * y2 + 2.0 * y3) / (6.0 * spacing)
-    quadratic_c = (2.0 * y0 - 5.0 * y1 + 4.0 * y2 - y3) / (2.0 * spacing**2)
-    cubic_c = (-y0 + 3.0 * y1 - 3.0 * y2 + y3) / (6.0 * spacing**3)
-    dense_offsets = (
+    subdivisions: Float64[NDArray, " n_subdivision"] = np.linspace(
+        0.0, 1.0, 9
+    )[:-1]
+    cells: Int64[NDArray, " n_cell"] = np.arange(config.n_kk - 1)
+    starts: Int64[NDArray, " n_cell"] = np.clip(cells - 1, 0, config.n_kk - 4)
+    y0: Float64[NDArray, " n_cell"] = node_values[starts]
+    y1: Float64[NDArray, " n_cell"] = node_values[starts + 1]
+    y2: Float64[NDArray, " n_cell"] = node_values[starts + 2]
+    y3: Float64[NDArray, " n_cell"] = node_values[starts + 3]
+    linear_c: Float64[NDArray, " n_cell"] = (
+        -11.0 * y0 + 18.0 * y1 - 9.0 * y2 + 2.0 * y3
+    ) / (6.0 * spacing)
+    quadratic_c: Float64[NDArray, " n_cell"] = (
+        2.0 * y0 - 5.0 * y1 + 4.0 * y2 - y3
+    ) / (2.0 * spacing**2)
+    cubic_c: Float64[NDArray, " n_cell"] = (-y0 + 3.0 * y1 - 3.0 * y2 + y3) / (
+        6.0 * spacing**3
+    )
+    dense_offsets: Float64[NDArray, "n_cell n_subdivision"] = (
         grid[cells][:, None]
         + subdivisions[None, :] * spacing
         - grid[starts][:, None]
     )
-    dense_cubic = (
+    dense_cubic: Float64[NDArray, "n_cell n_subdivision"] = (
         y0[:, None]
         + linear_c[:, None] * dense_offsets
         + quadratic_c[:, None] * dense_offsets**2
         + cubic_c[:, None] * dense_offsets**3
     )
-    cubic_reconstruction_max = float(np.max(dense_cubic))
-    hat_reconstruction_max = float(np.max(node_values))
+    cubic_reconstruction_max: float = float(np.max(dense_cubic))
+    hat_reconstruction_max: float = float(np.max(node_values))
 
-    hat_slope_left = (node_values[1] - node_values[0]) / spacing
-    hat_slope_right = (node_values[-1] - node_values[-2]) / spacing
-    tail_spec = _kk_candidate_common.construct_power2_tail_spec(
-        node_values[0],
-        hat_slope_left,
-        node_values[-1],
-        hat_slope_right,
-        0.0,
-        0.0,
+    hat_slope_left: float = (node_values[1] - node_values[0]) / spacing
+    hat_slope_right: float = (node_values[-1] - node_values[-2]) / spacing
+    tail_spec: _kk_candidate_common.Power2TailSpec = (
+        _kk_candidate_common.construct_power2_tail_spec(
+            node_values[0],
+            hat_slope_left,
+            node_values[-1],
+            hat_slope_right,
+            0.0,
+            0.0,
+        )
     )
-    seam_left = abs(
+    seam_left: float = abs(
         float(-tail_spec.amplitude_left * tail_spec.alpha_left)
         - hat_slope_left
     )
-    seam_right = abs(
+    seam_right: float = abs(
         float(tail_spec.amplitude_right * tail_spec.alpha_right)
         - hat_slope_right
     )
-    slope_scale = max(1.0, abs(hat_slope_left), abs(hat_slope_right))
+    slope_scale: float = max(1.0, abs(hat_slope_left), abs(hat_slope_right))
 
     metrics: Dict[str, Any] = {
         "requirement": "kk-carrier-consistency",
@@ -1157,13 +1298,17 @@ def _carrier_consistency(
             max(seam_left, seam_right) <= SEAM_SLOPE_RTOL * slope_scale
         ),
     }
-    arrays = {
+    arrays: Dict[str, Float64[NDArray, "..."]] = {
         "carrier_node_values_ev": node_values,
         "carrier_arbiter_sigma_ev": arbiter,
         "carrier_linear_sigma_ev": linear_core,
         "carrier_cubic_sigma_ev": cubic_core,
     }
-    return metrics, arrays
+    evidence: Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]] = (
+        metrics,
+        arrays,
+    )
+    return evidence
 
 
 def _smooth_seam_consistency(
@@ -1173,12 +1318,12 @@ def _smooth_seam_consistency(
 
     Parameters
     ----------
-    raw_records : dict[str, dict[str, Any]]
+    raw_records : Dict[str, Dict[str, Any]]
         Frozen per-candidate raw tail records keyed by domain.
 
     Returns
     -------
-    result : dict[str, Any]
+    result : Dict[str, Any]
         Per-candidate edge-slope errors against the analytic pole
         slope, the C1 seam errors, and the roundoff seam verdict.
 
@@ -1189,58 +1334,88 @@ def _smooth_seam_consistency(
     It also records the accuracy of every edge-slope estimator against
     the analytic pole slope at the base edges.
     """
+    omega0: float
+    gamma: float
+    coupling: float
     omega0, gamma, coupling = POLE_PARAMS
-    config = CONFIGS["base"]
-    grid = _core_grid_np(config)
-    spacing = grid[1] - grid[0]
-    offset = grid - omega0
-    values = -coupling * gamma / (offset * offset + gamma * gamma)
+    config: GridConfig = CONFIGS["base"]
+    grid: Float64[NDArray, " n_kk"] = _core_grid_np(config)
+    spacing: float = grid[1] - grid[0]
+    offset: Float64[NDArray, " n_kk"] = grid - omega0
+    values: Float64[NDArray, " n_kk"] = (
+        -coupling * gamma / (offset * offset + gamma * gamma)
+    )
 
-    def analytic_slope(point: float) -> float:
-        shifted = point - omega0
-        return (
+    def _analytic_slope(point: float) -> float:
+        """PRIVATE: Evaluate the analytic pole slope at one energy.
+
+        Parameters
+        ----------
+        point : float
+            Evaluation energy in eV.
+
+        Returns
+        -------
+        slope_value : float
+            Energy derivative of the imaginary self-energy.
+
+        Notes
+        -----
+        The closure differentiates the retarded-pole Lorentzian with its fixed
+        center, width, and coupling.
+        """
+        shifted: float = point - omega0
+        slope_value: float = (
             2.0
             * coupling
             * gamma
             * shifted
             / (shifted * shifted + gamma * gamma) ** 2
         )
+        return slope_value
 
     result: Dict[str, Any] = {"requirement": "kk-carrier-consistency"}
+    candidate_key: str
     for candidate_key in ("pwlinear", "pwquadratic", "pwcubic"):
+        slope_left: float
+        slope_right: float
         slope_left, slope_right = (
             float(x)
             for x in _edge_slopes(
                 candidate_key, jnp.asarray(values), jnp.float64(spacing)
             )
         )
-        record = raw_records.get(candidate_key, {}).get("base_domain")
+        record: Dict[str, Any] | None = raw_records.get(candidate_key, {}).get(
+            "base_domain"
+        )
         seam: Dict[str, Any] = {
             "edge_slope_error_left": abs(
-                slope_left - analytic_slope(float(grid[0]))
+                slope_left - _analytic_slope(float(grid[0]))
             ),
             "edge_slope_error_right": abs(
-                slope_right - analytic_slope(float(grid[-1]))
+                slope_right - _analytic_slope(float(grid[-1]))
             ),
         }
         if record is not None:
-            tail_spec = _kk_candidate_common.construct_power2_tail_spec(
-                values[0],
-                slope_left,
-                values[-1],
-                slope_right,
-                record["raw_left"],
-                record["raw_right"],
+            tail_spec: _kk_candidate_common.Power2TailSpec = (
+                _kk_candidate_common.construct_power2_tail_spec(
+                    values[0],
+                    slope_left,
+                    values[-1],
+                    slope_right,
+                    record["raw_left"],
+                    record["raw_right"],
+                )
             )
-            seam_left = abs(
+            seam_left: float = abs(
                 float(-tail_spec.amplitude_left * tail_spec.alpha_left)
                 - slope_left
             )
-            seam_right = abs(
+            seam_right: float = abs(
                 float(tail_spec.amplitude_right * tail_spec.alpha_right)
                 - slope_right
             )
-            slope_scale = max(1.0, abs(slope_left), abs(slope_right))
+            slope_scale: float = max(1.0, abs(slope_left), abs(slope_right))
             seam["tail_seam_slope_error_left"] = seam_left
             seam["tail_seam_slope_error_right"] = seam_right
             seam["pass_tail_seam_roundoff"] = bool(
@@ -1250,7 +1425,7 @@ def _smooth_seam_consistency(
     return result
 
 
-def _reverse_mode_evidence(
+def _reverse_mode_evidence(  # noqa: PLR0915 -- coupled AD evidence record.
     candidate_module: Any,
     candidate_key: str,
     raws: Tuple[float, float],
@@ -1264,14 +1439,14 @@ def _reverse_mode_evidence(
         Candidate operator module exposing ``core_pv_transform``.
     candidate_key : str
         Operator selector that fixes the edge-slope stencil.
-    raws : tuple[float, float]
+    raws : Tuple[float, float]
         Frozen raw tail coordinates for the pole tails.
     queries : Float64[NDArray, " n_query"]
         Query energies in eV.
 
     Returns
     -------
-    evidence : tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]
+    evidence : Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]
         Metrics dictionary (identity, finite-difference, and node-
         coincident verdicts) and the three gradient arrays for the
         archive.
@@ -1281,64 +1456,160 @@ def _reverse_mode_evidence(
     A fixed positive weight vector contracts the subtracted pole output
     to a scalar.  ``jax.grad`` computes gradients with respect to query
     positions, core Sigma'' samples, and the two raw tail coordinates.
-    Each gradient is verified against forward-mode JVPs (dot-product
-    identity) and five-point central finite differences.  Additional
-    queries placed exactly on grid nodes exercise the node-cancellation
-    ``where`` pair in reverse mode; those gradients must stay finite.
+    Compare each gradient with forward-mode JVPs through the dot-product
+    identity. Also compare it with five-point central finite differences.
+    Place additional queries exactly on grid nodes. These queries exercise
+    reverse-mode node cancellation. Their gradients must remain finite.
     """
-    config = CONFIGS["base"]
-    grid_np = _core_grid_np(config)
-    grid = jnp.asarray(grid_np)
-    spacing = grid[1] - grid[0]
-    params = jnp.asarray(POLE_PARAMS, dtype=jnp.float64)
-    values = _sigma_imag("pole", grid, params)
-    queries_jnp = jnp.asarray(queries, dtype=jnp.float64)
-    weights = 0.75 + 0.5 * jnp.cos(3.0 * queries_jnp)
-    raws_vec = jnp.asarray(raws, dtype=jnp.float64)
+    config: GridConfig = CONFIGS["base"]
+    grid_np: Float64[NDArray, " n_kk"] = _core_grid_np(config)
+    grid: Float64[Array, " n_kk"] = jnp.asarray(grid_np)
+    spacing: Float64[Array, ""] = grid[1] - grid[0]
+    params: Float64[Array, " n_param"] = jnp.asarray(
+        POLE_PARAMS, dtype=jnp.float64
+    )
+    values: Float64[Array, " n_kk"] = _sigma_imag("pole", grid, params)
+    queries_jnp: Float64[Array, " n_query"] = jnp.asarray(
+        queries, dtype=jnp.float64
+    )
+    weights: Float64[Array, " n_query"] = 0.75 + 0.5 * jnp.cos(
+        3.0 * queries_jnp
+    )
+    raws_vec: Float64[Array, " 2"] = jnp.asarray(raws, dtype=jnp.float64)
 
-    def subtracted_from(
+    def _subtracted_from(
         values_in: Float64[Array, " n_kk"],
         raws_in: Float64[Array, " 2"],
         queries_in: Float64[Array, " n_any"],
     ) -> Float64[Array, " n_any"]:
-        appended = jnp.concatenate(
+        """PRIVATE: Evaluate the subtracted operator from explicit carriers.
+
+        Parameters
+        ----------
+        values_in : Float64[Array, " n_kk"]
+            Imaginary self-energy samples in eV.
+        raws_in : Float64[Array, " 2"]
+            Raw coordinates for the left and right tails.
+        queries_in : Float64[Array, " n_any"]
+            Query energies in eV.
+
+        Returns
+        -------
+        sigma_subtracted : Float64[Array, " n_any"]
+            Real self-energy relative to the subtraction point in eV.
+
+        Notes
+        -----
+        The closure combines the core transform and both tails. It appends and
+        removes the fixed subtraction-point value.
+        """
+        appended: Float64[Array, "..."] = jnp.concatenate(
             (queries_in, jnp.asarray([OMEGA_S_EV], dtype=jnp.float64))
         )
-        core = candidate_module.core_pv_transform(grid, values_in, appended)
+        core: Float64[Array, "..."] = candidate_module.core_pv_transform(
+            grid, values_in, appended
+        )
+        slope_left: Float64[Array, ""]
+        slope_right: Float64[Array, ""]
         slope_left, slope_right = _edge_slopes(
             candidate_key, values_in, spacing
         )
-        tail_spec = _kk_candidate_common.construct_power2_tail_spec(
-            values_in[0],
-            slope_left,
-            values_in[-1],
-            slope_right,
-            raws_in[0],
-            raws_in[1],
+        tail_spec: _kk_candidate_common.Power2TailSpec = (
+            _kk_candidate_common.construct_power2_tail_spec(
+                values_in[0],
+                slope_left,
+                values_in[-1],
+                slope_right,
+                raws_in[0],
+                raws_in[1],
+            )
         )
-        tail = _kk_candidate_common.semi_infinite_tail_contribution(
-            jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
-            tail_spec,
-            appended,
-            n_tail=config.n_tail,
+        tail: Float64[Array, "..."] = (
+            _kk_candidate_common.semi_infinite_tail_contribution(
+                jnp.asarray([grid_np[0], grid_np[-1]], dtype=jnp.float64),
+                tail_spec,
+                appended,
+                n_tail=config.n_tail,
+            )
         )
-        total = core + tail
-        return total[:-1] - total[-1]
+        total: Float64[Array, "..."] = core + tail
+        sigma_subtracted: Float64[Array, " n_any"] = total[:-1] - total[-1]
+        return sigma_subtracted
 
-    def contract_queries(query_values: Float64[Array, " n_query"]) -> Any:
-        return jnp.sum(
-            weights * subtracted_from(values, raws_vec, query_values)
-        )
+    def _contract_queries(
+        query_values: Float64[Array, " n_query"],
+    ) -> Float64[Array, ""]:
+        """PRIVATE: Compute the output contraction while varying queries.
 
-    def contract_values(core_values: Float64[Array, " n_kk"]) -> Any:
-        return jnp.sum(
-            weights * subtracted_from(core_values, raws_vec, queries_jnp)
-        )
+        Parameters
+        ----------
+        query_values : Float64[Array, " n_query"]
+            Query energies in eV.
 
-    def contract_raws(raw_values: Float64[Array, " 2"]) -> Any:
-        return jnp.sum(
-            weights * subtracted_from(values, raw_values, queries_jnp)
+        Returns
+        -------
+        contracted : Float64[Array, ""]
+            Weighted scalar contraction of the real self-energy in eV.
+
+        Notes
+        -----
+        The closure fixes the core samples and tail coordinates. The weight
+        vector gives each query a nonzero reverse-mode sensitivity.
+        """
+        contracted: Float64[Array, ""] = jnp.sum(
+            weights * _subtracted_from(values, raws_vec, query_values)
         )
+        return contracted
+
+    def _contract_values(
+        core_values: Float64[Array, " n_kk"],
+    ) -> Float64[Array, ""]:
+        """PRIVATE: Compute the output contraction while varying core samples.
+
+        Parameters
+        ----------
+        core_values : Float64[Array, " n_kk"]
+            Imaginary self-energy samples in eV.
+
+        Returns
+        -------
+        contracted : Float64[Array, ""]
+            Weighted scalar contraction of the real self-energy in eV.
+
+        Notes
+        -----
+        The closure fixes the queries and tail coordinates. JAX differentiates
+        every core sample through the principal-value operator.
+        """
+        contracted: Float64[Array, ""] = jnp.sum(
+            weights * _subtracted_from(core_values, raws_vec, queries_jnp)
+        )
+        return contracted
+
+    def _contract_raws(
+        raw_values: Float64[Array, " 2"],
+    ) -> Float64[Array, ""]:
+        """PRIVATE: Compute the contraction while varying tail coordinates.
+
+        Parameters
+        ----------
+        raw_values : Float64[Array, " 2"]
+            Raw coordinates for the left and right tails.
+
+        Returns
+        -------
+        contracted : Float64[Array, ""]
+            Weighted scalar contraction of the real self-energy in eV.
+
+        Notes
+        -----
+        The closure fixes the queries and core samples. JAX differentiates the
+        softplus curvature coordinates through both tail integrals.
+        """
+        contracted: Float64[Array, ""] = jnp.sum(
+            weights * _subtracted_from(values, raw_values, queries_jnp)
+        )
+        return contracted
 
     metrics: Dict[str, Any] = {
         "requirement": "kk-reverse-mode-consistency",
@@ -1352,21 +1623,29 @@ def _reverse_mode_evidence(
         ),
     }
 
-    grad_queries = jax.grad(contract_queries)(queries_jnp)
+    grad_queries: Float64[Array, " n_query"] = jax.grad(_contract_queries)(
+        queries_jnp
+    )
+    dsigma: Float64[Array, " n_query"]
     _, dsigma = jax.jvp(
-        lambda q: subtracted_from(values, raws_vec, q),
+        lambda q: _subtracted_from(values, raws_vec, q),
         (queries_jnp,),
         (jnp.ones_like(queries_jnp),),
     )
-    per_query_diff = float(jnp.max(jnp.abs(grad_queries - weights * dsigma)))
-    query_scale = max(1.0, float(jnp.max(jnp.abs(grad_queries))))
-    query_tangent = jnp.sin(2.0 * queries_jnp) + 0.25
-    _, forward_query = jax.jvp(
-        contract_queries, (queries_jnp,), (query_tangent,)
+    per_query_diff: float = float(
+        jnp.max(jnp.abs(grad_queries - weights * dsigma))
     )
-    dot_query = float(jnp.sum(grad_queries * query_tangent))
-    fd_query = _five_point_scalar_fd(
-        lambda s: float(contract_queries(queries_jnp + s * query_tangent)),
+    query_scale: float = max(1.0, float(jnp.max(jnp.abs(grad_queries))))
+    query_tangent: Float64[Array, " n_query"] = (
+        jnp.sin(2.0 * queries_jnp) + 0.25
+    )
+    forward_query: Float64[Array, ""]
+    _, forward_query = jax.jvp(
+        _contract_queries, (queries_jnp,), (query_tangent,)
+    )
+    dot_query: float = float(jnp.sum(grad_queries * query_tangent))
+    fd_query: float = _five_point_scalar_fd(
+        lambda s: float(_contract_queries(queries_jnp + s * query_tangent)),
         DIRECTIONAL_FD_STEP,
     )
     metrics["queries"] = {
@@ -1386,17 +1665,20 @@ def _reverse_mode_evidence(
         ),
     }
 
-    grad_values = jax.grad(contract_values)(values)
+    grad_values: Float64[Array, " n_kk"] = jax.grad(_contract_values)(values)
     # The tangent is relative to the sampled magnitude so the finite
     # difference keeps the derived tail parameters in their smooth
     # regime: an absolute tangent would perturb the tiny edge amplitude
     # by order one across the stencil and invalidate the difference
     # quotient without measuring any AD defect.
-    value_tangent = values * (0.5 * jnp.cos(1.3 * grid))
-    _, forward_value = jax.jvp(contract_values, (values,), (value_tangent,))
-    dot_value = float(jnp.sum(grad_values * value_tangent))
-    fd_value = _five_point_scalar_fd(
-        lambda s: float(contract_values(values + s * value_tangent)),
+    value_tangent: Float64[Array, " n_kk"] = values * (
+        0.5 * jnp.cos(1.3 * grid)
+    )
+    forward_value: Float64[Array, ""]
+    _, forward_value = jax.jvp(_contract_values, (values,), (value_tangent,))
+    dot_value: float = float(jnp.sum(grad_values * value_tangent))
+    fd_value: float = _five_point_scalar_fd(
+        lambda s: float(_contract_values(values + s * value_tangent)),
         DIRECTIONAL_FD_STEP,
     )
     metrics["core_samples"] = {
@@ -1416,23 +1698,26 @@ def _reverse_mode_evidence(
         ),
     }
 
-    grad_raws = jax.grad(contract_raws)(raws_vec)
+    grad_raws: Float64[Array, " 2"] = jax.grad(_contract_raws)(raws_vec)
     raw_rows: Dict[str, Any] = {}
-    raw_pass = True
+    raw_pass: bool = True
+    coordinate: int
+    name: str
     for coordinate, name in enumerate(("raw_left", "raw_right")):
-        direction = jnp.zeros(2).at[coordinate].set(1.0)
-        _, forward_raw = jax.jvp(contract_raws, (raws_vec,), (direction,))
-        reverse_raw = float(grad_raws[coordinate])
-        fd_raw = _five_point_scalar_fd(
-            lambda s, d=direction: float(contract_raws(raws_vec + s * d)),
+        direction: Float64[Array, " 2"] = jnp.zeros(2).at[coordinate].set(1.0)
+        forward_raw: Float64[Array, ""]
+        _, forward_raw = jax.jvp(_contract_raws, (raws_vec,), (direction,))
+        reverse_raw: float = float(grad_raws[coordinate])
+        fd_raw: float = _five_point_scalar_fd(
+            lambda s, d=direction: float(_contract_raws(raws_vec + s * d)),
             RAW_FD_STEP,
         )
-        forward_reverse = abs(reverse_raw - float(forward_raw))
-        fd_error = abs(reverse_raw - fd_raw)
+        forward_reverse: float = abs(reverse_raw - float(forward_raw))
+        fd_error: float = abs(reverse_raw - fd_raw)
         # The raw gradients are tiny (softplus-suppressed), so the
         # difference-quotient roundoff floor eps*|f|/(12*step) dominates
         # the relative criterion and is included explicitly.
-        row_pass = bool(
+        row_pass: bool = bool(
             forward_reverse
             <= REVERSE_FORWARD_RTOL * max(1.0, abs(float(forward_raw)))
             and fd_error
@@ -1449,25 +1734,72 @@ def _reverse_mode_evidence(
         }
     metrics["raw_tail_coordinates"] = {**raw_rows, "pass_all": raw_pass}
 
-    node_indices = (1024, 2048, 3072)
-    node_queries = grid[jnp.asarray(node_indices)]
+    node_indices: Tuple[int, int, int] = (1024, 2048, 3072)
+    node_queries: Float64[Array, " 3"] = grid[jnp.asarray(node_indices)]
 
-    def contract_node_queries(query_values: Float64[Array, " 3"]) -> Any:
-        return jnp.sum(subtracted_from(values, raws_vec, query_values))
+    def _contract_node_queries(
+        query_values: Float64[Array, " 3"],
+    ) -> Float64[Array, ""]:
+        """PRIVATE: Compute a contraction at node-coincident queries.
 
-    def contract_values_at_nodes(
+        Parameters
+        ----------
+        query_values : Float64[Array, " 3"]
+            Three query energies that equal core-grid nodes, in eV.
+
+        Returns
+        -------
+        contracted : Float64[Array, ""]
+            Sum of the three subtracted real self-energy values in eV.
+
+        Notes
+        -----
+        The closure exercises exact logarithm cancellation at grid nodes. It
+        checks the reverse-mode query seam without an extra weight vector.
+        """
+        contracted: Float64[Array, ""] = jnp.sum(
+            _subtracted_from(values, raws_vec, query_values)
+        )
+        return contracted
+
+    def _contract_values_at_nodes(
         core_values: Float64[Array, " n_kk"],
-    ) -> Any:
-        return jnp.sum(subtracted_from(core_values, raws_vec, node_queries))
+    ) -> Float64[Array, ""]:
+        """PRIVATE: Compute node-query contractions while varying core samples.
 
-    grad_node_queries = jax.grad(contract_node_queries)(node_queries)
-    grad_values_nodes = jax.grad(contract_values_at_nodes)(values)
-    _, forward_nodes = jax.jvp(
-        contract_values_at_nodes, (values,), (value_tangent,)
+        Parameters
+        ----------
+        core_values : Float64[Array, " n_kk"]
+            Imaginary self-energy samples in eV.
+
+        Returns
+        -------
+        contracted : Float64[Array, ""]
+            Sum of the node-query real self-energy values in eV.
+
+        Notes
+        -----
+        The closure fixes three node-coincident queries and the tail
+        coordinates. JAX differentiates every core sample.
+        """
+        contracted: Float64[Array, ""] = jnp.sum(
+            _subtracted_from(core_values, raws_vec, node_queries)
+        )
+        return contracted
+
+    grad_node_queries: Float64[Array, " 3"] = jax.grad(_contract_node_queries)(
+        node_queries
     )
-    dot_nodes = float(jnp.sum(grad_values_nodes * value_tangent))
-    fd_nodes = _five_point_scalar_fd(
-        lambda s: float(contract_values_at_nodes(values + s * value_tangent)),
+    grad_values_nodes: Float64[Array, " n_kk"] = jax.grad(
+        _contract_values_at_nodes
+    )(values)
+    forward_nodes: Float64[Array, ""]
+    _, forward_nodes = jax.jvp(
+        _contract_values_at_nodes, (values,), (value_tangent,)
+    )
+    dot_nodes: float = float(jnp.sum(grad_values_nodes * value_tangent))
+    fd_nodes: float = _five_point_scalar_fd(
+        lambda s: float(_contract_values_at_nodes(values + s * value_tangent)),
         DIRECTIONAL_FD_STEP,
     )
     metrics["node_coincident_queries"] = {
@@ -1493,12 +1825,16 @@ def _reverse_mode_evidence(
         ),
     }
 
-    arrays = {
+    arrays: Dict[str, Float64[NDArray, "..."]] = {
         f"reverse_{candidate_key}_grad_queries": np.asarray(grad_queries),
         f"reverse_{candidate_key}_grad_core_samples": np.asarray(grad_values),
         f"reverse_{candidate_key}_grad_raw_tail": np.asarray(grad_raws),
     }
-    return metrics, arrays
+    evidence: Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]] = (
+        metrics,
+        arrays,
+    )
+    return evidence
 
 
 def _two_band_intensity(
@@ -1528,17 +1864,26 @@ def _two_band_intensity(
     scalar retarded self-energy ``Sigma = Sigma'_sub + i Sigma''``; the
     intensity is ``-Im(M^dagger G M)/pi``.
     """
-    sigma = sigma_sub + 1j * sigma_imag
-    z_values = omega + 1j * SPECTRAL_ETA_EV - sigma
-    identity = np.eye(2, dtype=np.complex128)
-    matrices = (
+    sigma: Complex128[NDArray, " n_omega"] = sigma_sub + 1j * sigma_imag
+    z_values: Complex128[NDArray, " n_omega"] = (
+        omega + 1j * SPECTRAL_ETA_EV - sigma
+    )
+    identity: Complex128[NDArray, "2 2"] = np.eye(2, dtype=np.complex128)
+    matrices: Complex128[NDArray, "n_omega 2 2"] = (
         z_values[:, None, None] * identity[None, :, :]
         - SPECTRAL_HAMILTONIAN_EV[None, :, :]
     )
-    sources = np.broadcast_to(SPECTRAL_SOURCE, (omega.shape[0], 2))
-    solved = np.linalg.solve(matrices, sources[..., None])[..., 0]
-    projected = np.einsum("i,ni->n", np.conj(SPECTRAL_SOURCE), solved)
-    return -projected.imag / np.pi
+    sources: Complex128[NDArray, "n_omega 2"] = np.broadcast_to(
+        SPECTRAL_SOURCE, (omega.shape[0], 2)
+    )
+    solved: Complex128[NDArray, "n_omega 2"] = np.linalg.solve(
+        matrices, sources[..., None]
+    )[..., 0]
+    projected: Complex128[NDArray, " n_omega"] = np.einsum(
+        "i,ni->n", np.conj(SPECTRAL_SOURCE), solved
+    )
+    intensity: Float64[NDArray, " n_omega"] = -projected.imag / np.pi
+    return intensity
 
 
 def _quadratic_peak_ev(
@@ -1561,17 +1906,23 @@ def _quadratic_peak_ev(
 
     Notes
     -----
-    The function fits a parabola through the maximum sample and its two
-    neighbors (argmax clamped away from the ends) and shifts the node
-    position by ``0.5 (left - right) / (left - 2 center + right)``
-    cells; a zero denominator keeps the node position.
+    Fit a parabola through the maximum sample and both neighbors. Clamp argmax
+    away from the ends. Shift the node by
+    ``0.5 (left - right) / (left - 2 center + right)`` cells. Keep the node
+    position when the denominator equals zero.
     """
-    index = int(np.argmax(intensity))
+    index: int = int(np.argmax(intensity))
     index = min(max(index, 1), intensity.shape[0] - 2)
+    left: float
+    center: float
+    right: float
     left, center, right = intensity[index - 1 : index + 2]
-    denominator = left - 2.0 * center + right
-    shift = 0.0 if denominator == 0.0 else 0.5 * (left - right) / denominator
-    return float(omega[index] + shift * (omega[1] - omega[0]))
+    denominator: float = left - 2.0 * center + right
+    shift: float = (
+        0.0 if denominator == 0.0 else 0.5 * (left - right) / denominator
+    )
+    peak_ev: float = float(omega[index] + shift * (omega[1] - omega[0]))
+    return peak_ev
 
 
 def _spectral_observable_rows(
@@ -1581,12 +1932,12 @@ def _spectral_observable_rows(
 
     Parameters
     ----------
-    raw_records : dict[str, dict[str, Any]]
+    raw_records : Dict[str, Dict[str, Any]]
         Frozen per-candidate raw tail records keyed by domain.
 
     Returns
     -------
-    evidence : tuple[dict[str, Any], dict[str, Float64[NDArray, "..."]]]
+    evidence : Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]]
         Metrics dictionary (L1 shape change, weight change, peak
         motion, and verdicts per refinement) and the intensity arrays
         for the archive.
@@ -1598,12 +1949,21 @@ def _spectral_observable_rows(
     under test, subtracted at ``omega_s = 0``. Shape changes integrate
     over the frozen 4001-point omega grid on ``[-1, 1]`` eV.
     """
-    omega = np.linspace(-1.0, 1.0, SPECTRAL_N_OMEGA)
-    omega_jnp = jnp.asarray(omega)
-    params = jnp.asarray(POLE_PARAMS, dtype=jnp.float64)
+    omega: Float64[NDArray, " n_omega"] = np.linspace(
+        -1.0, 1.0, SPECTRAL_N_OMEGA
+    )
+    omega_jnp: Float64[Array, " n_omega"] = jnp.asarray(omega)
+    params: Float64[Array, " n_param"] = jnp.asarray(
+        POLE_PARAMS, dtype=jnp.float64
+    )
+    omega0: float
+    gamma: float
+    coupling: float
     omega0, gamma, coupling = POLE_PARAMS
-    offset = omega - omega0
-    sigma_imag = -coupling * gamma / (offset * offset + gamma * gamma)
+    offset: Float64[NDArray, " n_omega"] = omega - omega0
+    sigma_imag: Float64[NDArray, " n_omega"] = (
+        -coupling * gamma / (offset * offset + gamma * gamma)
+    )
 
     metrics: Dict[str, Any] = {
         "requirement": "kk-spectral-observable-stability",
@@ -1620,22 +1980,28 @@ def _spectral_observable_rows(
         "n_omega": SPECTRAL_N_OMEGA,
     }
     arrays: Dict[str, Float64[NDArray, "..."]] = {"spectral_omega_ev": omega}
-    spacing = omega[1] - omega[0]
+    spacing: float = omega[1] - omega[0]
+    candidate_key: str
+    module: Any
     for candidate_key, module in CANDIDATE_MODULES.items():
         intensities: Dict[str, Float64[NDArray, " n_omega"]] = {}
+        config_key: str
         for config_key in FIXTURE_CONFIG_KEYS["pole"]:
-            config = CONFIGS[config_key]
-            domain_key = (
+            config: GridConfig = CONFIGS[config_key]
+            domain_key: str = (
                 "extended_domain"
                 if config.construction == "phase_aligned_extension"
                 else "base_domain"
             )
-            record = raw_records[candidate_key][domain_key]
-            raws = (record["raw_left"], record["raw_right"])
-            appended = jnp.concatenate(
+            record: Dict[str, Any] = raw_records[candidate_key][domain_key]
+            raws: Tuple[float, float] = (
+                record["raw_left"],
+                record["raw_right"],
+            )
+            appended: Float64[Array, " n_appended"] = jnp.concatenate(
                 (omega_jnp, jnp.asarray([OMEGA_S_EV], dtype=jnp.float64))
             )
-            total = np.asarray(
+            total: Float64[NDArray, " n_appended"] = np.asarray(
                 _sigma_prime_unsubtracted(
                     module,
                     candidate_key,
@@ -1646,26 +2012,30 @@ def _spectral_observable_rows(
                     appended,
                 )
             )
-            sigma_sub = total[:-1] - total[-1]
-            intensity = _two_band_intensity(sigma_sub, sigma_imag, omega)
+            sigma_sub: Float64[NDArray, " n_omega"] = total[:-1] - total[-1]
+            intensity: Float64[NDArray, " n_omega"] = _two_band_intensity(
+                sigma_sub, sigma_imag, omega
+            )
             intensities[config_key] = intensity
             arrays[f"spectral_{candidate_key}_{config_key}_intensity"] = (
                 intensity
             )
-        base_intensity = intensities["base"]
-        base_weight = float(np.trapezoid(base_intensity, dx=spacing))
-        base_shape = base_intensity / base_weight
-        base_peak = _quadratic_peak_ev(base_intensity, omega)
+        base_intensity: Float64[NDArray, " n_omega"] = intensities["base"]
+        base_weight: float = float(np.trapezoid(base_intensity, dx=spacing))
+        base_shape: Float64[NDArray, " n_omega"] = base_intensity / base_weight
+        base_peak: float = _quadratic_peak_ev(base_intensity, omega)
         candidate_rows: Dict[str, Any] = {"base_peak_ev": base_peak}
         for config_key in FIXTURE_CONFIG_KEYS["pole"][1:]:
-            refined = intensities[config_key]
-            weight = float(np.trapezoid(refined, dx=spacing))
-            shape = refined / weight
-            l1_change = float(
+            refined: Float64[NDArray, " n_omega"] = intensities[config_key]
+            weight: float = float(np.trapezoid(refined, dx=spacing))
+            shape: Float64[NDArray, " n_omega"] = refined / weight
+            l1_change: float = float(
                 np.trapezoid(np.abs(shape - base_shape), dx=spacing)
             )
-            weight_change = abs(weight - base_weight) / abs(base_weight)
-            peak_motion = abs(_quadratic_peak_ev(refined, omega) - base_peak)
+            weight_change: float = abs(weight - base_weight) / abs(base_weight)
+            peak_motion: float = abs(
+                _quadratic_peak_ev(refined, omega) - base_peak
+            )
             candidate_rows[config_key] = {
                 "l1_shape_change": l1_change,
                 "pass_l1_shape_1em5": bool(l1_change <= SPECTRAL_L1_BUDGET),
@@ -1677,7 +2047,11 @@ def _spectral_observable_rows(
                 "pass_peak_2em5": bool(peak_motion <= SPECTRAL_PEAK_BUDGET_EV),
             }
         metrics[candidate_key] = candidate_rows
-    return metrics, arrays
+    evidence: Tuple[Dict[str, Any], Dict[str, Float64[NDArray, "..."]]] = (
+        metrics,
+        arrays,
+    )
+    return evidence
 
 
 def _array_bytes(array: Float64[NDArray, "..."]) -> bytes:
@@ -1698,9 +2072,10 @@ def _array_bytes(array: Float64[NDArray, "..."]) -> bytes:
     ``np.lib.format.write_array`` writes into an in-memory buffer with
     pickle disabled, so equal arrays always produce equal bytes.
     """
-    output = io.BytesIO()
+    output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
-    return output.getvalue()
+    payload: bytes = output.getvalue()
+    return payload
 
 
 def _write_deterministic_npz(
@@ -1713,23 +2088,26 @@ def _write_deterministic_npz(
     ----------
     path : Path
         Destination NPZ path.
-    arrays : dict[str, Float64[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, "..."]]
         Named arrays to store.
 
     Notes
     -----
-    Members enter in sorted name order with the fixed 1980-01-01 ZIP
-    timestamp, a fixed file mode, and DEFLATE level 9, so identical
-    arrays always produce byte-identical archives.
+    Sort members by name. Give each member the fixed 1980-01-01 timestamp and
+    file mode. Use DEFLATE level 9. Identical arrays then produce identical
+    archive bytes.
     """
+    archive: zipfile.ZipFile
     with zipfile.ZipFile(
         path,
         mode="w",
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=9,
     ) as archive:
+        name: str
+        array: Float64[NDArray, "..."]
         for name, array in sorted(arrays.items()):
-            member = zipfile.ZipInfo(
+            member: zipfile.ZipInfo = zipfile.ZipInfo(
                 filename=f"{name}.npy",
                 date_time=(1980, 1, 1, 0, 0, 0),
             )
@@ -1761,7 +2139,8 @@ def _sha256(path: Path) -> str:
     The function reads the complete file into memory before hashing;
     every evidence file stays small enough for that.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _executable_input_provenance() -> Dict[str, Any]:
@@ -1769,7 +2148,7 @@ def _executable_input_provenance() -> Dict[str, Any]:
 
     Returns
     -------
-    provenance : dict[str, Any]
+    provenance : Dict[str, Any]
         Path and SHA-256 for the generator, the shared scaffolding, the
         three candidate modules, and the Maclaurin control, plus the
         analytic-arbiter archive, manifest, and generator digests.
@@ -1780,7 +2159,7 @@ def _executable_input_provenance() -> Dict[str, Any]:
     archive digest and arbiter description, so the manifest exposes
     both the observed and the recorded values.
     """
-    module_files = {
+    module_files: Dict[str, Path] = {
         "generator": Path(__file__).resolve(),
         "common": _TOOLS_DIRECTORY / "_kk_candidate_common.py",
         "piecewise_linear": (
@@ -1803,8 +2182,8 @@ def _executable_input_provenance() -> Dict[str, Any]:
         }
         for key, path in module_files.items()
     }
-    reference_directory = _kk_candidate_common.REFERENCE_DIRECTORY
-    truth_manifest = json.loads(
+    reference_directory: Path = _kk_candidate_common.REFERENCE_DIRECTORY
+    truth_manifest: Dict[str, Any] = json.loads(
         (reference_directory / "manifest.json").read_text(encoding="utf-8")
     )
     provenance["analytic_arbiter"] = {
@@ -1822,9 +2201,17 @@ def _executable_input_provenance() -> Dict[str, Any]:
     return provenance
 
 
-def main() -> None:
-    """Run the frozen operator-selection battery and write the artifact."""
-    reference = _kk_candidate_common.load_analytic_reference()
+def main() -> None:  # noqa: PLR0912, PLR0915 -- frozen evidence battery.
+    """Run the operator comparison and write its authority artifact.
+
+    Notes
+    -----
+    The function evaluates all fixtures, refinements, derivatives, and spectral
+    observables. It writes deterministic arrays and complete provenance.
+    """
+    reference: Dict[str, Float64[NDArray, "..."]] = (
+        _kk_candidate_common.load_analytic_reference()
+    )
     queries: Float64[NDArray, " n_query"] = reference["pole_omega"]
     if not np.array_equal(queries, reference["semicircle_omega"]):
         raise RuntimeError("truth archive query grids disagree")
@@ -1836,13 +2223,15 @@ def main() -> None:
     }
     truth.update(_analytic_truth(queries))
 
-    base_grid = _core_grid_np(CONFIGS["base"])
-    extension_grid = _core_grid_np(CONFIGS["domain_extension"])
-    embedded = extension_grid[
+    base_grid: Float64[NDArray, " n_base"] = _core_grid_np(CONFIGS["base"])
+    extension_grid: Float64[NDArray, " n_extension"] = _core_grid_np(
+        CONFIGS["domain_extension"]
+    )
+    embedded: Float64[NDArray, " n_base"] = extension_grid[
         EXTENSION_SHIFT_CELLS : EXTENSION_SHIFT_CELLS + BASE_N_KK
     ]
-    embedding_mismatches = int(np.sum(embedded != base_grid))
-    query_node_collisions = int(np.intersect1d(queries, base_grid).size)
+    embedding_mismatches: int = int(np.sum(embedded != base_grid))
+    query_node_collisions: int = int(np.intersect1d(queries, base_grid).size)
 
     arrays: Dict[str, Float64[NDArray, "..."]] = {
         "queries_ev": queries,
@@ -1850,6 +2239,7 @@ def main() -> None:
     }
     metrics: Dict[str, Any] = {}
     raw_records: Dict[str, Dict[str, Any]] = {}
+    candidate_key: str
     for candidate_key in (*CANDIDATE_MODULES, "pwlinear"):
         raw_records[candidate_key] = {
             "base_domain": _pole_tail_raw_parameters(candidate_key, base_grid),
@@ -1858,54 +2248,86 @@ def main() -> None:
             ),
         }
 
-    def pole_raws(candidate_key: str, domain_key: str) -> Tuple[float, float]:
-        record = raw_records[candidate_key][domain_key]
-        return (record["raw_left"], record["raw_right"])
+    def _pole_raws(candidate_key: str, domain_key: str) -> Tuple[float, float]:
+        """PRIVATE: Read the two pole-tail coordinates for one domain.
+
+        Parameters
+        ----------
+        candidate_key : str
+            Principal-value operator key.
+        domain_key : str
+            Model-domain key for the stored tail record.
+
+        Returns
+        -------
+        raw_values : Tuple[float, float]
+            Left and right raw curvature coordinates.
+
+        Notes
+        -----
+        The closure reads coordinates that the analytic pole edges define. It
+        does not inspect a candidate output.
+        """
+        record: Dict[str, Any] = raw_records[candidate_key][domain_key]
+        raw_values: Tuple[float, float] = (
+            record["raw_left"],
+            record["raw_right"],
+        )
+        return raw_values
 
     scenario_values: Dict[
         Tuple[str, str, str], Dict[str, Float64[NDArray, " n_query"]]
     ] = {}
+    module: Any
     for candidate_key, module in CANDIDATE_MODULES.items():
+        fixture_key: str
         for fixture_key in ("pole", "wigner"):
+            config_key: str
             for config_key in FIXTURE_CONFIG_KEYS[fixture_key]:
-                config = CONFIGS[config_key]
+                config: GridConfig = CONFIGS[config_key]
                 raws: Tuple[float, float] | None = None
                 if fixture_key == "pole":
-                    domain_key = (
+                    domain_key: str = (
                         "extended_domain"
                         if config.construction == "phase_aligned_extension"
                         else "base_domain"
                     )
-                    raws = pole_raws(candidate_key, domain_key)
-                values_only = config_key == "grid16384"
+                    raws = _pole_raws(candidate_key, domain_key)
+                values_only: bool = config_key == "grid16384"
                 print(
                     f"evaluating {candidate_key}/{fixture_key}/"
                     f"{config_key} ..."
                 )
-                outputs = _evaluate_scenario(
-                    module,
-                    candidate_key,
-                    fixture_key,
-                    config,
-                    raws,
-                    queries,
-                    values_only=values_only,
+                outputs: Dict[str, Float64[NDArray, " n_query"]] = (
+                    _evaluate_scenario(
+                        module,
+                        candidate_key,
+                        fixture_key,
+                        config,
+                        raws,
+                        queries,
+                        values_only=values_only,
+                    )
                 )
                 scenario_values[(candidate_key, fixture_key, config_key)] = (
                     outputs
                 )
+                name: str
+                value: Float64[NDArray, " n_query"]
                 for name, value in outputs.items():
                     arrays[
                         f"{candidate_key}_{fixture_key}_{config_key}_{name}"
                     ] = value
         print(f"evaluating {candidate_key}/pole/domain_extension_held ...")
-        held_outputs = _evaluate_scenario(
-            module,
-            candidate_key,
-            "pole",
-            CONFIGS["domain_extension"],
-            pole_raws(candidate_key, "base_domain"),
-            queries,
+        held_outputs: Dict[str, Float64[NDArray, " n_query"]] = (
+            _evaluate_scenario(
+                module,
+                candidate_key,
+                "pole",
+                CONFIGS["domain_extension"],
+                _pole_raws(candidate_key, "base_domain"),
+                queries,
+            )
         )
         scenario_values[(candidate_key, "pole", "domain_extension_held")] = (
             held_outputs
@@ -1917,7 +2339,9 @@ def main() -> None:
 
     metrics["candidates"] = {}
     for candidate_key, module in CANDIDATE_MODULES.items():
-        pole_base = scenario_values[(candidate_key, "pole", "base")]
+        pole_base: Dict[str, Float64[NDArray, " n_query"]] = scenario_values[
+            (candidate_key, "pole", "base")
+        ]
         pole_metrics: Dict[str, Any] = {
             "analytic_pair_truth": {"requirement": "kk-analytic-pair-truth"},
             "derivative_composite": {
@@ -1957,17 +2381,17 @@ def main() -> None:
                 ),
             }
         for config_key in FIXTURE_CONFIG_KEYS["pole"][1:]:
-            deltas = _refinement_deltas(
+            deltas: Dict[str, Any] = _refinement_deltas(
                 pole_base,
                 scenario_values[(candidate_key, "pole", config_key)],
                 POLE_PARAM_NAMES,
             )
-            row = _pole_refinement_metrics(
+            row: Dict[str, Any] = _pole_refinement_metrics(
                 deltas, is_tail_refinement=(config_key == "tail512")
             )
             if config_key == "domain_extension":
                 row["tail_raw_convention"] = "recomputed (domain changed)"
-                held_deltas = _refinement_deltas(
+                held_deltas: Dict[str, Any] = _refinement_deltas(
                     pole_base,
                     scenario_values[
                         (candidate_key, "pole", "domain_extension_held")
@@ -1977,8 +2401,10 @@ def main() -> None:
                 row["held_raw_deltas"] = held_deltas
             pole_metrics["refinements"][config_key] = row
 
-        wigner_base = scenario_values[(candidate_key, "wigner", "base")]
-        value_errors = {
+        wigner_base: Dict[str, Float64[NDArray, " n_query"]] = scenario_values[
+            (candidate_key, "wigner", "base")
+        ]
+        value_errors: Dict[str, Any] = {
             config_key: float(
                 np.max(
                     np.abs(
@@ -1991,13 +2417,13 @@ def main() -> None:
             )
             for config_key in FIXTURE_CONFIG_KEYS["wigner"]
         }
-        order_first = float(
+        order_first: float = float(
             np.log2(value_errors["base"] / value_errors["grid8192"])
         )
-        order_second = float(
+        order_second: float = float(
             np.log2(value_errors["grid8192"] / value_errors["grid16384"])
         )
-        monotone = bool(
+        monotone: bool = bool(
             value_errors["base"]
             > value_errors["grid8192"]
             > value_errors["grid16384"]
@@ -2037,23 +2463,26 @@ def main() -> None:
                 _wigner_refinement_metrics(deltas)
             )
 
+        fixture_metrics: Dict[str, Any]
         for fixture_key, fixture_metrics in (
             ("pole", pole_metrics),
             ("wigner", wigner_metrics),
         ):
             fd_agreement: Dict[str, float] = {}
-            fixture_raws = (
-                pole_raws(candidate_key, "base_domain")
+            fixture_raws: Tuple[float, float] | None = (
+                _pole_raws(candidate_key, "base_domain")
                 if fixture_key == "pole"
                 else None
             )
-            base_outputs = scenario_values[
-                (candidate_key, fixture_key, "base")
-            ]
+            base_outputs: Dict[str, Float64[NDArray, " n_query"]] = (
+                scenario_values[(candidate_key, fixture_key, "base")]
+            )
+            param_index: int
+            param_name: str
             for param_index, param_name in enumerate(
                 FIXTURE_PARAM_NAMES[fixture_key]
             ):
-                fd = _five_point_fd(
+                fd: Float64[NDArray, " n_query"] = _five_point_fd(
                     module,
                     candidate_key,
                     fixture_key,
@@ -2077,22 +2506,28 @@ def main() -> None:
     metrics["reverse_mode"] = {}
     for candidate_key, module in CANDIDATE_MODULES.items():
         print(f"reverse-mode evidence for {candidate_key} ...")
+        reverse_metrics: Dict[str, Any]
+        reverse_arrays: Dict[str, Float64[NDArray, "..."]]
         reverse_metrics, reverse_arrays = _reverse_mode_evidence(
             module,
             candidate_key,
-            pole_raws(candidate_key, "base_domain"),
+            _pole_raws(candidate_key, "base_domain"),
             queries,
         )
         metrics["reverse_mode"][candidate_key] = reverse_metrics
         arrays.update(reverse_arrays)
 
     print("carrier-consistency rows ...")
+    carrier_metrics: Dict[str, Any]
+    carrier_arrays: Dict[str, Float64[NDArray, "..."]]
     carrier_metrics, carrier_arrays = _carrier_consistency(queries)
     metrics["carrier_consistency"] = carrier_metrics
     metrics["smooth_seam_consistency"] = _smooth_seam_consistency(raw_records)
     arrays.update(carrier_arrays)
 
     print("two-band spectral observable rows ...")
+    spectral_metrics: Dict[str, Any]
+    spectral_arrays: Dict[str, Float64[NDArray, "..."]]
     spectral_metrics, spectral_arrays = _spectral_observable_rows(raw_records)
     metrics["spectral_observable"] = spectral_metrics
     arrays.update(spectral_arrays)
@@ -2101,8 +2536,8 @@ def main() -> None:
         "requirement": "kk-rejected-control-reference"
     }
     for fixture_key in ("pole", "wigner"):
-        control_raws = (
-            pole_raws("pwlinear", "base_domain")
+        control_raws: Tuple[float, float] | None = (
+            _pole_raws("pwlinear", "base_domain")
             if fixture_key == "pole"
             else None
         )
@@ -2121,7 +2556,7 @@ def main() -> None:
         arrays[f"control_{fixture_key}_base_dsigma_direct"] = outputs[
             "dsigma_direct"
         ]
-        truth_key = (
+        truth_key: str = (
             "truth_pole_sigma_real_sub_ev"
             if fixture_key == "pole"
             else "truth_wigner_sigma_real_sub_ev"
@@ -2140,13 +2575,15 @@ def main() -> None:
             ),
         }
 
-    root = Path(__file__).resolve().parents[2]
-    data_directory = root / "tests" / "test_diffpes" / "_reference_data"
-    archive_path = data_directory / "kk_operator_selection_reference.npz"
-    manifest_path = data_directory / "kk_operator_selection_manifest.json"
+    root: Path = Path(__file__).resolve().parents[2]
+    data_directory: Path = root / "tests" / "test_diffpes" / "_reference_data"
+    archive_path: Path = data_directory / "kk_operator_selection_reference.npz"
+    manifest_path: Path = (
+        data_directory / "kk_operator_selection_manifest.json"
+    )
     _write_deterministic_npz(archive_path, arrays)
 
-    candidate_provenance = {
+    candidate_provenance: Dict[str, Dict[str, str]] = {
         key: {
             "module": f"tests/_reference_tools/{module.__name__}.py",
             "name": module.NAME,
@@ -2161,7 +2598,7 @@ def main() -> None:
     manifest: Dict[str, Any] = {
         "schema": "diffpes.kk-operator-selection.v1",
         "purpose": (
-            "preproduction Kramers-Kronig operator selection: candidate "
+            "independent Kramers-Kronig operator selection: candidate "
             "comparison, carrier consistency, derivative route, "
             "reverse-mode consistency, and spectral observable stability"
         ),
@@ -2177,8 +2614,10 @@ def main() -> None:
             "platform": platform.platform(),
         },
         "fixtures": {
-            "pole": dict(zip(POLE_PARAM_NAMES, POLE_PARAMS)),
-            "wigner": dict(zip(WIGNER_PARAM_NAMES, WIGNER_PARAMS)),
+            "pole": dict(zip(POLE_PARAM_NAMES, POLE_PARAMS, strict=True)),
+            "wigner": dict(
+                zip(WIGNER_PARAM_NAMES, WIGNER_PARAMS, strict=True)
+            ),
             "subtraction_point_ev": OMEGA_S_EV,
             "query_grid": "kk_analytic_reference pole_omega (1001 pts)",
         },

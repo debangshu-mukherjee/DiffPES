@@ -11,18 +11,18 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from beartype.typing import Any, Tuple
-from jaxtyping import Array, Int64
+from jaxtyping import Array, Complex128, Float64, Int64
 from numpy.typing import NDArray
 
 from diffpes.maths import rodrigues_rotation
-from diffpes.tightb.hamiltonian import bloch_hamiltonian
-from diffpes.tightb.slab import (
+from diffpes.tightb import (
+    bloch_hamiltonian,
     find_surface_cell,
     freeze_slab_topology,
     rebuild_slab,
     rotate_tb_model,
+    spin_double_model,
 )
-from diffpes.tightb.soc import spin_double_model
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,
@@ -33,12 +33,14 @@ from diffpes.types import (
 )
 
 
-def _geometry(lattice: Array | None = None) -> CrystalGeometry:
+def _geometry(
+    lattice: Float64[Array, "3 3"] | None = None,
+) -> CrystalGeometry:
     """PRIVATE: Build a one-site primitive geometry.
 
     Parameters
     ----------
-    lattice : Array | None
+    lattice : Float64[Array, "3 3"] | None
         Lattice vectors in Angstrom as rows; ``None`` selects the unit
         cubic cell.
 
@@ -52,7 +54,7 @@ def _geometry(lattice: Array | None = None) -> CrystalGeometry:
     The single origin site keeps the surface-cell tests focused on the
     lattice, which is the only quantity the Miller-index search uses.
     """
-    resolved_lattice: Array = (
+    resolved_lattice: Float64[Array, "3 3"] = (
         jnp.eye(3, dtype=jnp.float64) if lattice is None else lattice
     )
     geometry: CrystalGeometry = make_crystal_geometry(
@@ -86,7 +88,7 @@ def _complete_p_model() -> TBModel:
         l=(1, 1, 1),
         m=(-1, 0, 1),
     )
-    forward: Array = jnp.asarray(
+    forward: Complex128[Array, "3 3"] = jnp.asarray(
         (
             (0.3 + 0.1j, 0.2 + 0.4j, -0.1 + 0.05j),
             (0.7 - 0.2j, -0.4 + 0.3j, 0.6 + 0.1j),
@@ -106,7 +108,7 @@ def _complete_p_model() -> TBModel:
         for _row in range(3)
         for _column in range(3)
     )
-    amplitudes: Array = jnp.concatenate(
+    amplitudes: Complex128[Array, " 18"] = jnp.concatenate(
         (forward.reshape(-1), forward.conj().T.reshape(-1))
     )
     model: TBModel = make_tb_model(
@@ -131,12 +133,12 @@ def _complete_p_model() -> TBModel:
     return model
 
 
-def _z_chain_model(lattice_scale: Array | float) -> TBModel:
+def _z_chain_model(lattice_scale: Float64[Array, ""] | float) -> TBModel:
     """PRIVATE: Build a one-orbital chain with a differentiable z spacing.
 
     Parameters
     ----------
-    lattice_scale : Array | float
+    lattice_scale : Float64[Array, ""] | float
         Third lattice constant in Angstrom; a traced array keeps slab
         construction differentiable through the layer spacing.
 
@@ -153,7 +155,7 @@ def _z_chain_model(lattice_scale: Array | float) -> TBModel:
     scale connected, so gradients of slab quantities with respect to
     the interlayer distance stay defined.
     """
-    scale: Array = jnp.asarray(lattice_scale, dtype=jnp.float64)
+    scale: Float64[Array, ""] = jnp.asarray(lattice_scale, dtype=jnp.float64)
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.diag(jnp.stack((jnp.ones_like(scale),) * 2 + (scale,))),
         positions=jnp.zeros((1, 3), dtype=jnp.float64),
@@ -186,11 +188,11 @@ class TestFindSurfaceCell:
 
     @pytest.mark.parametrize(
         ("miller", "expected_spacing"),
-        (
+        [
             ((0, 0, 1), 1.0),
             ((1, 1, 0), 1.0 / math.sqrt(2.0)),
             ((1, 1, 1), 1.0 / math.sqrt(3.0)),
-        ),
+        ],
     )
     def test_cubic_external_truth(
         self,
@@ -247,7 +249,7 @@ class TestFindSurfaceCell:
         Compare outputs with declared numerical or structural references.
         """
         cell: Any
-        lattice: Array = jnp.asarray(
+        lattice: Float64[Array, "3 3"] = jnp.asarray(
             (
                 (2.5, 0.0, 0.0),
                 (-1.25, 1.25 * math.sqrt(3.0), 0.0),
@@ -256,7 +258,9 @@ class TestFindSurfaceCell:
             dtype=jnp.float64,
         )
         cell = find_surface_cell(_geometry(lattice), (0, 0, 1))
-        metric: Array = cell.in_plane_vectors @ cell.in_plane_vectors.T
+        metric: Float64[Array, "2 2"] = (
+            cell.in_plane_vectors @ cell.in_plane_vectors.T
+        )
 
         assert jnp.diag(metric) == pytest.approx((6.25, 6.25), rel=1e-12)
         assert abs(float(metric[0, 1])) == pytest.approx(3.125, rel=1e-12)
@@ -267,7 +271,7 @@ class TestFindSurfaceCell:
 
     @pytest.mark.parametrize(
         "miller",
-        ((0, 0, 0), (2, 2, 0)),
+        [(0, 0, 0), (2, 2, 0)],
     )
     def test_rejects_invalid_miller(
         self,
@@ -301,14 +305,18 @@ class TestRotateTbModel:
         Compare outputs with declared numerical or structural references.
         """
         model: TBModel = _complete_p_model()
-        rotation: Array = rodrigues_rotation(
+        rotation: Float64[Array, "3 3"] = rodrigues_rotation(
             jnp.asarray((0.2, 0.5, 0.7), dtype=jnp.float64),
             0.63,
         )
         rotated: TBModel = rotate_tb_model(model, rotation)
-        kpoint: Array = jnp.asarray((0.13, -0.27, 0.31))
-        expected: Array = jnp.linalg.eigvalsh(bloch_hamiltonian(model, kpoint))
-        actual: Array = jnp.linalg.eigvalsh(bloch_hamiltonian(rotated, kpoint))
+        kpoint: Float64[Array, " 3"] = jnp.asarray((0.13, -0.27, 0.31))
+        expected: Float64[Array, " 3"] = jnp.linalg.eigvalsh(
+            bloch_hamiltonian(model, kpoint)
+        )
+        actual: Float64[Array, " 3"] = jnp.linalg.eigvalsh(
+            bloch_hamiltonian(rotated, kpoint)
+        )
 
         assert jnp.allclose(actual, expected, rtol=1e-12, atol=1e-12)
         assert jnp.allclose(
@@ -344,12 +352,12 @@ class TestRotateTbModel:
             shell_index=(0,) * 5,
         )
         model: TBModel = spin_double_model(spinless)
-        rotation: Array = rodrigues_rotation(
+        rotation: Float64[Array, "3 3"] = rodrigues_rotation(
             jnp.asarray((0.3, -0.4, 0.8)),
             0.71,
         )
         rotated: TBModel = rotate_tb_model(model, rotation)
-        kpoint: Array = jnp.asarray((0.17, -0.09, 0.23))
+        kpoint: Float64[Array, " 3"] = jnp.asarray((0.17, -0.09, 0.23))
 
         assert jnp.allclose(
             jnp.linalg.eigvalsh(bloch_hamiltonian(rotated, kpoint)),
@@ -446,14 +454,15 @@ class TestRebuildSlab(chex.TestCase):
             vacuum_ang=3.0,
         )
 
-        def depth_sum(scale: Array) -> Array:
+        def depth_sum(scale: Float64[Array, ""]) -> Float64[Array, ""]:
             slab: Any
             slab, _ = rebuild_slab(_z_chain_model(scale), topology)
             assert slab.depths is not None
-            return jnp.sum(slab.depths)
+            total_depth: Float64[Array, ""] = jnp.sum(slab.depths)
+            return total_depth
 
-        derivative: Array = jax.grad(depth_sum)(jnp.asarray(1.0))
-        finite_difference: Array = (
+        derivative: Float64[Array, ""] = jax.grad(depth_sum)(jnp.asarray(1.0))
+        finite_difference: Float64[Array, ""] = (
             depth_sum(jnp.asarray(1.0 + 1e-5))
             - depth_sum(jnp.asarray(1.0 - 1e-5))
         ) / 2e-5
@@ -513,13 +522,14 @@ class TestRebuildSlab(chex.TestCase):
             vacuum_ang=3.0,
         )
 
-        def depths(scale: Array) -> Array:
+        def depths(scale: Float64[Array, ""]) -> Float64[Array, " nlayer"]:
             slab: Any
             slab, _ = rebuild_slab(_z_chain_model(scale), topology)
             assert slab.depths is not None
-            return slab.depths
+            result: Float64[Array, " nlayer"] = slab.depths
+            return result
 
-        batched: Array = jax.vmap(depths)(
+        batched: Float64[Array, "3 nlayer"] = jax.vmap(depths)(
             jnp.asarray((0.9, 1.0, 1.1), dtype=jnp.float64)
         )
 

@@ -55,7 +55,7 @@ def _artifact_digest() -> str:
         SHA-256 digest of the committed literal CPU record.
     """
     digest: str = (
-        "afb70466c0468b616bb66b36b4c6cf23f539116f98ccbe1e5c6a1ad30ee65760"
+        "ca642cd6d4b1276937508f404c46487c505b1f1888e726747f6b21d345d3d0b4"
     )
     return digest
 
@@ -97,14 +97,19 @@ def _artifact() -> Dict[str, Any]:
 
 
 class TestDetectorDriverScalingArtifact:
-    """Validate literal allocation, rematerialization, and batching evidence."""
+    """Validate allocation, rematerialization, and batching evidence.
+
+    The cases authenticate bounded-allocation records and small companion
+    records for rematerialization, compile reuse, and geometry batching.
+    """
 
     def test_literal_cube_uses_bounded_allocation_without_full_carriers(
         self,
     ) -> None:
         """Require the exact full-cube shape and both memory budgets.
 
-        The artifact fixes dimensions, source hashes, and XLA allocation ceilings.
+        The artifact fixes dimensions, source hashes, and XLA allocation
+        ceilings.
 
         Notes
         -----
@@ -116,18 +121,18 @@ class TestDetectorDriverScalingArtifact:
         assert artifact["schema"] == "diffpes.detector-scalability.v1"
         assert artifact["backend"] == "cpu"
         assert artifact["x64_enabled"] is True
-        assert artifact["gate_ids"] == [
-            "08a.S1",
-            "08a.S2",
-            "08a.S3",
-            "08a.S4",
+        assert artifact["requirements"] == [
+            "detector-forward-memory",
+            "complete-hamiltonian-gradient-memory",
+            "fixed-shape-compile-reuse",
+            "geometry-vmap-parity",
         ]
         relative_path: str
         digest: str
         for relative_path, digest in artifact["source_sha256"].items():
             assert _sha256(_repository_root() / relative_path) == digest
 
-        literal: Dict[str, Any] = artifact["s1_literal_target"]
+        literal: Dict[str, Any] = artifact["literal_detector_target"]
         assert (
             literal["n_kx"],
             literal["n_ky"],
@@ -192,7 +197,7 @@ class TestDetectorDriverScalingArtifact:
         ``ExperimentGeometry`` batch rather than proxy kernels.
         """
         artifact: Dict[str, Any] = _artifact()
-        remat: Dict[str, Any] = artifact["s2_rematerialization"]
+        remat: Dict[str, Any] = artifact["rematerialization_comparison"]
         assert remat["mapping_chart"] == (
             "general rotation with strict target enclosure"
         )
@@ -202,7 +207,9 @@ class TestDetectorDriverScalingArtifact:
         assert remat["maximum_reference_gradient"] > 1.0e-10
         assert remat["result"] == "pass"
 
-        batched: Dict[str, Any] = artifact["s3_compile_count_s4_vmap"]
+        batched: Dict[str, Any] = artifact[
+            "compile_reuse_and_geometry_batching"
+        ]
         assert batched["mapping_chart"] == (
             "general rotation with strict target enclosure"
         )
@@ -217,7 +224,11 @@ class TestDetectorDriverScalingArtifact:
 
 
 class TestDetectorDriverRuntimeScaling:
-    """Execute small full-driver remat and geometry-batching checks."""
+    """Execute small full-driver remat and geometry-batching checks.
+
+    The cases compare checkpointed values and Hamiltonian gradients, then
+    verify compile reuse and vectorized geometry for fixed shapes.
+    """
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1600)

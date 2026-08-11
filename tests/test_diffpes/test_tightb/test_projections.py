@@ -8,9 +8,9 @@ and differentiation of a rotating degenerate projector.
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from hypothesis import assume, given, settings, strategies
-from jaxtyping import Array
+from jaxtyping import Array, Complex128, Float64, PRNGKeyArray
 
 from diffpes.tightb import (
     band_projectors,
@@ -31,7 +31,7 @@ from diffpes.types import (
     make_orbital_basis,
 )
 from tests._factories import make_graphene_model
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
 def _basis(n_orbitals: int) -> OrbitalBasis:
@@ -64,17 +64,17 @@ def _basis(n_orbitals: int) -> OrbitalBasis:
 
 
 def _bands(
-    eigenvalues: Array,
-    eigenvectors: Array,
+    eigenvalues: Float64[Array, "nkpt nband"],
+    eigenvectors: Complex128[Array, "nkpt nband norb"],
     basis: OrbitalBasis | None = None,
 ) -> DiagonalizedBands:
     """PRIVATE: Attach minimal geometry to a supplied band-major eigensystem.
 
     Parameters
     ----------
-    eigenvalues : Array
+    eigenvalues : Float64[Array, "nkpt nband"]
         Band energies in eV, cast to float64.
-    eigenvectors : Array
+    eigenvectors : Complex128[Array, "nkpt nband norb"]
         Band-major eigenvector rows, cast to complex128.
     basis : OrbitalBasis | None
         Optional explicit basis; ``None`` builds an all-s basis sized
@@ -109,7 +109,11 @@ def _bands(
 
 
 class TestOrbitalWeights:
-    """Validate :func:`diffpes.tightb.orbital_weights`."""
+    """Validate :func:`diffpes.tightb.orbital_weights`.
+
+    The cases compare complex modulus squares and the normalized-state sum
+    rule.
+    """
 
     def test_complex_values_are_modulus_squared(self) -> None:
         """Distinguish complex modulus squared from a component square.
@@ -122,12 +126,12 @@ class TestOrbitalWeights:
         Compare every orbital weight with a literal diagonal result.
         """
         coefficient: complex = (3.0 + 4.0j) / 5.0
-        eigenvectors: Array = jnp.asarray(
+        eigenvectors: Complex128[Array, "1 2 2"] = jnp.asarray(
             [[[coefficient, 0.0], [0.0, coefficient]]],
             dtype=jnp.complex128,
         )
-        actual: Array = orbital_weights(eigenvectors)
-        expected: Array = jnp.asarray(
+        actual: Float64[Array, "1 2 2"] = orbital_weights(eigenvectors)
+        expected: Float64[Array, "1 2 2"] = jnp.asarray(
             [[[1.0, 0.0], [0.0, 1.0]]],
             dtype=jnp.float64,
         )
@@ -144,7 +148,7 @@ class TestOrbitalWeights:
     @settings(max_examples=24, deadline=None)
     def test_normalized_complex_states_sum_to_one(
         self,
-        components: list[float],
+        components: List[float],
     ) -> None:
         """Sum to one for generated normalized complex eigenvectors.
 
@@ -154,20 +158,27 @@ class TestOrbitalWeights:
         -----
         Normalize each state before reducing its returned orbital weights.
         """
-        raw: Array = jnp.asarray(components[:8]) + 1j * jnp.asarray(
-            components[8:]
-        )
+        raw: Complex128[Array, " 8"] = jnp.asarray(
+            components[:8]
+        ) + 1j * jnp.asarray(components[8:])
         raw = raw.reshape(2, 4)
-        norms: Array = jnp.linalg.norm(raw, axis=-1, keepdims=True)
+        norms: Float64[Array, "2 1"] = jnp.linalg.norm(
+            raw, axis=-1, keepdims=True
+        )
         assume(bool(jnp.all(norms > 1e-8)))
-        normalized: Array = (raw / norms)[None, :, :]
-        sums: Array = jnp.sum(orbital_weights(normalized), axis=-1)
+        normalized: Complex128[Array, "1 2 4"] = (raw / norms)[None, :, :]
+        sums: Float64[Array, "1 2"] = jnp.sum(
+            orbital_weights(normalized), axis=-1
+        )
 
         assert jnp.allclose(sums, 1.0, rtol=0.0, atol=1e-12)
 
 
 class TestBandProjectors:
-    """Validate :func:`diffpes.tightb.band_projectors`."""
+    """Validate :func:`diffpes.tightb.band_projectors`.
+
+    The case applies independent phases and compares every band projector.
+    """
 
     def test_band_projectors_ignore_independent_u1_phases(self) -> None:
         """Remove one arbitrary complex phase from every band projector.
@@ -179,15 +190,15 @@ class TestBandProjectors:
         -----
         Compare projectors before and after multiplying normalized vectors.
         """
-        key: Array = jax.random.key(14)
-        real: Array = jax.random.normal(key, (3, 4, 4))
-        imaginary: Array = jax.random.normal(
+        key: PRNGKeyArray = jax.random.key(14)
+        real: Float64[Array, "3 4 4"] = jax.random.normal(key, (3, 4, 4))
+        imaginary: Float64[Array, "3 4 4"] = jax.random.normal(
             jax.random.fold_in(key, 1),
             (3, 4, 4),
         )
-        vectors: Array = real + 1j * imaginary
+        vectors: Complex128[Array, "3 4 4"] = real + 1j * imaginary
         vectors = vectors / jnp.linalg.norm(vectors, axis=-1, keepdims=True)
-        phases: Array = jnp.exp(
+        phases: Complex128[Array, "3 4"] = jnp.exp(
             1j
             * jnp.asarray(
                 [[0.2, -1.1, 2.4, 0.7], [0.9, 0.3, -2.0, 1.6], [2.2] * 4]
@@ -203,7 +214,11 @@ class TestBandProjectors:
 
 
 class TestGroupProjector:
-    """Validate :func:`diffpes.tightb.group_projector`."""
+    """Validate :func:`diffpes.tightb.group_projector`.
+
+    The cases rotate fixed groups, check projector invariants, and reject
+    invalid group definitions.
+    """
 
     def test_fixed_groups_ignore_random_two_by_two_rotations(self) -> None:
         """Preserve group projectors, traces, and averaged diagnostics.
@@ -215,32 +230,36 @@ class TestGroupProjector:
         -----
         Compare every invariant reduction before and after the basis change.
         """
-        key: Array = jax.random.key(27)
-        raw: Array = jax.random.normal(key, (4, 4)) + 1j * jax.random.normal(
+        key: PRNGKeyArray = jax.random.key(27)
+        raw: Complex128[Array, "4 4"] = jax.random.normal(
+            key, (4, 4)
+        ) + 1j * jax.random.normal(
             jax.random.fold_in(key, 1),
             (4, 4),
         )
-        columns: Array
+        columns: Complex128[Array, "4 4"]
         columns, _ = jnp.linalg.qr(raw)
-        vectors: Array = columns.conj().T[None, :, :]
-        values: Array = jnp.asarray([[0.0, 0.0, 2.0, 2.0]])
+        vectors: Complex128[Array, "1 4 4"] = columns.conj().T[None, :, :]
+        values: Float64[Array, "1 4"] = jnp.asarray([[0.0, 0.0, 2.0, 2.0]])
         original: DiagonalizedBands = _bands(values, vectors)
 
-        rotation_raw: Array = jax.random.normal(
+        rotation_raw: Complex128[Array, "2 2"] = jax.random.normal(
             jax.random.fold_in(key, 2),
             (2, 2),
         ) + 1j * jax.random.normal(jax.random.fold_in(key, 3), (2, 2))
-        rotation: Array
+        rotation: Complex128[Array, "2 2"]
         rotation, _ = jnp.linalg.qr(rotation_raw)
-        rotated_vectors: Array = vectors.at[:, :2, :].set(
+        rotated_vectors: Complex128[Array, "1 4 4"] = vectors.at[:, :2, :].set(
             jnp.einsum("ab,kbo->kao", rotation, vectors[:, :2, :])
         )
-        phases: Array = jnp.exp(1j * jnp.asarray([0.3, -0.7, 1.1, 2.0]))
+        phases: Complex128[Array, " 4"] = jnp.exp(
+            1j * jnp.asarray([0.3, -0.7, 1.1, 2.0])
+        )
         rotated_vectors = rotated_vectors.at[:, 2:, :].set(
             vectors[:, 2:, :] * phases[None, 2:, None]
         )
         rotated: DiagonalizedBands = _bands(values, rotated_vectors)
-        operator_raw: Array = jnp.asarray(
+        operator_raw: Complex128[Array, "4 4"] = jnp.asarray(
             [
                 [0.2, 0.1 + 0.3j, -0.2j, 0.4],
                 [0.1 - 0.3j, -0.7, 0.2, 0.1j],
@@ -285,12 +304,14 @@ class TestGroupProjector:
         -----
         Check adjoint symmetry, idempotency, and trace without tolerance.
         """
-        vectors: Array = jnp.eye(3, dtype=jnp.complex128)[None, :, :]
+        vectors: Complex128[Array, "1 3 3"] = jnp.eye(3, dtype=jnp.complex128)[
+            None, :, :
+        ]
         bands: DiagonalizedBands = _bands(
             jnp.asarray([[0.0, 1.0, 2.0]]),
             vectors,
         )
-        projector: Array = group_projector(bands, (0, 2))[0]
+        projector: Complex128[Array, "3 3"] = group_projector(bands, (0, 2))[0]
 
         assert jnp.allclose(
             projector,
@@ -306,7 +327,7 @@ class TestGroupProjector:
         )
         assert jnp.trace(projector) == pytest.approx(2.0)
 
-    @pytest.mark.parametrize("group", ((), (0, 0), (-1,), (3,)))
+    @pytest.mark.parametrize("group", [(), (0, 0), (-1,), (3,)])
     def test_rejects_invalid_fixed_groups(
         self,
         group: Tuple[int, ...],
@@ -329,7 +350,11 @@ class TestGroupProjector:
 
 
 class TestFatBands:
-    """Validate :func:`diffpes.tightb.fat_bands`."""
+    """Validate :func:`diffpes.tightb.fat_bands`.
+
+    The case compares graphene sublattice weights with the half-weight
+    Dirac-point result.
+    """
 
     def test_graphene_sublattice_fat_bands_are_half_at_dirac_k(self) -> None:
         """Recover one-half weight on each sublattice at exact degeneracy.
@@ -361,7 +386,11 @@ class TestFatBands:
 
 
 class TestExpectationPath:
-    """Validate :func:`diffpes.tightb.expectation_path`."""
+    """Validate :func:`diffpes.tightb.expectation_path`.
+
+    The cases check registered energy-block averaging and transitive overlap
+    grouping.
+    """
 
     def test_expectation_path_averages_only_registered_energy_blocks(
         self,
@@ -375,14 +404,18 @@ class TestExpectationPath:
         -----
         Compare the three diagonal expectations with their analytic averages.
         """
-        values: Array = jnp.asarray([[0.0, 5e-12, 1.0]])
-        vectors: Array = jnp.eye(3, dtype=jnp.complex128)[None, :, :]
+        values: Float64[Array, "1 3"] = jnp.asarray([[0.0, 5e-12, 1.0]])
+        vectors: Complex128[Array, "1 3 3"] = jnp.eye(3, dtype=jnp.complex128)[
+            None, :, :
+        ]
         bands: DiagonalizedBands = _bands(values, vectors)
-        operator: Array = jnp.diag(
+        operator: Complex128[Array, "3 3"] = jnp.diag(
             jnp.asarray([1.0, 3.0, 8.0], dtype=jnp.complex128)
         )
 
-        actual: Array = expectation_path(bands, operator, degen_tol=1e-10)
+        actual: Float64[Array, "1 3"] = expectation_path(
+            bands, operator, degen_tol=1e-10
+        )
 
         assert jnp.allclose(
             actual,
@@ -404,12 +437,16 @@ class TestExpectationPath:
         same component average before and after the basis change. The
         unequal-energy rotation provides a diagnostic stress test.
         """
-        values: Array = jnp.asarray([[0.0, 0.75, 1.5]], dtype=jnp.float64)
-        vectors: Array = jnp.eye(3, dtype=jnp.complex128)[None, :, :]
-        operator: Array = jnp.diag(
+        values: Float64[Array, "1 3"] = jnp.asarray(
+            [[0.0, 0.75, 1.5]], dtype=jnp.float64
+        )
+        vectors: Complex128[Array, "1 3 3"] = jnp.eye(3, dtype=jnp.complex128)[
+            None, :, :
+        ]
+        operator: Complex128[Array, "3 3"] = jnp.diag(
             jnp.asarray([1.0, 4.0, 10.0], dtype=jnp.complex128)
         )
-        rotation: Array = jnp.asarray(
+        rotation: Complex128[Array, "3 3"] = jnp.asarray(
             [
                 [1.0, 1.0, 0.0],
                 [-1.0, 1.0, 1.0],
@@ -418,30 +455,35 @@ class TestExpectationPath:
             dtype=jnp.complex128,
         )
         rotation, _ = jnp.linalg.qr(rotation)
-        rotated_vectors: Array = jnp.einsum(
+        rotated_vectors: Complex128[Array, "1 3 3"] = jnp.einsum(
             "ab,kbo->kao",
             rotation,
             vectors,
         )
 
-        original: Array = expectation_path(
+        original: Float64[Array, "1 3"] = expectation_path(
             _bands(values, vectors),
             operator,
             degen_tol=1.0,
         )
-        rotated: Array = expectation_path(
+        rotated: Float64[Array, "1 3"] = expectation_path(
             _bands(values, rotated_vectors),
             operator,
             degen_tol=1.0,
         )
-        expected: Array = jnp.full((1, 3), 5.0, dtype=jnp.float64)
+        expected: Float64[Array, "1 3"] = jnp.full(
+            (1, 3), 5.0, dtype=jnp.float64
+        )
 
         assert jnp.allclose(original, expected, rtol=0.0, atol=1e-14)
         assert jnp.allclose(rotated, expected, rtol=0.0, atol=1e-14)
 
 
 class TestGroupTrace:
-    """Validate :func:`diffpes.tightb.group_trace`."""
+    """Validate :func:`diffpes.tightb.group_trace`.
+
+    The case compares the fixed-group trace gradient at an exact degeneracy.
+    """
 
     def test_fixed_group_trace_gradient_at_exact_degeneracy(self) -> None:
         """Match autodiff and FD as a degenerate subspace rotates.
@@ -459,14 +501,14 @@ class TestGroupTrace:
             positions=jnp.zeros((1, 3), dtype=jnp.float64),
             species=("X",),
         )
-        operator: Array = jnp.diag(
+        operator: Complex128[Array, "3 3"] = jnp.diag(
             jnp.asarray([0.2, -0.6, 1.4], dtype=jnp.complex128)
         )
 
-        def objective(theta: Array) -> Array:
-            cosine: Array = jnp.cos(theta)
-            sine: Array = jnp.sin(theta)
-            rotation: Array = jnp.asarray(
+        def objective(theta: Float64[Array, ""]) -> Float64[Array, ""]:
+            cosine: Float64[Array, ""] = jnp.cos(theta)
+            sine: Float64[Array, ""] = jnp.sin(theta)
+            rotation: Complex128[Array, "3 3"] = jnp.asarray(
                 [
                     [cosine, 0.0, sine],
                     [0.0, 1.0, 0.0],
@@ -474,13 +516,13 @@ class TestGroupTrace:
                 ],
                 dtype=jnp.complex128,
             )
-            hamiltonian: Array = (
+            hamiltonian: Complex128[Array, "3 3"] = (
                 rotation
                 @ jnp.diag(jnp.asarray([0.0, 0.0, 2.0]))
                 @ rotation.conj().T
             )
-            values: Array
-            columns: Array
+            values: Float64[Array, " 3"]
+            columns: Complex128[Array, "3 3"]
             values, columns = eigh_safe(hamiltonian)
             bands: DiagonalizedBands = make_diagonalized_bands(
                 eigenvalues=values[None, :],
@@ -489,10 +531,11 @@ class TestGroupTrace:
                 geometry=geometry,
                 basis=basis,
             )
-            result: Array = group_trace(bands, operator, (0, 1))[0]
+            result: Float64[Array, ""] = group_trace(bands, operator, (0, 1))[
+                0
+            ]
             return result
 
-        gradient_gate(objective, jnp.asarray(0.31), atol=3e-7)
-
-
-__all__: list[str] = []
+        assert_gradients_match_finite_differences(
+            objective, jnp.asarray(0.31), atol=3e-7
+        )

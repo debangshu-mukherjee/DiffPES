@@ -31,12 +31,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
 from diffpes.maths import safe_divide
 
 
-def _faddeeva_weideman_coefficients() -> Float64[Array, " N"]:
+def _faddeeva_weideman_coefficients() -> Float64[Array, " n_coefficient"]:
     r"""PRIVATE: Generate fixed-order Weideman rational coefficients.
 
     The construction samples the mapped Gaussian on a fixed tangent grid.
@@ -44,7 +44,7 @@ def _faddeeva_weideman_coefficients() -> Float64[Array, " N"]:
 
     Returns
     -------
-    coeffs : Float64[Array, " N"]
+    coeffs : Float64[Array, " n_coefficient"]
         Real coefficients in descending polynomial order.
 
     Notes
@@ -74,11 +74,11 @@ def _faddeeva_weideman_coefficients() -> Float64[Array, " N"]:
     ascending: Float64[Array, " fft_grid"] = jnp.real(transformed) / (
         2 * doubled_order
     )
-    result: Float64[Array, " N"] = ascending[1 : order + 1][::-1]
+    result: Float64[Array, " n_coefficient"] = ascending[1 : order + 1][::-1]
     return result
 
 
-_W_POLY: Float64[Array, " N"] = _faddeeva_weideman_coefficients()
+_W_POLY: Float64[Array, " n_coefficient"] = _faddeeva_weideman_coefficients()
 
 
 @jaxtyped(typechecker=beartype)
@@ -129,7 +129,7 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     """
     z_c: Complex128[Array, " ..."] = jnp.asarray(z, dtype=jnp.complex128)
     maximum_absolute_value: float = 1.0e8
-    invalid: Array = (
+    invalid: Bool[Array, ""] = (
         ~jnp.all(jnp.isfinite(z_c))
         | jnp.any(jnp.imag(z_c) < 0.0)
         | jnp.any(jnp.abs(z_c) > maximum_absolute_value)

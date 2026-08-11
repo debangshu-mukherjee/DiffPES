@@ -177,7 +177,7 @@ post-resolution density-to-count primitive.
 
 ## Registered Scaling Evidence
 
-The WP7.6 CPU gate compiled the literal `256 k x 512 omega x 32 orbital`
+The streamed spectral CPU measurement compiled the literal `256 k x 512 omega x 32 orbital`
 spinless value-and-Hamiltonian-gradient target with static `32 x 32` chunks,
 checkpointing, `n_kk=4096`, and `n_tail=256`. XLA reported `4,211,032` argument
 bytes, `4,194,328` output bytes, `50,187,248` temporary bytes, and zero aliased
@@ -196,7 +196,7 @@ produced one trace, and the lowered Lineax operator, RHS, and solution were all
 complex128. The reproducible record is
 `tests/test_diffpes/_reference_data/spectral_scalability/cpu_benchmark.json`.
 Its committed SHA-256 is
-`08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd`.
+`2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576`.
 
 See [Simulation Tiers and the Coherent Pipeline](simulation-levels.md) for
 the model boundary and

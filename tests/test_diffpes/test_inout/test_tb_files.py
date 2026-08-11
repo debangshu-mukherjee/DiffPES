@@ -11,11 +11,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
-from jaxtyping import Complex, Complex128, Float64
+from beartype.typing import List, Tuple
+from jaxtyping import Array, Complex, Complex128, Float64
 from numpy.typing import NDArray
 
-import diffpes.inout as inout
+import diffpes.inout
 from diffpes.inout import (
     read_hopping_list,
     read_wannier90_hr,
@@ -33,14 +33,14 @@ from diffpes.types import (
 
 
 def _write_degeneracies(
-    lines: list[str],
+    lines: List[str],
     degeneracies: Tuple[int, ...],
 ) -> None:
     """PRIVATE: Append normative groups of at most fifteen degeneracies.
 
     Parameters
     ----------
-    lines : list[str]
+    lines : List[str]
         Output text lines of the fixture. The function mutates this
         list in place.
     degeneracies : Tuple[int, ...]
@@ -78,12 +78,13 @@ def _pair_order(n_orbitals: int) -> Tuple[Tuple[int, int], ...]:
     by relying on the record order the Wannier90 writer happens to
     emit.
     """
-    pairs: list[Tuple[int, int]] = [
+    pairs: List[Tuple[int, int]] = [
         (first, second)
         for first in range(n_orbitals)
         for second in range(n_orbitals)
     ]
-    return tuple(reversed(pairs))
+    order: Tuple[Tuple[int, int], ...] = tuple(reversed(pairs))
+    return order
 
 
 def _write_hr_fixture(
@@ -116,7 +117,7 @@ def _write_hr_fixture(
     ``_pair_order``.
     """
     n_orbitals: int = matrices.shape[1]
-    lines: list[str] = [
+    lines: List[str] = [
         "hand-built neutral hr fixture",
         str(n_orbitals),
         str(len(cells)),
@@ -178,7 +179,7 @@ def _write_tb_fixture(
     components.
     """
     n_orbitals: int = hamiltonians.shape[1]
-    lines: list[str] = ["hand-built neutral tb fixture"]
+    lines: List[str] = ["hand-built neutral tb fixture"]
     lines.extend(
         " ".join(f"{component:.17g}" for component in row) for row in lattice
     )
@@ -207,7 +208,7 @@ def _write_tb_fixture(
         raw_matrix = positions[cell_index] * degeneracies[cell_index]
         for first, second in order:
             components: Complex128[NDArray, " 3"] = raw_matrix[first, second]
-            fields: list[str] = [f"{first + 1}", f"{second + 1}"]
+            fields: List[str] = [f"{first + 1}", f"{second + 1}"]
             component: np.complexfloating
             for component in components:
                 value = complex(component)
@@ -247,11 +248,12 @@ def _two_orbital_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
         m=(0, 0),
         labels=("X_s", "Y_s"),
     )
-    return geometry, basis
+    context: Tuple[CrystalGeometry, OrbitalBasis] = (geometry, basis)
+    return context
 
 
 def _chain_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
-    """PRIVATE: Build the one-orbital context used by the analytic hr gate.
+    """PRIVATE: Build the one-orbital context for the analytic hr check.
 
     Returns
     -------
@@ -264,7 +266,7 @@ def _chain_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
     Notes
     -----
     Matches the one-dimensional chain whose Bloch band is the analytic
-    cosine dispersion used as the acceptance gate.
+    cosine dispersion used as the acceptance check.
     """
     geometry: CrystalGeometry = make_crystal_geometry(
         lattice=jnp.eye(3, dtype=jnp.float64),
@@ -278,7 +280,8 @@ def _chain_context() -> Tuple[CrystalGeometry, OrbitalBasis]:
         m=(0,),
         labels=("s",),
     )
-    return geometry, basis
+    context: Tuple[CrystalGeometry, OrbitalBasis] = (geometry, basis)
+    return context
 
 
 def _spin_basis() -> OrbitalBasis:
@@ -310,7 +313,7 @@ def _spin_basis() -> OrbitalBasis:
 def _serialize_interleaved(
     native: Complex[NDArray, "n_cell n_orb n_orb ..."],
 ) -> Complex[NDArray, "n_cell n_orb n_orb ..."]:
-    """PRIVATE: Convert native block-down/up matrices into interleaved up/down order.
+    """PRIVATE: Interleave native block-down/up matrices.
 
     Parameters
     ----------
@@ -339,7 +342,10 @@ def _serialize_interleaved(
 
 
 class TestReadHoppingList:
-    """Validate :func:`diffpes.inout.read_hopping_list`."""
+    """Validate :func:`diffpes.inout.read_hopping_list`.
+
+    The cases recover exact cells and reject malformed Hermitian records.
+    """
 
     def test_recovers_exact_cells_and_complex_closed_hoppings(
         self,
@@ -390,15 +396,15 @@ class TestReadHoppingList:
             (1, 0, 0),
             (-1, 0, 0),
         )
-        fractional_k: jax.Array = jnp.asarray(0.17)
-        actual: jax.Array = bloch_hamiltonian(
+        fractional_k: Float64[Array, ""] = jnp.asarray(0.17)
+        actual: Complex128[Array, "2 2"] = bloch_hamiltonian(
             model,
             jnp.asarray([fractional_k, 0.0, 0.0]),
         )
-        expected_01: jax.Array = (0.3 + 0.2j) * jnp.exp(
+        expected_01: Complex128[Array, ""] = (0.3 + 0.2j) * jnp.exp(
             2j * jnp.pi * fractional_k * 0.25
         ) + (-0.4 + 0.1j) * jnp.exp(2j * jnp.pi * fractional_k * 1.25)
-        expected: jax.Array = jnp.asarray(
+        expected: Complex128[Array, "2 2"] = jnp.asarray(
             [[0.2, expected_01], [jnp.conj(expected_01), -0.1]],
             dtype=jnp.complex128,
         )
@@ -432,7 +438,7 @@ class TestReadHoppingList:
 
     @pytest.mark.parametrize(
         ("contents", "match"),
-        (
+        [
             ("", "contains no records"),
             ("0 0 0 0 0 1\n", "comma-separated"),
             ("2,0,0,0,0,1\n", "orbital indices"),
@@ -444,7 +450,7 @@ class TestReadHoppingList:
                 "0,1,0.25,0,0,0.3\n1,0,-0.25,0,0,0.4\n",
                 r"rows 1 and 2: reverse hopping amplitudes differ",
             ),
-        ),
+        ],
     )
     def test_rejects_malformed_hopping_lists(
         self,
@@ -472,7 +478,10 @@ class TestReadHoppingList:
 
 
 class TestReadWannier90Hr:
-    """Validate :func:`diffpes.inout.read_wannier90_hr`."""
+    """Validate :func:`diffpes.inout.read_wannier90_hr`.
+
+    The cases bind degeneracy-weighted hoppings to analytic band derivatives.
+    """
 
     def test_applies_degeneracies_and_matches_chain_value_and_derivative(
         self,
@@ -505,7 +514,7 @@ class TestReadWannier90Hr:
         )
         path: Path = tmp_path / "chain_hr.dat"
         _write_hr_fixture(path, cells, degeneracies, matrices)
-        centres: jax.Array = jnp.asarray([[0.37, -0.2, 0.1]])
+        centres: Float64[Array, "1 3"] = jnp.asarray([[0.37, -0.2, 0.1]])
 
         model: TBModel
         data: WannierOperatorData
@@ -539,30 +548,47 @@ class TestReadWannier90Hr:
             centres @ jnp.linalg.inv(model.geometry.lattice),
         )
 
-        fractional_k: jax.Array = jnp.asarray(0.23)
+        fractional_k: Float64[Array, ""] = jnp.asarray(0.23)
 
-        def energy(kx: jax.Array) -> jax.Array:
-            """Return the parsed scalar chain Hamiltonian."""
-            value: jax.Array = bloch_hamiltonian(
+        def _energy(kx: Float64[Array, ""]) -> Float64[Array, ""]:
+            """PRIVATE: Return the parsed scalar-chain energy.
+
+            Parameters
+            ----------
+            kx : Float64[Array, ""]
+                Fractional momentum along the first reciprocal axis.
+
+            Returns
+            -------
+            energy_value : Float64[Array, ""]
+                Real band energy in eV.
+
+            Notes
+            -----
+            The helper computes the scalar Bloch Hamiltonian and takes its
+            real part.
+            """
+            value: Complex128[Array, ""] = bloch_hamiltonian(
                 model,
                 jnp.stack((kx, jnp.asarray(0.0), jnp.asarray(0.0))),
             )[0, 0]
-            return jnp.real(value)
+            energy_value: Float64[Array, ""] = jnp.real(value)
+            return energy_value
 
-        expected: jax.Array = onsite + 2.0 * hopping * jnp.cos(
+        expected: Float64[Array, " n_orb"] = onsite + 2.0 * hopping * jnp.cos(
             2.0 * jnp.pi * fractional_k
         )
-        expected_derivative: jax.Array = (
+        expected_derivative: Float64[Array, " n_orb"] = (
             -4.0 * jnp.pi * hopping * jnp.sin(2.0 * jnp.pi * fractional_k)
         )
         chex.assert_trees_all_close(
-            energy(fractional_k),
+            _energy(fractional_k),
             expected,
             rtol=1e-13,
             atol=1e-13,
         )
         chex.assert_trees_all_close(
-            jax.grad(energy)(fractional_k),
+            jax.grad(_energy)(fractional_k),
             expected_derivative,
             rtol=1e-12,
             atol=1e-12,
@@ -596,7 +622,7 @@ class TestReadWannier90Hr:
 
         bad_weight: Path = tmp_path / "bad_weight_hr.dat"
         _write_hr_fixture(bad_weight, cells, (2, 1, 2), matrices)
-        lines: list[str] = bad_weight.read_text(encoding="utf-8").splitlines()
+        lines: List[str] = bad_weight.read_text(encoding="utf-8").splitlines()
         lines[3] = "2 0 2"
         bad_weight.write_text("\n".join(lines) + "\n", encoding="utf-8")
         with pytest.raises(ValueError, match="degeneracies must be positive"):
@@ -610,7 +636,7 @@ class TestReadWannier90Hr:
         bad_index: Path = tmp_path / "bad_index_hr.dat"
         _write_hr_fixture(bad_index, cells, (2, 1, 2), matrices)
         lines = bad_index.read_text(encoding="utf-8").splitlines()
-        fields: list[str] = lines[4].split()
+        fields: List[str] = lines[4].split()
         fields[3] = "2"
         lines[4] = " ".join(fields)
         bad_index.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -652,9 +678,12 @@ class TestReadWannier90Hr:
 
 
 class TestReadWannier90Tb:
-    """Validate :func:`diffpes.inout.read_wannier90_tb`."""
+    """Validate :func:`diffpes.inout.read_wannier90_tb`.
 
-    def test_round_trips_all_blocks_and_spin_layouts(
+    The cases round-trip Hamiltonian, position, centre, and spin layouts.
+    """
+
+    def test_round_trips_all_blocks_and_spin_layouts(  # noqa: PLR0915
         self,
         tmp_path: Path,
     ) -> None:
@@ -791,33 +820,52 @@ class TestReadWannier90Tb:
         assert block_data.spin_layout == "block_down_up"
         assert interleaved_data.spin_layout == "interleaved_up_down"
 
-        fractional_k: jax.Array = jnp.asarray(0.19)
+        fractional_k: Float64[Array, ""] = jnp.asarray(0.19)
 
-        def matrix(kx: jax.Array) -> jax.Array:
-            """Return the parsed Bloch matrix along the first reciprocal axis."""
-            return bloch_hamiltonian(
+        def _matrix(
+            kx: Float64[Array, ""],
+        ) -> Complex128[Array, "n_orb n_orb"]:
+            """PRIVATE: Return the parsed Bloch matrix.
+
+            Parameters
+            ----------
+            kx : Float64[Array, ""]
+                Fractional momentum along the first reciprocal axis.
+
+            Returns
+            -------
+            bloch_matrix : Complex128[Array, "n_orb n_orb"]
+                Bloch Hamiltonian in eV.
+
+            Notes
+            -----
+            The helper fixes the other fractional momentum components at
+            zero.
+            """
+            bloch_matrix: Complex128[Array, "n_orb n_orb"] = bloch_hamiltonian(
                 interleaved_model,
                 jnp.stack((kx, jnp.asarray(0.0), jnp.asarray(0.0))),
             )
+            return bloch_matrix
 
-        expected_matrix: jax.Array = jnp.diag(
+        expected_matrix: Complex128[Array, "n_orb n_orb"] = jnp.diag(
             jnp.asarray(onsite)
             + 2.0 * jnp.asarray(hopping) * jnp.cos(2.0 * jnp.pi * fractional_k)
         ).astype(jnp.complex128)
-        expected_derivative: jax.Array = jnp.diag(
+        expected_derivative: Complex128[Array, "n_orb n_orb"] = jnp.diag(
             -4.0
             * jnp.pi
             * jnp.asarray(hopping)
             * jnp.sin(2.0 * jnp.pi * fractional_k)
         ).astype(jnp.complex128)
         chex.assert_trees_all_close(
-            matrix(fractional_k),
+            _matrix(fractional_k),
             expected_matrix,
             rtol=1e-12,
             atol=1e-12,
         )
         chex.assert_trees_all_close(
-            jax.jacfwd(matrix)(fractional_k),
+            jax.jacfwd(_matrix)(fractional_k),
             expected_derivative,
             rtol=1e-12,
             atol=1e-12,
@@ -859,7 +907,7 @@ class TestReadWannier90Tb:
             hamiltonians,
             positions,
         )
-        lines: list[str] = path.read_text(encoding="utf-8").splitlines()
+        lines: List[str] = path.read_text(encoding="utf-8").splitlines()
         path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
 
         with pytest.raises(ValueError, match="unexpected end of file"):
@@ -893,7 +941,7 @@ class TestReadWannier90Tb:
             positions,
         )
         lines = bad_index.read_text(encoding="utf-8").splitlines()
-        hamiltonian_fields: list[str] = lines[9].split()
+        hamiltonian_fields: List[str] = lines[9].split()
         hamiltonian_fields[0] = "2"
         lines[9] = " ".join(hamiltonian_fields)
         bad_index.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -993,7 +1041,10 @@ class TestReadWannier90Tb:
 
 
 class TestExplicitFormatDispatch:
-    """Validate the deliberate absence of generic ``.dat`` dispatch."""
+    """Validate the deliberate absence of generic ``.dat`` dispatch.
+
+    The cases require each normative Wannier90 grammar to use its own suffix.
+    """
 
     def test_requires_explicit_format_filenames(self, tmp_path: Path) -> None:
         """Reject generic suffixes before attempting either normative grammar.
@@ -1023,4 +1074,4 @@ class TestExplicitFormatDispatch:
                 basis,
                 "block_down_up",
             )
-        assert not hasattr(inout, "read_tb_file")
+        assert not hasattr(diffpes.inout, "read_tb_file")

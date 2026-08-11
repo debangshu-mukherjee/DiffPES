@@ -196,8 +196,8 @@ def polarization_real_to_cart(
 def channel_tables(
     basis: OrbitalBasis,
 ) -> Tuple[
-    Float64[Array, "n_orb 2 3 n_y"],
-    Float64[Array, "n_orb 2 3 n_y"],
+    Float64[Array, "n_orb 2 3 n_final_harmonic"],
+    Float64[Array, "n_orb 2 3 n_final_harmonic"],
 ]:
     r"""Build padded real-harmonic dipole channel tables.
 
@@ -221,9 +221,9 @@ def channel_tables(
 
     Returns
     -------
-    coupling_coeffs : Float64[Array, "n_orb 2 3 n_y"]
+    coupling_coeffs : Float64[Array, "n_orb 2 3 n_final_harmonic"]
         Real-basis Gaunt coefficients.
-    channel_valid : Float64[Array, "n_orb 2 3 n_y"]
+    channel_valid : Float64[Array, "n_orb 2 3 n_final_harmonic"]
         Zero/one mask for allowed partial-wave blocks and static padding.
 
     Raises
@@ -241,14 +241,17 @@ def channel_tables(
     n_orbitals: int = len(basis.l)
     n_final_harmonics: int = (L_MAX + 2) ** 2
     final_m_offset: int = L_MAX + 1
-    coupling_numpy: Float64[NDArray, "n_orb 2 3 n_y"] = np.zeros(
+    coupling_numpy: Float64[NDArray, "n_orb 2 3 n_final_harmonic"] = np.zeros(
         (n_orbitals, 2, 3, n_final_harmonics),
         dtype=np.float64,
     )
-    valid_numpy: Float64[NDArray, "n_orb 2 3 n_y"] = np.zeros_like(
-        coupling_numpy
+    valid_numpy: Float64[NDArray, "n_orb 2 3 n_final_harmonic"] = (
+        np.zeros_like(coupling_numpy)
     )
-    gaunt_numpy: Float64[NDArray, "..."] = np.asarray(GAUNT_TABLE)
+    gaunt_numpy: Float64[
+        NDArray,
+        "n_l_initial n_m_initial 3 n_l_final n_m_final",
+    ] = np.asarray(GAUNT_TABLE)
     orbital_index: int
     l_initial: int
     m_initial: int
@@ -289,23 +292,25 @@ def channel_tables(
                         q_index,
                         harmonic_index,
                     ] = 1.0
-    coupling_coeffs: Float64[Array, "n_orb 2 3 n_y"] = jnp.asarray(
-        coupling_numpy
+    coupling_coeffs: Float64[Array, "n_orb 2 3 n_final_harmonic"] = (
+        jnp.asarray(coupling_numpy)
     )
-    channel_valid: Float64[Array, "n_orb 2 3 n_y"] = jnp.asarray(valid_numpy)
+    channel_valid: Float64[Array, "n_orb 2 3 n_final_harmonic"] = jnp.asarray(
+        valid_numpy
+    )
     tables: Tuple[
-        Float64[Array, "n_orb 2 3 n_y"],
-        Float64[Array, "n_orb 2 3 n_y"],
+        Float64[Array, "n_orb 2 3 n_final_harmonic"],
+        Float64[Array, "n_orb 2 3 n_final_harmonic"],
     ] = (coupling_coeffs, channel_valid)
     return tables
 
 
 @jaxtyped(typechecker=beartype)
 def dipole_length_cartesian(
-    psi_final: Complex128[Array, " n_q"],
-    psi_initial: Complex128[Array, " n_q"],
-    position_bohr: Float64[Array, "n_q 3"],
-    volume_weights_bohr3: Float64[Array, " n_q"],
+    psi_final: Complex128[Array, " n_sample"],
+    psi_initial: Complex128[Array, " n_sample"],
+    position_bohr: Float64[Array, "n_sample 3"],
+    volume_weights_bohr3: Float64[Array, " n_sample"],
     polarization_cart: Complex128[Array, " 3"],
 ) -> Complex128[Array, ""]:
     r"""Compute a sampled Cartesian length-gauge contraction.
@@ -319,13 +324,13 @@ def dipole_length_cartesian(
 
     Parameters
     ----------
-    psi_final : Complex128[Array, " n_q"]
+    psi_final : Complex128[Array, " n_sample"]
         Final-state ket samples.
-    psi_initial : Complex128[Array, " n_q"]
+    psi_initial : Complex128[Array, " n_sample"]
         Initial-state ket samples.
-    position_bohr : Float64[Array, "n_q 3"]
+    position_bohr : Float64[Array, "n_sample 3"]
         Cartesian quadrature positions in Bohr.
-    volume_weights_bohr3 : Float64[Array, " n_q"]
+    volume_weights_bohr3 : Float64[Array, " n_sample"]
         Volume quadrature weights in Bohr cubed.
     polarization_cart : Complex128[Array, " 3"]
         Cartesian complex polarization.
@@ -340,10 +345,10 @@ def dipole_length_cartesian(
     The dot product uses polarization directly and conjugates only the
     final-state ket.
     """
-    polarized_position: Complex128[Array, " n_q"] = (
+    polarized_position: Complex128[Array, " n_sample"] = (
         position_bohr @ polarization_cart
     )
-    integrand: Complex128[Array, " n_q"] = (
+    integrand: Complex128[Array, " n_sample"] = (
         jnp.conj(psi_final) * polarized_position * psi_initial
     )
     amplitude: Complex128[Array, ""] = jnp.sum(
@@ -354,9 +359,9 @@ def dipole_length_cartesian(
 
 @jaxtyped(typechecker=beartype)
 def dipole_momentum_cartesian(
-    psi_final: Complex128[Array, " n_q"],
-    grad_psi_initial_bohr_inv: Complex128[Array, "n_q 3"],
-    volume_weights_bohr3: Float64[Array, " n_q"],
+    psi_final: Complex128[Array, " n_sample"],
+    grad_psi_initial_bohr_inv: Complex128[Array, "n_sample 3"],
+    volume_weights_bohr3: Float64[Array, " n_sample"],
     polarization_cart: Complex128[Array, " 3"],
 ) -> Complex128[Array, ""]:
     r"""Compute a sampled Cartesian momentum-gauge contraction.
@@ -371,11 +376,11 @@ def dipole_momentum_cartesian(
 
     Parameters
     ----------
-    psi_final : Complex128[Array, " n_q"]
+    psi_final : Complex128[Array, " n_sample"]
         Final-state ket samples.
-    grad_psi_initial_bohr_inv : Complex128[Array, "n_q 3"]
+    grad_psi_initial_bohr_inv : Complex128[Array, "n_sample 3"]
         Cartesian gradient of the initial-state ket in inverse Bohr.
-    volume_weights_bohr3 : Float64[Array, " n_q"]
+    volume_weights_bohr3 : Float64[Array, " n_sample"]
         Volume quadrature weights in Bohr cubed.
     polarization_cart : Complex128[Array, " 3"]
         Cartesian complex polarization.
@@ -389,10 +394,10 @@ def dipole_momentum_cartesian(
     -----
     The dot product applies ``-1j`` to the supplied initial-state gradient.
     """
-    polarized_gradient: Complex128[Array, " n_q"] = (
+    polarized_gradient: Complex128[Array, " n_sample"] = (
         grad_psi_initial_bohr_inv @ polarization_cart
     )
-    integrand: Complex128[Array, " n_q"] = (
+    integrand: Complex128[Array, " n_sample"] = (
         -1j * jnp.conj(psi_final) * polarized_gradient
     )
     amplitude: Complex128[Array, ""] = jnp.sum(

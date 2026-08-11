@@ -7,6 +7,7 @@ and rejection of a left-handed real-space basis.
 import chex
 import jax
 import jax.numpy as jnp
+from beartype.typing import List
 from jaxtyping import Array, Float64
 
 from diffpes.types import CrystalGeometry, PyTreeDef, make_crystal_geometry
@@ -23,14 +24,16 @@ class TestCrystalGeometry:
     """
 
     def test_pytree_round_trip(self) -> None:
-        """Preserve array leaves and static symbols through a PyTree round trip.
+        """Preserve array leaves and static symbols through a PyTree round
+        trip.
 
         The check compares a 3 Angstrom cubic lattice and one silicon symbol
         after JAX flattening and reconstruction.
 
         Notes
         -----
-        The test constructs a one-atom geometry, flattens and unflattens it with JAX,
+        The test constructs a one-atom geometry, flattens and unflattens it
+        with JAX,
         then uses Chex for the numerical and static comparisons.
         """
         lattice: Float64[Array, "3 3"] = jnp.eye(3) * 3.0
@@ -40,7 +43,7 @@ class TestCrystalGeometry:
             positions=positions,
             species=("Si",),
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree.flatten(geometry)
         restored: CrystalGeometry = jax.tree.unflatten(tree, leaves)
@@ -66,7 +69,8 @@ class TestMakeCrystalGeometry:
 
         Notes
         -----
-        The test constructs the cubic geometry, calculates the closed-form reciprocal
+        The test constructs the cubic geometry, calculates the closed-form
+        reciprocal
         matrix independently, and compares both matrices with Chex.
         """
         lattice_constant: float = 5.0

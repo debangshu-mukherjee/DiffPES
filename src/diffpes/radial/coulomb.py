@@ -34,9 +34,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jax import lax
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 
 from diffpes.types import FinalStateSpec
 
@@ -72,6 +72,21 @@ def _complex_log_gamma_shifted(
     """PRIVATE: Evaluate log Gamma by recurrence to a converged Stirling
     domain.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the shifted Stirling series**::
+
+           shifted = value + 20
+
+       Ten Bernoulli terms approximate ``log Gamma`` in the converged domain.
+
+    2. **Remove the shift**::
+
+           result = result - jnp.log(value + recurrence_index)
+
+       Twenty recurrence steps restore the requested argument. They keep the
+       imaginary part on one analytic branch.
+
     Parameters
     ----------
     value : Complex128[Array, " ..."]
@@ -82,14 +97,6 @@ def _complex_log_gamma_shifted(
     result : Complex128[Array, " ..."]
         Principal-branch ``log Gamma(value)`` on one continuous branch.
 
-    Implementation Logic
-    --------------------
-    Shifts the argument by 20 into a converged Stirling domain and
-    evaluates the Stirling series with ten Bernoulli correction terms.
-    The downward recurrence
-    ``log Gamma(z) = log Gamma(z + 20) - sum(log(z + j))`` over
-    ``j = 0 .. 19`` then removes the shift.  The recurrence keeps the
-    imaginary part on the same analytic branch.
     """
     shifted: Complex128[Array, " ..."] = value + 20
     result: Complex128[Array, " ..."] = (
@@ -133,6 +140,26 @@ def _log_coulomb_normalization(
 ) -> Float64[Array, " ..."]:
     r"""PRIVATE: Return log C_l(eta) for the regular Coulomb solution.
 
+    Implementation Logic
+    --------------------
+    1. **Compute the order-zero Gamma factor**::
+
+           gamma_one_abs_squared = jnp.where(small, series_ratio, direct_ratio)
+
+       The even series avoids the removable ``0/0`` form near zero.
+
+    2. **Assemble the logarithmic prefactors**::
+
+           result = order * log(2) - scaled_eta / 2 + log(gamma_abs) / 2
+
+       The expression also includes the factorial normalization in log space.
+
+    3. **Raise the angular order**::
+
+           result = result + 0.5 * jnp.log(recurrence_index**2 + eta**2)
+
+       The recurrence builds :math:`|\Gamma(l+1+i\eta)|` through ``order``.
+
     Parameters
     ----------
     order : int
@@ -146,18 +173,9 @@ def _log_coulomb_normalization(
         Natural logarithm of the Gamow normalization
         :math:`C_l(\eta)`.
 
-    Implementation Logic
-    --------------------
-    Uses :math:`|\Gamma(1+i\eta)|^2 = \pi\eta/\sinh(\pi\eta)` for the
-    order-zero factor, with an even Taylor series below
-    ``abs(pi * eta) < 1e-4`` to avoid the ``0/0`` form.  The upward
-    recurrence then adds ``0.5 * log(j**2 + eta**2)`` for
-    ``j = 1 .. order`` to build :math:`|\Gamma(l+1+i\eta)|`.  The
-    result combines the ``2**l`` prefactor, the ``exp(-pi eta / 2)``
-    factor, and the ``1/(2l+1)!`` factorial in log space.
     """
     scaled_eta: Float64[Array, " ..."] = math.pi * eta
-    small: Array = jnp.abs(scaled_eta) < 1.0e-4
+    small: Bool[Array, " ..."] = jnp.abs(scaled_eta) < 1.0e-4
     safe_scaled_eta: Float64[Array, " ..."] = jnp.where(
         small,
         jnp.ones_like(scaled_eta),
@@ -236,6 +254,26 @@ def _regular_origin_state(
 ) -> Tuple[Float64[Array, " ..."], Float64[Array, " ..."]]:
     r"""PRIVATE: Evaluate regular origin series and its rho derivative.
 
+    Implementation Logic
+    --------------------
+    1. **Build the Frobenius coefficients**::
+
+           coefficient = (2 * eta * previous - previous_two) / denominator
+
+       The 64 coefficients start with ``a_0 = 1``.
+
+    2. **Evaluate the value and derivative series**::
+
+           unnormalized = unnormalized + coefficient * rho**power
+
+       The second accumulation differentiates every power term analytically.
+
+    3. **Apply the Gamow normalization**::
+
+           value = normalization * unnormalized
+
+       The same normalization multiplies the value and its derivative.
+
     Parameters
     ----------
     order : int
@@ -251,15 +289,8 @@ def _regular_origin_state(
         Pair of :math:`F_l(\eta,\rho)` and its :math:`\rho`
         derivative.
 
-    Implementation Logic
-    --------------------
-    Builds 64 Frobenius coefficients with ``a_0 = 1`` and the
-    recurrence ``a_k = (2 eta a_(k-1) - a_(k-2)) / (k (k + 2l + 1))``,
-    sums ``a_k rho**(l+1+k)`` and its term-by-term derivative, and
-    scales both sums by the Gamow normalization
-    ``exp(_log_coulomb_normalization(order, eta))``.
     """
-    coefficients: list[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
+    coefficients: List[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
     series_index: int
     for series_index in range(1, 64):
         previous_two: Float64[Array, " ..."] = (
@@ -306,6 +337,27 @@ def _irregular_origin_state(
     r"""PRIVATE: Evaluate the logarithmic irregular Frobenius row near the
     origin.
 
+    Implementation Logic
+    --------------------
+    1. **Invert the squared regular series**::
+
+           inverse_coefficients.append(-inverse)
+
+       Cauchy products produce the series for :math:`1/F(\rho)^2`.
+
+    2. **Integrate the inverse series**::
+
+           primitive_value = primitive(rho)
+
+       Each power integrates analytically. The zero exponent uses a logarithm.
+
+    3. **Match and differentiate the second solution**::
+
+           value = regular * combined_primitive
+
+       A constant matches the propagated value at ``rho = 0.1``. The product
+       rule and the inverse-square series give the derivative.
+
     Parameters
     ----------
     order : int
@@ -324,20 +376,9 @@ def _irregular_origin_state(
         Pair of :math:`G_l(\eta,\rho)` and its :math:`\rho`
         derivative.
 
-    Implementation Logic
-    --------------------
-    Applies reduction of order: the second solution is
-    :math:`F(\rho)\,[P(\rho) + C]` with
-    :math:`P(\rho) = -\int d\rho / F(\rho)^2`.  The routine builds 32
-    regular Frobenius coefficients, forms their Cauchy square, inverts
-    that series term by term, and integrates each power analytically;
-    the ``rho**0`` term integrates to the logarithm.  The constant
-    ``C`` matches the row to ``matched_irregular`` at the switch
-    radius 0.1.  The derivative combines the product rule with the
-    exact series form of :math:`P'(\rho) = -1/F(\rho)^2`.
     """
     coefficient_count: int = 32
-    regular_coefficients: list[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
+    regular_coefficients: List[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
     coefficient_index: int
     for coefficient_index in range(1, coefficient_count):
         previous_two: Float64[Array, " ..."] = (
@@ -355,7 +396,7 @@ def _irregular_origin_state(
             )
             / denominator
         )
-    squared_coefficients: list[Float64[Array, " ..."]] = []
+    squared_coefficients: List[Float64[Array, " ..."]] = []
     for coefficient_index in range(coefficient_count):
         squared: Float64[Array, " ..."] = jnp.zeros_like(eta)
         left_index: int
@@ -366,7 +407,7 @@ def _irregular_origin_state(
                 * regular_coefficients[coefficient_index - left_index]
             )
         squared_coefficients.append(squared)
-    inverse_coefficients: list[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
+    inverse_coefficients: List[Float64[Array, " ..."]] = [jnp.ones_like(eta)]
     for coefficient_index in range(1, coefficient_count):
         inverse: Float64[Array, " ..."] = jnp.zeros_like(eta)
         product_index: int
@@ -396,7 +437,7 @@ def _irregular_origin_state(
                     - inverse_coefficient * argument**exponent / exponent
                 )
         result = result / normalization**2
-        return result  # noqa: RET504
+        return result  # noqa: RET504 -- assign-before-return is required.
 
     switch_rho: Float64[Array, " ..."] = jnp.full_like(rho, 0.1)
     regular: Float64[Array, " ..."]
@@ -443,6 +484,21 @@ def _outgoing_asymptotic_state(
     r"""PRIVATE: Evaluate outgoing H+ and its rho derivative by
     inverse-radius series.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the inverse-radius amplitude**::
+
+           amplitude = amplitude + coefficient * rho ** (-coefficient_index)
+
+       A 31-term recurrence supplies the amplitude and its derivative.
+
+    2. **Apply the Coulomb phase**::
+
+           value = phase_factor * amplitude
+
+       The product rule combines the amplitude derivative with
+       ``1 - eta / rho`` for the phase derivative.
+
     Parameters
     ----------
     order : int
@@ -458,20 +514,11 @@ def _outgoing_asymptotic_state(
         Pair of the outgoing Coulomb--Hankel function
         :math:`H^+_l(\eta,\rho)` and its :math:`\rho` derivative.
 
-    Implementation Logic
-    --------------------
-    Sums the 31-term inverse-radius amplitude series with the
-    recurrence
-    ``c_(k+1) = c_k (k(k+1) + 2 i eta k + (i eta - eta**2 - l(l+1)))
-    / (2 i (k+1))`` and multiplies by the phase factor
-    ``exp(i (rho - eta log(2 rho) - l pi/2 + sigma_l))``.  The
-    derivative applies the product rule with the phase derivative
-    ``1 - eta/rho`` and the term-by-term amplitude derivative.
     """
     channel_constant: Complex128[Array, " ..."] = (
         1j * eta - eta**2 - order * (order + 1)
     )
-    coefficients: list[Complex128[Array, " ..."]] = [
+    coefficients: List[Complex128[Array, " ..."]] = [
         jnp.ones_like(eta, dtype=jnp.complex128)
     ]
     series_index: int
@@ -531,6 +578,21 @@ def _numerov_endpoint(
     """PRIVATE: Propagate one transformed Coulomb value on a uniform log
     grid.
 
+    Implementation Logic
+    --------------------
+    1. **Form the transformed potential**::
+
+           result = radius**2 - 2 * eta * radius - order * (order + 1) - 0.25
+
+       The Liouville substitution gives ``w'' + q w = 0`` in log radius.
+
+    2. **Apply the Numerov recurrence**::
+
+           final_state = lax.fori_loop(1, steps, jax.checkpoint(body), state)
+
+       Two seed values start the three-point recurrence. Checkpointing bounds
+       the memory use during reverse-mode differentiation.
+
     Parameters
     ----------
     order : int
@@ -556,14 +618,6 @@ def _numerov_endpoint(
     result : Float64[Array, " ..."]
         Transformed value at the end coordinate.
 
-    Implementation Logic
-    --------------------
-    The Liouville substitution ``w = u / sqrt(rho)`` in log radius
-    turns the Coulomb equation into ``w'' + q w = 0`` with
-    ``q = rho**2 - 2 eta rho - l(l+1) - 1/4``.  A
-    :func:`jax.lax.fori_loop` applies the three-point Numerov update
-    from the two seed values; :func:`jax.checkpoint` on the body
-    bounds the reverse-mode memory of the loop.
     """
     step: Float64[Array, " ..."] = (coordinate_end - coordinate_start) / steps
 
@@ -582,7 +636,7 @@ def _numerov_endpoint(
     )
 
     def body(
-        index: Array,
+        index: Int64[Array, ""],
         state: Tuple[
             Float64[Array, " ..."],
             Float64[Array, " ..."],
@@ -649,6 +703,21 @@ def _regular_value(
 ) -> Float64[Array, " ..."]:
     r"""PRIVATE: Evaluate F_l from the origin or its Numerov continuation.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the three region candidates**::
+
+           propagated_transformed = propagate(8192)
+
+       The origin series covers ``rho <= 4``. Numerov propagation covers the
+       middle region, and the outgoing solution covers ``rho >= 20``.
+
+    2. **Select the active region**::
+
+           value = jnp.where(rho <= 4, series_value, continued_value)
+
+       Clipped candidate arguments keep every inactive branch finite.
+
     Parameters
     ----------
     order : int
@@ -663,15 +732,6 @@ def _regular_value(
     value : Float64[Array, " ..."]
         Regular Coulomb function :math:`F_l(\eta,\rho)`.
 
-    Implementation Logic
-    --------------------
-    Selects one of three regions per element.  ``rho <= 4`` uses the
-    origin Frobenius series.  ``4 < rho < 20`` uses an 8192-step
-    outward Numerov propagation in log radius seeded by the series at
-    ``rho = 4``.  ``rho >= 20`` uses the imaginary part of the
-    outgoing asymptotic solution :math:`H^+_l`.  All three branches
-    evaluate on clipped arguments, and :func:`jnp.where` keeps the
-    active branch.
     """
     series_value: Float64[Array, " ..."]
     series_value, _ = _regular_origin_state(order, eta, rho)
@@ -736,6 +796,21 @@ def _irregular_value(
     r"""PRIVATE: Evaluate G_l by backward propagation of the outgoing
     solution.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the three region candidates**::
+
+           propagated_transformed = propagate(8192)
+
+       The outgoing solution covers ``rho >= 20``. Inward Numerov propagation
+       covers the middle region, and a matched Frobenius row covers the origin.
+
+    2. **Select the active region**::
+
+           value = jnp.where(rho >= 20, asymptotic_value, continued_value)
+
+       The origin row matches the propagated value at ``rho = 0.1``.
+
     Parameters
     ----------
     order : int
@@ -750,14 +825,6 @@ def _irregular_value(
     value : Float64[Array, " ..."]
         Irregular Coulomb function :math:`G_l(\eta,\rho)`.
 
-    Implementation Logic
-    --------------------
-    Selects one of three regions per element.  ``rho >= 20`` uses the
-    real part of the outgoing asymptotic solution :math:`H^+_l`.
-    ``0.1 < rho < 20`` uses an 8192-step inward Numerov propagation
-    in negative log radius seeded at ``rho = 20``.  ``rho <= 0.1``
-    uses the logarithmic Frobenius row with its constant matched to
-    the propagated value at the 0.1 switch radius.
     """
     asymptotic_value: Complex128[Array, " ..."]
     asymptotic_value, _ = _outgoing_asymptotic_state(order, eta, rho)
@@ -922,6 +989,21 @@ def _fixed_dopri5_endpoint(
     """PRIVATE: Propagate the Coulomb system with fixed Dormand--Prince
     fifth order.
 
+    Implementation Logic
+    --------------------
+    1. **Set the parameter-independent steps**::
+
+           step = (coordinate_end - coordinate_start) / 32768
+
+       The fixed sequence avoids a data-dependent adaptive branch.
+
+    2. **Apply the six-stage tableau**::
+
+           result = lax.fori_loop(0, steps, jax.checkpoint(body), state)
+
+       The loop keeps the fifth-order solution. Checkpointing bounds the
+       memory use during reverse-mode differentiation.
+
     Parameters
     ----------
     state : Float64[Array, " 2"]
@@ -942,14 +1024,6 @@ def _fixed_dopri5_endpoint(
     result : Float64[Array, " 2"]
         Propagated state at the end coordinate.
 
-    Implementation Logic
-    --------------------
-    Runs 32768 fixed steps of the six-stage Dormand--Prince tableau
-    and keeps only the fifth-order solution.  No adaptive error
-    control runs, so the step sequence is parameter independent.  Each
-    stage
-    calls :func:`_coulomb_log_radius_rhs`, and :func:`jax.checkpoint`
-    on the loop body bounds the reverse-mode memory.
     """
     steps: int = 32768
     step: Float64[Array, ""] = (coordinate_end - coordinate_start) / steps
@@ -968,7 +1042,7 @@ def _fixed_dopri5_endpoint(
         return result
 
     def body(
-        index: Array, current: Float64[Array, " 2"]
+        index: Int64[Array, ""], current: Float64[Array, " 2"]
     ) -> Float64[Array, " 2"]:
         coordinate: Float64[Array, ""] = coordinate_start + index * step
         first: Float64[Array, " 2"] = rhs(current, coordinate)
@@ -1036,6 +1110,41 @@ def _accurate_coulomb_scalar(
 ) -> Float64[Array, " 4"]:
     r"""PRIVATE: Evaluate one high-accuracy value-and-derivative row.
 
+    Implementation Logic
+    --------------------
+    1. **Propagate the regular solution outward**::
+
+           regular_endpoint = _fixed_dopri5_endpoint(
+               regular_state,
+               jnp.log(origin_rho),
+               jnp.log(regular_target),
+               eta,
+               order,
+               1.0,
+           )
+
+       The origin series at ``rho = 1e-4`` supplies the scaled initial state.
+
+    2. **Propagate the irregular solution inward**::
+
+           irregular_endpoint = _fixed_dopri5_endpoint(
+               irregular_state,
+               -jnp.log(boundary_rho),
+               -jnp.log(jnp.minimum(rho, boundary_rho)),
+               eta,
+               order,
+               -1.0,
+           )
+
+       The real outgoing solution at ``rho = 20`` supplies the boundary state.
+
+    3. **Restore radial derivatives**::
+
+           irregular_derivative = irregular_endpoint[1] / rho
+
+       Division by the radius converts log-radius derivatives to radial
+       derivatives. Exact series or asymptotic values remain at each boundary.
+
     Parameters
     ----------
     order : int
@@ -1051,17 +1160,6 @@ def _accurate_coulomb_scalar(
         Stack of :math:`F_l`, :math:`G_l`, and their :math:`\rho`
         derivatives at one scalar argument pair.
 
-    Implementation Logic
-    --------------------
-    The regular pair integrates outward from ``rho = 1e-4`` with the
-    fixed Dormand--Prince endpoint solver.  The origin Frobenius
-    series seeds the state, scaled by ``1e-4**(l+1)`` for headroom;
-    at exactly ``rho = 1e-4`` the series values apply directly.  The
-    irregular pair integrates inward from ``rho = 20`` seeded by the
-    real part of the outgoing asymptotic solution, and for
-    ``rho >= 20`` the asymptotic values apply directly.  Log-radius
-    state derivatives divide by ``rho`` once to become :math:`\rho`
-    derivatives.
     """
     origin_rho: Float64[Array, ""] = jnp.asarray(1.0e-4)
     regular_target: Float64[Array, ""] = jnp.maximum(
@@ -1249,7 +1347,7 @@ def _accurate_coulomb_values(
         rho,
     )
     result: Float64[Array, "4 ..."] = lax.stop_gradient(values)
-    return result  # noqa: RET504
+    return result  # noqa: RET504 -- assign-before-return is required.
 
 
 @_accurate_coulomb_values.defjvp
@@ -1260,6 +1358,51 @@ def _accurate_coulomb_values_jvp(
 ) -> Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
     """PRIVATE: Differentiate adaptive values through the fixed Numerov
     solver.
+
+    Implementation Logic
+    --------------------
+    1. **Differentiate the Sommerfeld parameter**::
+
+           eta_derivative = (
+               -_accurate_coulomb_values_impl(
+                   order, eta + 2.0 * eta_step, rho
+               )
+               + 8.0 * _accurate_coulomb_values_impl(
+                   order, eta + eta_step, rho
+               )
+               - 8.0 * _accurate_coulomb_values_impl(
+                   order, eta - eta_step, rho
+               )
+               + _accurate_coulomb_values_impl(
+                   order, eta - 2.0 * eta_step, rho
+               )
+           ) / (12.0 * eta_step)
+
+       The fourth-order central difference uses
+       ``max(1, abs(eta)) * 2**-9`` as its step.
+
+    2. **Differentiate the radius through the ODE**::
+
+           rho_derivative = jnp.stack(
+               (
+                   values[2],
+                   values[3],
+                   -ode_factor * values[0],
+                   -ode_factor * values[1],
+               )
+           )
+
+       The stored first derivatives and the Coulomb equation give exact radial
+       tangent rows.
+
+    3. **Combine the input tangents**::
+
+           tangent_values = (
+               eta_derivative * eta_tangent
+               + rho_derivative * rho_tangent
+           )
+
+       ``lax.stop_gradient`` makes both derivative blocks first-order rules.
 
     Parameters
     ----------
@@ -1275,15 +1418,6 @@ def _accurate_coulomb_values_jvp(
     result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Primal rows and their joint tangent rows.
 
-    Implementation Logic
-    --------------------
-    The ``eta`` derivative uses the fourth-order five-point central
-    difference with step ``max(1, abs(eta)) * 2**-9``.  The ``rho``
-    derivative is exact through the Coulomb ODE.  The value rows
-    differentiate to the stored derivative rows, and the derivative
-    rows differentiate to ``-(1 - 2 eta/rho - l(l+1)/rho**2)`` times
-    the value rows.  Both derivative blocks pass through
-    :func:`jax.lax.stop_gradient`, so the rule is first order only.
     """
     eta: Float64[Array, " ..."]
     rho: Float64[Array, " ..."]
@@ -1337,6 +1471,33 @@ def _plane_coulomb_rows(
 ]:
     r"""PRIVATE: Return the exact eta-zero F, G, and derivative rows.
 
+    Implementation Logic
+    --------------------
+    1. **Evaluate the regular Riccati--Bessel rows**::
+
+           regular = rho * spherical_bessel_jl(order, rho)
+
+       At :math:`\eta = 0`, the regular Coulomb function has this exact form.
+
+    2. **Propagate the irregular Riccati--Bessel row**::
+
+           irregular_next = (
+               (2 * order + 1) * irregular / rho - irregular_previous
+           )
+
+       Closed forms supply the order-zero and order-one anchors.
+
+    3. **Assemble the value and derivative rows**::
+
+           result = (
+               regular,
+               irregular,
+               regular_derivative,
+               irregular_derivative,
+           )
+
+       Order zero uses the exact sine and cosine forms directly.
+
     Parameters
     ----------
     order : int
@@ -1350,16 +1511,6 @@ def _plane_coulomb_rows(
         Rows ``F``, ``G``, ``dF/drho``, ``dG/drho`` at
         :math:`\eta = 0`.
 
-    Implementation Logic
-    --------------------
-    At :math:`\eta = 0` the Coulomb functions reduce to
-    Riccati--Bessel forms ``F_l = rho j_l(rho)`` and
-    ``G_l = -rho y_l(rho)``.  Order zero uses ``sin`` and ``cos``
-    directly.  Higher orders evaluate ``F_l`` and its derivative from
-    the spherical Bessel kernels.  They build ``G_l`` by the stable
-    upward recurrence ``g_(n+1) = (2n+1) g_n / rho - g_(n-1)`` from
-    the closed forms of ``g_0`` and ``g_1``, and form the derivative
-    as ``(l+1) g_l / rho - g_(l+1)``.
     """
     irregular_zero: Float64[Array, " ..."] = jnp.cos(rho)
     if order == 0:
@@ -1433,7 +1584,7 @@ def _accurate_coulomb_values_with_plane_limit(
     plane_values: Float64[Array, "4 ..."] = jnp.stack(
         _plane_coulomb_rows(order, rho)
     )
-    eta_zero: Array = eta == 0.0
+    eta_zero: Bool[Array, " ..."] = eta == 0.0
     result: Float64[Array, "4 ..."] = jnp.where(
         eta_zero[None, ...],
         plane_values,
@@ -1450,6 +1601,42 @@ def _accurate_coulomb_values_with_plane_limit_jvp(
 ) -> Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]:
     """PRIVATE: Preserve eta tangents and exact plane-limit rho tangents.
 
+    Implementation Logic
+    --------------------
+    1. **Differentiate both candidate rows**::
+
+           values, values_tangent = jax.jvp(
+               lambda first, second: _accurate_coulomb_values(
+                   order,
+                   first,
+                   second,
+               ),
+               (eta, rho),
+               (eta_tangent, rho_tangent),
+           )
+
+       A second JVP differentiates the exact plane rows with respect to radius.
+
+    2. **Replace the radial tangent at eta zero**::
+
+           plane_limit_tangent = (
+               values_tangent
+               - solver_rho_derivative * rho_tangent
+               + plane_tangent
+           )
+
+       The subtraction retains the solver's Sommerfeld-parameter contribution.
+
+    3. **Select the exact plane limit**::
+
+           result_tangent = jnp.where(
+               eta_zero[None, ...],
+               plane_limit_tangent,
+               values_tangent,
+           )
+
+       Away from zero, the adaptive solver tangent passes through unchanged.
+
     Parameters
     ----------
     order : int
@@ -1464,14 +1651,6 @@ def _accurate_coulomb_values_with_plane_limit_jvp(
     result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Selected primal rows and their selected tangent rows.
 
-    Implementation Logic
-    --------------------
-    Pushes the tangents through the adaptive solver and through the
-    exact plane rows with :func:`jax.jvp`.  On the ``eta == 0`` set
-    the rule removes the solver ``rho`` contribution, reconstructed
-    from the ODE relation, and adds the exact plane-row tangent.  The
-    ``eta`` part of the solver tangent therefore survives.  Away from
-    that set the solver tangent passes through unchanged.
     """
     eta: Float64[Array, " ..."]
     rho: Float64[Array, " ..."]
@@ -1511,7 +1690,7 @@ def _accurate_coulomb_values_with_plane_limit_jvp(
     plane_limit_tangent: Float64[Array, "4 ..."] = (
         values_tangent - solver_rho_derivative * rho_tangent + plane_tangent
     )
-    eta_zero: Array = eta == 0.0
+    eta_zero: Bool[Array, " ..."] = eta == 0.0
     result_values: Float64[Array, "4 ..."] = jnp.where(
         eta_zero[None, ...],
         plane_values,
@@ -1537,6 +1716,27 @@ def _normalized_coulomb_rows_impl(
     """PRIVATE: Return Wronskian-normalized Coulomb rows before the public
     JVP.
 
+    Implementation Logic
+    --------------------
+    1. **Measure the Wronskian error**::
+
+           correction = (1 - wronskian) / (regular**2 + irregular**2)
+
+       The denominator is the squared norm of the two value rows.
+
+    2. **Correct only the derivative rows**::
+
+           normalized = jnp.stack(
+               (
+                   regular,
+                   irregular,
+                   regular_derivative + correction * irregular,
+                   irregular_derivative - correction * regular,
+               )
+           )
+
+       The added terms change the Wronskian by exactly ``1 - wronskian``.
+
     Parameters
     ----------
     order : int
@@ -1552,13 +1752,6 @@ def _normalized_coulomb_rows_impl(
         Rows ``F``, ``G``, ``dF/drho``, ``dG/drho`` with the exact
         Wronskian ``F' G - F G' = 1``.
 
-    Implementation Logic
-    --------------------
-    Leaves the value rows unchanged and shifts only the derivative
-    rows by ``correction = (1 - W) / (F**2 + G**2)`` along
-    ``(+G, -F)``.  The shifted rows satisfy the unit Wronskian
-    identically because the added terms contribute
-    ``correction * (F**2 + G**2)``.
     """
     values: Float64[Array, "4 ..."] = (
         _accurate_coulomb_values_with_plane_limit(
@@ -1637,6 +1830,27 @@ def _normalized_coulomb_rows_jvp(
     """PRIVATE: Differentiate eta numerically and rho through the exact ODE
     system.
 
+    Implementation Logic
+    --------------------
+    1. **Form the Sommerfeld-parameter contribution**::
+
+           eta_contribution = eta_derivative * eta_tangent
+
+       A JVP through the normalized implementation supplies the derivative.
+       A symbolic-zero tangent supplies an exact zero block.
+
+    2. **Form the radial contribution**::
+
+           rho_contribution = rho_derivative * rho_tangent
+
+       The stored derivatives and the Coulomb ODE supply the exact derivative.
+
+    3. **Combine both contributions**::
+
+           tangent_values = eta_contribution + rho_contribution
+
+       The returned pair contains the normalized rows and their joint tangent.
+
     Parameters
     ----------
     order : int
@@ -1654,16 +1868,6 @@ jax.custom_derivatives.SymbolicZero]
     result : Tuple[Float64[Array, "4 ..."], Float64[Array, "4 ..."]]
         Primal rows and their joint tangent rows.
 
-    Implementation Logic
-    --------------------
-    The ``eta`` contribution pushes a unit tangent through the
-    normalized implementation with :func:`jax.jvp` and scales the
-    resulting elementwise derivative by the incoming tangent.  The
-    ``rho`` contribution is exact through the Coulomb ODE.  The value
-    rows differentiate to the derivative rows and the derivative rows
-    to ``-(1 - 2 eta/rho - l(l+1)/rho**2)`` times the value rows.  A
-    symbolic-zero tangent contributes an exact zero block, so inactive
-    arguments cost nothing.
     """
     eta: Float64[Array, " ..."]
     rho: Float64[Array, " ..."]
@@ -1806,7 +2010,7 @@ def coulomb_fg(  # noqa: DOC503
     ValueError
         If ``order`` is outside the certified range or shapes differ.
     EquinoxRuntimeError
-        If the numerical arguments leave the G11 domain.
+        If the numerical arguments leave the declared numerical domain.
 
     Notes
     -----
@@ -1970,7 +2174,7 @@ def final_state_radial(  # noqa: DOC503
     values: Complex128[Array, "... n_r"] = (
         jnp.exp(1j * phase[..., None]) * radial_real
     )
-    return values  # noqa: RET504
+    return values  # noqa: RET504 -- assign-before-return is required.
 
 
 __all__: list[str] = [

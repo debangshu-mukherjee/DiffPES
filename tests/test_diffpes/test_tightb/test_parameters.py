@@ -8,11 +8,12 @@ gradient equivalence with direct parameterizations.
 import inspect
 from collections.abc import Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple, Union
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.tightb import (
@@ -153,7 +154,13 @@ def _graphene_context() -> Tuple[
         (0.11, -0.09),
         dtype=jnp.float64,
     )
-    return geometry, basis, params, onsite
+    context: Tuple[
+        CrystalGeometry,
+        OrbitalBasis,
+        SlaterKosterParams,
+        Float64[Array, " 2"],
+    ] = (geometry, basis, params, onsite)
+    return context
 
 
 def _sp_context() -> Tuple[
@@ -206,7 +213,13 @@ def _sp_context() -> Tuple[
         (0.2, -0.1),
         dtype=jnp.float64,
     )
-    return geometry, basis, params, onsite
+    context: Tuple[
+        CrystalGeometry,
+        OrbitalBasis,
+        SlaterKosterParams,
+        Float64[Array, " 2"],
+    ] = (geometry, basis, params, onsite)
+    return context
 
 
 def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
@@ -228,11 +241,15 @@ def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
     flag, and species tuples directly. Bitwise equality certifies that
     a parameter-view round trip is lossless, not merely close.
     """
-    actual_leaves: list[jax.Array] = jax.tree.leaves(actual)
-    expected_leaves: list[jax.Array] = jax.tree.leaves(expected)
+    actual_leaves: List[
+        Union[Float64[Array, "..."], Complex128[Array, "..."]]
+    ] = jax.tree.leaves(actual)
+    expected_leaves: List[
+        Union[Float64[Array, "..."], Complex128[Array, "..."]]
+    ] = jax.tree.leaves(expected)
     assert len(actual_leaves) == len(expected_leaves)
-    actual_leaf: jax.Array
-    expected_leaf: jax.Array
+    actual_leaf: Union[Float64[Array, "..."], Complex128[Array, "..."]]
+    expected_leaf: Union[Float64[Array, "..."], Complex128[Array, "..."]]
     for actual_leaf, expected_leaf in zip(
         actual_leaves,
         expected_leaves,
@@ -248,10 +265,15 @@ def _assert_models_bitwise(actual: TBModel, expected: TBModel) -> None:
 
 
 class TestTBParameterView:
-    """Validate :func:`~diffpes.tightb.tb_parameter_view`."""
+    """Validate :func:`~diffpes.tightb.tb_parameter_view`.
+
+    The cases check exact rebuilds, geometry structure, gradients, compilation,
+    and invalid parameter vectors.
+    """
 
     def test_round_trip_is_bitwise_and_hoppings_are_independent(self) -> None:
-        """Pack one complex pair and one self-reverse record without redundancy.
+        """Pack one complex pair and one self-reverse record without
+        redundancy.
 
         The case pins every coordinate in the compact real vector.
 
@@ -346,13 +368,14 @@ class TestTBParameterView:
             dtype=jnp.float64,
         )
 
-        def loss(vector: Float64[Array, " 12"]) -> jax.Array:
+        def loss(vector: Float64[Array, " 12"]) -> Float64[Array, ""]:
             """Return a spectral invariant with hoppings and k fixed."""
             candidate: TBModel = rebuild(parameters.at[5:].set(vector))
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(candidate, kpoint)
             )
-            return jnp.sum(eigenvalues**2)
+            value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
+            return value
 
         derivative: Float64[Array, " 12"] = jax.grad(loss)(parameters[5:])
 
@@ -374,7 +397,7 @@ class TestTBParameterView:
         kpoint: float = 0.231
         phase: complex = np.exp(2.0j * np.pi * kpoint)
 
-        def view_loss(packed: Float64[Array, " 2"]) -> jax.Array:
+        def view_loss(packed: Float64[Array, " 2"]) -> Float64[Array, ""]:
             """Evaluate the scalar band loss through the inverse view."""
             vector: Float64[Array, " 5"] = parameters.at[:2].set(packed)
             candidate: TBModel = rebuild(vector)
@@ -382,9 +405,10 @@ class TestTBParameterView:
                 candidate,
                 jnp.asarray((kpoint, 0.0, 0.0), dtype=jnp.float64),
             )
-            return jnp.real(hamiltonian[0, 0]) ** 2
+            value: Float64[Array, ""] = jnp.real(hamiltonian[0, 0]) ** 2
+            return value
 
-        def direct_loss(packed: Float64[Array, " 2"]) -> jax.Array:
+        def direct_loss(packed: Float64[Array, " 2"]) -> Float64[Array, ""]:
             """Evaluate the same scalar band loss from the closed form."""
             amplitude: Complex128[Array, ""] = unpack_complex(packed)
             energy: Complex128[Array, ""] = (
@@ -393,7 +417,8 @@ class TestTBParameterView:
                 + amplitude * phase
                 + jnp.conj(amplitude) * np.conj(phase)
             )
-            return jnp.real(energy) ** 2
+            value: Float64[Array, ""] = jnp.real(energy) ** 2
+            return value
 
         actual: Float64[Array, " 2"] = jax.grad(view_loss)(parameters[:2])
         expected: Float64[Array, " 2"] = jax.grad(direct_loss)(parameters[:2])
@@ -423,12 +448,19 @@ class TestTBParameterView:
         parameters, rebuild = tb_parameter_view(_materialized_model())
         with pytest.raises(ValueError, match="must have shape"):
             rebuild(jnp.zeros((parameters.size + 1,), dtype=jnp.float64))
-        with pytest.raises(Exception, match="parameters finite"):
+        with pytest.raises(
+            (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+            match="parameters finite",
+        ):
             rebuild(parameters.at[0].set(jnp.nan))
 
 
 class TestSKModelParameterView:
-    """Validate :func:`~diffpes.tightb.sk_model_parameter_view`."""
+    """Validate :func:`~diffpes.tightb.sk_model_parameter_view`.
+
+    The cases check Slater--Koster rebuilds, gradients, topology capture,
+    static validation, and gauge documentation.
+    """
 
     def test_round_trip_and_position_layout(self) -> None:
         """Return the initial graphene SK model and append positions last.
@@ -547,21 +579,21 @@ class TestSKModelParameterView:
             dtype=jnp.float64,
         )
 
-        def band_loss(model: TBModel) -> jax.Array:
+        def band_loss(model: TBModel) -> Float64[Array, ""]:
             """Return a gauge-invariant spectral polynomial."""
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
-            result: jax.Array = jnp.sum(eigenvalues**2)
+            result: Float64[Array, ""] = jnp.sum(eigenvalues**2)
             return result
 
-        def through_view(value: Float64[Array, ""]) -> jax.Array:
+        def through_view(value: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return bands after rebuilding from optimizer coordinates."""
             vector: Float64[Array, " 3"] = parameters.at[0].set(value)
-            result: jax.Array = band_loss(rebuild(vector))
+            result: Float64[Array, ""] = band_loss(rebuild(vector))
             return result
 
-        def direct(value: Float64[Array, ""]) -> jax.Array:
+        def direct(value: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return bands rebuilt from the fundamental SK value."""
             direct_params: SlaterKosterParams = SlaterKosterParams(
                 values=jnp.reshape(value, (1,)),
@@ -576,7 +608,7 @@ class TestSKModelParameterView:
                 (-1, -1),
                 1.5,
             )
-            result: jax.Array = band_loss(model)
+            result: Float64[Array, ""] = band_loss(model)
             return result
 
         actual: Float64[Array, ""] = jax.grad(through_view)(parameters[0])
@@ -620,23 +652,23 @@ class TestSKModelParameterView:
             dtype=jnp.float64,
         )
 
-        def band_loss(model: TBModel) -> jax.Array:
+        def band_loss(model: TBModel) -> Float64[Array, ""]:
             """Return a spectral invariant with bond-direction sensitivity."""
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
-            result: jax.Array = jnp.sum(eigenvalues**2)
+            result: Float64[Array, ""] = jnp.sum(eigenvalues**2)
             return result
 
-        def through_view(value: Float64[Array, ""]) -> jax.Array:
+        def through_view(value: Float64[Array, ""]) -> Float64[Array, ""]:
             """Replace one lattice coordinate in the flat view."""
             vector: Float64[Array, " 12"] = parameters.at[lattice_offset].set(
                 value
             )
-            result: jax.Array = band_loss(rebuild(vector))
+            result: Float64[Array, ""] = band_loss(rebuild(vector))
             return result
 
-        def direct(value: Float64[Array, ""]) -> jax.Array:
+        def direct(value: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return bands rebuilt from the same lattice coordinate."""
             direct_geometry: CrystalGeometry = make_crystal_geometry(
                 geometry.lattice.at[0, 0].set(value),
@@ -652,7 +684,7 @@ class TestSKModelParameterView:
                 (-1, -1),
                 2.0,
             )
-            result: jax.Array = band_loss(model)
+            result: Float64[Array, ""] = band_loss(model)
             return result
 
         initial: Float64[Array, ""] = parameters[lattice_offset]
@@ -703,14 +735,19 @@ class TestSKModelParameterView:
         position_slice: slice = slice(3, 9)
         lattice_slice: slice = slice(9, 18)
 
-        def band_loss(vector: Float64[Array, " 18"]) -> jax.Array:
+        def band_loss(
+            vector: Float64[Array, " 18"],
+        ) -> Float64[Array, ""]:
             """Return a spectral invariant at fixed fractional k."""
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(rebuild(vector), kpoint)
             )
-            return jnp.sum(eigenvalues**2)
+            value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
+            return value
 
-        def translated(shift: Float64[Array, " 3"]) -> jax.Array:
+        def translated(
+            shift: Float64[Array, " 3"],
+        ) -> Float64[Array, ""]:
             """Return equally translated fractional basis positions."""
             positions: Float64[Array, "2 3"] = jnp.reshape(
                 parameters[position_slice],
@@ -719,14 +756,16 @@ class TestSKModelParameterView:
             vector: Float64[Array, " 18"] = parameters.at[position_slice].set(
                 jnp.ravel(positions + shift[None, :])
             )
-            return band_loss(vector)
+            value: Float64[Array, ""] = band_loss(vector)
+            return value
 
-        def dilated(scale: Float64[Array, ""]) -> jax.Array:
+        def dilated(scale: Float64[Array, ""]) -> Float64[Array, ""]:
             """Return lattice rows dilated by one scale."""
             vector: Float64[Array, " 18"] = parameters.at[lattice_slice].set(
                 scale * parameters[lattice_slice]
             )
-            return band_loss(vector)
+            value: Float64[Array, ""] = band_loss(vector)
+            return value
 
         translation_gradient: Float64[Array, " 3"] = jax.grad(translated)(
             jnp.zeros((3,), dtype=jnp.float64)
@@ -822,7 +861,8 @@ class TestSKModelParameterView:
             eigenvalues: Float64[Array, " n_orb"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(model, kpoint)
             )
-            return jnp.sum(eigenvalues**2)
+            value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
+            return value
 
         def loss_with_model(
             vector: Float64[Array, " 18"],
@@ -833,7 +873,8 @@ class TestSKModelParameterView:
                 bloch_hamiltonian(model, kpoint)
             )
             value: Float64[Array, ""] = jnp.sum(eigenvalues**2)
-            return value, model
+            result: Tuple[Float64[Array, ""], TBModel] = (value, model)
+            return result
 
         expected_value: Float64[Array, ""]
         expected_gradient: Float64[Array, " 18"]

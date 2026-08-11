@@ -1,6 +1,8 @@
 """Run the isolated complete Coulomb-assembly gradient witness.
 
-The test delegates the expensive charge and photon-energy derivative battery
+Extended Summary
+----------------
+The test delegates the expensive charge and photon-energy derivative set
 to a process that releases compiled Coulomb executables on exit.
 """
 
@@ -12,7 +14,12 @@ from pathlib import Path
 
 
 class TestCoulombComposedAssembly:
-    """Certify charge and photon-energy derivatives through full assembly."""
+    """Certify charge and photon-energy derivatives through full assembly.
+
+    The case covers forward, reverse, and finite-difference sensitivities in
+    the complete supported-radial computation. It runs the committed verifier
+    in an isolated process and requires a successful exit with diagnostics.
+    """
 
     def test_forward_reverse_and_fd_witnesses_in_isolated_process(
         self,
@@ -32,7 +39,7 @@ class TestCoulombComposedAssembly:
             / "_reference_tools"
             / "verify_coulomb_composed_assembly.py"
         )
-        completed: subprocess.CompletedProcess[str] = subprocess.run(
+        completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, str(script)],
             cwd=root,
             check=False,

@@ -28,23 +28,23 @@
   },
   "environment": {
     "numpy": "2.4.2",
-    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
     "python": "3.13.6"
   },
-  "gates": [
-    "coulomb-mpmath-reference",
-    "coulomb-assembly-gradient"
-  ],
   "generator": "tests/_reference_tools/generate_coulomb_reference.py",
-  "generator_sha256": "9d5552733f3381ed35829fd368b10a5d19c0dda0b0ec4a2a96ab747cfeb8ab93",
+  "generator_sha256": "e6612379d956a52c30bfd957072eee9cf5343d42f0271cff6eb188199fdc0f79",
   "normalization": "mpmath Coulomb F_l/G_l convention; F'G-FG'=1",
   "reference_engine": {
     "decimal_digits": 80,
     "name": "mpmath",
     "version": "1.4.1"
   },
+  "requirements": [
+    "coulomb-mpmath-reference",
+    "coulomb-assembly-gradient"
+  ],
   "schema": "diffpes.coulomb-mpmath-reference.v2",
-  "source_revision": "551f7fca10dde5adbd856a526b63c6e77ad8f1d3",
+  "source_revision": "880c511af185136ceed850f0166e870d9a2844fe",
   "sparse_value_derivative_product": {
     "etas": [
       -3.0,

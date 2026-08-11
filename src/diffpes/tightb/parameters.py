@@ -17,10 +17,10 @@ tracing and rebuilds all numerical leaves on those exact pairs and cells.
 
 Routine Listings
 ----------------
-:func:`tb_parameter_view`
-    Pack a materialized tight-binding model into independent coordinates.
 :func:`sk_model_parameter_view`
     Pack Slater--Koster fundamentals and return a rebuilding closure.
+:func:`tb_parameter_view`
+    Pack a materialized tight-binding model into independent coordinates.
 
 Notes
 -----
@@ -36,7 +36,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Tuple
+from beartype.typing import Dict, List, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -46,6 +46,7 @@ from diffpes.types import (
     SlaterKosterParams,
     TBModel,
     make_crystal_geometry,
+    make_slater_koster_params,
     make_tb_model,
 )
 from diffpes.utils import pack_complex, unpack_complex
@@ -276,7 +277,7 @@ def tb_parameter_view(  # noqa: DOC503, PLR0915
         for representative in representatives
     )
 
-    parts: list[Float64[Array, " n_part"]] = []
+    parts: List[Float64[Array, " n_part"]] = []
     representative: int
     is_self_reverse: bool
     for representative, is_self_reverse in zip(
@@ -512,7 +513,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
         geometry,
         cutoff,
     )
-    parts: list[Float64[Array, " n_part"]] = [
+    parts: List[Float64[Array, " n_part"]] = [
         jnp.ravel(sk_params.values),
         jnp.ravel(template.onsite_energies),
         jnp.ravel(template.soc_lambdas),
@@ -571,7 +572,7 @@ def sk_model_parameter_view(  # noqa: DOC502, DOC503
                 positions,
                 template.geometry.species,
             )
-        rebuilt_params: SlaterKosterParams = SlaterKosterParams(
+        rebuilt_params: SlaterKosterParams = make_slater_koster_params(
             values=values,
             keys=sk_params.keys,
         )

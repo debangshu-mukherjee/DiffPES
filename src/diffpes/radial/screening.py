@@ -24,6 +24,21 @@ from jaxtyping import jaxtyped
 def _aufbau_configuration(atomic_number: int) -> Dict[Tuple[int, int], int]:
     """PRIVATE: Return the Madelung sequence with ground-state exceptions.
 
+    Implementation Logic
+    --------------------
+    1. **Fill the Madelung sequence**::
+
+           configuration[(principal, angular)] = occupancy
+
+       The static table contains nineteen subshells from 1s through 7p.
+
+    2. **Apply the ground-state exceptions**::
+
+           configuration[key] = occupancy
+
+       The static map covers the anomalous neutral atoms. A zero occupancy
+       removes the corresponding subshell.
+
     Parameters
     ----------
     atomic_number : int
@@ -34,13 +49,6 @@ def _aufbau_configuration(atomic_number: int) -> Dict[Tuple[int, int], int]:
     configuration : Dict[Tuple[int, int], int]
         Occupancy for each occupied ``(n, l)`` subshell.
 
-    Implementation Logic
-    --------------------
-    Fills a static nineteen-subshell Madelung table from 1s through 7p
-    until no electrons remain.  A static exception map then overrides
-    the anomalous neutral ground states: chromium, copper, the 4d and
-    5d anomalies, and the lanthanide and actinide rows.  An override
-    occupancy of zero removes the subshell.
     """
     orbitals: Tuple[Tuple[int, int, int], ...] = (
         (1, 0, 2),
@@ -258,10 +266,6 @@ def slater_zeta(  # noqa: DOC502
 
     :see: :class:`~.test_screening.TestSlaterZeta`
 
-    Notes
-    -----
-    Divide the effective charge by Slater's static effective principal value.
-
     Parameters
     ----------
     atomic_number : int
@@ -280,6 +284,10 @@ def slater_zeta(  # noqa: DOC502
     ------
     ValueError
         If the requested subshell is invalid or unoccupied.
+
+    Notes
+    -----
+    Divide the effective charge by Slater's static effective principal value.
     """
     effective_principal_values: Tuple[float, ...] = (
         1.0,

@@ -1,9 +1,10 @@
 """Validate VASP CHGCAR parsing.
 
-Covers scalar, spin-polarized, and SOC volumetric grids together with malformed headers, grid blocks, and coordinate data.
+Covers scalar, spin-polarized, and SOC volumetric grids together with
+malformed headers, grid blocks, and coordinate data.
 """
 
-import io
+import os
 import tempfile
 from pathlib import Path
 
@@ -15,21 +16,10 @@ from beartype.typing import TextIO
 import diffpes
 from diffpes.inout import (
     read_chgcar,
-    read_doscar,
-    read_eigenval,
-    read_kpoints,
-    read_poscar,
-    read_procar,
 )
 from diffpes.types import (
-    BandStructure,
-    FullDensityOfStates,
     SOCVolumetricData,
-    SpinBandStructure,
-    SpinOrbitalProjection,
     VolumetricData,
-    make_orbital_projection,
-    make_spin_orbital_projection,
 )
 
 _FIXTURES_DIR: Path = Path(__file__).resolve().parent / "fixtures"
@@ -48,7 +38,7 @@ class TestReadChgcar(chex.TestCase):
     """
 
     def test_charge_only(self) -> None:
-        """Read charge-only CHGCAR and verify VolumetricData output with no magnetization.
+        """Read a charge-only CHGCAR without magnetization.
 
         The test parses ``CHGCAR_charge``, which has one data block.
         It checks the result type, the array shapes, and ``grid_shape``.
@@ -57,7 +47,9 @@ class TestReadChgcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
 
@@ -75,7 +67,7 @@ class TestReadChgcar(chex.TestCase):
         )
 
     def test_charge_with_magnetization(self) -> None:
-        """Read ISPIN=2 CHGCAR and verify VolumetricData includes scalar magnetization.
+        """Read an ISPIN=2 CHGCAR with scalar magnetization.
 
         The test parses ``CHGCAR_spin``, which has two data blocks.
         It checks the result type, ``grid_shape``, and both array shapes.
@@ -84,7 +76,9 @@ class TestReadChgcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
 
@@ -97,7 +91,7 @@ class TestReadChgcar(chex.TestCase):
         chex.assert_shape(vol.magnetization, (2, 2, 2))
 
     def test_soc_chgcar(self) -> None:
-        """Read SOC CHGCAR and verify SOCVolumetricData with 3-component magnetization.
+        """Read an SOC CHGCAR with three-component magnetization.
 
         Parses CHGCAR_soc (four data blocks: charge, mx, my, mz).
         The test checks the result type, ``grid_shape``, and all array shapes.
@@ -107,7 +101,9 @@ class TestReadChgcar(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         path: Path
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
 
@@ -193,8 +189,6 @@ class TestReadChgcarErrors(chex.TestCase):
         Calls ``os.unlink`` on the path after the error assertion so
         the temporary file does not accumulate between test runs.
         """
-        import os
-
         os.unlink(path)
 
     def test_zero_volume_lattice_raises(self) -> None:
@@ -206,7 +200,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -235,13 +231,15 @@ class TestReadChgcarErrors(chex.TestCase):
     def test_no_grid_dimensions_raises(self) -> None:
         """Verify that a missing grid dimension line raises ``ValueError``.
 
-        The test writes a CHGCAR with a valid POSCAR header but no grid dimension
-        line after the coordinates. Asserts ``ValueError`` matching
+        The test writes a CHGCAR with a valid POSCAR header but no grid
+        dimension line after the coordinates. Asserts ``ValueError`` matching
         ``"Could not locate"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -261,7 +259,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -284,7 +284,7 @@ class TestReadChgcarErrors(chex.TestCase):
             self._cleanup(path)
 
     def test_selective_dynamics_line_consumed(self) -> None:
-        """Verify consumption of the selective-dynamics line before coordinates.
+        """Consume the selective-dynamics line before coordinates.
 
         The test writes a CHGCAR with a 'Selective dynamics' line before the
         coordinate-mode line. The test checks successful parsing and the
@@ -292,7 +292,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
@@ -324,11 +326,14 @@ class TestReadChgcarErrors(chex.TestCase):
         """Verify that a short atomic-coordinate line raises ``ValueError``.
 
         The test writes a CHGCAR where the atomic coordinate line has only 2
-        values. Asserts ``ValueError`` matching ``"Invalid CHGCAR coordinate"``.
+        values. Asserts ``ValueError`` matching
+        ``"Invalid CHGCAR coordinate"``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 
@@ -351,7 +356,7 @@ class TestReadChgcarErrors(chex.TestCase):
             self._cleanup(path)
 
     def test_cartesian_coordinates_transform(self) -> None:
-        """Verify conversion from Cartesian coordinates to fractional coordinates.
+        """Convert Cartesian coordinates to fractional coordinates.
 
         The test writes a CHGCAR with Cartesian coordinate mode. One atom has
         coordinate ``[3.0, 0.0, 0.0]`` in a cubic lattice. Its expected
@@ -360,7 +365,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
@@ -390,7 +397,7 @@ class TestReadChgcarErrors(chex.TestCase):
             self._cleanup(path)
 
     def test_find_next_grid_skips_non_matching_lines(self) -> None:
-        """_find_next_grid_line skips lines with != 3 parts and non-int 3-part lines.
+        """Skip malformed lines while locating the next grid block.
 
         The test writes a CHGCAR with nonmatching lines before the grid shape.
         One line has the three floats ``1.5 2.5 3.5``. The parser skips these
@@ -398,7 +405,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
@@ -425,14 +434,16 @@ class TestReadChgcarErrors(chex.TestCase):
             self._cleanup(path)
 
     def test_parse_float_block_skips_blank_lines(self) -> None:
-        """_parse_float_block skips blank lines in data (chgcar.py lines 449-450).
+        """Skip blank lines while parsing a floating-point block.
 
-        The test writes a CHGCAR where the data block has a blank line after the
+        The test writes a CHGCAR whose data block has a blank line after the
         first row of values. The test checks the parsed grid.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
@@ -462,7 +473,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
         vol: diffpes.types.VolumetricData | diffpes.types.SOCVolumetricData
@@ -491,7 +504,9 @@ class TestReadChgcarErrors(chex.TestCase):
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
         content: str
         path: str
 

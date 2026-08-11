@@ -1,7 +1,7 @@
 r"""Validate tight-binding differentiation and eigensystem evidence.
 
-The tests close the parameter-class matrix not already covered by the
-all-channel Slater--Koster gate in
+The tests cover parameter classes outside the all-channel Slater--Koster
+check in
 ``test_slaterkoster.TestBuildSlaterKosterModel.
 test_every_integral_has_fd_correct_band_spectral_gradient``. They check
 generic-k atomic-position and atomic-SOC derivatives. Further tests cover
@@ -14,8 +14,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
-from jaxtyping import Array, Complex128, Float64
+from beartype.typing import List, Tuple, Union
+from jaxtyping import Array, Complex128, Float64, PRNGKeyArray
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -40,7 +40,10 @@ from diffpes.types import (
     make_tb_model,
 )
 from tests._factories import make_t2g_soc_model
-from tests._gradients import assert_grad_matches_fd, gradient_gate
+from tests._gradients import (
+    assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
+)
 
 _DIRAC_K: Float64[Array, " 3"] = jnp.asarray(
     (2.0 / 3.0, 1.0 / 3.0, 0.0),
@@ -139,7 +142,7 @@ def _pz_honeycomb_model(
     -----
     The three nearest-neighbor cells are exact static metadata. Each
     two-center block uses ``R + tau_B - tau_A``. This matches the
-    production builder away from cutoff crossings. The small gate
+    production builder away from cutoff crossings. The small check
     excludes topology discovery. Reverse hoppings reuse the forward
     values because the pz--pz element is direction-even.
     """
@@ -148,7 +151,7 @@ def _pz_honeycomb_model(
         sk_values,
         ("X-X:pp_sigma", "X-X:pp_pi"),
     )
-    forward: list[Float64[Array, ""]] = []
+    forward: List[Float64[Array, ""]] = []
     cell: Tuple[int, int, int]
     for cell in _GRAPHENE_CELLS:
         displacement: Float64[Array, " 3"] = (
@@ -192,7 +195,7 @@ def _pz_honeycomb_model(
                 for item in _GRAPHENE_CELLS
             )
         )
-        one_spin: list[Float64[Array, ""]] = forward + forward
+        one_spin: List[Float64[Array, ""]] = forward + forward
         hopping: Complex128[Array, " 12"] = jnp.asarray(
             one_spin + one_spin,
             dtype=jnp.complex128,
@@ -321,8 +324,8 @@ def _minimal_bands(
 
 
 def _normwise_roundoff_budget(
-    reference: Array,
-    scale: Array,
+    reference: Union[Float64[Array, "..."], Complex128[Array, "..."]],
+    scale: Union[Float64[Array, "..."], Complex128[Array, "..."]],
     *,
     contraction_dimension: int,
     contractions: int,
@@ -331,10 +334,10 @@ def _normwise_roundoff_budget(
 
     Parameters
     ----------
-    reference : Array
+    reference : Union[Float64[Array, "..."], Complex128[Array, "..."]]
         Reference matrix stack whose trailing two axes set the matrix
         dimension.
-    scale : Array
+    scale : Union[Float64[Array, "..."], Complex128[Array, "..."]]
         Companion array whose norm also bounds the input magnitude.
     contraction_dimension : int
         Inner dimension of one matrix contraction.
@@ -367,11 +370,16 @@ def _normwise_roundoff_budget(
         float(jnp.linalg.norm(reference)),
         float(jnp.linalg.norm(scale)),
     )
-    return gamma * entry_to_norm * magnitude
+    budget: float = gamma * entry_to_norm * magnitude
+    return budget
 
 
-class TestD1GenericK:
-    """Validate generic-k derivatives missing from the all-SK-key gate."""
+class TestGenericKDerivatives:
+    """Validate generic-k derivatives outside the all-channel check.
+
+    The cases compare forward, reverse, and finite-difference derivatives for
+    SOC and atomic positions.
+    """
 
     def test_soc_lambda_forward_reverse_fd_and_nonzero(self) -> None:
         """Differentiate one nondegenerate magnetic t2g+SOC band.
@@ -401,14 +409,15 @@ class TestD1GenericK:
                 candidate,
                 _GENERIC_K[None, :],
             )[0]
-            return eigenvalues[4]
+            value: Float64[Array, ""] = eigenvalues[4]
+            return value
 
         initial_bands: Float64[Array, " 6"] = eigvalsh_bands(
             rebuild(magnetic),
             _GENERIC_K[None, :],
         )[0]
         assert float(jnp.min(jnp.diff(initial_bands))) > 1e-2
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             coupling,
             regime="smooth",
@@ -452,9 +461,10 @@ class TestD1GenericK:
                 model,
                 _GENERIC_K[None, :],
             )[0]
-            return eigenvalues[1]
+            value: Float64[Array, ""] = eigenvalues[1]
+            return value
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             position,
             regime="smooth",
@@ -464,14 +474,18 @@ class TestD1GenericK:
         assert float(jnp.linalg.norm(derivative)) > 1e-2
 
 
-class TestD2ExactDegeneracy:
-    """Differentiate only invariant losses at exact band degeneracies."""
+class TestExactDegeneracyDerivatives:
+    """Differentiate only invariant losses at exact band degeneracies.
+
+    The cases differentiate gauge-invariant graphene and Kramers losses at
+    exact degeneracies.
+    """
 
     def test_graphene_k_sk_invariant_matches_fd(self) -> None:
         """Match FD for pp-pi at the exact graphene Dirac point.
 
         At K, ``Tr(H**2)`` is quadratic in the Dirac splitting. The derivative
-        may vanish without invalidating this invariant gate.
+        may vanish without invalidating this invariant check.
 
         Notes
         -----
@@ -490,7 +504,8 @@ class TestD2ExactDegeneracy:
                 planar_position,
                 spinful=False,
             )
-            return _spectral_square(model, _DIRAC_K)
+            value: Float64[Array, ""] = _spectral_square(model, _DIRAC_K)
+            return value
 
         model: TBModel = _pz_honeycomb_model(
             jnp.stack((sigma, pi)),
@@ -534,7 +549,8 @@ class TestD2ExactDegeneracy:
                 spinful=True,
                 onsite_offset=0.11,
             )
-            return _spectral_square(model, _GENERIC_K)
+            value: Float64[Array, ""] = _spectral_square(model, _GENERIC_K)
+            return value
 
         model: TBModel = _pz_honeycomb_model(
             initial[:2],
@@ -552,7 +568,7 @@ class TestD2ExactDegeneracy:
             rtol=0.0,
             atol=2e-12,
         )
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             initial,
             regime="stiff",
@@ -578,7 +594,10 @@ class TestD2ExactDegeneracy:
 
         def loss(value: Float64[Array, ""]) -> Float64[Array, ""]:
             candidate: TBModel = rebuild(parameters.at[-1].set(value))
-            return _spectral_square(candidate, _GENERIC_K)
+            result: Float64[Array, ""] = _spectral_square(
+                candidate, _GENERIC_K
+            )
+            return result
 
         eigenvalues: Float64[Array, " 6"] = eigvalsh_bands(
             model,
@@ -590,7 +609,7 @@ class TestD2ExactDegeneracy:
             rtol=0.0,
             atol=1e-12,
         )
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             coupling,
             regime="stiff",
@@ -599,8 +618,12 @@ class TestD2ExactDegeneracy:
         assert abs(float(jax.grad(loss)(coupling))) > 1e-2
 
 
-class TestG8GaugeInvariance:
-    """Apply phases and independent rotations to every degenerate block."""
+class TestGaugeInvarianceDerivatives:
+    """Apply phases and independent rotations to every degenerate block.
+
+    The case rotates every degenerate block and checks the derived invariance
+    error budget.
+    """
 
     def test_multiple_blocks_obey_dimension_derived_budget(self) -> None:
         """Preserve fixed-group projectors and traces within a gamma-n bound.
@@ -614,8 +637,8 @@ class TestG8GaugeInvariance:
         n_k: int = 2
         n_orbitals: int = 6
         group_size: int = 2
-        key: Array = jax.random.key(408)
-        keys: list[Array] = list(jax.random.split(key, 16))
+        key: PRNGKeyArray = jax.random.key(408)
+        keys: List[PRNGKeyArray] = list(jax.random.split(key, 16))
         raw: Complex128[Array, "2 6 6"] = jax.random.normal(
             keys[0], (n_k, n_orbitals, n_orbitals)
         ) + 1j * jax.random.normal(keys[1], (n_k, n_orbitals, n_orbitals))
@@ -680,8 +703,12 @@ class TestG8GaugeInvariance:
 
         for start in range(0, n_orbitals, group_size):
             group: Tuple[int, ...] = (start, start + 1)
-            reference_projector: Array = group_projector(baseline, group)
-            actual_projector: Array = group_projector(transformed, group)
+            reference_projector: Complex128[Array, "2 6 6"] = group_projector(
+                baseline, group
+            )
+            actual_projector: Complex128[Array, "2 6 6"] = group_projector(
+                transformed, group
+            )
             projector_budget: float = _normwise_roundoff_budget(
                 reference_projector,
                 actual_projector,
@@ -693,12 +720,12 @@ class TestG8GaugeInvariance:
                 <= projector_budget
             )
 
-            reference_trace: Array = group_trace(
+            reference_trace: Float64[Array, " 2"] = group_trace(
                 baseline,
                 observable,
                 group,
             )
-            actual_trace: Array = group_trace(
+            actual_trace: Float64[Array, " 2"] = group_trace(
                 transformed,
                 observable,
                 group,
@@ -716,7 +743,11 @@ class TestG8GaugeInvariance:
 
 
 class TestEighSafeNumPyTruth:
-    """Compare production eigenpairs with independent NumPy/LAPACK truth."""
+    """Compare production eigenpairs with independent NumPy/LAPACK truth.
+
+    The case compares random complex Hermitian eigenpairs with independent
+    NumPy and LAPACK results.
+    """
 
     def test_random_complex_hermitian_eigenpairs(self) -> None:
         """Match eigenvalues, projectors, residuals, and orthonormality.
@@ -741,8 +772,8 @@ class TestEighSafeNumPyTruth:
             expected_vectors: Complex128[NDArray, "dim dim"]
             expected_values, expected_vectors = np.linalg.eigh(hamiltonian)
 
-            actual_values: Array
-            actual_vectors: Array
+            actual_values: Float64[Array, " dim"]
+            actual_vectors: Complex128[Array, "dim dim"]
             actual_values, actual_vectors = eigh_safe(
                 jnp.asarray(hamiltonian, dtype=jnp.complex128)
             )
@@ -770,7 +801,7 @@ class TestEighSafeNumPyTruth:
                 rtol=3e-12,
                 atol=3e-12,
             )
-            residual: Array = (
+            residual: Complex128[Array, "dim dim"] = (
                 jnp.asarray(hamiltonian) @ actual_vectors
                 - actual_vectors * actual_values[None, :]
             )
@@ -786,6 +817,3 @@ class TestEighSafeNumPyTruth:
                 rtol=3e-12,
                 atol=3e-12,
             )
-
-
-__all__: list[str] = []

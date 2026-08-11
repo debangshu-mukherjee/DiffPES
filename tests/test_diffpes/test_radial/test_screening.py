@@ -10,7 +10,7 @@ principal-number conversion.
 import pytest
 from beartype.typing import Dict, Tuple
 
-from diffpes.radial.screening import (
+from diffpes.radial import (
     electron_configuration,
     slater_zeff,
     slater_zeta,
@@ -18,7 +18,14 @@ from diffpes.radial.screening import (
 
 
 class TestElectronConfiguration:
-    """Validate :func:`diffpes.radial.electron_configuration`."""
+    """Validate :func:`diffpes.radial.electron_configuration`.
+
+    The cases cover every atomic number from hydrogen through lawrencium and
+    both invalid table boundaries. They sum all occupancies and inspect four
+    representative ground-state exceptions directly.
+
+    :see: :func:`~diffpes.radial.electron_configuration`
+    """
 
     def test_domain_totals_and_ground_state_exceptions(self) -> None:
         """Preserve electron totals and measured exceptional occupations.
@@ -74,16 +81,23 @@ class TestElectronConfiguration:
 
 
 class TestSlaterZeff:
-    """Validate :func:`diffpes.radial.slater_zeff`."""
+    """Validate :func:`diffpes.radial.slater_zeff`.
+
+    The cases cover four published s-, p-, and d-subshell screening values and
+    one unoccupied subshell. They compare the worked values at strict decimal
+    tolerance and require the documented occupancy error.
+
+    :see: :func:`~diffpes.radial.slater_zeff`
+    """
 
     @pytest.mark.parametrize(
         ("atomic_number", "n", "l", "expected"),
-        (
+        [
             (6, 2, 1, 3.25),
             (7, 2, 1, 3.90),
             (26, 3, 2, 6.25),
             (26, 4, 0, 3.75),
-        ),
+        ],
     )
     def test_matches_published_worked_values(
         self,
@@ -117,7 +131,14 @@ class TestSlaterZeff:
 
 
 class TestSlaterZeta:
-    """Validate :func:`diffpes.radial.slater_zeta`."""
+    """Validate :func:`diffpes.radial.slater_zeta`.
+
+    The cases cover carbon 2p and iron 4s effective principal numbers. They
+    compare both public exponents with independent effective-charge ratios at
+    strict decimal tolerance.
+
+    :see: :func:`~diffpes.radial.slater_zeta`
+    """
 
     def test_uses_effective_principal_number(self) -> None:
         """Divide effective charge by the registered Slater number.

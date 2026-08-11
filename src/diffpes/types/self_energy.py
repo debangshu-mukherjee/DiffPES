@@ -60,6 +60,10 @@ class SelfEnergyModel(eqx.Module):
     Numerical fields are PyTree leaves. State selectors are static fields.
     Structural errors raise :class:`ValueError`; numerical predicates use
     :func:`equinox.error_if` and remain active in compiled code.
+
+    See Also
+    --------
+    make_self_energy_model : Validated factory for this type.
     """
 
     coefficients: Float64[Array, "..."]
@@ -365,7 +369,7 @@ def make_self_energy_model(  # noqa: DOC503 -- traced Equinox guards.
             "gamma must be finite and strictly positive",
         )
         # log(1-exp(-g)) + g is stable at both small and large positive g.
-        coefficients_array: Float[Array, "..."] = jnp.atleast_1d(
+        coefficients_array: Float64[Array, "..."] = jnp.atleast_1d(
             gamma_array + jnp.log(-jnp.expm1(-gamma_array))
         )
     else:
@@ -397,4 +401,7 @@ def make_self_energy_model(  # noqa: DOC503 -- traced Equinox guards.
     return model
 
 
-__all__: list[str] = ["SelfEnergyModel", "make_self_energy_model"]
+__all__: list[str] = [
+    "SelfEnergyModel",
+    "make_self_energy_model",
+]

@@ -1,17 +1,15 @@
-"""Freeze the Chinook spectral-function K-comparison reference artifact.
+"""Generate the Chinook spectral-function comparison artifact.
 
 This script assembles the inert, frozen behavioral-comparison artifact
 ``tests/test_diffpes/_reference_data/chinook_spectral_reference.npz``
-together with its provenance manifest
-``chinook_spectral_manifest.json``.  It never imports, links, or invokes
-Chinook: under the binding external-reference policy and the chinook-parity
-protocol (section 1.4), external-project-importing Python lives only in the
-manually invoked, isolated generator directories of the planning repository.
-Only inert numeric data, hashes, and provenance cross the offline
-verification boundary into the DiffPES test tree.
+together with its provenance manifest ``chinook_spectral_manifest.json``.
+Never import, link, or invoke Chinook here. Keep external-project Python in
+the isolated verification repository. This boundary follows the external
+reference policy and the Chinook parity protocol. Only inert numeric data,
+hashes, and provenance enter the DiffPES test tree.
 
-Offline stage (outside this repository, run manually, never in CI)
-------------------------------------------------------------------
+Offline authority workflow (run manually outside this repository)
+-----------------------------------------------------------------
 1. Build the isolated pinned environment (parity protocol section 1.2):
    Python 3.11, ``numpy==1.26.4``, ``scipy==1.11.4``, ``matplotlib==3.8.4``,
    then ``pip install --no-deps
@@ -23,25 +21,24 @@ Offline stage (outside this repository, run manually, never in CI)
 
        MPLBACKEND=Agg MPLCONFIGDIR=/tmp/diffpes-mpl \
            <chinook-venv>/bin/python \
-           <plans>/verification/spectral_chinook_crosscheck/\
+           <verification-repository>/spectral_chinook_crosscheck/\
 run_chinook_spectral.py <raw-output-dir>
 
 3. Run this script with ``--raw-dir <raw-output-dir>``.  It authenticates
    the offline provenance, revalidates every frozen model and axis
    parameter, and writes the immutable reference archive plus manifest.
 
-If the offline stage has not been run, this script stops with a clear
-message: Chinook is intentionally absent from the DiffPES environment and
-must never become a runtime or test dependency.
+Stop with a clear message when the offline workflow has not run. Keep Chinook
+absent from the DiffPES environment. Never make it a runtime or test
+dependency.
 
-The frozen physics is the parity-protocol graphene p_z two-site reference
-model (RM-1: two carbon 2p-z orbitals, nearest-neighbour hopping list,
-t = -2.7 eV) evaluated by Chinook ``experiment.spectral`` with a constant
-``Sigma = -i*0.02`` eV, Chinook's hard-coded ``-i*5e-5`` eta floor,
-T = 4.2 K, and the RM-1 relative-energy axis.  A non-gating forensic
-section documents that Chinook ``gen_SE_KK`` rejects the negative retarded
-``Sigma'' <= 0`` convention used by DiffPES; that expected divergence
-carries no acceptance tolerance.
+Use the parity-protocol graphene two-site reference model. It contains two
+carbon 2p-z orbitals and nearest-neighbour hopping of -2.7 eV. Chinook
+``experiment.spectral`` uses constant ``Sigma = -i*0.02`` eV. It also uses
+its hard-coded ``-i*5e-5`` eta floor and T = 4.2 K. The registered axis stores
+relative energy. Record Chinook ``gen_SE_KK`` rejection of DiffPES's negative
+retarded ``Sigma'' <= 0`` convention. This expected divergence carries no
+acceptance tolerance.
 """
 
 from __future__ import annotations
@@ -50,46 +47,45 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-from beartype.typing import Dict, Tuple
-from jaxtyping import Float64, Shaped
+from beartype.typing import Any, Dict, Tuple, Union
+from jaxtyping import Complex128, Float64
 from numpy.typing import NDArray
 
-CHINOOK_REPOSITORY = "https://github.com/qmlab-ubc-ca/chinook"
-CHINOOK_COMMIT = "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b"
-CHINOOK_DISTRIBUTION_VERSION = "1.1.3"
-CHINOOK_SNAPSHOT_ARCHIVE_SHA256 = (
+CHINOOK_REPOSITORY: str = "https://github.com/qmlab-ubc-ca/chinook"
+CHINOOK_COMMIT: str = "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b"
+CHINOOK_DISTRIBUTION_VERSION: str = "1.1.3"
+CHINOOK_SNAPSHOT_ARCHIVE_SHA256: str = (
     "2cf3c830236af5c6311949cf8a655467fd7d10e75e191250e3bac4e37a00e01b"
 )
-CHINOOK_PACKAGE_CONTENT_SHA256 = (
+CHINOOK_PACKAGE_CONTENT_SHA256: str = (
     "e2a12678f55c74317dc7309d2a565794fecfdafaea9ab5d57d5c4a73b4aa4b94"
 )
-EXPECTED_ENVIRONMENT_SHA256 = (
+EXPECTED_ENVIRONMENT_SHA256: str = (
     "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531"
 )
-OFFLINE_RUNNER = (
-    "diffpes-plans/verification/spectral_chinook_crosscheck/"
-    "run_chinook_spectral.py"
-)
+OFFLINE_RUNNER: str = "run_chinook_spectral.py"
 
-LATTICE_CONSTANT_ANGSTROM = 2.46
-HOPPING_EV = -2.7
-PHOTON_ENERGY_EV = 21.2
-WORK_FUNCTION_EV = 4.5
-MEAN_FREE_PATH_ANGSTROM = 10.0
-TEMPERATURE_K = 4.2
-GAMMA_EV = 0.02
-ETA_FLOOR_EV = 5.0e-5
-MAP_HALF_WIDTH_INVERSE_ANGSTROM = 0.18
-MAP_POINTS_PER_AXIS = 31
-OMEGA_MIN_EV = -2.5
-OMEGA_MAX_EV = 0.2
-OMEGA_POINTS = 261
-N_ORBITALS = 2
+LATTICE_CONSTANT_ANGSTROM: float = 2.46
+HOPPING_EV: float = -2.7
+PHOTON_ENERGY_EV: float = 21.2
+WORK_FUNCTION_EV: float = 4.5
+MEAN_FREE_PATH_ANGSTROM: float = 10.0
+TEMPERATURE_K: float = 4.2
+GAMMA_EV: float = 0.02
+ETA_FLOOR_EV: float = 5.0e-5
+MAP_HALF_WIDTH_INVERSE_ANGSTROM: float = 0.18
+MAP_POINTS_PER_AXIS: int = 31
+OMEGA_MIN_EV: float = -2.5
+OMEGA_MAX_EV: float = 0.2
+OMEGA_POINTS: int = 261
+N_ORBITALS: int = 2
+HERMITIAN_ABSOLUTE_TOLERANCE: float = 1.0e-12
+RECONSTRUCTION_ABSOLUTE_TOLERANCE: float = 1.0e-14
+FORENSIC_REJECTED_SIGMA_EV: complex = -0.01j
 
-RAW_ARCHIVE_NAME = "chinook_spectral_raw.npz"
+RAW_ARCHIVE_NAME: str = "chinook_spectral_raw.npz"
 REFERENCE_KEYS: Tuple[str, ...] = (
     "kx_axis_inverse_angstrom",
     "ky_axis_inverse_angstrom",
@@ -114,7 +110,7 @@ REFERENCE_KEYS: Tuple[str, ...] = (
     "forensic_positive_coefficient_sigma",
 )
 
-MISSING_RAW_MESSAGE = (
+MISSING_RAW_MESSAGE: str = (
     "Chinook raw output not found: {path}\n"
     "Chinook is intentionally absent from the DiffPES environment and is "
     "never a runtime or test dependency (external-reference policy; "
@@ -143,7 +139,8 @@ def _sha256_bytes(payload: bytes) -> str:
     -----
     One ``hashlib.sha256`` call digests the whole payload at once.
     """
-    return hashlib.sha256(payload).hexdigest()
+    digest: str = hashlib.sha256(payload).hexdigest()
+    return digest
 
 
 def _sha256(path: Path) -> str:
@@ -164,15 +161,16 @@ def _sha256(path: Path) -> str:
     The function reads the complete file into memory and delegates to
     :func:`_sha256_bytes`.
     """
-    return _sha256_bytes(path.read_bytes())
+    digest: str = _sha256_bytes(path.read_bytes())
+    return digest
 
 
 def _expected_axes() -> Dict[str, Float64[NDArray, "..."]]:
-    """PRIVATE: Reconstruct the frozen momentum and relative-energy axes.
+    """PRIVATE: Build the frozen momentum and relative-energy axes.
 
     Returns
     -------
-    axes : dict[str, Float64[NDArray, "..."]]
+    axes : Dict[str, Float64[NDArray, "..."]]
         Valley centre in 1/Angstrom, both 31-point momentum axes in
         1/Angstrom, and the 261-point relative-energy axis in eV.
 
@@ -182,10 +180,10 @@ def _expected_axes() -> Dict[str, Float64[NDArray, "..."]]:
     frozen graphene lattice constant ``a = 2.46`` Angstrom; both
     momentum axes span ``+-0.18`` 1/Angstrom around it.
     """
-    valley = (2.0 * np.pi / LATTICE_CONSTANT_ANGSTROM) * np.asarray(
-        [1.0 / np.sqrt(3.0), 1.0 / 3.0, 0.0]
-    )
-    return {
+    valley: Float64[NDArray, "3"] = (
+        2.0 * np.pi / LATTICE_CONSTANT_ANGSTROM
+    ) * np.asarray([1.0 / np.sqrt(3.0), 1.0 / 3.0, 0.0], dtype=np.float64)
+    axes: Dict[str, Float64[NDArray, " n_axis"]] = {
         "valley": valley,
         "kx": np.linspace(
             valley[0] - MAP_HALF_WIDTH_INVERSE_ANGSTROM,
@@ -199,6 +197,7 @@ def _expected_axes() -> Dict[str, Float64[NDArray, "..."]]:
         ),
         "omega": np.linspace(OMEGA_MIN_EV, OMEGA_MAX_EV, OMEGA_POINTS),
     }
+    return axes
 
 
 def _require(condition: bool, message: str) -> None:
@@ -227,7 +226,7 @@ def _require(condition: bool, message: str) -> None:
 
 
 def _validate_provenance(raw_dir: Path) -> Dict[str, Any]:
-    """PRIVATE: Authenticate the offline run's environment and pins.
+    """PRIVATE: Validate the offline run's environment and pins.
 
     Parameters
     ----------
@@ -236,35 +235,35 @@ def _validate_provenance(raw_dir: Path) -> Dict[str, Any]:
 
     Returns
     -------
-    metadata : dict[str, Any]
+    metadata : Dict[str, Any]
         Parsed ``run_metadata.json`` of the authenticated offline run.
+
+    Implementation Logic
+    --------------------
+    Hash the environment freeze. Compare it with the recorded digest and the
+    expected parity-environment digest. Verify the raw-archive digest and
+    pinned library versions from the metadata record.
 
     Raises
     ------
     SystemExit
-        If a required offline file is absent, or if the commit pin,
-        environment freeze hash, raw-archive digest, NumPy or SciPy
-        version, or forensic fallback record fails authentication.
-
-    Implementation Logic
-    --------------------
-    The check hashes the environment freeze and compares it against
-    both the recorded and the expected parity-environment digest, then
-    verifies the raw-archive digest and the pinned library versions
-    from the metadata record.
+        If a required offline file is absent. The delegated requirement
+        checks also stop on a failed commit, environment, archive, library,
+        or forensic-record comparison.
     """
-    metadata_path = raw_dir / "run_metadata.json"
-    freeze_path = raw_dir / "chinook_env_freeze.txt"
-    archive_path = raw_dir / RAW_ARCHIVE_NAME
+    metadata_path: Path = raw_dir / "run_metadata.json"
+    freeze_path: Path = raw_dir / "chinook_env_freeze.txt"
+    archive_path: Path = raw_dir / RAW_ARCHIVE_NAME
+    path: Path
     for path in (metadata_path, freeze_path, archive_path):
         if not path.is_file():
             raise SystemExit(MISSING_RAW_MESSAGE.format(path=path))
-    metadata = json.loads(metadata_path.read_text())
+    metadata: Dict[str, Any] = json.loads(metadata_path.read_text())
     _require(
         metadata.get("chinook_commit") == CHINOOK_COMMIT,
         "offline run does not pin the protocol Chinook commit",
     )
-    environment_hash = _sha256(freeze_path)
+    environment_hash: str = _sha256(freeze_path)
     _require(
         environment_hash == metadata.get("environment_sha256"),
         "environment freeze does not match the recorded hash",
@@ -285,7 +284,7 @@ def _validate_provenance(raw_dir: Path) -> Dict[str, Any]:
         metadata.get("scipy_version") == "1.11.4",
         "offline run must use scipy 1.11.4 (parity protocol section 1.1)",
     )
-    forensic = metadata.get("forensic_gen_se_kk", {})
+    forensic: Dict[str, Any] = metadata.get("forensic_gen_se_kk", {})
     _require(
         forensic.get("rejected_equals_constant_fallback") == "True",
         "forensic record must show the constant -0.01j fallback",
@@ -293,34 +292,39 @@ def _validate_provenance(raw_dir: Path) -> Dict[str, Any]:
     return metadata
 
 
-def _validate_arrays(raw: Dict[str, Shaped[NDArray, "..."]]) -> None:
-    """PRIVATE: Revalidate every frozen model and axis parameter.
+def _validate_arrays(
+    raw: Dict[
+        str,
+        Union[
+            Float64[NDArray, "..."],
+            Complex128[NDArray, "..."],
+        ],
+    ],
+) -> None:
+    """PRIVATE: Validate every frozen model and axis parameter.
 
     Parameters
     ----------
-    raw : dict[str, Shaped[NDArray, "..."]]
+    raw : Dict[str, Union[Float64[NDArray, "..."], Complex128[NDArray, "..."]]]
         Arrays loaded from the offline raw archive.
 
-    Raises
-    ------
-    SystemExit
-        If an expected array is absent, an axis differs from the frozen
-        specification, a shape or finiteness or range check fails, a
-        diagnostic Hamiltonian loses Hermiticity, the declared spectral
-        semantics fail to reproduce ``intensity_raw`` to 1e-14, or the
-        forensic arrays contradict the documented behavior.
+    Notes
+    -----
+    Rebuild the frozen axes. Compare endpoints bitwise and other values to
+    1e-13. Reconstruct the complete intensity cube from serialized states.
+    Each retained state supplies one Lorentzian. Scale it by its
+    matrix-element factor and the shared Fermi factor.
 
-    Implementation Logic
-    --------------------
-    The check rebuilds the frozen axes, compares them bitwise at the
-    endpoints and to 1e-13 elsewhere, and then reconstructs the whole
-    intensity cube from the serialized states: one Lorentzian per
-    retained state, scaled by its matrix-element factor and the shared
-    Fermi factor, accumulated at the state's map indices.
+    Delegated requirement checks stop validation when an array, axis, shape,
+    value range, Hamiltonian, spectral reconstruction, or forensic record
+    differs from the frozen authority.
     """
+    key: str
     for key in REFERENCE_KEYS:
         _require(key in raw, f"missing array {key}")
-    axes = _expected_axes()
+    axes: Dict[str, Float64[NDArray, " n_axis"]] = _expected_axes()
+    name: str
+    expected: Float64[NDArray, " n_axis"]
     for name, expected in (
         ("kx_axis_inverse_angstrom", axes["kx"]),
         ("ky_axis_inverse_angstrom", axes["ky"]),
@@ -335,8 +339,8 @@ def _validate_arrays(raw: Dict[str, Shaped[NDArray, "..."]]) -> None:
             and raw[name][-1] == expected[-1],
             f"axis {name} differs from the frozen specification",
         )
-    n_axis = MAP_POINTS_PER_AXIS
-    cube_shape = (n_axis, n_axis, OMEGA_POINTS)
+    n_axis: int = MAP_POINTS_PER_AXIS
+    cube_shape: Tuple[int, int, int] = (n_axis, n_axis, OMEGA_POINTS)
     _require(
         raw["intensity_raw"].shape == cube_shape,
         "intensity_raw must be a (ky, kx, omega_rel) cube",
@@ -354,19 +358,23 @@ def _validate_arrays(raw: Dict[str, Shaped[NDArray, "..."]]) -> None:
         bool(np.all(raw["intensity_raw"] >= 0.0)),
         "spectral intensity must be nonnegative",
     )
-    fermi = raw["fermi_distribution"]
+    fermi: Float64[NDArray, " n_omega"] = np.asarray(
+        raw["fermi_distribution"], dtype=np.float64
+    )
     _require(
         bool(np.all((fermi >= 0.0) & (fermi <= 1.0))),
         "Fermi-Dirac factor out of [0, 1]",
     )
-    pks = raw["pks_state"]
+    pks: Float64[NDArray, "n_state 4"] = np.asarray(
+        raw["pks_state"], dtype=np.float64
+    )
     _require(
         bool(np.all(pks[:, 1:3] == np.floor(pks[:, 1:3])))
         and bool(np.all(pks[:, 1:3] >= 0))
         and bool(np.all(pks[:, 1:3] < n_axis)),
         "state map indices out of range",
     )
-    n_kpoints = n_axis * n_axis
+    n_kpoints: int = n_axis * n_axis
     _require(
         raw["band_energies_k_band_ev"].shape == (n_kpoints, N_ORBITALS),
         "band energy table shape mismatch",
@@ -376,37 +384,44 @@ def _validate_arrays(raw: Dict[str, Shaped[NDArray, "..."]]) -> None:
         == (n_kpoints, N_ORBITALS, N_ORBITALS),
         "diagnostic Hamiltonian shape mismatch",
     )
-    hermitian_defect = np.max(
+    hermitian_defect: np.float64 = np.max(
         np.abs(
             raw["hamiltonians_k_orb_orb_ev"]
             - np.conj(np.swapaxes(raw["hamiltonians_k_orb_orb_ev"], 1, 2))
         )
     )
     _require(
-        bool(hermitian_defect < 1e-12),
+        bool(hermitian_defect < HERMITIAN_ABSOLUTE_TOLERANCE),
         "diagnostic Hamiltonians must be Hermitian",
     )
-    reconstructed = np.zeros(cube_shape)
-    omega = raw["omega_rel_ev"]
-    sigma_total = -1.0j * GAMMA_EV - 1.0j * ETA_FLOOR_EV
+    reconstructed: Float64[NDArray, "n_ky n_kx n_omega"] = np.zeros(
+        cube_shape, dtype=np.float64
+    )
+    omega: Float64[NDArray, " n_omega"] = np.asarray(
+        raw["omega_rel_ev"], dtype=np.float64
+    )
+    sigma_total: complex = -1.0j * GAMMA_EV - 1.0j * ETA_FLOOR_EV
+    state: int
     for state in range(pks.shape[0]):
-        row = int(pks[state, 1])
-        column = int(pks[state, 2])
-        lorentzian = np.imag(
+        row: int = int(pks[state, 1])
+        column: int = int(pks[state, 2])
+        lorentzian: Float64[NDArray, " n_omega"] = np.imag(
             -1.0 / (np.pi * (omega - pks[state, 3] - sigma_total))
         )
         reconstructed[row, column, :] += (
             raw["m_factor_state"][state] * lorentzian * fermi
         )
-    defect = np.max(np.abs(reconstructed - raw["intensity_raw"]))
+    defect: np.float64 = np.max(np.abs(reconstructed - raw["intensity_raw"]))
     _require(
-        bool(defect < 1e-14),
+        bool(defect < RECONSTRUCTION_ABSOLUTE_TOLERANCE),
         "declared spectral semantics do not reproduce intensity_raw "
         f"(max abs defect {defect:.3e})",
     )
     _require(
         bool(
-            np.all(raw["forensic_rejected_sigma"] == -0.01j)
+            np.all(
+                raw["forensic_rejected_sigma"] == FORENSIC_REJECTED_SIGMA_EV
+            )
             and np.array_equal(
                 raw["forensic_negative_coefficient_sigma"],
                 raw["forensic_positive_coefficient_sigma"],
@@ -422,8 +437,8 @@ def _model_parameters() -> Dict[str, Any]:
 
     Returns
     -------
-    parameters : dict[str, Any]
-        Manifest section with the RM-1 graphene model, the frozen
+    parameters : Dict[str, Any]
+        Manifest section with the two-site graphene model, the frozen
         experiment constants in eV, Kelvin, and Angstrom units, the
         axis specifications, and the intensity semantics.
 
@@ -432,11 +447,11 @@ def _model_parameters() -> Dict[str, Any]:
     Every value comes from the module-level frozen constants; the
     function only arranges them for the manifest.
     """
-    return {
-        "model_id": "RM-1-spectral",
+    parameters: Dict[str, Any] = {
+        "model_id": "graphene-two-site-spectral",
         "protocol_model": (
             "chinook-parity protocol section 2.2 graphene p_z two-site "
-            "reference model (RM-1)"
+            "reference model"
         ),
         "lattice_constant_angstrom": LATTICE_CONSTANT_ANGSTROM,
         "lattice_vectors": (
@@ -463,8 +478,8 @@ def _model_parameters() -> Dict[str, Any]:
             "eta_floor_ev": ETA_FLOOR_EV,
             "eta_floor_origin": (
                 "Chinook ARPES_lib.experiment.spectral hard-codes -0.00005j "
-                "in the resolvent denominator (protocol declared "
-                "difference D-3)"
+                "in the resolvent denominator (declared eta-floor "
+                "difference)"
             ),
         },
         "radial_mode": (
@@ -506,19 +521,20 @@ def _model_parameters() -> Dict[str, Any]:
             "f_FD(omega, 0, T); axis order (ky, kx, omega_rel)"
         ),
     }
+    return parameters
 
 
 def _forensic_section(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """PRIVATE: Return the non-gating sign-convention forensic record.
+    """PRIVATE: Return the diagnostic sign-convention forensic record.
 
     Parameters
     ----------
-    metadata : dict[str, Any]
+    metadata : Dict[str, Any]
         Authenticated offline run metadata.
 
     Returns
     -------
-    section : dict[str, Any]
+    section : Dict[str, Any]
         Manifest section that documents how Chinook ``gen_SE_KK``
         rejects the negative retarded convention, with the captured
         offline behavior attached.
@@ -526,12 +542,12 @@ def _forensic_section(metadata: Dict[str, Any]) -> Dict[str, Any]:
     Notes
     -----
     The record is evidence only: it carries no acceptance tolerance
-    and gates nothing.
+    and determines no acceptance outcome.
     """
-    forensic = metadata.get("forensic_gen_se_kk", {})
-    return {
+    forensic: Dict[str, Any] = metadata.get("forensic_gen_se_kk", {})
+    section: Dict[str, Any] = {
         "name": "self-energy-sign-convention-divergence",
-        "non_gating": True,
+        "diagnostic_only": True,
         "acceptance_tolerance": None,
         "classification": (
             "documented expected divergence; forensic evidence only "
@@ -570,42 +586,63 @@ def _forensic_section(metadata: Dict[str, Any]) -> Dict[str, Any]:
             "production"
         ),
     }
+    return section
 
 
 def main() -> None:
-    """Assemble and freeze the spectral reference artifact and manifest."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    """Assemble and freeze the spectral reference artifact and manifest.
+
+    Raises
+    ------
+    SystemExit
+        If the caller omits the raw directory or any authority check fails.
+
+    Notes
+    -----
+    The assembler authenticates an offline Chinook run. It then copies only
+    the registered arrays and provenance into the inert repository artifacts.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__
+    )
     parser.add_argument(
         "--raw-dir",
         type=Path,
         default=None,
         help="directory written by the offline Chinook runner",
     )
-    arguments = parser.parse_args()
+    arguments: argparse.Namespace = parser.parse_args()
     if arguments.raw_dir is None:
         raise SystemExit(
             MISSING_RAW_MESSAGE.format(path="<--raw-dir not provided>")
         )
-    raw_dir = arguments.raw_dir.resolve()
-    metadata = _validate_provenance(raw_dir)
+    raw_dir: Path = arguments.raw_dir.resolve()
+    metadata: Dict[str, Any] = _validate_provenance(raw_dir)
+    archive: np.lib.npyio.NpzFile
     with np.load(raw_dir / RAW_ARCHIVE_NAME) as archive:
-        raw = {key: np.asarray(archive[key]) for key in archive.files}
+        raw: Dict[
+            str,
+            Union[
+                Float64[NDArray, "..."],
+                Complex128[NDArray, "..."],
+            ],
+        ] = {key: np.asarray(archive[key]) for key in archive.files}
     _validate_arrays(raw)
 
-    data_dir = (
+    data_dir: Path = (
         Path(__file__).resolve().parents[1]
         / "test_diffpes"
         / "_reference_data"
     )
-    reference_path = data_dir / "chinook_spectral_reference.npz"
-    manifest_path = data_dir / "chinook_spectral_manifest.json"
+    reference_path: Path = data_dir / "chinook_spectral_reference.npz"
+    manifest_path: Path = data_dir / "chinook_spectral_manifest.json"
     np.savez_compressed(
         reference_path,
         **{key: raw[key] for key in REFERENCE_KEYS},
     )
 
-    model_spec_path = raw_dir / "model_spec.json"
-    manifest = {
+    model_spec_path: Path = raw_dir / "model_spec.json"
+    manifest: Dict[str, Any] = {
         "schema": "diffpes.chinook-spectral-reference.v1",
         "requirement": "chinook-spectral-parity",
         "classification": "K-type behavioral compatibility",
@@ -704,7 +741,9 @@ def main() -> None:
         manifest["offline_generation"]["model_specification"] = json.loads(
             model_spec_path.read_text()
         )
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     print(f"wrote {reference_path}")
     print(f"  archive_sha256 {manifest['archive_sha256']}")
     print(f"wrote {manifest_path}")

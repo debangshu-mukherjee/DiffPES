@@ -16,10 +16,10 @@ from beartype.typing import Any, Dict, Tuple, cast
 from jaxtyping import Array, Complex128, Float64
 
 import diffpes
-import diffpes.simul.workflow as workflow
 from diffpes.simul import (
     load_vasp_context,
     prepare_projection,
+    workflow,
 )
 from diffpes.types import (
     CrystalGeometry,
@@ -57,7 +57,7 @@ _FIXTURES_DIR: Path = (
 
 @pytest.fixture
 def workflow_carriers() -> Dict[str, Any]:
-    """Build the explicit Plan-06/07/08 carriers for VASP workflow tests."""
+    """Build explicit matrix-element, spectral, and detector carriers."""
     crystal: CrystalGeometry = make_crystal_geometry(
         2.0 * jnp.pi * jnp.eye(3, dtype=jnp.float64),
         jnp.zeros((1, 3), dtype=jnp.float64),
@@ -141,15 +141,18 @@ class TestLoadVaspContextEdgeCases(chex.TestCase):
     """
 
     def test_no_doscar_fermi_defaults_to_zero(self) -> None:
-        """Verify Fermi energy is 0.0 when doscar_file=None and fermi_energy=None.
+        """Verify the default Fermi energy without DOSCAR input.
 
-        The test passes ``doscar_file=None`` and ``fermi_energy=None``, exercising
+        The test passes ``doscar_file=None`` and ``fermi_energy=None``,
+        exercising
         workflow.py line 142 (``resolved_fermi = 0.0``). Asserts the
         returned band structure has fermi_energy == 0.0.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
         context: diffpes.types.WorkflowContext
 
         context = load_vasp_context(
@@ -169,13 +172,19 @@ class TestLoadVaspContextEdgeCases(chex.TestCase):
     def test_missing_doscar_raises(self) -> None:
         """Verify that a missing required DOSCAR raises FileNotFoundError.
 
-        The test passes a non-existent ``doscar_file`` with ``fermi_energy=None``,
+        The test passes a non-existent ``doscar_file`` with
+        ``fermi_energy=None``,
         exercising workflow.py lines 146-150 (FileNotFoundError path).
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        with pytest.raises(FileNotFoundError):
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
+        with pytest.raises(
+            FileNotFoundError,
+            match="DOSCAR is required.*not found",
+        ):
             load_vasp_context(
                 directory=str(_FIXTURES_DIR),
                 eigenval_file="EIGENVAL_spin",
@@ -189,13 +198,16 @@ class TestLoadVaspContextEdgeCases(chex.TestCase):
     def test_explicit_fermi_reads_doscar_optionally(self) -> None:
         """Verify optional DOSCAR loading with an explicit Fermi energy.
 
-        The test passes ``fermi_energy=1.5`` and a valid ``doscar_file``, exercising
+        The test passes ``fermi_energy=1.5`` and a valid ``doscar_file``,
+        exercising
         workflow.py lines 154-158 (optional DOSCAR read). The explicit
         Fermi energy controls the bands, and the file supplies ``dos``.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
         context: diffpes.types.WorkflowContext
 
         context = load_vasp_context(
@@ -222,12 +234,14 @@ class TestLoadVaspContext(chex.TestCase):
     def test_loads_context_with_optional_dos_and_kpath(self) -> None:
         """Verify context loading with inferred Fermi level and checks.
 
-        The test establishes the loads context with optional dos and kpath contract for
-        load vasp context with the concrete values and array shapes described below.
+        The test establishes the optional DOS and k-path contract for loading
+        VASP context with the concrete values and array shapes described below.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
         context: diffpes.types.WorkflowContext
 
         context = load_vasp_context(
@@ -260,16 +274,19 @@ class TestPrepareProjection(chex.TestCase):
     def test_spin_orbital_projection_attaches_oam(self) -> None:
         """Verify OAM attachment works for SpinOrbitalProjection input.
 
-        The test constructs a SpinOrbitalProjection and calls ``prepare_projection``
+        The test constructs a SpinOrbitalProjection and calls
+        ``prepare_projection``
         with ``attach_oam=True``. Asserts the returned object is still a
         SpinOrbitalProjection with OAM attached, covering workflow.py
         line 224 (make_spin_orbital_projection with oam).
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        projections: Array
-        spin: Array
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
+        projections: Float64[Array, "..."]
+        spin: Float64[Array, "..."]
         orb: diffpes.types.SpinOrbitalProjection
         prepared: (
             diffpes.types.OrbitalProjection
@@ -287,13 +304,16 @@ class TestPrepareProjection(chex.TestCase):
     def test_selects_atoms_and_attaches_oam(self) -> None:
         """Verify atom sub-selection and OAM attachment in one call.
 
-        The test establishes the selects atoms and attaches oam contract for prepare
+        The test establishes atom selection and OAM attachment for
+        ``prepare_projection``
         projection with the concrete values and array shapes described below.
 
         Notes
         -----
-        The test builds the inputs in the test body and checks the stated property with the documented numerical or structural assertions."""
-        projections: Array
+        The test builds inputs in its body and checks the stated property with
+        the documented numerical or structural assertions.
+        """
+        projections: Float64[Array, "..."]
         orb: diffpes.types.OrbitalProjection
         prepared: (
             diffpes.types.OrbitalProjection
@@ -420,15 +440,15 @@ class TestRunVaspWorkflow:
         self,
         workflow_carriers: Dict[str, Any],
     ) -> None:
-        """Run the committed miniature VASP files through the real effects chain.
+        """Run miniature VASP files through the real effects chain.
 
         The test combines the parsed two-point path with a supplied Hermitian
-        raster. It checks the native detector shape, finiteness, and count sign.
+        raster. It checks native detector shape, finiteness, and count sign.
 
         Notes
         -----
         Small momentum and energy chunks exercise the production padding seam
-        while keeping this end-to-end gate bounded.
+        while keeping this end-to-end check bounded.
         """
         result: DetectorRaster = workflow.run_vasp_workflow(
             workflow_carriers["hamiltonians"],

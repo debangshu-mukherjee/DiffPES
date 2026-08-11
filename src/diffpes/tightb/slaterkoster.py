@@ -17,12 +17,12 @@ transverse position gradients at both poles.
 
 Routine Listings
 ----------------
-:func:`sk_block`
-    Construct a real-harmonic Slater--Koster hopping block.
-:func:`neighbor_shells`
-    Find unique undirected neighbor bonds at host setup time.
 :func:`build_sk_model`
     Build a validated tight-binding model from two-center integrals.
+:func:`neighbor_shells`
+    Find unique undirected neighbor bonds at host setup time.
+:func:`sk_block`
+    Construct a real-harmonic Slater--Koster hopping block.
 
 Notes
 -----
@@ -41,9 +41,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Dict, Tuple
+from beartype.typing import Dict, List, Tuple
 from jax import core
-from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -131,7 +131,7 @@ def _rotation_z_to_direction(
     direction_x: Float64[Array, ""] = direction[0]
     direction_y: Float64[Array, ""] = direction[1]
     direction_z: Float64[Array, ""] = direction[2]
-    use_north_chart: Array = direction_z >= 0.0
+    use_north_chart: Bool[Array, ""] = direction_z >= 0.0
 
     north_denominator: Float64[Array, ""] = jnp.where(
         use_north_chart,
@@ -457,8 +457,8 @@ def _candidate_topology(
     ``(j, i, -R)`` lexicographically. Every undirected bond therefore
     appears exactly once.
     """
-    atom_pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
+    atom_pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
     cell_x: int
     cell_y: int
     cell_z: int
@@ -614,11 +614,11 @@ def _displacements_and_distances(
             Float64[Array, " 0"],
         ] = (empty_displacements, empty_distances)
         return empty_result
-    atom_i: Array = jnp.asarray(
+    atom_i: Int32[Array, " n_bond"] = jnp.asarray(
         tuple(pair[0] for pair in atom_pairs),
         dtype=jnp.int32,
     )
-    atom_j: Array = jnp.asarray(
+    atom_j: Int32[Array, " n_bond"] = jnp.asarray(
         tuple(pair[1] for pair in atom_pairs),
         dtype=jnp.int32,
     )
@@ -665,17 +665,19 @@ def _geometry_is_traced(geometry: CrystalGeometry) -> bool:
     return traced
 
 
-def _concrete_primal(value: Array) -> Array | None:
+def _concrete_primal(
+    value: Float64[Array, "..."],
+) -> Float64[Array, "..."] | None:
     """PRIVATE: Recover the concrete primal carried by an eager AD tracer.
 
     Parameters
     ----------
-    value : Array
+    value : Float64[Array, "..."]
         Possibly traced array leaf.
 
     Returns
     -------
-    primal : Array | None
+    primal : Float64[Array, "..."] | None
         Concrete array after unwrapping every nested ``primal``
         attribute. ``None`` signals that a tracer level carries no
         primal or that the chain does not end in a concrete array.
@@ -691,11 +693,11 @@ def _concrete_primal(value: Array) -> Array | None:
     candidate: object = value
     while isinstance(candidate, core.Tracer):
         if not hasattr(candidate, "primal"):
-            missing: Array | None = None
+            missing: Float64[Array, "..."] | None = None
             return missing
         candidate = candidate.primal
     if isinstance(candidate, jax.Array):
-        primal: Array | None = candidate
+        primal: Float64[Array, "..."] | None = candidate
         return primal
     missing = None
     return missing  # noqa: RET504 -- repository returns bound names.
@@ -724,8 +726,12 @@ def _primal_geometry(
     the concrete primal while derivatives keep flowing through the
     original traced leaves.
     """
-    primal_lattice: Array | None = _concrete_primal(geometry.lattice)
-    primal_positions: Array | None = _concrete_primal(geometry.positions)
+    primal_lattice: Float64[Array, "3 3"] | None = _concrete_primal(
+        geometry.lattice
+    )
+    primal_positions: Float64[Array, "n_atoms 3"] | None = _concrete_primal(
+        geometry.positions
+    )
     if primal_lattice is None or primal_positions is None:
         missing: CrystalGeometry | None = None
         return missing
@@ -899,7 +905,7 @@ def _parse_parameter_keys(
     index: int
     key: str
     for index, key in enumerate(keys):
-        pieces: list[str] = key.split(":")
+        pieces: List[str] = key.split(":")
         pair: str | None
         shell: int | None = None
         channel: str
@@ -917,7 +923,7 @@ def _parse_parameter_keys(
                     )
                     raise ValueError(message)
                 shell = int(shell_text)
-            species: list[str] = pair.split("-")
+            species: List[str] = pair.split("-")
             if len(species) != SPECIES_PAIR_PARTS or not all(species):
                 message = f"invalid species pair in SK key {key!r}"
                 raise ValueError(message)
@@ -998,8 +1004,8 @@ def _shell_numbers(
     never enters tracing.
     """
     host_distances: Float64[NDArray, " n_bond"] = np.asarray(distances)
-    grouped: Dict[Tuple[str, str], list[float]] = {}
-    pair_groups: list[Tuple[str, str]] = []
+    grouped: Dict[Tuple[str, str], List[float]] = {}
+    pair_groups: List[Tuple[str, str]] = []
     atom_pair: Tuple[int, int]
     distance: np.float64
     for atom_pair in atom_pairs:
@@ -1018,9 +1024,9 @@ def _shell_numbers(
         grouped.setdefault(group, [])
 
     group: Tuple[str, str]
-    values: list[float]
+    values: List[float]
     for group in grouped:
-        group_distances: list[float] = sorted(
+        group_distances: List[float] = sorted(
             float(distance)
             for distance, candidate_group in zip(
                 host_distances,
@@ -1040,14 +1046,14 @@ def _shell_numbers(
                 values.append(distance)
         grouped[group] = values
 
-    shell_numbers: list[int] = []
+    shell_numbers: List[int] = []
     for distance, group in zip(
         host_distances,
         pair_groups,
         strict=True,
     ):
         values = grouped[group]
-        matching: list[int] = [
+        matching: List[int] = [
             index
             for index, reference in enumerate(values)
             if np.isclose(
@@ -1149,7 +1155,7 @@ def _integral_vector(
     stays valid. The flag lets the builder skip orbital pairs whose
     every channel is absent instead of materializing zero hoppings.
     """
-    values: list[Float64[Array, ""]] = []
+    values: List[Float64[Array, ""]] = []
     found_any: bool = False
     channel: str
     for channel in channels:
@@ -1297,9 +1303,9 @@ def _build_sk_model_from_topology(  # noqa: PLR0913, PLR0915
         )
         for atom_index in range(geometry.positions.shape[0])
     )
-    amplitudes: list[Complex128[Array, ""]] = []
-    hopping_pairs: list[Tuple[int, int]] = []
-    hopping_cells: list[Tuple[int, int, int]] = []
+    amplitudes: List[Complex128[Array, ""]] = []
+    hopping_pairs: List[Tuple[int, int]] = []
+    hopping_cells: List[Tuple[int, int, int]] = []
     bond_index: int
     atom_pair: Tuple[int, int]
     cell: Tuple[int, int, int]

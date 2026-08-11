@@ -7,7 +7,7 @@ strictly increasing energy-axis contract shared by both factories.
 import chex
 import jax
 import jax.numpy as jnp
-from beartype.typing import Callable
+from beartype.typing import Callable, List
 from jaxtyping import Array, Float64
 
 from diffpes.types import (
@@ -37,7 +37,8 @@ class TestDensityOfStates:
 
         Notes
         -----
-        The test constructs the carrier through the public factory and checks shapes
+        The test constructs the carrier through the public factory and checks
+        shapes
         and the independently specified scalar with Chex.
         """
         energy: Float64[Array, "16"] = jnp.linspace(-10.0, 5.0, 16)
@@ -68,7 +69,8 @@ class TestFullDensityOfStates:
 
         Notes
         -----
-        The test builds a spin-up-only full carrier, uses JAX tree utilities for the
+        The test builds a spin-up-only full carrier, uses JAX tree utilities
+        for the
         round trip, and compares the restored values with Chex.
         """
         energy: Float64[Array, "50"] = jnp.linspace(-3, 1, 50)
@@ -80,7 +82,7 @@ class TestFullDensityOfStates:
             integrated_dos_up=integrated_up,
             fermi_energy=-0.5,
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(full_dos)
         restored: FullDensityOfStates = jax.tree_util.tree_unflatten(
@@ -107,12 +109,13 @@ class TestMakeDensityOfStates(chex.TestCase):
     def test_constructs_in_both_execution_modes(self) -> None:
         """Construct equal-shape DOS fields in eager and compiled execution.
 
-        The check gates the 32-point output shape and scalar Fermi-energy value
+        The check verifies the output shape and scalar Fermi-energy value
         in both Chex execution variants.
 
         Notes
         -----
-        The test wraps the public factory with ``self.variant``, supplies finite arrays,
+        The test wraps the public factory with ``self.variant``, supplies
+        finite arrays,
         and compares the resulting shape and scalar with Chex.
         """
         factory: Callable[..., DensityOfStates] = self.variant(

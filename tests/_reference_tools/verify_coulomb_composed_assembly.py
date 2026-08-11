@@ -1,31 +1,34 @@
-"""Verify the composed Coulomb assembly derivatives."""
+"""Verify the composed Coulomb assembly derivatives.
+
+Differentiate effective charge and photon energy through the complete
+matrix-element assembly. Compare automatic derivatives with finite-difference
+ladders and require nonzero sensitivities.
+"""
 
 from __future__ import annotations
 
 import json
 import math
-from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes.simul import (
     assemble_orbital_transition_channels,
     contract_experiment_polarization,
-    matrix_element_intensity,
-    project_band_channels,
-)
-from diffpes.simul.kinematics import (
     final_state_k_inv_ang,
     kinetic_energy_ev,
+    matrix_element_intensity,
+    project_band_channels,
 )
 from diffpes.types import (
     CrystalGeometry,
     DiagonalizedBands,
     ExperimentGeometry,
+    FinalStateSpec,
     MatrixElementParams,
     OrbitalBasis,
     RadialQuadratureSpec,
@@ -40,32 +43,31 @@ from diffpes.types import (
     make_radial_spec,
 )
 
-type Fixture = Tuple[
-    DiagonalizedBands,
-    RadialSpec,
-    MatrixElementParams,
-    RadialQuadratureSpec,
-    ExperimentGeometry,
-]
-
-_EFFECTIVE_CHARGE_DERIVATIVE_FLOOR = 1.0e-5
-_PHOTON_ENERGY_DERIVATIVE_FLOOR = 1.0e-6
+_EFFECTIVE_CHARGE_DERIVATIVE_FLOOR: float = 1.0e-5
+_PHOTON_ENERGY_DERIVATIVE_FLOOR: float = 1.0e-6
 _FD_STEP_LADDERS: Tuple[Tuple[float, ...], ...] = (
     (4.0e-3, 2.0e-3, 1.0e-3),
     (4.0e-2, 2.0e-2, 1.0e-2),
 )
 
 
-def _fixture() -> Fixture:
+def _fixture() -> Tuple[
+    DiagonalizedBands,
+    RadialSpec,
+    MatrixElementParams,
+    RadialQuadratureSpec,
+    ExperimentGeometry,
+]:
     """PRIVATE: Build a compact supported-radial full-assembly fixture.
 
     Returns
     -------
-    fixture : Fixture
-        One-orbital, one-band, one-k fixture: diagonalized bands, a
-        compact grid-mode radial spec on ``[0, 8]`` Bohr with a smooth
-        doubly vanishing edge, matrix-element parameters, the default
-        quadrature spec, and a 30 eV x-polarized experiment geometry.
+    fixture : Tuple[DiagonalizedBands, RadialSpec, MatrixElementParams,
+        RadialQuadratureSpec, ExperimentGeometry]
+        One-orbital, one-band, one-k fixture. It contains diagonalized bands
+        and a compact radial spec on ``[0, 8]`` Bohr. Its radial edge vanishes
+        smoothly. It also contains matrix-element parameters, default
+        quadrature, and a 30 eV x-polarized experiment.
 
     Notes
     -----
@@ -121,7 +123,13 @@ def _fixture() -> Fixture:
             dtype=jnp.complex128,
         ),
     )
-    fixture: Fixture = (
+    fixture: Tuple[
+        DiagonalizedBands,
+        RadialSpec,
+        MatrixElementParams,
+        RadialQuadratureSpec,
+        ExperimentGeometry,
+    ] = (
         bands,
         radial,
         matrix_params,
@@ -133,7 +141,11 @@ def _fixture() -> Fixture:
 
 def _intensity(
     parameters: Float64[Array, " 2"],
-    fixture: Fixture,
+    bands: DiagonalizedBands,
+    radial: RadialSpec,
+    matrix_params: MatrixElementParams,
+    quadrature: RadialQuadratureSpec,
+    experiment: ExperimentGeometry,
 ) -> Float64[Array, ""]:
     """PRIVATE: Compose charge and photon energy through the assembly.
 
@@ -141,8 +153,16 @@ def _intensity(
     ----------
     parameters : Float64[Array, " 2"]
         Effective charge (dimensionless) and photon energy in eV.
-    fixture : Fixture
-        Frozen assembly fixture from :func:`_fixture`.
+    bands : DiagonalizedBands
+        Frozen one-band electronic structure.
+    radial : RadialSpec
+        Frozen compact radial-wavefunction specification.
+    matrix_params : MatrixElementParams
+        Frozen orbital-to-shell matrix-element parameters.
+    quadrature : RadialQuadratureSpec
+        Frozen radial quadrature configuration.
+    experiment : ExperimentGeometry
+        Frozen photon and polarization geometry.
 
     Returns
     -------
@@ -152,20 +172,13 @@ def _intensity(
 
     Implementation Logic
     --------------------
-    The pipeline runs the full production route: kinematics from the
-    photon energy, the Coulomb final state at the effective charge,
-    orbital transition channels, band projection, polarization
-    contraction, and the intensity map.  Both inputs stay
-    differentiable end to end.
+    Run kinematics from photon energy. Build the Coulomb final state at the
+    effective charge. Compute orbital channels, band projection, polarization
+    contraction, and the intensity map. Keep both inputs differentiable end
+    to end.
     """
     effective_charge: Float64[Array, ""] = parameters[0]
     photon_energy: Float64[Array, ""] = parameters[1]
-    bands: DiagonalizedBands
-    radial: RadialSpec
-    matrix_params: MatrixElementParams
-    quadrature: RadialQuadratureSpec
-    experiment: ExperimentGeometry
-    bands, radial, matrix_params, quadrature, experiment = fixture
     kinetic_energy: Float64[Array, " 1"]
     energy_valid: Bool[Array, " 1"]
     kinetic_energy, energy_valid = kinetic_energy_ev(
@@ -188,7 +201,7 @@ def _intensity(
         ),
         axis=-1,
     )
-    final_state = make_final_state_spec(
+    final_state: FinalStateSpec = make_final_state_spec(
         mode="coulomb",
         effective_charge=effective_charge,
     )
@@ -220,7 +233,11 @@ def _five_point_derivative(
     parameters: Float64[Array, " 2"],
     coordinate: int,
     step: float,
-    fixture: Fixture,
+    bands: DiagonalizedBands,
+    radial: RadialSpec,
+    matrix_params: MatrixElementParams,
+    quadrature: RadialQuadratureSpec,
+    experiment: ExperimentGeometry,
 ) -> Float64[Array, ""]:
     """PRIVATE: Evaluate one five-point central derivative.
 
@@ -232,8 +249,16 @@ def _five_point_derivative(
         Perturbed coordinate index (0 or 1).
     step : float
         Positive stencil step in the coordinate's units.
-    fixture : Fixture
-        Frozen assembly fixture from :func:`_fixture`.
+    bands : DiagonalizedBands
+        Frozen one-band electronic structure.
+    radial : RadialSpec
+        Frozen compact radial-wavefunction specification.
+    matrix_params : MatrixElementParams
+        Frozen orbital-to-shell matrix-element parameters.
+    quadrature : RadialQuadratureSpec
+        Frozen radial quadrature configuration.
+    experiment : ExperimentGeometry
+        Frozen photon and polarization geometry.
 
     Returns
     -------
@@ -250,24 +275,94 @@ def _five_point_derivative(
         jnp.zeros_like(parameters).at[coordinate].set(step)
     )
     derivative: Float64[Array, ""] = (
-        -_intensity(parameters + 2.0 * direction, fixture)
-        + 8.0 * _intensity(parameters + direction, fixture)
-        - 8.0 * _intensity(parameters - direction, fixture)
-        + _intensity(parameters - 2.0 * direction, fixture)
+        -_intensity(
+            parameters + 2.0 * direction,
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            experiment,
+        )
+        + 8.0
+        * _intensity(
+            parameters + direction,
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            experiment,
+        )
+        - 8.0
+        * _intensity(
+            parameters - direction,
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            experiment,
+        )
+        + _intensity(
+            parameters - 2.0 * direction,
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            experiment,
+        )
     ) / (12.0 * step)
     return derivative
 
 
 def main() -> None:
-    """Compare forward/reverse autodiff with a registered FD plateau."""
-    fixture: Fixture = _fixture()
+    """Compare forward and reverse autodiff with a finite-difference plateau.
+
+    Raises
+    ------
+    AssertionError
+        If either sensitivity tripwire or the finite-difference plateau fails.
+
+    Notes
+    -----
+    The command checks the complete composed Coulomb transition route. It
+    prints the value and derivative record to standard output.
+    """
+    bands: DiagonalizedBands
+    radial: RadialSpec
+    matrix_params: MatrixElementParams
+    quadrature: RadialQuadratureSpec
+    experiment: ExperimentGeometry
+    bands, radial, matrix_params, quadrature, experiment = _fixture()
     parameters: Float64[Array, " 2"] = jnp.asarray(
         [0.4, 30.0],
         dtype=jnp.float64,
     )
 
     def objective(values: Float64[Array, " 2"]) -> Float64[Array, ""]:
-        return _intensity(values, fixture)
+        """Compute the composed intensity for one parameter pair.
+
+        Parameters
+        ----------
+        values : Float64[Array, " 2"]
+            Effective charge and photon energy in eV.
+
+        Returns
+        -------
+        intensity : Float64[Array, ""]
+            Scalar matrix-element intensity.
+
+        Notes
+        -----
+        The closure fixes every non-differentiated carrier.
+        """
+        intensity: Float64[Array, ""] = _intensity(
+            values,
+            bands,
+            radial,
+            matrix_params,
+            quadrature,
+            experiment,
+        )
+        return intensity
 
     forward: Float64[Array, " 2"] = jax.jacfwd(objective)(parameters)
     reverse: Float64[Array, " 2"] = jax.jacrev(objective)(parameters)
@@ -279,7 +374,11 @@ def main() -> None:
                         parameters,
                         coordinate,
                         step,
-                        fixture,
+                        bands,
+                        radial,
+                        matrix_params,
+                        quadrature,
+                        experiment,
                     )
                     for coordinate, step in enumerate(rung)
                 )
@@ -300,10 +399,10 @@ def main() -> None:
         atol=1.0e-10,
     )
     if float(jnp.abs(forward[0])) <= _EFFECTIVE_CHARGE_DERIVATIVE_FLOOR:
-        message = "effective-charge derivative tripwire failed"
+        message: str = "effective-charge derivative tripwire failed"
         raise AssertionError(message)
     if float(jnp.abs(forward[1])) <= _PHOTON_ENERGY_DERIVATIVE_FLOOR:
-        message = "photon-energy derivative tripwire failed"
+        message: str = "photon-energy derivative tripwire failed"
         raise AssertionError(message)
     value: Float64[Array, ""] = objective(parameters)
     np.testing.assert_allclose(
@@ -319,7 +418,7 @@ def main() -> None:
         finite_difference[-1] - finite_difference[-2]
     ) / (1.0e-10 + 1.0e-6 * jnp.abs(forward))
     if bool(jnp.any(plateau_spread > 1.0)):
-        message = f"composed D11 FD plateau failed: {plateau_spread}"
+        message: str = f"composed Coulomb FD plateau failed: {plateau_spread}"
         raise AssertionError(message)
     metrics: Dict[str, Any] = {
         "forward_derivative": [float(value) for value in forward],

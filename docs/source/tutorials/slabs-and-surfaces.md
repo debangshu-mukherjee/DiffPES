@@ -1,26 +1,11 @@
----
-jupytext:
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.16.4
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
----
-
 # Slabs and Surface-Resolved Bands
 
 Construct a finite open slab from a periodic tight-binding model. The example
 uses a one-orbital chain because its finite spectrum is known exactly. The
 same API accepts a three-dimensional bulk model and a primitive Miller tuple.
-This page is a MyST notebook. The documentation build executes its
-`code-cell` blocks. The analytic check below therefore belongs to the
-tutorial build.
+This static page records each call and its expected analytic check.
 
-```{code-cell} ipython3
+```python
 import jax.numpy as jnp
 
 from diffpes.tightb import (
@@ -38,7 +23,7 @@ from diffpes.types import (
 The periodic bulk model has one hopping in each normal direction. Exact
 integer cells remain separate from the differentiable hopping values.
 
-```{code-cell} ipython3
+```python
 geometry = make_crystal_geometry(
     lattice=jnp.eye(3),
     positions=jnp.zeros((1, 3)),
@@ -74,7 +59,7 @@ vacuum size is not used as a substitute for this graph invariant.
 `freeze_slab_topology` once outside JAX transforms. Then call `rebuild_slab`
 under `jit`, `grad`, or `vmap` while the discrete topology remains valid.
 
-```{code-cell} ipython3
+```python
 slab, slab_spec = gen_slab(
     bulk,
     miller=(0, 0, 1),
@@ -90,7 +75,7 @@ The finite-chain eigenvalues are
 $E_m=2t\cos[m\pi/(N+1)]$. This provides an analytic correctness check rather
 than a comparison with another slab implementation.
 
-```{code-cell} ipython3
+```python
 k_parallel = jnp.zeros((1, 3))
 bands = diagonalize_tb(slab, k_parallel)
 modes = jnp.arange(1, slab_spec.n_layers + 1)
@@ -105,7 +90,7 @@ Depths are probability coordinates for surface diagnostics. Here
 weight is `exp(-depth/lambda_I)`. Coherent photoemission amplitudes use the
 separate `exp(-depth/(2*lambda_I))` law owned by the matrix-element stage.
 
-```{code-cell} ipython3
+```python
 surface_weights = layer_resolved_weights(
     bands,
     intensity_escape_length_ang=2.0,

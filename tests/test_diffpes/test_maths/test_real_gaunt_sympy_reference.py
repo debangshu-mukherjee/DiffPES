@@ -1,5 +1,7 @@
 """Certify real-Gaunt coefficients against a frozen exact SymPy table.
 
+Extended Summary
+----------------
 The tests compare every dense physical coordinate and preserve the offline
 generator version and authority metadata.
 """
@@ -8,12 +10,11 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import TextIO
 
 import numpy as np
-from beartype.typing import Dict
+from beartype.typing import Dict, List, TextIO
 
-from diffpes.maths.gaunt import gaunt_lookup
+from diffpes.maths import gaunt_lookup
 
 REFERENCE_PATH: Path = (
     Path(__file__).parents[1]
@@ -23,7 +24,14 @@ REFERENCE_PATH: Path = (
 
 
 class TestSympyGauntReference:
-    """Compare the complete production domain with independent exact values."""
+    """Validate exact SymPy references for real Gaunt coefficients.
+
+    The cases cover all 2,700 physical table coordinates, including allowed
+    coefficients and exact selection-rule zeros. They compare frozen CSV rows
+    with public lookups and verify uniform SymPy authority metadata.
+
+    :see: :func:`~diffpes.maths.gaunt_lookup`
+    """
 
     def test_dense_table_matches_exact_sympy_authority(self) -> None:
         """Match every physical dense-table coordinate and exact zero.
@@ -36,7 +44,7 @@ class TestSympyGauntReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
+            rows: List[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert len(rows) == 2700
         zero_count: int = 0
@@ -80,7 +88,7 @@ class TestSympyGauntReference:
         """
         stream: TextIO
         with REFERENCE_PATH.open(encoding="utf-8", newline="") as stream:
-            rows: list[Dict[str, str]] = list(csv.DictReader(stream))
+            rows: List[Dict[str, str]] = list(csv.DictReader(stream))
 
         assert {row["sympy_version"] for row in rows} == {"1.14.0"}
         assert {row["authority"] for row in rows} == {

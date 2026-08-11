@@ -23,6 +23,8 @@ Routine Listings
     Create a validated ``DiagonalizedBands`` instance.
 :func:`make_slab_spec`
     Create a validated slab-construction sidecar.
+:func:`make_slab_topology`
+    Create validated host-selected slab topology metadata.
 :func:`make_surface_cell`
     Create a validated Cartesian surface-cell carrier.
 :func:`make_tb_model`
@@ -40,7 +42,7 @@ import math
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Dict, Optional, Tuple
+from beartype.typing import Dict, List, Optional, Tuple
 from jaxtyping import (
     Array,
     Complex128,
@@ -406,6 +408,168 @@ def _validate_slab_spec_structure(
         raise ValueError(message)
 
 
+def _validate_slab_topology_structure(  # noqa: DOC503, PLR0912, PLR0913, PLR0915
+    *,
+    miller: Tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+    ],
+    stacking_coeffs: Tuple[int, int, int],
+    atom_shifts: Tuple[Tuple[int, int, int], ...],
+    bulk_atom_of_slab_atom: Tuple[int, ...],
+    layer_of_slab_atom: Tuple[int, ...],
+    termination: Tuple[str, str],
+    thickness_ang: float,
+    vacuum_ang: float,
+    fine: Tuple[float, float],
+    n_layers: int,
+    bulk_atom_count: int,
+    basis_atom_indices: Tuple[int, ...],
+) -> None:
+    """PRIVATE: Validate static topology selected for a slab rebuild.
+
+    Parameters
+    ----------
+    miller : Tuple[int, int, int]
+        GCD-reduced surface Miller tuple.
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+        Exact in-plane lattice-coefficient rows.
+    stacking_coeffs : Tuple[int, int, int]
+        Exact one-plane stacking coefficient row.
+    atom_shifts : Tuple[Tuple[int, int, int], ...]
+        Surface-cell shift for every source bulk atom.
+    bulk_atom_of_slab_atom : Tuple[int, ...]
+        Bulk-atom provenance for every slab atom.
+    layer_of_slab_atom : Tuple[int, ...]
+        Layer index for every slab atom.
+    termination : Tuple[str, str]
+        Top and bottom termination labels.
+    thickness_ang : float
+        Requested slab thickness in Angstrom.
+    vacuum_ang : float
+        Vacuum padding in Angstrom.
+    fine : Tuple[float, float]
+        Top and bottom cut shifts in Angstrom.
+    n_layers : int
+        Positive number of selected layers.
+    bulk_atom_count : int
+        Positive atom count of the source bulk geometry.
+    basis_atom_indices : Tuple[int, ...]
+        Bulk-atom assignment for every source basis orbital.
+
+    Raises
+    ------
+    ValueError
+        If exact surface coefficients, atom provenance, layer bounds, lengths,
+        termination metadata, or finite slab dimensions are inconsistent.
+
+    Implementation Logic
+    --------------------
+    Validate the exact surface basis first. Then require one coordinate shift
+    per frozen bulk atom and paired provenance for every selected slab atom.
+    Finally, check all bulk and layer indices against their frozen bounds.
+    """
+    _validate_integer_triple(miller, "miller")
+    if (
+        type(in_plane_coeffs) is not tuple
+        or len(in_plane_coeffs) != _SURFACE_VECTOR_COUNT
+    ):
+        message: str = "in_plane_coeffs must contain two integer triples"
+        raise ValueError(message)
+    _validate_integer_triple(in_plane_coeffs[0], "in_plane_coeffs[0]")
+    _validate_integer_triple(in_plane_coeffs[1], "in_plane_coeffs[1]")
+    _validate_integer_triple(stacking_coeffs, "stacking_coeffs")
+    if (
+        _integer_dot(miller, in_plane_coeffs[0]) != 0
+        or _integer_dot(miller, in_plane_coeffs[1]) != 0
+    ):
+        message = "in_plane_coeffs must lie in the Miller plane"
+        raise ValueError(message)
+    if _integer_dot(miller, stacking_coeffs) != 1:
+        message = "miller dotted with stacking_coeffs must equal one"
+        raise ValueError(message)
+    coefficient_rows: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+    ] = (in_plane_coeffs[0], in_plane_coeffs[1], stacking_coeffs)
+    if _integer_determinant(coefficient_rows) == 0:
+        message = "slab topology coefficient rows must be independent"
+        raise ValueError(message)
+    if type(atom_shifts) is not tuple:
+        message = "atom_shifts must be a tuple of integer triples"
+        raise ValueError(message)
+    atom_shift: Tuple[int, int, int]
+    for atom_shift in atom_shifts:
+        _validate_integer_triple(atom_shift, "atom_shifts entry")
+    if any(
+        type(values) is not tuple
+        for values in (
+            bulk_atom_of_slab_atom,
+            layer_of_slab_atom,
+            basis_atom_indices,
+        )
+    ):
+        message = "slab topology provenance maps must be tuples"
+        raise ValueError(message)
+    if len(bulk_atom_of_slab_atom) != len(layer_of_slab_atom):
+        message = "slab atom provenance maps must agree in length"
+        raise ValueError(message)
+    if (
+        type(termination) is not tuple
+        or len(termination) != _SURFACE_VECTOR_COUNT
+        or any(type(species) is not str for species in termination)
+    ):
+        message = "termination must contain two species labels"
+        raise ValueError(message)
+    if (
+        type(thickness_ang) is not float
+        or type(vacuum_ang) is not float
+        or not math.isfinite(thickness_ang)
+        or not math.isfinite(vacuum_ang)
+        or thickness_ang < 0.0
+        or vacuum_ang < 0.0
+    ):
+        message = "thickness_ang and vacuum_ang must be finite and nonnegative"
+        raise ValueError(message)
+    if (
+        type(fine) is not tuple
+        or len(fine) != _SURFACE_VECTOR_COUNT
+        or any(type(value) is not float for value in fine)
+        or not all(math.isfinite(value) for value in fine)
+    ):
+        message = "fine must contain two finite floats"
+        raise ValueError(message)
+    if type(n_layers) is not int or n_layers <= 0:
+        message = "n_layers must be a positive integer"
+        raise ValueError(message)
+    if type(bulk_atom_count) is not int or bulk_atom_count <= 0:
+        message = "bulk_atom_count must be a positive integer"
+        raise ValueError(message)
+    if len(atom_shifts) != bulk_atom_count:
+        message = "atom_shifts must contain one entry per frozen bulk atom"
+        raise ValueError(message)
+    if any(
+        type(index) is not int or index < 0 or index >= bulk_atom_count
+        for index in bulk_atom_of_slab_atom
+    ):
+        message = "bulk atom provenance must lie in the frozen bulk geometry"
+        raise ValueError(message)
+    if any(
+        type(layer) is not int or layer < 0 or layer >= n_layers
+        for layer in layer_of_slab_atom
+    ):
+        message = "layer provenance must lie in the frozen layer range"
+        raise ValueError(message)
+    if any(
+        type(index) is not int or index < 0 or index >= bulk_atom_count
+        for index in basis_atom_indices
+    ):
+        message = "basis atom indices must lie in the frozen bulk geometry"
+        raise ValueError(message)
+
+
 def _validate_basis_geometry(
     basis: OrbitalBasis,
     geometry: CrystalGeometry,
@@ -478,7 +642,7 @@ def _validate_hopping_metadata(
         If any record lacks a ``(j, i, -R)`` partner. This is the static
         construction-time contract.
     """
-    keys: list[Tuple[int, int, Tuple[int, int, int]]] = []
+    keys: List[Tuple[int, int, Tuple[int, int, int]]] = []
     pair: Tuple[int, int]
     cell: Tuple[int, int, int]
     for pair, cell in zip(hopping_pairs, hopping_cells, strict=True):
@@ -507,15 +671,15 @@ def _validate_hopping_metadata(
 
     buckets: Dict[
         Tuple[int, int, Tuple[int, int, int]],
-        list[int],
+        List[int],
     ] = {}
     index: int
     key: Tuple[int, int, Tuple[int, int, int]]
     for index, key in enumerate(keys):
         buckets.setdefault(key, []).append(index)
 
-    closure: list[int] = [-1] * len(keys)
-    indices: list[int]
+    closure: List[int] = [-1] * len(keys)
+    indices: List[int]
     for key, indices in buckets.items():
         orbital_i: int
         orbital_j: int
@@ -525,7 +689,7 @@ def _validate_hopping_metadata(
             orbital_i,
             (-cell[0], -cell[1], -cell[2]),
         )
-        reverse_indices: list[int] | None = buckets.get(reverse_key)
+        reverse_indices: List[int] | None = buckets.get(reverse_key)
         if reverse_indices is None or len(reverse_indices) != len(indices):
             message = (
                 "hopping metadata must be Hermitian-closed with one "
@@ -958,6 +1122,39 @@ class SlabTopology(eqx.Module):
     design values selected before a JAX transformation.
 
     :see: :class:`~.test_tb_model.TestSlabTopology`
+
+    Attributes
+    ----------
+    miller : Tuple[int, int, int]
+        GCD-reduced Miller tuple (**static**).
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+        Exact coefficient rows for the surface plane (**static**).
+    stacking_coeffs : Tuple[int, int, int]
+        Exact coefficient row for one stacking period (**static**).
+    atom_shifts : Tuple[Tuple[int, int, int], ...]
+        Surface-cell shift for every source bulk atom (**static**).
+    bulk_atom_of_slab_atom : Tuple[int, ...]
+        Bulk-atom provenance for every slab atom (**static**).
+    layer_of_slab_atom : Tuple[int, ...]
+        Layer index for every slab atom (**static**).
+    termination : Tuple[str, str]
+        Top and bottom species labels (**static**).
+    thickness_ang : float
+        Requested slab thickness in Angstrom (**static**).
+    vacuum_ang : float
+        Vacuum padding in Angstrom (**static**).
+    fine : Tuple[float, float]
+        Top and bottom cut shifts in Angstrom (**static**).
+    n_layers : int
+        Number of selected layers (**static**).
+    bulk_atom_count : int
+        Atom count of the source bulk geometry (**static**).
+    basis_atom_indices : Tuple[int, ...]
+        Bulk-atom assignment for every source orbital (**static**).
+
+    See Also
+    --------
+    make_slab_topology : Validated factory for this type.
     """
 
     miller: Tuple[int, int, int] = eqx.field(static=True)
@@ -976,6 +1173,24 @@ class SlabTopology(eqx.Module):
     n_layers: int = eqx.field(static=True)
     bulk_atom_count: int = eqx.field(static=True)
     basis_atom_indices: Tuple[int, ...] = eqx.field(static=True)
+
+    def __check_init__(self) -> None:
+        """Validate frozen slab topology on direct construction."""
+        _validate_slab_topology_structure(
+            miller=self.miller,
+            in_plane_coeffs=self.in_plane_coeffs,
+            stacking_coeffs=self.stacking_coeffs,
+            atom_shifts=self.atom_shifts,
+            bulk_atom_of_slab_atom=self.bulk_atom_of_slab_atom,
+            layer_of_slab_atom=self.layer_of_slab_atom,
+            termination=self.termination,
+            thickness_ang=self.thickness_ang,
+            vacuum_ang=self.vacuum_ang,
+            fine=self.fine,
+            n_layers=self.n_layers,
+            bulk_atom_count=self.bulk_atom_count,
+            basis_atom_indices=self.basis_atom_indices,
+        )
 
 
 class SurfaceCell(eqx.Module):
@@ -1008,6 +1223,10 @@ class SurfaceCell(eqx.Module):
     -----
     The integer coefficient rows are linearly independent, the in-plane rows
     are orthogonal to ``miller``, and ``miller · stacking_coeffs == 1``.
+
+    See Also
+    --------
+    make_surface_cell : Validated factory for this type.
     """
 
     in_plane_vectors: Float64[Array, "2 3"]
@@ -1060,6 +1279,10 @@ class SlabSpec(eqx.Module):
         Bulk-atom provenance for each slab atom (**static**).
     layer_of_slab_atom : Tuple[int, ...]
         Layer index for each slab atom (**static**).
+
+    See Also
+    --------
+    make_slab_spec : Validated factory for this type.
     """
 
     surface_cell: SurfaceCell
@@ -1516,6 +1739,113 @@ def make_tb_model(  # noqa: DOC502, DOC503, PLR0913, PLR0917
 
 
 @jaxtyped(typechecker=beartype)
+def make_slab_topology(  # noqa: DOC502, PLR0913
+    *,
+    miller: Tuple[int, int, int],
+    in_plane_coeffs: Tuple[
+        Tuple[int, int, int],
+        Tuple[int, int, int],
+    ],
+    stacking_coeffs: Tuple[int, int, int],
+    atom_shifts: Tuple[Tuple[int, int, int], ...],
+    bulk_atom_of_slab_atom: Tuple[int, ...],
+    layer_of_slab_atom: Tuple[int, ...],
+    termination: Tuple[str, str],
+    thickness_ang: float,
+    vacuum_ang: float,
+    fine: Tuple[float, float],
+    n_layers: int,
+    bulk_atom_count: int,
+    basis_atom_indices: Tuple[int, ...],
+) -> SlabTopology:
+    """Create validated host-selected slab topology metadata.
+
+    The factory binds one exact surface basis to atom, layer, termination,
+    and source-model provenance. All returned fields are static PyTree
+    metadata because topology selection occurs before JAX transformation.
+
+    :see: :class:`~.test_tb_model.TestMakeSlabTopology`
+
+    Parameters
+    ----------
+    miller : Tuple[int, int, int]
+        GCD-reduced surface Miller tuple.
+    in_plane_coeffs : Tuple[Tuple[int, int, int], Tuple[int, int, int]]
+        Exact in-plane lattice-coefficient rows.
+    stacking_coeffs : Tuple[int, int, int]
+        Exact one-plane stacking coefficient row.
+    atom_shifts : Tuple[Tuple[int, int, int], ...]
+        Surface-cell shift for every source bulk atom.
+    bulk_atom_of_slab_atom : Tuple[int, ...]
+        Bulk-atom provenance for every slab atom.
+    layer_of_slab_atom : Tuple[int, ...]
+        Layer index for every slab atom.
+    termination : Tuple[str, str]
+        Top and bottom termination labels.
+    thickness_ang : float
+        Requested slab thickness in Angstrom.
+    vacuum_ang : float
+        Vacuum padding in Angstrom.
+    fine : Tuple[float, float]
+        Top and bottom cut shifts in Angstrom.
+    n_layers : int
+        Positive number of selected layers.
+    bulk_atom_count : int
+        Positive atom count of the source bulk geometry.
+    basis_atom_indices : Tuple[int, ...]
+        Bulk-atom assignment for every source basis orbital.
+
+    Returns
+    -------
+    topology : SlabTopology
+        Validated static topology for pure-JAX slab rebuilding.
+
+    Raises
+    ------
+    ValueError
+        If exact surface coefficients, atom provenance, layer bounds, lengths,
+        termination metadata, or finite slab dimensions are inconsistent.
+
+    Notes
+    -----
+    Every check is static because all topology fields are immutable host
+    choices. Numerical lattice and Hamiltonian leaves remain outside this
+    carrier and retain their existing differentiable rebuild path.
+    """
+    _validate_slab_topology_structure(
+        miller=miller,
+        in_plane_coeffs=in_plane_coeffs,
+        stacking_coeffs=stacking_coeffs,
+        atom_shifts=atom_shifts,
+        bulk_atom_of_slab_atom=bulk_atom_of_slab_atom,
+        layer_of_slab_atom=layer_of_slab_atom,
+        termination=termination,
+        thickness_ang=thickness_ang,
+        vacuum_ang=vacuum_ang,
+        fine=fine,
+        n_layers=n_layers,
+        bulk_atom_count=bulk_atom_count,
+        basis_atom_indices=basis_atom_indices,
+    )
+    topology: SlabTopology = SlabTopology(
+        miller=miller,
+        in_plane_coeffs=in_plane_coeffs,
+        stacking_coeffs=stacking_coeffs,
+        atom_shifts=atom_shifts,
+        bulk_atom_of_slab_atom=bulk_atom_of_slab_atom,
+        layer_of_slab_atom=layer_of_slab_atom,
+        termination=termination,
+        thickness_ang=thickness_ang,
+        vacuum_ang=vacuum_ang,
+        fine=fine,
+        n_layers=n_layers,
+        bulk_atom_count=bulk_atom_count,
+        basis_atom_indices=basis_atom_indices,
+    )
+    return topology
+
+
+@jaxtyped(typechecker=beartype)
 def make_surface_cell(  # noqa: DOC502, DOC503
     in_plane_vectors: Float64[Array, "2 3"],
     stacking_vector: Float64[Array, " 3"],
@@ -1741,6 +2071,7 @@ __all__: list[str] = [
     "TBModel",
     "make_diagonalized_bands",
     "make_slab_spec",
+    "make_slab_topology",
     "make_surface_cell",
     "make_tb_model",
 ]

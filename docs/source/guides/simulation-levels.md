@@ -111,8 +111,8 @@ monotone. Its path must stay inside the single `v` bin. The conservative map
 includes `abs(ds/du)` divided by that aperture width. A general path is never
 promoted to an unstated two-dimensional density.
 
-The frozen RM-2 Chinook fixture is deliberately narrower than this production
-surface. It authenticates one complete `241 x 601` single-kz cut and applies a
+The frozen lithium-chain Chinook fixture is deliberately narrower than this
+production surface. It authenticates one complete `241 x 601` single-kz cut and applies a
 test-only adapter that matches Chinook's sampled Gaussian response to a shared
 pre-resolution input. This is K-only response compatibility: the production
 long-tail helper is diagnostic, and the comparison makes no source-assembly,

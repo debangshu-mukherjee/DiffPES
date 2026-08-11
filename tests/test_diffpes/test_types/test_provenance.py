@@ -9,9 +9,11 @@ from beartype.typing import Tuple
 
 from diffpes.types import (
     InformationState,
+    ProvenanceAnalysis,
     ProvenanceGraph,
     ProvenanceReport,
     make_information_state,
+    make_provenance_analysis,
     make_provenance_graph,
     make_provenance_report,
 )
@@ -34,7 +36,8 @@ class TestInformationState:
 
         Notes
         -----
-        The test constructs the state through its public factory and reads every static
+        The test constructs the state through its public factory and reads
+        every static
         information-flow field directly from the resulting carrier.
         """
         state: InformationState = make_information_state(
@@ -47,6 +50,43 @@ class TestInformationState:
         assert state.active_semantics == ("intensity",)
         assert state.destroyed_information == ("phase",)
         assert state.invalidated_claims == ("coherent-amplitude",)
+
+
+class TestProvenanceAnalysis:
+    """Validate :class:`~diffpes.types.ProvenanceAnalysis` storage.
+
+    The carrier must retain the complete deterministic graph-walk result.
+
+    :see: :class:`~diffpes.types.ProvenanceAnalysis`
+    """
+
+    def test_stores_graph_walk_result(self) -> None:
+        """Preserve the propagated states and graph diagnostics.
+
+        The check covers every field of a minimal external-root analysis.
+
+        Notes
+        -----
+        The test constructs the carrier directly with one semantic state and
+        compares all static graph-boundary fields.
+        """
+        state: InformationState = make_information_state(
+            "input", active_semantics=("bands",)
+        )
+        analysis: ProvenanceAnalysis = ProvenanceAnalysis(
+            ordered_records=(),
+            topological_order=("input",),
+            information=(state,),
+            errors=(),
+            roots=("input",),
+            terminal_outputs=(),
+            orphaned_inputs=("input",),
+        )
+
+        assert analysis.information == (state,)
+        assert analysis.topological_order == ("input",)
+        assert analysis.roots == ("input",)
+        assert analysis.orphaned_inputs == ("input",)
 
 
 class TestProvenanceGraph:
@@ -66,7 +106,8 @@ class TestProvenanceGraph:
 
         Notes
         -----
-        The test builds one root state and an edge-free graph, then compares root,
+        The test builds one root state and an edge-free graph, then compares
+        root,
         order, state, and checksum fields with their explicit inputs.
         """
         state: InformationState = make_information_state(
@@ -105,7 +146,8 @@ class TestProvenanceReport:
 
         Notes
         -----
-        The test constructs a valid report through the public factory and compares its
+        The test constructs a valid report through the public factory and
+        compares its
         static endpoint fields with independently specified tuples.
         """
         report: ProvenanceReport = make_provenance_report(
@@ -153,11 +195,43 @@ class TestMakeInformationState:
 
         Notes
         -----
-        The test calls the factory for each malformed static input and matches the
+        The test calls the factory for each malformed static input and matches
+        the
         diagnostic emitted by the corresponding validation branch.
         """
         with pytest.raises(ValueError, match=message):
             make_information_state(node_id, active_semantics)
+
+
+class TestMakeProvenanceAnalysis:
+    """Validate :func:`~diffpes.types.make_provenance_analysis`.
+
+    The factory must freeze the analysis without changing diagnostic order.
+
+    :see: :func:`~diffpes.types.make_provenance_analysis`
+    """
+
+    def test_preserves_repeated_diagnostics(self) -> None:
+        """Keep repeated graph diagnostics in their original order.
+
+        Invalid graphs can emit the same domain diagnostic more than once.
+
+        Notes
+        -----
+        The test supplies two identical diagnostics and compares the exact
+        result. This check prevents a hidden policy reduction in the factory.
+        """
+        analysis: ProvenanceAnalysis = make_provenance_analysis(
+            ordered_records=(),
+            topological_order=(),
+            information=(),
+            errors=("missing parent", "missing parent"),
+            roots=(),
+            terminal_outputs=(),
+            orphaned_inputs=(),
+        )
+
+        assert analysis.errors == ("missing parent", "missing parent")
 
 
 class TestMakeProvenanceGraph:

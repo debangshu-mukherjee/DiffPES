@@ -32,7 +32,6 @@ import inspect
 import json
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable
 
 import chex
 import equinox as eqx
@@ -41,8 +40,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from absl.testing import parameterized
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64
+from beartype.typing import Any, Callable, Dict, List, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
 
 from diffpes.simul import (
@@ -50,6 +49,7 @@ from diffpes.simul import (
     assemble_spectral_intensity_chunk,
     evaluate_self_energy,
     projected_spectral_density_resolvent,
+    spectral,
     spectral_intensity_eigen,
     spectral_intensity_resolvent,
     voigt,
@@ -59,15 +59,18 @@ from diffpes.types import (
     EPS_DEG,
     KB_EV_PER_K,
     SelfEnergyModel,
+    TransitionSourceSchedule,
     make_final_state_spec,
     make_matrix_element_params,
     make_orbital_basis,
     make_radial_quadrature_spec,
     make_radial_spec,
     make_self_energy_model,
+    make_transition_source_schedule,
 )
 from diffpes.utils import faddeeva
 from tests._assertions import assert_rejects
+from tests._factories import make_t2g_soc_model
 
 _REFERENCE_DIRECTORY: Path = (
     Path(__file__).resolve().parents[1] / "_reference_data"
@@ -107,61 +110,61 @@ _DEGENERATE_WITNESS_PATH: Path = (
 # Frozen SHA-256 digests. The selection manifest records the archive and
 # instrument digests; the constants below pin the manifests themselves.
 _SELECTION_MANIFEST_SHA256: str = (
-    "80cb05ba62f795ee4ab781b3dd328f673274d1afc44752500d62ce9a2ee43932"
+    "e0188fc51f6f61f7c94c30cbbd460fc784d2f5772544225b64e8015ad86ba7f5"
 )
 _SELECTION_ARCHIVE_SHA256: str = (
     "e827e91c62e294afc50112af5fe484e5ff002070f106511d07bb813502648430"
 )
 _ANALYTIC_MANIFEST_SHA256: str = (
-    "1c08269c503871c367d7610fd927d0a6d8f4b93012458be1e43e611f1d0f81a8"
+    "e91e02d117c0b389e55e9505b3b5affac6780927ef39676a700bb5818078a14a"
 )
 _ANALYTIC_ARCHIVE_SHA256: str = (
     "ba30a3ee4e65658ace63ed54e65c3ec8ad8ae0868c396653123896265829cba5"
 )
 _ANALYTIC_GENERATOR_SHA256: str = (
-    "0ab039848e5d16d4e8a540fdb17467754159cf97e567bde3dc3ba0794d3dcec1"
+    "563aaf92c94b3962dbdb63a2ce0121b0cf8192beea3fc833e983292fb086cbf8"
 )
 _MODELS_MANIFEST_SHA256: str = (
-    "040c5a7bec3f7123b71d64e3314e17f1008c5f8536d984608bc942336e183165"
+    "b72314c2587acbd61ee35cb81eeaa84d411562c82b597b23aae74e217551669b"
 )
 _MODELS_ARCHIVE_SHA256: str = (
     "59a115c16cbcbd57e7b70ec290380d224d2f2f73c5b6682afbcec047a4fe2830"
 )
 _MODELS_GENERATOR_SHA256: str = (
-    "e65ea2c1117cc4fe33ca3bee00645a59547e2cd7cf5fbd04bc7a71556676f811"
+    "44d694b431703ae6b9a80af9e2f4a2a8cfab8dd12c660fc8bfd81db8e0b792ec"
 )
 _SELECTION_GENERATOR_SHA256: str = (
-    "336d7e5f04533491f51b6fbed1abb1b1fde8f872403918bea847761b2671a6b8"
+    "9bf4aa378886e3e135787fd50477a8da464ae0bc6a689b3bf6f99485f3e0da64"
 )
 _COMMON_MODULE_SHA256: str = (
-    "df2ecd4cd002e2e2da179ac4c8a0f663ddbf2f91ff3d8c6bd21c02addfc4de6e"
+    "2f401f171ac90b1bd1c1f75448aa1f06662d537e4a6301f0560a2c41d10303cb"
 )
 _CUBIC_MODULE_SHA256: str = (
-    "a17e6f2c6b4ec3aee76d3ec116cb091bccc85bcc0edb59f908f1128aa2ea7900"
+    "1158e257f4700353ff49e7f170228f43b263c27025499e853002d65add2a1ea4"
 )
 _LINEAR_MODULE_SHA256: str = (
-    "f01469f8fa44163dc07c5f1e1be76facd4c4a8ad00584deef9b8e210a23d6bfb"
+    "b8979970ed70200e89a0523c7528ddc51f27e25f279a9a86bcdd97a26be07af5"
 )
 _QUADRATIC_MODULE_SHA256: str = (
-    "83ae1ff85341782bac118447f1d9ab0381c1135a9fb00e4e79c83220c968cf3e"
+    "2dee8a85e8f4f4e24a457fcebf029c470ebc965377557ce6b614851bfa7b8e19"
 )
 _CONTROL_MODULE_SHA256: str = (
-    "a02a72244c6c64a265a97bca05689f9033f80ea10099a1b702e148dc086e6775"
+    "3d855cc5afbd84591b83a0d0c7136504d959c4e514ae26a30402f8601fd81920"
 )
 _SPECTRAL_INTENSITY_MANIFEST_SHA256: str = (
-    "95cc321072627f2babe5d160ff89fea64ddb92a3674e5b0fecd9e8a2d7b2e929"
+    "8edc1297a10ed66ad6058acf44c05b8512b55f1bd77fa15a97174a848fbd0673"
 )
 _SPECTRAL_INTENSITY_ARCHIVE_SHA256: str = (
     "67e5f9e18ad39a1b51e8ed5713003b684f35fff60df2637e9dd16e90f6ca547c"
 )
 _CHINOOK_SPECTRAL_MANIFEST_SHA256: str = (
-    "11e3af71899b92bb7a77e818268e44793f89ed0d0ac5c274c20191ead3272fe9"
+    "48b3020c51f01b89506923cfcd32cb48093cdfe645650fc69c6859db3b7bfedc"
 )
 _CHINOOK_SPECTRAL_ARCHIVE_SHA256: str = (
     "5a6163b2566e09de2974873eea1bf6062782b3af41e3225fa1fe26eca2859c56"
 )
 _DEGENERATE_WITNESS_SHA256: str = (
-    "3e9e555d5d037968a558869aa97938161a4af4f33d32c9976c47bdd8f43bdae2"
+    "60eed816e8c693c4547e351ae2504c8a0e7e05422c6e6d56d09adba41e81891b"
 )
 
 # Registered acceptance numbers. Sources: the frozen operator-selection
@@ -235,7 +238,8 @@ def _sha256(path: Path) -> str:
     -----
     The digest streams the complete file bytes in one read.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    returned: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return returned
 
 
 def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
@@ -247,7 +251,10 @@ def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
     """
     archive: Any
     with np.load(path, allow_pickle=False) as archive:
-        return {name: archive[name] for name in archive.files}
+        returned: Dict[str, Float64[NDArray, "..."]] = {
+            name: archive[name] for name in archive.files
+        }
+        return returned
 
 
 def _authenticated_json(path: Path, digest: str) -> Dict[str, Any]:
@@ -258,7 +265,8 @@ def _authenticated_json(path: Path, digest: str) -> Dict[str, Any]:
     The check compares the digest before any parse.
     """
     assert _sha256(path) == digest, f"digest mismatch for {path.name}"
-    return json.loads(path.read_text(encoding="utf-8"))
+    returned: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return returned
 
 
 def _authenticated_npz(
@@ -271,7 +279,8 @@ def _authenticated_npz(
     The check compares the digest before any load.
     """
     assert _sha256(path) == digest, f"digest mismatch for {path.name}"
-    return _load_npz(path)
+    returned: Dict[str, Float64[NDArray, "..."]] = _load_npz(path)
+    return returned
 
 
 def _committed_module(filename: str, digest: str) -> ModuleType:
@@ -282,13 +291,15 @@ def _committed_module(filename: str, digest: str) -> ModuleType:
     The cache keys one import per authenticated filename.
     """
     if filename in _COMMITTED_MODULE_CACHE:
-        return _COMMITTED_MODULE_CACHE[filename]
+        returned: ModuleType = _COMMITTED_MODULE_CACHE[filename]
+        return returned
     path: Path = _TOOLS_DIRECTORY / filename
     assert _sha256(path) == digest, f"digest mismatch for {filename}"
     spec: Any = importlib.util.spec_from_file_location(
         f"_kk_lane_{path.stem}", path
     )
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module: ModuleType = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     _COMMITTED_MODULE_CACHE[filename] = module
@@ -308,7 +319,8 @@ def _committed_operator() -> Tuple[ModuleType, ModuleType]:
     cubic: ModuleType = _committed_module(
         "_kk_candidate_piecewise_cubic.py", _CUBIC_MODULE_SHA256
     )
-    return common, cubic
+    returned: Tuple[ModuleType, ModuleType] = common, cubic
+    return returned
 
 
 def _base_grid() -> Float64[Array, " n_kk"]:
@@ -318,10 +330,11 @@ def _base_grid() -> Float64[Array, " n_kk"]:
     -----
     The grid follows the frozen index construction.
     """
-    return jnp.asarray(
+    returned: Float64[Array, " n_kk"] = jnp.asarray(
         _DOMAIN_LOW_EV + _BASE_SPACING_EV * np.arange(_N_KK),
         dtype=jnp.float64,
     )
+    return returned
 
 
 def _cubic_edge_slopes(
@@ -346,7 +359,8 @@ def _cubic_edge_slopes(
         + 9.0 * values[-3]
         - 2.0 * values[-4]
     ) / (6.0 * spacing)
-    return left, right
+    returned: Tuple[Float64[Array, ""], Float64[Array, ""]] = left, right
+    return returned
 
 
 def _pole_sigma_imag(
@@ -359,28 +373,30 @@ def _pole_sigma_imag(
     The pole parameters come from the frozen fixture constants.
     """
     offset: Float64[Array, " n"] = omega_rel_fermi_ev - _POLE_OMEGA0_EV
-    return (
+    returned: Float64[Array, " n"] = (
         -_POLE_COUPLING_EV2 * _POLE_GAMMA_EV / (offset**2 + _POLE_GAMMA_EV**2)
     )
+    return returned
 
 
 def _pole_dsigma_imag(
     omega_rel_fermi_ev: Float64[Array, " n"],
 ) -> Float64[Array, " n"]:
-    """PRIVATE: Evaluate the analytic query derivative of the pole imaginary part.
+    """PRIVATE: Evaluate the pole imaginary-part query derivative.
 
     Notes
     -----
     The formula differentiates the frozen pole closed form.
     """
     offset: Float64[Array, " n"] = omega_rel_fermi_ev - _POLE_OMEGA0_EV
-    return (
+    returned: Float64[Array, " n"] = (
         2.0
         * _POLE_COUPLING_EV2
         * _POLE_GAMMA_EV
         * offset
         / (offset**2 + _POLE_GAMMA_EV**2) ** 2
     )
+    return returned
 
 
 def _fl_sigma_imag_dynamic(
@@ -395,11 +411,12 @@ def _fl_sigma_imag_dynamic(
     beta: float
     omega_c: float
     _, beta, omega_c = _FL_PARAMETERS_PHYSICAL
-    return (
+    returned: Float64[Array, " n"] = (
         -beta
         * omega_rel_fermi_ev**2
         / (1.0 + (omega_rel_fermi_ev / omega_c) ** 4)
     )
+    return returned
 
 
 def _fl_dsigma_imag_dynamic(
@@ -415,19 +432,20 @@ def _fl_dsigma_imag_dynamic(
     omega_c: float
     _, beta, omega_c = _FL_PARAMETERS_PHYSICAL
     quartic: Float64[Array, " n"] = (omega_rel_fermi_ev / omega_c) ** 4
-    return (
+    returned: Float64[Array, " n"] = (
         2.0
         * beta
         * omega_rel_fermi_ev
         * (quartic - 1.0)
         / (1.0 + quartic) ** 2
     )
+    return returned
 
 
 def _fl_dsigma_real_domega(
     omega_rel_fermi_ev: Float64[NDArray, " n"],
 ) -> Float64[NDArray, " n"]:
-    """PRIVATE: Evaluate the analytic full-line Fermi-liquid real-part derivative.
+    """PRIVATE: Evaluate the Fermi-liquid real-part derivative.
 
     Notes
     -----
@@ -441,13 +459,14 @@ def _fl_dsigma_real_domega(
     numerator: Float64[NDArray, " n"] = (
         3.0 * omega**2 - omega_c**2
     ) * quartic_sum - omega * (omega**2 - omega_c**2) * 4.0 * omega**3
-    return (
+    returned: Float64[NDArray, " n"] = (
         (np.sqrt(2.0) / 2.0) * beta * omega_c**3 * numerator / quartic_sum**2
     )
+    return returned
 
 
 def _pole_tail_spec(common: ModuleType) -> Any:
-    """PRIVATE: Return the committed power2 tail parameters for the pole fixture.
+    """PRIVATE: Return the pole fixture's power2 tail parameters.
 
     Notes
     -----
@@ -458,7 +477,7 @@ def _pole_tail_spec(common: ModuleType) -> Any:
     slope_left: Float64[Array, ""]
     slope_right: Float64[Array, ""]
     slope_left, slope_right = _cubic_edge_slopes(values, _BASE_SPACING_EV)
-    return common.construct_power2_tail_spec(
+    returned: Any = common.construct_power2_tail_spec(
         values[0],
         slope_left,
         values[-1],
@@ -466,10 +485,11 @@ def _pole_tail_spec(common: ModuleType) -> Any:
         _POLE_TAIL_RAW[0],
         _POLE_TAIL_RAW[1],
     )
+    return returned
 
 
 def _fl_tail_spec(common: ModuleType) -> Any:
-    """PRIVATE: Return the committed power2 tail parameters for the Fermi liquid.
+    """PRIVATE: Return the Fermi-liquid power2 tail parameters.
 
     Notes
     -----
@@ -480,7 +500,7 @@ def _fl_tail_spec(common: ModuleType) -> Any:
     slope_left: Float64[Array, ""]
     slope_right: Float64[Array, ""]
     slope_left, slope_right = _cubic_edge_slopes(values, _BASE_SPACING_EV)
-    return common.construct_power2_tail_spec(
+    returned: Any = common.construct_power2_tail_spec(
         values[0],
         slope_left,
         values[-1],
@@ -488,6 +508,7 @@ def _fl_tail_spec(common: ModuleType) -> Any:
         _FL_TAIL_RAW[0],
         _FL_TAIL_RAW[1],
     )
+    return returned
 
 
 def _instrument_transform(
@@ -495,7 +516,7 @@ def _instrument_transform(
     tail_spec: Any,
     queries_ev: Float64[Array, " n_query"],
 ) -> Float64[Array, " n_query"]:
-    """PRIVATE: Evaluate the committed unsubtracted operator at arbitrary queries.
+    """PRIVATE: Evaluate the unsubtracted operator at arbitrary queries.
 
     Notes
     -----
@@ -514,7 +535,8 @@ def _instrument_transform(
     tail: Float64[Array, " n_query"] = common.semi_infinite_tail_contribution(
         domain, tail_spec, queries_ev, _N_TAIL
     )
-    return core + tail
+    returned: Float64[Array, " n_query"] = core + tail
+    return returned
 
 
 def _instrument_subtracted(
@@ -523,7 +545,7 @@ def _instrument_subtracted(
     queries_ev: Float64[Array, " n_query"],
     subtraction_point_ev: float,
 ) -> Float64[Array, " n_query"]:
-    """PRIVATE: Evaluate the committed subtracted real part at arbitrary queries.
+    """PRIVATE: Evaluate the subtracted real part at arbitrary queries.
 
     Notes
     -----
@@ -538,7 +560,8 @@ def _instrument_subtracted(
     total: Float64[Array, " n_plus_one"] = _instrument_transform(
         sigma_imag_dynamic, tail_spec, stacked
     )
-    return total[:-1] - total[-1]
+    returned: Float64[Array, " n_query"] = total[:-1] - total[-1]
+    return returned
 
 
 def _instrument_composite_derivative(
@@ -583,15 +606,19 @@ def _instrument_composite_derivative(
     )
 
     def tail_only(points_ev: Float64[Array, " n_query"]) -> Any:
-        return common.semi_infinite_tail_contribution(
+        returned: Any = common.semi_infinite_tail_contribution(
             domain, tail_spec, points_ev, _N_TAIL
         )
+        return returned
 
     tail_derivative: Float64[Array, " n_query"]
     _, tail_derivative = jax.jvp(
         tail_only, (queries_ev,), (jnp.ones_like(queries_ev),)
     )
-    return core_derivative + boundary + tail_derivative
+    returned: Float64[Array, " n_query"] = (
+        core_derivative + boundary + tail_derivative
+    )
+    return returned
 
 
 def _softplus_inverse_np(
@@ -603,11 +630,14 @@ def _softplus_inverse_np(
     -----
     The map inverts softplus through ``log(expm1(x))``.
     """
-    return np.log(np.expm1(np.asarray(positive, dtype=np.float64)))
+    returned: Float64[NDArray, " n"] = np.log(
+        np.expm1(np.asarray(positive, dtype=np.float64))
+    )
+    return returned
 
 
 def _fermi_liquid_model() -> SelfEnergyModel:
-    """PRIVATE: Create the frozen Fermi-liquid carrier with its committed tails.
+    """PRIVATE: Create the frozen Fermi-liquid carrier and tails.
 
     Notes
     -----
@@ -616,7 +646,7 @@ def _fermi_liquid_model() -> SelfEnergyModel:
     raw: Float64[NDArray, " three"] = _softplus_inverse_np(
         np.asarray(_FL_PARAMETERS_PHYSICAL)
     )
-    return make_self_energy_model(
+    returned: SelfEnergyModel = make_self_energy_model(
         coefficients=jnp.asarray(raw),
         mode="fermi_liquid",
         kk_consistent=True,
@@ -625,13 +655,14 @@ def _fermi_liquid_model() -> SelfEnergyModel:
         subtraction_point_rel_fermi_ev=0.0,
         tail_mode="power2",
     )
+    return returned
 
 
 def _scaled_model(
     fixture: str,
     scale: Float64[Array, " n_param"],
 ) -> SelfEnergyModel:
-    """PRIVATE: Create a carrier whose parameters equal ``scale`` times the fixture.
+    """PRIVATE: Create a carrier scaled from the fixture.
 
     Notes
     -----
@@ -642,7 +673,7 @@ def _scaled_model(
             _FL_PARAMETERS_PHYSICAL
         )
         raw: Float64[Array, " n_param"] = jnp.log(jnp.expm1(physical))
-        return make_self_energy_model(
+        returned: SelfEnergyModel = make_self_energy_model(
             coefficients=raw,
             mode="fermi_liquid",
             kk_consistent=True,
@@ -653,14 +684,16 @@ def _scaled_model(
             subtraction_point_rel_fermi_ev=0.0,
             tail_mode="power2",
         )
+        return returned
     physical = scale * jnp.asarray(_KINK_PARAMETERS_PHYSICAL)
     raw = jnp.log(jnp.expm1(physical))
-    return make_self_energy_model(
+    returned: SelfEnergyModel = make_self_energy_model(
         coefficients=raw,
         mode="bosonic_kink",
         kk_consistent=True,
         tail_mode="analytic",
     )
+    return returned
 
 
 def _hat_core_pv(
@@ -668,7 +701,7 @@ def _hat_core_pv(
     ordinates_ev: Float64[NDArray, " n_nodes"],
     queries_ev: Float64[NDArray, " n_query"],
 ) -> Float64[NDArray, " n_query"]:
-    """PRIVATE: Evaluate the exact segment-wise principal value of one hat function.
+    """PRIVATE: Evaluate one hat function's exact principal value.
 
     For a linear segment with slope ``m`` on ``[x0, x1]`` the principal
     value of ``y(x) / (x - q)`` equals ``m * (x1 - x0) + y(q) *
@@ -708,7 +741,7 @@ def _hand_power2_tail(
     betas: Tuple[float, float],
     queries_ev: Float64[NDArray, " n_query"],
 ) -> Float64[NDArray, " n_query"]:
-    """PRIVATE: Evaluate both semi-infinite power2 tails with the frozen 256 rule.
+    """PRIVATE: Evaluate both power2 tails with the frozen 256 rule.
 
     Notes
     -----
@@ -751,7 +784,11 @@ def _hand_power2_tail(
 
 
 class TestKramersKronigEvidence(chex.TestCase):
-    """Validate the frozen independent artifacts before production edits."""
+    """Validate the frozen independent artifacts before production edits.
+
+    The cases authenticate the manifests and replay analytic causal models,
+    selected operators, frozen outputs, and the certified Faddeeva envelope.
+    """
 
     def test_reference_manifests_and_archives_are_authenticated(
         self,
@@ -850,7 +887,7 @@ class TestKramersKronigEvidence(chex.TestCase):
             )
             == _MODELS_GENERATOR_SHA256
         )
-        zeros: list[str] = models["derivatives"]["structural_zeros"]
+        zeros: List[str] = models["derivatives"]["structural_zeros"]
         assert any("dSigma'/dGamma0" in entry for entry in zeros)
 
         budgets: Dict[str, float] = selection["registered_budgets"]
@@ -1460,7 +1497,10 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
         def public_map(
             points: Float64[Array, " n"],
         ) -> Complex128[Array, " n"]:
-            return evaluate_self_energy(points, model)
+            returned: Complex128[Array, " n"] = evaluate_self_energy(
+                points, model
+            )
+            return returned
 
         primal: Complex128[Array, " n"]
         tangent: Complex128[Array, " n"]
@@ -1474,7 +1514,10 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
         forward: Float64[NDArray, " n"] = np.real(np.asarray(tangent))
 
         def real_sum(points: Float64[Array, " n"]) -> Float64[Array, ""]:
-            return jnp.sum(jnp.real(evaluate_self_energy(points, model)))
+            returned: Float64[Array, ""] = jnp.sum(
+                jnp.real(evaluate_self_energy(points, model))
+            )
+            return returned
 
         reverse: Float64[NDArray, " n"] = np.asarray(
             jax.grad(real_sum)(queries)
@@ -1561,9 +1604,10 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
                 fixture_name: str = fixture,
                 points: Float64[Array, " n"] = probes,
             ) -> Complex128[Array, " n"]:
-                return evaluate_self_energy(
+                returned: Complex128[Array, " n"] = evaluate_self_energy(
                     points, _scaled_model(fixture_name, scale)
                 )
+                return returned
 
             ones: Float64[Array, " n_param"] = jnp.ones(
                 count, dtype=jnp.float64
@@ -1633,9 +1677,10 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
                 fixture_name: str = fixture,
                 points: Float64[Array, " n"] = probes,
             ) -> Complex128[Array, " n"]:
-                return evaluate_self_energy(
+                returned: Complex128[Array, " n"] = evaluate_self_energy(
                     points, _scaled_model(fixture_name, scale)
                 )
+                return returned
 
             ones: Float64[Array, " n_param"] = jnp.ones(
                 count, dtype=jnp.float64
@@ -1676,10 +1721,8 @@ class TestKkTransformSeam(chex.TestCase):
         The test imports the production module, inspects the seam
         signature, and checks the retired kernel name stays absent.
         """
-        import diffpes.simul.spectral as spectral
-
         seam: Callable[..., Any] = spectral._kk_transform
-        parameters: list[str] = list(inspect.signature(seam).parameters)
+        parameters: List[str] = list(inspect.signature(seam).parameters)
         assert parameters == [
             "core_grid",
             "model_domain",
@@ -1706,8 +1749,6 @@ class TestKkTransformSeam(chex.TestCase):
         the committed tail contract, and subtracts at the frozen point. It
         then applies the registered mixed criterion per row.
         """
-        import diffpes.simul.spectral as spectral
-
         selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
@@ -1761,8 +1802,6 @@ class TestKkTransformSeam(chex.TestCase):
         1001 frozen queries. It then compares against the frozen analytic
         derivative array.
         """
-        import diffpes.simul.spectral as spectral
-
         selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
         )
@@ -1780,13 +1819,14 @@ class TestKkTransformSeam(chex.TestCase):
         def seam_map(
             points: Float64[Array, " n"],
         ) -> Float64[Array, " n"]:
-            return spectral._kk_transform(
+            returned: Float64[Array, " n"] = spectral._kk_transform(
                 (grid, _pole_sigma_imag(grid)),
                 domain,
                 spec,
                 points,
                 _N_TAIL,
             )
+            return returned
 
         derivative: Float64[Array, " n"]
         _, derivative = jax.jvp(
@@ -1955,7 +1995,13 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
             [_DOMAIN_LOW_EV, _DOMAIN_HIGH_EV], dtype=jnp.float64
         )
         queries: Float64[Array, " n"] = jnp.linspace(-1.0, 1.0, 11)
-        return (grid, _pole_sigma_imag(grid)), domain, spec, queries
+        returned: Tuple[
+            Tuple[Float64[Array, " n_kk"], Float64[Array, " n_kk"]],
+            Float64[Array, " 2"],
+            Any,
+            Float64[Array, " n"],
+        ] = (grid, _pole_sigma_imag(grid)), domain, spec, queries
+        return returned
 
     def test_discontinuous_tail_edge_value_is_rejected(self) -> None:
         """Reject a tail whose edge value breaks the C1 match.
@@ -1969,8 +2015,6 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
         The test scales one committed tail amplitude by 1.05 and drives
         the shared rejection helper on the seam.
         """
-        import diffpes.simul.spectral as spectral
-
         core_grid: Tuple[Float64[Array, " n_kk"], Float64[Array, " n_kk"]]
         domain: Float64[Array, " 2"]
         spec: Any
@@ -1999,8 +2043,6 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
         The test replaces one committed ``beta`` with ``-0.01`` and drives
         the shared rejection helper on the seam.
         """
-        import diffpes.simul.spectral as spectral
-
         core_grid: Tuple[Float64[Array, " n_kk"], Float64[Array, " n_kk"]]
         domain: Float64[Array, " 2"]
         spec: Any
@@ -2031,8 +2073,6 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
         The test passes ``n_tail=0`` and drives the shared rejection
         helper on the seam.
         """
-        import diffpes.simul.spectral as spectral
-
         core_grid: Tuple[Float64[Array, " n_kk"], Float64[Array, " n_kk"]]
         domain: Float64[Array, " 2"]
         spec: Any
@@ -2060,8 +2100,6 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
         The test rebuilds the grid from the query extrema and drives the
         shared rejection helper on the seam.
         """
-        import diffpes.simul.spectral as spectral
-
         domain: Float64[Array, " 2"]
         spec: Any
         queries: Float64[Array, " n"]
@@ -2098,7 +2136,10 @@ class TestProductionKkConvergence(chex.TestCase):
         endpoint redistribution by ``linspace``.
         """
         spacing: float = (high - low) / (count - 1)
-        return low + np.arange(count, dtype=np.float64) * spacing
+        returned: Float64[NDArray, " n"] = (
+            low + np.arange(count, dtype=np.float64) * spacing
+        )
+        return returned
 
     @staticmethod
     def _production_core_only_subtracted(
@@ -2110,13 +2151,11 @@ class TestProductionKkConvergence(chex.TestCase):
         Notes
         -----
         The Wigner fixture has compact support and exactly zero edge values on
-        every registered domain. The plan explicitly routes this
+        every registered domain. The specification explicitly routes this
         test-only analytic exception through the production cubic core, not
         through the positive-amplitude ``power2`` tail seam. Query chunks keep
         the matrix-free working set proportional to ``chunk * n_kk``.
         """
-        import diffpes.simul.spectral as spectral
-
         grid: Float64[Array, " n_kk"] = jnp.asarray(grid_np)
         half_width: float = 1.5
         coupling: float = 0.2
@@ -2136,7 +2175,7 @@ class TestProductionKkConvergence(chex.TestCase):
                 jnp.asarray([0.0], dtype=jnp.float64),
             )[0]
         )
-        chunks: list[Float64[NDArray, " chunk"]] = []
+        chunks: List[Float64[NDArray, " chunk"]] = []
         start: int
         chunk_size: int = 64
         for start in range(0, queries_np.shape[0], chunk_size):
@@ -2147,7 +2186,8 @@ class TestProductionKkConvergence(chex.TestCase):
                 np.asarray(spectral._cubic_core_pv(grid, values, points))
                 - subtraction
             )
-        return np.concatenate(chunks)
+        returned: Float64[NDArray, " n_query"] = np.concatenate(chunks)
+        return returned
 
     @staticmethod
     def _pole_tail_raw(
@@ -2165,14 +2205,12 @@ class TestProductionKkConvergence(chex.TestCase):
         """
         if hold_base_raw:
             return _POLE_TAIL_RAW
-        import diffpes.simul.spectral as spectral
-
         values: Float64[Array, " n_kk"] = _pole_sigma_imag(grid)
         spacing: Float64[Array, ""] = grid[1] - grid[0]
         slope_left: Float64[Array, ""]
         slope_right: Float64[Array, ""]
         slope_left, slope_right = spectral._cubic_edge_slopes(values, spacing)
-        raw: list[float] = []
+        raw: List[float] = []
         edge: float
         amplitude: float
         alpha: float
@@ -2194,7 +2232,8 @@ class TestProductionKkConvergence(chex.TestCase):
             )
             delta_beta: float = beta_target - alpha**2 / 4.0
             raw.append(float(np.log(np.expm1(delta_beta))))
-        return raw[0], raw[1]
+        returned: Tuple[float, float] = raw[0], raw[1]
+        return returned
 
     @classmethod
     def _production_pole_subtracted(
@@ -2213,8 +2252,6 @@ class TestProductionKkConvergence(chex.TestCase):
         carrier coordinates, evaluates the mandatory seam directly, and
         subtracts the independently evaluated zero-frequency value.
         """
-        import diffpes.simul.spectral as spectral
-
         grid: Float64[Array, " n_kk"] = jnp.asarray(grid_np)
         values: Float64[Array, " n_kk"] = _pole_sigma_imag(grid)
         spacing: Float64[Array, ""] = grid[1] - grid[0]
@@ -2246,7 +2283,7 @@ class TestProductionKkConvergence(chex.TestCase):
                 n_tail,
             )[0]
         )
-        chunks: list[Float64[NDArray, " chunk"]] = []
+        chunks: List[Float64[NDArray, " chunk"]] = []
         start: int
         chunk_size: int = 64
         for start in range(0, queries_np.shape[0], chunk_size):
@@ -2257,7 +2294,8 @@ class TestProductionKkConvergence(chex.TestCase):
                 (grid, values), domain, spec, points, n_tail
             )
             chunks.append(np.asarray(values_chunk) - subtraction)
-        return np.concatenate(chunks)
+        returned: Float64[NDArray, " n_query"] = np.concatenate(chunks)
+        return returned
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
@@ -2275,7 +2313,7 @@ class TestProductionKkConvergence(chex.TestCase):
         Evaluate the explicit test-only zero-tail exception through
         :func:`diffpes.simul.spectral._cubic_core_pv`. This is the production
         smooth core selected for the singularity witness. Routing a zero edge
-        through the positive-amplitude power2 carrier violates the plan.
+        through the positive-amplitude power2 carrier violates the contract.
         """
         selection: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
             _SELECTION_ARCHIVE_PATH, _SELECTION_ARCHIVE_SHA256
@@ -2408,7 +2446,11 @@ class TestProductionKkConvergence(chex.TestCase):
 
 
 class TestProductionKkContinuityAndDerivatives(chex.TestCase):
-    """Certify C1 seams, parameter derivatives, JIT, and VMAP success."""
+    """Certify C1 seams, parameter derivatives, JIT, and VMAP success.
+
+    The cases match tail values and slopes at each seam, compare parameter
+    Jacobians with finite differences, and exercise compiled vectorization.
+    """
 
     def test_power2_tails_match_production_edge_values_and_slopes(
         self,
@@ -2424,8 +2466,6 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
         derivative at zero distance. Compare both with the owning core
         interpolant.
         """
-        import diffpes.simul.spectral as spectral
-
         smooth_grid: Float64[Array, " n_kk"] = _base_grid()
         smooth_values: Float64[Array, " n_kk"] = _pole_sigma_imag(smooth_grid)
         smooth_left: Float64[Array, ""]
@@ -2496,8 +2536,9 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
 
         Notes
         -----
-        Rebuild the immutable carrier from each perturbed raw coordinate vector.
-        The grid case also plants the knot derivative jump and verifies that the
+        Rebuild the immutable carrier from each perturbed raw coordinate
+        vector. The grid case also plants the knot derivative jump and verifies
+        that the
         certified points lie strictly away from that nonsmooth set.
         """
         if mode == "poly":
@@ -2544,13 +2585,16 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
                 subtraction_point_rel_fermi_ev=subtraction,
                 tail_mode="power2",
             )
-            return evaluate_self_energy(queries, model, n_kk=256)
+            returned: Complex128[Array, " n"] = evaluate_self_energy(
+                queries, model, n_kk=256
+            )
+            return returned
 
         automatic: Complex128[Array, "n n_coef"] = jax.jacfwd(response)(
             coefficients
         )
         step: float = 2.0**-15
-        fd_columns: list[Complex128[Array, " n"]] = []
+        fd_columns: List[Complex128[Array, " n"]] = []
         column: int
         for column in range(coefficients.shape[0]):
             direction: Float64[Array, " n_coef"] = (
@@ -2631,9 +2675,10 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
             points: Float64[Array, "batch n"],
         ) -> Complex128[Array, "batch n"]:
             """Batch the complete production evaluator by query row."""
-            return jax.vmap(
+            returned: Complex128[Array, "batch n"] = jax.vmap(
                 lambda row: evaluate_self_energy(row, model, n_kk=64)
             )(points)
+            return returned
 
         expected: Complex128[Array, "batch n"] = jnp.stack(
             [evaluate_self_energy(row, model, n_kk=64) for row in batches]
@@ -2651,7 +2696,7 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
 
 
 def _spectral_intensity_reference() -> Dict[str, Float64[NDArray, "..."]]:
-    """PRIVATE: Load and authenticate the preregistered WP7.5 archive.
+    """PRIVATE: Load and authenticate the registered resolvent archive.
 
     Notes
     -----
@@ -2662,31 +2707,37 @@ def _spectral_intensity_reference() -> Dict[str, Float64[NDArray, "..."]]:
         _SPECTRAL_INTENSITY_MANIFEST_SHA256,
     )
     assert manifest["schema"] == "diffpes.spectral-intensity-reference.v1"
-    return _authenticated_npz(
+    returned: Dict[str, Float64[NDArray, "..."]] = _authenticated_npz(
         _SPECTRAL_INTENSITY_ARCHIVE_PATH,
         _SPECTRAL_INTENSITY_ARCHIVE_SHA256,
     )
+    return returned
 
 
 def _degenerate_gradient_witness() -> Dict[str, Any]:
-    """PRIVATE: Load and authenticate the two registered D4 witnesses.
+    """PRIVATE: Load and authenticate two Hamiltonian-gradient witnesses.
 
     Notes
     -----
     The JSON contains the frozen graphene and Kramers coordinates and their
     independently measured central finite-difference ladders.
     """
-    return _authenticated_json(
+    returned: Dict[str, Any] = _authenticated_json(
         _DEGENERATE_WITNESS_PATH,
         _DEGENERATE_WITNESS_SHA256,
     )
+    return returned
 
 
 class TestSpectralIntensityResolvent(chex.TestCase):
-    """Validate :func:`~diffpes.simul.spectral_intensity_resolvent`."""
+    """Validate :func:`~diffpes.simul.spectral_intensity_resolvent`.
+
+    The cases cover analytic poles, separate outgoing sources, complex
+    gradients, exact degeneracies, and invalid physical domains.
+    """
 
     def test_two_pole_closed_form_and_degenerate_limit(self) -> None:
-        """Match G4's frozen two-pole truth, including exact degeneracy.
+        """Match the frozen two-pole truth, including exact degeneracy.
 
         The test covers a full energy row and the coincident-pole limit.
 
@@ -2724,10 +2775,11 @@ class TestSpectralIntensityResolvent(chex.TestCase):
             matrix: Complex128[Array, "2 2"],
         ) -> Float64[Array, " n"]:
             """Vectorize one Hamiltonian over the frozen axis."""
-            return jax.vmap(
+            returned: Float64[Array, " n"] = jax.vmap(
                 spectral_intensity_resolvent,
                 in_axes=(None, None, 0, None, None),
             )(matrix, source, omega, sigma, eta)
+            return returned
 
         actual: Float64[Array, " n"] = jax.jit(row)(hamiltonian)
         actual_degenerate: Float64[Array, " n"] = jax.jit(row)(degenerate)
@@ -2753,7 +2805,7 @@ class TestSpectralIntensityResolvent(chex.TestCase):
         -----
         The two planted sources have a nonzero cross term. Coherently adding
         them before the solve therefore changes the answer and cannot satisfy
-        the registered Plan-06 handoff.
+        the registered matrix-element handoff.
         """
         hamiltonian: Complex128[Array, "2 2"] = jnp.asarray(
             [[-0.27, 0.09 + 0.04j], [0.09 - 0.04j, 0.31]]
@@ -2815,7 +2867,7 @@ class TestSpectralIntensityResolvent(chex.TestCase):
             )
 
     def test_generic_complex_adjoint_gradient(self) -> None:
-        """Match D5's independent two-solve adjoint derivative truth.
+        """Match independent two-solve adjoint derivative truth.
 
         The test differentiates a generic complex-Hermitian two-level problem.
 
@@ -2861,15 +2913,19 @@ class TestSpectralIntensityResolvent(chex.TestCase):
                         axes=1,
                     )
                 )
-                return spectral_intensity_resolvent(
+                returned: Float64[Array, ""] = spectral_intensity_resolvent(
                     candidate,
                     source,
                     omega,
                     sigma,
                     eta,
                 )
+                return returned
 
-            return jax.grad(intensity)(jnp.zeros(4, dtype=jnp.float64))
+            returned: Float64[Array, " 4"] = jax.grad(intensity)(
+                jnp.zeros(4, dtype=jnp.float64)
+            )
+            return returned
 
         actual: Float64[Array, "n 4"] = jax.jit(jax.vmap(gradient_at))(omegas)
         np.testing.assert_allclose(
@@ -2880,7 +2936,7 @@ class TestSpectralIntensityResolvent(chex.TestCase):
         )
 
     def test_graphene_exact_degeneracy_parameter_gradient(self) -> None:
-        """Match D4 for the one-bond coordinate at graphene K.
+        """Match the one-bond derivative at graphene K.
 
         The test differentiates through an exact orbital degeneracy.
 
@@ -2911,13 +2967,14 @@ class TestSpectralIntensityResolvent(chex.TestCase):
         ) -> Float64[Array, ""]:
             """Evaluate the registered one-bond resolvent path."""
             hamiltonian: Complex128[Array, "2 2"] = coordinate * bond_direction
-            return spectral_intensity_resolvent(
+            returned: Float64[Array, ""] = spectral_intensity_resolvent(
                 hamiltonian,
                 graphene_source,
                 jnp.asarray(graphene["intensity"]["omega_ev"]),
                 jnp.asarray(0.0j, dtype=jnp.complex128),
                 graphene["intensity"]["eta_ev"],
             )
+            return returned
 
         zero: Float64[Array, ""] = jnp.asarray(0.0)
         graphene_reverse: Float64[Array, ""] = jax.grad(graphene_intensity)(
@@ -2937,9 +2994,10 @@ class TestSpectralIntensityResolvent(chex.TestCase):
         )
 
     def test_kramers_exact_degeneracy_parameter_gradient(self) -> None:
-        """Match D4 for a crystal field at a Kramers-degenerate point.
+        """Match a crystal-field derivative at a Kramers-degenerate point.
 
-        The test differentiates a perturbation that preserves each Kramers pair.
+        The test differentiates a perturbation that preserves each Kramers
+        pair.
 
         Notes
         -----
@@ -2947,8 +3005,6 @@ class TestSpectralIntensityResolvent(chex.TestCase):
         and forward resolvent AD match the finest independently frozen
         central finite-difference rung.
         """
-        from tests._factories import make_t2g_soc_model
-
         witness: Dict[str, Any] = _degenerate_gradient_witness()
         kramers: Dict[str, Any] = witness["t2g_soc_kramers_witness"]
         kramers_model: Any = make_t2g_soc_model(coupling=0.4)
@@ -2970,13 +3026,14 @@ class TestSpectralIntensityResolvent(chex.TestCase):
             coordinate: Float64[Array, ""],
         ) -> Float64[Array, ""]:
             """Evaluate the registered Kramers resolvent path."""
-            return spectral_intensity_resolvent(
+            returned: Float64[Array, ""] = spectral_intensity_resolvent(
                 kramers_hamiltonian + coordinate * field_direction,
                 kramers_source,
                 jnp.asarray(kramers["intensity"]["omega_ev"]),
                 jnp.asarray(0.0j, dtype=jnp.complex128),
                 kramers["intensity"]["gamma_ev"],
             )
+            return returned
 
         zero: Float64[Array, ""] = jnp.asarray(0.0)
         kramers_reverse: Float64[Array, ""] = jax.grad(kramers_intensity)(zero)
@@ -2996,7 +3053,8 @@ class TestSpectralIntensityResolvent(chex.TestCase):
     def test_invalid_physical_domains_reject_eager_and_jit(self) -> None:
         """Reject non-Hermitian H, advanced self-energy, and nonpositive eta.
 
-        The test exercises the same physical-domain predicates eagerly and in JIT.
+        The test exercises the same physical-domain predicates eagerly and in
+        JIT.
 
         Notes
         -----
@@ -3044,7 +3102,11 @@ class TestSpectralIntensityResolvent(chex.TestCase):
 
 
 class TestProjectedSpectralDensityResolvent(chex.TestCase):
-    """Validate :func:`~diffpes.simul.projected_spectral_density_resolvent`."""
+    """Validate :func:`~diffpes.simul.projected_spectral_density_resolvent`.
+
+    The cases compare the matrix density with an independent inverse and its
+    parameter gradient with a central finite difference.
+    """
 
     def test_matrix_spectral_density_matches_independent_inverse(self) -> None:
         """Match the full Hermitian density and preserve its coherences.
@@ -3073,13 +3135,16 @@ class TestProjectedSpectralDensityResolvent(chex.TestCase):
 
         def production(omega: Float64[Array, ""]) -> Complex128[Array, "3 3"]:
             """Evaluate one projected production density."""
-            return projected_spectral_density_resolvent(
-                hamiltonian,
-                transition,
-                omega,
-                sigma,
-                eta,
+            returned: Complex128[Array, "3 3"] = (
+                projected_spectral_density_resolvent(
+                    hamiltonian,
+                    transition,
+                    omega,
+                    sigma,
+                    eta,
+                )
             )
+            return returned
 
         def truth(omega: Float64[Array, ""]) -> Complex128[Array, "3 3"]:
             """Compute the density through an explicit dense inverse."""
@@ -3092,7 +3157,10 @@ class TestProjectedSpectralDensityResolvent(chex.TestCase):
             spectral: Complex128[Array, "2 2"] = -(green - green.conj().T) / (
                 2.0j * jnp.pi
             )
-            return transition @ spectral @ transition.conj().T
+            returned: Complex128[Array, "3 3"] = (
+                transition @ spectral @ transition.conj().T
+            )
+            return returned
 
         actual: Complex128[Array, "3 3 3"] = jax.jit(jax.vmap(production))(
             omegas
@@ -3146,7 +3214,10 @@ class TestProjectedSpectralDensityResolvent(chex.TestCase):
                     1.0e-4,
                 )
             )
-            return jnp.real(density[0, 0] + 0.3j * density[0, 1])
+            returned: Float64[Array, ""] = jnp.real(
+                density[0, 0] + 0.3j * density[0, 1]
+            )
+            return returned
 
         zero: Float64[Array, ""] = jnp.asarray(0.0)
         reverse: Float64[Array, ""] = jax.grad(loss)(zero)
@@ -3164,10 +3235,14 @@ class TestProjectedSpectralDensityResolvent(chex.TestCase):
 
 
 class TestSpectralIntensityEigen(chex.TestCase):
-    """Validate :func:`~diffpes.simul.spectral_intensity_eigen`."""
+    """Validate :func:`~diffpes.simul.spectral_intensity_eigen`.
+
+    The cases compare eigenstate and resolvent results away from degeneracy,
+    then check regulator limits, gradients, and domain rejection.
+    """
 
     def test_generic_hermitian_resolvent_equivalence(self) -> None:
-        """Match G4b/G6 values on the frozen complex-Hermitian fixture.
+        """Match reference values on the frozen complex-Hermitian fixture.
 
         The two public representations consume independently prepared inputs.
 
@@ -3205,7 +3280,7 @@ class TestSpectralIntensityEigen(chex.TestCase):
         )
 
     def test_eta_regulator_ladder(self) -> None:
-        """Match every G5b regulator rung and its frozen convergence rows.
+        """Match every regulator rung and its frozen convergence rows.
 
         The test checks values and convergence against the independent archive.
 
@@ -3231,10 +3306,11 @@ class TestSpectralIntensityEigen(chex.TestCase):
 
         def row(eta: Float64[Array, ""]) -> Float64[Array, " n"]:
             """Evaluate one regulator rung over all energies."""
-            return jax.vmap(
+            returned: Float64[Array, " n"] = jax.vmap(
                 spectral_intensity_eigen,
                 in_axes=(None, None, 0, None, None),
             )(eigenvalue, weight, omega, sigma, eta)
+            return returned
 
         actual: Float64[Array, "rung n"] = jax.jit(jax.vmap(row))(
             jnp.asarray(reference["eta_ladder_etas"])
@@ -3254,7 +3330,7 @@ class TestSpectralIntensityEigen(chex.TestCase):
         )
 
     def test_off_degenerate_value_and_gradient_equivalence(self) -> None:
-        """Match G6 resolvent and eigen values and hopping gradients.
+        """Match resolvent and eigen values and hopping gradients.
 
         The fixture remains safely above the differentiated eigen gap floor.
 
@@ -3283,7 +3359,7 @@ class TestSpectralIntensityEigen(chex.TestCase):
             weights: Float64[Array, " 2"] = (
                 jnp.abs(eigenvectors.conj().T @ source) ** 2
             )
-            return jnp.stack(
+            returned: Float64[Array, " 2"] = jnp.stack(
                 [
                     spectral_intensity_resolvent(
                         hamiltonian, source[None, :], omega, sigma, eta
@@ -3293,6 +3369,7 @@ class TestSpectralIntensityEigen(chex.TestCase):
                     ),
                 ]
             )
+            return returned
 
         hopping: Float64[Array, ""] = jnp.asarray(0.08)
         values: Float64[Array, " 2"] = jax.jit(pair)(hopping)
@@ -3337,7 +3414,8 @@ class TestSpectralIntensityEigen(chex.TestCase):
 
         Notes
         -----
-        The registered G6 domain includes its exact lower boundary. Exact and
+        The registered comparison domain includes its exact lower boundary.
+        Exact and
         sub-floor pairs reject by default. A degenerate primal requires the
         explicit value-only policy and emits no derivative evidence.
         """
@@ -3362,7 +3440,7 @@ class TestSpectralIntensityEigen(chex.TestCase):
             )
 
         boundary: Float64[Array, " 2"] = jnp.asarray([0.0, gap_floor])
-        accepted: Float64[Array, ""] = jax.jit(spectral_intensity_eigen)(
+        accepted: Bool[Array, ""] = jax.jit(spectral_intensity_eigen)(
             boundary,
             weights,
             omega,
@@ -3383,7 +3461,11 @@ class TestSpectralIntensityEigen(chex.TestCase):
 
 
 class TestAssembleSpectralIntensityChunk(chex.TestCase):
-    """Validate :func:`~diffpes.simul.assemble_spectral_intensity_chunk`."""
+    """Validate :func:`~diffpes.simul.assemble_spectral_intensity_chunk`.
+
+    The cases check analytic composition, one Fermi shift, source validation,
+    vectorization, and gradients through the self-energy and resolvent.
+    """
 
     @staticmethod
     def _fixture() -> Tuple[
@@ -3427,7 +3509,14 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
             source_base[:, None, :, :] * scales[None, :, None, None]
         )
         model: SelfEnergyModel = make_self_energy_model(gamma=0.04)
-        return hamiltonians, sources, omega, model, fermi_energy
+        returned: Tuple[
+            Complex128[Array, "2 2 2"],
+            Complex128[Array, "2 5 2 2"],
+            Float64[Array, " 5"],
+            SelfEnergyModel,
+            Float64[Array, ""],
+        ] = hamiltonians, sources, omega, model, fermi_energy
+        return returned
 
     def test_analytic_composition_and_single_fermi_shift(self) -> None:
         """Match a dense NumPy-style composition and one energy shift.
@@ -3488,7 +3577,8 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
             occupation: Float64[Array, ""] = jax.nn.sigmoid(
                 -sampled / (KB_EV_PER_K * temperature)
             )
-            return spectral * occupation
+            returned: Float64[Array, ""] = spectral * occupation
+            return returned
 
         expected: Float64[Array, "2 5"] = jax.vmap(
             lambda hamiltonian, source_row: jax.vmap(
@@ -3524,7 +3614,8 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
 
         Notes
         -----
-        A Python guard rejects the zero-length axis before tracing a batched solve.
+        A Python guard rejects the zero-length axis before tracing a batched
+        solve.
         """
         hamiltonians: Complex128[Array, "2 2 2"]
         omega: Float64[Array, " 5"]
@@ -3542,7 +3633,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
             )
 
     def test_temperature_eta_gradients_and_vmap(self) -> None:
-        """Match D3 gradients to FD and vmap the complete public assembly.
+        """Match complete-assembly gradients to finite differences and vmap.
 
         Temperature and regulator derivatives traverse the full composition.
 
@@ -3563,7 +3654,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
             temperature: Float64[Array, ""],
         ) -> Float64[Array, ""]:
             """Sum the assembly at one traced temperature."""
-            return jnp.sum(
+            returned: Float64[Array, ""] = jnp.sum(
                 assemble_spectral_intensity_chunk(
                     hamiltonians,
                     sources,
@@ -3574,6 +3665,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
                     0.01,
                 )
             )
+            return returned
 
         temperature: Float64[Array, ""] = jnp.asarray(15.0)
         temperature_step: float = 2.0**-12
@@ -3594,7 +3686,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
 
         def loss_eta(eta: Float64[Array, ""]) -> Float64[Array, ""]:
             """Sum the assembly at one traced regulator."""
-            return jnp.sum(
+            returned: Float64[Array, ""] = jnp.sum(
                 assemble_spectral_intensity_chunk(
                     hamiltonians,
                     sources,
@@ -3605,6 +3697,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
                     eta,
                 )
             )
+            return returned
 
         eta: Float64[Array, ""] = jnp.asarray(0.01)
         eta_step: float = 2.0**-16
@@ -3638,7 +3731,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_poly_coefficient_gradient_through_kk_and_resolvent(self) -> None:
-        """Match D2 through a poly KK map and the complete intensity solve.
+        """Match self-energy gradients through a polynomial KK map.
 
         The test differentiates raw self-energy coordinates through all layers.
 
@@ -3666,7 +3759,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
                 subtraction_point_rel_fermi_ev=0.0,
                 tail_mode="power2",
             )
-            return jnp.sum(
+            returned: Float64[Array, ""] = jnp.sum(
                 assemble_spectral_intensity_chunk(
                     hamiltonians,
                     source_subset,
@@ -3677,6 +3770,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
                     1.0e-3,
                 )
             )
+            return returned
 
         gradient: Float64[Array, " 3"] = jax.grad(loss)(base)
         assert bool(jnp.all(jnp.isfinite(gradient)))
@@ -3695,12 +3789,18 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
 
 
 class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
-    """Validate :func:`~diffpes.simul.assemble_spectral_intensity_bands_chunk`."""
+    """Validate chunked spectral-intensity assembly.
+
+    The class covers sampled-energy occupation, gradients, and batching.
+
+    :see: :func:`~diffpes.simul.assemble_spectral_intensity_bands_chunk`
+    """
 
     def test_sampled_omega_fermi_counterexample(self) -> None:
         """Match the frozen sampled-energy occupation witness.
 
-        The counterexample distinguishes sampled omega from band-energy Fermi use.
+        The counterexample distinguishes sampled omega from band-energy Fermi
+        use.
 
         Notes
         -----
@@ -3808,7 +3908,8 @@ class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
 
         Notes
         -----
-        Both the default jitted call and the explicit value-only success path run.
+        Both the default jitted call and the explicit value-only success path
+        run.
         """
         eigenvalues: Float64[Array, "1 2"] = jnp.zeros((1, 2))
         weights: Float64[Array, "1 1 2"] = jnp.asarray([[[0.7, 0.4]]])
@@ -3842,7 +3943,7 @@ class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
         assert bool(jnp.all(jnp.isfinite(value_only)))
 
     def test_frozen_chinook_spectral_comparison(self) -> None:
-        """Match G7's frozen Chinook cube after its rounded-kB convention.
+        """Match the frozen Chinook cube after its rounded-kB convention.
 
         The full imported k-energy cube exercises the value-only Dirac row.
 
@@ -3944,15 +4045,18 @@ class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
             candidate: Float64[Array, "2 3 2"],
         ) -> Float64[Array, "2 3"]:
             """Assemble one member of a weight-field batch."""
-            return assemble_spectral_intensity_bands_chunk(
-                eigenvalues,
-                candidate,
-                omega,
-                model,
-                jnp.asarray(0.0),
-                25.0,
-                1.0e-3,
+            returned: Float64[Array, "2 3"] = (
+                assemble_spectral_intensity_bands_chunk(
+                    eigenvalues,
+                    candidate,
+                    omega,
+                    model,
+                    jnp.asarray(0.0),
+                    25.0,
+                    1.0e-3,
+                )
             )
+            return returned
 
         batched_weights: Float64[Array, "2 2 3 2"] = jnp.stack(
             [weights, 1.2 * weights]
@@ -3970,15 +4074,19 @@ class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
 
 
 class TestStreamSpectralIntensity(chex.TestCase):
-    """Validate the private padded WP7.6 spectral scan owner."""
+    """Validate the private padded spectral scan owner.
+
+    The cases compare checkpointed values and gradients, count traces, apply
+    block masks, and reject invalid active final momenta.
+    """
 
     @staticmethod
     def _fixture() -> Tuple[
         Complex128[Array, "4 2 2"],
-        Any,
+        TransitionSourceSchedule,
         Float64[Array, " 8"],
-        Array,
-        Array,
+        Bool[Array, " 4"],
+        Bool[Array, " 8"],
         SelfEnergyModel,
     ]:
         """PRIVATE: Return one padded two-by-two chunk schedule.
@@ -3987,8 +4095,6 @@ class TestStreamSpectralIntensity(chex.TestCase):
         -----
         Masks exclude the final k row and final two omega columns as padding.
         """
-        import diffpes.simul.spectral as spectral
-
         base: Complex128[Array, "2 2"] = jnp.asarray(
             [[-0.2, 0.07 + 0.03j], [0.07 - 0.03j, 0.1]]
         )
@@ -4023,7 +4129,7 @@ class TestStreamSpectralIntensity(chex.TestCase):
         final_norm: Float64[Array, " 8"] = 1.1 + 0.02 * jnp.arange(
             8, dtype=jnp.float64
         )
-        schedule: Any = spectral._TransitionSourceSchedule(
+        schedule: TransitionSourceSchedule = make_transition_source_schedule(
             k_i_cart=k_i,
             final_norm=final_norm,
             emission_energy_valid=jnp.ones(8, dtype=jnp.bool_),
@@ -4038,11 +4144,18 @@ class TestStreamSpectralIntensity(chex.TestCase):
             quadrature=make_radial_quadrature_spec(),
             final_state=make_final_state_spec(),
         )
-        k_valid: Array = jnp.asarray([True, True, True, False])
-        omega_valid: Array = jnp.asarray(
+        k_valid: Bool[Array, "4"] = jnp.asarray([True, True, True, False])
+        omega_valid: Bool[Array, "8"] = jnp.asarray(
             [True, True, True, True, True, True, False, False]
         )
-        return (
+        returned: Tuple[
+            Complex128[Array, "4 2 2"],
+            TransitionSourceSchedule,
+            Float64[Array, " 8"],
+            Bool[Array, " 4"],
+            Bool[Array, " 8"],
+            SelfEnergyModel,
+        ] = (
             hamiltonians,
             schedule,
             omega,
@@ -4050,28 +4163,28 @@ class TestStreamSpectralIntensity(chex.TestCase):
             omega_valid,
             make_self_energy_model(gamma=0.04),
         )
+        return returned
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_checkpointed_values_and_gradients_match_uncheckpointed(
         self,
     ) -> None:
-        """Match S1 rematerialized values and gradients to the direct scan.
+        """Match rematerialized values and gradients to the direct scan.
 
-        The comparison exercises one padded schedule with and without checkpoints.
+        The comparison exercises one padded schedule with and without
+        checkpoints.
 
         Notes
         -----
         The comparison is at rtol ``1e-12`` and verifies that masked padding
         contributes an exact zero gradient.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonians: Complex128[Array, "4 2 2"]
-        schedule: Any
+        schedule: TransitionSourceSchedule
         omega: Float64[Array, " 8"]
-        k_valid: Array
-        omega_valid: Array
+        k_valid: Bool[Array, "..."]
+        omega_valid: Bool[Array, "..."]
         model: SelfEnergyModel
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
@@ -4082,20 +4195,23 @@ class TestStreamSpectralIntensity(chex.TestCase):
             checkpoint: bool,
         ) -> Float64[Array, "4 8"]:
             """Run one static stream schedule."""
-            return spectral._stream_spectral_intensity(
-                candidate,
-                omega,
-                k_valid,
-                omega_valid,
-                schedule,
-                model,
-                jnp.asarray(0.03),
-                20.0,
-                1.0e-4,
-                k_chunk=2,
-                omega_chunk=4,
-                checkpoint=checkpoint,
+            returned: Float64[Array, "4 8"] = (
+                spectral._stream_spectral_intensity(
+                    candidate,
+                    omega,
+                    k_valid,
+                    omega_valid,
+                    schedule,
+                    model,
+                    jnp.asarray(0.03),
+                    20.0,
+                    1.0e-4,
+                    k_chunk=2,
+                    omega_chunk=4,
+                    checkpoint=checkpoint,
+                )
             )
+            return returned
 
         checkpointed: Float64[Array, "4 8"] = streamed(hamiltonians, True)
         direct: Float64[Array, "4 8"] = streamed(hamiltonians, False)
@@ -4122,7 +4238,7 @@ class TestStreamSpectralIntensity(chex.TestCase):
         assert bool(jnp.all(checkpointed_gradient[-1] == 0.0))
 
     def test_one_trace_for_one_padded_schedule(self) -> None:
-        """Require one S2 trace across different masks of the same shapes.
+        """Require one trace across different masks of the same shapes.
 
         The test varies active extents while retaining all compiled dimensions.
 
@@ -4131,45 +4247,48 @@ class TestStreamSpectralIntensity(chex.TestCase):
         A Python counter runs only while JAX traces the wrapper. Changing
         validity masks cannot retrace a fixed padded chunk schedule.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonians: Complex128[Array, "4 2 2"]
-        schedule: Any
+        schedule: TransitionSourceSchedule
         omega: Float64[Array, " 8"]
-        k_valid: Array
-        omega_valid: Array
+        k_valid: Bool[Array, "..."]
+        omega_valid: Bool[Array, "..."]
         model: SelfEnergyModel
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
         )
-        trace_count: list[int] = [0]
+        trace_count: List[int] = [0]
 
         def scheduled(
             matrices: Complex128[Array, "4 2 2"],
             energies: Float64[Array, " 8"],
-            valid_k: Array,
-            valid_omega: Array,
+            valid_k: Float64[Array, "..."],
+            valid_omega: Float64[Array, "..."],
         ) -> Float64[Array, "4 8"]:
             """Record traces of one fixed stream schedule."""
             trace_count[0] += 1
-            return spectral._stream_spectral_intensity(
-                matrices,
-                energies,
-                valid_k,
-                valid_omega,
-                schedule,
-                model,
-                jnp.asarray(0.03),
-                20.0,
-                1.0e-4,
-                k_chunk=2,
-                omega_chunk=4,
-                checkpoint=True,
+            returned: Float64[Array, "4 8"] = (
+                spectral._stream_spectral_intensity(
+                    matrices,
+                    energies,
+                    valid_k,
+                    valid_omega,
+                    schedule,
+                    model,
+                    jnp.asarray(0.03),
+                    20.0,
+                    1.0e-4,
+                    k_chunk=2,
+                    omega_chunk=4,
+                    checkpoint=True,
+                )
             )
+            return returned
 
-        compiled: Callable[..., Array] = jax.jit(scheduled)
-        first: Array = compiled(hamiltonians, omega, k_valid, omega_valid)
-        second: Array = compiled(
+        compiled: Callable[..., Float64[Array, "..."]] = jax.jit(scheduled)
+        first: Float64[Array, "..."] = compiled(
+            hamiltonians, omega, k_valid, omega_valid
+        )
+        second: Float64[Array, "..."] = compiled(
             hamiltonians,
             omega,
             jnp.asarray([True, True, False, False]),
@@ -4190,13 +4309,11 @@ class TestStreamSpectralIntensity(chex.TestCase):
         locally. It returns exact zeros for the physical column and both
         complete gradients.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonians: Complex128[Array, "4 2 2"]
-        schedule: Any
+        schedule: TransitionSourceSchedule
         omega: Float64[Array, " 8"]
-        k_valid: Array
-        omega_valid: Array
+        k_valid: Bool[Array, "..."]
+        omega_valid: Bool[Array, "..."]
         model: SelfEnergyModel
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
@@ -4205,7 +4322,7 @@ class TestStreamSpectralIntensity(chex.TestCase):
         planted_norms: Float64[Array, " 8"] = schedule.final_norm.at[
             aperture_column
         ].set(0.05)
-        planted_schedule: Any = eqx.tree_at(
+        planted_schedule: TransitionSourceSchedule = eqx.tree_at(
             lambda item: item.final_norm,
             schedule,
             planted_norms,
@@ -4225,25 +4342,28 @@ class TestStreamSpectralIntensity(chex.TestCase):
             candidate_norms: Float64[Array, " 8"],
         ) -> Float64[Array, "4 8"]:
             """Evaluate one compact schedule with dynamic final norms."""
-            candidate_schedule: Any = eqx.tree_at(
+            candidate_schedule: TransitionSourceSchedule = eqx.tree_at(
                 lambda item: item.final_norm,
                 planted_schedule,
                 candidate_norms,
             )
-            return spectral._stream_spectral_intensity(
-                candidate_hamiltonians,
-                omega,
-                k_valid,
-                omega_valid,
-                candidate_schedule,
-                model,
-                jnp.asarray(0.03),
-                20.0,
-                1.0e-4,
-                k_chunk=2,
-                omega_chunk=4,
-                checkpoint=True,
+            returned: Float64[Array, "4 8"] = (
+                spectral._stream_spectral_intensity(
+                    candidate_hamiltonians,
+                    omega,
+                    k_valid,
+                    omega_valid,
+                    candidate_schedule,
+                    model,
+                    jnp.asarray(0.03),
+                    20.0,
+                    1.0e-4,
+                    k_chunk=2,
+                    omega_chunk=4,
+                    checkpoint=True,
+                )
             )
+            return returned
 
         values: Float64[Array, "4 8"] = streamed(hamiltonians, planted_norms)
 
@@ -4252,11 +4372,12 @@ class TestStreamSpectralIntensity(chex.TestCase):
             candidate_norms: Float64[Array, " 8"],
         ) -> Float64[Array, ""]:
             """Reduce only the planted outside-aperture column."""
-            return jnp.sum(
+            returned: Float64[Array, ""] = jnp.sum(
                 streamed(candidate_hamiltonians, candidate_norms)[
                     :, aperture_column
                 ]
             )
+            return returned
 
         hamiltonian_gradient: Complex128[Array, "4 2 2"]
         norm_gradient: Float64[Array, " 8"]
@@ -4287,13 +4408,11 @@ class TestStreamSpectralIntensity(chex.TestCase):
         physical-energy mask is false. Validation rejects nonfinite, negative,
         and active-zero magnitudes instead of treating them as absent emission.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonians: Complex128[Array, "4 2 2"]
-        schedule: Any
+        schedule: TransitionSourceSchedule
         omega: Float64[Array, " 8"]
-        k_valid: Array
-        omega_valid: Array
+        k_valid: Bool[Array, "..."]
+        omega_valid: Bool[Array, "..."]
         model: SelfEnergyModel
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
@@ -4303,25 +4422,28 @@ class TestStreamSpectralIntensity(chex.TestCase):
             candidate_norms: Float64[Array, " 8"],
         ) -> Float64[Array, "4 8"]:
             """Evaluate one schedule with candidate final magnitudes."""
-            candidate_schedule: Any = eqx.tree_at(
+            candidate_schedule: TransitionSourceSchedule = eqx.tree_at(
                 lambda item: item.final_norm,
                 schedule,
                 candidate_norms,
             )
-            return spectral._stream_spectral_intensity(
-                hamiltonians,
-                omega,
-                k_valid,
-                omega_valid,
-                candidate_schedule,
-                model,
-                jnp.asarray(0.03),
-                20.0,
-                1.0e-4,
-                k_chunk=2,
-                omega_chunk=4,
-                checkpoint=True,
+            returned: Float64[Array, "4 8"] = (
+                spectral._stream_spectral_intensity(
+                    hamiltonians,
+                    omega,
+                    k_valid,
+                    omega_valid,
+                    candidate_schedule,
+                    model,
+                    jnp.asarray(0.03),
+                    20.0,
+                    1.0e-4,
+                    k_chunk=2,
+                    omega_chunk=4,
+                    checkpoint=True,
+                )
             )
+            return returned
 
         planted_norms: Float64[Array, " 8"] = schedule.final_norm.at[0].set(
             invalid_norm

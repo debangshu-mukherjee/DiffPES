@@ -4,14 +4,14 @@ The battery isolates plausible defects while every unrelated seam stays fixed.
 """
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Dict, Tuple
-from jaxtyping import Float64
+from jaxtyping import Array, Float64
+from numpy.typing import NDArray
 from scipy import ndimage, special
 
-from diffpes.simul.effects import (
+from diffpes.simul import (
     apply_detector_effects,
     convolve_energy,
     convolve_kpath,
@@ -33,55 +33,55 @@ _FRAME_ID: str = "org.diffpes.frame.sample_cartesian"
 
 
 def _normal_second_antiderivative(
-    displacement: Float64[np.ndarray, "..."], sigma: float
-) -> Float64[np.ndarray, "..."]:
+    displacement: Float64[NDArray, "..."], sigma: float
+) -> Float64[NDArray, "..."]:
     """PRIVATE: Evaluate an independent Gaussian second antiderivative.
 
     Parameters
     ----------
-    displacement : Float64[np.ndarray, "..."]
+    displacement : Float64[NDArray, "..."]
         Gaussian displacement coordinates.
     sigma : float
         Positive Gaussian standard deviation.
 
     Returns
     -------
-    result : Float64[np.ndarray, "..."]
+    result : Float64[NDArray, "..."]
         Evaluated second antiderivative.
     """
-    scaled: Float64[np.ndarray, "..."] = displacement / sigma
-    result: Float64[np.ndarray, "..."] = displacement * special.ndtr(
+    scaled: Float64[NDArray, "..."] = displacement / sigma
+    result: Float64[NDArray, "..."] = displacement * special.ndtr(
         scaled
     ) + sigma * np.exp(-0.5 * scaled**2) / np.sqrt(2.0 * np.pi)
     return result
 
 
 def _finite_volume_matrix(
-    edges: Float64[np.ndarray, " n_plus_one"], sigma: float
-) -> Float64[np.ndarray, "n n"]:
+    edges: Float64[NDArray, " n_plus_one"], sigma: float
+) -> Float64[NDArray, "n n"]:
     """PRIVATE: Build the analytic common-edge finite-volume Gaussian matrix.
 
     Parameters
     ----------
-    edges : Float64[np.ndarray, " n_plus_one"]
+    edges : Float64[NDArray, " n_plus_one"]
         Strictly increasing common cell edges.
     sigma : float
         Positive Gaussian standard deviation.
 
     Returns
     -------
-    matrix : Float64[np.ndarray, "n n"]
+    matrix : Float64[NDArray, "n n"]
         Analytic source-to-target finite-volume matrix.
     """
-    left: Float64[np.ndarray, " n"] = edges[:-1]
-    right: Float64[np.ndarray, " n"] = edges[1:]
-    integrated: Float64[np.ndarray, "n n"] = (
+    left: Float64[NDArray, " n"] = edges[:-1]
+    right: Float64[NDArray, " n"] = edges[1:]
+    integrated: Float64[NDArray, "n n"] = (
         _normal_second_antiderivative(right[:, None] - left[None, :], sigma)
         - _normal_second_antiderivative(left[:, None] - left[None, :], sigma)
         - _normal_second_antiderivative(right[:, None] - right[None, :], sigma)
         + _normal_second_antiderivative(left[:, None] - right[None, :], sigma)
     )
-    matrix: Float64[np.ndarray, "n n"] = (
+    matrix: Float64[NDArray, "n n"] = (
         np.maximum(integrated, 0.0) / np.diff(edges)[:, None]
     )
     return matrix
@@ -100,10 +100,10 @@ def _compact_detector_fixture() -> Tuple[
     fixture : Tuple
         Source, geometry, calibration, and detector effects.
     """
-    kx: jax.Array = jnp.array([-0.5, 0.0, 0.5])
-    ky: jax.Array = jnp.array([-0.45, 0.05, 0.55])
-    energy: jax.Array = jnp.array([-0.4, 0.0, 0.4])
-    intensity: jax.Array = (
+    kx: Float64[Array, "3"] = jnp.array([-0.5, 0.0, 0.5])
+    ky: Float64[Array, "3"] = jnp.array([-0.45, 0.05, 0.55])
+    energy: Float64[Array, "3"] = jnp.array([-0.4, 0.0, 0.4])
+    intensity: Float64[Array, "..."] = (
         2.0
         + 0.35 * kx[:, None, None]
         + 0.22 * ky[None, :, None]
@@ -138,11 +138,21 @@ def _compact_detector_fixture() -> Tuple[
         sensitivity_mode="smooth",
         domain_frame_ids=(_FRAME_ID,),
     )
-    return source, geometry, calibration, effects
+    returned: Tuple[
+        ArpesCube,
+        ExperimentGeometry,
+        DetectorCalibration,
+        DetectorEffects,
+    ] = source, geometry, calibration, effects
+    return returned
 
 
 class TestExplicitTargetCounterexample:
-    """Reject target inference from a source carrier."""
+    """Reject target inference from a source carrier.
+
+    The case applies two detector calibrations to one source and requires two
+    explicitly declared target maps.
+    """
 
     def test_two_calibrations_require_two_declared_target_maps(self) -> None:
         """Reject a planted mapper that silently reuses source-inferred bins.
@@ -166,13 +176,13 @@ class TestExplicitTargetCounterexample:
             psf_fwhm_energy_ev=0.02,
             transmission_reference_domain_ev=jnp.array([40.0, 55.0]),
         )
-        first_density: jax.Array = map_source_to_detector(
+        first_density: Float64[Array, "..."] = map_source_to_detector(
             source, geometry, first
         )[0]
-        second_density: jax.Array = map_source_to_detector(
+        second_density: Float64[Array, "..."] = map_source_to_detector(
             source, geometry, second
         )[0]
-        planted_inferred_target: jax.Array = first_density
+        planted_inferred_target: Float64[Array, "..."] = first_density
 
         assert first_density.shape == second_density.shape
         assert not np.allclose(
@@ -184,7 +194,11 @@ class TestExplicitTargetCounterexample:
 
 
 class TestFinitePathBoundaryCounterexamples:
-    """Reject nonphysical alternatives to finite-path loss semantics."""
+    """Reject nonphysical alternatives to finite-path loss semantics.
+
+    The case compares a boundary signal with planted path-length variants and
+    requires every nonphysical variant to differ from the reference.
+    """
 
     def test_boundary_signal_exposes_every_planted_path_variant(self) -> None:
         """Reject row-normalized, extended, and sampled nonuniform kernels.
@@ -193,41 +207,40 @@ class TestFinitePathBoundaryCounterexamples:
 
         Notes
         -----
-        Compare each planted construction with the analytic finite-volume result.
+        Compare each planted construction with the analytic finite-volume
+        result.
         """
-        centres: Float64[np.ndarray, " k"] = np.array(
+        centres: Float64[NDArray, " k"] = np.array(
             [-0.9, -0.35, -0.05, 0.5, 1.2]
         )
-        density: Float64[np.ndarray, "k e"] = np.array(
+        density: Float64[NDArray, "k e"] = np.array(
             [[1.7, 0.3], [0.2, 1.2], [0.8, 0.4], [0.1, 0.9], [1.3, 0.2]]
         )
         sigma: float = 0.28
-        interior: Float64[np.ndarray, " k_minus_one"] = 0.5 * (
+        interior: Float64[NDArray, " k_minus_one"] = 0.5 * (
             centres[:-1] + centres[1:]
         )
-        edges: Float64[np.ndarray, " k_plus_one"] = np.concatenate(
+        edges: Float64[NDArray, " k_plus_one"] = np.concatenate(
             (
                 [centres[0] - 0.5 * (centres[1] - centres[0])],
                 interior,
                 [centres[-1] + 0.5 * (centres[-1] - centres[-2])],
             )
         )
-        matrix: Float64[np.ndarray, "k k"] = _finite_volume_matrix(
-            edges, sigma
-        )
-        truth: jax.Array
-        captured: jax.Array
+        matrix: Float64[NDArray, "k k"] = _finite_volume_matrix(edges, sigma)
+        truth: Float64[Array, "..."]
+        captured: Float64[Array, "..."]
         truth, captured, _ = convolve_kpath(
             jnp.asarray(density), jnp.asarray(centres), sigma
         )
         mean_spacing: float = float(np.mean(np.diff(centres)))
-        gaussian_samples: Float64[np.ndarray, "target source"] = np.exp(
+        gaussian_samples: Float64[NDArray, "target source"] = np.exp(
             -0.5 * ((centres[:, None] - centres[None, :]) / sigma) ** 2
         ) / (sigma * np.sqrt(2.0 * np.pi))
-        midpoint: Float64[np.ndarray, "k e"] = gaussian_samples @ (
+        midpoint: Float64[NDArray, "k e"] = gaussian_samples @ (
             density * np.diff(edges)[:, None]
         )
-        trapezoid: Float64[np.ndarray, "k e"] = np.stack(
+        trapezoid: Float64[NDArray, "k e"] = np.stack(
             [
                 np.stack(
                     [
@@ -241,7 +254,7 @@ class TestFinitePathBoundaryCounterexamples:
                 for target in range(centres.size)
             ]
         )
-        variants: Dict[str, Float64[np.ndarray, "k e"]] = {
+        variants: Dict[str, Float64[NDArray, "k e"]] = {
             "row_normalized": (
                 matrix / np.sum(matrix, axis=1, keepdims=True) @ density
             ),
@@ -272,7 +285,7 @@ class TestFinitePathBoundaryCounterexamples:
 
         assert 0.0 < float(captured) < 1.0
         name: str
-        planted: Float64[np.ndarray, "k e"]
+        planted: Float64[NDArray, "k e"]
         for name, planted in variants.items():
             assert not np.allclose(
                 planted, truth, rtol=1.0e-11, atol=1.0e-13
@@ -280,10 +293,14 @@ class TestFinitePathBoundaryCounterexamples:
 
 
 class TestManufacturedSeamCounterexamples:
-    """Verify perturbations of complete detector-chain seams one at a time."""
+    """Verify perturbations of complete detector-chain seams one at a time.
+
+    The case changes each remaining effects seam separately and requires a
+    corresponding change in the expected counts.
+    """
 
     def test_each_remaining_effect_seam_changes_expected_counts(self) -> None:
-        """Expose map, transmission, PSF, background, sensitivity, and exposure.
+        """Expose every detector-response component.
 
         The test perturbs each seam while every other seam stays fixed.
 
@@ -331,7 +348,7 @@ class TestManufacturedSeamCounterexamples:
             calibration,
             calibration.psf_fwhm_u * 1.4,
         )
-        planted_counts: Dict[str, jax.Array] = {
+        planted_counts: Dict[str, Float64[Array, "..."]] = {
             name: apply_detector_effects(
                 (source,), geometry, calibration, candidate
             ).expected_counts
@@ -342,7 +359,7 @@ class TestManufacturedSeamCounterexamples:
         ).expected_counts
 
         name: str
-        planted: jax.Array
+        planted: Float64[Array, "..."]
         for name, planted in planted_counts.items():
             assert not np.allclose(
                 planted,
@@ -353,7 +370,11 @@ class TestManufacturedSeamCounterexamples:
 
 
 class TestNumericalParityIsNotFiniteVolumeTruth:
-    """Verify sampled numerical parity cannot certify bin-integrated physics."""
+    """Show sampled parity cannot certify bin-integrated physics.
+
+    The case constructs an operator that matches SciPy at sample points but
+    disagrees with an independent integral on coarse detector bins.
+    """
 
     def test_one_sampled_operator_passes_scipy_but_fails_coarse_truth(
         self,
@@ -366,18 +387,22 @@ class TestNumericalParityIsNotFiniteVolumeTruth:
         -----
         Match SciPy first, then require disagreement with analytic integration.
         """
-        centres: jax.Array = jnp.array([0.0, 1.0])
-        density: jax.Array = jnp.ones((2, 1))
+        centres: Float64[Array, "2"] = jnp.array([0.0, 1.0])
+        density: Float64[Array, "2 1"] = jnp.ones((2, 1))
         sigma: float = 0.01
-        sampled: jax.Array = convolve_energy(density.T, centres, sigma).T
-        scipy_sampled: Float64[np.ndarray, "k e"] = ndimage.gaussian_filter1d(
+        sampled: Float64[Array, "..."] = convolve_energy(
+            density.T, centres, sigma
+        ).T
+        scipy_sampled: Float64[NDArray, "k e"] = ndimage.gaussian_filter1d(
             np.ones((2, 1)),
             sigma=sigma,
             axis=0,
             mode="constant",
             radius=48,
         )
-        finite_volume: jax.Array = convolve_kpath(density, centres, sigma)[0]
+        finite_volume: Float64[Array, "..."] = convolve_kpath(
+            density, centres, sigma
+        )[0]
 
         np.testing.assert_allclose(
             sampled, scipy_sampled, rtol=1.0e-10, atol=1.0e-13

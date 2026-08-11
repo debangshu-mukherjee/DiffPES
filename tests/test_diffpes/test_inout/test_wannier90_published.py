@@ -7,11 +7,10 @@ import hashlib
 import json
 import lzma
 from pathlib import Path
-from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
 
@@ -33,7 +32,7 @@ _COMPRESSED_SHA256 = (
     "756fdcf2541aa75dad69ae172327fd5cdf6ba044812c918efb9c62a690ece9d4"
 )
 _REFERENCE_SHA256 = (
-    "0a9acf21d86167b7f3a9533b87139e4383981f65bed9acad7f951a275a18b411"
+    "13d350dca4df7061f1dcc43ed372ae07ce0e973c635c7257277a81e8ea97d788"
 )
 _SOURCE_SHA256 = (
     "8ea8140e4fb3d1e56c188d5d680ab077b9ad57070f9205c7365cbb24a7c40dd1"
@@ -58,13 +57,14 @@ def _sha256(payload: bytes) -> str:
     Wraps ``hashlib.sha256`` so the authentication assertions stay on
     one line.
     """
-    return hashlib.sha256(payload).hexdigest()
+    digest: str = hashlib.sha256(payload).hexdigest()
+    return digest
 
 
 def _wannier_context(
     n_wannier: int,
 ) -> Tuple[CrystalGeometry, OrbitalBasis]:
-    """PRIVATE: Build a neutral hr-gauge carrier context for eigenvalue comparison.
+    """PRIVATE: Build a neutral context for hr-gauge comparison.
 
     Parameters
     ----------
@@ -97,7 +97,8 @@ def _wannier_context(
         m=(0,) * n_wannier,
         labels=tuple(f"wannier_{index}" for index in range(n_wannier)),
     )
-    return geometry, basis
+    context: Tuple[CrystalGeometry, OrbitalBasis] = (geometry, basis)
+    return context
 
 
 def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:

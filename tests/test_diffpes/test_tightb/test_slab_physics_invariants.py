@@ -7,16 +7,15 @@ from __future__ import annotations
 
 import math
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Any, Tuple
-from jaxtyping import Complex128, Float64, Int64
+from beartype.typing import Any, List, Tuple
+from jaxtyping import Array, Complex128, Float64, Int64
 from numpy.typing import NDArray
 
-from diffpes.tightb import bloch_hamiltonian
-from diffpes.tightb.slab import (
+from diffpes.tightb import (
+    bloch_hamiltonian,
     find_surface_cell,
     gen_slab,
     validate_open_surface_adjacency,
@@ -50,13 +49,13 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
     -----
     The lattice places the honeycomb plane in x--z with bond length one
     and puts the 10 Angstrom vacuum axis along y. A (100) cut of this
-    orientation produces the zigzag nanoribbon of the Nakada edge-state
-    gate.
+    orientation produces the zigzag nanoribbon for the Nakada edge-state
+    check.
     """
     basis: Any
     geometry: Any
     root_three: float = math.sqrt(3.0)
-    lattice: jax.Array = jnp.asarray(
+    lattice: Float64[Array, "3 3"] = jnp.asarray(
         (
             (root_three / 2.0, 0.0, 1.5),
             (-root_three / 2.0, 0.0, 1.5),
@@ -87,7 +86,7 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
     reverse_cells: Tuple[Tuple[int, int, int], ...] = tuple(
         (-cell[0], -cell[1], -cell[2]) for cell in forward_cells
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.full(
             (6,),
             hopping,
@@ -101,29 +100,30 @@ def _graphene_model(hopping: float = -1.0) -> TBModel:
         hopping_cells=forward_cells + reverse_cells,
         shell_index=(-1, -1),
     )
+    return model
 
 
 def _dense_block_records(
     cell: Tuple[int, int, int],
     block: Complex128[NDArray, "n_orb n_orb"],
 ) -> Tuple[
-    list[Tuple[int, int]],
-    list[Tuple[int, int, int]],
-    list[complex],
+    List[Tuple[int, int]],
+    List[Tuple[int, int, int]],
+    List[complex],
 ]:
     """PRIVATE: Flatten one dense real-space block into model records.
 
     Parameters
     ----------
-    cell : tuple[int, int, int]
+    cell : Tuple[int, int, int]
         Integer lattice cell shared by every record of the block.
     block : Complex128[NDArray, "n_orb n_orb"]
         Dense hopping block in eV.
 
     Returns
     -------
-    records : tuple[list[tuple[int, int]], list[tuple[int, int, int]],
-        list[complex]]
+    records : Tuple[List[Tuple[int, int]], List[Tuple[int, int, int]],
+        List[complex]]
         Parallel lists of orbital pairs, repeated cells, and complex
         amplitudes, one entry per block element in row-major order.
 
@@ -134,15 +134,20 @@ def _dense_block_records(
     """
     column: Any
     row: Any
-    pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
-    amplitudes: list[complex] = []
+    pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
+    amplitudes: List[complex] = []
     for row in range(block.shape[0]):
         for column in range(block.shape[1]):
             pairs.append((row, column))
             cells.append(cell)
             amplitudes.append(complex(block[row, column]))
-    return pairs, cells, amplitudes
+    records: Tuple[
+        List[Tuple[int, int]],
+        List[Tuple[int, int, int]],
+        List[complex],
+    ] = (pairs, cells, amplitudes)
+    return records
 
 
 def _inversion_bulk_model() -> Tuple[TBModel, Int64[NDArray, " n_orb"]]:
@@ -151,7 +156,7 @@ def _inversion_bulk_model() -> Tuple[TBModel, Int64[NDArray, " n_orb"]]:
 
     Returns
     -------
-    model_and_permutation : tuple[TBModel, Int64[NDArray, " n_orb"]]
+    model_and_permutation : Tuple[TBModel, Int64[NDArray, " n_orb"]]
         A four-atom model and the orbital permutation ``(2, 3, 0, 1)``
         that represents the inversion.
 
@@ -201,9 +206,9 @@ def _inversion_bulk_model() -> Tuple[TBModel, Int64[NDArray, " n_orb"]]:
     onsite_block: Complex128[NDArray, "4 4"] = (
         onsite_trial + inversion @ onsite_trial @ inversion
     ) / 2.0
-    pairs: list[Tuple[int, int]] = []
-    cells: list[Tuple[int, int, int]] = []
-    amplitudes: list[complex] = []
+    pairs: List[Tuple[int, int]] = []
+    cells: List[Tuple[int, int, int]] = []
+    amplitudes: List[complex] = []
     for cell, block in (
         ((1, 0, 0), x_block),
         ((-1, 0, 0), x_block.conj().T),
@@ -254,7 +259,11 @@ def _inversion_bulk_model() -> Tuple[TBModel, Int64[NDArray, " n_orb"]]:
         hopping_cells=tuple(cells),
         shell_index=(-1,) * 4,
     )
-    return model, local_permutation
+    result: Tuple[TBModel, Int64[NDArray, " n_orb"]] = (
+        model,
+        local_permutation,
+    )
+    return result
 
 
 def _assert_inversion_witness(
@@ -368,7 +377,7 @@ def _oblique_long_range_model() -> TBModel:
         l=(0,),
         m=(0,),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=jnp.asarray((-0.7, -0.7), dtype=jnp.complex128),
         onsite_energies=jnp.asarray((0.2,), dtype=jnp.float64),
         soc_lambdas=jnp.zeros((0,), dtype=jnp.float64),
@@ -378,10 +387,15 @@ def _oblique_long_range_model() -> TBModel:
         hopping_cells=((7, -5, 1), (-7, 5, -1)),
         shell_index=(-1,),
     )
+    return model
 
 
-class TestGrapheneAnalyticGate:
-    """Verify the full graphene-zigzag-dispersion Nakada nanoribbon check."""
+class TestGrapheneAnalyticInvariants:
+    """Verify the full graphene-zigzag-dispersion Nakada nanoribbon check.
+
+    The cases compare zigzag zero modes and armchair levels with analytic
+    nanoribbon results.
+    """
 
     def test_zigzag_zero_mode_and_finite_width_bound(self) -> None:
         """Resolve the N=30 flat edge band including the exact pi limit.
@@ -405,18 +419,18 @@ class TestGrapheneAnalyticGate:
 
         assert spec.n_layers == n_chains
         for ka in (0.70 * math.pi, 0.75 * math.pi, 0.90 * math.pi):
-            kpoint: jax.Array = jnp.asarray(
+            kpoint: Float64[Array, " 3"] = jnp.asarray(
                 (ka / (2.0 * math.pi), 0.0, 0.0),
                 dtype=jnp.float64,
             )
-            energies: jax.Array = jnp.linalg.eigvalsh(
+            energies: Float64[Array, " nband"] = jnp.linalg.eigvalsh(
                 bloch_hamiltonian(slab, kpoint)
             )
             edge_energy: float = float(jnp.min(jnp.abs(energies)))
             penetration: float = abs(2.0 * math.cos(ka / 2.0))
             assert edge_energy <= penetration**n_chains + 1e-12
 
-        pi_energies: jax.Array = jnp.linalg.eigvalsh(
+        pi_energies: Float64[Array, " nband"] = jnp.linalg.eigvalsh(
             bloch_hamiltonian(
                 slab,
                 jnp.asarray((0.5, 0.0, 0.0), dtype=jnp.float64),
@@ -424,7 +438,7 @@ class TestGrapheneAnalyticGate:
         )
         assert float(jnp.min(jnp.abs(pi_energies))) <= 1e-12
 
-    @pytest.mark.parametrize("n_lines", (5, 6, 7))
+    @pytest.mark.parametrize("n_lines", [5, 6, 7])
     def test_armchair_k_zero_levels(self, n_lines: int) -> None:
         """Match Eq. (9) and its N=3m+2 metallicity criterion.
 
@@ -443,7 +457,7 @@ class TestGrapheneAnalyticGate:
             thickness_ang=(n_lines - 1) * spacing,
             vacuum_ang=8.0,
         )
-        actual: jax.Array = jnp.sort(
+        actual: Float64[Array, " nband"] = jnp.sort(
             jnp.linalg.eigvalsh(
                 bloch_hamiltonian(
                     slab,
@@ -451,11 +465,13 @@ class TestGrapheneAnalyticGate:
                 )
             )
         )
-        mode: jax.Array = jnp.arange(1, n_lines + 1)
-        positive: jax.Array = jnp.sort(
+        mode: Int64[Array, " n_line"] = jnp.arange(1, n_lines + 1)
+        positive: Float64[Array, " n_line"] = jnp.sort(
             jnp.abs(1.0 + 2.0 * jnp.cos(mode * jnp.pi / (n_lines + 1)))
         )
-        expected: jax.Array = jnp.sort(jnp.concatenate((-positive, positive)))
+        expected: Float64[Array, " nband"] = jnp.sort(
+            jnp.concatenate((-positive, positive))
+        )
 
         assert spec.n_layers == n_lines
         assert jnp.allclose(actual, expected, rtol=1e-12, atol=1e-12)
@@ -463,8 +479,12 @@ class TestGrapheneAnalyticGate:
         assert is_metallic is (n_lines % 3 == 2)
 
 
-class TestDepthAndInversionGates:
-    """Verify slab-depth-translation-invariance and slab-inversion-symmetry."""
+class TestDepthAndInversionInvariants:
+    """Verify slab-depth-translation-invariance and slab-inversion-symmetry.
+
+    The cases check primitive fcc depths and an explicit inversion bijection
+    with planted defects.
+    """
 
     def test_fcc_111_primitive_depths(self) -> None:
         """Match FCC(111) d-spacing and reject a doubled Miller normal.
@@ -480,7 +500,7 @@ class TestDepthAndInversionGates:
         slab: Any
         spec: Any
         lattice_constant: float = 4.2
-        lattice: jax.Array = jnp.asarray(
+        lattice: Float64[Array, "3 3"] = jnp.asarray(
             (
                 (0.0, lattice_constant / 2.0, lattice_constant / 2.0),
                 (lattice_constant / 2.0, 0.0, lattice_constant / 2.0),
@@ -602,11 +622,11 @@ class TestDepthAndInversionGates:
         reversed_order: Int64[NDArray, " n_orb"] = np.arange(permutation.size)[
             ::-1
         ]
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="Not equal to tolerance"):
             _assert_inversion_witness(slab, reversed_order, centre)
 
-        displaced_positions: jax.Array = slab.geometry.positions.at[0, 0].add(
-            0.031
+        displaced_positions: Float64[Array, "natom 3"] = (
+            slab.geometry.positions.at[0, 0].add(0.031)
         )
         noncentrosymmetric_geometry = make_crystal_geometry(
             lattice=slab.geometry.lattice,
@@ -625,13 +645,13 @@ class TestDepthAndInversionGates:
             spinor=slab.spinor,
             depths=slab.depths,
         )
-        reference_spectrum: jax.Array = jnp.linalg.eigvalsh(
+        reference_spectrum: Float64[Array, " nband"] = jnp.linalg.eigvalsh(
             bloch_hamiltonian(
                 slab,
                 jnp.zeros((3,), dtype=jnp.float64),
             )
         )
-        displaced_spectrum: jax.Array = jnp.linalg.eigvalsh(
+        displaced_spectrum: Float64[Array, " nband"] = jnp.linalg.eigvalsh(
             bloch_hamiltonian(
                 isospectral_noncentrosymmetric,
                 jnp.zeros((3,), dtype=jnp.float64),
@@ -643,7 +663,7 @@ class TestDepthAndInversionGates:
             rtol=0.0,
             atol=1e-12,
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="Not equal to tolerance"):
             _assert_inversion_witness(
                 isospectral_noncentrosymmetric,
                 permutation,
@@ -652,7 +672,11 @@ class TestDepthAndInversionGates:
 
 
 class TestOpenNormalAdversaries:
-    """Verify open-surface-no-wraparound and open-boundary-adjacency-invariant."""
+    """Verify open-surface adjacency without wraparound.
+
+    The cases check vacuum plateaus and reject paths that mix periodic images
+    with ordinary bonds.
+    """
 
     def test_positive_vacuum_spectral_plateau(self) -> None:
         """Keep a certified slab spectrum invariant under added vacuum.
@@ -684,7 +708,7 @@ class TestOpenNormalAdversaries:
             thickness_ang=thickness,
             vacuum_ang=100.0,
         )
-        kpoint: jax.Array = jnp.asarray(
+        kpoint: Float64[Array, " 3"] = jnp.asarray(
             (0.137, -0.219, 0.0),
             dtype=jnp.float64,
         )

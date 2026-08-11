@@ -9,6 +9,22 @@ from tight-binding Hamiltonian parameters.
 
 Routine Listings
 ----------------
+:class:`HamiltonianBlocks`
+    Store normalized Hamiltonian matrices with exact block metadata.
+:class:`HoppingRecord`
+    Store one parsed non-onsite hopping and its source line.
+:class:`TextLineCursor`
+    Record strict line-numbered parsing for one text file.
+:class:`WannierOperatorData`
+    Store operator metadata for a parsed Wannier tight-binding model.
+:func:`make_hamiltonian_blocks`
+    Create normalized Hamiltonian blocks without changing parsed values.
+:func:`make_hopping_record`
+    Create one parsed hopping record without changing its values.
+:func:`make_text_line_cursor`
+    Create a line cursor from one UTF-8 text file.
+:func:`make_wannier_operator_data`
+    Create validated Wannier operator metadata.
 :obj:`HOPPING_LIST_COMPLEX_FIELDS`
     Number of fields in a complex Cartesian hopping-list row.
 :obj:`HOPPING_LIST_REAL_FIELDS`
@@ -33,10 +49,6 @@ Routine Listings
     Number of fields in a Wannier90 TB position row.
 :obj:`WANNIER_TB_SUFFIX`
     Required suffix for a Wannier90 TB file.
-:class:`WannierOperatorData`
-    Store operator metadata for a parsed Wannier tight-binding model.
-:func:`make_wannier_operator_data`
-    Create validated Wannier operator metadata.
 
 Notes
 -----
@@ -45,11 +57,14 @@ Angstrom. Static integer cells and their Wigner--Seitz degeneracies preserve
 the exact serialization context.
 """
 
+from pathlib import Path
+
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Tuple
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
+from numpy.typing import NDArray
 
 HOPPING_LIST_COMPLEX_FIELDS: int = 7
 HOPPING_LIST_REAL_FIELDS: int = 6
@@ -73,6 +88,222 @@ _SPIN_LAYOUTS: Tuple[str, ...] = (
     "block_down_up",
     "interleaved_up_down",
 )
+
+
+class HamiltonianBlocks(eqx.Module):
+    """Store normalized Hamiltonian matrices with exact block metadata.
+
+    This carrier keeps parsed complex Hamiltonian blocks together with their
+    physical source lines, exact cells, and Wigner--Seitz degeneracies.
+
+    :see: :class:`~.test_wannier.TestHamiltonianBlocks`
+
+    Attributes
+    ----------
+    matrices : Complex128[NDArray, "n_cell n_orb n_orb"]
+        Degeneracy-normalized Hamiltonian matrices in eV.
+    source_lines : Int64[NDArray, "n_cell n_orb n_orb"]
+        One-based physical source line for each matrix element.
+    cells : Tuple[Tuple[int, int, int], ...]
+        Exact integer lattice translations (**static** -- parser metadata
+        that does not enter compiled kernels).
+    degeneracies : Tuple[int, ...]
+        Wigner--Seitz degeneracy for each cell (**static** -- parser metadata
+        that does not enter compiled kernels).
+
+    Notes
+    -----
+    The parser owns all format validation and normalization. This carrier
+    retains the arrays and exact metadata without an additional reduction.
+
+    See Also
+    --------
+    make_hamiltonian_blocks : Create normalized Hamiltonian blocks without
+        changing parsed values.
+    """
+
+    matrices: Complex128[NDArray, "n_cell n_orb n_orb"]
+    source_lines: Int64[NDArray, "n_cell n_orb n_orb"]
+    cells: Tuple[Tuple[int, int, int], ...] = eqx.field(static=True)
+    degeneracies: Tuple[int, ...] = eqx.field(static=True)
+
+
+class HoppingRecord(eqx.Module):
+    """Store one parsed non-onsite hopping and its source line.
+
+    This carrier retains the orbital pair, lattice translation, complex
+    amplitude, and physical source line used by Hermitian-closure checks.
+
+    :see: :class:`~.test_wannier.TestHoppingRecord`
+
+    Attributes
+    ----------
+    pair : Tuple[int, int]
+        Zero-based source and target orbital indices (**static** -- parser
+        metadata that does not enter compiled kernels).
+    cell : Tuple[int, int, int]
+        Exact integer lattice translation (**static** -- parser metadata that
+        does not enter compiled kernels).
+    amplitude : complex
+        Complex hopping amplitude in eV.
+    line_number : int
+        One-based physical source line (**static** -- parser metadata that
+        does not enter compiled kernels).
+
+    Notes
+    -----
+    The parser excludes onsite diagonal terms before it builds this carrier.
+    The carrier does not alter the complex amplitude.
+
+    See Also
+    --------
+    make_hopping_record : Create one parsed hopping record without changing
+        its values.
+    """
+
+    pair: Tuple[int, int] = eqx.field(static=True)
+    cell: Tuple[int, int, int] = eqx.field(static=True)
+    amplitude: complex
+    line_number: int = eqx.field(static=True)
+
+
+class TextLineCursor(eqx.Module):
+    """Record strict line-numbered parsing for one text file.
+
+    This host-side cursor retains every physical line and advances one exact
+    index as a parser consumes records. It can skip blank lines only when a
+    caller requests a nonempty record.
+
+    :see: :class:`~.test_wannier.TestTextLineCursor`
+
+    Attributes
+    ----------
+    path : Path
+        Source text file (**static** -- host parser metadata that does not
+        enter compiled kernels).
+    lines : Tuple[str, ...]
+        Physical text lines without newline terminators (**static** -- host
+        parser data that does not enter compiled kernels).
+    index : int
+        Zero-based index of the next unread line (**static** -- mutable host
+        parser state that does not enter compiled kernels).
+
+    Notes
+    -----
+    Equinox makes module attributes immutable through normal assignment. The
+    cursor uses ``object.__setattr__`` to retain its original host-side index
+    mutation behavior.
+
+    See Also
+    --------
+    make_text_line_cursor : Create a line cursor from one UTF-8 text file.
+    """
+
+    path: Path = eqx.field(static=True)
+    lines: Tuple[str, ...] = eqx.field(static=True)
+    index: int = eqx.field(static=True)
+
+    def next_line(self, context: str) -> Tuple[int, str]:
+        """Return the next physical line without skipping blanks.
+
+        Advance the cursor by exactly one physical line and retain blank text
+        unchanged for strict fixed-record parsing.
+
+        Parameters
+        ----------
+        context : str
+            Parser context named in an unexpected-end diagnostic.
+
+        Returns
+        -------
+        result : Tuple[int, str]
+            One-based physical line number and its text without a newline.
+
+        Raises
+        ------
+        ValueError
+            If the cursor has no unread physical line.
+
+        Notes
+        -----
+        The method reads ``lines[index]``, advances ``index`` through
+        ``object.__setattr__``, and returns the original text.
+        """
+        if self.index >= len(self.lines):
+            message: str = (
+                f"{self.path}: unexpected end of file while reading {context}"
+            )
+            raise ValueError(message)
+        line_number: int = self.index + 1
+        text: str = self.lines[self.index]
+        object.__setattr__(self, "index", self.index + 1)
+        result: Tuple[int, str] = (line_number, text)
+        return result
+
+    def next_nonempty(self, context: str) -> Tuple[int, str]:
+        """Return the next nonblank physical line.
+
+        Advance through blank physical lines until the cursor reaches one
+        record with non-whitespace text.
+
+        Parameters
+        ----------
+        context : str
+            Parser context named in an unexpected-end diagnostic.
+
+        Returns
+        -------
+        result : Tuple[int, str]
+            One-based physical line number and the next nonblank text.
+
+        Raises
+        ------
+        ValueError
+            If no unread nonblank line remains.
+
+        Notes
+        -----
+        The method calls :meth:`next_line` for every candidate and accepts the
+        first text whose stripped value is nonempty.
+        """
+        while self.index < len(self.lines):
+            line_number: int
+            text: str
+            line_number, text = self.next_line(context)
+            if text.strip():
+                result: Tuple[int, str] = (line_number, text)
+                return result
+        message: str = (
+            f"{self.path}: unexpected end of file while reading {context}"
+        )
+        raise ValueError(message)
+
+    def ensure_exhausted(self) -> None:
+        """Reject a trailing nonblank record.
+
+        Consume remaining blank lines and fail on the first unexpected record
+        so a strict grammar cannot silently ignore extra content.
+
+        Raises
+        ------
+        ValueError
+            If an unread line contains non-whitespace text.
+
+        Notes
+        -----
+        The method calls :meth:`next_line` until the cursor reaches the end.
+        It reports the exact physical line of the first nonblank record.
+        """
+        while self.index < len(self.lines):
+            line_number: int
+            text: str
+            line_number, text = self.next_line("trailing records")
+            if text.strip():
+                message: str = (
+                    f"{self.path}: line {line_number}: unexpected trailing "
+                    "record"
+                )
+                raise ValueError(message)
 
 
 def _validate_wannier_operator_structure(  # noqa: PLR0912
@@ -220,8 +451,21 @@ class WannierOperatorData(eqx.Module):
     spin_layout: str = eqx.field(static=True)
     source_format: str = eqx.field(static=True)
 
-    def __check_init__(self) -> None:
-        """Validate static metadata and numerical axes again."""
+    def __check_init__(self) -> None:  # noqa: DOC502
+        """PRIVATE: Validate static metadata and numerical axes again.
+
+        Raises
+        ------
+        ValueError
+            If the static metadata or numerical axes violate the carrier
+            structure.
+
+        Notes
+        -----
+        Equinox calls this hook after direct carrier construction. The method
+        delegates every structural check to
+        :func:`_validate_wannier_operator_structure`.
+        """
         _validate_wannier_operator_structure(
             self.position_matrices,
             self.centres_cart,
@@ -230,6 +474,137 @@ class WannierOperatorData(eqx.Module):
             self.spin_layout,
             self.source_format,
         )
+
+
+@jaxtyped(typechecker=beartype)
+def make_hamiltonian_blocks(
+    matrices: Complex128[NDArray, "n_cell n_orb n_orb"],
+    source_lines: Int64[NDArray, "n_cell n_orb n_orb"],
+    cells: Tuple[Tuple[int, int, int], ...],
+    degeneracies: Tuple[int, ...],
+) -> HamiltonianBlocks:
+    """Create normalized Hamiltonian blocks without changing parsed values.
+
+    Bind already validated NumPy matrices to their physical source lines,
+    exact cells, and degeneracy metadata for later parser reductions.
+
+    :see: :class:`~.test_wannier.TestMakeHamiltonianBlocks`
+
+    Parameters
+    ----------
+    matrices : Complex128[NDArray, "n_cell n_orb n_orb"]
+        Degeneracy-normalized Hamiltonian matrices in eV.
+    source_lines : Int64[NDArray, "n_cell n_orb n_orb"]
+        One-based physical source line for each matrix element.
+    cells : Tuple[Tuple[int, int, int], ...]
+        Exact integer lattice translations.
+    degeneracies : Tuple[int, ...]
+        Wigner--Seitz degeneracy for each cell.
+
+    Returns
+    -------
+    blocks : HamiltonianBlocks
+        Parser carrier containing the supplied arrays and exact metadata.
+
+    Notes
+    -----
+    Parsing functions validate shapes, ordering, and values before this
+    factory call. The factory retains the supplied objects without casting or
+    copying them.
+    """
+    blocks: HamiltonianBlocks = HamiltonianBlocks(
+        matrices=matrices,
+        source_lines=source_lines,
+        cells=cells,
+        degeneracies=degeneracies,
+    )
+    return blocks
+
+
+@jaxtyped(typechecker=beartype)
+def make_hopping_record(
+    pair: Tuple[int, int],
+    cell: Tuple[int, int, int],
+    amplitude: complex,
+    line_number: int,
+) -> HoppingRecord:
+    """Create one parsed hopping record without changing its values.
+
+    Bind one validated orbital pair, cell, complex amplitude, and physical
+    source line for later Hermitian-closure checks.
+
+    :see: :class:`~.test_wannier.TestMakeHoppingRecord`
+
+    Parameters
+    ----------
+    pair : Tuple[int, int]
+        Zero-based source and target orbital indices.
+    cell : Tuple[int, int, int]
+        Exact integer lattice translation.
+    amplitude : complex
+        Complex hopping amplitude in eV.
+    line_number : int
+        One-based physical source line.
+
+    Returns
+    -------
+    record : HoppingRecord
+        Parser carrier containing the supplied values.
+
+    Notes
+    -----
+    Parsing functions validate indices and finite amplitudes before this
+    factory call. The factory retains every supplied value unchanged.
+    """
+    record: HoppingRecord = HoppingRecord(
+        pair=pair,
+        cell=cell,
+        amplitude=amplitude,
+        line_number=line_number,
+    )
+    return record
+
+
+@jaxtyped(typechecker=beartype)
+def make_text_line_cursor(path: Path) -> TextLineCursor:  # noqa: DOC502
+    """Create a line cursor from one UTF-8 text file.
+
+    Read every physical line once and initialize the next unread index at the
+    start of the file.
+
+    :see: :class:`~.test_wannier.TestMakeTextLineCursor`
+
+    Parameters
+    ----------
+    path : Path
+        UTF-8 text file to parse.
+
+    Returns
+    -------
+    cursor : TextLineCursor
+        Line-numbered cursor positioned before the first physical line.
+
+    Raises
+    ------
+    OSError
+        If the operating system cannot read ``path``.
+    UnicodeError
+        If the file is not valid UTF-8 text.
+
+    Notes
+    -----
+    The factory applies :meth:`Path.read_text`, splits the text with
+    :meth:`str.splitlines`, and stores the resulting immutable tuple with
+    ``index=0``.
+    """
+    text: str = path.read_text(encoding="utf-8")
+    lines: Tuple[str, ...] = tuple(text.splitlines())
+    cursor: TextLineCursor = TextLineCursor(
+        path=path,
+        lines=lines,
+        index=0,
+    )
+    return cursor
 
 
 @jaxtyped(typechecker=beartype)
@@ -322,6 +697,14 @@ def make_wannier_operator_data(  # noqa: DOC502
 
 
 __all__: list[str] = [
+    "HamiltonianBlocks",
+    "HoppingRecord",
+    "TextLineCursor",
+    "WannierOperatorData",
+    "make_hamiltonian_blocks",
+    "make_hopping_record",
+    "make_text_line_cursor",
+    "make_wannier_operator_data",
     "HOPPING_LIST_COMPLEX_FIELDS",
     "HOPPING_LIST_REAL_FIELDS",
     "WANNIER_CELL_FIELDS",
@@ -334,6 +717,4 @@ __all__: list[str] = [
     "WANNIER_TB_HAMILTONIAN_FIELDS",
     "WANNIER_TB_POSITION_FIELDS",
     "WANNIER_TB_SUFFIX",
-    "WannierOperatorData",
-    "make_wannier_operator_data",
 ]

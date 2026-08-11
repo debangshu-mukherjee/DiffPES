@@ -1,16 +1,3 @@
----
-jupytext:
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.16.4
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
----
-
 # Quickstart: Coherent Spectral Assembly
 
 Build an intrinsic ARPES spectrum from gauge-invariant matrix-element
@@ -20,7 +7,7 @@ degeneracy-safe resolvent path is introduced alongside the faster eigen path.
 The final section maps this intrinsic observable into explicit native detector
 bins and applies the same effects chain used by the canonical coherent driver.
 
-```{code-cell} ipython3
+```python
 import diffpes
 import jax
 import jax.numpy as jnp
@@ -37,7 +24,7 @@ Cartesian sample-frame path. In a full calculation, the weights come from
 coherent matrix-element channels after polarization contraction and band
 projection.
 
-```{code-cell} ipython3
+```python
 nkpt = 120
 k_cart_x = jnp.linspace(-1.0, 1.0, nkpt)
 kpoints_cart_inv_ang = jnp.stack(
@@ -68,7 +55,7 @@ print(eigenvalues.shape, band_weights.shape)
 Evaluate a retarded constant-linewidth self-energy, sample the eigen spectral
 primitive, and apply Fermi occupation on the same energy nodes.
 
-```{code-cell} ipython3
+```python
 omega = jnp.linspace(-1.5, 0.8, 500)
 self_energy_model = diffpes.types.make_self_energy_model(gamma=0.08)
 sigma_omega = diffpes.simul.evaluate_self_energy(omega, self_energy_model)
@@ -100,7 +87,7 @@ print(spectrum.intensity.shape)
 The full Cartesian vectors remain attached to the spectrum. Equal cumulative
 path lengths therefore cannot conflate paths in different directions.
 
-```{code-cell} ipython3
+```python
 fig, ax = plt.subplots(figsize=(6.5, 3.8))
 ax.imshow(
     spectrum.intensity.T,
@@ -125,7 +112,7 @@ plt.show()
 At exact or near degeneracy, keep the Hamiltonian and full transition source
 instead of differentiating eigenvectors.
 
-```{code-cell} ipython3
+```python
 hamiltonian = jnp.array(
     [[0.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 0.0 + 0.0j]],
     dtype=jnp.complex128,
@@ -148,7 +135,7 @@ effects chain maps the self-describing source path into native angular and
 recorded-energy bins before applying transmission, resolution, background,
 sensitivity, exposure, and bin-volume conversion.
 
-```{code-cell} ipython3
+```python
 experiment = diffpes.types.make_experiment_geometry(
     photon_energy_ev=50.0,
     polarization=jnp.array([1.0 + 0.0j, 0.0j, 0.0j]),
@@ -185,7 +172,7 @@ print(detector.expected_counts.shape, detector.channel_labels)
 The result stays on native detector coordinates. It is not relabeled as a
 Cartesian momentum raster.
 
-```{code-cell} ipython3
+```python
 fig, ax = plt.subplots(figsize=(6.5, 3.8))
 ax.imshow(
     detector.expected_counts[0, :, 0, :].T,
@@ -210,7 +197,7 @@ plt.show()
 The self-energy coordinates remain differentiable through the sampled
 spectral assembly.
 
-```{code-cell} ipython3
+```python
 def occupied_weight(gamma):
     model = diffpes.types.make_self_energy_model(gamma=gamma)
     sigma = diffpes.simul.evaluate_self_energy(omega, model)

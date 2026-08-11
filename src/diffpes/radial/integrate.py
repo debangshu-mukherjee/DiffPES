@@ -18,12 +18,12 @@ Routine Listings
     Construct Gauss--Legendre nodes and weights on ``[0, r_max_bohr]``.
 :func:`momentum_inv_ang_to_bohr_inv`
     Convert momentum from inverse Angstrom to inverse Bohr.
+:func:`radial_bvals`
+    Assemble direct final-state radial channels for every orbital.
 :func:`radial_integral`
     Evaluate a weighted :math:`R(r)r^3j_{l'}(kr)` radial integral.
 :func:`radial_integral_simpson`
     Evaluate a radial integral by composite Simpson quadrature.
-:func:`radial_bvals`
-    Assemble direct final-state radial channels for every orbital.
 """
 
 import math
@@ -32,8 +32,8 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Tuple
-from jaxtyping import Array, Complex128, Float64, jaxtyped
+from beartype.typing import List, Tuple
+from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -243,10 +243,6 @@ def momentum_inv_ang_to_bohr_inv(
 
     :see: :class:`~.test_integrate.TestMomentumInvAngToBohrInv`
 
-    Notes
-    -----
-    Multiply by the project-wide Bohr radius exactly once.
-
     Parameters
     ----------
     momentum_inv_ang : Float64[Array, " ..."]
@@ -256,6 +252,10 @@ def momentum_inv_ang_to_bohr_inv(
     -------
     momentum_bohr_inv : Float64[Array, " ..."]
         Momentum multiplied by ``0.529177210903`` in inverse Bohr.
+
+    Notes
+    -----
+    Multiply by the project-wide Bohr radius exactly once.
     """
     momentum_bohr_inv: Float64[Array, " ..."] = (
         jnp.asarray(momentum_inv_ang, dtype=jnp.float64) * BOHR_TO_ANGSTROM
@@ -505,7 +505,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         | jnp.any(momentum > quadrature.k_max_bohr_inv),
         "k_bohr_inv leaves the certified quadrature domain",
     )
-    shell_indices: Array = jnp.asarray(
+    shell_indices: Int32[Array, " n_orb"] = jnp.asarray(
         spec.radial_shell_index, dtype=jnp.int32
     )
     n_shells: int = max(spec.radial_shell_index, default=-1) + 1
@@ -537,7 +537,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
             "fixed integral calibration rows must have positive norm",
         )
         fixed_integrals = fixed_integrals / fixed_norms[:, None]
-        fixed_shell_rows: list[Complex128[Array, " 2"]] = []
+        fixed_shell_rows: List[Complex128[Array, " 2"]] = []
         shell: int
         orbital: int
         for shell, orbital in enumerate(representatives):
@@ -613,7 +613,7 @@ def radial_bvals(  # noqa: DOC503, PLR0912, PLR0915
         radial_grid,
     )
 
-    shell_values: list[Complex128[Array, "... 2"]] = []
+    shell_values: List[Complex128[Array, "... 2"]] = []
     orbital: int
     for orbital in representatives:
         angular = spec.basis.l[orbital]

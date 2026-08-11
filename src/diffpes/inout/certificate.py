@@ -46,8 +46,8 @@ import h5py
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Shaped, UInt8, jaxtyped
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Bool, Num, UInt8, jaxtyped
 from numpy.typing import NDArray
 
 from diffpes.types import (
@@ -400,7 +400,7 @@ def _encode_array(value: object) -> Dict[str, Any]:
     """
     exc: Exception
     try:
-        array: Shaped[NDArray, "..."] = np.asarray(value)
+        array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(value)
     except Exception as exc:
         msg: str = (
             "certificate persistence requires concrete, non-traced arrays"
@@ -413,7 +413,7 @@ def _encode_array(value: object) -> Dict[str, Any]:
         msg: str = "certificate persistence rejects nonfinite numerical leaves"
         raise ValueError(msg)
     canonical_dtype: np.dtype[Any] = array.dtype.newbyteorder("<")
-    canonical: Shaped[NDArray, "..."] = np.asarray(
+    canonical: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.asarray(
         array,
         dtype=canonical_dtype,
         order="C",
@@ -743,12 +743,12 @@ def _reject_json_constant(value: str) -> None:
     raise ValueError(msg)
 
 
-def _unique_object(pairs: list[Tuple[str, Any]]) -> Dict[str, Any]:
+def _unique_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     """PRIVATE: Build a JSON object while rejecting duplicate names.
 
     Parameters
     ----------
-    pairs : list[Tuple[str, Any]]
+    pairs : List[Tuple[str, Any]]
         Key-value pairs of one JSON object in document order.
 
     Returns
@@ -872,7 +872,7 @@ def _parse_schema_version(value: object) -> Tuple[int, int]:
     Notes
     -----
     A missing minor component parses as zero.  The reader accepts only
-    its own major version; minor versions gate unknown-field handling
+    its own major version; minor versions control unknown-field handling
     elsewhere.
     """
     if not isinstance(value, str):
@@ -969,7 +969,7 @@ def _decode_array(node: Mapping[str, Any]) -> Any:
             "certificate array byte length does not match dtype and shape"
         )
         raise ValueError(msg)
-    array: Shaped[NDArray, "..."] = np.frombuffer(
+    array: Bool[NDArray, "..."] | Num[NDArray, "..."] = np.frombuffer(
         payload, dtype=dtype
     ).reshape(shape)
     if dtype.kind in {"f", "c"} and not bool(np.all(np.isfinite(array))):
@@ -1035,7 +1035,7 @@ def _decode_value(
         ):
             msg: str = f"invalid {kind} record at {path}"
             raise ValueError(msg)
-        values: list[Any] = [
+        values: List[Any] = [
             _decode_value(
                 item,
                 schema_minor=schema_minor,

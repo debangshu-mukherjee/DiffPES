@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diffpes.org/schemas/chinook-parity-summary-1.0.0.json",
+  "title": "DiffPES frozen Chinook parity summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model",
+    "date",
+    "schema_version",
+    "run_id",
+    "chinook_commit",
+    "chinook_env_hash",
+    "platform",
+    "diffpes_commit",
+    "file_hashes",
+    "parity_config",
+    "mappings_applied",
+    "checks",
+    "diffpes_self_convergence",
+    "calibration_status",
+    "frozen",
+    "scope",
+    "diagnostics",
+    "negative_controls",
+    "source_authentication"
+  ],
+  "properties": {
+    "model": {"const": "lithium_chain"},
+    "date": {"const": "2026-08-10"},
+    "schema_version": {"const": "1.0.0"},
+    "run_id": {"const": "20260810T191923Z"},
+    "chinook_commit": {
+      "const": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b"
+    },
+    "chinook_env_hash": {
+      "const": "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531"
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arch", "os", "blas"],
+      "properties": {
+        "arch": {"type": "string"},
+        "os": {"type": "string"},
+        "blas": {"type": "string"}
+      }
+    },
+    "diffpes_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "file_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_spec.json",
+        "chinook_output.npz",
+        "diffpes_output.npz",
+        "hamiltonians.npz"
+      ],
+      "properties": {
+        "model_spec.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "chinook_output.npz": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "diffpes_output.npz": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "hamiltonians.npz": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "parity_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "radial_sampling",
+        "kz_mode",
+        "spectral_mode",
+        "broadening",
+        "constants",
+        "conventions"
+      ],
+      "properties": {
+        "radial_sampling": {"const": "chinook5"},
+        "kz_mode": {"const": "single"},
+        "spectral_mode": {"const": "lorentzian_eigh"},
+        "broadening": {"const": "gaussian_filter"},
+        "constants": {"const": "chinook"},
+        "conventions": {"const": "chinook"}
+      }
+    },
+    "mappings_applied": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "class",
+          "quantity",
+          "rtol",
+          "atol",
+          "max_abs_err",
+          "max_rel_err",
+          "p999_rel_err",
+          "pass",
+          "requirements",
+          "notes"
+        ]
+      }
+    },
+    "diffpes_self_convergence": {"type": "object"},
+    "calibration_status": {"type": "string"},
+    "frozen": {"const": true},
+    "scope": {"type": "object"},
+    "diagnostics": {"type": "object"},
+    "negative_controls": {"type": "object"},
+    "source_authentication": {"type": "object"}
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "checks": [
+    {
+      "atol": 7.2857312941074385e-09,
+      "class": "ELEMENTWISE",
+      "requirements": [
+        "chinook-sampled-gaussian-resolution-parity"
+      ],
+      "max_abs_err": 4.163336342344337e-17,
+      "max_rel_err": 2.103591487263726e-15,
+      "notes": "five-sigma interior; one nonnegative scale; identical authenticated pre-resolution cut",
+      "p999_rel_err": 1.8166560829655208e-15,
+      "pass": true,
+      "quantity": "lithium_chain_broadened_cut",
+      "rtol": 0.0001
+    },
+    {
+      "atol": 0.0,
+      "class": "PEAK-SCALED",
+      "requirements": [
+        "chinook-sampled-gaussian-resolution-parity"
+      ],
+      "max_abs_err": 4.163336342344337e-17,
+      "max_rel_err": 5.714369874869752e-16,
+      "notes": "max absolute error divided by Chinook interior peak",
+      "p999_rel_err": 1.8166560829655208e-15,
+      "pass": true,
+      "quantity": "lithium_chain_peak_scaled_max_pixel",
+      "rtol": 1e-06
+    }
+  ],
+  "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
+  "chinook_env_hash": "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531",
+  "date": "2026-08-10",
+  "diagnostics": {
+    "common_raw_integral_ratio": 1.0,
+    "hamiltonian_max_abs_error_ev": 0.0,
+    "matched_metrics": {
+      "candidate_to_reference_integral_ratio_full_grid": 1.0000000000000002,
+      "elementwise_pass": true,
+      "crop_cells_axis_order_ky_kx_omega": [
+        0,
+        5,
+        13
+      ],
+      "interior_shape": [
+        1,
+        231,
+        575
+      ],
+      "max_absolute_error": 4.163336342344337e-17,
+      "max_absolute_error_over_peak": 5.714369874869752e-16,
+      "max_relative_error_above_atol": 2.103591487263726e-15,
+      "p999_relative_error_above_atol": 1.8166560829655208e-15,
+      "profiled_nonnegative_scale": 1.0,
+      "strict_peak_scaled_pass": true
+    },
+    "public_long_tail_expected_peak_ratio": 2.078353654782797e-05,
+    "public_long_tail_metrics_non_authoritative": {
+      "candidate_to_reference_integral_ratio_full_grid": 0.999055644405111,
+      "elementwise_pass": false,
+      "crop_cells_axis_order_ky_kx_omega": [
+        0,
+        5,
+        13
+      ],
+      "interior_shape": [
+        1,
+        231,
+        575
+      ],
+      "max_absolute_error": 1.514232626259604e-06,
+      "max_absolute_error_over_peak": 2.0783536547447013e-05,
+      "max_relative_error_above_atol": 48.49642298148523,
+      "p999_relative_error_above_atol": 0.4361479021698761,
+      "profiled_nonnegative_scale": 1.000002911101699,
+      "strict_peak_scaled_pass": false
+    },
+    "upstream_differences_not_emulated": [
+      "Chinook on-shell matrix-element evaluation",
+      "Chinook datacube energy-window state selection"
+    ]
+  },
+  "diffpes_commit": "8d20ddf5a65142ae2b6fcc19add8b119b7308078",
+  "diffpes_self_convergence": {
+    "response_adapter": "closed sampled operator; no quadrature or iterative solve"
+  },
+  "file_hashes": {
+    "chinook_output.npz": "662752487bba44084efa89ae27beb132ef3c3fc0559c64509ae3c8519f72ad67",
+    "diffpes_output.npz": "593fc83e18b83b62e412b330f3ac0db65008d47e5cc4169553abff8732e99756",
+    "hamiltonians.npz": "9f8b0e9f660027a519327257e0ab4b42b8a6f3a62b9065532e384d66176c2a57",
+    "model_spec.json": "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe"
+  },
+  "frozen": true,
+  "mappings_applied": [
+    "Chinook radial sampling recorded upstream of the common raw cut",
+    "Single kz recorded upstream of the common raw cut",
+    "Lorentzian eigenspectrum plus eta floor recorded upstream of the common raw cut",
+    "matched Gaussian is the only operation under acceptance"
+  ],
+  "model": "lithium_chain",
+  "negative_controls": {
+    "wrong_energy_momentum_axis_assignment": {
+      "candidate_to_reference_integral_ratio_full_grid": 1.0,
+      "elementwise_pass": false,
+      "crop_cells_axis_order_ky_kx_omega": [
+        0,
+        5,
+        13
+      ],
+      "interior_shape": [
+        1,
+        231,
+        575
+      ],
+      "max_absolute_error": 0.028756016396957518,
+      "max_absolute_error_over_peak": 0.3946894997378621,
+      "max_relative_error_above_atol": 1505.862487218556,
+      "p999_relative_error_above_atol": 1096.773102405109,
+      "profiled_nonnegative_scale": 1.0847337186541024,
+      "strict_peak_scaled_pass": false
+    },
+    "wrong_n_minus_1_over_range": {
+      "candidate_to_reference_integral_ratio_full_grid": 1.0000000000000002,
+      "elementwise_pass": false,
+      "crop_cells_axis_order_ky_kx_omega": [
+        0,
+        5,
+        13
+      ],
+      "interior_shape": [
+        1,
+        231,
+        575
+      ],
+      "max_absolute_error": 0.00012364909008256986,
+      "max_absolute_error_over_peak": 0.001697140411732929,
+      "max_relative_error_above_atol": 0.06683697009823192,
+      "p999_relative_error_above_atol": 0.06398928784304744,
+      "profiled_nonnegative_scale": 0.999660739937681,
+      "strict_peak_scaled_pass": false
+    }
+  },
+  "parity_config": {
+    "broadening": "gaussian_filter",
+    "constants": "chinook",
+    "conventions": "chinook",
+    "kz_mode": "single",
+    "radial_sampling": "chinook5",
+    "spectral_mode": "lorentzian_eigh"
+  },
+  "calibration_status": "calibrated under dated frozen sampled-Gaussian calibration",
+  "platform": {
+    "arch": "x86_64",
+    "blas": "numpy.show_config captured by exact environment identity",
+    "os": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35"
+  },
+  "run_id": "20260810T191923Z",
+  "schema_version": "1.0.0",
+  "scope": {
+    "acceptance_input": "identical authenticated Chinook intensity_raw",
+    "axis_order": [
+      "ky",
+      "kx",
+      "omega_rel"
+    ],
+    "classification": "K-only response compatibility",
+    "complete_shape": [
+      1,
+      241,
+      601
+    ],
+    "excluded_claims": [
+      "production source assembly",
+      "matrix-element energy sampling",
+      "state-window selection",
+      "detector mapping or ordering",
+      "conservation",
+      "absolute intensity"
+    ]
+  },
+  "source_authentication": {
+    "adapter_sha256": "4980a4b1642b1b6ffbeb37e61290712b9775f12ead89403ad70e1ff44eb84797",
+    "chinook_distribution_version": "1.1.3",
+    "chinook_package_content_sha256": "e2a12678f55c74317dc7309d2a565794fecfdafaea9ab5d57d5c4a73b4aa4b94",
+    "chinook_repository": "https://github.com/qmlab-ubc-ca/chinook",
+    "diffpes_worktree_dirty_at_replay": true,
+    "model_spec_sha256": "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe",
+    "production_effects_source_sha256": "e3e13f1caf9d338c3f3e968879d7186fc08f7e41e5efbfb60ede290534fa4879"
+  }
+}

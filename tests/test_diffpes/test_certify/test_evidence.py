@@ -7,7 +7,8 @@ scientific identity in the supported certification regime.
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any
+from beartype.typing import Any, List
+from jaxtyping import Array, Float64
 
 from diffpes.certify import (
     derivative_evidence,
@@ -15,7 +16,7 @@ from diffpes.certify import (
     evaluate_domain,
     evaluate_evidence,
 )
-from diffpes.types import make_evidence_lineage
+from diffpes.types import CertificationClaim, make_evidence_lineage
 
 
 class TestEvaluateClaim:
@@ -34,11 +35,11 @@ class TestEvaluateClaim:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
 
         def margin(measured: Any) -> Any:
-            claim: Any
+            claim: CertificationClaim
             claim = evaluate_claim(
                 "claim.test",
                 "subject.test",
@@ -47,7 +48,8 @@ class TestEvaluateClaim:
                 jnp.zeros(1),
                 jnp.ones(1),
             )
-            return claim.margin
+            margin_value: Float64[Array, ""] = claim.margin
+            return margin_value
 
         assert jnp.allclose(jax.grad(margin)(jnp.array([0.25])), -1.0)
 
@@ -68,7 +70,7 @@ class TestEvaluateDomain:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         result: Any
         result = evaluate_domain(
@@ -94,7 +96,7 @@ class TestEvaluateEvidence:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         result: Any
         result = evaluate_evidence(
@@ -133,7 +135,7 @@ class TestDerivativeEvidence:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         result: Any
         result = derivative_evidence(
@@ -164,11 +166,12 @@ class TestDerivativeEvidence:
         The wrapper counts calls to the public JAX linearization primitive.
         """
         original: Any = jax.linearize
-        calls: list[None] = []
+        calls: List[None] = []
 
         def counted(*args: Any, **kwargs: Any) -> Any:
             calls.append(None)
-            return original(*args, **kwargs)
+            result: Any = original(*args, **kwargs)
+            return result
 
         monkeypatch.setattr(jax, "linearize", counted)
         derivative_evidence(

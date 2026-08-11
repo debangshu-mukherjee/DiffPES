@@ -8,27 +8,32 @@ canonical real-harmonic signs, rotation invariants, pole guards, JAX
 transforms, and gradients.
 """
 
+from functools import partial
+
 import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Tuple
-from jaxtyping import Array, Complex128, Float64
+import pytest
+from beartype import beartype
+from beartype.typing import List, Tuple
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 from scipy import linalg, special
 from scipy.spatial.transform import Rotation
 
-from diffpes.maths.rotations import (
+from diffpes.maths import (
     bond_angles,
     real_harmonic_unitary,
+    real_spherical_harmonic,
     rodrigues_rotation,
     wigner_d,
     wigner_small_d,
 )
-from diffpes.maths.spherical_harmonics import real_spherical_harmonic
-from tests._gradients import gradient_gate
+from tests._gradients import assert_gradients_match_finite_differences
 
 
+@jaxtyped(typechecker=beartype)
 def _angular_momentum_matrices(
     l: int,
 ) -> Tuple[Complex128[NDArray, "dim dim"], Complex128[NDArray, "dim dim"]]:
@@ -69,9 +74,14 @@ def _angular_momentum_matrices(
     angular_z: Complex128[NDArray, "dim dim"] = np.diag(
         magnetic_numbers
     ).astype(np.complex128)
-    return angular_z, angular_y
+    result: Tuple[
+        Complex128[NDArray, "dim dim"],
+        Complex128[NDArray, "dim dim"],
+    ] = (angular_z, angular_y)
+    return result
 
 
+@jaxtyped(typechecker=beartype)
 def _external_wigner_d(
     l: int,
     alpha: float,
@@ -112,6 +122,38 @@ def _external_wigner_d(
     return matrix
 
 
+@jaxtyped(typechecker=beartype)
+def _wigner_d_from_euler(
+    angular_momentum: int,
+    euler: Float64[Array, "3"],
+) -> Complex128[Array, "m1 m2"]:
+    """PRIVATE: Evaluate a Wigner matrix from one Euler vector.
+
+    Parameters
+    ----------
+    angular_momentum : int
+        Static angular momentum quantum number.
+    euler : Float64[Array, "3"]
+        Ordered z--y--z Euler angles in radians.
+
+    Returns
+    -------
+    matrix : Complex128[Array, "m1 m2"]
+        Active Wigner rotation matrix.
+
+    Notes
+    -----
+    Adapts the three-angle public function to a single JIT argument.
+    """
+    matrix: Complex128[Array, "m1 m2"] = wigner_d(
+        angular_momentum,
+        euler[0],
+        euler[1],
+        euler[2],
+    )
+    return matrix
+
+
 class TestRodriguesRotation(chex.TestCase):
     """Validate :func:`~diffpes.maths.rodrigues_rotation`.
 
@@ -132,12 +174,12 @@ class TestRodriguesRotation(chex.TestCase):
         Compare each float64 matrix with ``Rotation.from_rotvec``. Use
         ``rtol=1e-12`` and ``atol=1e-12``.
         """
-        cases: Tuple[Tuple[list[float], float], ...] = (
+        cases: Tuple[Tuple[List[float], float], ...] = (
             ([1.0, 0.0, 0.0], 0.37),
             ([0.0, -2.0, 0.0], -0.82),
             ([1.2, -0.7, 2.1], 1.13),
         )
-        axis_values: list[float]
+        axis_values: List[float]
         angle_value: float
         for axis_values, angle_value in cases:
             with self.subTest(axis=axis_values, angle=angle_value):
@@ -279,9 +321,26 @@ class TestRodriguesRotation(chex.TestCase):
             ]
         )
 
-        def loss(
+        @jaxtyped(typechecker=beartype)
+        def _loss(
             parameters: Tuple[Float64[Array, "3"], Float64[Array, ""]],
         ) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate a weighted rotation-matrix contraction.
+
+            Parameters
+            ----------
+            parameters : Tuple[Float64[Array, "3"], Float64[Array, ""]]
+                Cartesian rotation axis and angle in radians.
+
+            Returns
+            -------
+            value : Float64[Array, ""]
+                Weighted sum of the rotation-matrix entries.
+
+            Notes
+            -----
+            Uses fixed unequal weights so every matrix entry contributes.
+            """
             candidate_axis: Float64[Array, "3"]
             candidate_angle: Float64[Array, ""]
             candidate_axis, candidate_angle = parameters
@@ -290,7 +349,9 @@ class TestRodriguesRotation(chex.TestCase):
             )
             return value
 
-        gradient_gate(loss, (axis, angle), regime="smooth")
+        assert_gradients_match_finite_differences(
+            _loss, (axis, angle), regime="smooth"
+        )
 
 
 class TestWignerSmallD(chex.TestCase):
@@ -386,7 +447,7 @@ class TestWignerSmallD(chex.TestCase):
 
         Notes
         -----
-        Run the shared forward-mode, reverse-mode, and central-FD gate at one
+        Run the shared forward-mode, reverse-mode, and central-FD check at one
         smooth interior angle and require a nonzero derivative.
         """
         beta: Float64[Array, ""] = jnp.array(0.73)
@@ -395,13 +456,30 @@ class TestWignerSmallD(chex.TestCase):
             (9, 9),
         )
 
-        def loss(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
+        @jaxtyped(typechecker=beartype)
+        def _loss(candidate: Float64[Array, ""]) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate a weighted order-four small-d contraction.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, ""]
+                Polar rotation angle in radians.
+
+            Returns
+            -------
+            value : Float64[Array, ""]
+                Weighted sum of every small-d matrix entry.
+
+            Notes
+            -----
+            Uses a fixed asymmetric nine-by-nine weight matrix.
+            """
             value: Float64[Array, ""] = jnp.sum(
                 weights * wigner_small_d(4, candidate)
             )
             return value
 
-        gradient_gate(loss, beta, regime="smooth")
+        assert_gradients_match_finite_differences(_loss, beta, regime="smooth")
 
     def test_rejects_unsupported_angular_momentum(self) -> None:
         """Reject angular momenta outside the implemented static range.
@@ -416,9 +494,14 @@ class TestWignerSmallD(chex.TestCase):
         """
         invalid_l: int
         for invalid_l in (-1, 5):
-            with self.subTest(l=invalid_l):
-                with self.assertRaises(ValueError):
-                    wigner_small_d(invalid_l, 0.2)
+            with (
+                self.subTest(l=invalid_l),
+                pytest.raises(
+                    ValueError,
+                    match="must satisfy",
+                ),
+            ):
+                wigner_small_d(invalid_l, 0.2)
 
 
 class TestWignerD(chex.TestCase):
@@ -454,12 +537,7 @@ class TestWignerD(chex.TestCase):
                     )
                 )
                 actual: Complex128[Array, "m1 m2"] = jax.jit(
-                    lambda euler: wigner_d(
-                        l,
-                        euler[0],
-                        euler[1],
-                        euler[2],
-                    )
+                    partial(_wigner_d_from_euler, l)
                 )(angles)
                 identity: Complex128[Array, "m1 m2"] = jnp.eye(
                     2 * l + 1,
@@ -721,9 +799,14 @@ class TestRealHarmonicUnitary(chex.TestCase):
         """
         invalid_l: int
         for invalid_l in (-1, 5):
-            with self.subTest(l=invalid_l):
-                with self.assertRaises(ValueError):
-                    real_harmonic_unitary(invalid_l)
+            with (
+                self.subTest(l=invalid_l),
+                pytest.raises(
+                    ValueError,
+                    match="must satisfy",
+                ),
+            ):
+                real_harmonic_unitary(invalid_l)
 
 
 class TestBondAngles(chex.TestCase):
@@ -788,13 +871,13 @@ class TestBondAngles(chex.TestCase):
         Evaluate under JIT and differentiate the two-angle vector with respect
         to each bond component. Require exact values and finite Jacobians.
         """
-        cases: Tuple[Tuple[list[float], list[float]], ...] = (
+        cases: Tuple[Tuple[List[float], List[float]], ...] = (
             ([0.0, 0.0, 2.0], [0.0, 0.0]),
             ([0.0, 0.0, -3.0], [np.pi, 0.0]),
             ([0.0, 0.0, 0.0], [0.0, 0.0]),
         )
-        bond_values: list[float]
-        expected_values: list[float]
+        bond_values: List[float]
+        expected_values: List[float]
         for bond_values, expected_values in cases:
             with self.subTest(bond=bond_values):
                 bond: Float64[Array, "3"] = jnp.asarray(bond_values)
@@ -820,16 +903,33 @@ class TestBondAngles(chex.TestCase):
 
         Notes
         -----
-        Run the shared forward-mode, reverse-mode, and central-FD gate in the
+        Run the shared forward-mode, reverse-mode, and central-FD check in the
         smooth regime. Require a nonzero gradient for the bond leaf.
         """
         bond: Float64[Array, "3"] = jnp.array([0.8, -0.5, 1.2])
 
-        def loss(candidate: Float64[Array, "3"]) -> Float64[Array, ""]:
+        @jaxtyped(typechecker=beartype)
+        def _loss(candidate: Float64[Array, "3"]) -> Float64[Array, ""]:
+            """PRIVATE: Evaluate a differentiable combination of bond angles.
+
+            Parameters
+            ----------
+            candidate : Float64[Array, "3"]
+                Cartesian bond vector.
+
+            Returns
+            -------
+            value : Float64[Array, ""]
+                Asymmetric linear combination of both angles in radians.
+
+            Notes
+            -----
+            Weights the polar and azimuthal angles by 0.7 and -0.3.
+            """
             beta: Float64[Array, ""]
             alpha: Float64[Array, ""]
             beta, alpha = bond_angles(candidate)
             value: Float64[Array, ""] = 0.7 * beta - 0.3 * alpha
             return value
 
-        gradient_gate(loss, bond, regime="smooth")
+        assert_gradients_match_finite_differences(_loss, bond, regime="smooth")

@@ -36,8 +36,8 @@ class TestOrbitalConstants:
         """
         assert isinstance(ORBITAL_INDEX, MappingProxyType)
         assert len(ORBITAL_INDEX) == N_ORBITALS
-        assert P_ORBITAL_SLICE == slice(1, 4)
-        assert D_ORBITAL_SLICE == slice(4, 9)
+        assert slice(1, 4) == P_ORBITAL_SLICE
+        assert slice(4, 9) == D_ORBITAL_SLICE
 
 
 class TestParserConstants:
@@ -57,7 +57,8 @@ class TestParserConstants:
 
         Notes
         -----
-        The test compares the public token container type and contents plus the integer
+        The test compares the public token container type and contents plus
+        the integer
         angular-momentum bound against independent literal values.
         """
         expected_tokens: frozenset[str] = frozenset(
@@ -65,5 +66,5 @@ class TestParserConstants:
         )
 
         assert isinstance(COORDINATE_MODE_TOKENS, frozenset)
-        assert COORDINATE_MODE_TOKENS == expected_tokens
+        assert expected_tokens == COORDINATE_MODE_TOKENS
         assert L_MAX == 4

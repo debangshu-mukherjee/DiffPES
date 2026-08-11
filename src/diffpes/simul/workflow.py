@@ -22,7 +22,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Literal, Optional, Tuple, cast
+from beartype.typing import List, Literal, Optional, Tuple, cast
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.inout import (
@@ -212,7 +212,7 @@ def load_vasp_context(
 @jaxtyped(typechecker=beartype)
 def prepare_projection(
     orb_proj: ProjectionType,
-    atom_indices: Optional[list[int]] = None,
+    atom_indices: Optional[List[int]] = None,
     attach_oam: bool = False,
 ) -> ProjectionType:
     """Prepare orbital projections for simulation.
@@ -241,7 +241,7 @@ def prepare_projection(
     ----------
     orb_proj : ProjectionType
         Input projection object.
-    atom_indices : Optional[list[int]], optional
+    atom_indices : Optional[List[int]], optional
         Optional 0-based atom indices to keep.
     attach_oam : bool, optional
         If True and OAM is absent, compute OAM and attach it.
@@ -396,7 +396,7 @@ def run_vasp_workflow(  # noqa: DOC502, DOC503, PLR0913
     This compatibility boundary loads EIGENVAL, PROCAR, and optional path and
     Fermi-level metadata. It invokes :func:`vasp_to_diagonalized` to attach the
     requested crystal and orbital metadata, then calls
-    :func:`simulate_arpes_cut` with every Plan-06/07/08 carrier explicit.
+    :func:`simulate_arpes_cut` with every physical carrier explicit.
 
     PROCAR stores orbital weights, not complex coefficients. The adapter's
     positive square roots are therefore phase-dead and cannot support
@@ -502,7 +502,7 @@ def run_vasp_workflow(  # noqa: DOC502, DOC503, PLR0913
     -----
     This wrapper has no tier, fidelity, hidden energy-axis construction,
     normalization, or momentum-broadening selector. PROCAR-derived
-    coefficients have no D4/D5/S4 or inversion authority.
+    coefficients have no derivative, scaling, or inversion authority.
     """
     context: WorkflowContext = load_vasp_context(
         directory=directory,

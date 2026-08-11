@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, Tuple
+from beartype.typing import Any, Callable, Dict, List, Tuple
 from hypothesis import given, settings, strategies
 from jaxtyping import Array, Bool, Complex128, Float64, Int64, jaxtyped
 
@@ -34,7 +34,10 @@ from diffpes.tightb import (
 )
 from diffpes.types import CrystalGeometry, KGrid, KPath, make_crystal_geometry
 from tests._assertions import assert_rejects
-from tests._gradients import assert_grad_matches_fd, gradient_gate
+from tests._gradients import (
+    assert_grad_matches_fd,
+    assert_gradients_match_finite_differences,
+)
 
 
 @jaxtyped(typechecker=beartype)
@@ -231,7 +234,7 @@ class TestKpointsFracToCart:
         Notes
         -----
         A weighted Cartesian reduction makes every reciprocal-lattice entry
-        relevant. The shared gate checks reverse mode and every coordinate.
+        relevant. The shared check uses reverse mode for every coordinate.
         """
         lattice: Float64[Array, "3 3"] = jnp.array(
             [[2.4, 0.2, 0.1], [0.1, 2.8, 0.3], [0.2, 0.1, 3.2]]
@@ -252,7 +255,7 @@ class TestKpointsFracToCart:
             result: Float64[Array, ""] = jnp.sum(cartesian * weights)
             return result
 
-        gradient_gate(
+        assert_gradients_match_finite_differences(
             loss,
             lattice,
             modes=("rev",),
@@ -325,7 +328,8 @@ class TestBuildKpath:
     """
 
     def test_repeats_junctions_and_places_each_label(self) -> None:
-        """Repeat shared anchors and place labels at Chinook-compatible indices.
+        """Repeat shared anchors and place labels at Chinook-compatible
+        indices.
 
         Two three-point segments must produce six points with the middle
         anchor at indices two and three.
@@ -560,7 +564,8 @@ class TestFirstBzMask:
 
         Notes
         -----
-        The test validates the gate and source metadata. It reconstructs the
+        The test validates the requirement and source metadata. It
+        reconstructs the
         geometry and compares its reciprocal basis and retained mesh points.
         """
         tests_root: Path = Path(__file__).resolve().parents[2]
@@ -575,7 +580,8 @@ class TestFirstBzMask:
             "chinook_commit": "24913de8cc5b8c162f7c1b4acc64bd1b54dd548b",
             "diffpes_commit": "afe36cfbb703510f01de6da376b35627eaac8d4d",
             "environment_sha256": (
-                "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531"
+                "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2"
+                "531"
             ),
             "generator": "gen_chinook_kspace_reference.py",
             "numpy_version": "1.26.4",
@@ -874,7 +880,7 @@ class TestBuildArpesKmesh:
 
         Notes
         -----
-        The shared gradient gate differentiates a weighted fractional raster
+        The shared gradient check differentiates a weighted fractional raster
         at a generic nonzero azimuth.
         """
         geometry: CrystalGeometry = _make_geometry(
@@ -894,7 +900,9 @@ class TestBuildArpesKmesh:
             result: Float64[Array, ""] = jnp.sum(kgrid.kpoints * weights)
             return result
 
-        gradient_gate(loss, jnp.asarray(0.23), modes=("rev",))
+        assert_gradients_match_finite_differences(
+            loss, jnp.asarray(0.23), modes=("rev",)
+        )
 
     def test_reuses_one_trace_for_traced_mesh_values(self) -> None:
         """Reuse one trace across fixed-shape kz, azimuth, and energy sweeps.
@@ -908,13 +916,13 @@ class TestBuildArpesKmesh:
         calls change every traced scalar and the photon-energy values.
         """
         geometry: CrystalGeometry = _make_geometry(jnp.eye(3))
-        trace_count: list[int] = [0]
+        trace_count: List[int] = [0]
 
         def counted(
             kz: Float64[Array, ""],
             azimuth: Float64[Array, ""],
             photon_energies: Float64[Array, "2"],
-        ) -> Array:
+        ) -> Float64[Array, " combined"]:
             """Build both fixed-shape rasters and return their coordinates."""
             trace_count[0] += 1
             arpes_grid: KGrid = build_arpes_kmesh(
@@ -933,7 +941,7 @@ class TestBuildArpesKmesh:
                 jnp.array([1.0, 0.0]),
                 geometry,
             )
-            result: Array = jnp.concatenate(
+            result: Float64[Array, " combined"] = jnp.concatenate(
                 (arpes_grid.kpoints.ravel(), photon_grid.kpoints.ravel())
             )
             return result

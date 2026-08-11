@@ -15,7 +15,6 @@ python:
       extra_requirements:
         - docs
         - test
-        - notebooks
 
 sphinx:
   configuration: docs/source/conf.py

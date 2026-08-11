@@ -15,7 +15,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Callable, Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Complex128, Float64
@@ -34,7 +34,10 @@ from diffpes.simul import (
     rotate_frame_vectors,
     sample_azimuth_rotation,
 )
-from tests._gradients import complex_step_derivative, gradient_gate
+from tests._gradients import (
+    assert_gradients_match_finite_differences,
+    complex_step_derivative,
+)
 
 
 class TestBuildPolarizationVectors(chex.TestCase):
@@ -50,8 +53,8 @@ class TestBuildPolarizationVectors(chex.TestCase):
     def test_orthogonality(self) -> None:
         """Verify that e_s and e_p are mutually orthogonal.
 
-        The test establishes the orthogonality contract for build polarization vectors
-        with the concrete values and array shapes described below.
+        The test establishes the orthogonality contract for polarization
+        vectors with the concrete values and array shapes described below.
 
         Notes
         -----
@@ -67,11 +70,11 @@ class TestBuildPolarizationVectors(chex.TestCase):
         The dot product of e_s and e_p is zero (within tolerance 1e-10),
         confirming the two vectors are perpendicular.
         """
-        theta: Array
+        theta: Float64[Array, "..."]
         phi: float
-        e_s: Array
-        e_p: Array
-        dot_product: Array
+        e_s: Float64[Array, "..."]
+        e_p: Float64[Array, "..."]
+        dot_product: Float64[Array, "..."]
 
         theta = jnp.pi / 4.0
         phi = 0.0
@@ -82,7 +85,7 @@ class TestBuildPolarizationVectors(chex.TestCase):
     def test_unit_vectors(self) -> None:
         """Verify that both e_s and e_p have unit norm.
 
-        The test establishes the unit vectors contract for build polarization vectors
+        The test establishes the unit-vector contract for polarization vectors
         with the concrete values and array shapes described below.
 
         Notes
@@ -98,10 +101,10 @@ class TestBuildPolarizationVectors(chex.TestCase):
 
         Both vectors have unit norm within tolerance 1e-10.
         """
-        theta: Array
-        phi: Array
-        e_s: Array
-        e_p: Array
+        theta: Float64[Array, "..."]
+        phi: Float64[Array, "..."]
+        e_s: Float64[Array, "..."]
+        e_p: Float64[Array, "..."]
 
         theta = jnp.pi / 3.0
         phi = jnp.pi / 6.0
@@ -120,8 +123,8 @@ class TestBuildPolarizationVectors(chex.TestCase):
     def test_shape(self) -> None:
         """Verify that the output vectors have the correct 3D shape.
 
-        The test establishes the shape contract for build polarization vectors with the
-        concrete values and array shapes described below.
+        The test establishes the shape contract for polarization vectors with
+        the concrete values and array shapes described below.
 
         Notes
         -----
@@ -136,8 +139,8 @@ class TestBuildPolarizationVectors(chex.TestCase):
         Both e_s and e_p have shape ``(3,)``, matching the 3D Cartesian
         coordinate system.
         """
-        e_s: Array
-        e_p: Array
+        e_s: Float64[Array, "..."]
+        e_p: Float64[Array, "..."]
 
         e_s, e_p = build_polarization_vectors(0.5, 0.0)
         chex.assert_shape(e_s, (3,))
@@ -155,16 +158,18 @@ class TestBuildPolarizationVectors(chex.TestCase):
         Evaluate two angles around ``arccos(0.99)`` at a fixed azimuth. Compare
         both bases and both theta derivatives with their closed forms.
         """
-        phi: Array = jnp.asarray(0.37)
-        threshold: Array = jnp.arccos(jnp.asarray(0.99))
-        theta: Array = threshold + jnp.asarray([-1e-6, 1e-6])
-        e_s: Array
-        e_p: Array
+        phi: Float64[Array, ""] = jnp.asarray(0.37)
+        threshold: Float64[Array, "..."] = jnp.arccos(jnp.asarray(0.99))
+        theta: Float64[Array, "..."] = threshold + jnp.asarray([-1e-6, 1e-6])
+        e_s: Float64[Array, "..."]
+        e_p: Float64[Array, "..."]
         e_s, e_p = jax.vmap(
             lambda value: build_polarization_vectors(value, phi)
         )(theta)
-        expected_s: Array = jnp.asarray([jnp.sin(phi), -jnp.cos(phi), 0.0])
-        expected_p: Array = jnp.stack(
+        expected_s: Float64[Array, "..."] = jnp.asarray(
+            [jnp.sin(phi), -jnp.cos(phi), 0.0]
+        )
+        expected_p: Float64[Array, "..."] = jnp.stack(
             (
                 -jnp.cos(theta) * jnp.cos(phi),
                 -jnp.cos(theta) * jnp.sin(phi),
@@ -172,10 +177,10 @@ class TestBuildPolarizationVectors(chex.TestCase):
             ),
             axis=-1,
         )
-        derivative: Array = jax.vmap(
+        derivative: Float64[Array, "..."] = jax.vmap(
             jax.jacfwd(lambda value: build_polarization_vectors(value, phi)[1])
         )(theta)
-        expected_derivative: Array = jnp.stack(
+        expected_derivative: Float64[Array, "..."] = jnp.stack(
             (
                 jnp.sin(theta) * jnp.cos(phi),
                 jnp.sin(theta) * jnp.sin(phi),
@@ -219,8 +224,8 @@ class TestPhotonWavevector(chex.TestCase):
         Evaluate two scalar angle pairs. Compare both vectors with analytic
         Cartesian directions at ``atol=1e-12``. Check their unit norms.
         """
-        normal: Array
-        grazing: Array
+        normal: Float64[Array, "..."]
+        grazing: Float64[Array, "..."]
 
         normal = photon_wavevector(0.0, 0.0)
         grazing = photon_wavevector(jnp.pi / 2.0, 0.0)
@@ -270,13 +275,15 @@ class TestPolarizationFromAngles(chex.TestCase):
         Evaluate one generic incidence geometry. Compare four polarization
         kinds with the analytic transverse-basis combinations at 1e-14.
         """
-        theta: Array = jnp.asarray(0.7)
-        phi: Array = jnp.asarray(-0.2)
-        e_s: Array
-        e_p: Array
+        theta: Float64[Array, ""] = jnp.asarray(0.7)
+        phi: Float64[Array, ""] = jnp.asarray(-0.2)
+        e_s: Float64[Array, "..."]
+        e_p: Float64[Array, "..."]
         e_s, e_p = build_polarization_vectors(theta, phi)
-        circular: Array = polarization_from_angles(theta, phi, "c+")
-        linear: Array = polarization_from_angles(
+        circular: Complex128[Array, "..."] = polarization_from_angles(
+            theta, phi, "c+"
+        )
+        linear: Complex128[Array, "..."] = polarization_from_angles(
             theta,
             phi,
             "linear",
@@ -377,22 +384,22 @@ class TestPolarizationToSpherical(chex.TestCase):
         Build two circular states and one linear state. Compare their ordered
         spherical components with the Condon-Shortley values at 1e-15.
         """
-        root_two: Array = jnp.sqrt(jnp.asarray(2.0))
-        sigma_plus: Array = (
+        root_two: Float64[Array, "..."] = jnp.sqrt(jnp.asarray(2.0))
+        sigma_plus: Complex128[Array, "..."] = (
             jnp.asarray(
                 [1.0, 1j, 0.0],
                 dtype=jnp.complex128,
             )
             / root_two
         )
-        sigma_minus: Array = (
+        sigma_minus: Complex128[Array, "..."] = (
             jnp.asarray(
                 [1.0, -1j, 0.0],
                 dtype=jnp.complex128,
             )
             / root_two
         )
-        x_linear: Array = jnp.asarray(
+        x_linear: Complex128[Array, "3"] = jnp.asarray(
             [1.0, 0.0, 0.0],
             dtype=jnp.complex128,
         )
@@ -406,7 +413,7 @@ class TestPolarizationToSpherical(chex.TestCase):
             jnp.asarray([0.0, 0.0, -1.0], dtype=jnp.complex128),
             atol=1e-15,
         )
-        expected_x: Array = jnp.asarray(
+        expected_x: Complex128[Array, "..."] = jnp.asarray(
             [1.0 / root_two, 0.0, -1.0 / root_two],
             dtype=jnp.complex128,
         )
@@ -427,16 +434,16 @@ class TestPolarizationToSpherical(chex.TestCase):
         Apply a JAX JVP to a generic complex vector. Compare the norm and
         tangent identities at 1e-14.
         """
-        polarization: Array = jnp.asarray(
+        polarization: Complex128[Array, "3"] = jnp.asarray(
             [0.3 + 0.2j, -0.4 + 0.1j, 0.5 - 0.7j],
             dtype=jnp.complex128,
         )
-        tangent: Array = jnp.asarray(
+        tangent: Complex128[Array, "3"] = jnp.asarray(
             [-0.2 + 0.8j, 0.6 - 0.3j, 0.1 + 0.4j],
             dtype=jnp.complex128,
         )
-        spherical: Array
-        spherical_tangent: Array
+        spherical: Complex128[Array, "..."]
+        spherical_tangent: Complex128[Array, "..."]
         spherical, spherical_tangent = jax.jvp(
             polarization_to_spherical,
             (polarization,),
@@ -469,7 +476,7 @@ class TestPolarizationToSpherical(chex.TestCase):
     @settings(max_examples=24, deadline=None)
     def test_preserves_norm_for_generic_complex_vectors(
         self,
-        components: list[complex],
+        components: List[complex],
     ) -> None:
         r"""Preserve :math:`\sum_q|\epsilon_q|^2=|\epsilon|^2`.
 
@@ -481,13 +488,19 @@ class TestPolarizationToSpherical(chex.TestCase):
         Each of the three Cartesian components has independently generated
         real and imaginary parts and a finite, nonzero magnitude.
         """
-        polarization: Array = jnp.asarray(
+        polarization: Complex128[Array, "..."] = jnp.asarray(
             components,
             dtype=jnp.complex128,
         )
-        spherical: Array = polarization_to_spherical(polarization)
-        actual_norm_squared: Array = jnp.sum(jnp.abs(spherical) ** 2)
-        expected_norm_squared: Array = jnp.sum(jnp.abs(polarization) ** 2)
+        spherical: Complex128[Array, "..."] = polarization_to_spherical(
+            polarization
+        )
+        actual_norm_squared: Float64[Array, "..."] = jnp.sum(
+            jnp.abs(spherical) ** 2
+        )
+        expected_norm_squared: Float64[Array, "..."] = jnp.sum(
+            jnp.abs(polarization) ** 2
+        )
         chex.assert_trees_all_close(
             actual_norm_squared,
             expected_norm_squared,
@@ -509,51 +522,53 @@ class TestPolarizationToSpherical(chex.TestCase):
         Condon--Shortley coefficients at absolute tolerance ``1e-14``.
         """
 
-        def holomorphic_channels(values: Array) -> Array:
+        def holomorphic_channels(
+            values: Float64[Array, "..."],
+        ) -> Float64[Array, "..."]:
             """Return real-phased probes of every nonzero transform entry."""
-            zero: Array = jnp.zeros((), dtype=values.dtype)
-            x_minus: Array = polarization_to_spherical(
+            zero: Float64[Array, ""] = jnp.zeros((), dtype=values.dtype)
+            x_minus: Complex128[Array, "..."] = polarization_to_spherical(
                 jnp.stack((values[0], zero, zero))
             )[0]
-            y_minus: Array = (
+            y_minus: Complex128[Array, "..."] = (
                 1j
                 * polarization_to_spherical(
                     jnp.stack((zero, values[1], zero))
                 )[0]
             )
-            z_zero: Array = polarization_to_spherical(
+            z_zero: Complex128[Array, "..."] = polarization_to_spherical(
                 jnp.stack((zero, zero, values[2]))
             )[1]
-            x_plus: Array = -polarization_to_spherical(
+            x_plus: Complex128[Array, "..."] = -polarization_to_spherical(
                 jnp.stack((values[3], zero, zero))
             )[2]
-            y_plus: Array = (
+            y_plus: Complex128[Array, "..."] = (
                 1j
                 * polarization_to_spherical(
                     jnp.stack((zero, values[4], zero))
                 )[2]
             )
-            channels: Array = jnp.stack(
+            channels: Float64[Array, "..."] = jnp.stack(
                 (x_minus, y_minus, z_zero, x_plus, y_plus)
             )
             return channels
 
-        inputs: Array = jnp.asarray([0.3, -0.4, 0.7, -0.2, 0.5])
-        tangent: Array = jnp.ones_like(inputs)
-        complex_step: Array = complex_step_derivative(
+        inputs: Float64[Array, "5"] = jnp.asarray([0.3, -0.4, 0.7, -0.2, 0.5])
+        tangent: Float64[Array, "..."] = jnp.ones_like(inputs)
+        complex_step: Float64[Array, "..."] = complex_step_derivative(
             holomorphic_channels,
             inputs,
             h=1e-20,
         )
-        _: Array
-        jvp: Array
+        _: Float64[Array, "..."]
+        jvp: Float64[Array, "..."]
         _, jvp = jax.jvp(
             holomorphic_channels,
             (inputs.astype(jnp.complex128),),
             (tangent.astype(jnp.complex128),),
         )
-        inverse_root_two: Array = 1.0 / jnp.sqrt(2.0)
-        expected: Array = jnp.asarray(
+        inverse_root_two: Float64[Array, "..."] = 1.0 / jnp.sqrt(2.0)
+        expected: Float64[Array, "..."] = jnp.asarray(
             [
                 inverse_root_two,
                 inverse_root_two,
@@ -596,17 +611,17 @@ class TestDetectorRotation(chex.TestCase):
         Use two nonzero detector angles. Compare the horizontal and vertical
         directions with their closed forms at 1e-14.
         """
-        tx: Array = jnp.asarray(0.23)
-        ty: Array = jnp.asarray(-0.17)
-        z_axis: Array = jnp.asarray([0.0, 0.0, 1.0])
-        expected_h: Array = jnp.asarray(
+        tx: Float64[Array, ""] = jnp.asarray(0.23)
+        ty: Float64[Array, ""] = jnp.asarray(-0.17)
+        z_axis: Float64[Array, "3"] = jnp.asarray([0.0, 0.0, 1.0])
+        expected_h: Float64[Array, "..."] = jnp.asarray(
             [
                 jnp.sin(tx),
                 -jnp.cos(tx) * jnp.sin(ty),
                 jnp.cos(tx) * jnp.cos(ty),
             ]
         )
-        expected_v: Array = jnp.asarray(
+        expected_v: Float64[Array, "..."] = jnp.asarray(
             [
                 jnp.sin(ty),
                 -jnp.sin(tx) * jnp.cos(ty),
@@ -635,15 +650,15 @@ class TestDetectorRotation(chex.TestCase):
         Compute one horizontal rotation. Differentiate its x direction and
         compare the result with the analytic cosine at 1e-14.
         """
-        angle: Array = jnp.asarray(0.31)
-        rotation: Array = detector_rotation(angle, -0.19, "H")
+        angle: Float64[Array, ""] = jnp.asarray(0.31)
+        rotation: Float64[Array, "..."] = detector_rotation(angle, -0.19, "H")
         chex.assert_trees_all_close(
             rotation @ rotation.T,
             jnp.eye(3),
             atol=1e-14,
         )
         chex.assert_trees_all_close(jnp.linalg.det(rotation), 1.0, atol=1e-14)
-        derivative: Array = jax.grad(
+        derivative: Float64[Array, "..."] = jax.grad(
             lambda value: detector_rotation(value, -0.19, "H")[0, 2]
         )(angle)
         chex.assert_trees_all_close(
@@ -700,30 +715,50 @@ class TestDetectorRotation(chex.TestCase):
                 reference["mapping"][slit]["tilt_k_mesh"],
                 expected_mapping[slit]["tilt_k_mesh"],
             )
-            records: list[Dict[str, Any]] = [
+            records: List[Dict[str, Any]] = [
                 record
                 for record in reference["records"]
                 if record["slit"] == slit
             ]
             axis_size: int = int(len(records) ** 0.5)
-            tx: Array = jnp.asarray(
+            tx: Float64[Array, "..."] = jnp.asarray(
                 [
                     records[index * axis_size]["tx_rad"]
                     for index in range(axis_size)
                 ]
             )
-            ty: Array = jnp.asarray(
+            ty: Float64[Array, "..."] = jnp.asarray(
                 [records[index]["ty_rad"] for index in range(axis_size)]
             )
-            expected_rotations: Array = jnp.asarray(
+            expected_rotations: Float64[Array, "..."] = jnp.asarray(
                 [record["rotation_matrix"] for record in records]
             ).reshape(axis_size, axis_size, 3, 3)
-            actual_rotations: Array = jax.vmap(
-                lambda tx_value: jax.vmap(
-                    lambda ty_value: detector_rotation(
-                        tx_value, ty_value, slit
+
+            def rotations_for_tx(
+                tx_value: Float64[Array, ""],
+                ty_axis: Float64[Array, " axis"] = ty,
+                slit_value: str = slit,
+            ) -> Float64[Array, "axis 3 3"]:
+                """Return all rotations for one detector-x tilt."""
+
+                def rotation_for_ty(
+                    ty_value: Float64[Array, ""],
+                ) -> Float64[Array, "3 3"]:
+                    """Return one detector rotation."""
+                    rotation: Float64[Array, "3 3"] = detector_rotation(
+                        tx_value,
+                        ty_value,
+                        slit_value,
                     )
-                )(ty)
+                    return rotation
+
+                rotations: Float64[Array, "axis 3 3"] = jax.vmap(
+                    rotation_for_ty
+                )(ty_axis)
+                return rotations
+
+            actual_rotations: Float64[Array, "..."] = jax.vmap(
+                rotations_for_tx
             )(tx)
             chex.assert_trees_all_close(
                 actual_rotations,
@@ -731,12 +766,12 @@ class TestDetectorRotation(chex.TestCase):
                 rtol=tolerance,
                 atol=1e-12,
             )
-            expected_directions: Array = jnp.asarray(
+            expected_directions: Float64[Array, "..."] = jnp.asarray(
                 [record["detector_direction"] for record in records]
             ).reshape(axis_size, axis_size, 3)
-            energy: Array = jnp.asarray(35.0)
-            momentum: Array = final_state_k_inv_ang(energy)[0]
-            actual_k_parallel: Array = detector_angles_to_kpar(
+            energy: Float64[Array, ""] = jnp.asarray(35.0)
+            momentum: Float64[Array, "..."] = final_state_k_inv_ang(energy)[0]
+            actual_k_parallel: Float64[Array, "..."] = detector_angles_to_kpar(
                 tx[:, None],
                 ty[None, :],
                 energy,
@@ -784,11 +819,11 @@ class TestRotateFrameVectors(chex.TestCase):
         Use a 2 by 3 horizontal angle grid and nonzero sample azimuth. Check
         its shape, norms, and one direct composition at 1e-14.
         """
-        vector: Array = jnp.asarray([0.0, 0.0, 1.0])
-        tx: Array = jnp.asarray([-0.2, 0.1])
-        ty: Array = jnp.asarray([-0.1, 0.0, 0.3])
-        sample_azimuth: Array = jnp.asarray(0.27)
-        rotated: Array = rotate_frame_vectors(
+        vector: Float64[Array, "3"] = jnp.asarray([0.0, 0.0, 1.0])
+        tx: Float64[Array, "2"] = jnp.asarray([-0.2, 0.1])
+        ty: Float64[Array, "3"] = jnp.asarray([-0.1, 0.0, 0.3])
+        sample_azimuth: Float64[Array, ""] = jnp.asarray(0.27)
+        rotated: Float64[Array, "..."] = rotate_frame_vectors(
             vector,
             tx,
             ty,
@@ -820,8 +855,8 @@ class TestRotateFrameVectors(chex.TestCase):
         At the detector origin, a detector x axis is a laboratory x axis.
         A positive quarter-turn sample azimuth maps it to negative sample y.
         """
-        detector_x: Array = jnp.asarray([1.0, 0.0, 0.0])
-        mapped: Array = rotate_frame_vectors(
+        detector_x: Float64[Array, "3"] = jnp.asarray([1.0, 0.0, 0.0])
+        mapped: Float64[Array, "..."] = rotate_frame_vectors(
             detector_x,
             jnp.asarray([0.0]),
             jnp.asarray([0.0]),
@@ -837,7 +872,11 @@ class TestRotateFrameVectors(chex.TestCase):
 
 
 class TestSampleAzimuthRotation:
-    """Validate :func:`~diffpes.simul.sample_azimuth_rotation`."""
+    """Validate :func:`~diffpes.simul.sample_azimuth_rotation`.
+
+    The case applies zero degrees and compares the returned rotation with the
+    three-dimensional identity matrix.
+    """
 
     def test_zero_azimuth_is_the_identity(self) -> None:
         """Return the proper identity orientation at zero sample azimuth.
@@ -848,7 +887,7 @@ class TestSampleAzimuthRotation:
         -----
         Compare the full matrix with the exact Cartesian identity.
         """
-        orientation: Array = sample_azimuth_rotation(0.0)
+        orientation: Float64[Array, "..."] = sample_azimuth_rotation(0.0)
 
         chex.assert_trees_all_close(
             orientation,
@@ -859,7 +898,11 @@ class TestSampleAzimuthRotation:
 
 
 class TestLabPolarizationToSample:
-    """Validate :func:`~diffpes.simul.lab_polarization_to_sample`."""
+    """Validate :func:`~diffpes.simul.lab_polarization_to_sample`.
+
+    The case rotates a laboratory polarization through the inverse sample
+    orientation and compares it with a direct matrix reference.
+    """
 
     def test_applies_inverse_sample_orientation(self) -> None:
         """Verify one laboratory field uses the inverse orientation.
@@ -870,12 +913,12 @@ class TestLabPolarizationToSample:
         -----
         Compare the public result with direct transpose multiplication.
         """
-        polarization: Array = jnp.asarray(
+        polarization: Complex128[Array, "3"] = jnp.asarray(
             (0.2 + 0.3j, -0.4 + 0.1j, 0.7 - 0.2j),
             dtype=jnp.complex128,
         )
-        orientation: Array = sample_azimuth_rotation(0.37)
-        actual: Array = lab_polarization_to_sample(
+        orientation: Float64[Array, "..."] = sample_azimuth_rotation(0.37)
+        actual: Complex128[Array, "..."] = lab_polarization_to_sample(
             polarization,
             orientation,
         )
@@ -889,7 +932,11 @@ class TestLabPolarizationToSample:
 
 
 class TestDetectorAxisToSample:
-    """Validate :func:`~diffpes.simul.detector_axis_to_sample`."""
+    """Validate :func:`~diffpes.simul.detector_axis_to_sample`.
+
+    The case composes detector and sample rotations for one detector axis and
+    compares the result with the explicit matrix product.
+    """
 
     def test_composes_detector_and_sample_orientations(self) -> None:
         """Verify one detector-fixed axis uses both active orientations.
@@ -900,10 +947,16 @@ class TestDetectorAxisToSample:
         -----
         Compare the public result with the declared matrix composition.
         """
-        axis: Array = jnp.asarray((0.2, -0.7, 0.5), dtype=jnp.float64)
-        detector_orientation: Array = detector_rotation(0.19, -0.31, "V")
-        sample_orientation: Array = sample_azimuth_rotation(-0.23)
-        actual: Array = detector_axis_to_sample(
+        axis: Float64[Array, "3"] = jnp.asarray(
+            (0.2, -0.7, 0.5), dtype=jnp.float64
+        )
+        detector_orientation: Float64[Array, "..."] = detector_rotation(
+            0.19, -0.31, "V"
+        )
+        sample_orientation: Float64[Array, "..."] = sample_azimuth_rotation(
+            -0.23
+        )
+        actual: Float64[Array, "..."] = detector_axis_to_sample(
             axis,
             detector_orientation,
             sample_orientation,
@@ -937,18 +990,22 @@ class TestFrameSemantics(chex.TestCase):
         broadcast it over a 2 by 3 detector grid. Require exact pixel
         independence and confirm detector orientations are nonconstant.
         """
-        polarization_lab: Array = jnp.asarray(
+        polarization_lab: Complex128[Array, "3"] = jnp.asarray(
             [0.2 + 0.5j, -0.3 + 0.1j, 0.7 - 0.2j],
             dtype=jnp.complex128,
         )
-        tx: Array = jnp.asarray([-0.2, 0.1])
-        ty: Array = jnp.asarray([-0.1, 0.0, 0.3])
-        sample_orientation: Array = sample_azimuth_rotation(0.37)
-        polarization_sample: Array = lab_polarization_to_sample(
-            polarization_lab,
-            sample_orientation,
+        tx: Float64[Array, "2"] = jnp.asarray([-0.2, 0.1])
+        ty: Float64[Array, "3"] = jnp.asarray([-0.1, 0.0, 0.3])
+        sample_orientation: Float64[Array, "..."] = sample_azimuth_rotation(
+            0.37
         )
-        polarization_grid: Array = jnp.broadcast_to(
+        polarization_sample: Complex128[Array, "..."] = (
+            lab_polarization_to_sample(
+                polarization_lab,
+                sample_orientation,
+            )
+        )
+        polarization_grid: Complex128[Array, "..."] = jnp.broadcast_to(
             polarization_sample,
             (tx.shape[0], ty.shape[0], 3),
         )
@@ -959,7 +1016,7 @@ class TestFrameSemantics(chex.TestCase):
             rtol=0.0,
             atol=0.0,
         )
-        detector_directions: Array = rotate_frame_vectors(
+        detector_directions: Float64[Array, "..."] = rotate_frame_vectors(
             jnp.asarray([0.0, 0.0, 1.0]),
             tx,
             ty,
@@ -987,33 +1044,41 @@ class TestFrameSemantics(chex.TestCase):
         laboratory polarization by the same proper matrix. Both resulting
         sample-frame vectors must remain invariant.
         """
-        covariance_rotation: Array = rodrigues_rotation(
+        covariance_rotation: Float64[Array, "..."] = rodrigues_rotation(
             jnp.asarray([0.3, -0.4, 0.8]),
             0.41,
         )
-        sample_orientation: Array = sample_azimuth_rotation(-0.23)
-        detector_orientation: Array = detector_rotation(0.19, -0.31, "V")
-        polarization_lab: Array = jnp.asarray(
+        sample_orientation: Float64[Array, "..."] = sample_azimuth_rotation(
+            -0.23
+        )
+        detector_orientation: Float64[Array, "..."] = detector_rotation(
+            0.19, -0.31, "V"
+        )
+        polarization_lab: Complex128[Array, "3"] = jnp.asarray(
             [0.3 + 0.2j, -0.4 + 0.6j, 0.7 - 0.1j],
             dtype=jnp.complex128,
         )
-        detector_axis: Array = jnp.asarray([0.2, -0.7, 0.5])
+        detector_axis: Float64[Array, "3"] = jnp.asarray([0.2, -0.7, 0.5])
         detector_axis = detector_axis / jnp.linalg.norm(detector_axis)
 
-        reference_polarization: Array = lab_polarization_to_sample(
-            polarization_lab,
-            sample_orientation,
+        reference_polarization: Complex128[Array, "..."] = (
+            lab_polarization_to_sample(
+                polarization_lab,
+                sample_orientation,
+            )
         )
-        transformed_polarization: Array = lab_polarization_to_sample(
-            covariance_rotation @ polarization_lab,
-            covariance_rotation @ sample_orientation,
+        transformed_polarization: Complex128[Array, "..."] = (
+            lab_polarization_to_sample(
+                covariance_rotation @ polarization_lab,
+                covariance_rotation @ sample_orientation,
+            )
         )
-        reference_axis: Array = detector_axis_to_sample(
+        reference_axis: Float64[Array, "..."] = detector_axis_to_sample(
             detector_axis,
             detector_orientation,
             sample_orientation,
         )
-        transformed_axis: Array = detector_axis_to_sample(
+        transformed_axis: Float64[Array, "..."] = detector_axis_to_sample(
             detector_axis,
             covariance_rotation @ detector_orientation,
             covariance_rotation @ sample_orientation,
@@ -1040,17 +1105,17 @@ class TestFrameSemantics(chex.TestCase):
         Notes
         -----
         Reduce generic fixed-beam and detector-axis outputs with generic
-        weights. Compare autodiff with the shared finite-difference gate for
+        weights. Compare autodiff with the shared finite-difference check for
         polarization, detector angles, and sample azimuth.
         """
-        polarization: Array = jnp.asarray(
+        polarization: Complex128[Array, "3"] = jnp.asarray(
             [0.2 + 0.5j, -0.3 + 0.1j, 0.7 - 0.2j],
             dtype=jnp.complex128,
         )
-        detector_axis: Array = jnp.asarray([0.3, -0.5, 0.8])
-        tx: Array = jnp.asarray([-0.2, 0.1])
-        ty: Array = jnp.asarray([0.0, 0.3])
-        weights: Array = jnp.asarray(
+        detector_axis: Float64[Array, "3"] = jnp.asarray([0.3, -0.5, 0.8])
+        tx: Float64[Array, "2"] = jnp.asarray([-0.2, 0.1])
+        ty: Float64[Array, "2"] = jnp.asarray([0.0, 0.3])
+        weights: Float64[Array, "..."] = jnp.asarray(
             [
                 0.7,
                 -0.4,
@@ -1068,38 +1133,49 @@ class TestFrameSemantics(chex.TestCase):
             dtype=jnp.float64,
         ).reshape((2, 2, 3))
 
-        def loss(arguments: Tuple[Array, Array, Array, Array]) -> Array:
+        def loss(
+            arguments: Tuple[
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+                Float64[Array, "..."],
+            ],
+        ) -> Float64[Array, "..."]:
             """Reduce fixed-beam and detector-axis frame outputs."""
-            candidate_polarization: Array
-            candidate_tx: Array
-            candidate_ty: Array
-            candidate_azimuth: Array
+            candidate_polarization: Float64[Array, "..."]
+            candidate_tx: Float64[Array, "..."]
+            candidate_ty: Float64[Array, "..."]
+            candidate_azimuth: Float64[Array, "..."]
             (
                 candidate_polarization,
                 candidate_tx,
                 candidate_ty,
                 candidate_azimuth,
             ) = arguments
-            candidate_sample_orientation: Array = sample_azimuth_rotation(
-                candidate_azimuth
+            candidate_sample_orientation: Float64[Array, "..."] = (
+                sample_azimuth_rotation(candidate_azimuth)
             )
-            candidate_beam: Array = lab_polarization_to_sample(
-                candidate_polarization,
-                candidate_sample_orientation,
+            candidate_beam: Complex128[Array, "..."] = (
+                lab_polarization_to_sample(
+                    candidate_polarization,
+                    candidate_sample_orientation,
+                )
             )
-            candidate_axes: Array = rotate_frame_vectors(
+            candidate_axes: Float64[Array, "..."] = rotate_frame_vectors(
                 detector_axis,
                 candidate_tx,
                 candidate_ty,
                 "V",
                 candidate_azimuth,
             )
-            beam_weights: Array = jnp.asarray(
+            beam_weights: Complex128[Array, "3"] = jnp.asarray(
                 [0.4 - 0.2j, -0.1 + 0.6j, 0.8 + 0.3j]
             )
-            result: Array = jnp.real(
+            result: Float64[Array, "..."] = jnp.real(
                 jnp.vdot(beam_weights, candidate_beam)
             ) + jnp.sum(weights * candidate_axes)
             return result
 
-        gradient_gate(loss, (polarization, tx, ty, jnp.asarray(0.23)))
+        assert_gradients_match_finite_differences(
+            loss, (polarization, tx, ty, jnp.asarray(0.23))
+        )

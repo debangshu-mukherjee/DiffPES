@@ -47,12 +47,12 @@ Routine Listings
     Evaluate a weighted :math:`R(r)r^3j_{l'}(kr)` radial integral.
 :func:`radial_integral_simpson`
     Evaluate a radial integral by composite Simpson quadrature.
+:func:`slater_radial`
+    Evaluate normalized Slater-type radial function.
 :func:`slater_zeff`
     Compute a subshell effective charge from Slater screening.
 :func:`slater_zeta`
     Compute a Slater exponent from the effective principal number.
-:func:`slater_radial`
-    Evaluate normalized Slater-type radial function.
 :func:`spherical_bessel_jl`
     Evaluate the spherical Bessel function :math:`j_l(x)`.
 :func:`spherical_bessel_jl_derivative`
@@ -90,9 +90,9 @@ __all__: list[str] = [
     "radial_bvals",
     "radial_integral",
     "radial_integral_simpson",
+    "slater_radial",
     "slater_zeff",
     "slater_zeta",
-    "slater_radial",
     "spherical_bessel_jl",
     "spherical_bessel_jl_derivative",
 ]

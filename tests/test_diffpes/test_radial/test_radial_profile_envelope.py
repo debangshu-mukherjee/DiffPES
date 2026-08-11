@@ -1,11 +1,12 @@
 """Certify the complete radial-profile envelope and false controls.
 
+Extended Summary
+----------------
 The tests exercise node doubling, missing tails, static boundaries, compact
 modes, rejection paths, and the inverse-Angstrom unit seam.
 """
 
 import math
-from collections.abc import Callable
 
 import chex
 import equinox as eqx
@@ -13,8 +14,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Tuple
-from jaxtyping import Array, Float64
+from beartype import beartype
+from beartype.typing import Callable, Tuple
+from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 from scipy.integrate import quad
 from scipy.special import eval_genlaguerre, gamma, gammaincc, spherical_jn
@@ -36,10 +38,11 @@ from diffpes.types import (
 )
 
 
+@jaxtyped(typechecker=beartype)
 def _node_doubling_with_parameter_gradient(
     base: RadialSpec,
-    parameter_getter: Callable[[RadialSpec], Array],
-    directions: Tuple[Array, ...] | None = None,
+    parameter_getter: Callable[[RadialSpec], Float64[Array, " ..."]],
+    directions: Tuple[Float64[Array, " ..."], ...] | None = None,
 ) -> None:
     """PRIVATE: Compare profile values and selected parameter tangents.
 
@@ -47,9 +50,9 @@ def _node_doubling_with_parameter_gradient(
     ----------
     base : RadialSpec
         Shell-shared radial carrier whose envelope the check probes.
-    parameter_getter : Callable[[RadialSpec], Array]
+    parameter_getter : Callable[[RadialSpec], Float64[Array, " ..."]]
         Accessor that selects the differentiated leaf of ``base``.
-    directions : tuple[Array, ...] | None
+    directions : Tuple[Float64[Array, " ..."], ...] | None
         Tangent directions for the selected leaf; ``None`` selects the
         all-ones direction.
 
@@ -68,37 +71,65 @@ def _node_doubling_with_parameter_gradient(
         "gl2048-r120-k4-l9-reference-v1"
     )
     final_state: FinalStateSpec = make_final_state_spec()
-    momenta: Array = jnp.asarray((0.0, 0.1, 0.7, 2.1, 4.0))
-    parameter: Array = parameter_getter(base)
+    momenta: Float64[Array, " 5"] = jnp.asarray((0.0, 0.1, 0.7, 2.1, 4.0))
+    parameter: Float64[Array, " ..."] = parameter_getter(base)
 
-    def evaluated(value: Array, profile: RadialQuadratureSpec) -> Array:
+    @jaxtyped(typechecker=beartype)
+    def _evaluated(
+        value: Float64[Array, " ..."], profile: RadialQuadratureSpec
+    ) -> Complex128[Array, "5 n_orb 2"]:
+        """PRIVATE: Evaluate one parameter leaf under a quadrature profile.
+
+        Parameters
+        ----------
+        value : Float64[Array, " ..."]
+            Candidate value for the selected radial parameter leaf.
+        profile : RadialQuadratureSpec
+            Fixed quadrature calibration to evaluate.
+
+        Returns
+        -------
+        result : Complex128[Array, "5 n_orb 2"]
+            Radial channels for five momenta and every orbital.
+
+        Notes
+        -----
+        Replaces the selected leaf before calling the public assembler.
+        """
         candidate: RadialSpec = eqx.tree_at(
             parameter_getter,
             base,
             value,
         )
-        return radial_bvals(candidate, momenta, profile, final_state)
+        result: Complex128[Array, "5 n_orb 2"] = radial_bvals(
+            candidate, momenta, profile, final_state
+        )
+        return result
 
-    production_values: Array = evaluated(parameter, production)
-    reference_values: Array = evaluated(parameter, reference)
+    production_values: Complex128[Array, "5 n_orb 2"] = _evaluated(
+        parameter, production
+    )
+    reference_values: Complex128[Array, "5 n_orb 2"] = _evaluated(
+        parameter, reference
+    )
     chex.assert_trees_all_close(
         production_values,
         reference_values,
         rtol=1.0e-10,
         atol=1.0e-12,
     )
-    selected_directions: Tuple[Array, ...] = (
+    selected_directions: Tuple[Float64[Array, " ..."], ...] = (
         (jnp.ones_like(parameter),) if directions is None else directions
     )
-    tangent: Array
+    tangent: Float64[Array, " ..."]
     for tangent in selected_directions:
-        production_gradient: Array = jax.jvp(
-            lambda value: evaluated(value, production),
+        production_gradient: Complex128[Array, "5 n_orb 2"] = jax.jvp(
+            lambda value: _evaluated(value, production),
             (parameter,),
             (tangent,),
         )[1]
-        reference_gradient: Array = jax.jvp(
-            lambda value: evaluated(value, reference),
+        reference_gradient: Complex128[Array, "5 n_orb 2"] = jax.jvp(
+            lambda value: _evaluated(value, reference),
             (parameter,),
             (tangent,),
         )[1]
@@ -110,7 +141,8 @@ def _node_doubling_with_parameter_gradient(
         )
 
 
-def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
+def test_sto_and_hydrogenic_envelope_values_gradients_and_tails(  # noqa: PLR0915
+) -> None:
     """Validate both analytic envelopes at slowest-decay boundaries.
 
     The test checks node doubling, parameter gradients, and missing tails.
@@ -181,8 +213,24 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
         / (2.0 * principal * math.factorial(principal + angular))
     )
 
-    def hydrogenic_radial_value(radius: float) -> float:
-        """Return the independently evaluated signed hydrogenic radial row."""
+    def _hydrogenic_radial_value(radius: float) -> float:
+        """PRIVATE: Evaluate the signed hydrogenic radial row.
+
+        Parameters
+        ----------
+        radius : float
+            Radial coordinate in Bohr.
+
+        Returns
+        -------
+        radial : float
+            Signed radial wavefunction value in inverse Bohr to the
+            three-halves power.
+
+        Notes
+        -----
+        Evaluates the normalized generalized-Laguerre expression directly.
+        """
         rho: float = 2.0 * charge * radius / principal
         radial: float = (
             hydrogen_norm
@@ -192,12 +240,28 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
         )
         return radial
 
-    def hydrogenic_tail_integrand(radius: float) -> float:
-        """Return the independent absolute missing-tail integrand."""
-        return abs(hydrogenic_radial_value(radius)) * radius**3
+    def _hydrogenic_tail_integrand(radius: float) -> float:
+        """PRIVATE: Evaluate the absolute hydrogenic tail integrand.
+
+        Parameters
+        ----------
+        radius : float
+            Radial coordinate in Bohr.
+
+        Returns
+        -------
+        result : float
+            Absolute radial value multiplied by the cubic radial measure.
+
+        Notes
+        -----
+        Uses the independently evaluated hydrogenic radial expression.
+        """
+        result: float = abs(_hydrogenic_radial_value(radius)) * radius**3
+        return result
 
     hydrogenic_tail: float = quad(
-        hydrogenic_tail_integrand,
+        _hydrogenic_tail_integrand,
         cutoff,
         np.inf,
         epsabs=1.0e-18,
@@ -239,29 +303,69 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
         )
     )
 
-    def sto_signed_tail_integrand(
+    def _sto_signed_tail_integrand(
         radius: float,
         momentum_value: float,
         degree: int,
     ) -> float:
-        """Return one signed STO-Bessel missing-tail integrand."""
-        return (
+        """PRIVATE: Evaluate one signed Slater-Bessel tail integrand.
+
+        Parameters
+        ----------
+        radius : float
+            Radial coordinate in Bohr.
+        momentum_value : float
+            Momentum in inverse Bohr.
+        degree : int
+            Static spherical-Bessel order.
+
+        Returns
+        -------
+        result : float
+            Signed radial integrand at the requested radius.
+
+        Notes
+        -----
+        Multiplies the normalized Slater primitive by the cubic measure and
+        the selected spherical Bessel function.
+        """
+        result: float = (
             sto_norm
             * radius ** (effective_principal + 2.0)
             * math.exp(-exponent * radius)
             * float(spherical_jn(degree, momentum_value * radius))
         )
+        return result
 
-    def hydrogenic_signed_tail_integrand(
+    def _hydrogenic_signed_tail_integrand(
         radius: float,
         momentum_value: float,
     ) -> float:
-        """Return one signed hydrogenic-Bessel missing-tail integrand."""
-        return (
-            hydrogenic_radial_value(radius)
+        """PRIVATE: Evaluate one signed hydrogenic-Bessel tail integrand.
+
+        Parameters
+        ----------
+        radius : float
+            Radial coordinate in Bohr.
+        momentum_value : float
+            Momentum in inverse Bohr.
+
+        Returns
+        -------
+        result : float
+            Signed radial integrand at the requested radius.
+
+        Notes
+        -----
+        Multiplies the independent p-state radial row by the cubic measure
+        and the order-one spherical Bessel function.
+        """
+        result: float = (
+            _hydrogenic_radial_value(radius)
             * radius**3
             * float(spherical_jn(1, momentum_value * radius))
         )
+        return result
 
     momentum_index: int
     momentum: float
@@ -270,7 +374,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
     for momentum_index, momentum in enumerate(tail_momenta):
         for channel, final_degree in enumerate((3, 5)):
             sto_signed_tail: float = quad(
-                sto_signed_tail_integrand,
+                _sto_signed_tail_integrand,
                 cutoff,
                 np.inf,
                 args=(momentum, final_degree),
@@ -288,7 +392,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
             )
 
         hydrogenic_signed_tail: float = quad(
-            hydrogenic_signed_tail_integrand,
+            _hydrogenic_signed_tail_integrand,
             cutoff,
             np.inf,
             args=(momentum,),
@@ -302,7 +406,7 @@ def test_g16_sto_and_hydrogenic_envelope_values_gradients_and_tails() -> None:
         assert abs(hydrogenic_signed_tail) <= hydrogenic_half_budget
 
 
-def test_g16_near_condition_limit_cancellation_battery() -> None:
+def test_near_condition_limit_cancellation() -> None:
     """Validate an admitted STO contraction immediately below kappa 32.
 
     The test checks mixed coefficient/exponent directions and an absolute
@@ -319,8 +423,8 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
         m=(0,),
     )
     effective_principal: float = 4.2
-    exponents: Array = jnp.asarray(((0.5, 0.52),))
-    coefficients: Array = jnp.asarray(((1.0, -0.98),))
+    exponents: Float64[Array, "1 2"] = jnp.asarray(((0.5, 0.52),))
+    coefficients: Float64[Array, "1 2"] = jnp.asarray(((1.0, -0.98),))
     spec: RadialSpec = make_radial_spec(
         basis,
         (0,),
@@ -369,18 +473,35 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
     assert coefficient_condition == pytest.approx(31.54723984446624)
     assert 31.0 < coefficient_condition < 32.0
 
-    def contracted_tail_integrand(radius: float) -> float:
-        """Return the independently normalized absolute tail integrand."""
+    def _contracted_tail_integrand(radius: float) -> float:
+        """PRIVATE: Evaluate the normalized contracted tail integrand.
+
+        Parameters
+        ----------
+        radius : float
+            Radial coordinate in Bohr.
+
+        Returns
+        -------
+        result : float
+            Absolute contracted radial row times the cubic radial measure.
+
+        Notes
+        -----
+        Constructs both primitives independently and divides their contraction
+        by its analytic overlap normalization.
+        """
         primitives: Float64[NDArray, " n_prim"] = (
             primitive_norms
             * radius ** (effective_principal - 1.0)
             * np.exp(-exponent_values * radius)
         )
         radial: float = float(coefficient_values @ primitives)
-        return abs(radial / contraction_norm) * radius**3
+        result: float = abs(radial / contraction_norm) * radius**3
+        return result
 
     missing_tail: float = quad(
-        contracted_tail_integrand,
+        _contracted_tail_integrand,
         120.0,
         np.inf,
         epsabs=1.0e-18,
@@ -389,7 +510,10 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
     assert missing_tail <= 5.0e-13
     assert missing_tail == pytest.approx(7.005817765179824e-15, rel=1.0e-8)
 
-    with pytest.raises(Exception, match="coefficient condition"):
+    with pytest.raises(
+        (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+        match="coefficient condition",
+    ):
         make_radial_spec(
             basis,
             (0,),
@@ -399,7 +523,7 @@ def test_g16_near_condition_limit_cancellation_battery() -> None:
         )
 
 
-def test_g16_hydrogenic_sharp_and_high_angular_gradient_battery() -> None:
+def test_hydrogenic_sharp_and_high_angular_gradients() -> None:
     """Validate node doubling at sharp and high-angular hydrogenic edges.
 
     The test differentiates charge at both ends of the admitted decay range.
@@ -434,7 +558,7 @@ def test_g16_hydrogenic_sharp_and_high_angular_gradient_battery() -> None:
         )
 
 
-def test_g16_all_boundary_quantum_numbers_and_compact_modes() -> None:
+def test_boundary_quantum_numbers_and_compact_modes() -> None:
     """Accept each static boundary and preserve compact-mode invariance.
 
     The test checks all quantum limits plus grid and fixed radial modes.
@@ -497,8 +621,8 @@ def test_g16_all_boundary_quantum_numbers_and_compact_modes() -> None:
         l=(0,),
         m=(0,),
     )
-    grid: Array = jnp.linspace(0.0, 24.0, 1201)
-    samples: Array = jnp.exp(-grid).at[-1].set(0.0)[None, :]
+    grid: Float64[Array, " 1201"] = jnp.linspace(0.0, 24.0, 1201)
+    samples: Float64[Array, "1 1201"] = jnp.exp(-grid).at[-1].set(0.0)[None, :]
     grid_spec: RadialSpec = make_radial_spec(
         s_basis,
         (0,),
@@ -513,32 +637,72 @@ def test_g16_all_boundary_quantum_numbers_and_compact_modes() -> None:
         fixed_integrals_shell=jnp.asarray(((0.0, 1.0),)),
     )
     assert grid_spec.grid_values_shell is not None
-    grid_direction: Array = jnp.cos(grid)[None, :].at[:, -1].set(0.0)
+    grid_direction: Float64[Array, "1 1201"] = (
+        jnp.cos(grid)[None, :].at[:, -1].set(0.0)
+    )
 
-    def grid_parameter(item: RadialSpec) -> Array:
-        """Return a compact grid parameter leaf."""
+    def _grid_parameter(
+        item: RadialSpec,
+    ) -> Float64[Array, "n_shell n_r"]:
+        """PRIVATE: Return a compact grid parameter leaf.
+
+        Parameters
+        ----------
+        item : RadialSpec
+            Grid-mode radial specification.
+
+        Returns
+        -------
+        result : Float64[Array, "n_shell n_r"]
+            Stored compact-support radial samples.
+
+        Notes
+        -----
+        Verifies that the optional grid leaf is present before returning it.
+        The selector omits runtime checking because :func:`equinox.tree_at`
+        also calls it with internal leaf wrappers.
+        """
         assert item.grid_values_shell is not None
-        return item.grid_values_shell
+        result: Float64[Array, "n_shell n_r"] = item.grid_values_shell
+        return result
 
     _node_doubling_with_parameter_gradient(
         grid_spec,
-        grid_parameter,
+        _grid_parameter,
         (samples, grid_direction),
     )
 
-    def fixed_parameter(item: RadialSpec) -> Array:
-        """Return a fixed-integral parameter leaf."""
+    def _fixed_parameter(item: RadialSpec) -> Float64[Array, "n_shell 2"]:
+        """PRIVATE: Return a fixed-integral parameter leaf.
+
+        Parameters
+        ----------
+        item : RadialSpec
+            Fixed-mode radial specification.
+
+        Returns
+        -------
+        result : Float64[Array, "n_shell 2"]
+            Stored lower- and upper-channel fixed integrals.
+
+        Notes
+        -----
+        Verifies that the optional fixed-integral leaf is present before
+        returning it. The selector omits runtime checking because
+        :func:`equinox.tree_at` also calls it with internal leaf wrappers.
+        """
         assert item.fixed_integrals_shell is not None
-        return item.fixed_integrals_shell
+        result: Float64[Array, "n_shell 2"] = item.fixed_integrals_shell
+        return result
 
     _node_doubling_with_parameter_gradient(
         fixed_spec,
-        fixed_parameter,
+        _fixed_parameter,
         (jnp.asarray(((0.0, 1.0),)),),
     )
 
 
-def test_g16_profile_rejections_and_unit_false_control() -> None:
+def test_profile_rejections_and_unit_false_control() -> None:
     """Reject each caller-controlled escape from the registered envelope.
 
     The test checks profile forgery, domain excess, and reciprocal conversion.
@@ -589,7 +753,10 @@ def test_g16_profile_rejections_and_unit_false_control() -> None:
         m=(0,),
     )
     spec: RadialSpec = make_radial_spec(basis, (0,))
-    with pytest.raises(Exception, match="certified quadrature domain"):
+    with pytest.raises(
+        (eqx.EquinoxRuntimeError, jax.errors.JaxRuntimeError),
+        match="certified quadrature domain",
+    ):
         radial_bvals(
             spec,
             jnp.asarray(4.0001),
@@ -597,16 +764,20 @@ def test_g16_profile_rejections_and_unit_false_control() -> None:
             make_final_state_spec(),
         )
 
-    momentum_ang: Array = jnp.asarray(2.3)
-    converted: Array = momentum_inv_ang_to_bohr_inv(momentum_ang)
-    dimensionless_reference: Array = momentum_ang * 0.529177210903 * 1.7
+    momentum_ang: Float64[Array, ""] = jnp.asarray(2.3)
+    converted: Float64[Array, ""] = momentum_inv_ang_to_bohr_inv(momentum_ang)
+    dimensionless_reference: Float64[Array, ""] = (
+        momentum_ang * 0.529177210903 * 1.7
+    )
     chex.assert_trees_all_close(
         converted * 1.7,
         dimensionless_reference,
         rtol=0.0,
         atol=0.0,
     )
-    reciprocal_false_control: Array = momentum_ang / 0.529177210903
+    reciprocal_false_control: Float64[Array, ""] = (
+        momentum_ang / 0.529177210903
+    )
     assert not bool(
         jnp.isclose(
             converted,

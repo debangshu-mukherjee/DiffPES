@@ -31,6 +31,7 @@
       "sha256": "67e5f9e18ad39a1b51e8ed5713003b684f35fff60df2637e9dd16e90f6ca547c"
     }
   },
+  "authority": "independent-numpy-spectral-intensity-truth",
   "differentiated_coordinates": [
     {
       "fixture": "two_pole",
@@ -56,7 +57,7 @@
   ],
   "environment": {
     "numpy": "2.4.2",
-    "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+    "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
     "python": "3.13.6",
     "scipy": "1.17.1"
   },
@@ -102,7 +103,7 @@
     "temperature_k": 15.0
   },
   "generator": "tests/_reference_tools/generate_spectral_intensity_reference.py",
-  "generator_sha256": "dab08acf1d7767bf5242f7526cc2861419511493bafa0fcadf3ae9a9c71a888b",
+  "generator_sha256": "239f8250c6e1beab4a9bf0a2fab7a423c63dc07ed175e03c13c1a310e812e48f",
   "hermitian_resolvent": {
     "eta_ev": 0.0001,
     "matrix_a_ev": [
@@ -147,7 +148,6 @@
     "sampled-energy-occupation-witness"
   ],
   "schema": "diffpes.spectral-intensity-reference.v1",
-  "stage": "preregistered-before-spectral-intensity-production-edit",
   "sum_rule": {
     "fullline_map": "E = center + s*tan(pi*u/2), Jacobian s*pi/2*sec(pi*u/2)^2, s = Gamma_total, mirroring the frozen true-Voigt convention",
     "orders": [

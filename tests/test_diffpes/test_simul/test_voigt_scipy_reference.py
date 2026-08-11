@@ -10,14 +10,12 @@ import ast
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, List, Tuple
 from jax import test_util
 from jaxtyping import Array, Bool, Complex128, Float64
 from numpy.typing import NDArray
@@ -58,7 +56,7 @@ def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
 
     Returns
     -------
-    arrays : dict[str, Float64[NDArray, "..."]]
+    arrays : Dict[str, Float64[NDArray, "..."]]
         Mapping from archive member name to a materialized array.
 
     Notes
@@ -68,7 +66,10 @@ def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
     """
     archive: Any
     with np.load(path, allow_pickle=False) as archive:
-        return {name: archive[name] for name in archive.files}
+        returned: Dict[str, Float64[NDArray, "..."]] = {
+            name: archive[name] for name in archive.files
+        }
+        return returned
 
 
 def _sha256(path: Path) -> str:
@@ -88,7 +89,8 @@ def _sha256(path: Path) -> str:
     -----
     Reads the file bytes in one call and hashes them with SHA-256.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    returned: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return returned
 
 
 def _positive_bound(
@@ -115,9 +117,10 @@ def _positive_bound(
     absolute floor 2e-15 scaled by the Gaussian peak height
     1 / (sigma * sqrt(2 * pi)).
     """
-    return _POSITIVE_RTL * np.abs(reference) + _POSITIVE_REFERENCE_FLOOR / (
-        sigma * np.sqrt(2.0 * np.pi)
-    )
+    returned: Float64[NDArray, "..."] = _POSITIVE_RTL * np.abs(
+        reference
+    ) + _POSITIVE_REFERENCE_FLOOR / (sigma * np.sqrt(2.0 * np.pi))
+    return returned
 
 
 def _profile(
@@ -151,12 +154,19 @@ def _profile(
     """
     displacement: Float64[NDArray, " n"] = energy - center
     if gamma == 0.0:
-        return np.exp(-((displacement / sigma) ** 2) / 2.0) / (
-            sigma * np.sqrt(2.0 * np.pi)
-        )
+        returned: Float64[NDArray, " n"] = np.exp(
+            -((displacement / sigma) ** 2) / 2.0
+        ) / (sigma * np.sqrt(2.0 * np.pi))
+        return returned
     if sigma == 0.0:
-        return gamma / (np.pi * (displacement**2 + gamma**2))
-    return special.voigt_profile(displacement, sigma, gamma)
+        returned: Float64[NDArray, " n"] = gamma / (
+            np.pi * (displacement**2 + gamma**2)
+        )
+        return returned
+    returned: Float64[NDArray, " n"] = special.voigt_profile(
+        displacement, sigma, gamma
+    )
+    return returned
 
 
 def _stable_fermi(
@@ -190,7 +200,11 @@ def _stable_fermi(
 
 
 class TestVoigtScipyEvidence:
-    """Validate the frozen independent artifacts before production editing."""
+    """Validate the frozen independent artifacts before production editing.
+
+    The cases authenticate and replay SciPy values, analytic endpoints,
+    one-sided rates, full-line mass, envelopes, and width derivatives.
+    """
 
     def test_generator_boundary_and_manifest_are_frozen(self) -> None:
         """Require a production-independent generator and authenticated files.
@@ -224,9 +238,7 @@ class TestVoigtScipyEvidence:
             _MANIFEST_PATH.read_text(encoding="utf-8")
         )
         assert manifest["schema"] == "diffpes.voigt-scipy-reference.v1"
-        assert manifest["stage"] == (
-            "preregistered-before-true-voigt-production-edit"
-        )
+        assert manifest["authority"] == "independent-scipy-voigt-reference"
         assert manifest["generator_sha256"] == _sha256(_GENERATOR_PATH)
         archive_key: str
         archive_path: Path
@@ -305,7 +317,7 @@ class TestVoigtScipyEvidence:
         reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        rows: list[Float64[NDArray, " n_q"]] = []
+        rows: List[Float64[NDArray, " n_q"]] = []
         energy: Float64[NDArray, " n_q"]
         sigma: float
         gamma: float
@@ -447,7 +459,7 @@ class TestVoigtScipyEvidence:
         energies: Float64[NDArray, "n_envelope n_q_env"] = reference[
             "envelope_energies"
         ]
-        reconstructed: Float64[NDArray, " n_envelope"] = np.max(
+        reconstructed: Complex128[NDArray, " n_envelope"] = np.max(
             np.abs((energies - _CENTER + 1j * gamma) / (sigma * np.sqrt(2.0))),
             axis=1,
         )
@@ -461,7 +473,9 @@ class TestVoigtScipyEvidence:
             <= 4.0 * np.finfo(np.float64).eps * radii
         )
 
-    def test_d1_artifact_matches_analytic_rows_and_fd(self) -> None:
+    def test_width_derivative_artifact_matches_analytic_rows_and_fd(
+        self,
+    ) -> None:
         """Recompute analytic wofz derivatives and validate the FD plateau.
 
         Extended Summary
@@ -477,25 +491,27 @@ class TestVoigtScipyEvidence:
         reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        probes: Float64[NDArray, "n_probe 3"] = reference["d1_probes"]
+        probes: Float64[NDArray, "n_probe 3"] = reference[
+            "width_derivative_probes"
+        ]
         energies: Float64[NDArray, "n_probe n_q_derivative"] = reference[
-            "d1_energies"
+            "width_derivative_energies"
         ]
-        desired_values: Float64[NDArray, "n_probe n_q_d1"] = reference[
-            "d1_point_values"
+        desired_values: Float64[NDArray, "n_probe n_q_width"] = reference[
+            "width_derivative_point_values"
         ]
-        desired_derivatives: Float64[NDArray, "n_probe n_q_d1 3"] = reference[
-            "d1_point_derivatives"
-        ]
-        actual_values: Float64[NDArray, "n_probe n_q_d1"] = np.empty_like(
+        desired_derivatives: Float64[NDArray, "n_probe n_q_width 3"] = (
+            reference["width_derivative_point_derivatives"]
+        )
+        actual_values: Float64[NDArray, "n_probe n_q_width"] = np.empty_like(
             desired_values
         )
-        actual_derivatives: Float64[NDArray, "n_probe n_q_d1 3"] = (
+        actual_derivatives: Float64[NDArray, "n_probe n_q_width 3"] = (
             np.empty_like(desired_derivatives)
         )
         row: int
         probe: Float64[NDArray, " 3"]
-        energy: Float64[NDArray, " n_q_d1"]
+        energy: Float64[NDArray, " n_q_width"]
         for row, (probe, energy) in enumerate(
             zip(probes, energies, strict=True)
         ):
@@ -503,15 +519,19 @@ class TestVoigtScipyEvidence:
             sigma: float
             gamma: float
             center, sigma, gamma = probe
-            z_values: Complex128[NDArray, " n_q_d1"] = (
+            z_values: Complex128[NDArray, " n_q_width"] = (
                 energy - center + 1j * gamma
             ) / (sigma * np.sqrt(2.0))
-            w_values: Complex128[NDArray, " n_q_d1"] = special.wofz(z_values)
-            w_prime: Complex128[NDArray, " n_q_d1"] = (
+            w_values: Complex128[NDArray, " n_q_width"] = special.wofz(
+                z_values
+            )
+            w_prime: Complex128[NDArray, " n_q_width"] = (
                 -2.0 * z_values * w_values + 2j / np.sqrt(np.pi)
             )
             prefactor: float = 1.0 / (sigma * np.sqrt(2.0 * np.pi))
-            values: Float64[NDArray, " n_q_d1"] = prefactor * np.real(w_values)
+            values: Float64[NDArray, " n_q_width"] = prefactor * np.real(
+                w_values
+            )
             actual_values[row] = values
             actual_derivatives[row] = np.stack(
                 (
@@ -528,10 +548,10 @@ class TestVoigtScipyEvidence:
         np.testing.assert_array_equal(actual_derivatives, desired_derivatives)
 
         contracted: Float64[NDArray, "n_probe 3"] = reference[
-            "d1_analytic_contracted"
+            "width_derivative_analytic_contracted"
         ]
         estimates: Float64[NDArray, "n_probe n_step 3"] = reference[
-            "d1_fd_estimates"
+            "width_derivative_fd_estimates"
         ]
         median: Float64[NDArray, "n_probe 3"] = np.median(estimates, axis=1)
         spread: Float64[NDArray, "n_probe 3"] = np.ptp(estimates, axis=1)
@@ -597,10 +617,14 @@ class TestVoigtScipyEvidence:
 
 
 class TestVoigtProduction:
-    """Certify production against the SciPy and derivative witnesses."""
+    """Certify production against the SciPy and derivative witnesses.
+
+    The cases compare positive and endpoint widths, limiting rates, mass,
+    envelope guards, invalid domains, and automatic width derivatives.
+    """
 
     def test_positive_width_table_matches_true_voigt(self) -> None:
-        """Match all positive production rows under the reference-derived bound.
+        """Match positive production rows under the reference bound.
 
         Extended Summary
         ----------------
@@ -686,7 +710,7 @@ class TestVoigtProduction:
         reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        actual_values: list[Float64[NDArray, " n_q"]] = []
+        actual_values: List[Float64[NDArray, " n_q"]] = []
         energy: Float64[NDArray, " n_q"]
         desired: Float64[NDArray, " n_q"]
         sigma: float
@@ -734,7 +758,7 @@ class TestVoigtProduction:
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
     def test_scaled_full_line_production_mass_is_unity(self) -> None:
-        """Require both quadrature orders and their delta to meet the SciPy reference.
+        """Require both quadrature orders and delta to meet SciPy.
 
         Extended Summary
         ----------------
@@ -807,15 +831,15 @@ class TestVoigtProduction:
         energies: Float64[NDArray, "n_envelope n_q_env"] = reference[
             "envelope_energies"
         ]
-        accepted: Float64[NDArray, " n_q_env"]
+        accepted: Bool[NDArray, " n_q_env"]
         for accepted in energies[:2]:
-            eager: Array = voigt(
+            eager: Float64[Array, "..."] = voigt(
                 jnp.asarray(accepted),
                 _CENTER,
                 sigma,
                 gamma,
             )
-            compiled: Array = eqx.filter_jit(voigt)(
+            compiled: Float64[Array, "..."] = eqx.filter_jit(voigt)(
                 jnp.asarray(accepted),
                 _CENTER,
                 sigma,
@@ -879,7 +903,7 @@ class TestVoigtProduction:
                 gamma,
                 match=message,
             )
-        empty: Array = voigt(
+        empty: Float64[Array, "..."] = voigt(
             jnp.empty((0,), dtype=jnp.float64),
             _CENTER,
             1.0e-6,
@@ -888,7 +912,7 @@ class TestVoigtProduction:
         assert empty.shape == (0,)
         assert empty.dtype == jnp.float64
         for sigma, gamma in ((1.0e-6, 0.0), (0.0, 2.0e-6)):
-            endpoint: Array = voigt(
+            endpoint: Float64[Array, "..."] = voigt(
                 jnp.asarray([1.0e9], dtype=jnp.float64),
                 _CENTER,
                 sigma,
@@ -909,13 +933,13 @@ class TestVoigtProduction:
         Plant each nonfinite scalar into an otherwise valid call and repeat the
         rejection check through compiled execution.
         """
-        finite: Float64[Array, "3"] = jnp.asarray(
+        finite: Bool[Array, "3"] = jnp.asarray(
             [_CENTER - 1.0, _CENTER, _CENTER + 1.0],
             dtype=jnp.float64,
         )
         invalid_energy: float
         for invalid_energy in (np.nan, np.inf, -np.inf):
-            planted: Array = finite.at[1].set(invalid_energy)
+            planted: Float64[Array, "..."] = finite.at[1].set(invalid_energy)
             assert_rejects(
                 voigt,
                 planted,
@@ -935,7 +959,9 @@ class TestVoigtProduction:
                 match="center.*finite",
             )
 
-    def test_d1_jacfwd_jacrev_and_check_grads_match_truth(self) -> None:
+    def test_width_derivative_autodiff_and_check_grads_match_truth(
+        self,
+    ) -> None:
         """Match all positive derivative probes in dimensionless coordinates.
 
         Extended Summary
@@ -952,15 +978,17 @@ class TestVoigtProduction:
         reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
         )
-        weights: Array = jnp.asarray(reference["d1_weights"])
+        weights: Float64[Array, "..."] = jnp.asarray(
+            reference["width_derivative_weights"]
+        )
         zero: Float64[Array, "3"] = jnp.zeros(3, dtype=jnp.float64)
         probe: Float64[NDArray, " 3"]
-        energy: Float64[NDArray, " n_q_d1"]
+        energy: Float64[NDArray, " n_q_width"]
         desired: Float64[NDArray, " 3"]
         for probe, energy, desired in zip(
-            reference["d1_probes"],
-            reference["d1_energies"],
-            reference["d1_analytic_contracted"],
+            reference["width_derivative_probes"],
+            reference["width_derivative_energies"],
+            reference["width_derivative_analytic_contracted"],
             strict=True,
         ):
             center: float
@@ -968,19 +996,30 @@ class TestVoigtProduction:
             gamma: float
             center, sigma, gamma = probe
             scale: float = max(sigma, gamma)
-            energy_array: Array = jnp.asarray(energy)
+            energy_array: Float64[Array, "..."] = jnp.asarray(energy)
 
-            def loss(parameters: Float64[Array, "3"]) -> Float64[Array, ""]:
-                profile: Array = voigt(
-                    energy_array,
-                    center + scale * parameters[0],
-                    sigma * (1.0 + parameters[1]),
-                    gamma * (1.0 + parameters[2]),
+            def loss(
+                parameters: Float64[Array, "3"],
+                energy_values: Float64[Array, " n_q_width"] = energy_array,
+                center_value: float = center,
+                scale_value: float = scale,
+                sigma_value: float = sigma,
+                gamma_value: float = gamma,
+            ) -> Float64[Array, ""]:
+                """Return one contracted, dimensionless Voigt loss."""
+                profile: Float64[Array, "..."] = voigt(
+                    energy_values,
+                    center_value + scale_value * parameters[0],
+                    sigma_value * (1.0 + parameters[1]),
+                    gamma_value * (1.0 + parameters[2]),
                 )
-                return scale * jnp.sum(weights * profile)
+                returned: Float64[Array, ""] = scale_value * jnp.sum(
+                    weights * profile
+                )
+                return returned
 
-            forward: Array = jax.jacfwd(loss)(zero)
-            reverse: Array = jax.jacrev(loss)(zero)
+            forward: Float64[Array, "..."] = jax.jacfwd(loss)(zero)
+            reverse: Float64[Array, "..."] = jax.jacrev(loss)(zero)
             np.testing.assert_allclose(
                 np.asarray(forward),
                 desired,

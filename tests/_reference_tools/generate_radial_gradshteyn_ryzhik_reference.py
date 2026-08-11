@@ -13,12 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import mpmath as mp
-from beartype.typing import Dict, Tuple
+from beartype.typing import Dict, List, TextIO, Tuple
 
 
 @dataclass(frozen=True)
 class RadialCase:
-    """Describe one normalized radial-transform reference case."""
+    """Represent one normalized radial-transform reference case."""
 
     reference_id: str
     mode: str
@@ -193,23 +193,41 @@ def _direct_quadrature(case: RadialCase) -> mp.mpf:
 
     Implementation Logic
     --------------------
-    The integrand assembles the normalized Slater or hydrogenic radial
-    function explicitly, multiplies by ``r^3`` and the spherical
-    Bessel function ``j_l'(k r)`` (with its exact ``k r = 0`` limit),
-    and integrates with adaptive arbitrary-precision quadrature as an
-    independent check on the closed form.
+    Assemble the normalized Slater or hydrogenic radial function. Multiply it
+    by ``r^3`` and ``j_l'(k r)``. Use the exact ``k r = 0`` limit. Integrate
+    with adaptive arbitrary-precision quadrature to check the closed form
+    independently.
     """
     momentum: mp.mpf = mp.mpf(case.k_bohr_inv)
     parameter: mp.mpf = mp.mpf(case.radial_parameter)
 
     def spherical_bessel(radius: mp.mpf) -> mp.mpf:
+        """Compute the spherical Bessel factor at one radius.
+
+        Parameters
+        ----------
+        radius : mp.mpf
+            Radial coordinate in Bohr.
+
+        Returns
+        -------
+        value : mp.mpf
+            Spherical Bessel value for the registered final-state order.
+
+        Notes
+        -----
+        The function uses the exact origin value. It uses the cylindrical
+        Bessel relation at all nonzero arguments.
+        """
         argument: mp.mpf = momentum * radius
         if argument == 0:
-            return mp.mpf(int(case.l_prime == 0))
-        return mp.sqrt(mp.pi / (2 * argument)) * mp.besselj(
+            value: mp.mpf = mp.mpf(int(case.l_prime == 0))
+            return value
+        value = mp.sqrt(mp.pi / (2 * argument)) * mp.besselj(
             case.l_prime + mp.mpf("0.5"),
             argument,
         )
+        return value
 
     if case.mode == "slater":
         normalization: mp.mpf = (2 * parameter) ** (
@@ -217,23 +235,58 @@ def _direct_quadrature(case: RadialCase) -> mp.mpf:
         ) / mp.sqrt(mp.factorial(2 * case.n))
 
         def integrand(radius: mp.mpf) -> mp.mpf:
+            """Compute the normalized Slater integrand at one radius.
+
+            Parameters
+            ----------
+            radius : mp.mpf
+                Radial coordinate in Bohr.
+
+            Returns
+            -------
+            value : mp.mpf
+                Dipole-integrand value in Bohr units.
+
+            Notes
+            -----
+            The expression multiplies the normalized Slater function by
+            the dipole measure and the spherical Bessel factor.
+            """
             radial: mp.mpf = (
                 normalization
                 * radius ** (case.n - 1)
                 * mp.exp(-parameter * radius)
             )
-            return radial * radius**3 * spherical_bessel(radius)
+            value: mp.mpf = radial * radius**3 * spherical_bessel(radius)
+            return value
 
     else:
         decay: mp.mpf = parameter / case.n
         laguerre_order: int = case.n - case.angular_momentum - 1
         alpha: int = 2 * case.angular_momentum + 1
-        normalization = (2 * decay) ** mp.mpf("1.5") * mp.sqrt(
+        normalization: mp.mpf = (2 * decay) ** mp.mpf("1.5") * mp.sqrt(
             mp.factorial(laguerre_order)
             / (2 * case.n * mp.factorial(case.n + case.angular_momentum))
         )
 
         def integrand(radius: mp.mpf) -> mp.mpf:
+            """Compute the normalized hydrogenic integrand at one radius.
+
+            Parameters
+            ----------
+            radius : mp.mpf
+                Radial coordinate in Bohr.
+
+            Returns
+            -------
+            value : mp.mpf
+                Dipole-integrand value in Bohr units.
+
+            Notes
+            -----
+            The expression multiplies the normalized hydrogenic function by
+            the dipole measure and the spherical Bessel factor.
+            """
             scaled: mp.mpf = 2 * decay * radius
             radial: mp.mpf = (
                 normalization
@@ -241,22 +294,40 @@ def _direct_quadrature(case: RadialCase) -> mp.mpf:
                 * scaled**case.angular_momentum
                 * mp.laguerre(laguerre_order, alpha, scaled)
             )
-            return radial * radius**3 * spherical_bessel(radius)
+            value: mp.mpf = radial * radius**3 * spherical_bessel(radius)
+            return value
 
     value: mp.mpf = mp.quad(integrand, [0, mp.inf])
     return value
 
 
 def generate(output: Path) -> None:
-    """Write the frozen reference CSV."""
+    """Write the frozen radial-transform reference CSV.
+
+    Parameters
+    ----------
+    output : Path
+        Destination path for the UTF-8 CSV file.
+
+    Raises
+    ------
+    RuntimeError
+        If the closed form and the direct quadrature differ beyond the
+        registered relative tolerance of ``1e-20``.
+
+    Notes
+    -----
+    The generator computes each registered case with 80 decimal digits. It
+    writes 50 digits only after the independent values agree.
+    """
     mp.mp.dps = 80
-    rows: list[Dict[str, str]] = []
+    rows: List[Dict[str, str]] = []
     case: RadialCase
     for case in CASES:
         if case.mode == "slater":
             closed_value: mp.mpf = _slater_reference(case)
         else:
-            closed_value = _hydrogenic_reference(case)
+            closed_value: mp.mpf = _hydrogenic_reference(case)
         quadrature_value: mp.mpf = _direct_quadrature(case)
         absolute_difference: mp.mpf = abs(closed_value - quadrature_value)
         scale: mp.mpf = max(mp.mpf(1), abs(closed_value))
@@ -283,15 +354,26 @@ def generate(output: Path) -> None:
             }
         )
     output.parent.mkdir(parents=True, exist_ok=True)
+    stream: TextIO
     with output.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=tuple(rows[0]))
+        writer: csv.DictWriter[str] = csv.DictWriter(
+            stream, fieldnames=tuple(rows[0])
+        )
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    """Parse the output path and generate the reference."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    """Parse the output path and generate the radial authority.
+
+    Notes
+    -----
+    The command uses the repository reference-data path unless the caller
+    supplies ``--output``.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__
+    )
     parser.add_argument(
         "--output",
         type=Path,

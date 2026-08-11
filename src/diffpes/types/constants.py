@@ -22,14 +22,14 @@ Routine Listings
     HDF5 attribute name listing PyTree fields stored as None.
 :obj:`ATTR_TYPE`
     HDF5 attribute name storing the PyTree type name.
+:obj:`BAND_GROUP_COMPLEMENT_GAP_MIN_EV`
+    Minimum isolation required for a complete static band group.
 :obj:`BAND_LINE_MIN_VALUES`
     Minimum tokens on an EIGENVAL band line.
 :obj:`BAND_LINE_SPIN_VALUES`
     Tokens on a spin-polarized EIGENVAL band line.
 :obj:`BAND_NDIM`
     Expected dimensionality of band-energy arrays.
-:obj:`BAND_GROUP_COMPLEMENT_GAP_MIN_EV`
-    Minimum isolation required for a complete static band group.
 :obj:`BOHR_TO_ANGSTROM`
     Bohr radius in Angstrom.
 :obj:`CARTESIAN_COMPONENTS`
@@ -40,6 +40,8 @@ Routine Listings
     Recognized KPOINTS coordinate-mode tokens.
 :obj:`D_ORBITAL_SLICE`
     Slice selecting the five d orbitals.
+:obj:`DEGENERACY_GROUP_TOL_EV`
+    Maximum group-to-complement gap treated as a cut degeneracy.
 :obj:`EIG_DOWN_INDEX`
     Column index of spin-down eigenvalues in EIGENVAL.
 :obj:`EIG_UP_INDEX`
@@ -50,14 +52,12 @@ Routine Listings
     Epsilon floor guarding divisions and norms.
 :obj:`EPS_DEG`
     Lorentzian width regularizing degenerate eigenvector derivatives.
-:obj:`DEGENERACY_GROUP_TOL_EV`
-    Maximum group-to-complement gap treated as a cut degeneracy.
 :obj:`FLOAT_TOKEN_RE`
     Compiled regex matching floating-point tokens.
-:obj:`GAUNT_IMAG_TOL`
-    Tolerance for discarding imaginary Gaunt residues.
 :obj:`G_PARALLEL_ATOL_INV_ANG`
     Surface parallel-momentum conservation tolerance in inverse Angstrom.
+:obj:`GAUNT_IMAG_TOL`
+    Tolerance for discarding imaginary Gaunt residues.
 :obj:`GROUP_COMPLEMENT_GAP_MIN_EV`
     Minimum spectral isolation required for a registered band group.
 :obj:`HBAR_C_EV_A`
@@ -72,16 +72,18 @@ Routine Listings
     PROCAR block count for ISPIN=2 calculations.
 :obj:`ISPIN_SPIN_POLARIZED`
     ISPIN value marking spin-polarized VASP runs.
+:obj:`K_PREFACTOR_INV_ANG_SQRT_EV`
+    Store the momentum prefactor in inverse Angstrom per square-root eV.
 :obj:`KB_EV_PER_K`
     Boltzmann constant in eV per kelvin.
+:obj:`KNOWN_CHANNELS`
+    Complete set of supported Slater--Koster channel names.
 :obj:`KPATH_AUX_WITH_COMMENT_LEN`
     KPathInfo auxiliary-data length including a comment.
 :obj:`KPATH_AUX_WITH_COORD_MODE_LEN`
     KPathInfo auxiliary-data length including a coordinate mode.
 :obj:`KPOINT_LINE_VALUES`
     Tokens on an EIGENVAL k-point line.
-:obj:`K_PREFACTOR_INV_ANG_SQRT_EV`
-    Store the momentum prefactor in inverse Angstrom per square-root eV.
 :obj:`L_MAX`
     Maximum angular momentum supported by the precomputed table.
 :obj:`LATTICE_ROWS`
@@ -90,12 +92,16 @@ Routine Listings
     Magnetic quantum numbers of the d orbitals.
 :obj:`M_P`
     Magnetic quantum numbers of the p orbitals.
+:obj:`MATRIX_NDIM`
+    Expected dimensionality of tight-binding operator matrices.
+:obj:`MAX_SK_ANGULAR_MOMENTUM`
+    Maximum angular momentum supported by Slater--Koster construction.
 :obj:`ME_EV`
     Electron rest energy in eV.
-:obj:`MIN_SUM`
-    Minimum-sum floor guarding normalizations.
 :obj:`MIN_BOND_DISTANCE`
     Minimum nonzero distance accepted by neighbor discovery.
+:obj:`MIN_SUM`
+    Minimum-sum floor guarding normalizations.
 :obj:`MINIMUM_AXIS_POINTS`
     Minimum number of points accepted on a sampled DOS energy axis.
 :obj:`N_ORBITALS`
@@ -110,40 +116,34 @@ Routine Listings
     DOSCAR column count without spin polarization.
 :obj:`NORM_EPS`
     Epsilon floor guarding eigenvector normalization.
-:obj:`KNOWN_CHANNELS`
-    Complete set of supported Slater--Koster channel names.
-:obj:`MATRIX_NDIM`
-    Expected dimensionality of tight-binding operator matrices.
-:obj:`MAX_SK_ANGULAR_MOMENTUM`
-    Maximum angular momentum supported by Slater--Koster construction.
 :obj:`ORBITAL_INDEX`
     Mapping from orbital name to VASP orbital index.
 :obj:`P_ORBITAL_SLICE`
     Slice selecting the three p orbitals.
-:obj:`PHASE_LOSS_MESSAGE`
-    Warning text for PROCAR magnitude-only eigenvectors.
 :obj:`PARAMETER_KEY_PARTS`
     Number of colon-delimited parts in a qualified Slater--Koster key.
+:obj:`PHASE_LOSS_MESSAGE`
+    Warning text for PROCAR magnitude-only eigenvectors.
 :obj:`PRESET_NAMES`
     Recognized band-scatter plotting preset names.
 :obj:`S_IDX`
     Index of the s orbital.
 :obj:`SCALAR_LINE_COMPONENTS`
     Tokens on a scalar CHGCAR header line.
-:obj:`SMALL_ARGUMENT`
-    Small-argument cutoff for spherical Bessel seeds.
 :obj:`SHELL_ATOLERANCE`
     Absolute tolerance for grouping equal-distance neighbor shells.
 :obj:`SHELL_RTOLERANCE`
     Relative tolerance for grouping equal-distance neighbor shells.
+:obj:`SMALL_ARGUMENT`
+    Small-argument cutoff for spherical Bessel seeds.
 :obj:`SOC_BLOCKS`
     PROCAR block count for SOC calculations.
 :obj:`SPECIES_PAIR_PARTS`
     Number of species labels in a Slater--Koster material-pair key.
-:obj:`SPIN_COLS`
-    DOSCAR column count with spin polarization.
 :obj:`SPECTRUM_NDIM`
     Expected dimensionality of tight-binding eigenspectra.
+:obj:`SPIN_COLS`
+    DOSCAR column count with spin polarization.
 :obj:`TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2`
     Store the inverse free-electron dispersion constant.
 :obj:`WEIGHT_COMPONENT_COUNT`
@@ -156,7 +156,7 @@ Routine Listings
 Notes
 -----
 A tolerance change modifies the numerical behavior of every consumer. Treat
-each edit as a physics change. Rerun the gradient and finite-difference gates.
+each edit as a physics change. Rerun the gradient and finite-difference checks.
 This module imports JAX because the orbital tables contain device arrays.
 Place constants that must load without JAX in a different module.
 """
@@ -303,10 +303,10 @@ __all__: list[str] = [
     "ATTR_AUX",
     "ATTR_NONE",
     "ATTR_TYPE",
+    "BAND_GROUP_COMPLEMENT_GAP_MIN_EV",
     "BAND_LINE_MIN_VALUES",
     "BAND_LINE_SPIN_VALUES",
     "BAND_NDIM",
-    "BAND_GROUP_COMPLEMENT_GAP_MIN_EV",
     "BOHR_TO_ANGSTROM",
     "CARTESIAN_COMPONENTS",
     "CHANNELS_BY_PAIR",
@@ -319,8 +319,8 @@ __all__: list[str] = [
     "EPS",
     "EPS_DEG",
     "FLOAT_TOKEN_RE",
-    "GAUNT_IMAG_TOL",
     "G_PARALLEL_ATOL_INV_ANG",
+    "GAUNT_IMAG_TOL",
     "GROUP_COMPLEMENT_GAP_MIN_EV",
     "HBAR_C_EV_A",
     "HBAR_EV_S",
@@ -328,22 +328,22 @@ __all__: list[str] = [
     "INTENSITY_NDIM",
     "ISPIN2_BLOCKS",
     "ISPIN_SPIN_POLARIZED",
+    "K_PREFACTOR_INV_ANG_SQRT_EV",
     "KB_EV_PER_K",
+    "KNOWN_CHANNELS",
     "KPATH_AUX_WITH_COMMENT_LEN",
     "KPATH_AUX_WITH_COORD_MODE_LEN",
     "KPOINT_LINE_VALUES",
-    "K_PREFACTOR_INV_ANG_SQRT_EV",
     "L_MAX",
     "LATTICE_ROWS",
-    "KNOWN_CHANNELS",
     "M_D",
     "M_P",
     "MATRIX_NDIM",
     "MAX_SK_ANGULAR_MOMENTUM",
     "ME_EV",
     "MIN_BOND_DISTANCE",
-    "MINIMUM_AXIS_POINTS",
     "MIN_SUM",
+    "MINIMUM_AXIS_POINTS",
     "N_ORBITALS",
     "N_SOC_MAG_BLOCKS",
     "N_SPIN_COMPONENTS",
@@ -362,8 +362,8 @@ __all__: list[str] = [
     "SMALL_ARGUMENT",
     "SOC_BLOCKS",
     "SPECIES_PAIR_PARTS",
-    "SPIN_COLS",
     "SPECTRUM_NDIM",
+    "SPIN_COLS",
     "TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2",
     "WEIGHT_COMPONENT_COUNT",
     "WEIGHT_COMPONENT_INDEX",

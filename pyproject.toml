@@ -1,6 +1,6 @@
 [project]
 name = "diffpes"
-version = "2026.06.04"
+version = "2026.06.09"
 description = "Differentiable ARPES simulations in JAX"
 authors = [
     {name = "Debangshu Mukherjee", email = "mukherjeed@ornl.gov"},
@@ -36,8 +36,6 @@ dependencies = [
     "jaxtyping>=0.3.0",
     "chex>=0.1.85",
     "beartype>=0.21.0",
-    "jupyter>=1.1.1",
-    "ipykernel>=7.2.0",
     "h5py>=3.15.1",
     "equinox>=0.13.8",
     "optimistix>=0.1.0",
@@ -53,17 +51,12 @@ cuda = [
 docs = [
     "sphinx>=7.0.0",
     "sphinx-rtd-theme>=3.0.2",
-    "nbsphinx>=0.9.7",
     "myst-parser>=2.0.0",
-    "myst-nb>=1.1.0",
-    "ipykernel>=6.29.5",
-    "nbconvert>=7.16.6",
     "furo>=2025.7.19",
     "sphinx-autodoc-typehints>=3.0.1",
     "numpydoc>=1.9.0",
     "pydoclint>=0.7.3",
     "interrogate>=1.7.0",
-    "jupytext>=1.16.7",
 ]
 test = [
     "pytest>=8.3.5",
@@ -77,8 +70,8 @@ test = [
 ]
 notebooks = [
     "ipywidgets>=8.1.0",
-    "ipykernel>=6.29.5",
-    "jupytext>=1.16.7",
+    "jupyter>=1.1.1",
+    "ipykernel>=7.2.0",
     "nbconvert>=7.16.6",
 ]
 dev = [
@@ -137,10 +130,12 @@ quiet = true
 
 [tool.ruff]
 include = [
+    ".github/**/*.py",
+    "docs/**/*.py",
     "pyproject.toml",
+    "scripts/**/*.py",
     "src/**/*.py",
     "tests/**/*.py",
-    "tutorials/**/*.py",
 ]
 line-length = 79
 target-version = "py312"
@@ -236,39 +231,18 @@ convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "D",
-    "ANN",
-    "S",
-    "PLR",
-    "ARG",
-    "ERA",
-    "B",
-    "A",
-    "C4",
-    "PIE",
-    "PT",
-    "RET",
-    "SIM",
-    "N",
-    "UP",
-    "F401",
-    "F841",
+    "S101",
+    "RET504",
     "PLR2004",
-    "E501",
+    "PT009",
+    "ARG001",
     "E741",
-    "PLC0415",
+    "N803",
+    "N806",
 ]
-"tutorials/**/*.py" = ["D", "ANN", "E501", "ERA"]
-# Remove these legacy suppressions after traced validation and test
-# documentation migrate without changing physics behavior.
-"src/diffpes/types/*.py" = ["PLW0108"]
-"src/diffpes/types/geometry.py" = ["PLR2004", "PLW0108"]
-# Physics modules: standard physics variable names (H=Hamiltonian,
-# l/m=quantum numbers, M=matrix element, R=radial/lattice, W=work fn)
+# Tight-binding and angular-momentum formulae use standard physics symbols.
+"src/diffpes/maths/*.py" = ["E741", "N803", "N806"]
 "src/diffpes/tightb/*.py" = ["E741", "N803", "N806"]
-"src/diffpes/maths/*.py" = ["E741", "N803", "N806", "ARG001"]
-"src/diffpes/simul/forward.py" = ["E741", "N806"]
-
 [tool.ty.environment]
 python-version = "3.12"
 root = ["./src", "."]
@@ -294,7 +268,3 @@ include = ["tests/**"]
 unresolved-attribute = "ignore"
 not-subscriptable = "ignore"
 unsupported-operator = "ignore"
-
-[tool.jupytext.formats]
-"docs/source/tutorials/" = "ipynb"
-"tutorials/" = "py:percent"

@@ -2,8 +2,8 @@
 
 Extended Summary
 ----------------
-This module wraps Chex's PyTree assertions with the strict test defaults.
-It loads behavioral regression arrays from the WP6.1 reference directory.
+This module wraps Chex's PyTree assertions with strict test defaults.
+It loads regression arrays from the matrix-element reference directory.
 It also provides the shared eager and JIT rejection contract for factory tests.
 """
 
@@ -36,9 +36,9 @@ def _assert_rejection(
     ----------
     fn : Callable[..., Any]
         Callable under test.
-    args : tuple[Any, ...]
+    args : Tuple[Any, ...]
         Positional arguments for the call.
-    kwargs : dict[str, Any]
+    kwargs : Dict[str, Any]
         Keyword arguments for the call.
     match : str
         Regular expression the error message must match.
@@ -49,8 +49,8 @@ def _assert_rejection(
         If the call raises no ``ValueError`` or ``RuntimeError``, or
         if the message fails the pattern.
 
-    Implementation Logic
-    --------------------
+    Notes
+    -----
     The helper invokes the callable, catches ``ValueError`` and
     ``RuntimeError``, and searches the message with ``re.search``. A
     missing exception or a non-matching message raises
@@ -119,7 +119,7 @@ def assert_trees_close(
 
     The helper uses a relative tolerance of ``1e-12`` and zero absolute
     tolerance by default. These settings preserve sensitivity near zero.
-    They also permit small variation from the order of floating-point reductions.
+    They permit small variation from the order of floating-point reductions.
     """
     chex.assert_trees_all_close(actual, desired, rtol=rtol, atol=atol)
 
@@ -129,7 +129,7 @@ def assert_tree_finite(tree: PyTree) -> None:
     """Assert that every numerical leaf in a PyTree is finite.
 
     Delegates recursively to Chex so nested production carriers and ordinary
-    array collections share one NaN and infinity gate.
+    array collections share one NaN and infinity check.
     """
     leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
@@ -157,6 +157,7 @@ def assert_matches_reference(
         Bare filename stem of the NPZ artifact.
     rtol : float, optional
         Relative comparison tolerance. Default is ``1e-12``.
+
     Raises
     ------
     ValueError

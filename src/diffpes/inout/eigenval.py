@@ -23,7 +23,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Literal, Optional, TextIO, Union
+from beartype.typing import List, Literal, Optional, TextIO, Union
 from jaxtyping import Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -80,7 +80,7 @@ def read_eigenval(  # noqa: PLR0915
 
            path: Path = Path(filename)
            with path.open("r") as fid:
-               first_line: list[str] = fid.readline().split()
+               first_line: List[str] = fid.readline().split()
                ispin: int = int(first_line[3])
 
        This step fixes the static file layout before the function allocates
@@ -141,13 +141,13 @@ def read_eigenval(  # noqa: PLR0915
 
     path: Path = Path(filename)
     with path.open("r") as fid:
-        header: list[int] = [int(x) for x in fid.readline().split()]
+        header: List[int] = [int(x) for x in fid.readline().split()]
         ispin: int = header[3]
         fid.readline()
         fid.readline()
         fid.readline()
         fid.readline()
-        meta: list[int] = [int(x) for x in fid.readline().split()]
+        meta: List[int] = [int(x) for x in fid.readline().split()]
         _nelect: int = meta[0]
         nkpoints: int = meta[1]
         nbands: int = meta[2]
@@ -167,7 +167,7 @@ def read_eigenval(  # noqa: PLR0915
                     "Unexpected EOF while reading EIGENVAL k-point block."
                 )
                 raise ValueError(msg)
-            kpoint_vals: list[float] = [float(x) for x in kpoint_line.split()]
+            kpoint_vals: List[float] = [float(x) for x in kpoint_line.split()]
             if len(kpoint_vals) < KPOINT_LINE_VALUES:
                 msg: str = "Invalid EIGENVAL k-point line; expected 4 values."
                 raise ValueError(msg)
@@ -179,7 +179,7 @@ def read_eigenval(  # noqa: PLR0915
                         "Unexpected EOF while reading EIGENVAL band line."
                     )
                     raise ValueError(msg)
-                vals: list[float] = [float(x) for x in band_line.split()]
+                vals: List[float] = [float(x) for x in band_line.split()]
                 if len(vals) < BAND_LINE_MIN_VALUES:
                     msg: str = (
                         "Invalid EIGENVAL band line; expected band energy."

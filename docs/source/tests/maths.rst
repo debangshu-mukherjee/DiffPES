@@ -27,3 +27,13 @@ Validation and regression tests for :mod:`diffpes.maths`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_maths.test_local_nonlocal_gauge_control
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_maths.test_real_gaunt_sympy_reference
+   :members:
+   :undoc-members:
+   :show-inheritance:

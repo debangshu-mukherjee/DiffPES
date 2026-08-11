@@ -10,7 +10,7 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Array, Float64
+from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
 from diffpes.tightb import (
@@ -46,7 +46,7 @@ def _reference() -> Dict[str, Any]:
 
     Returns
     -------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Parsed JSON content of ``chinook_slab_reference.json`` with the
         neutral model specification and the frozen Chinook slab
         reference in eV and Angstrom.
@@ -88,7 +88,7 @@ def _bulk_model(specification: Dict[str, Any]) -> TBModel:
 
     Parameters
     ----------
-    specification : dict[str, Any]
+    specification : Dict[str, Any]
         Frozen ``model_specification`` block with the lattice in
         Angstrom, fractional positions, species, onsite energy in eV,
         and anisotropic nearest-neighbor hoppings in eV.
@@ -125,7 +125,7 @@ def _bulk_model(specification: Dict[str, Any]) -> TBModel:
         labels=tuple(specification["basis"]),
     )
     hopping: Dict[str, float] = specification["nearest_neighbor_hopping_ev"]
-    amplitudes: Array = jnp.asarray(
+    amplitudes: Complex128[Array, " 6"] = jnp.asarray(
         (
             hopping["x"],
             hopping["x"],
@@ -144,7 +144,7 @@ def _bulk_model(specification: Dict[str, Any]) -> TBModel:
         (0, 0, 1),
         (0, 0, -1),
     )
-    return make_tb_model(
+    model: TBModel = make_tb_model(
         hopping_amplitudes=amplitudes,
         onsite_energies=jnp.asarray(
             [specification["onsite_ev"]],
@@ -157,6 +157,7 @@ def _bulk_model(specification: Dict[str, Any]) -> TBModel:
         hopping_cells=cells,
         shell_index=(-1,),
     )
+    return model
 
 
 def _native_slab(
@@ -166,12 +167,12 @@ def _native_slab(
 
     Parameters
     ----------
-    payload : dict[str, Any]
+    payload : Dict[str, Any]
         Authenticated artifact dictionary from :func:`_reference`.
 
     Returns
     -------
-    slab_and_spec : tuple[TBModel, SlabSpec]
+    slab_and_spec : Tuple[TBModel, SlabSpec]
         The extruded slab model and its specification carrier.
 
     Notes
@@ -182,7 +183,7 @@ def _native_slab(
     derives only from implementation-neutral numbers.
     """
     specification: Dict[str, Any] = payload["model_specification"]
-    return gen_slab(
+    slab_and_spec: Tuple[TBModel, SlabSpec] = gen_slab(
         bulk_model=_bulk_model(specification),
         miller=tuple(specification["miller"]),
         thickness_ang=specification["thickness_angstrom"],
@@ -190,11 +191,12 @@ def _native_slab(
         termination=tuple(specification["termination_species_top_bottom"]),
         fine=tuple(specification["fine_top_bottom_angstrom"]),
     )
+    return slab_and_spec
 
 
 def _gauss_reduced_metric(
     vectors: Float64[NDArray, "2 3"],
-) -> Float64[NDArray, "2 3"]:
+) -> Float64[NDArray, "2 2"]:
     """PRIVATE: Return a deterministic reduced two-dimensional lattice metric.
 
     Parameters
@@ -204,7 +206,7 @@ def _gauss_reduced_metric(
 
     Returns
     -------
-    metric : Float64[NDArray, "2 3"]
+    metric : Float64[NDArray, "2 2"]
         The Gram matrix ``reduced @ reduced.T`` of the Gauss-reduced
         vectors in Angstrom squared.
 
@@ -240,11 +242,16 @@ def _gauss_reduced_metric(
         reduced[1] -= nearest * reduced[0]
     else:
         raise RuntimeError("reference surface metric did not reduce")
-    return reduced @ reduced.T
+    metric: Float64[NDArray, "2 2"] = reduced @ reduced.T
+    return metric
 
 
 class TestChinookSlabCompatibility:
-    """Resolve Chinook slab band and surface-state compatibility."""
+    """Resolve Chinook slab band and surface-state compatibility.
+
+    The cases compare surface cells, slab spectra, and nondegenerate surface
+    projections with pinned external data.
+    """
 
     def test_surface_cell_is_unimodularly_equivalent(self) -> None:
         """Match Chinook surface area and the reduced in-plane metric.
@@ -287,7 +294,7 @@ class TestChinookSlabCompatibility:
             atol=1e-12,
         )
 
-    def test_slab_spectrum_agrees_after_the_c_gates(self) -> None:
+    def test_slab_spectrum_agrees_after_independent_checks(self) -> None:
         """Match the frozen nondegenerate Chinook slab spectrum.
 
         Exercise this slab condition with fixed fixtures.
@@ -364,6 +371,3 @@ class TestChinookSlabCompatibility:
             rtol=_COMPATIBILITY_RTOL,
             atol=1e-12,
         )
-
-
-__all__: list[str] = []

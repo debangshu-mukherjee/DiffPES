@@ -12,10 +12,11 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Tuple
+from beartype import beartype
+from beartype.typing import List, Tuple
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from jaxtyping import Array, Float64
+from jaxtyping import Array, Float64, jaxtyped
 
 from diffpes.maths import (
     safe_arccos,
@@ -98,7 +99,7 @@ class TestSafeDivide:
     )
     @settings(max_examples=20, deadline=None)
     def test_broadcasting_and_sign_symmetry(
-        self, values: list[float], denominator: float
+        self, values: List[float], denominator: float
     ) -> None:
         """Preserve broadcasting and odd symmetry in the numerator.
 
@@ -147,8 +148,8 @@ class TestSafeSqrt:
 
         Notes
         -----
-        The test evaluates three positive values away from the branch boundary and a
-        JIT-compiled two-value guard probe before differentiating each guard.
+        The test evaluates three positive values away from the branch boundary
+        and a compiled two-value guard probe before differentiating each guard.
         """
         x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 9.0])
         values: Float64[Array, " 3"] = safe_sqrt(x)
@@ -190,8 +191,8 @@ class TestSafeNorm:
 
         Notes
         -----
-        The test uses two generic three-vectors for the ordinary path and an independent
-        JIT and reverse-mode probe at the origin.
+        The test uses two generic three-vectors for the ordinary path and an
+        independent JIT and reverse-mode probe at the origin.
         """
         x: Float64[Array, "2 3"] = jnp.array(
             [[3.0, 4.0, 1.0], [-2.0, 5.0, 7.0]]
@@ -225,7 +226,7 @@ class TestSafeNorm:
         )
     )
     @settings(max_examples=20, deadline=None)
-    def test_sign_symmetry(self, values: list[float]) -> None:
+    def test_sign_symmetry(self, values: List[float]) -> None:
         """Preserve norm symmetry under vector sign reversal.
 
         Extended Summary
@@ -264,8 +265,8 @@ class TestSafeArccos:
 
         Notes
         -----
-        The test uses three generic interior cosines and a four-value JIT guard probe
-        spanning both endpoints and both out-of-domain sides.
+        The test uses three generic interior cosines and a four-value JIT guard
+        probe spanning both endpoints and both out-of-domain sides.
         """
         x: Float64[Array, " 3"] = jnp.array([-0.6, 0.2, 0.7])
         values: Float64[Array, " 3"] = safe_arccos(x)
@@ -310,14 +311,33 @@ class TestSafeArctan2:
 
         Notes
         -----
-        The test uses points in three quadrants for ordinary behavior, then runs the
-        scalar origin through JIT and differentiates both arguments.
+        The test uses points in three quadrants for ordinary behavior, then
+        runs the scalar origin through JIT and differentiates both arguments.
         """
         coordinates: Float64[Array, "3 2"] = jnp.array(
             [[0.5, 1.0], [2.0, -3.0], [-4.0, -2.0]]
         )
 
-        def summed_angles(value: Float64[Array, "3 2"]) -> Float64[Array, ""]:
+        @jaxtyped(typechecker=beartype)
+        def _summed_angles(
+            value: Float64[Array, "3 2"],
+        ) -> Float64[Array, ""]:
+            """PRIVATE: Sum safe polar angles for three coordinates.
+
+            Parameters
+            ----------
+            value : Float64[Array, "3 2"]
+                Three ordered ``(y, x)`` coordinate pairs.
+
+            Returns
+            -------
+            result : Float64[Array, ""]
+                Sum of the three guarded polar angles in radians.
+
+            Notes
+            -----
+            Converts the candidate to a JAX array before evaluating each row.
+            """
             value_array: Float64[Array, "3 2"] = jnp.asarray(value)
             result: Float64[Array, ""] = jnp.sum(
                 safe_arctan2(value_array[:, 0], value_array[:, 1])
@@ -333,7 +353,7 @@ class TestSafeArctan2:
             )
         )
         chex.assert_trees_all_close(values, expected, rtol=1e-15, atol=1e-15)
-        assert_grad_matches_fd(summed_angles, coordinates)
+        assert_grad_matches_fd(_summed_angles, coordinates)
 
         guarded: Float64[Array, ""] = jax.jit(safe_arctan2)(
             jnp.array(0.0), jnp.array(0.0)
@@ -366,8 +386,8 @@ class TestSafeLog:
 
         Notes
         -----
-        The test uses three ordinary positive values and a three-value JIT probe
-        containing the floor, zero, and a negative input.
+        The test uses three ordinary positive values and a three-value JIT
+        probe containing the floor, zero, and a negative input.
         """
         x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 10.0])
         values: Float64[Array, " 3"] = safe_log(x)
@@ -412,8 +432,8 @@ class TestSafePower:
 
         Notes
         -----
-        The test uses exponent ``1.7`` on three positive bases, then evaluates and
-        differentiates a two-base guarded sum under JIT-compatible primitives.
+        The test uses exponent ``1.7`` on three positive bases, then evaluates
+        and differentiates a guarded two-base sum with JIT-safe primitives.
         """
         exponent: Float64[Array, ""] = jnp.array(1.7)
         x: Float64[Array, " 3"] = jnp.array([0.25, 2.0, 7.0])

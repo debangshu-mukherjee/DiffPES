@@ -1,6 +1,6 @@
-"""Verify the frozen RM-2 Chinook response-ordering compatibility seam.
+"""Verify the frozen Chinook response-ordering compatibility seam.
 
-The tests authenticate the offline source bundle, replay the isolated D-4
+The tests authenticate the offline source bundle, replay the isolated response
 adapter, and keep wrong-spacing and wrong-axis controls permanently red.
 """
 
@@ -14,7 +14,7 @@ from jaxtyping import Float64
 from jsonschema import Draft202012Validator
 from numpy.typing import NDArray
 
-from tests._reference_tools.chinook_rm2_resolution_adapter import (
+from tests._reference_tools.chinook_resolution_adapter import (
     comparison_metrics,
     matched_resolution,
     wrong_axis_order_resolution,
@@ -44,7 +44,7 @@ def _sha256(path: Path) -> str:
 
 
 def _reference_root() -> Path:
-    """PRIVATE: Return the frozen RM-2 test-consumer directory.
+    """PRIVATE: Return the frozen response-parity consumer directory.
 
     Returns
     -------
@@ -58,16 +58,16 @@ def _reference_root() -> Path:
     """
     root: Path = (
         Path(__file__).resolve().parents[1]
-        / "_reference_data/chinook_rm2_resolution_parity"
+        / "_reference_data/chinook_resolution_parity"
     )
     return root
 
 
-def test_rm2_resolution_bundle_authenticates() -> None:
+def test_lithium_chain_resolution_bundle_authenticates() -> None:
     """Verify the frozen model, environment, source, axes, and schema.
 
-    The check binds every consumer input to the immutable offline G6 bundle
-    before any numerical replay can contribute acceptance evidence.
+    The check binds every consumer input to the immutable resolution-parity
+    bundle before any numerical replay contributes acceptance evidence.
 
     Notes
     -----
@@ -82,19 +82,19 @@ def test_rm2_resolution_bundle_authenticates() -> None:
     environment_path: Path = reference_root / "chinook_env_freeze.txt"
     adapter_path: Path = (
         Path(__file__).resolve().parents[2]
-        / "_reference_tools/chinook_rm2_resolution_adapter.py"
+        / "_reference_tools/chinook_resolution_adapter.py"
     )
     assert _sha256(manifest_path) == (
-        "0c816b886a0fa68c2c3219490e555a868ff0720f56e344fecdf20f2a55e2c2c5"
+        "9db837b7ec46d7c98b98e957ffe79d631f9ed21581499661c9f83016dc2ef49a"
     )
     assert _sha256(model_path) == (
-        "b90f533ef8de795c757764d88a31fe0521d92a7a888f84ea4f216c6f1fb75284"
+        "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe"
     )
     assert _sha256(environment_path) == (
         "6d00cb4df251508b6392273b1df166f6a17abe8f6691cffead45c636e8ef2531"
     )
     assert _sha256(adapter_path) == (
-        "b50a3d2684c6d06daf4e161ab5eb9053d3043a89dad0fe2c3e367cbef1815868"
+        "4980a4b1642b1b6ffbeb37e61290712b9775f12ead89403ad70e1ff44eb84797"
     )
     manifest: Dict[str, Any] = json.loads(
         manifest_path.read_text(encoding="utf-8")
@@ -117,8 +117,8 @@ def test_rm2_resolution_bundle_authenticates() -> None:
     assert summary["source_authentication"]["adapter_sha256"] == _sha256(
         adapter_path
     )
-    assert summary["scope"]["classification"] == (
-        "K-only D-4 response compatibility"
+    assert (
+        summary["scope"]["classification"] == "K-only response compatibility"
     )
     assert summary["scope"]["complete_shape"] == [1, 241, 601]
     assert summary["diagnostics"]["public_long_tail_expected_peak_ratio"] == (
@@ -151,16 +151,16 @@ def test_rm2_resolution_bundle_authenticates() -> None:
         assert np.all(np.isfinite(archive["intensity_raw"]))
 
 
-def test_rm2_matched_response_passes_both_frozen_envelopes() -> None:
-    """Replay Chinook's exact sampled response on the complete RM-2 cut.
+def test_lithium_chain_matched_response_passes_frozen_envelopes() -> None:
+    """Replay Chinook's exact sampled response on the complete reference cut.
 
     The acceptance check fits exactly one nonnegative scale on the declared
-    five-sigma interior and requires both CC-5 and strict peak envelopes.
+    five-sigma interior and requires elementwise and strict peak envelopes.
 
     Notes
     -----
     The test sends the authenticated pre-resolution cut through only the
-    test-side D-4 adapter, with no Chinook import or production parity branch.
+    test-side response adapter, with no Chinook import or production branch.
     """
     reference_root: Path = _reference_root()
     archive: np.lib.npyio.NpzFile
@@ -201,7 +201,7 @@ def test_rm2_matched_response_passes_both_frozen_envelopes() -> None:
     )
     assert metrics["crop_cells_axis_order_ky_kx_omega"] == [0, 5, 13]
     assert metrics["interior_shape"] == [1, 231, 575]
-    assert metrics["cc5_elementwise_pass"] is True
+    assert metrics["elementwise_pass"] is True
     assert metrics["strict_peak_scaled_pass"] is True
     fitted_scale: float = float(metrics["profiled_nonnegative_scale"])
     strict_ratio: float = float(metrics["max_absolute_error_over_peak"])
@@ -213,7 +213,7 @@ def test_rm2_matched_response_passes_both_frozen_envelopes() -> None:
     assert np.isclose(integral_ratio, 1.0, rtol=0.0, atol=1.0e-12)
 
 
-def test_rm2_wrong_spacing_and_axis_controls_fail() -> None:
+def test_lithium_chain_wrong_spacing_and_axis_controls_fail() -> None:
     """Reject planted sigma-spacing and energy-momentum axis defects.
 
     Both controls keep the frozen input and kernel family while corrupting one
@@ -278,7 +278,7 @@ def test_rm2_wrong_spacing_and_axis_controls_fail() -> None:
         energy_fwhm_ev=0.03,
         momentum_fwhm_inv_ang=0.02,
     )
-    assert spacing_metrics["cc5_elementwise_pass"] is False
+    assert spacing_metrics["elementwise_pass"] is False
     assert spacing_metrics["strict_peak_scaled_pass"] is False
-    assert axis_metrics["cc5_elementwise_pass"] is False
+    assert axis_metrics["elementwise_pass"] is False
     assert axis_metrics["strict_peak_scaled_pass"] is False

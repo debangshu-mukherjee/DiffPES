@@ -1,4 +1,4 @@
-"""Validate the WP7.6 streamed spectral scaling evidence and dtype gate.
+"""Validate streamed spectral scaling evidence and complex128 enforcement.
 
 The isolated benchmark artifact owns literal-target compiler-live allocation,
 compile-count, and complex128 solve evidence. Small executable tests
@@ -11,27 +11,29 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from beartype.typing import Dict, Tuple
-from jaxtyping import Array, Complex128, Float64, TypeCheckError
+from beartype.typing import Any, Dict, Tuple
+from jaxtyping import Array, Bool, Complex128, Float64, TypeCheckError
 
 from diffpes.simul import (
     assemble_spectral_intensity_chunk,
+    spectral,
     spectral_intensity_resolvent,
 )
 from diffpes.types import (
     SelfEnergyModel,
+    TransitionSourceSchedule,
     make_final_state_spec,
     make_matrix_element_params,
     make_orbital_basis,
     make_radial_quadrature_spec,
     make_radial_spec,
     make_self_energy_model,
+    make_transition_source_schedule,
 )
 
 ARTIFACT_DIRECTORY: Path = (
@@ -41,7 +43,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "08a917ff8dabbcfb78858c4a3b5f3a408834df36a6b55336b2a0f7ed04a9e5cd"
+    "2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -54,7 +56,8 @@ def _sha256(path: Path) -> str:
     The artifact handshake reads the file as bytes so newline handling cannot
     alter the authenticated identity.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    returned: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return returned
 
 
 def _artifact() -> Dict[str, Any]:
@@ -66,14 +69,21 @@ def _artifact() -> Dict[str, Any]:
     unrecognized benchmark record.
     """
     assert _sha256(ARTIFACT_PATH) == ARTIFACT_SHA256
-    return json.loads(ARTIFACT_PATH.read_text(encoding="utf-8"))
+    returned: Dict[str, Any] = json.loads(
+        ARTIFACT_PATH.read_text(encoding="utf-8")
+    )
+    return returned
 
 
 class TestSpectralScalabilityEvidence:
-    """Validate the reproducible S1--S3 benchmark record."""
+    """Validate the reproducible spectral benchmark record.
 
-    def test_s1_literal_target_compiler_memory(self) -> None:
-        """Verify the literal target and its measured 1.5x gate.
+    The cases authenticate compiler-memory measurements and reference records
+    for compilation, complex precision, and the literal target shape.
+    """
+
+    def test_literal_target_compiler_memory(self) -> None:
+        """Verify the literal target and its measured 1.5x memory bound.
 
         The test binds every allocation identity to the registered target.
 
@@ -86,7 +96,11 @@ class TestSpectralScalabilityEvidence:
         """
         artifact: Dict[str, Any] = _artifact()
         assert artifact["schema"] == "diffpes.spectral-scalability.v1"
-        assert artifact["gate_ids"] == ["07.S1", "07.S2", "07.S3"]
+        assert artifact["requirements"] == [
+            "streamed-forward-memory",
+            "rematerialized-gradient-memory",
+            "fixed-shape-trace-reuse",
+        ]
         assert artifact["backend"] == "cpu"
         assert artifact["x64_enabled"] is True
         relative_path: str
@@ -94,7 +108,7 @@ class TestSpectralScalabilityEvidence:
         for relative_path, digest in artifact["source_sha256"].items():
             assert _sha256(REPOSITORY_ROOT / relative_path) == digest
 
-        measurement: Dict[str, Any] = artifact["s1_literal_target"]
+        measurement: Dict[str, Any] = artifact["literal_streaming_target"]
         assert (
             measurement["n_k_max"],
             measurement["n_omega_max"],
@@ -145,16 +159,15 @@ class TestSpectralScalabilityEvidence:
             measurement["process_peak_rss_before_bytes_non_authoritative"] > 0
         )
         assert (
-            measurement["process_peak_rss_before_bytes_non_authoritative"],
-            measurement["process_peak_rss_after_bytes_non_authoritative"],
-        ) == (463_302_656, 688_541_696)
+            measurement["process_peak_rss_after_bytes_non_authoritative"] > 0
+        )
         assert (
             measurement["process_peak_rss_after_bytes_non_authoritative"]
             >= measurement["process_peak_rss_before_bytes_non_authoritative"]
         )
 
-    def test_s1_reference_s2_compile_and_s3_dtype_records(self) -> None:
-        """Verify every non-memory S1--S3 artifact verdict.
+    def test_reference_compile_and_dtype_records(self) -> None:
+        """Verify every non-memory spectral artifact verdict.
 
         The test authenticates reference accuracy, trace reuse, and dtype rows.
 
@@ -164,7 +177,7 @@ class TestSpectralScalabilityEvidence:
         cannot pass by changing only its summary field.
         """
         artifact: Dict[str, Any] = _artifact()
-        reference: Dict[str, Any] = artifact["s1_reference_comparison"]
+        reference: Dict[str, Any] = artifact["reference_comparison"]
         name: str
         for name in (
             "value_passes_rtol_1e_12",
@@ -179,12 +192,12 @@ class TestSpectralScalabilityEvidence:
             abs=0.0,
         )
         assert reference["maximum_gradient_absolute_error"] == 0.0
-        compile_count: Dict[str, Any] = artifact["s2_compile_count"]
+        compile_count: Dict[str, Any] = artifact["compile_reuse"]
         assert compile_count["n_out"] == 1
         assert compile_count["trace_count"] == 1
         assert compile_count["compile_cache_sizes"] == [0, 1, 1, 1]
         assert compile_count["result"] == "pass"
-        dtype: Dict[str, Any] = artifact["s3_dtype"]
+        dtype: Dict[str, Any] = artifact["complex128_dtype"]
         assert dtype["operator_input_dtype"] == "complex128"
         assert dtype["rhs_input_dtype"] == "complex128"
         assert dtype["solution_dtype"] == "complex128"
@@ -197,26 +210,28 @@ class TestSpectralScalabilityEvidence:
 
 
 class TestSpectralStreamRuntimeScaling:
-    """Run small direct S1 and S3 production checks on every test host."""
+    """Run small direct stream and dtype checks on every test host.
+
+    The cases compare checkpointed and unchunked values and gradients, then
+    enforce complex128 solves and reject complex64 inputs.
+    """
 
     @staticmethod
     def _fixture() -> Tuple[
         Complex128[Array, "4 2 2"],
-        Any,
+        TransitionSourceSchedule,
         Float64[Array, " 8"],
-        Array,
-        Array,
+        Bool[Array, " 4"],
+        Bool[Array, " 8"],
         SelfEnergyModel,
     ]:
-        """PRIVATE: Return one fixed padded Plan-06 source schedule.
+        """PRIVATE: Return one fixed padded transition-source schedule.
 
         Notes
         -----
         The fixture includes invalid padding on both axes and deterministic
         transition geometry for value and gradient comparisons.
         """
-        import diffpes.simul.spectral as spectral
-
         base: Complex128[Array, "2 2"] = jnp.asarray(
             [[-0.2, 0.07 + 0.03j], [0.07 - 0.03j, 0.1]]
         )
@@ -248,7 +263,7 @@ class TestSpectralStreamRuntimeScaling:
         final_norm: Float64[Array, " 8"] = 1.1 + 0.02 * jnp.arange(
             8, dtype=jnp.float64
         )
-        schedule: Any = spectral._TransitionSourceSchedule(
+        schedule: TransitionSourceSchedule = make_transition_source_schedule(
             k_i_cart=k_i,
             final_norm=final_norm,
             emission_energy_valid=jnp.ones(8, dtype=jnp.bool_),
@@ -263,11 +278,18 @@ class TestSpectralStreamRuntimeScaling:
             quadrature=make_radial_quadrature_spec(),
             final_state=make_final_state_spec(),
         )
-        k_valid: Array = jnp.asarray([True, True, True, False])
-        omega_valid: Array = jnp.asarray(
+        k_valid: Bool[Array, "4"] = jnp.asarray([True, True, True, False])
+        omega_valid: Bool[Array, "8"] = jnp.asarray(
             [True, True, True, True, True, True, False, False]
         )
-        return (
+        returned: Tuple[
+            Complex128[Array, "4 2 2"],
+            TransitionSourceSchedule,
+            Float64[Array, " 8"],
+            Bool[Array, " 4"],
+            Bool[Array, " 8"],
+            SelfEnergyModel,
+        ] = (
             hamiltonians,
             schedule,
             omega,
@@ -275,6 +297,7 @@ class TestSpectralStreamRuntimeScaling:
             omega_valid,
             make_self_energy_model(gamma=0.04),
         )
+        return returned
 
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
@@ -290,13 +313,11 @@ class TestSpectralStreamRuntimeScaling:
         The direct assembler uses sources built once for the whole padded
         carrier. The streamed path rebuilds only each live chunk.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonians: Complex128[Array, "4 2 2"]
-        schedule: Any
+        schedule: TransitionSourceSchedule
         omega: Float64[Array, " 8"]
-        k_valid: Array
-        omega_valid: Array
+        k_valid: Bool[Array, "..."]
+        omega_valid: Bool[Array, "..."]
         model: SelfEnergyModel
         hamiltonians, schedule, omega, k_valid, omega_valid, model = (
             self._fixture()
@@ -307,10 +328,12 @@ class TestSpectralStreamRuntimeScaling:
         normal_sq: Float64[Array, "4 8"] = (
             schedule.final_norm[None, :] ** 2 - parallel_sq[:, None]
         )
-        emission_valid: Array = schedule.emission_energy_valid[None, :] & (
-            normal_sq > 0.0
+        emission_valid: Bool[Array, "..."] = schedule.emission_energy_valid[
+            None, :
+        ] & (normal_sq > 0.0)
+        mask: Bool[Array, "..."] = (
+            k_valid[:, None] & omega_valid[None, :] & emission_valid
         )
-        mask: Array = k_valid[:, None] & omega_valid[None, :] & emission_valid
         safe_normal_sq: Float64[Array, "4 8"] = jnp.where(mask, normal_sq, 1.0)
         final_kz: Float64[Array, "4 8"] = jnp.where(
             mask, jnp.sqrt(safe_normal_sq), 0.0
@@ -340,20 +363,23 @@ class TestSpectralStreamRuntimeScaling:
             candidate: Complex128[Array, "4 2 2"],
         ) -> Float64[Array, "4 8"]:
             """Evaluate the checkpointed static schedule."""
-            return spectral._stream_spectral_intensity(
-                candidate,
-                omega,
-                k_valid,
-                omega_valid,
-                schedule,
-                model,
-                jnp.asarray(0.03),
-                20.0,
-                1.0e-4,
-                k_chunk=2,
-                omega_chunk=4,
-                checkpoint=True,
+            returned: Float64[Array, "4 8"] = (
+                spectral._stream_spectral_intensity(
+                    candidate,
+                    omega,
+                    k_valid,
+                    omega_valid,
+                    schedule,
+                    model,
+                    jnp.asarray(0.03),
+                    20.0,
+                    1.0e-4,
+                    k_chunk=2,
+                    omega_chunk=4,
+                    checkpoint=True,
+                )
             )
+            return returned
 
         def unchunked(
             candidate: Complex128[Array, "4 2 2"],
@@ -368,7 +394,8 @@ class TestSpectralStreamRuntimeScaling:
                 20.0,
                 1.0e-4,
             )
-            return jnp.where(mask, values, 0.0)
+            returned: Float64[Array, "4 8"] = jnp.where(mask, values, 0.0)
+            return returned
 
         produced: Float64[Array, "4 8"] = streamed(hamiltonians)
         expected: Float64[Array, "4 8"] = unchunked(hamiltonians)
@@ -394,7 +421,7 @@ class TestSpectralStreamRuntimeScaling:
         assert bool(jnp.all(produced_gradient[~k_valid] == 0.0))
 
     def test_resolvent_solve_is_complex128_and_rejects_complex64(self) -> None:
-        """Assert S3 inside the solve and at the public typed boundary.
+        """Assert complex128 inside the solve and at the typed boundary.
 
         The test inspects lowered IR and calls the typed API with complex64.
 
@@ -403,8 +430,6 @@ class TestSpectralStreamRuntimeScaling:
         Compiler text must contain complex-f64 operations and no complex-f32
         operation before the low-precision public call rejects.
         """
-        import diffpes.simul.spectral as spectral
-
         hamiltonian: Complex128[Array, "2 2"] = jnp.asarray(
             [[-0.2, 0.04 + 0.03j], [0.04 - 0.03j, 0.15]],
             dtype=jnp.complex128,
@@ -417,7 +442,7 @@ class TestSpectralStreamRuntimeScaling:
             0.01 - 0.04j, dtype=jnp.complex128
         )
         eta: Float64[Array, ""] = jnp.asarray(1.0e-4, dtype=jnp.float64)
-        solution: Array = spectral._resolvent_solution(
+        solution: Float64[Array, "..."] = spectral._resolvent_solution(
             hamiltonian, source, omega, sigma, eta
         )
         assert solution.dtype == jnp.complex128

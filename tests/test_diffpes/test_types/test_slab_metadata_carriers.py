@@ -12,8 +12,8 @@ import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-from beartype.typing import Any, Dict, Tuple
-from jaxtyping import Array
+from beartype.typing import Any, Dict, List, Tuple
+from jaxtyping import Array, Float64
 
 from diffpes.inout import load_from_h5, save_to_h5
 from diffpes.tightb import diagonalize_tb, spin_double_model, tb_parameter_view
@@ -94,12 +94,12 @@ def _basis(n_orbitals: int) -> OrbitalBasis:
     return basis
 
 
-def _model(depths: Array | None) -> TBModel:
+def _model(depths: Float64[Array, " norb"] | None) -> TBModel:
     """PRIVATE: Return a diagonal model carrying optional orbital depths.
 
     Parameters
     ----------
-    depths : Array | None
+    depths : Float64[Array, " norb"] | None
         Optional per-orbital depths below the surface in Angstrom.
         ``None`` builds a bulk model with two orbitals.
 
@@ -162,7 +162,11 @@ def _surface_cell() -> SurfaceCell:
 
 
 class TestDepthCarrier:
-    """Validate the optional depth leaf and its exact propagation."""
+    """Validate the optional depth leaf and its exact propagation.
+
+    The cases propagate optional depths through PyTrees, derivatives, model
+    rebuilders, and invalid-value guards.
+    """
 
     def test_none_remains_bulk(self) -> None:
         """Preserve the absent carrier through native diagonalization.
@@ -191,7 +195,7 @@ class TestDepthCarrier:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        cases: Tuple[Tuple[Array, str], ...] = (
+        cases: Tuple[Tuple[Float64[Array, " norb"], str], ...] = (
             (
                 jnp.asarray([0.0, -1e-6], dtype=jnp.float64),
                 "depths must be nonnegative",
@@ -205,7 +209,7 @@ class TestDepthCarrier:
                 "depths must have shape",
             ),
         )
-        depths: Array
+        depths: Float64[Array, " norb"]
         match: str
         for depths, match in cases:
             arguments: Dict[str, object] = {
@@ -248,40 +252,42 @@ class TestDepthCarrier:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = jnp.linspace(
+        depths: Float64[Array, " norb"] = jnp.linspace(
             0.0,
             3.0,
             n_orbitals,
             dtype=jnp.float64,
         )
-        direction: Array = jnp.linspace(
+        direction: Float64[Array, " norb"] = jnp.linspace(
             -0.75,
             1.25,
             n_orbitals,
             dtype=jnp.float64,
         )
 
-        def propagate(candidate: Array) -> Array:
+        def propagate(
+            candidate: Float64[Array, " norb"],
+        ) -> Float64[Array, " norb"]:
             """Return depths after the native diagonalization seam."""
-            output: Array | None = diagonalize_tb(
+            output: Float64[Array, " norb"] | None = diagonalize_tb(
                 _model(candidate),
                 jnp.zeros((1, 3), dtype=jnp.float64),
             ).depths
             assert output is not None
             return output
 
-        primal: Array
-        tangent: Array
+        primal: Float64[Array, " norb"]
+        tangent: Float64[Array, " norb"]
         primal, tangent = jax.jvp(
             propagate,
             (depths,),
             (direction,),
         )
-        output: Array
+        output: Float64[Array, " norb"]
         pullback: object
         output, pullback = jax.vjp(propagate, depths)
-        cotangent: Array = pullback(direction)[0]
-        jacobian: Array = jax.jacfwd(propagate)(depths)
+        cotangent: Float64[Array, " norb"] = pullback(direction)[0]
+        jacobian: Float64[Array, "norb norb"] = jax.jacfwd(propagate)(depths)
 
         chex.assert_trees_all_equal(primal, depths)
         chex.assert_trees_all_equal(output, depths)
@@ -301,10 +307,12 @@ class TestDepthCarrier:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = jnp.asarray([0.0, 2.5], dtype=jnp.float64)
+        depths: Float64[Array, " 2"] = jnp.asarray(
+            [0.0, 2.5], dtype=jnp.float64
+        )
         model: TBModel = _model(depths)
-        parameters: Array
-        rebuild: Callable[[Array], TBModel]
+        parameters: Float64[Array, " n_par"]
+        rebuild: Callable[[Float64[Array, " n_par"]], TBModel]
         parameters, rebuild = tb_parameter_view(model)
         rebuilt: TBModel = rebuild(parameters)
         doubled: TBModel = spin_double_model(model)
@@ -319,7 +327,11 @@ class TestDepthCarrier:
 
 
 class TestSurfaceCell:
-    """Validate the traced surface frame and exact integer metadata."""
+    """Validate the traced surface frame and exact integer metadata.
+
+    The cases inspect PyTree structure and reject invalid rotations and
+    nonprimitive stacking coefficients.
+    """
 
     def test_constructs_and_is_a_pytree(self) -> None:
         """Preserve surface leaves and static coefficients on reconstruction.
@@ -331,7 +343,7 @@ class TestSurfaceCell:
         Compare outputs with declared numerical or structural references.
         """
         surface_cell: SurfaceCell = _surface_cell()
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(surface_cell)
         restored: SurfaceCell = jax.tree_util.tree_unflatten(tree, leaves)
@@ -395,7 +407,11 @@ class TestSurfaceCell:
 
 
 class TestSlabSpec:
-    """Validate slab choices and provenance mappings."""
+    """Validate slab choices and provenance mappings.
+
+    The cases validate provenance metadata and compare modern and legacy HDF5
+    round trips.
+    """
 
     def test_factory_validates_species_and_provenance(self) -> None:
         """Store valid static provenance and reject unknown terminations.
@@ -446,7 +462,9 @@ class TestSlabSpec:
         -----
         Compare outputs with declared numerical or structural references.
         """
-        depths: Array = jnp.asarray([0.0, 2.5], dtype=jnp.float64)
+        depths: Float64[Array, " 2"] = jnp.asarray(
+            [0.0, 2.5], dtype=jnp.float64
+        )
         model: TBModel = _model(depths)
         bands: DiagonalizedBands = diagonalize_tb(
             model,

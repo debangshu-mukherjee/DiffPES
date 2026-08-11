@@ -7,6 +7,7 @@ between static grid metadata and scalar or vector-valued volumetric arrays.
 import chex
 import jax
 import jax.numpy as jnp
+from beartype.typing import List
 
 from diffpes.types import (
     PyTreeDef,
@@ -35,7 +36,8 @@ class TestVolumetricData:
 
         Notes
         -----
-        The test constructs the scalar carrier through its factory, uses JAX tree
+        The test constructs the scalar carrier through its factory, uses JAX
+        tree
         utilities for reconstruction, and compares numerical and static fields.
         """
         volume: VolumetricData = make_volumetric_data(
@@ -45,7 +47,7 @@ class TestVolumetricData:
             grid_shape=(4, 4, 4),
             symbols=("Fe", "Co"),
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(volume)
         restored: VolumetricData = jax.tree_util.tree_unflatten(tree, leaves)
@@ -72,7 +74,8 @@ class TestSOCVolumetricData:
 
         Notes
         -----
-        The test constructs the SOC carrier, applies a JAX flatten and unflatten round
+        The test constructs the SOC carrier, applies a JAX flatten and
+        unflatten round
         trip, and compares all numerical grid leaves with Chex.
         """
         volume: SOCVolumetricData = make_soc_volumetric_data(
@@ -84,7 +87,7 @@ class TestSOCVolumetricData:
             grid_shape=(2, 2, 2),
             symbols=("Fe",),
         )
-        leaves: list[object]
+        leaves: List[object]
         tree: PyTreeDef
         leaves, tree = jax.tree_util.tree_flatten(volume)
         restored: SOCVolumetricData = jax.tree_util.tree_unflatten(
@@ -114,7 +117,8 @@ class TestMakeVolumetricData:
 
         Notes
         -----
-        The test constructs a one-species volume without ``atom_counts`` and uses Chex
+        The test constructs a one-species volume without ``atom_counts`` and
+        uses Chex
         to compare the resulting array shape and dtype.
         """
         volume: VolumetricData = make_volumetric_data(
@@ -166,7 +170,8 @@ class TestMakeSOCVolumetricData:
 
         Notes
         -----
-        The test constructs a one-point SOC volume without ``atom_counts`` and checks
+        The test constructs a one-point SOC volume without ``atom_counts`` and
+        checks
         the resulting array dtype and shape.
         """
         volume: SOCVolumetricData = make_soc_volumetric_data(

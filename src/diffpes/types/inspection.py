@@ -15,7 +15,7 @@ Routine Listings
 
 import equinox as eqx
 from beartype import beartype
-from beartype.typing import Tuple
+from beartype.typing import List, Tuple
 from jaxtyping import jaxtyped
 
 
@@ -91,7 +91,7 @@ class CertificateDiff(eqx.Module):
         if self.identical:
             summary: str = "Certificates are identical."
             return summary
-        parts: list[str] = []
+        parts: List[str] = []
         label: str
         values: Tuple[str, ...]
         for label, values in (
@@ -205,4 +205,7 @@ def make_certificate_diff(  # noqa: DOC502
     return difference
 
 
-__all__: list[str] = ["CertificateDiff", "make_certificate_diff"]
+__all__: list[str] = [
+    "CertificateDiff",
+    "make_certificate_diff",
+]

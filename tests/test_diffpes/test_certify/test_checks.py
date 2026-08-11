@@ -10,19 +10,19 @@ import jax.numpy as jnp
 import pytest
 from beartype import beartype
 from beartype.typing import Tuple
-from jaxtyping import Array, jaxtyped
+from jaxtyping import Array, Float64, Shaped, jaxtyped
 
 from diffpes.certify import get_check, list_checks, register_check
 from diffpes.types import CheckFunction, DomainResult, make_domain_result
 
 
 @jaxtyped(typechecker=beartype)
-def _positive_check(value: Array) -> DomainResult:
+def _positive_check(value: Shaped[Array, ""]) -> DomainResult:
     """PRIVATE: Return a traced positive-value domain result.
 
     Parameters
     ----------
-    value : Array
+    value : Shaped[Array, ""]
         JAX value whose sign the check measures.
 
     Returns
@@ -36,7 +36,7 @@ def _positive_check(value: Array) -> DomainResult:
     Casts the value to float64 and reuses it as the measured, residual,
     and margin fields against a zero reference and a zero tolerance.
     """
-    margin: Array = jnp.asarray(value, dtype=jnp.float64)
+    margin: Float64[Array, ""] = jnp.asarray(value, dtype=jnp.float64)
     result: DomainResult = make_domain_result(
         predicate_id="org.diffpes.domain.test.positive",
         measured=margin,
@@ -93,7 +93,7 @@ class TestGetCheck:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         with pytest.raises(KeyError, match="unknown certification check"):
             get_check("org.diffpes.domain.test.absent")
@@ -115,7 +115,7 @@ class TestListChecks:
 
         Notes
         -----
-        The test compares the result with explicit numerical or structural assertions.
+        The test checks the result with explicit assertions.
         """
         check_id: str = f"org.diffpes.domain.test.{uuid.uuid4().hex}"
         register_check(check_id, _positive_check)

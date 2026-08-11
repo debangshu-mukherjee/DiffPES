@@ -1,12 +1,12 @@
-"""Measure the literal Plan-08a detector-driver scalability gates on CPU.
+"""Measure literal detector-driver scalability on CPU.
 
 The isolated harness ahead-of-time compiles the exact
-``256 x 256 x 400``, 20-band coherent driver.  XLA compiler allocation
-analysis is the peak-live device-memory authority; host RSS is recorded only
-as a diagnostic.  Small executable companions compare checkpointed and
-non-rematerialized values and Hamiltonian gradients, count compilations while
-native widths and fixed-length photon-energy batches vary, and exercise a
-``vmap`` over complete ``ExperimentGeometry`` leaves.
+``256 x 256 x 400``, 20-band coherent driver. Use XLA compiler allocation
+analysis as the peak-live device-memory authority. Record host RSS only as a
+diagnostic. Small executable companions compare checkpointed and ordinary
+values and Hamiltonian gradients. They count compilations across width and
+photon-energy changes. They also exercise ``vmap`` over complete
+``ExperimentGeometry`` leaves.
 """
 
 from __future__ import annotations
@@ -25,21 +25,19 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from beartype.typing import Any, Dict, Iterable, Tuple
+from beartype.typing import Any, Dict, Iterable, List, Tuple
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.simul import simulate_arpes
 from diffpes.types import (
+    CrystalGeometry,
     DetectorCalibration,
     DetectorEffects,
     DiagonalizedBands,
     ExperimentGeometry,
-    FinalStateSpec,
-    KGrid,
     MatrixElementParams,
-    RadialQuadratureSpec,
+    OrbitalBasis,
     RadialSpec,
-    SelfEnergyModel,
     make_crystal_geometry,
     make_detector_calibration,
     make_detector_effects,
@@ -53,6 +51,8 @@ from diffpes.types import (
     make_radial_spec,
     make_self_energy_model,
 )
+
+GRADIENT_SENSITIVITY_MINIMUM: float = 1.0e-10
 
 
 def _repository_root() -> Path:
@@ -124,7 +124,7 @@ def _sha256(path: Path) -> str:
     Parameters
     ----------
     path : Path
-        File whose byte identity is required.
+        Input file for byte-identity verification.
 
     Returns
     -------
@@ -146,7 +146,7 @@ def _maximum_rss_bytes() -> int:
     Notes
     -----
     Linux reports ``ru_maxrss`` in kibibytes.  This whole-process quantity
-    includes Python and compiler caches and is not the device-memory gate.
+    includes Python and compiler caches. It is not the device-memory authority.
     """
     maximum_rss: int = (
         int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
@@ -183,15 +183,16 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
     if analysis is None or any(
         getattr(analysis, name, None) is None for name in names
     ):
-        return {
+        record: Dict[str, int | bool | str] = {
             "authority_available": False,
             "result": "residual: XLA memory_analysis unavailable",
         }
+        return record
     arguments: int = int(analysis.argument_size_in_bytes)
     outputs: int = int(analysis.output_size_in_bytes)
     temporaries: int = int(analysis.temp_size_in_bytes)
     aliases: int = int(analysis.alias_size_in_bytes)
-    return {
+    record: Dict[str, int | bool | str] = {
         "authority_available": True,
         "argument_size_bytes": arguments,
         "output_size_bytes": outputs,
@@ -202,6 +203,7 @@ def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
         ),
         "result": "measured",
     }
+    return record
 
 
 def _small_fixture() -> Dict[str, Any]:
@@ -216,23 +218,22 @@ def _small_fixture() -> Dict[str, Any]:
     -----
     The asymmetric source, nonuniform sampled energies, finite depth, and
     generic complex polarization keep the Hamiltonian and geometry paths
-    live.  The detector target is independently calibrated rather than
-    inferred from source extrema.
+    live. Calibrate the detector target independently from source extrema.
     """
-    crystal: Any = make_crystal_geometry(
+    crystal: CrystalGeometry = make_crystal_geometry(
         2.0 * jnp.pi * jnp.eye(3, dtype=jnp.float64),
         jnp.zeros((1, 3), dtype=jnp.float64),
         ("X",),
     )
-    basis: Any = make_orbital_basis(
+    basis: OrbitalBasis = make_orbital_basis(
         atom_indices=(0,),
         n=(1,),
         l=(0,),
         m=(0,),
         labels=("1s",),
     )
-    kx: Float64[Array, " two"] = jnp.asarray([0.025, 0.13])
-    ky: Float64[Array, " two"] = jnp.asarray([-0.04, 0.075])
+    kx: Float64[Array, "2"] = jnp.asarray([0.025, 0.13])
+    ky: Float64[Array, "2"] = jnp.asarray([-0.04, 0.075])
     mesh_x: Float64[Array, "2 2"]
     mesh_y: Float64[Array, "2 2"]
     mesh_x, mesh_y = jnp.meshgrid(kx, ky, indexing="xy")
@@ -274,7 +275,7 @@ def _small_fixture() -> Dict[str, Any]:
         temperature_k=30.0,
         mean_free_path_ang=8.0,
     )
-    energy_axis: Float64[Array, " five"] = jnp.asarray(
+    energy_axis: Float64[Array, "5"] = jnp.asarray(
         [-0.22, -0.09, -0.015, 0.055, 0.18]
     )
     calibration: DetectorCalibration = make_detector_calibration(
@@ -297,7 +298,7 @@ def _small_fixture() -> Dict[str, Any]:
         sensitivity_mode="constant",
         domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
     )
-    return {
+    fixture: Dict[str, Any] = {
         "hamiltonians": hamiltonians,
         "bands": bands,
         "radial": radial,
@@ -311,6 +312,7 @@ def _small_fixture() -> Dict[str, Any]:
         "calibration": calibration,
         "detector_effects": detector_effects,
     }
+    return fixture
 
 
 def _driver_counts(
@@ -344,7 +346,7 @@ def _driver_counts(
 
     Returns
     -------
-    counts : Float64[Array, "1 U V E"]
+    counts : Float64[Array, "1 u v e"]
         Complete deterministic expected-count raster.
     """
     counts: Float64[Array, "1 u v e"] = simulate_arpes(
@@ -384,7 +386,24 @@ def _remat_record() -> Dict[str, float | bool | str]:
     def loss(
         candidate: Complex128[Array, "4 1 1"], *, checkpoint: bool
     ) -> Float64[Array, ""]:
-        """Return an asymmetric scalar expected-count loss."""
+        """Compute an asymmetric scalar expected-count loss.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "4 1 1"]
+            Explicit Hamiltonians in eV.
+        checkpoint : bool
+            Static rematerialization selector.
+
+        Returns
+        -------
+        scalar : Float64[Array, ""]
+            Weighted expected-count sum.
+
+        Notes
+        -----
+        The fixed asymmetric weights keep every detector bin observable.
+        """
         counts: Float64[Array, "1 2 2 2"] = _driver_counts(
             fixture,
             candidate,
@@ -423,8 +442,8 @@ def _remat_record() -> Dict[str, float | bool | str]:
             atol=1.0e-13,
         )
     )
-    nonzero_gradient: bool = maximum_gradient > 1.0e-10
-    return {
+    nonzero_gradient: bool = maximum_gradient > GRADIENT_SENSITIVITY_MINIMUM
+    record: Dict[str, float | bool | str] = {
         "program": "full_driver_value_and_hamiltonian_gradient",
         "mapping_chart": "general rotation with strict target enclosure",
         "checkpointed_value": float(checkpointed_value),
@@ -441,6 +460,7 @@ def _remat_record() -> Dict[str, float | bool | str]:
             else "fail"
         ),
     }
+    return record
 
 
 def _geometry_batch(
@@ -486,13 +506,30 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
         Trace/cache counts, sweep values, vmap comparison, and verdict.
     """
     fixture: Dict[str, Any] = _small_fixture()
-    trace_count: list[int] = [0]
+    trace_count: List[int] = [0]
 
     def batched_driver(
         geometry_batch: ExperimentGeometry,
         calibration: DetectorCalibration,
     ) -> Float64[Array, "batch 1 u v e"]:
-        """Evaluate the same driver over complete geometry leaves."""
+        """Evaluate the driver over complete geometry leaves.
+
+        Parameters
+        ----------
+        geometry_batch : ExperimentGeometry
+            Geometry PyTree with one leading batch axis on every leaf.
+        calibration : DetectorCalibration
+            Shared native detector calibration.
+
+        Returns
+        -------
+        values : Float64[Array, "batch 1 u v e"]
+            Expected-count rasters for the geometry batch.
+
+        Notes
+        -----
+        The Python counter increments only during JAX tracing.
+        """
         trace_count[0] += 1
         values: Float64[Array, "batch 1 u v e"] = jax.vmap(
             lambda geometry: _driver_counts(
@@ -506,7 +543,7 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
         return values
 
     compiled: Any = jax.jit(batched_driver)
-    photon_sweeps: Tuple[Float64[Array, " two"], ...] = (
+    photon_sweeps: Tuple[Float64[Array, "2"], ...] = (
         jnp.asarray([49.8, 50.2]),
         jnp.asarray([50.0, 50.4]),
         jnp.asarray([49.7, 50.3]),
@@ -516,11 +553,11 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
         (0.013, 0.009, 0.026),
         (0.008, 0.014, 0.018),
     )
-    cache_sizes: list[int] = [int(compiled._cache_size())]  # noqa: SLF001
-    outputs: list[Float64[Array, "2 1 2 2 2"]] = []
-    geometry_batches: list[ExperimentGeometry] = []
-    calibrations: list[DetectorCalibration] = []
-    photons: Float64[Array, " two"]
+    cache_sizes: List[int] = [int(compiled._cache_size())]  # noqa: SLF001
+    outputs: List[Float64[Array, "2 1 2 2 2"]] = []
+    geometry_batches: List[ExperimentGeometry] = []
+    calibrations: List[DetectorCalibration] = []
+    photons: Float64[Array, "2"]
     widths: Tuple[float, float, float]
     for photons, widths in zip(photon_sweeps, width_sweeps, strict=True):
         geometry_batch: ExperimentGeometry = _geometry_batch(photons)
@@ -544,11 +581,12 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
 
     first_batch: ExperimentGeometry = geometry_batches[0]
     first_calibration: DetectorCalibration = calibrations[0]
-    direct_rows: list[Float64[Array, "1 2 2 2"]] = []
+    direct_rows: List[Float64[Array, "1 2 2 2"]] = []
     batch_size: int = photon_sweeps[0].shape[0]
+    index: int
     for index in range(batch_size):
         geometry: ExperimentGeometry = jax.tree_util.tree_map(
-            lambda leaf: leaf[index], first_batch
+            lambda leaf, row=index: leaf[row], first_batch
         )
         direct_rows.append(
             _driver_counts(
@@ -565,7 +603,7 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
         jnp.allclose(outputs[0], direct, rtol=1.0e-12, atol=1.0e-13)
     )
     one_trace: bool = trace_count[0] == 1 and cache_sizes == [0, 1, 1, 1]
-    return {
+    record: Dict[str, Any] = {
         "program": "jit_vmap_simulate_arpes_over_experiment_geometry",
         "mapping_chart": "general rotation with strict target enclosure",
         "batch_length": batch_size,
@@ -581,6 +619,7 @@ def _compile_and_vmap_record() -> Dict[str, Any]:
         "vmap_matches_direct_rtol_1e_12": vmap_passes,
         "result": "pass" if one_trace and vmap_passes else "fail",
     }
+    return record
 
 
 def _literal_fixture() -> Dict[str, Any]:
@@ -594,8 +633,8 @@ def _literal_fixture() -> Dict[str, Any]:
     Notes
     -----
     The 20-band metadata and explicit 20-orbital Hamiltonian share one basis.
-    The fixture is used for ahead-of-time compilation and allocation analysis;
-    the 26,214,400-bin detector program is deliberately not executed on CPU.
+    Use the fixture for ahead-of-time compilation and allocation analysis.
+    Deliberately avoid executing the 26,214,400-bin detector program on CPU.
     """
     n_kx: int
     n_ky: int
@@ -606,13 +645,13 @@ def _literal_fixture() -> Dict[str, Any]:
     n_kx, n_ky, n_energy, n_band, k_chunk, energy_chunk = _literal_dimensions()
     del energy_chunk, k_chunk
     n_k: int = n_kx * n_ky
-    crystal: Any = make_crystal_geometry(
+    crystal: CrystalGeometry = make_crystal_geometry(
         2.0 * jnp.pi * jnp.eye(3, dtype=jnp.float64),
         jnp.zeros((1, 3), dtype=jnp.float64),
         ("X",),
     )
     repeated_zero: Tuple[int, ...] = (0,) * n_band
-    basis: Any = make_orbital_basis(
+    basis: OrbitalBasis = make_orbital_basis(
         atom_indices=repeated_zero,
         n=(1,) * n_band,
         l=repeated_zero,
@@ -698,7 +737,7 @@ def _literal_fixture() -> Dict[str, Any]:
         sensitivity_mode="constant",
         domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
     )
-    return {
+    fixture: Dict[str, Any] = {
         "hamiltonians": hamiltonians,
         "bands": bands,
         "radial": radial,
@@ -717,6 +756,7 @@ def _literal_fixture() -> Dict[str, Any]:
         "calibration": calibration,
         "detector_effects": effects,
     }
+    return fixture
 
 
 def _iter_nested_jaxprs(value: Any) -> Iterable[Any]:
@@ -732,6 +772,8 @@ def _iter_nested_jaxprs(value: Any) -> Iterable[Any]:
     jaxpr : Any
         Every object exposing JAXPR ``eqns``, ``invars``, and ``outvars``.
     """
+    equation: Any
+    nested: Any
     if hasattr(value, "jaxpr"):
         yield from _iter_nested_jaxprs(value.jaxpr)
     elif hasattr(value, "eqns") and hasattr(value, "invars"):
@@ -747,7 +789,7 @@ def _iter_nested_jaxprs(value: Any) -> Iterable[Any]:
 
 
 def _jaxpr_shape_record(closed_jaxpr: Any) -> Dict[str, Any]:
-    """PRIVATE: Audit recursive JAXPR shapes for forbidden full carriers.
+    """PRIVATE: Check recursive JAXPR shapes for forbidden full carriers.
 
     Parameters
     ----------
@@ -793,6 +835,7 @@ def _jaxpr_shape_record(closed_jaxpr: Any) -> Dict[str, Any]:
     kinematics_matches: set[Tuple[int, ...]] = set()
     shapes: set[Tuple[int, ...]] = set()
     equation_count: int = 0
+    jaxpr: Any
     for jaxpr in _iter_nested_jaxprs(closed_jaxpr):
         equation_count += len(jaxpr.eqns)
         variables: Tuple[Any, ...] = (
@@ -805,6 +848,7 @@ def _jaxpr_shape_record(closed_jaxpr: Any) -> Dict[str, Any]:
                 for variable in equation.outvars
             )
         )
+        variable: Any
         for variable in variables:
             aval: Any = getattr(variable, "aval", None)
             shape: Tuple[int, ...] | None = getattr(aval, "shape", None)
@@ -825,7 +869,7 @@ def _jaxpr_shape_record(closed_jaxpr: Any) -> Dict[str, Any]:
                 ):
                     kinematics_matches.add(normalized)
     matches: set[Tuple[int, ...]] = kbe_matches | kinematics_matches
-    return {
+    record: Dict[str, Any] = {
         "recursive_equation_count": equation_count,
         "distinct_array_shape_count": len(shapes),
         "forbidden_full_kbe_shapes": [
@@ -850,10 +894,11 @@ def _jaxpr_shape_record(closed_jaxpr: Any) -> Dict[str, Any]:
         ),
         "result": "pass" if not matches else "fail",
     }
+    return record
 
 
 def _literal_record() -> Dict[str, Any]:
-    """PRIVATE: Compile and measure the exact S1 forward and gradient target.
+    """PRIVATE: Compile and measure the exact forward and gradient target.
 
     Returns
     -------
@@ -882,7 +927,22 @@ def _literal_record() -> Dict[str, Any]:
     def forward(
         candidate: Complex128[Array, "n_k band band"],
     ) -> Float64[Array, "1 kx ky energy"]:
-        """Return the literal expected-count cube."""
+        """Compute the literal expected-count cube.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "n_k band band"]
+            Explicit Hamiltonian raster in eV.
+
+        Returns
+        -------
+        values : Float64[Array, "1 kx ky energy"]
+            Literal detector expected-count cube.
+
+        Notes
+        -----
+        The closure fixes the detector target and static chunk dimensions.
+        """
         values: Float64[Array, "1 kx ky energy"] = _driver_counts(
             fixture,
             candidate,
@@ -897,7 +957,22 @@ def _literal_record() -> Dict[str, Any]:
     def loss(
         candidate: Complex128[Array, "n_k band band"],
     ) -> Float64[Array, ""]:
-        """Reduce the literal expected-count cube to one scalar."""
+        """Reduce the literal expected-count cube to one scalar.
+
+        Parameters
+        ----------
+        candidate : Complex128[Array, "n_k band band"]
+            Explicit Hamiltonian raster in eV.
+
+        Returns
+        -------
+        scalar : Float64[Array, ""]
+            Sum of all expected counts.
+
+        Notes
+        -----
+        The scalar exposes the complete Hamiltonian gradient to JAX.
+        """
         scalar: Float64[Array, ""] = jnp.sum(forward(candidate))
         return scalar
 
@@ -939,7 +1014,7 @@ def _literal_record() -> Dict[str, Any]:
     )
     no_kbe: bool = shape_record["result"] == "pass"
     output_bytes: int = n_kx * n_ky * n_energy * 8
-    return {
+    record: Dict[str, Any] = {
         "n_kx": n_kx,
         "n_ky": n_ky,
         "n_k": n_kx * n_ky,
@@ -988,10 +1063,17 @@ def _literal_record() -> Dict[str, Any]:
             "pass" if no_kbe and forward_passes and gradient_passes else "fail"
         ),
     }
+    return record
 
 
 def main() -> None:
-    """Measure S1--S4 and write the authenticated JSON record."""
+    """Measure detector scalability and write the authenticated JSON record.
+
+    Notes
+    -----
+    The command combines the literal allocation, rematerialization, compile,
+    and geometry-batching records. It writes the authenticated JSON artifact.
+    """
     repository_root: Path = _repository_root()
     output_path: Path = _output_path()
     literal: Dict[str, Any] = _literal_record()
@@ -1030,6 +1112,7 @@ def main() -> None:
         "src/diffpes/types/kpath.py",
         "src/diffpes/types/radial_params.py",
         "src/diffpes/types/self_energy.py",
+        "src/diffpes/types/spectral.py",
         "src/diffpes/types/tb_model.py",
         "src/diffpes/utils/__init__.py",
         "src/diffpes/utils/math.py",
@@ -1038,7 +1121,12 @@ def main() -> None:
     )
     record: Dict[str, Any] = {
         "schema": "diffpes.detector-scalability.v1",
-        "gate_ids": ["08a.S1", "08a.S2", "08a.S3", "08a.S4"],
+        "requirements": [
+            "detector-forward-memory",
+            "complete-hamiltonian-gradient-memory",
+            "fixed-shape-compile-reuse",
+            "geometry-vmap-parity",
+        ],
         "backend": jax.default_backend(),
         "device": str(jax.devices()[0]),
         "platform": platform.platform(),
@@ -1053,9 +1141,9 @@ def main() -> None:
             relative: _sha256(repository_root / relative)
             for relative in source_paths
         },
-        "s1_literal_target": literal,
-        "s2_rematerialization": remat,
-        "s3_compile_count_s4_vmap": compile_and_vmap,
+        "literal_detector_target": literal,
+        "rematerialization_comparison": remat,
+        "compile_reuse_and_geometry_batching": compile_and_vmap,
         "result": (
             "pass"
             if literal["result"] == "pass"

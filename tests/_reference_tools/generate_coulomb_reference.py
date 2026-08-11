@@ -2,10 +2,10 @@
 """Generate frozen Coulomb value and assembly-derivative reference artifacts.
 
 The script is an offline evidence generator. It records the installed mpmath
-version and evaluates every frozen value at 80 decimal digits. The dense
-residual grid is computed in independent worker processes and the resulting
-archive is written with deterministic ZIP metadata. Production code never
-imports mpmath or this module.
+version and evaluates every frozen value at 80 decimal digits. Independent
+worker processes compute the dense residual grid. Deterministic ZIP metadata
+preserves the resulting archive. Production code never imports mpmath or this
+module.
 """
 
 from __future__ import annotations
@@ -19,11 +19,10 @@ import subprocess
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any
 
 import mpmath as mp
 import numpy as np
-from beartype.typing import Dict, Tuple
+from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Float64, Shaped
 from numpy.typing import NDArray
 
@@ -55,7 +54,27 @@ def coulomb_rows(
     eta: mp.mpf,
     rho: mp.mpf,
 ) -> Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf]:
-    """Evaluate F, G, and rho derivatives from the order recurrence."""
+    """Evaluate Coulomb values and radial derivatives from the recurrence.
+
+    Parameters
+    ----------
+    order : int
+        Nonnegative angular-momentum order.
+    eta : mp.mpf
+        Dimensionless Sommerfeld parameter.
+    rho : mp.mpf
+        Positive dimensionless radial coordinate.
+
+    Returns
+    -------
+    result : Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf]
+        The regular value, irregular value, and their radial derivatives.
+
+    Notes
+    -----
+    The expression uses the adjacent-order Coulomb recurrence at the current
+    mpmath working precision.
+    """
     regular: mp.mpf = mp.coulombf(order, eta, rho)
     irregular: mp.mpf = mp.coulombg(order, eta, rho)
     regular_next: mp.mpf = mp.coulombf(order + 1, eta, rho)
@@ -84,23 +103,47 @@ def dense_value_rows(
     Float64[NDArray, "n_eta n_rho"],
     Float64[NDArray, "n_eta n_rho"],
 ]:
-    """Evaluate dense F and G values for one independent static order."""
+    """Evaluate dense Coulomb values for one independent static order.
+
+    Parameters
+    ----------
+    order : int
+        Nonnegative angular-momentum order.
+
+    Returns
+    -------
+    result : Tuple[int, Float64[NDArray, "n_eta n_rho"],
+        Float64[NDArray, "n_eta n_rho"]]
+        The order and its dense regular and irregular value tables.
+
+    Notes
+    -----
+    The worker evaluates each registered coordinate with 80 decimal digits.
+    It converts only the final values to canonical float64 storage.
+    """
     mp.mp.dps = REFERENCE_DPS
-    regular = np.empty((len(DENSE_ETAS), len(DENSE_RHOS)), dtype=np.float64)
-    irregular = np.empty_like(regular)
+    regular: Float64[NDArray, "n_eta n_rho"] = np.empty(
+        (len(DENSE_ETAS), len(DENSE_RHOS)), dtype=np.float64
+    )
+    irregular: Float64[NDArray, "n_eta n_rho"] = np.empty_like(regular)
     eta_index: int
     eta_float: float
     rho_index: int
     rho_float: float
     for eta_index, eta_float in enumerate(DENSE_ETAS):
-        eta = mp.mpf(str(eta_float))
+        eta: mp.mpf = mp.mpf(str(eta_float))
         for rho_index, rho_float in enumerate(DENSE_RHOS):
-            rho = mp.mpf(str(rho_float))
+            rho: mp.mpf = mp.mpf(str(rho_float))
             regular[eta_index, rho_index] = float(mp.coulombf(order, eta, rho))
             irregular[eta_index, rho_index] = float(
                 mp.coulombg(order, eta, rho)
             )
-    return order, regular, irregular
+    result: Tuple[
+        int,
+        Float64[NDArray, "n_eta n_rho"],
+        Float64[NDArray, "n_eta n_rho"],
+    ] = (order, regular, irregular)
+    return result
 
 
 def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
@@ -121,9 +164,10 @@ def _array_bytes(array: Shaped[NDArray, "..."]) -> bytes:
     ``np.lib.format.write_array`` writes into an in-memory buffer with
     pickle disabled, so equal arrays always produce equal bytes.
     """
-    output = io.BytesIO()
+    output: io.BytesIO = io.BytesIO()
     np.lib.format.write_array(output, np.asarray(array), allow_pickle=False)
-    return output.getvalue()
+    payload: bytes = output.getvalue()
+    return payload
 
 
 def _write_deterministic_npz(
@@ -136,14 +180,14 @@ def _write_deterministic_npz(
     ----------
     path : Path
         Destination NPZ path.
-    arrays : dict[str, Shaped[NDArray, "..."]]
+    arrays : Dict[str, Shaped[NDArray, "..."]]
         Named arrays to store.
 
     Notes
     -----
-    Members enter in sorted name order with the fixed 1980-01-01 ZIP
-    timestamp, a fixed file mode, and DEFLATE level 9, so identical
-    arrays always produce byte-identical archives.
+    Sort members by name. Give each member the fixed 1980-01-01 timestamp and
+    file mode. Use DEFLATE level 9. Identical arrays then produce identical
+    archive bytes.
     """
     with zipfile.ZipFile(
         path,
@@ -151,10 +195,11 @@ def _write_deterministic_npz(
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=9,
     ) as archive:
+        archive: zipfile.ZipFile
         name: str
         array: Shaped[NDArray, "..."]
         for name, array in sorted(arrays.items()):
-            member = zipfile.ZipInfo(
+            member: zipfile.ZipInfo = zipfile.ZipInfo(
                 filename=f"{name}.npy",
                 date_time=(1980, 1, 1, 0, 0, 0),
             )
@@ -186,7 +231,8 @@ def _sha256(path: Path) -> str:
     The function reads the complete file into memory before hashing;
     every evidence file stays small enough for that.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest: str = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest
 
 
 def _git_head(root: Path) -> str:
@@ -206,31 +252,36 @@ def _git_head(root: Path) -> str:
     ------
     RuntimeError
         If no ``git`` executable exists on the path.
-    subprocess.CalledProcessError
-        If ``git rev-parse HEAD`` exits nonzero, propagated by
-        ``check=True``.
 
     Notes
     -----
     The revision enters the manifest as evidence provenance only; no
-    consumer recomputes it.
+    consumer recomputes it. A nonzero ``git rev-parse HEAD`` command
+    propagates :class:`subprocess.CalledProcessError` through ``check=True``.
     """
     git: str | None = shutil.which("git")
     if git is None:
-        message = "git is required to record Coulomb evidence provenance"
+        message: str = "git is required to record Coulomb evidence provenance"
         raise RuntimeError(message)
-    completed = subprocess.run(  # noqa: S603
+    completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
         [git, "rev-parse", "HEAD"],
         cwd=root,
         check=True,
         capture_output=True,
         text=True,
     )
-    return completed.stdout.strip()
+    revision: str = completed.stdout.strip()
+    return revision
 
 
-def main() -> None:
-    """Write dense and sparse 80-digit references plus their provenance."""
+def main() -> None:  # noqa: PLR0915 -- one deterministic authority assembly.
+    """Write dense and sparse 80-digit references plus their provenance.
+
+    Notes
+    -----
+    The generator evaluates sparse derivatives and dense values independently.
+    It writes deterministic array bytes, provenance, and checksums.
+    """
     mp.mp.dps = REFERENCE_DPS
     shape: Tuple[int, int, int] = (len(ORDERS), len(ETAS), len(RHOS))
     values: Dict[str, Float64[NDArray, "n_order n_eta n_rho"]] = {
@@ -254,9 +305,15 @@ def main() -> None:
     phase_eta: Float64[NDArray, "n_order n_eta"] = np.empty_like(phase)
     eta_step: mp.mpf = mp.mpf("1e-20")
 
+    order_index: int
+    order: int
+    eta_index: int
+    eta_float: float
+    rho_index: int
+    rho_float: float
     for order_index, order in enumerate(ORDERS):
         for eta_index, eta_float in enumerate(ETAS):
-            eta = mp.mpf(str(eta_float))
+            eta: mp.mpf = mp.mpf(str(eta_float))
             phase[order_index, eta_index] = float(
                 mp.im(mp.loggamma(order + 1 + 1j * eta))
             )
@@ -264,7 +321,7 @@ def main() -> None:
                 mp.re(mp.digamma(order + 1 + 1j * eta))
             )
             for rho_index, rho_float in enumerate(RHOS):
-                rho = mp.mpf(str(rho_float))
+                rho: mp.mpf = mp.mpf(str(rho_float))
                 rows: Tuple[mp.mpf, mp.mpf, mp.mpf, mp.mpf] = coulomb_rows(
                     order,
                     eta,
@@ -284,7 +341,9 @@ def main() -> None:
                 g_value: mp.mpf = rows[1]
                 df_value: mp.mpf = rows[2]
                 dg_value: mp.mpf = rows[3]
-                ode_factor = 1 - 2 * eta / rho - order * (order + 1) / rho**2
+                ode_factor: mp.mpf = (
+                    1 - 2 * eta / rho - order * (order + 1) / rho**2
+                )
                 values["f"][order_index, eta_index, rho_index] = float(f_value)
                 values["g"][order_index, eta_index, rho_index] = float(g_value)
                 values["df_drho"][order_index, eta_index, rho_index] = float(
@@ -312,18 +371,23 @@ def main() -> None:
                     float(eta_rows[3])
                 )
 
-    dense_regular = np.empty(
+    dense_regular: Float64[NDArray, "n_order n_eta n_rho"] = np.empty(
         (len(ORDERS), len(DENSE_ETAS), len(DENSE_RHOS)),
         dtype=np.float64,
     )
-    dense_irregular = np.empty_like(dense_regular)
+    dense_irregular: Float64[NDArray, "n_order n_eta n_rho"] = np.empty_like(
+        dense_regular
+    )
     with ProcessPoolExecutor(max_workers=len(ORDERS)) as executor:
+        executor: ProcessPoolExecutor
         dense_rows: Tuple[
             int,
             Float64[NDArray, "n_eta n_rho"],
             Float64[NDArray, "n_eta n_rho"],
         ]
         for dense_rows in executor.map(dense_value_rows, ORDERS):
+            regular_row: Float64[NDArray, "n_eta n_rho"]
+            irregular_row: Float64[NDArray, "n_eta n_rho"]
             order, regular_row, irregular_row = dense_rows
             dense_regular[order] = regular_row
             dense_irregular[order] = irregular_row
@@ -354,7 +418,10 @@ def main() -> None:
     )
     manifest: Dict[str, Any] = {
         "schema": "diffpes.coulomb-mpmath-reference.v2",
-        "gates": ["coulomb-mpmath-reference", "coulomb-assembly-gradient"],
+        "requirements": [
+            "coulomb-mpmath-reference",
+            "coulomb-assembly-gradient",
+        ],
         "source_revision": _git_head(root),
         "generator": generator_path.relative_to(root).as_posix(),
         "generator_sha256": _sha256(generator_path),
