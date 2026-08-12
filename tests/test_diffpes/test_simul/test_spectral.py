@@ -448,7 +448,9 @@ class TestAssembleSpectralIntensityBandsChunk(chex.TestCase):
         omega: Float64[Array, " 5"]
         model: SelfEnergyModel
         fermi_energy: Float64[Array, ""]
-        hamiltonians, sources, omega, model, fermi_energy = self._fixture()
+        hamiltonians, sources, omega, model, fermi_energy = (
+            TestAssembleSpectralIntensityChunk._fixture()  # noqa: SLF001
+        )
         eigenvalues: Float64[Array, "2 2"]
         eigenvectors: Complex128[Array, "2 2 2"]
         eigenvalues, eigenvectors = jax.vmap(jnp.linalg.eigh)(hamiltonians)

@@ -1,31 +1,32 @@
 {
+  "calibration_status": "calibrated under dated frozen sampled-Gaussian calibration",
   "checks": [
     {
       "atol": 7.2857312941074385e-09,
       "class": "ELEMENTWISE",
-      "requirements": [
-        "chinook-sampled-gaussian-resolution-parity"
-      ],
       "max_abs_err": 4.163336342344337e-17,
       "max_rel_err": 2.103591487263726e-15,
       "notes": "five-sigma interior; one nonnegative scale; identical authenticated pre-resolution cut",
       "p999_rel_err": 1.8166560829655208e-15,
       "pass": true,
       "quantity": "lithium_chain_broadened_cut",
+      "requirements": [
+        "chinook-sampled-gaussian-resolution-parity"
+      ],
       "rtol": 0.0001
     },
     {
       "atol": 0.0,
       "class": "PEAK-SCALED",
-      "requirements": [
-        "chinook-sampled-gaussian-resolution-parity"
-      ],
       "max_abs_err": 4.163336342344337e-17,
       "max_rel_err": 5.714369874869752e-16,
       "notes": "max absolute error divided by Chinook interior peak",
       "p999_rel_err": 1.8166560829655208e-15,
       "pass": true,
       "quantity": "lithium_chain_peak_scaled_max_pixel",
+      "requirements": [
+        "chinook-sampled-gaussian-resolution-parity"
+      ],
       "rtol": 1e-06
     }
   ],
@@ -37,12 +38,12 @@
     "hamiltonian_max_abs_error_ev": 0.0,
     "matched_metrics": {
       "candidate_to_reference_integral_ratio_full_grid": 1.0000000000000002,
-      "elementwise_pass": true,
       "crop_cells_axis_order_ky_kx_omega": [
         0,
         5,
         13
       ],
+      "elementwise_pass": true,
       "interior_shape": [
         1,
         231,
@@ -58,12 +59,12 @@
     "public_long_tail_expected_peak_ratio": 2.078353654782797e-05,
     "public_long_tail_metrics_non_authoritative": {
       "candidate_to_reference_integral_ratio_full_grid": 0.999055644405111,
-      "elementwise_pass": false,
       "crop_cells_axis_order_ky_kx_omega": [
         0,
         5,
         13
       ],
+      "elementwise_pass": false,
       "interior_shape": [
         1,
         231,
@@ -81,7 +82,7 @@
       "Chinook datacube energy-window state selection"
     ]
   },
-  "diffpes_commit": "8d20ddf5a65142ae2b6fcc19add8b119b7308078",
+  "diffpes_commit": "0c61e5f563668fcd1ea4c6942ca20f8350ed65e7",
   "diffpes_self_convergence": {
     "response_adapter": "closed sampled operator; no quadrature or iterative solve"
   },
@@ -102,12 +103,12 @@
   "negative_controls": {
     "wrong_energy_momentum_axis_assignment": {
       "candidate_to_reference_integral_ratio_full_grid": 1.0,
-      "elementwise_pass": false,
       "crop_cells_axis_order_ky_kx_omega": [
         0,
         5,
         13
       ],
+      "elementwise_pass": false,
       "interior_shape": [
         1,
         231,
@@ -122,12 +123,12 @@
     },
     "wrong_n_minus_1_over_range": {
       "candidate_to_reference_integral_ratio_full_grid": 1.0000000000000002,
-      "elementwise_pass": false,
       "crop_cells_axis_order_ky_kx_omega": [
         0,
         5,
         13
       ],
+      "elementwise_pass": false,
       "interior_shape": [
         1,
         231,
@@ -149,7 +150,6 @@
     "radial_sampling": "chinook5",
     "spectral_mode": "lorentzian_eigh"
   },
-  "calibration_status": "calibrated under dated frozen sampled-Gaussian calibration",
   "platform": {
     "arch": "x86_64",
     "blas": "numpy.show_config captured by exact environment identity",
@@ -186,6 +186,150 @@
     "chinook_repository": "https://github.com/qmlab-ubc-ca/chinook",
     "diffpes_worktree_dirty_at_replay": true,
     "model_spec_sha256": "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe",
-    "production_effects_source_sha256": "e3e13f1caf9d338c3f3e968879d7186fc08f7e41e5efbfb60ede290534fa4879"
+    "production_source_sha256": {
+      "src/diffpes/__init__.py": "6779fb395bea2d52c451a85dd9a066ba774efb4b7e60600a0e83adfcafc8896e",
+      "src/diffpes/certify/__init__.py": "da0904731e2a35e8f34e31ee5055e51f21fa2794589d69a8f561da682360bee3",
+      "src/diffpes/certify/builtin_transformations.py": "3fef87f68ee0886e6d7b38f2854417483d3144397d7fa5b65b23d8f7d1f1830d",
+      "src/diffpes/certify/canonical.py": "7572a5f36c26519371947992325c769fa40804a2f2c9a506b4b8467c14e0075b",
+      "src/diffpes/certify/checks.py": "00dc3f5d2b9ad9c338d932799b01ac035702d0fe9ac6e6bf26e752b87a43e940",
+      "src/diffpes/certify/checksums.py": "000eb340d5f48244cdc65a69ad2c4454de97077a5c891f8595a3435c9a36bfe0",
+      "src/diffpes/certify/contracts.py": "fe0a90ed112342cc51f35ced4e24548b10f3240ef333845944e5914e1a746b00",
+      "src/diffpes/certify/dependencies.py": "e8c4c2e7ffa062b6755bf795276fdce4e36e21163023d65b4cf8a3f4b1a23e61",
+      "src/diffpes/certify/evidence.py": "e24c800eb8d0e27e5916461f03c95427aa81dfa37a2647c5d19dbc51fa74b1a7",
+      "src/diffpes/certify/execution.py": "7817f0c5ede0e63a008b768fcab8c64ea0a48a94096cada9beac74e7cf297d9c",
+      "src/diffpes/certify/inspect.py": "07f24edaaaeb33f900e140e68d57167b74210916f8e499ff0513e258d86c1718",
+      "src/diffpes/certify/models.py": "83e5554b4a32fbb292044a3c41b90e30da8ecba8406c0367cb41f9e901703b31",
+      "src/diffpes/certify/policy.py": "cf595029211c76e38d4f0cfb9e8923588255fdbd201ffc7f27d5491bd19fd485",
+      "src/diffpes/certify/provenance.py": "1679fe81d5f6cde2668bd6c965384a9e845f80a4e3749c953582b10c82217adb",
+      "src/diffpes/certify/registry.py": "6f2d985d5b48f213a8b2e45f5b41555b63a0f7d910e54c1406b4b78742ff71ac",
+      "src/diffpes/certify/registry_resources.py": "2360d88581f8aee6108d2e80a7112db151e852fbb0c22c4a2a7cc6c25cf55dfa",
+      "src/diffpes/certify/reproduction.py": "504929ea11a89586d39c82578f31040973552d72c64e8e36e73fe176498b194b",
+      "src/diffpes/certify/resolvers.py": "87e4e59723ae8a6b90e0fbfe10629a493df6dff75081887a2d9f3c241fb320fd",
+      "src/diffpes/certify/waivers.py": "d416341bffb46edcbb4fc2e288cfbd57165d6030a98464da932926912496d8ff",
+      "src/diffpes/constants/__init__.py": "adf296244e455fefa22f78bfcfc8e12a86d907cce0226270308a76f4c8ba6438",
+      "src/diffpes/constants/carriers.py": "838ff3acc9799d5db7ae5ecdfd2c61662702f0aad89983a415ef4c30fca6a9b3",
+      "src/diffpes/constants/certification.py": "2a514ec8b06b1302ddbd055f6f6c1806cc669e21f00849201f1789eb48e793f5",
+      "src/diffpes/constants/numerical.py": "71d2a3e74520dd5794093b1ef765bf4dd64955ff6351f1d53e47eeec4cf58560",
+      "src/diffpes/constants/shared.py": "56b8f95a28d0821a18ba61ab1035c2b48a2ddd25b628acdd5670195b4d89ba10",
+      "src/diffpes/constants/wannier.py": "f03154fa7835ae39a520b33bc5cc969d54721c1ccbb4fe646cf728849fae93ce",
+      "src/diffpes/inout/__init__.py": "c525b65973acd32d7ab33219c6daf4a3be730868bb8db52e1d3336907199b756",
+      "src/diffpes/inout/band_plotting.py": "b06966b46f8ffa815ea9a1d43ae0f9753e7b1a981bc0c0f252ff9efd814a9716",
+      "src/diffpes/inout/certificate.py": "01793ff2c7ff1e9eabf696812d1006ad5865e72043309f58c85098571e900225",
+      "src/diffpes/inout/certificate_decoding.py": "9ff6e0d28b4b638f722d52101df547e24bf3cecd7e648682297cf0ccfd80e69d",
+      "src/diffpes/inout/certificate_storage.py": "b9eb445aaeedf28f18ff3c149bed2301ec6ecd482d62568144bb8dc40a0bdd58",
+      "src/diffpes/inout/chgcar.py": "dd0fce796ddfe2cd6f8c38025e92743d3f3c247a21e6b7493d673962f4980adc",
+      "src/diffpes/inout/doscar.py": "da78be5658cf7c21c900240f518b90735f09eef417bcfa75ad513f88a91e802b",
+      "src/diffpes/inout/eigenval.py": "007d31c73041ae2b0f04b30487ed6e8e6318bd851b08e87fc69e6c4f9b247dc0",
+      "src/diffpes/inout/hdf5.py": "ef8ee8f4b900501b8b86e4626c720798ef225f7f89505f825c78a412bd2ea437",
+      "src/diffpes/inout/helpers.py": "c7d118915f1ffb475a176a5b7998f52f4ebf82f07491b04a87c9b91fb7d4f104",
+      "src/diffpes/inout/kpoints.py": "d0e9b16c90de89906b083be079a93220e7117771d700faea50e2b3a1167cda71",
+      "src/diffpes/inout/plotting.py": "6761dccb3bf0bf7dd1d8253c25c5e32edc91215966912e29f51148dee03553e5",
+      "src/diffpes/inout/poscar.py": "ce2586b4a88c1f2b69687aabb768ce9026ad00f9dc36d73918992bb09861698a",
+      "src/diffpes/inout/procar.py": "0e3ec41d266cfd4f350aba28ae91d30ed2a20bfe7e369880db496047bbc2562b",
+      "src/diffpes/inout/tb_files.py": "d0eda03287077359350df30f82615860e9f9a7a83e507c4c526a349621a54672",
+      "src/diffpes/inout/wannier90.py": "8327e505f7a2673a32d17b517772a9fc8223983fb5bd9cbafb01de80a8eb5e19",
+      "src/diffpes/inout/wannier90_parser.py": "1b32390cf62520626a9a8727c5123b453a403805bacc2f82e31c909274f8b99d",
+      "src/diffpes/maths/__init__.py": "d0151b9916392547abe712b9bc9e7b976f74d709ac17126a6622e465e80e1d3c",
+      "src/diffpes/maths/dipole.py": "c91f20d7830f624629f0ecbc1fdb413537ce7727b97c51bc270808e930eb0fbf",
+      "src/diffpes/maths/gaunt.py": "8221cf18b3454069270dda08814456f3b011636b2978d4edefce3ce9ca677dc7",
+      "src/diffpes/maths/rotations.py": "f1748ab16bb986a7fb26f1b8baf3d06e9e921c78f9b31c5fca2233a5c1ec8634",
+      "src/diffpes/maths/safe.py": "6dda8cedee880c7ba1a31926314fef4a12ab6caf49e0b53c4b9f75f1ba6f7e4f",
+      "src/diffpes/maths/spherical_harmonics.py": "4ae141e9b27eff7c9630b2d88e43b5479263b97a3977f119fa4df75c1922d5fd",
+      "src/diffpes/matrixel/__init__.py": "de281500689af3bf96a78e499340b77bc47fb5ba864385b8234671eaccd0062f",
+      "src/diffpes/matrixel/parameters.py": "96ca0de5977a0c60c6339a33f3fb6edfc4af769723c32d5871207aa5335b0be8",
+      "src/diffpes/matrixel/transition.py": "212454c7976d5a691f9ba9a18b627b4256eebef02bbd31a9f21aea7bbb95a7c5",
+      "src/diffpes/radial/__init__.py": "6e17df000b5c62bf89ab795e56001b37aae457372035f8d945fe43fd9cbf2fab",
+      "src/diffpes/radial/bessel.py": "ee64359dd0b0e2349892e06a7fe2481f38b799b28612baf8baaf2c3114c922d5",
+      "src/diffpes/radial/coulomb_asymptotics.py": "ec277cb9b2ed8247b6391c187c4d731ebab1a410da2b466ef171e3b113fa02ae",
+      "src/diffpes/radial/coulomb_functions.py": "e12dbe1a4e5cff70f8b0c75f22ccc0082f568db71c4ddca6b172a037408a70b9",
+      "src/diffpes/radial/coulomb_numerov.py": "0943dd31505571e7ba27cafadd7123ac19b70423c159bf15c96999e1602f4e21",
+      "src/diffpes/radial/coulomb_ode.py": "c890536f2ff8e947173564db816ef0fbe4861b9d72d5f339c29e0cb1441cead1",
+      "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
+      "src/diffpes/radial/screening.py": "38a92c00401b881eca31d6b1927ab4812d2643e51806c7d6005815113d3becd1",
+      "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
+      "src/diffpes/simul/__init__.py": "cd509487000c6a33430293851c2ee7a5236f076163107694bf5aa8179df49e98",
+      "src/diffpes/simul/_detector_cube.py": "8b1f2db3dc6ea61cfef667ce7cb18cbc34a62964141468c25b501c750ffce2aa",
+      "src/diffpes/simul/_detector_geometry.py": "16fd78d5cc3f011863c8d564374e3bef3d059e6a4e17919ebb685a5a5af3d50e",
+      "src/diffpes/simul/_detector_map.py": "050ac804230c7066b073ddb56e066e1bf68f37bbde71b7e31229fd48f31a9a50",
+      "src/diffpes/simul/_detector_spectrum.py": "c2e34a73edc558bb783bf689ce126705472a71f882a50b169f70e9d262cc3234",
+      "src/diffpes/simul/_kramers_kronig.py": "364c5b78e0245e41e2701783b51cff387341a3abc4ca5d0c1659af6393a18980",
+      "src/diffpes/simul/_kz_spectrum.py": "67d84efa0a83241f9fb85f71db0ef19c428056571e8a749314c54e725301ad12",
+      "src/diffpes/simul/_principal_value.py": "d12e9fcfde07099a0a96cc078be5c95593a27eeabdc990a0032a78f3bac0965e",
+      "src/diffpes/simul/_source_carriers.py": "58ae43e44a081c0bb7a5d2f28195bff60ff7f35734871951191f7e3987f3211d",
+      "src/diffpes/simul/_spectrum_stream.py": "fb048bd0de6d00e578dee50dfbf4ccb906b41f813d96037a9cd51c6ec959cb51",
+      "src/diffpes/simul/_spectrum_validation.py": "6ee9bc671f380368ec1663acdd413afb7fd1c0cec084da6ef587ba652ae82bca",
+      "src/diffpes/simul/broadening.py": "9e3c421e8969e7c56c8fff3a50fc4671ab9289317647050a6f9b48e86c802019",
+      "src/diffpes/simul/counting.py": "8e59be4ffc78b8034f8ea484d00764ac1356adfa48bded5f0ef54632d409f6c1",
+      "src/diffpes/simul/crosssections.py": "8e4941b36c183c16b23fd22e28c05f5a1574d7fa52022608bf9de900d446b023",
+      "src/diffpes/simul/detector_response.py": "d4865abb43f790f15315d7b315aa86e4f6f6e14b828b373e70bf043cd374eba7",
+      "src/diffpes/simul/effects.py": "923eba7223b0c73233da9922ec494deca46c608f3054b01be8f1fa2e10ee8bd8",
+      "src/diffpes/simul/kinematics.py": "04e36114d44a5578bf427320f12207428b0bfeb775258353aa0621dda4a32d8b",
+      "src/diffpes/simul/kz_broadening.py": "2444f46eb052edc79a10e9a5946720e341073895c5ccbe6bfbe06544cae47bca",
+      "src/diffpes/simul/oam.py": "f85bb4639c4d41d00c75d9cfc273bb7f6ba5b990c6db5328bea836464ea8a11b",
+      "src/diffpes/simul/polarization.py": "6fdc2c522bad386d274a966ba0433de319bcbdf9e886ca5fa3e399de008a9ec2",
+      "src/diffpes/simul/resolution.py": "35375f3fee04d96761debb11e29af0f6bfd0798a5c4a315a15602dd669d44cdf",
+      "src/diffpes/simul/retarded_self_energy.py": "b550af2b9d5b0e8b3679756012ccb6cf32e7db15e88899cd401cce5e704da08d",
+      "src/diffpes/simul/spectral.py": "a2f7b07099d50e76e4c68b43c2d18c2eaed8cb9b1b2518cb6cfb098b80474484",
+      "src/diffpes/simul/spectral_eigen.py": "61229b7c38d434f8e70365d79552bed4e19b115bfd159e938a2ac21da9f762fb",
+      "src/diffpes/simul/spectral_resolvent.py": "75fd65646b3cfa9688d6f32bcffc1f65b50ae873e3f2a6a45fd27e74b4919c59",
+      "src/diffpes/simul/spectrum.py": "75556df5f2b5a9dd27d9ee456ef1c38a4894f60d7f9cb240f026a676460c9a3b",
+      "src/diffpes/simul/transmission.py": "8355f071c2dec982965bcd40d33e4484f000219ff8cfcc464ed10b207aa9fd80",
+      "src/diffpes/simul/workflow.py": "1897649323276f5f7d197f79211e046ba753734872e004b890f85cbf4f96771b",
+      "src/diffpes/tightb/__init__.py": "2d17c9ea88935d7e14a12c988f7a042cdb0f7eca29888e7571135596ede5ba26",
+      "src/diffpes/tightb/diagonalize.py": "b237ca678a1f174827cbca60717ffe7193d38d75f2f1c61dac40069f080a9d80",
+      "src/diffpes/tightb/dos.py": "18857d28e9f8d65805bd2fdd6f1ae49789189702fe87deefbae3399b2b825262",
+      "src/diffpes/tightb/hamiltonian.py": "4a5e5aefe73c24fd37000cf9b6bf063be97b73076ba3ce0bc270e814cc0e3ba6",
+      "src/diffpes/tightb/kspace.py": "0a583af98e7873cd860cd5d8511aad233e355764d246f7bdc4488eb3c93fc582",
+      "src/diffpes/tightb/neighbor_shells.py": "955b6633b3aff0766f011510dbd2a89d45b538c7c983d8f89676922a717b65fc",
+      "src/diffpes/tightb/operators.py": "24d9f05d8a438bcae227b9d31d0a6061ad86d2864e47f25f43247c0c7f048cf0",
+      "src/diffpes/tightb/parameters.py": "61b51fca57f41b11ecba3cf114537f827c332e1efb51fbf82faea6df3df504fe",
+      "src/diffpes/tightb/projections.py": "0f94b4f36f49e5f7f45298f0afc7350f33e4e6d27d39ccb6420433281aeaab06",
+      "src/diffpes/tightb/slab.py": "e88b890b80f0ff5f1ddb31c852a8486ac5a7ac46df29fba2b6df22aacc604730",
+      "src/diffpes/tightb/slab_assembly.py": "a4ff3157f153821d38234cec0d74a5908c1da01e52a2f017cad264010f29cae9",
+      "src/diffpes/tightb/slab_operators.py": "7982aa30f5708d2f6736c2cd79bc2933ac4e84a1509807b8d88746df3c47c3b7",
+      "src/diffpes/tightb/slab_rotation.py": "4d282b92a47cf3ae7d24e2064fdf0195ef1a1aca7a54c27cdc0892c142be7a55",
+      "src/diffpes/tightb/slab_surface_cell.py": "3a16c49ad663ed1e9f725f31cfdb14c1ace6e8413d42cb5cb955701f19108ebe",
+      "src/diffpes/tightb/slab_topology.py": "13cd306bea9f090dc84cc383ef3f622caf4952c737f8f169fdbfb650c962e46f",
+      "src/diffpes/tightb/slaterkoster.py": "a511b2ccec42e67ac498b5a961012564eb6fef473b2449242407ab66a4ddfef7",
+      "src/diffpes/tightb/slaterkoster_model.py": "d09f9d3fbc19e606fd4e022a1b8878a984be311d54f123da65a923a1844fcf35",
+      "src/diffpes/tightb/soc.py": "f145345a1dc04d5ed6158bcc2b40548c0ced35263a9831ba82e9d857bd512404",
+      "src/diffpes/types/__init__.py": "44bef1277db101b72af390c906c8108afbf848d13067f2dcb1f0fcc2b81bde56",
+      "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+      "src/diffpes/types/arpes.py": "fa3c042693066214945511755c332f9e1e6f1e4536fc44f4f4a0761534d75afb",
+      "src/diffpes/types/bands.py": "bfb9dc3895a97909ad6cf9e05142932a581e28db1f7072ce3c560f3e0001c98c",
+      "src/diffpes/types/certification.py": "493a65b26b6ffd30693b3ff38fd580d559fe3324b0b4d5e86be7091b9eaa0d7f",
+      "src/diffpes/types/certification_validation.py": "5bfb8375fb5aa9418dc99b5c5bf3cd254fb17788f50d3a1856c22e0674ed7270",
+      "src/diffpes/types/context.py": "f694361e1de084674080d1ad43c445c4bad85b94342bb44e65ed0e104a7e1923",
+      "src/diffpes/types/contracts.py": "be38a5cf6074ab17e1f8f533a768ec8d7cba37c4083c89776690a7922ef9c628",
+      "src/diffpes/types/derivatives.py": "7ea834d4137944e1babbfbe07c5eada0af47e5778f8227133b16b5ab8db434f6",
+      "src/diffpes/types/detector_data.py": "a27ed0fa5b3aba02a47b89d4bd90ef5aa25c44539b4df6ca509f4e219b0de2fe",
+      "src/diffpes/types/detector_effects.py": "c1bf3eaa6472692a07c5d8fe449be9f9bdca509341af626ba7589b0a0dc2235a",
+      "src/diffpes/types/diagonalized_bands.py": "1bfb18769de50d40f428aa4db487044fd111bbfd3b977c81c9bffce8746fbbbd",
+      "src/diffpes/types/dos.py": "da88880646a71e5c5dff89eb92c4ae0dfb8e8ace6fe7eab2a5d3c49c0e389d2b",
+      "src/diffpes/types/electronic_structure_validation.py": "7effc470dd67db6d5eac0af66f718ed9ea13c67d5b95212f6c775f5eaa6b5d78",
+      "src/diffpes/types/evidence.py": "d3efabc29f917a1bf54bf95c42f67d649afaf63734186d5ae6e981561bdfad7e",
+      "src/diffpes/types/experiment.py": "1c5ed445dd94a522501dd1c522079d1c70ed402a543b44f9578420698ff70fbc",
+      "src/diffpes/types/geometry.py": "604369066b8b2d4cc3d25d032904ca487198948d3068f02a4588fea71a5cda26",
+      "src/diffpes/types/inspection.py": "046d0f4105ee0e9eaf383b9240c503a8d8a479c3ab93d97f65a8037cb8d3fd56",
+      "src/diffpes/types/kpath.py": "1ce8d9e606758b0da78ea494794bca16d4e827d9bfad0b946074119e37a9d042",
+      "src/diffpes/types/orbital_basis.py": "48575a15e734bdd6c77e82ae6d4d96b14b9c627e130d60d15af8cacd91ebabf7",
+      "src/diffpes/types/provenance.py": "147d619fd2b9180b2d19a74ef0157e231933f7dd41cf3a4fb254dd9cbf47e433",
+      "src/diffpes/types/radial_params.py": "74700ae399d45f63dddc164fb335ef62e0b8d12be99f189bf11d646a5d2b6d43",
+      "src/diffpes/types/radial_profiles.py": "b5267f49e5716ed0bca60f6fb1f0807fc4388cd562863f17dcbb71168df57772",
+      "src/diffpes/types/registry.py": "a224ea4e13d33777dfb9c0b6160add841bb4ec2ad33d2d029866a658cb092dcc",
+      "src/diffpes/types/reports.py": "78f1b2752260f313047ddedab5440a87e6413b616a679385cea7815402e0fdae",
+      "src/diffpes/types/runtime.py": "69b2a2b8cd53875c7c3d9dd61aae748f618541c9d14fd7afd6e6b759e82b75ea",
+      "src/diffpes/types/self_energy.py": "405a5d1225614d9ccbce9346e0292e0b2c17b681473db47ce42d2efce78f5fc3",
+      "src/diffpes/types/slab_geometry.py": "a8965a9b24afa72b83e86fa836ae22c02dc494fb78b52d423c04ef0cab0b7dfe",
+      "src/diffpes/types/slab_topology.py": "dd658d956c1b80c7ce961fb2492c3e1738da1fd5ee507a2418027e6bf87951a8",
+      "src/diffpes/types/slater_koster_params.py": "47cdfe46eda464b52214bb23d52e25f78d2554effa12ca8510918c2b077a0b08",
+      "src/diffpes/types/specification.py": "c50a146d45036bf73a04f4e7e295db9d6da8306cddb4352bc35ee451a8ef0288",
+      "src/diffpes/types/spectral.py": "c21b92d39fa1dd48e74f50c3a375d48e0ed4423cf287f2e7f18faf719b4fb721",
+      "src/diffpes/types/tb_model.py": "e68b91f120f604d5e84eb35ffc22834af4bb19ed2d61ecf47079828bddff52ab",
+      "src/diffpes/types/volumetric.py": "34c3f09d0fd466d82ebf6b92238318a5aafa84fccb7a64360625e13c6e1058aa",
+      "src/diffpes/types/wannier.py": "156443579d0ce4d84ca13da0dcd47590ce8277050c7e86feba08b09c8c6d5a58",
+      "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+      "src/diffpes/utils/math.py": "6713cc173fae8b111fba2953280f305ba0a763ac204475e8ea43e0b8f17d96a5"
+    }
   }
 }

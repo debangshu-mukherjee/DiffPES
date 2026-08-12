@@ -268,14 +268,14 @@ and the project uses calendar versioning.
   integration remains node-local and forbids a complete all-node band,
   source, kinematics, or intensity carrier.
 - The authenticated kz-scan scalability record
-  `819b24a88e654a7523db526a50596411c6e1749f1b9dce1388312b044e6f8a07`
+  `956174908749389e730dfc642d59a0515c960e072df9e9267d7e9115d6e47272`
   compiles the exact `256 x 256 x 400`, 20-band, 2048-node target. It records
   1,074,870,048-byte forward and 2,567,802,048-byte full-H-gradient live
   allocations. It also records zero forbidden all-node carriers,
   rematerialization equality, and flat photon-scan auxiliary allocation. The
   source-handshake refresh rebinds the spectral and detector records as
-  `73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f`
-  and `c03efce3550f22a16161f8ad236e38d94d26c0edb8e01eb2d3997f534c408cde`.
+  `3d9ae1a3b8b60b0aba767aeec0a23fea0e17eab13fe9e51b82da2a5b79e98fea`
+  and `85cfbf86d58d957605a2977ea1921a7568a32b06de9d6ab241a3fe9849fbe190`.
   All registered budgets and companions remain green.
 - The certification registry adds the `org.diffpes.kz` owner and immutable
   wrapped-integration/photon-energy-scan transformations. Registration

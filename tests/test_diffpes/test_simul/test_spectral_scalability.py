@@ -47,7 +47,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f"
+    "3d9ae1a3b8b60b0aba767aeec0a23fea0e17eab13fe9e51b82da2a5b79e98fea"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 

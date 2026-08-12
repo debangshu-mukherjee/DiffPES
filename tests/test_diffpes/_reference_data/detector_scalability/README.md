@@ -43,5 +43,5 @@ error.
 The JSON records hashes for this harness, the complete production driver and
 detector stack, relevant carriers, dependency metadata, and the lock file. The
 consumer authenticates artifact SHA-256
-`c03efce3550f22a16161f8ad236e38d94d26c0edb8e01eb2d3997f534c408cde`
+`85cfbf86d58d957605a2977ea1921a7568a32b06de9d6ab241a3fe9849fbe190`
 before parsing the record.

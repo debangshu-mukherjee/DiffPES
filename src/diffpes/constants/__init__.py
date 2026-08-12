@@ -6,7 +6,7 @@ This package provides one import surface for immutable physical values,
 selector vocabularies, schema identifiers, parser tokens, and validation
 tolerances. Source modules import constants from :mod:`diffpes.constants`.
 
-The submodules are organized as follows:
+The following submodules organize the constants:
 
 - :mod:`carriers`
     Define validation constants for diffpes carrier factories.

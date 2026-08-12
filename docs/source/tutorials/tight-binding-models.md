@@ -157,8 +157,8 @@ print(f"hand-built versus SK maximum error: {float(maximum_difference):.3e} eV")
 ```
 
 The discrete neighbor search is not a differentiable operation. Freeze it
-outside an optimizer and keep parameter updates within a region where bonds
-do not enter or leave the cutoff. The returned amplitudes, onsite energies,
+outside an optimizer. Keep parameter updates within a region where bonds do
+not enter or leave the cutoff. The returned amplitudes, onsite energies,
 SOC strengths, positions, and lattice remain ordinary differentiable leaves.
 
 ## Atomic Spin--Orbit Coupling

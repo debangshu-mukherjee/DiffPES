@@ -85,7 +85,7 @@ def test_lithium_chain_resolution_bundle_authenticates() -> None:
         / "_reference_tools/chinook_resolution_adapter.py"
     )
     assert _sha256(manifest_path) == (
-        "9db837b7ec46d7c98b98e957ffe79d631f9ed21581499661c9f83016dc2ef49a"
+        "5d777f7a558dd2107af0d6c58e38bccde7f2bc26593de7cbc4963a09a4dfcd6e"
     )
     assert _sha256(model_path) == (
         "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe"
@@ -117,6 +117,15 @@ def test_lithium_chain_resolution_bundle_authenticates() -> None:
     assert summary["source_authentication"]["adapter_sha256"] == _sha256(
         adapter_path
     )
+    source_map: Dict[str, str] = summary["source_authentication"][
+        "production_source_sha256"
+    ]
+    relative_path: str
+    digest: str
+    for relative_path, digest in source_map.items():
+        assert _sha256(
+            Path(__file__).resolve().parents[3] / relative_path
+        ) == (digest)
     assert (
         summary["scope"]["classification"] == "K-only response compatibility"
     )

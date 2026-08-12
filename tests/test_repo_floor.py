@@ -547,7 +547,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         )
 
     def test_detector_zero_legacy_surface_is_absent(self) -> None:
-        """Keep retired resolution and parameter APIs out of live source.
+        """Keep retired tier and parameter APIs out of live source.
 
         The witness checks exact deleted module paths, every former six-tier
         assembler and expanded dispatcher symbol, ``SimulationParams``
@@ -564,7 +564,6 @@ class TestRepositoryArchitecture(chex.TestCase):
         deleted_paths: Tuple[Path, ...] = (
             Path("simul/expanded.py"),
             Path("simul/forward.py"),
-            Path("simul/resolution.py"),
             Path("types/params.py"),
         )
         forbidden_symbols: frozenset[str] = frozenset(
@@ -1106,6 +1105,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 "follow",
                 "forbid",
                 "format",
+                "freeze",
                 "generate",
                 "give",
                 "guard",
@@ -1118,6 +1118,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 "interpolate",
                 "keep",
                 "list",
+                "limit",
                 "load",
                 "look",
                 "make",
@@ -1156,6 +1157,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 "raise",
                 "ravel",
                 "read",
+                "rebuild",
                 "recompute",
                 "record",
                 "recover",
@@ -1183,6 +1185,7 @@ class TestRepositoryArchitecture(chex.TestCase):
                 "rotate",
                 "run",
                 "sanitize",
+                "sample",
                 "save",
                 "scale",
                 "select",
@@ -1450,7 +1453,10 @@ class TestRepositoryArchitecture(chex.TestCase):
                 symbol_name: str = getattr(node, "name", "<module>")
                 location: str = f"{path}:{getattr(node, 'lineno', 1)}"
                 summary_text: str = summary
-                if symbol_name.startswith("_"):
+                is_private_module: bool = isinstance(
+                    node, ast.Module
+                ) and path.name.startswith("_")
+                if symbol_name.startswith("_") or is_private_module:
                     summary_text = summary_text.removeprefix("PRIVATE: ")
                 if not self._markdown_instruction(summary_text):
                     violations.append(

@@ -55,7 +55,7 @@ def _artifact_digest() -> str:
         SHA-256 digest of the committed literal CPU record.
     """
     digest: str = (
-        "c03efce3550f22a16161f8ad236e38d94d26c0edb8e01eb2d3997f534c408cde"
+        "85cfbf86d58d957605a2977ea1921a7568a32b06de9d6ab241a3fe9849fbe190"
     )
     return digest
 

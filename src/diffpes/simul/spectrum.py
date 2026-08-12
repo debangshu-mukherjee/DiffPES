@@ -46,11 +46,11 @@ from diffpes.types import (
     TBModel,
 )
 
+from . import effects
 from ._kz_spectrum import _bulk_domain_intensity
 from ._source_carriers import _physical_cubes, _physical_spectra
 from ._spectrum_stream import _stream_domain_intensity
 from ._spectrum_validation import _validate_kz_mode_inputs
-from .effects import apply_detector_effects
 
 
 @jaxtyped(typechecker=beartype)
@@ -187,7 +187,7 @@ def simulate_arpes(  # noqa: DOC105, DOC502, DOC503, PLR0913, PLR0917
         kz_nodes_frac=kz_nodes_frac,
         kz_mode=kz_mode,
     )
-    raster: DetectorRaster = apply_detector_effects(
+    raster: DetectorRaster = effects.apply_detector_effects(
         physical_by_domain,
         geometry,
         detector_calibration,
@@ -328,7 +328,7 @@ def simulate_arpes_cut(  # noqa: DOC105, DOC502, DOC503, PLR0913, PLR0917
         kz_nodes_frac=kz_nodes_frac,
         kz_mode=kz_mode,
     )
-    raster: DetectorRaster = apply_detector_effects(
+    raster: DetectorRaster = effects.apply_detector_effects(
         physical_by_domain,
         geometry,
         detector_calibration,

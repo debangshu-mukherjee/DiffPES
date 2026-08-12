@@ -1023,6 +1023,7 @@ def _literal_allocation_record(
         f"{scalar_jaxpr}\n\nEIGHT-ENERGY REDUCED SCAN\n{scan_jaxpr}\n"
     )
     jaxpr_text = re.sub(r"0x[0-9a-fA-F]+", "0xADDR", jaxpr_text)
+    jaxpr_text = re.sub(r"\x1b\[[0-9;]*m", "", jaxpr_text)
     scalar_compiled: Any
     scalar_compilation_seconds: float
     scalar_compiled, scalar_compilation_seconds = _compile(
@@ -1041,6 +1042,7 @@ def _literal_allocation_record(
         "SCALAR-ENERGY VALUE+GRADIENT\n"
         f"{scalar_hlo}\n\nEIGHT-ENERGY REDUCED SCAN\n{scan_hlo}\n"
     )
+    hlo_text = re.sub(r"\x1b\[[0-9;]*m", "", hlo_text)
     artifact_directory.mkdir(parents=True, exist_ok=True)
     jaxpr_path: Path = artifact_directory / "channel_scan_jaxpr.txt.gz"
     hlo_path: Path = artifact_directory / "channel_scan_hlo.txt.gz"

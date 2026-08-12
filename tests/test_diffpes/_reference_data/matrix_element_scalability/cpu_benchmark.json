@@ -40,12 +40,12 @@
   "device": "TFRT_CPU_0",
   "dtype_policy": "JAX x64",
   "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
-  "host_setup_seconds": 1.592434509017039,
+  "host_setup_seconds": 1.705438586010132,
   "jax_version": "0.9.0.1",
   "literal_allocation": {
     "compilation_seconds": {
-      "reduced_scan": 0.5685017310024705,
-      "scalar_value_and_gradient": 0.663214522995986
+      "reduced_scan": 0.5342825500119943,
+      "scalar_value_and_gradient": 0.680641562998062
     },
     "forbidden_k_e_b_shape_present": false,
     "forbidden_k_e_b_shapes": [],
@@ -53,7 +53,7 @@
       18
     ],
     "hlo_gzip": "channel_scan_hlo.txt.gz",
-    "hlo_gzip_sha256": "9b1774ae198730edfb00d11cee72f4f63175a336bdcdf0e06fecf667494e7876",
+    "hlo_gzip_sha256": "9c894811929643bbd738e3b58ff97238789a9a0a11d1f2f2150429d90be7c12e",
     "jaxpr_gzip": "channel_scan_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
@@ -104,7 +104,7 @@
   },
   "numpy_version": "2.4.2",
   "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 905871360,
+  "process_peak_rss_bytes_non_authoritative": 880594944,
   "requirements": [
     "matrix-element-forward-scaling",
     "matrix-element-compiled-graph-scaling",
@@ -112,67 +112,92 @@
   ],
   "schema": "diffpes.matrix-element-scalability.v2",
   "source_sha256": {
+    "pyproject.toml": "9149b035d6f0745dfc3501a3d6c23065044a1dcb648f766e34ac828c35fde302",
+    "src/diffpes/constants/__init__.py": "adf296244e455fefa22f78bfcfc8e12a86d907cce0226270308a76f4c8ba6438",
+    "src/diffpes/constants/carriers.py": "838ff3acc9799d5db7ae5ecdfd2c61662702f0aad89983a415ef4c30fca6a9b3",
+    "src/diffpes/constants/numerical.py": "71d2a3e74520dd5794093b1ef765bf4dd64955ff6351f1d53e47eeec4cf58560",
+    "src/diffpes/constants/shared.py": "56b8f95a28d0821a18ba61ab1035c2b48a2ddd25b628acdd5670195b4d89ba10",
+    "src/diffpes/maths/__init__.py": "d0151b9916392547abe712b9bc9e7b976f74d709ac17126a6622e465e80e1d3c",
+    "src/diffpes/maths/dipole.py": "c91f20d7830f624629f0ecbc1fdb413537ce7727b97c51bc270808e930eb0fbf",
+    "src/diffpes/maths/safe.py": "6dda8cedee880c7ba1a31926314fef4a12ab6caf49e0b53c4b9f75f1ba6f7e4f",
     "src/diffpes/matrixel/__init__.py": "de281500689af3bf96a78e499340b77bc47fb5ba864385b8234671eaccd0062f",
-    "src/diffpes/matrixel/parameters.py": "b65ece8149abd39a1569074a21a19cf534cc3940ed92aabbaf3b5e15ab4f83b9",
-    "src/diffpes/matrixel/transition.py": "6a5e5b7863f1e6e14883a488413cc4ac2f2ef94a0b72c40f172e3d0c68f9ce18",
-    "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
-    "tests/_reference_tools/measure_matrix_element_scaling.py": "344948dd65f56f1302bff269c0ac5b482f671cc4edb3a26386514d282a39f129"
+    "src/diffpes/matrixel/parameters.py": "96ca0de5977a0c60c6339a33f3fb6edfc4af769723c32d5871207aa5335b0be8",
+    "src/diffpes/matrixel/transition.py": "212454c7976d5a691f9ba9a18b627b4256eebef02bbd31a9f21aea7bbb95a7c5",
+    "src/diffpes/radial/__init__.py": "6e17df000b5c62bf89ab795e56001b37aae457372035f8d945fe43fd9cbf2fab",
+    "src/diffpes/radial/bessel.py": "ee64359dd0b0e2349892e06a7fe2481f38b799b28612baf8baaf2c3114c922d5",
+    "src/diffpes/radial/coulomb_asymptotics.py": "ec277cb9b2ed8247b6391c187c4d731ebab1a410da2b466ef171e3b113fa02ae",
+    "src/diffpes/radial/coulomb_numerov.py": "0943dd31505571e7ba27cafadd7123ac19b70423c159bf15c96999e1602f4e21",
+    "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
+    "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
+    "src/diffpes/types/__init__.py": "44bef1277db101b72af390c906c8108afbf848d13067f2dcb1f0fcc2b81bde56",
+    "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+    "src/diffpes/types/diagonalized_bands.py": "1bfb18769de50d40f428aa4db487044fd111bbfd3b977c81c9bffce8746fbbbd",
+    "src/diffpes/types/electronic_structure_validation.py": "7effc470dd67db6d5eac0af66f718ed9ea13c67d5b95212f6c775f5eaa6b5d78",
+    "src/diffpes/types/experiment.py": "1c5ed445dd94a522501dd1c522079d1c70ed402a543b44f9578420698ff70fbc",
+    "src/diffpes/types/geometry.py": "604369066b8b2d4cc3d25d032904ca487198948d3068f02a4588fea71a5cda26",
+    "src/diffpes/types/orbital_basis.py": "48575a15e734bdd6c77e82ae6d4d96b14b9c627e130d60d15af8cacd91ebabf7",
+    "src/diffpes/types/radial_params.py": "74700ae399d45f63dddc164fb335ef62e0b8d12be99f189bf11d646a5d2b6d43",
+    "src/diffpes/types/radial_profiles.py": "b5267f49e5716ed0bca60f6fb1f0807fc4388cd562863f17dcbb71168df57772",
+    "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+    "src/diffpes/utils/math.py": "6713cc173fae8b111fba2953280f305ba0a763ac204475e8ea43e0b8f17d96a5",
+    "tests/_reference_tools/measure_matrix_element_scaling.py": "a30b9696d793e7a240b869d264a48aefbc10dcb290293f63855e8d1743b43601",
+    "uv.lock": "27735f1e8f2538b9ccf12e328841f0c569ee46b2b5c6897b6ed2b107003a0920"
   },
   "throughput": {
     "compilation_seconds": {
-      "batch_contraction": 0.07893628301098943,
-      "channel": 0.556245683983434,
-      "late_reuse_pipeline": 0.5553227310010698,
-      "single_contraction": 0.07287000701762736,
-      "single_rebuild_pipeline": 0.5785946900141425
+      "batch_contraction": 0.07439323799917474,
+      "channel": 0.5717516129952855,
+      "late_reuse_pipeline": 0.5824989799875766,
+      "single_contraction": 0.07339279699954204,
+      "single_rebuild_pipeline": 0.5521594030142296
     },
-    "contraction_ratio": 0.2252635357544175,
+    "contraction_ratio": 0.2107094483456748,
     "median_seconds": {
-      "batched_contraction": 0.001040515024214983,
-      "late_reuse_pipeline": 0.01445754399173893,
-      "six_rebuild_pipelines": 0.05570191299193539,
-      "six_sequential_contractions": 0.004619101004209369
+      "batched_contraction": 0.0009423269948456436,
+      "late_reuse_pipeline": 0.014260408002883196,
+      "six_rebuild_pipelines": 0.05538954399526119,
+      "six_sequential_contractions": 0.004472162981983274
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.25955201922476373,
+    "pipeline_ratio": 0.25745667817924683,
     "raw_seconds": {
       "batched_contraction": [
-        0.0010514880123082548,
-        0.0009938560251612216,
-        0.001036180998198688,
-        0.0010749520151875913,
-        0.0009764010028447956,
-        0.0010446850210428238,
-        0.001040515024214983
+        0.0009351000189781189,
+        0.0009648160194046795,
+        0.0009178110049106181,
+        0.0009728759760037065,
+        0.0009226099937222898,
+        0.0009621739736758173,
+        0.0009423269948456436
       ],
       "late_reuse_pipeline": [
-        0.014413956989301369,
-        0.014474545983830467,
-        0.01427007099846378,
-        0.014334792998852208,
-        0.014738608995685354,
-        0.014571944018825889,
-        0.01445754399173893
+        0.014166600012686104,
+        0.014665312017314136,
+        0.014090732001932338,
+        0.014297273999545723,
+        0.014522694982588291,
+        0.014260408002883196,
+        0.013987987011205405
       ],
       "six_rebuild_pipelines": [
-        0.05544251800165512,
-        0.05748761698487215,
-        0.05570191299193539,
-        0.05581943699507974,
-        0.053584111999953166,
-        0.05605279697920196,
-        0.055381160986144096
+        0.056115041981684044,
+        0.05554108999785967,
+        0.054482653009472415,
+        0.05558332800865173,
+        0.05538954399526119,
+        0.05482640600530431,
+        0.05498194001847878
       ],
       "six_sequential_contractions": [
-        0.004619101004209369,
-        0.004151800007093698,
-        0.003728801995748654,
-        0.004438344010850415,
-        0.005353941000066698,
-        0.0050956689810846,
-        0.004742313001770526
+        0.004472162981983274,
+        0.004677487013395876,
+        0.004385257023386657,
+        0.0044792139960918576,
+        0.004484233999392018,
+        0.00434061701525934,
+        0.0043024740007240325
       ]
     },
     "repetitions": 7,

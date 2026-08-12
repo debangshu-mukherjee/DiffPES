@@ -113,6 +113,37 @@
     "scope": {"type": "object"},
     "diagnostics": {"type": "object"},
     "negative_controls": {"type": "object"},
-    "source_authentication": {"type": "object"}
+    "source_authentication": {
+      "type": "object",
+      "required": [
+        "adapter_sha256",
+        "chinook_distribution_version",
+        "chinook_package_content_sha256",
+        "chinook_repository",
+        "diffpes_worktree_dirty_at_replay",
+        "model_spec_sha256",
+        "production_source_sha256"
+      ],
+      "properties": {
+        "adapter_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "chinook_distribution_version": {"type": "string"},
+        "chinook_package_content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chinook_repository": {"type": "string"},
+        "diffpes_worktree_dirty_at_replay": {"type": "boolean"},
+        "model_spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "production_source_sha256": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
   }
 }

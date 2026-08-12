@@ -491,7 +491,7 @@ def toy_graphene_diagonalized(
 
 
 def registry_model_spec(name: str) -> ForwardModelSpec:
-    """PRIVATE: Build one registry-test forward-model spec from a name.
+    """Build one registry-test forward-model spec from a name.
 
     Parameters
     ----------

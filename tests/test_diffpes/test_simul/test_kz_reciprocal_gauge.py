@@ -27,7 +27,10 @@ from diffpes.matrixel import (
     project_band_channels,
     transition_source,
 )
-from diffpes.simul import assemble_spectral_intensity_chunk, effects
+from diffpes.simul import (
+    assemble_spectral_intensity_chunk,
+    kz_fractional_nodes,
+)
 from diffpes.types import (
     ExperimentGeometry,
     MatrixElementParams,
@@ -274,9 +277,7 @@ class TestKzRegisteredNodeBoundary:
         the only violated contract.
         """
         fixture: Dict[str, object] = driver_tests._driver_fixture()  # noqa: SLF001
-        shifted_nodes: Float64[Array, "..."] = (
-            effects.kz_fractional_nodes(4) + 0.01
-        )
+        shifted_nodes: Float64[Array, "..."] = kz_fractional_nodes(4) + 0.01
         photon_energies: Float64[Array, "1"] = jnp.asarray((28.0,))
 
         def evaluate(
@@ -404,9 +405,7 @@ class TestKzProductionQuadratureReplay:
             node_count: int,
         ) -> Tuple[Float64[Array, "..."], Float64[Array, "..."]]:
             """Return one public value and lambda-direction JVP replay."""
-            nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(
-                node_count
-            )
+            nodes: Float64[Array, "..."] = kz_fractional_nodes(node_count)
 
             def evaluate(
                 candidate_length: Float64[Array, "..."],

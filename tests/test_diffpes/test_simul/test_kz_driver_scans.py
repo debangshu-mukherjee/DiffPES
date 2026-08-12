@@ -23,11 +23,13 @@ from diffpes.matrixel import (
     transition_source,
 )
 from diffpes.simul import (
+    _kz_spectrum,
     assemble_spectral_intensity_chunk,
     contract_experiment_polarization,
-    effects,
     final_state_k_inv_ang,
     kinetic_energy_ev,
+    kz_broadening,
+    kz_fractional_nodes,
     kz_from_inner_potential,
     spectrum,
 )
@@ -1039,7 +1041,7 @@ class TestBulkKzKBlockStreaming:
             ),
             axis=-1,
         )
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(4)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(4)
         k_chunk: int = 2
         objective_weights: Float64[Array, "..."] = jnp.arange(
             1,
@@ -1271,7 +1273,7 @@ class TestKzDriverPublicSurface:
         Call the public eager boundary with one defect in each invocation.
         """
         fixture: Dict[str, object] = _driver_fixture()
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(4)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(4)
         common: Tuple[object, ...] = (
             fixture["radial"],
             fixture["matrix_params"],
@@ -1493,7 +1495,7 @@ class TestDirectAndCoherentModes:
         geometry: ExperimentGeometry = _geometry_at_hv(
             fixture["geometry"], jnp.asarray(3.0, dtype=jnp.float64)
         )
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(8)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
         direct: Float64[Array, "..."] = _simulate_scan(
             fixture,
             geometry.photon_energy_ev[None],
@@ -1546,12 +1548,12 @@ class TestDirectAndCoherentModes:
             raise AssertionError("bulk_direct called a wrapped kz weight")
 
         monkeypatch.setattr(
-            effects,
+            _kz_spectrum,
             "_kz_wrapped_lorentzian_bin_weight",
             count_and_fail,
         )
         monkeypatch.setattr(
-            effects,
+            kz_broadening,
             "kz_wrapped_lorentzian_bin_weights",
             count_and_fail,
         )
@@ -1793,7 +1795,7 @@ class TestCanonicalBulkKzDetectorDerivatives:
         calibration: DetectorCalibration
         detector_effects: DetectorEffects
         calibration, detector_effects = _single_domain_detector_context()
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(8)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
         coordinates: Float64[Array, "4"] = jnp.asarray(
             (7.5, 11.0, 4.3, 0.0), dtype=jnp.float64
         )
@@ -1841,7 +1843,7 @@ class TestCanonicalBulkKzDetectorDerivatives:
         calibration: DetectorCalibration
         detector_effects: DetectorEffects
         calibration, detector_effects = _single_domain_detector_context()
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(8)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
         coordinates: Float64[Array, "4"] = jnp.asarray(
             (7.5, 11.0, 4.3, 0.0), dtype=jnp.float64
         )
@@ -2045,7 +2047,7 @@ class TestKzDriverGradients:
         Compare reverse and forward autodiff with the shared float64 FD check.
         """
         fixture: Dict[str, object] = _driver_fixture()
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(8)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
         photon_energies: Float64[Array, "..."] = fixture["photon_energies"][
             1:2
         ]
@@ -2094,7 +2096,7 @@ class TestKzDriverGradients:
         Compare both autodiff modes with the shared finite-difference harness.
         """
         fixture: Dict[str, object] = _driver_fixture()
-        nodes: Float64[Array, "..."] = effects.kz_fractional_nodes(8)
+        nodes: Float64[Array, "..."] = kz_fractional_nodes(8)
         photon_energies: Float64[Array, "..."] = fixture["photon_energies"][
             1:2
         ]

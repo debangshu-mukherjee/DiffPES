@@ -71,6 +71,7 @@ class TestSharedConstants:
             "WANNIER_HR_SUFFIX",
         )
 
+        name: str
         for name in names:
             assert hasattr(diffpes.constants, name)
             assert not hasattr(diffpes.types, name)
