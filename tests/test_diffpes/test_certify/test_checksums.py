@@ -20,7 +20,9 @@ from diffpes.certify import (
     result_checksum,
     semantic_checksum,
 )
-from diffpes.types import CHECKSUM_ALGORITHM
+from diffpes.constants import (
+    CHECKSUM_ALGORITHM,
+)
 
 
 class TestParseChecksum:

@@ -9,7 +9,7 @@ therefore removed rather than presented as quantitative ARPES workflows.
 
 ## Matrix Elements Before Spectral Reduction
 
-The coherent path uses functions from `diffpes.simul.matrixel`:
+The coherent path uses functions from `diffpes.matrixel`:
 
 1. Build an `OrbitalBasis`, `RadialSpec`, `MatrixElementParams`,
    `RadialQuadratureSpec`, and `FinalStateSpec`.

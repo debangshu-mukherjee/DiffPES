@@ -29,7 +29,13 @@ from beartype import beartype
 from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
-from diffpes.types import EPS, MATRIX_NDIM, DiagonalizedBands
+from diffpes.constants import (
+    EPS,
+    MATRIX_NDIM,
+)
+from diffpes.types import (
+    DiagonalizedBands,
+)
 
 from .operators import orbital_projector
 

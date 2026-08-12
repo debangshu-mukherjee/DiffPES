@@ -47,10 +47,12 @@ from beartype import beartype
 from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
-from diffpes.maths import safe_arctan2, safe_divide, safe_norm, safe_sqrt
-from diffpes.types import (
+from diffpes.constants import (
     K_PREFACTOR_INV_ANG_SQRT_EV,
     TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
+)
+from diffpes.maths import safe_arctan2, safe_divide, safe_norm, safe_sqrt
+from diffpes.types import (
     ScalarFloat,
 )
 

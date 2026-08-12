@@ -21,7 +21,7 @@ from diffpes.certify import (
 )
 from diffpes.inout import certificate_identity
 from diffpes.types import make_execution_manifest, make_forward_model_spec
-from tests.test_diffpes.test_inout.test_certificate import sample_certificate
+from tests._factories import sample_forward_certificate
 
 _MEBIBYTE = 1024 * 1024
 
@@ -41,12 +41,11 @@ class TestCertificateProcessFixture:
         -----
         The child imports the shared deterministic certificate fixture.
         """
-        expected: str = certificate_identity(sample_certificate())
+        expected: str = certificate_identity(sample_forward_certificate())
         program: str = (
             "from diffpes.inout import certificate_identity; "
-            "from tests.test_diffpes.test_inout.test_certificate "
-            "import sample_certificate; "
-            "print(certificate_identity(sample_certificate()))"
+            "from tests._factories import sample_forward_certificate; "
+            "print(certificate_identity(sample_forward_certificate()))"
         )
         completed: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
             [sys.executable, "-c", program],

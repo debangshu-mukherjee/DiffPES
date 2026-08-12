@@ -12,7 +12,7 @@ from diffpes.certify import (
     explain_claim,
     summarize_certificate,
 )
-from tests.test_diffpes.test_inout.test_certificate import sample_certificate
+from tests._factories import sample_forward_certificate
 
 
 class TestSummarizeCertificate:
@@ -34,7 +34,7 @@ class TestSummarizeCertificate:
         The test builds the shared certificate fixture and searches its
         compact text.
         """
-        summary: str = summarize_certificate(sample_certificate())
+        summary: str = summarize_certificate(sample_forward_certificate())
         assert "org.diffpes.model.arpes.test" in summary
 
     def test_summary_answers_certification_questions(
@@ -50,7 +50,7 @@ class TestSummarizeCertificate:
         The test checks the result with explicit assertions.
         """
         summary: Any
-        summary = summarize_certificate(sample_certificate())
+        summary = summarize_certificate(sample_forward_certificate())
 
         assert "Model: org.diffpes.model.arpes.test@1.0.0" in summary
         assert "Observable: org.diffpes.observable.arpes.intensity" in summary
@@ -93,7 +93,9 @@ class TestExplainClaim:
         The test checks the result with explicit assertions.
         """
         rationale: Any
-        rationale = explain_claim(sample_certificate(), "claim.output.finite")
+        rationale = explain_claim(
+            sample_forward_certificate(), "claim.output.finite"
+        )
 
         assert "Status: passed" in rationale
         assert "Margin: 0.5" in rationale
@@ -114,7 +116,7 @@ class TestExplainClaim:
         The test checks the result with explicit assertions.
         """
         with pytest.raises(KeyError, match="not present"):
-            explain_claim(sample_certificate(), "claim.missing")
+            explain_claim(sample_forward_certificate(), "claim.missing")
 
 
 class TestDiffCertificates:
@@ -144,13 +146,13 @@ class TestDiffCertificates:
         audit: Any
         scientific: Any
         environment: Any
-        original = sample_certificate()
-        audit_changed = sample_certificate(
+        original = sample_forward_certificate()
+        audit_changed = sample_forward_certificate(
             execution_id="run-002",
             started_at_utc="2026-07-21T13:00:00Z",
         )
-        scientific_changed = sample_certificate(model_version="1.1.0")
-        environment_manifest = sample_certificate(
+        scientific_changed = sample_forward_certificate(model_version="1.1.0")
+        environment_manifest = sample_forward_certificate(
             environment_checksum=(
                 "sha256:1:environment:"
                 "0000000000000000000000000000000000000000000000000000000000000000"
@@ -180,7 +182,7 @@ class TestDiffCertificates:
         """
         certificate: Any
         difference: Any
-        certificate = sample_certificate()
+        certificate = sample_forward_certificate()
         difference = diff_certificates(certificate, certificate)
 
         assert difference.identical

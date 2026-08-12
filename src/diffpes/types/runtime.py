@@ -31,7 +31,7 @@ from beartype import beartype
 from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Bool, PyTree, jaxtyped
 
-from .certification import (
+from .registry import (
     RegisteredModel,
     RegisteredTransformation,
     RegistrationHandshake,

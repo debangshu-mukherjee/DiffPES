@@ -13,7 +13,32 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_simul.test_counting
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_detector_response
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_simul.test_effects
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_kz_broadening
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_resolution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_transmission
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,7 +53,22 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_simul.test_detector_map
+.. automodule:: tests.test_diffpes.test_simul.test__detector_cube
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__detector_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__detector_map
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__detector_spectrum
    :members:
    :undoc-members:
    :show-inheritance:
@@ -73,6 +113,11 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_simul.test__kz_spectrum
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_simul.test_manufactured_arpes_cube
    :members:
    :undoc-members:
@@ -88,7 +133,32 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_simul.test__kramers_kronig
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__principal_value
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_retarded_self_energy
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_simul.test_spectral
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_spectral_eigen
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_spectral_resolvent
    :members:
    :undoc-members:
    :show-inheritance:
@@ -104,6 +174,21 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_simul.test_spectrum
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__source_carriers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__spectrum_stream
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test__spectrum_validation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -139,11 +224,6 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_simul.test_detector_scalability
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: tests.test_diffpes.test_simul.test_matrixel
    :members:
    :undoc-members:
    :show-inheritance:

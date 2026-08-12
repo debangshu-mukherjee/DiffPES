@@ -42,10 +42,45 @@ Slabs and surface geometry
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: diffpes.tightb.slab_surface_cell
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.slab_topology
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.slab_rotation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.slab_assembly
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.slab_operators
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Slater--Koster models
 ---------------------
 
 .. automodule:: diffpes.tightb.slaterkoster
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.neighbor_shells
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.tightb.slaterkoster_model
    :members:
    :undoc-members:
    :show-inheritance:

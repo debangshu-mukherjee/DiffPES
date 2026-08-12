@@ -18,6 +18,10 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Array, Bool, Complex128, Float64
 
+from diffpes.constants import (
+    K_PREFACTOR_INV_ANG_SQRT_EV,
+    TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
+)
 from diffpes.simul import (
     detector_angles_to_kpar,
     emission_angles,
@@ -26,10 +30,6 @@ from diffpes.simul import (
     kpar_to_detector_angles,
     kz_from_inner_potential,
     kz_from_inner_potential_at_fermi,
-)
-from diffpes.types import (
-    K_PREFACTOR_INV_ANG_SQRT_EV,
-    TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2,
 )
 from tests._gradients import (
     assert_grad_matches_fd,

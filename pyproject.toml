@@ -55,7 +55,7 @@ docs = [
     "furo>=2025.7.19",
     "sphinx-autodoc-typehints>=3.0.1",
     "numpydoc>=1.9.0",
-    "pydoclint>=0.7.3",
+    "pydoclint>=0.7.3,<0.9",
     "interrogate>=1.7.0",
 ]
 test = [
@@ -193,6 +193,7 @@ select = [
     "PT",
     "RET",
     "SIM",
+    "SLF",
     "ARG",
     "ERA",
     "PL",

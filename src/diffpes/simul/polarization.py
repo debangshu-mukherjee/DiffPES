@@ -11,10 +11,12 @@ Routine Listings
 ----------------
 :func:`build_polarization_vectors`
     Construct s- and p-polarization basis vectors.
-:func:`detector_rotation`
-    Build the detector-frame rotation.
+:func:`contract_experiment_polarization`
+    Rotate laboratory polarization to the sample and contract it late.
 :func:`detector_axis_to_sample`
     Convert a detector-fixed axis to sample coordinates.
+:func:`detector_rotation`
+    Build the detector-frame rotation.
 :func:`lab_polarization_to_sample`
     Convert fixed laboratory polarization to sample coordinates.
 :func:`photon_wavevector`
@@ -46,7 +48,8 @@ from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
 from diffpes.maths import rodrigues_rotation
-from diffpes.types import ScalarFloat
+from diffpes.matrixel import contract_polarization
+from diffpes.types import ExperimentGeometry, ScalarFloat
 
 
 @jaxtyped(typechecker=beartype)
@@ -501,6 +504,47 @@ def lab_polarization_to_sample(
 
 
 @jaxtyped(typechecker=beartype)
+def contract_experiment_polarization(
+    transition_channels: Complex128[Array, "... 3"],
+    experiment: ExperimentGeometry,
+) -> Complex128[Array, " ..."]:
+    """Rotate laboratory polarization to the sample and contract it late.
+
+    Keep the physical beam fixed while the sample azimuth changes.
+
+    :see: :class:`~.test_polarization.TestContractExperimentPolarization`
+
+    Parameters
+    ----------
+    transition_channels : Complex128[Array, "... 3"]
+        Real dipole channels in order ``(y,z,x)``.
+    experiment : ExperimentGeometry
+        Experiment whose stored polarization is in the laboratory frame.
+
+    Returns
+    -------
+    polarized_transition : Complex128[Array, "..."]
+        Complex sample-frame polarization contraction.
+
+    Notes
+    -----
+    Apply the inverse sample orientation exactly once before contraction.
+    """
+    sample_orientation: Float64[Array, "3 3"] = sample_azimuth_rotation(
+        experiment.sample_azimuth
+    )
+    polarization_sample: Complex128[Array, " 3"] = lab_polarization_to_sample(
+        experiment.polarization,
+        sample_orientation,
+    )
+    polarized_transition: Complex128[Array, " ..."] = contract_polarization(
+        transition_channels,
+        polarization_sample,
+    )
+    return polarized_transition
+
+
+@jaxtyped(typechecker=beartype)
 def detector_axis_to_sample(
     axis_detector: Float64[Array, " 3"],
     detector_orientation: Float64[Array, "3 3"],
@@ -649,6 +693,7 @@ def rotate_frame_vectors(
 
 __all__: list[str] = [
     "build_polarization_vectors",
+    "contract_experiment_polarization",
     "detector_axis_to_sample",
     "detector_rotation",
     "lab_polarization_to_sample",

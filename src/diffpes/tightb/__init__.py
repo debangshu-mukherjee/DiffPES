@@ -22,6 +22,8 @@ The following list describes the submodules:
     Assemble native tight-binding Bloch Hamiltonians.
 - :mod:`kspace`
     Build differentiable paths and fixed-shape rasters in k-space.
+- :mod:`neighbor_shells`
+    Find finite neighbor-shell topology.
 - :mod:`operators`
     Construct Hermitian observables in a tight-binding orbital basis.
 - :mod:`parameters`
@@ -29,9 +31,21 @@ The following list describes the submodules:
 - :mod:`projections`
     Reduce tight-binding eigenvectors to gauge-invariant observables.
 - :mod:`slab`
-    Construct exact Miller-index surface cells and rotate TB models.
+    Construct finite Miller-index slabs.
+- :mod:`slab_assembly`
+    Rebuild slabs from frozen topology.
+- :mod:`slab_operators`
+    Propagate Wannier operators into finite slabs.
+- :mod:`slab_rotation`
+    Rotate complete-shell tight-binding models.
+- :mod:`slab_surface_cell`
+    Construct exact Miller-index surface cells.
+- :mod:`slab_topology`
+    Freeze discrete slab topology choices.
 - :mod:`slaterkoster`
-    Build tight-binding hoppings from Slater--Koster integrals.
+    Construct real-harmonic Slater--Koster hopping blocks.
+- :mod:`slaterkoster_model`
+    Build tight-binding models from two-center integrals.
 - :mod:`soc`
     Construct atomic spin--orbit coupling in the real-cubic basis.
 
@@ -153,6 +167,7 @@ from .kspace import (
     kpoints_cart_to_frac,
     kpoints_frac_to_cart,
 )
+from .neighbor_shells import neighbor_shells
 from .operators import (
     layer_resolved_group_traces,
     layer_resolved_weights,
@@ -170,16 +185,14 @@ from .projections import (
     group_trace,
     orbital_weights,
 )
-from .slab import (
-    find_surface_cell,
-    freeze_slab_topology,
-    gen_slab,
-    gen_slab_with_operators,
-    rebuild_slab,
-    rotate_tb_model,
-    validate_open_surface_adjacency,
-)
-from .slaterkoster import build_sk_model, neighbor_shells, sk_block
+from .slab import gen_slab
+from .slab_assembly import rebuild_slab, validate_open_surface_adjacency
+from .slab_operators import gen_slab_with_operators
+from .slab_rotation import rotate_tb_model
+from .slab_surface_cell import find_surface_cell
+from .slab_topology import freeze_slab_topology
+from .slaterkoster import sk_block
+from .slaterkoster_model import build_sk_model
 from .soc import (
     l_matrices,
     soc_matrix,

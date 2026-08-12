@@ -27,9 +27,11 @@ from beartype.typing import List, Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     NONSPIN_COLS,
     SPIN_COLS,
+)
+from diffpes.types import (
     DensityOfStates,
     FullDensityOfStates,
     make_density_of_states,

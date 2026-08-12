@@ -30,12 +30,14 @@ from beartype import beartype
 from beartype.typing import Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
-from diffpes.simul import fermi_dirac
-from diffpes.types import (
+from diffpes.constants import (
     EPS,
     KB_EV_PER_K,
     MINIMUM_AXIS_POINTS,
     SPECTRUM_NDIM,
+)
+from diffpes.simul import fermi_dirac
+from diffpes.types import (
     DensityOfStates,
     ScalarFloat,
     make_density_of_states,

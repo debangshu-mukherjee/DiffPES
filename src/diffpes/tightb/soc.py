@@ -39,9 +39,11 @@ from beartype import beartype
 from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
+from diffpes.constants import (
+    L_MAX,
+)
 from diffpes.maths import real_harmonic_unitary
 from diffpes.types import (
-    L_MAX,
     OrbitalBasis,
     TBModel,
     make_orbital_basis,

@@ -21,9 +21,13 @@ from jaxtyping import Array, Bool, Complex128, Float64, TypeCheckError
 
 from diffpes.simul import (
     assemble_spectral_intensity_chunk,
-    spectral,
     spectral_intensity_resolvent,
 )
+from diffpes.simul.spectral import (
+    _stream_spectral_intensity,
+    _transition_sources_for_block,
+)
+from diffpes.simul.spectral_resolvent import _resolvent_solution
 from diffpes.types import (
     SelfEnergyModel,
     TransitionSourceSchedule,
@@ -43,7 +47,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576"
+    "73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -351,7 +355,7 @@ class TestSpectralStreamRuntimeScaling:
             axis=-1,
         )
         sources: Complex128[Array, "4 8 n_out 2"] = (
-            spectral._transition_sources_for_block(
+            _transition_sources_for_block(
                 schedule,
                 schedule.k_i_cart,
                 k_f_cart,
@@ -363,21 +367,19 @@ class TestSpectralStreamRuntimeScaling:
             candidate: Complex128[Array, "4 2 2"],
         ) -> Float64[Array, "4 8"]:
             """Evaluate the checkpointed static schedule."""
-            returned: Float64[Array, "4 8"] = (
-                spectral._stream_spectral_intensity(
-                    candidate,
-                    omega,
-                    k_valid,
-                    omega_valid,
-                    schedule,
-                    model,
-                    jnp.asarray(0.03),
-                    20.0,
-                    1.0e-4,
-                    k_chunk=2,
-                    omega_chunk=4,
-                    checkpoint=True,
-                )
+            returned: Float64[Array, "4 8"] = _stream_spectral_intensity(
+                candidate,
+                omega,
+                k_valid,
+                omega_valid,
+                schedule,
+                model,
+                jnp.asarray(0.03),
+                20.0,
+                1.0e-4,
+                k_chunk=2,
+                omega_chunk=4,
+                checkpoint=True,
             )
             return returned
 
@@ -442,12 +444,12 @@ class TestSpectralStreamRuntimeScaling:
             0.01 - 0.04j, dtype=jnp.complex128
         )
         eta: Float64[Array, ""] = jnp.asarray(1.0e-4, dtype=jnp.float64)
-        solution: Float64[Array, "..."] = spectral._resolvent_solution(
+        solution: Float64[Array, "..."] = _resolvent_solution(
             hamiltonian, source, omega, sigma, eta
         )
         assert solution.dtype == jnp.complex128
         compiler_text: str = (
-            jax.jit(spectral._resolvent_solution)
+            jax.jit(_resolvent_solution)
             .lower(hamiltonian, source, omega, sigma, eta)
             .as_text()
         )

@@ -3,7 +3,23 @@ diffpes.inout tests
 
 Validation and regression tests for :mod:`diffpes.inout`.
 
+.. automodule:: tests.test_diffpes.test_inout.test_band_plotting
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: Axes, Figure, PathCollection
+
 .. automodule:: tests.test_diffpes.test_inout.test_certificate
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_certificate_decoding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_certificate_storage
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,6 +76,16 @@ Validation and regression tests for :mod:`diffpes.inout`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_inout.test_tb_files
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_wannier90
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_inout.test_wannier90_parser
    :members:
    :undoc-members:
    :show-inheritance:

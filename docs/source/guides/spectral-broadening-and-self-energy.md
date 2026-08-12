@@ -196,7 +196,7 @@ produced one trace, and the lowered Lineax operator, RHS, and solution were all
 complex128. The reproducible record is
 `tests/test_diffpes/_reference_data/spectral_scalability/cpu_benchmark.json`.
 Its committed SHA-256 is
-`2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576`.
+`73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f`.
 
 See [Simulation Tiers and the Coherent Pipeline](simulation-levels.md) for
 the model boundary and

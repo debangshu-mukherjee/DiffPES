@@ -9,6 +9,7 @@ source.
 """
 
 import json
+import math
 from pathlib import Path
 
 import chex
@@ -21,8 +22,10 @@ from hypothesis import strategies as st
 from jaxtyping import Array, Complex128, Float64
 
 from diffpes.maths import rodrigues_rotation
+from diffpes.matrixel import contract_polarization
 from diffpes.simul import (
     build_polarization_vectors,
+    contract_experiment_polarization,
     detector_angles_to_kpar,
     detector_axis_to_sample,
     detector_rotation,
@@ -34,6 +37,7 @@ from diffpes.simul import (
     rotate_frame_vectors,
     sample_azimuth_rotation,
 )
+from diffpes.types import ExperimentGeometry, make_experiment_geometry
 from tests._gradients import (
     assert_gradients_match_finite_differences,
     complex_step_derivative,
@@ -929,6 +933,45 @@ class TestLabPolarizationToSample:
             rtol=0.0,
             atol=0.0,
         )
+
+
+class TestContractExperimentPolarization:
+    """Validate the fixed laboratory-to-sample polarization seam.
+
+    :see: :func:`diffpes.simul.contract_experiment_polarization`
+    """
+
+    def test_rotates_lab_polarization_once_before_contraction(self) -> None:
+        """Match the analytic inverse sample-azimuth rotation.
+
+        A nonzero azimuth distinguishes laboratory and sample coordinates.
+
+        Notes
+        -----
+        Build the analytic sample vector and compare its late contraction.
+        """
+        azimuth: float = 0.37
+        experiment: ExperimentGeometry = make_experiment_geometry(
+            21.2,
+            jnp.array([1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j]),
+            sample_azimuth=azimuth,
+        )
+        channels: Complex128[Array, " 3"] = jnp.array(
+            [0.7 + 0.2j, -0.1j, 1.3 - 0.4j]
+        )
+        polarization_sample: Complex128[Array, " 3"] = jnp.array(
+            [math.cos(azimuth), -math.sin(azimuth), 0.0],
+            dtype=jnp.complex128,
+        )
+        expected: Complex128[Array, ""] = contract_polarization(
+            channels,
+            polarization_sample,
+        )
+        actual: Complex128[Array, ""] = contract_experiment_polarization(
+            channels,
+            experiment,
+        )
+        chex.assert_trees_all_close(actual, expected, rtol=1e-14, atol=1e-14)
 
 
 class TestDetectorAxisToSample:

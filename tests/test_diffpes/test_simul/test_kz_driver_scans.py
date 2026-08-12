@@ -18,8 +18,11 @@ from beartype.typing import Any, Dict, List, Optional, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
 from diffpes import simul
-from diffpes.simul import (
+from diffpes.matrixel import (
     assemble_orbital_transition_channels,
+    transition_source,
+)
+from diffpes.simul import (
     assemble_spectral_intensity_chunk,
     contract_experiment_polarization,
     effects,
@@ -27,7 +30,19 @@ from diffpes.simul import (
     kinetic_energy_ev,
     kz_from_inner_potential,
     spectrum,
-    transition_source,
+)
+from diffpes.simul._kz_spectrum import (
+    _blockwise_exact_folded_center_and_mask,
+    _bulk_domain_intensity,
+    _bulk_orbital_positions_surface_cartesian,
+    _bulk_source_parallel_cartesian,
+    _exact_folded_surface_center,
+)
+from diffpes.simul._spectrum_stream import _stream_cartesian_intensity
+from diffpes.simul.kz_broadening import (
+    _kz_wrapped_lorentzian_bin_weight,
+    _map_surface_fractional_to_bulk,
+    _surface_kz_frame,
 )
 from diffpes.tightb import bloch_hamiltonian_batch
 from diffpes.types import (
@@ -716,17 +731,15 @@ def _eager_bulk_kz_reference(  # noqa: PLR0913
     surface_cell: SurfaceCell = fixture["surface_cell"]
     geometry: ExperimentGeometry = fixture["geometry"]
     energy_axis: Float64[Array, "..."] = fixture["energy_axis"]
-    k_parallel: Float64[Array, "..."] = (
-        spectrum._bulk_source_parallel_cartesian(  # noqa: SLF001
-            source_kpoints,
-            model,
-            surface_cell,
-        )
+    k_parallel: Float64[Array, "..."] = _bulk_source_parallel_cartesian(
+        source_kpoints,
+        model,
+        surface_cell,
     )
     center_folded: Float64[Array, "..."]
     propagating: Float64[Array, "..."]
     center_folded, propagating, _, _ = (  # noqa: SLF001
-        spectrum._exact_folded_surface_center(
+        _exact_folded_surface_center(
             k_parallel,
             energy_axis,
             geometry,
@@ -735,12 +748,12 @@ def _eager_bulk_kz_reference(  # noqa: PLR0913
         )
     )
     positions_surface: Float64[Array, "..."] = (  # noqa: SLF001
-        spectrum._bulk_orbital_positions_surface_cartesian(
+        _bulk_orbital_positions_surface_cartesian(
             model,
             surface_cell,
         )
     )
-    period_inv_ang: Float64[Array, "..."] = effects._surface_kz_frame(  # noqa: SLF001
+    period_inv_ang: Float64[Array, "..."] = _surface_kz_frame(
         surface_cell,
         model.geometry,
     )[3]
@@ -767,7 +780,7 @@ def _eager_bulk_kz_reference(  # noqa: PLR0913
         surface_points: Float64[Array, "..."]
         bulk_points: Float64[Array, "..."]
         surface_points, bulk_points = (  # noqa: SLF001
-            effects._map_surface_fractional_to_bulk(
+            _map_surface_fractional_to_bulk(
                 k_parallel,
                 folded_nodes,
                 surface_cell,
@@ -778,7 +791,7 @@ def _eager_bulk_kz_reference(  # noqa: PLR0913
             model, bulk_points
         )
         node_intensity: Float64[Array, "..."] = (  # noqa: SLF001
-            spectrum._stream_cartesian_intensity(
+            _stream_cartesian_intensity(
                 hamiltonians,
                 surface_points,
                 model.basis,
@@ -800,7 +813,7 @@ def _eager_bulk_kz_reference(  # noqa: PLR0913
             )
         )
         weight: Float64[Array, "..."] = (  # noqa: SLF001
-            effects._kz_wrapped_lorentzian_bin_weight(
+            _kz_wrapped_lorentzian_bin_weight(
                 edges[node_index],
                 edges[node_index + 1],
                 center_folded,
@@ -861,7 +874,7 @@ class TestBulkKzKBlockStreaming:
             axis=-1,
         )
         k_parallel: Float64[Array, "..."] = (  # noqa: SLF001
-            spectrum._bulk_source_parallel_cartesian(
+            _bulk_source_parallel_cartesian(
                 source_kpoints,
                 fixture["model"],
                 fixture["surface_cell"],
@@ -879,7 +892,7 @@ class TestBulkKzKBlockStreaming:
         )
         direct_surface: Float64[Array, "..."]
         normal_hat: Float64[Array, "..."]
-        direct_surface, _, normal_hat, _ = effects._surface_kz_frame(  # noqa: SLF001
+        direct_surface, _, normal_hat, _ = _surface_kz_frame(
             fixture["surface_cell"],
             fixture["model"].geometry,
         )
@@ -894,7 +907,7 @@ class TestBulkKzKBlockStreaming:
                 candidate,
             )
             result: Tuple[Float64[Array, "..."], Float64[Array, "..."]] = (  # noqa: SLF001
-                spectrum._blockwise_exact_folded_center_and_mask(
+                _blockwise_exact_folded_center_and_mask(
                     k_parallel_blocks,
                     n_k,
                     fixture["energy_axis"],
@@ -917,7 +930,7 @@ class TestBulkKzKBlockStreaming:
             center: Float64[Array, "..."]
             mask: Bool[Array, "..."]
             center, mask, _, _ = (  # noqa: SLF001
-                spectrum._exact_folded_surface_center(
+                _exact_folded_surface_center(
                     k_parallel,
                     fixture["energy_axis"],
                     geometry,
@@ -1044,7 +1057,7 @@ class TestBulkKzKBlockStreaming:
                 jnp.reshape(candidate, (1,)),
             )
             intensity: Float64[Array, "..."]
-            intensity, _ = spectrum._bulk_domain_intensity(  # noqa: SLF001
+            intensity, _ = _bulk_domain_intensity(
                 candidate_model,
                 fixture["surface_cell"],
                 source_kpoints,

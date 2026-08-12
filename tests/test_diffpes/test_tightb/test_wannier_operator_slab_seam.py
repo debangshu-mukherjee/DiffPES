@@ -21,7 +21,7 @@ from diffpes.tightb import (
     layer_resolved_group_traces,
     rotate_tb_model,
 )
-from diffpes.tightb.slab import _propagate_hoppings
+from diffpes.tightb.slab_assembly import _propagate_hoppings
 from diffpes.types import (
     TBModel,
     WannierOperatorData,

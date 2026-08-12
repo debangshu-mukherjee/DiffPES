@@ -27,9 +27,9 @@ solve-tape model: `16*n_k*omega_chunk*n_orb**2 = 134,217,728` bytes. Its `1.5x`
 ceiling is `201,326,592` bytes. No projection from a smaller executable
 authorizes this requirement. Whole-process peak RSS remains diagnostic because it
 includes Python, compilation, allocator caches, and the companion executables.
-The recorded high-water values were `464,891,904` bytes before and `688,840,704`
+The recorded high-water values were `464,285,696` bytes before and `686,735,360`
 bytes after the literal-target compile. The executable companions had not run.
-Compilation took `4.914862` seconds on the recorded TFRT CPU host. The compact
+Compilation took `5.206802` seconds on the recorded TFRT CPU host. The compact
 `k_i[K,3] + final_norm[E] + valid[E]` schedule accounts for `10,752` diagnostic
 bytes and reconstructs final momentum only inside each live block.
 
@@ -45,4 +45,4 @@ complex64 call. Source hashes bind the generator, numerical implementation,
 carrier, dependency metadata, and lock file to the measurement. The pytest
 artifact handshake recomputes every digest and every allocation identity.
 The committed `cpu_benchmark.json` SHA-256 is
-`2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576`.
+`73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f`.

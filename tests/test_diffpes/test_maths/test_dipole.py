@@ -22,8 +22,11 @@ from scipy.integrate import lebedev_rule
 from scipy.sparse import csr_matrix, diags, lil_matrix
 from scipy.sparse.linalg import eigsh
 
-from diffpes.maths import (
+from diffpes.constants import (
     GAUNT_TABLE,
+    L_MAX,
+)
+from diffpes.maths import (
     channel_tables,
     dipole_length_cartesian,
     dipole_momentum_cartesian,
@@ -32,7 +35,10 @@ from diffpes.maths import (
     polarization_complex_to_cart,
     polarization_real_to_cart,
 )
-from diffpes.types import L_MAX, OrbitalBasis, make_orbital_basis
+from diffpes.types import (
+    OrbitalBasis,
+    make_orbital_basis,
+)
 
 
 @jaxtyped(typechecker=beartype)

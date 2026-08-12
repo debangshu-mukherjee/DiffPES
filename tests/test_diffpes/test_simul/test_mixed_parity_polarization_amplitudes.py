@@ -19,18 +19,20 @@ from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
+from diffpes.constants import (
+    L_MAX,
+)
 from diffpes.maths import (
     polarization_cart_to_complex,
     polarization_cart_to_real,
     polarization_real_to_cart,
 )
-from diffpes.simul import (
+from diffpes.matrixel import (
     contract_polarization,
     orbital_transition_channels,
     project_band_channels,
 )
 from diffpes.types import (
-    L_MAX,
     MatrixElementParams,
     OrbitalBasis,
     make_matrix_element_params,

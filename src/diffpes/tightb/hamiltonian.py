@@ -35,7 +35,12 @@ from jaxtyping import (
     jaxtyped,
 )
 
-from diffpes.types import EPS, TBModel
+from diffpes.constants import (
+    EPS,
+)
+from diffpes.types import (
+    TBModel,
+)
 
 from .soc import soc_matrix
 

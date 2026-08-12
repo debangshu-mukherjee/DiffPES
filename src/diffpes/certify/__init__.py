@@ -11,34 +11,38 @@ JAX-native numerical carriers.
 
 The package contains these submodules:
 
+- :mod:`builtin_transformations`
+    Register built-in semantic transformation contracts.
 - :mod:`canonical`
     Represent scientific records canonically for certification.
-- :mod:`checksums`
-    Compute collision-resistant identities for scientific records.
 - :mod:`checks`
     Register pure JAX scientific certification checks.
+- :mod:`checksums`
+    Compute collision-resistant identities for scientific records.
 - :mod:`contracts`
     Define semantic contracts for composable certified transformations.
-- :mod:`registry`
-    Register certified models and transformations deterministically.
-- :mod:`provenance`
-    Trace artifact lineage and semantic information loss.
 - :mod:`dependencies`
     Trace differentiable information flow through forward models.
 - :mod:`evidence`
     Build differentiable evidence for certified forward models.
-- :mod:`resolvers`
-    Resolve certificate artifacts and verify external evidence.
-- :mod:`reproduction`
-    Reproduce a certified forward result from resolved artifacts.
-- :mod:`policy`
-    Evaluate cumulative scientific-certification policies.
 - :mod:`execution`
     Execute JAX-native certified forward models.
 - :mod:`inspect`
     Render forward-model certificates in a human-readable form.
 - :mod:`models`
     Register built-in certified DiffPES forward models.
+- :mod:`policy`
+    Evaluate cumulative scientific-certification policies.
+- :mod:`provenance`
+    Trace artifact lineage and semantic information loss.
+- :mod:`registry`
+    Register certified models and transformations deterministically.
+- :mod:`registry_resources`
+    Load and validate packaged certification registry resources.
+- :mod:`reproduction`
+    Reproduce a certified forward result from resolved artifacts.
+- :mod:`resolvers`
+    Resolve certificate artifacts and verify external evidence.
 - :mod:`waivers`
     Validate bounded policy-waiver records at the I/O boundary.
 
@@ -66,10 +70,10 @@ Routine Listings
     Stream exact file bytes into a scientific identity.
 :func:`checksum_pytree`
     Stream a canonical carrier into a scientific identity.
-:func:`compose_transformations`
-    Compose contracts and raise for unsatisfied requirements.
 :func:`clear_dependency_cache`
     Clear the eager cache for structural dependency analyses.
+:func:`compose_transformations`
+    Compose contracts and raise for unsatisfied requirements.
 :func:`dependency_cache_info`
     Return cache size, hit count, and miss count.
 :func:`dependency_map`
@@ -92,10 +96,10 @@ Routine Listings
     Derive lineage qualification relative to an implementation under test.
 :func:`explain_claim`
     Explain one claim and the numerical evidence supporting it.
-:func:`freeze_registry`
-    Prevent later registration and return the final immutable snapshot.
 :func:`filesystem_artifact_resolver`
     Resolve a byte-valued artifact from its local locator.
+:func:`freeze_registry`
+    Prevent later registration and return the final immutable snapshot.
 :func:`get_check`
     Resolve a registered JAX certification check.
 :func:`get_model`
@@ -122,28 +126,28 @@ Routine Listings
     Return an immutable deterministic snapshot including executors.
 :func:`list_transformations`
     Return transformation contracts in deterministic identity order.
-:func:`parse_checksum`
-    Parse and validate one checksum string.
-:func:`packaged_model_card`
-    Read the packaged generated card for one model identity.
-:func:`prepare_certification`
-    Resolve static scientific records before compiled execution.
 :func:`mapping_artifact_resolver`
     Build a deterministic resolver from normalized in-memory values.
-:func:`register_handshake`
-    Register declarative requirements from one domain owner.
+:func:`packaged_model_card`
+    Read the packaged generated card for one model identity.
+:func:`parse_checksum`
+    Parse and validate one checksum string.
+:func:`prepare_certification`
+    Resolve static scientific records before compiled execution.
 :func:`register_builtin_models`
     Register built-in transformations and owner handshakes.
 :func:`register_check`
     Register a stable predicate identity and pure JAX callable.
+:func:`register_handshake`
+    Register declarative requirements from one domain owner.
 :func:`register_model`
     Register an exact model identity once.
 :func:`register_transformation`
     Register an exact transformation contract once.
-:func:`registry_snapshot`
-    Return one internally consistent immutable registry snapshot.
 :func:`registry_manifest`
     Read the packaged registry manifest.
+:func:`registry_snapshot`
+    Return one internally consistent immutable registry snapshot.
 :func:`render_model_card`
     Render a model card directly from a model specification.
 :func:`reproduce_forward`
@@ -176,10 +180,10 @@ Routine Listings
     Validate one waiver against an explicit absolute UTC time.
 :func:`validate_waivers`
     Validate multiple waivers against one explicit absolute UTC time.
-:func:`verify_evidence`
-    Verify referenced artifacts and recorded numerical residuals.
 :func:`verify_certificate`
     Re-evaluate numerical claim and policy consistency without a rerun.
+:func:`verify_evidence`
+    Verify referenced artifacts and recorded numerical residuals.
 """
 
 from .canonical import (
@@ -243,15 +247,17 @@ from .registry import (
     list_models,
     list_registered_models,
     list_transformations,
-    packaged_model_card,
     register_handshake,
     register_model,
     register_transformation,
-    registry_manifest,
     registry_snapshot,
-    render_model_card,
     validate_handshake,
     validate_registry,
+)
+from .registry_resources import (
+    packaged_model_card,
+    registry_manifest,
+    render_model_card,
     validate_registry_manifest,
 )
 from .reproduction import reproduce_forward
@@ -275,8 +281,8 @@ __all__: list[str] = [
     "checksum_chunks",
     "checksum_file",
     "checksum_pytree",
-    "compose_transformations",
     "clear_dependency_cache",
+    "compose_transformations",
     "dependency_cache_info",
     "dependency_map",
     "derivative_evidence",
@@ -298,19 +304,19 @@ __all__: list[str] = [
     "iter_canonical_pytree_chunks",
     "lineage",
     "linearized_forward",
+    "list_checks",
     "list_handshakes",
     "list_models",
-    "list_checks",
     "list_registered_models",
     "list_transformations",
-    "parse_checksum",
-    "packaged_model_card",
-    "prepare_certification",
     "mapping_artifact_resolver",
-    "register_handshake",
-    "register_model",
+    "packaged_model_card",
+    "parse_checksum",
+    "prepare_certification",
     "register_builtin_models",
     "register_check",
+    "register_handshake",
+    "register_model",
     "register_transformation",
     "registry_manifest",
     "registry_snapshot",
@@ -330,6 +336,6 @@ __all__: list[str] = [
     "validate_registry_manifest",
     "validate_waiver",
     "validate_waivers",
-    "verify_evidence",
     "verify_certificate",
+    "verify_evidence",
 ]

@@ -49,9 +49,13 @@ from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import L_MAX, OrbitalBasis
-
-from .gaunt import GAUNT_TABLE
+from diffpes.constants import (
+    GAUNT_TABLE,
+    L_MAX,
+)
+from diffpes.types import (
+    OrbitalBasis,
+)
 
 
 @jaxtyped(typechecker=beartype)

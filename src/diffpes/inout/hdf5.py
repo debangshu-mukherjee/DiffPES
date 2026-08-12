@@ -43,10 +43,12 @@ from beartype.typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     ATTR_AUX,
     ATTR_NONE,
     ATTR_TYPE,
+)
+from diffpes.types import (
     ArpesCube,
     ArpesSpectrum,
     BandStructure,
@@ -362,8 +364,6 @@ def _dataset_write_kwargs(
     """PRIVATE: Build ``h5py.create_dataset`` keyword arguments for one
     child array.
 
-    Extended Summary
-    ----------------
     HDF5 storage filters and chunking apply only to datasets with nonscalar
     dataspaces. This helper checks the array dimensions. It returns the
     applicable keyword dictionary for ``h5py.Group.create_dataset``.

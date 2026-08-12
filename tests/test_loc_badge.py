@@ -68,5 +68,5 @@ def test_loc_badge_forces_python_lexer(
     monkeypatch.setattr(pygount.analysis, "guess_lexer", fail_if_guessed)
     module: ModuleType = _load_loc_badge_module()
 
-    assert module._count_python_loc(package) == 2
+    assert module._count_python_loc(package) == 2  # noqa: SLF001 -- Script seam.
     assert pygount.analysis.guess_lexer is fail_if_guessed

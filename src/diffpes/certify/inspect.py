@@ -26,8 +26,10 @@ from beartype.typing import Any, Dict, List, Tuple
 from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     CERTIFICATE_ARRAY_PREVIEW_ITEMS,
+)
+from diffpes.types import (
     CertificateDiff,
     ForwardCertificate,
     make_certificate_diff,

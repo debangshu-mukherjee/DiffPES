@@ -14,7 +14,7 @@ import pytest
 from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     contract_polarization,
     orbital_transition_channels,
     resolve_orbital_positions_cart,

@@ -33,52 +33,8 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
+from diffpes.constants import FADDEEVA_WEIDEMAN_COEFFICIENTS
 from diffpes.maths import safe_divide
-
-
-def _faddeeva_weideman_coefficients() -> Float64[Array, " n_coefficient"]:
-    r"""PRIVATE: Generate fixed-order Weideman rational coefficients.
-
-    The construction samples the mapped Gaussian on a fixed tangent grid.
-    A discrete Fourier transform produces the rational-basis coefficients.
-
-    Returns
-    -------
-    coeffs : Float64[Array, " n_coefficient"]
-        Real coefficients in descending polynomial order.
-
-    Notes
-    -----
-    The algorithm-selection sweep freezes order 40 before production.
-    The transform follows Weideman's published rational construction.
-    """
-    order: int = 40
-    scale: float = math.sqrt(order / math.sqrt(2.0))
-    doubled_order: int = 2 * order
-    indices: Float64[Array, " grid"] = jnp.arange(
-        -doubled_order + 1,
-        doubled_order,
-        dtype=jnp.float64,
-    )
-    angles: Float64[Array, " grid"] = indices * math.pi / doubled_order
-    mapped: Float64[Array, " grid"] = scale * jnp.tan(angles / 2.0)
-    samples: Float64[Array, " grid"] = jnp.exp(-(mapped**2)) * (
-        scale**2 + mapped**2
-    )
-    padded: Float64[Array, " fft_grid"] = jnp.concatenate(
-        (jnp.zeros(1, dtype=jnp.float64), samples)
-    )
-    transformed: Complex128[Array, " fft_grid"] = jnp.fft.fft(
-        jnp.fft.fftshift(padded)
-    )
-    ascending: Float64[Array, " fft_grid"] = jnp.real(transformed) / (
-        2 * doubled_order
-    )
-    result: Float64[Array, " n_coefficient"] = ascending[1 : order + 1][::-1]
-    return result
-
-
-_W_POLY: Float64[Array, " n_coefficient"] = _faddeeva_weideman_coefficients()
 
 
 @jaxtyped(typechecker=beartype)
@@ -145,7 +101,7 @@ def faddeeva(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
         scale + 1j * checked
     ) / denominator
     polynomial: Complex128[Array, " ..."] = jnp.polyval(
-        _W_POLY,
+        FADDEEVA_WEIDEMAN_COEFFICIENTS,
         transformed,
         unroll=8,
     )

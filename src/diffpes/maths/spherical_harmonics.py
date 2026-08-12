@@ -40,8 +40,6 @@ from jaxtyping import Array, Float64, Int64, jaxtyped
 def _normalization(l: int, m: int) -> float:
     r"""PRIVATE: Compute normalization for associated Legendre / real Y_lm.
 
-    Extended Summary
-    ----------------
     The function computes the normalization constant that makes the real
     spherical harmonics satisfy the orthonormality relation:
 
@@ -95,8 +93,6 @@ def _associated_legendre_plm(
 ) -> Float64[Array, " ..."]:
     r"""PRIVATE: Evaluate associated Legendre polynomial P_l^m(x).
 
-    Extended Summary
-    ----------------
     The function computes :math:`P_l^m(x)` with a three-step recurrence. This
     recurrence remains numerically stable during upward iteration in l at
     fixed m:

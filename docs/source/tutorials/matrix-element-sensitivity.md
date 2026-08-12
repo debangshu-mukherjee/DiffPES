@@ -67,7 +67,7 @@ def rebuild(candidate, bands, experiment):
 
 
 theta = jnp.array([0.0])
-weights, dweights = diffpes.simul.band_group_weight_sensitivity(
+weights, dweights = diffpes.matrixel.band_group_weight_sensitivity(
     theta,
     rebuild,
     bands,
@@ -92,7 +92,7 @@ code must use the mask.
 
 ```python
 log_derivative, valid = (
-    diffpes.simul.log_band_group_weight_sensitivity(
+    diffpes.matrixel.log_band_group_weight_sensitivity(
         weights,
         dweights,
         min_band_group_weight=1.0e-12,
@@ -113,7 +113,7 @@ $d\log w/d\theta=2\cot\theta$.
 ```python
 theta_lit = jnp.array([0.2])
 weights_lit, dweights_lit = (
-    diffpes.simul.band_group_weight_sensitivity(
+    diffpes.matrixel.band_group_weight_sensitivity(
         theta_lit,
         rebuild,
         bands,
@@ -121,7 +121,7 @@ weights_lit, dweights_lit = (
         band_groups=((0,), (1,)),
     )
 )
-log_lit, valid_lit = diffpes.simul.log_band_group_weight_sensitivity(
+log_lit, valid_lit = diffpes.matrixel.log_band_group_weight_sensitivity(
     weights_lit,
     dweights_lit,
     min_band_group_weight=1.0e-12,

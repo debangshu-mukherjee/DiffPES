@@ -27,11 +27,13 @@ from beartype.typing import Any, Dict, List, Literal, Optional, TextIO, Union
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     ISPIN2_BLOCKS,
     N_ORBITALS,
     N_SPIN_COMPONENTS,
     SOC_BLOCKS,
+)
+from diffpes.types import (
     OrbitalProjection,
     SpinOrbitalProjection,
     make_orbital_projection,
@@ -219,8 +221,6 @@ def _parse_procar_blocks(
 ) -> List[Dict[str, Any]]:
     """PRIVATE: Parse all PROCAR blocks from the full file content string.
 
-    Extended Summary
-    ----------------
     A PROCAR file may contain 1, 2, or 4 consecutive blocks depending
     on the spin configuration. A header line starts each block. The header
     matches ``"# of k-points: K  # of bands: B  # of ions: A"``. Nested

@@ -21,8 +21,10 @@ from beartype import beartype
 from beartype.typing import List, Tuple
 from jaxtyping import jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     CERTIFICATION_POLICY_IDS,
+)
+from diffpes.types import (
     WaiverRecord,
     WaiverReport,
     make_waiver_report,

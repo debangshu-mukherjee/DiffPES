@@ -32,7 +32,7 @@ from jax.extend.core import ClosedJaxpr, Jaxpr
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     contract_polarization,
     orbital_transition_channels,
     project_band_channels,
@@ -77,6 +77,28 @@ class Fixture:
     eigenvectors: Complex128[Array, "n_k n_band n_orb"]
     energy_scales: Float64[Array, " n_energy"]
     polarizations: Complex128[Array, "n_pol 3"]
+
+
+def _compiled_cache_size(compiled: Any) -> int:
+    """PRIVATE: Read the compiled-call cache size exposed by JAX.
+
+    Parameters
+    ----------
+    compiled : Any
+        JAX-jitted callable whose trace reuse is under measurement.
+
+    Returns
+    -------
+    cache_size : int
+        Number of cached executable variants.
+
+    Notes
+    -----
+    JAX exposes this diagnostic only through a private inspection method. The
+    benchmark isolates that version-sensitive access in this one helper.
+    """
+    cache_size: int = int(compiled._cache_size())  # noqa: SLF001
+    return cache_size
 
 
 def _recursive_equation_count(value: object) -> int:
@@ -888,16 +910,16 @@ def _compile_reuse_record() -> Dict[str, object]:
         Any,
         jax.jit(_channel_function(fixture.basis)),
     )
-    cache_before: int = channel_jit._cache_size()
+    cache_before: int = _compiled_cache_size(channel_jit)
     first: Complex128[Array, "n_k 1 n_orb 3"] = channel_jit(fixture.dynamic)
     jax.block_until_ready(first)
-    cache_after_first: int = channel_jit._cache_size()
+    cache_after_first: int = _compiled_cache_size(channel_jit)
     changed_dynamic: DynamicInputs = fixture.dynamic._replace(
         bvals=fixture.dynamic.bvals * (1.0 + 0.01j)
     )
     second: Complex128[Array, "n_k 1 n_orb 3"] = channel_jit(changed_dynamic)
     jax.block_until_ready(second)
-    cache_after_second: int = channel_jit._cache_size()
+    cache_after_second: int = _compiled_cache_size(channel_jit)
 
     trace_count: int = 0
 
@@ -917,7 +939,7 @@ def _compile_reuse_record() -> Dict[str, object]:
         return contracted
 
     composed_jit: Any = cast(Any, jax.jit(composed_sweep))
-    composed_cache_sizes: List[int] = [composed_jit._cache_size()]
+    composed_cache_sizes: List[int] = [_compiled_cache_size(composed_jit)]
     composed_trace_counts: List[int] = [trace_count]
     polarization: Complex128[Array, " 3"]
     for polarization in fixture.polarizations:
@@ -925,7 +947,7 @@ def _compile_reuse_record() -> Dict[str, object]:
             changed_dynamic, polarization
         )
         jax.block_until_ready(contracted)
-        composed_cache_sizes.append(composed_jit._cache_size())
+        composed_cache_sizes.append(_compiled_cache_size(composed_jit))
         composed_trace_counts.append(trace_count)
     count_growth: int = max(equation_counts) - min(equation_counts)
     result: str = (
@@ -1423,8 +1445,36 @@ def main() -> None:
     repository_root: Path = Path(__file__).resolve().parents[2]
     bound_source_paths: Tuple[Path, ...] = (
         Path(__file__).resolve(),
-        repository_root / "src/diffpes/simul/matrixel.py",
+        repository_root / "src/diffpes/constants/__init__.py",
+        repository_root / "src/diffpes/constants/carriers.py",
+        repository_root / "src/diffpes/constants/numerical.py",
+        repository_root / "src/diffpes/constants/shared.py",
+        repository_root / "src/diffpes/maths/__init__.py",
+        repository_root / "src/diffpes/maths/dipole.py",
+        repository_root / "src/diffpes/maths/safe.py",
+        repository_root / "src/diffpes/matrixel/__init__.py",
+        repository_root / "src/diffpes/matrixel/parameters.py",
+        repository_root / "src/diffpes/matrixel/transition.py",
+        repository_root / "src/diffpes/radial/__init__.py",
+        repository_root / "src/diffpes/radial/bessel.py",
+        repository_root / "src/diffpes/radial/coulomb_asymptotics.py",
+        repository_root / "src/diffpes/radial/coulomb_numerov.py",
+        repository_root / "src/diffpes/radial/integrate.py",
+        repository_root / "src/diffpes/radial/wavefunctions.py",
+        repository_root / "src/diffpes/types/__init__.py",
+        repository_root / "src/diffpes/types/aliases.py",
+        repository_root / "src/diffpes/types/diagonalized_bands.py",
+        repository_root
+        / "src/diffpes/types/electronic_structure_validation.py",
+        repository_root / "src/diffpes/types/experiment.py",
+        repository_root / "src/diffpes/types/geometry.py",
+        repository_root / "src/diffpes/types/orbital_basis.py",
         repository_root / "src/diffpes/types/radial_params.py",
+        repository_root / "src/diffpes/types/radial_profiles.py",
+        repository_root / "src/diffpes/utils/__init__.py",
+        repository_root / "src/diffpes/utils/math.py",
+        repository_root / "pyproject.toml",
+        repository_root / "uv.lock",
     )
     source_sha256: Dict[str, str] = {
         str(path.relative_to(repository_root)): hashlib.sha256(

@@ -16,6 +16,9 @@ from beartype.typing import Callable, Tuple
 from jaxtyping import Array, Complex128, Float64, TypeCheckError
 
 import diffpes
+from diffpes.constants import (
+    EPS_DEG,
+)
 from diffpes.tightb import (
     diagonalize_tb,
     eigh_safe,
@@ -24,7 +27,6 @@ from diffpes.tightb import (
     vasp_to_diagonalized,
 )
 from diffpes.types import (
-    EPS_DEG,
     make_band_structure,
     make_crystal_geometry,
     make_orbital_basis,

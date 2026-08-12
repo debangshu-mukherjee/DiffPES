@@ -14,8 +14,8 @@ operator expressed in the real spherical harmonic basis (q = -1, 0, +1).
 
 Selection rules: :math:`l' = l \pm 1` and :math:`|m' - m| \leq 1`.
 
-Pure Python computes the table once during module loading. The module stores
-the result as a JAX array for constant-time lookup.
+Pure Python can rebuild the table for verification. The module imports the
+frozen table from :mod:`diffpes.constants` for constant-time lookup.
 
 Routine Listings
 ----------------
@@ -23,8 +23,6 @@ Routine Listings
     Build the dipole Gaunt coefficient lookup table.
 :func:`gaunt_lookup`
     Look up a single Gaunt coefficient from the precomputed table.
-:obj:`GAUNT_TABLE`
-    Module-level precomputed Gaunt coefficient table for l_max=4.
 """
 
 import math
@@ -37,14 +35,16 @@ from beartype.typing import List, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import GAUNT_IMAG_TOL, L_MAX
+from diffpes.constants import (
+    GAUNT_IMAG_TOL,
+    GAUNT_TABLE,
+    L_MAX,
+)
 
 
 def _wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
     r"""PRIVATE: Evaluate Wigner 3-j symbol using the Racah formula.
 
-    Extended Summary
-    ----------------
     The function computes the Wigner 3-j symbol
 
     .. math::
@@ -165,8 +165,6 @@ def _complex_gaunt(
 ) -> float:
     r"""PRIVATE: Compute an unstarred complex Gaunt integral.
 
-    Extended Summary
-    ----------------
     The function computes the Gaunt integral defined as:
 
     .. math::
@@ -227,8 +225,6 @@ def _complex_gaunt(
 def _real_gaunt_dipole(l: int, m: int, lp: int, mp: int, q: int) -> float:
     r"""PRIVATE: Compute a Gaunt coefficient for real harmonics and a dipole.
 
-    Extended Summary
-    ----------------
     The function computes the integral of
     :math:`Y_l^m(\text{real}) \cdot r_q \cdot Y_{l'}^{m'}(\text{real})` over
     the unit sphere, where
@@ -490,13 +486,6 @@ def build_gaunt_table(
     return result
 
 
-GAUNT_TABLE: Float64[
-    Array,
-    "n_l_initial n_m_initial 3 n_l_final n_m_final",
-] = build_gaunt_table(l_max=L_MAX)
-"""Module-level precomputed Gaunt coefficient table for l_max=4."""
-
-
 @jaxtyped(typechecker=beartype)
 def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
     r"""Look up a single Gaunt coefficient from the precomputed table.
@@ -555,5 +544,4 @@ def gaunt_lookup(l: int, m: int, q: int, lp: int, mp: int) -> float:
 __all__: list[str] = [
     "build_gaunt_table",
     "gaunt_lookup",
-    "GAUNT_TABLE",
 ]

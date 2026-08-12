@@ -22,11 +22,13 @@ from beartype.typing import List, Optional, TextIO, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     LATTICE_ROWS,
     N_SOC_MAG_BLOCKS,
     SCALAR_LINE_COMPONENTS,
     XYZ_COMPONENTS,
+)
+from diffpes.types import (
     SOCVolumetricData,
     VolumetricData,
     make_soc_volumetric_data,
@@ -216,8 +218,6 @@ def _read_poscar_header(
     """PRIVATE: Read the POSCAR-like header section at the start of a CHGCAR
     file.
 
-    Extended Summary
-    ----------------
     A CHGCAR file starts with a POSCAR-compatible section. This section
     contains a comment, a scale, lattice vectors, atom data, and coordinates.
     It can also contain species names and a selective-dynamics flag. The helper
@@ -327,8 +327,6 @@ def _find_next_grid_line(
     """PRIVATE: Find the next line containing exactly three positive
     integers.
 
-    Extended Summary
-    ----------------
     The helper scans ``lines`` from ``start_idx`` for the next FFT grid
     header. One line with three positive integers precedes each CHGCAR
     volumetric block.
@@ -395,8 +393,6 @@ def _parse_float_block(
     """PRIVATE: Parse ``nvals`` whitespace-separated floats starting at
     ``start_idx``.
 
-    Extended Summary
-    ----------------
     The helper reads a continuous block of floating-point values from multiple
     CHGCAR lines. VASP usually writes 5 or 10 values per line. The exact count
     can vary. The helper reads lines until it collects ``nvals`` values.

@@ -22,7 +22,7 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Float64, jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     D_ORBITAL_SLICE,
     M_D,
     M_P,

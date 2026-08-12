@@ -14,8 +14,14 @@ The following list describes the submodules:
 
 - :mod:`bessel`
     Evaluate spherical Bessel functions with stable JAX primitives.
-- :mod:`coulomb`
-    Evaluate regular and irregular Coulomb radial functions.
+- :mod:`coulomb_asymptotics`
+    Evaluate Coulomb asymptotic states and phase shifts.
+- :mod:`coulomb_functions`
+    Evaluate normalized Coulomb radial functions.
+- :mod:`coulomb_numerov`
+    Propagate Coulomb radial states with the Numerov method.
+- :mod:`coulomb_ode`
+    Propagate diagnostic Coulomb states with a fixed ODE solve.
 - :mod:`integrate`
     Evaluate dipole radial integrals with fixed differentiable quadrature.
 - :mod:`screening`
@@ -67,7 +73,9 @@ Hermite table fails its frozen convergence ladder, so the factory rejects it.
 """
 
 from .bessel import spherical_bessel_jl, spherical_bessel_jl_derivative
-from .coulomb import coulomb_fg, coulomb_phase_shift, final_state_radial
+from .coulomb_asymptotics import coulomb_phase_shift
+from .coulomb_functions import coulomb_fg
+from .coulomb_numerov import final_state_radial
 from .integrate import (
     gauss_legendre_nodes,
     momentum_inv_ang_to_bohr_inv,

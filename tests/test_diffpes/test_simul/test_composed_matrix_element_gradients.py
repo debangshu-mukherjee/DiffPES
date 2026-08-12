@@ -16,15 +16,17 @@ import pytest
 from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     assemble_orbital_transition_channels,
-    contract_experiment_polarization,
-    final_state_k_inv_ang,
-    kinetic_energy_ev,
     matrix_element_intensity,
     orbital_transition_channels,
     project_band_channels,
     resolve_orbital_positions_cart,
+)
+from diffpes.simul import (
+    contract_experiment_polarization,
+    final_state_k_inv_ang,
+    kinetic_energy_ev,
 )
 from diffpes.types import (
     CrystalGeometry,

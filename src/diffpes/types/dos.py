@@ -2,9 +2,9 @@
 
 Extended Summary
 ----------------
-This module defines the :class:`DensityOfStates` and
-:class:`FullDensityOfStates` PyTrees. These types store total and projected
-density of states from VASP DOSCAR files.
+The module defines two PyTrees: :class:`DensityOfStates` and
+the :class:`FullDensityOfStates` type. They store total and projected density
+of states from VASP DOSCAR files.
 
 Routine Listings
 ----------------

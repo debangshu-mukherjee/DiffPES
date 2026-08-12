@@ -17,34 +17,44 @@ Submodules
    :maxdepth: 1
    :hidden:
 
-   inout
    certify
+   constants
+   inout
    maths
+   matrixel
    radial
    simul
    tightb
    types
    utils
 
-:mod:`diffpes.inout`
-    VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, CHGCAR),
-    HDF5 persistence, and plotting helpers for ARPES simulation input.
-
 :mod:`diffpes.certify`
     JAX-native scientific certification, provenance, evidence, policy
     evaluation, information-flow diagnostics, and inspection.
 
+:mod:`diffpes.constants`
+    Immutable physical values, schema identifiers, parser tokens, selector
+    vocabularies, and validation tolerances.
+
+:mod:`diffpes.inout`
+    VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, CHGCAR),
+    HDF5 persistence, and plotting helpers for ARPES simulation input.
+
 :mod:`diffpes.maths`
     Angular matrix elements for dipole photoemission: Gaunt coefficients,
     real spherical harmonics, and dipole matrix element assembly.
+
+:mod:`diffpes.matrixel`
+    Coherent photoemission channels, band projection, late polarization
+    contraction, and differentiable inversion coordinates.
 
 :mod:`diffpes.radial`
     Differentiable radial primitives: spherical Bessel functions, atomic
     radial wavefunctions, and fixed-grid radial integrals.
 
 :mod:`diffpes.simul`
-    Coherent matrix-element and spectral assembly, broadening, cross
-    sections, polarization, and orbital angular momentum.
+    Spectral assembly, detector mapping, broadening, cross sections,
+    polarization, orbital angular momentum, and free-electron kinematics.
 
 :mod:`diffpes.tightb`
     Native tight-binding model construction, diagonalization, and

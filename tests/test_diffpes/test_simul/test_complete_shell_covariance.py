@@ -18,14 +18,14 @@ from diffpes.maths import (
     real_harmonic_unitary,
     wigner_d,
 )
-from diffpes.radial import radial_bvals
-from diffpes.simul import (
+from diffpes.matrixel import (
     contract_polarization,
     orbital_transition_channels,
     pack_matrixel_params,
     radial_coefficient_scale_gauge_directions,
     unpack_matrixel_params,
 )
+from diffpes.radial import radial_bvals
 from diffpes.types import (
     MatrixElementParams,
     OrbitalBasis,

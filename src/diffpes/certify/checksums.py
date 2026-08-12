@@ -14,6 +14,8 @@ payloads in bounded chunks.
 
 Routine Listings
 ----------------
+:func:`artifact_ref`
+    Build separate byte, normalized-content, and semantic identities.
 :func:`checksum_bytes`
     Return a collision-resistant scientific identity for ``data``.
 :func:`checksum_chunks`
@@ -24,12 +26,10 @@ Routine Listings
     Stream a canonical carrier into a scientific identity.
 :func:`parse_checksum`
     Parse and validate one checksum string.
-:func:`artifact_ref`
-    Build separate byte, normalized-content, and semantic identities.
-:func:`semantic_checksum`
-    Identify content together with its declared scientific meaning.
 :func:`result_checksum`
     Identify a result under a declared numerical configuration.
+:func:`semantic_checksum`
+    Identify content together with its declared scientific meaning.
 """
 
 from __future__ import annotations
@@ -43,12 +43,14 @@ from beartype import beartype
 from beartype.typing import TYPE_CHECKING, Any, Tuple
 from jaxtyping import jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     CANONICAL_PYTREE_VERSION,
     CHECKSUM_ALGORITHM,
     CHECKSUM_FILE_CHUNK_BYTES,
     CHECKSUM_PATTERN,
     CHECKSUM_RECORD_KIND_PATTERN,
+)
+from diffpes.types import (
     make_artifact_ref,
 )
 

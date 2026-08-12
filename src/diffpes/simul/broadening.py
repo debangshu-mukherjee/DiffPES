@@ -27,7 +27,12 @@ import jax.numpy as jnp
 from beartype import beartype
 from jaxtyping import Array, Bool, Complex128, Float, Float64, jaxtyped
 
-from diffpes.types import KB_EV_PER_K, ScalarFloat
+from diffpes.constants import (
+    KB_EV_PER_K,
+)
+from diffpes.types import (
+    ScalarFloat,
+)
 from diffpes.utils import faddeeva
 
 
@@ -331,7 +336,7 @@ def fermi_dirac(  # noqa: DOC502 -- eqx.error_if raises under JAX execution.
     Notes
     -----
     Uses the Boltzmann constant kB = 8.617333e-5 eV/K, imported as
-    :obj:`~diffpes.types.KB_EV_PER_K`. ``jax.nn.sigmoid`` is algebraically
+    :obj:`~diffpes.constants.KB_EV_PER_K`. ``jax.nn.sigmoid`` is algebraically
     identical to the reciprocal-exponential expression but has an
     overflow-safe JVP. Values and derivatives therefore underflow to finite
     exact zeros far above the Fermi level instead of becoming NaN. The

@@ -12,14 +12,16 @@ import pytest
 from beartype.typing import Any, Union
 from jaxtyping import Array, Complex128, Float64, PRNGKeyArray
 
+from diffpes.constants import (
+    DEGENERACY_GROUP_TOL_EV,
+    GROUP_COMPLEMENT_GAP_MIN_EV,
+)
 from diffpes.tightb import (
     layer_resolved_group_traces,
     layer_resolved_weights,
     surface_projector,
 )
 from diffpes.types import (
-    DEGENERACY_GROUP_TOL_EV,
-    GROUP_COMPLEMENT_GAP_MIN_EV,
     DiagonalizedBands,
     make_crystal_geometry,
     make_diagonalized_bands,

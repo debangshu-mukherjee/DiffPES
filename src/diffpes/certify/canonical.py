@@ -39,7 +39,7 @@ from beartype.typing import Any, List, Tuple, cast
 from jaxtyping import Bool, Num, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     CANONICAL_ARRAY_CHUNK_BYTES,
     CANONICAL_JSON_PREFIX,
     CANONICAL_PYTREE_PREFIX,

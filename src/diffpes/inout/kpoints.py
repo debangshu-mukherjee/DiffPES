@@ -20,12 +20,14 @@ from beartype import beartype
 from beartype.typing import List, Optional, TextIO, Tuple
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     COORDINATE_MODE_TOKENS,
     FLOAT_TOKEN_RE,
     WEIGHT_COMPONENT_COUNT,
     WEIGHT_COMPONENT_INDEX,
     XYZ_COMPONENTS,
+)
+from diffpes.types import (
     KPathInfo,
     make_kpath_info,
 )
@@ -195,8 +197,6 @@ def _parse_explicit_kpoints(
 ) -> Tuple[List[List[float]], List[float]]:
     """PRIVATE: Parse explicit-mode k-point coordinates and optional weights.
 
-    Extended Summary
-    ----------------
     In the VASP explicit mode, one line defines each k-point. The line contains
     at least three coordinates and can contain an integration weight.
 
@@ -266,8 +266,6 @@ def _looks_like_kpoint_line(line: str) -> bool:
     """PRIVATE: Return ``True`` when the first three tokens are parseable
     floats.
 
-    Extended Summary
-    ----------------
     The heuristic distinguishes a k-point coordinate line from a coordinate
     mode descriptor. Explicit files can place the mode keyword on line 3.
     Lines with fewer than three tokens return ``False``. Lines with nonnumeric
@@ -303,8 +301,6 @@ def _looks_like_kpoint_line(line: str) -> bool:
 def _parse_grid(line: str) -> List[int]:
     """PRIVATE: Parse automatic-mode grid line into three integers.
 
-    Extended Summary
-    ----------------
     In the VASP automatic mode, the line after the scheme contains the three
     Monkhorst-Pack subdivisions. The helper converts the tokens to floats. It
     then rounds them to accept decimal forms such as ``"4.0 4.0 4.0"``.
@@ -339,8 +335,6 @@ def _parse_grid(line: str) -> List[int]:
 def _parse_shift(line: str) -> List[float]:
     """PRIVATE: Parse automatic-mode shift line into three floats.
 
-    Extended Summary
-    ----------------
     In VASP automatic KPOINTS mode, the line after the grid line
     contains the shift vector applied to the Monkhorst-Pack mesh.
     Values of ``0 0 0`` indicate a Gamma-centred grid; non-zero
@@ -373,8 +367,6 @@ def _extract_coords(line: str) -> List[float]:
     """PRIVATE: Extract first three float tokens from a KPOINTS coordinate
     line.
 
-    Extended Summary
-    ----------------
     The helper uses ``FLOAT_TOKEN_RE`` to find each floating-point token in the
     line. It ignores surrounding nonnumeric text, including labels and comment
     markers. This behavior supports different KPOINTS formats.

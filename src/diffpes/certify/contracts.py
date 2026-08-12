@@ -13,12 +13,12 @@ continuous numerical checks remain in the certification carriers and kernels.
 
 Routine Listings
 ----------------
-:func:`validate_contract`
-    Return structural errors for a raw or deserialized contract.
-:func:`validate_composition`
-    Validate and conservatively compose transformation semantics.
 :func:`compose_transformations`
     Compose contracts and raise for unsatisfied requirements.
+:func:`validate_composition`
+    Validate and conservatively compose transformation semantics.
+:func:`validate_contract`
+    Return structural errors for a raw or deserialized contract.
 """
 
 from __future__ import annotations

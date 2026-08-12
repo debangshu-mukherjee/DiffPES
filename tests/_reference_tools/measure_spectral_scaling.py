@@ -26,13 +26,15 @@ import numpy as np
 from beartype.typing import Any, Dict, List, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64, Int64
 
-from diffpes.simul.spectral import (
-    _resolvent_solution,
-    _stream_spectral_intensity,
-    _transition_sources_for_block,
+from diffpes.simul import (
     assemble_spectral_intensity_chunk,
     spectral_intensity_resolvent,
 )
+from diffpes.simul.spectral import (
+    _stream_spectral_intensity,
+    _transition_sources_for_block,
+)
+from diffpes.simul.spectral_resolvent import _resolvent_solution
 from diffpes.types import (
     OrbitalBasis,
     RadialSpec,
@@ -101,6 +103,28 @@ def _maximum_rss_bytes() -> int:
         int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
     )
     return maximum_rss
+
+
+def _compiled_cache_size(compiled: Any) -> int:
+    """PRIVATE: Read the compiled-call cache size exposed by JAX.
+
+    Parameters
+    ----------
+    compiled : Any
+        JAX-jitted callable whose static-shape trace reuse is measured.
+
+    Returns
+    -------
+    cache_size : int
+        Number of cached executable variants.
+
+    Notes
+    -----
+    JAX exposes this diagnostic only through a private inspection method. The
+    benchmark isolates that version-sensitive access in this one helper.
+    """
+    cache_size: int = int(compiled._cache_size())  # noqa: SLF001
+    return cache_size
 
 
 def _memory_record(compiled: Any) -> Dict[str, int | bool | str]:
@@ -610,7 +634,7 @@ def _compile_count() -> Dict[str, Any]:
 
     compiled: Any = jax.jit(scheduled)
     active_sizes: Tuple[Tuple[int, int], ...] = ((2, 4), (3, 6), (4, 8))
-    cache_sizes: List[int] = [int(compiled._cache_size())]
+    cache_sizes: List[int] = [_compiled_cache_size(compiled)]
     active_k: int
     active_omega: int
     for active_k, active_omega in active_sizes:
@@ -621,7 +645,7 @@ def _compile_count() -> Dict[str, Any]:
             jnp.arange(REFERENCE_N_OMEGA) < active_omega,
         )
         jax.block_until_ready(result)
-        cache_sizes.append(int(compiled._cache_size()))
+        cache_sizes.append(_compiled_cache_size(compiled))
     record: Dict[str, Any] = {
         "padded_shape": [REFERENCE_N_K, REFERENCE_N_OMEGA, REFERENCE_N_ORB],
         "n_out": 1,
@@ -809,12 +833,43 @@ def main() -> None:
     )
     source_paths: Tuple[str, ...] = (
         "tests/_reference_tools/measure_spectral_scaling.py",
-        "src/diffpes/simul/spectral.py",
-        "src/diffpes/simul/matrixel.py",
+        "src/diffpes/constants/__init__.py",
+        "src/diffpes/constants/carriers.py",
+        "src/diffpes/constants/numerical.py",
+        "src/diffpes/constants/shared.py",
+        "src/diffpes/maths/__init__.py",
+        "src/diffpes/maths/dipole.py",
+        "src/diffpes/maths/safe.py",
+        "src/diffpes/matrixel/__init__.py",
+        "src/diffpes/matrixel/parameters.py",
+        "src/diffpes/matrixel/transition.py",
+        "src/diffpes/radial/__init__.py",
+        "src/diffpes/radial/bessel.py",
+        "src/diffpes/radial/coulomb_asymptotics.py",
+        "src/diffpes/radial/coulomb_numerov.py",
         "src/diffpes/radial/integrate.py",
+        "src/diffpes/radial/wavefunctions.py",
+        "src/diffpes/simul/_kramers_kronig.py",
+        "src/diffpes/simul/_principal_value.py",
+        "src/diffpes/simul/broadening.py",
+        "src/diffpes/simul/kinematics.py",
+        "src/diffpes/simul/retarded_self_energy.py",
+        "src/diffpes/simul/spectral.py",
+        "src/diffpes/simul/spectral_eigen.py",
+        "src/diffpes/simul/spectral_resolvent.py",
+        "src/diffpes/types/__init__.py",
+        "src/diffpes/types/aliases.py",
+        "src/diffpes/types/diagonalized_bands.py",
+        "src/diffpes/types/electronic_structure_validation.py",
+        "src/diffpes/types/experiment.py",
+        "src/diffpes/types/geometry.py",
+        "src/diffpes/types/orbital_basis.py",
         "src/diffpes/types/radial_params.py",
+        "src/diffpes/types/radial_profiles.py",
         "src/diffpes/types/self_energy.py",
         "src/diffpes/types/spectral.py",
+        "src/diffpes/utils/__init__.py",
+        "src/diffpes/utils/math.py",
         "pyproject.toml",
         "uv.lock",
     )

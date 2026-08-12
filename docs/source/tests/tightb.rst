@@ -88,7 +88,17 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: tests.test_diffpes.test_tightb.test_neighbor_shells
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_tightb.test_slaterkoster
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slaterkoster_model
    :members:
    :undoc-members:
    :show-inheritance:
@@ -114,6 +124,26 @@ Validation and regression tests for :mod:`diffpes.tightb`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_tightb.test_slab
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_assembly
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_operators
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_rotation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_tightb.test_slab_topology
    :members:
    :undoc-members:
    :show-inheritance:

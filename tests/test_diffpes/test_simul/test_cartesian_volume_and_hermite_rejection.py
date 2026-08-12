@@ -20,8 +20,8 @@ from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy.special import gamma
 
+from diffpes.matrixel import contract_polarization, orbital_transition_channels
 from diffpes.radial import radial_bvals
-from diffpes.simul import contract_polarization, orbital_transition_channels
 from diffpes.types import (
     FinalStateSpec,
     MatrixElementParams,

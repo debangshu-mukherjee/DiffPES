@@ -16,13 +16,15 @@ import numpy as np
 from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     assemble_orbital_transition_channels,
+    matrix_element_intensity,
+    project_band_channels,
+)
+from diffpes.simul import (
     contract_experiment_polarization,
     final_state_k_inv_ang,
     kinetic_energy_ev,
-    matrix_element_intensity,
-    project_band_channels,
 )
 from diffpes.types import (
     CrystalGeometry,

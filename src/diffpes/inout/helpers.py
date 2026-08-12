@@ -23,10 +23,12 @@ from beartype import beartype
 from beartype.typing import List, Optional, Union
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     D_ORBITAL_SLICE,
     P_ORBITAL_SLICE,
     S_IDX,
+)
+from diffpes.types import (
     BandStructure,
     KPathInfo,
     OrbitalProjection,

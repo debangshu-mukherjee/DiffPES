@@ -23,14 +23,15 @@ from beartype import beartype
 from beartype.typing import Optional
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
-from .constants import CARTESIAN_COMPONENTS, ENERGY_AXIS_NDIM, MATRIX_NDIM
-from .experiment import ExperimentGeometry
-from .radial_params import (
-    FinalStateSpec,
-    MatrixElementParams,
-    RadialQuadratureSpec,
-    RadialSpec,
+from diffpes.constants import (
+    CARTESIAN_COMPONENTS,
+    ENERGY_AXIS_NDIM,
+    MATRIX_NDIM,
 )
+
+from .experiment import ExperimentGeometry
+from .radial_params import MatrixElementParams, RadialSpec
+from .radial_profiles import FinalStateSpec, RadialQuadratureSpec
 
 
 class Power2TailSpec(eqx.Module):

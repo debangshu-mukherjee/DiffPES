@@ -51,7 +51,7 @@ from diffpes.types import (
 )
 from diffpes.utils import pack_complex, unpack_complex
 
-from .slaterkoster import (
+from .slaterkoster_model import (
     _build_sk_model_from_topology,
     _freeze_neighbor_topology,
     build_sk_model,

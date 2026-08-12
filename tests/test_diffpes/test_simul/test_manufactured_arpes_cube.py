@@ -19,6 +19,9 @@ from jaxtyping import Bool, Float64, Int64
 from numpy.typing import NDArray
 from scipy import integrate
 
+from diffpes.constants import (
+    KB_EV_PER_K,
+)
 from diffpes.simul import (
     apply_transmission,
     assemble_spectral_intensity_bands_chunk,
@@ -26,7 +29,6 @@ from diffpes.simul import (
     convolve_momentum_map,
 )
 from diffpes.types import (
-    KB_EV_PER_K,
     DetectorCalibration,
     make_detector_calibration,
     make_self_energy_model,

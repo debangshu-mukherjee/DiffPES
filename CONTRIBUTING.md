@@ -81,21 +81,54 @@ The JAX-First rules below implement this principle.
 ```
 diffpes/
 ├── src/diffpes/           # Main source code
-│   ├── certify/           # JAX-native forward certification, evidence,
-│   │                      #   provenance, policies, and information flow
-│   ├── inout/             # Data I/O (POSCAR, EIGENVAL, KPOINTS, DOSCAR,
-│   │                      #   PROCAR, CHGCAR, HDF5, certificates) and plotting
-│   ├── maths/             # Dipole selection rules, spherical harmonics, Gaunt
-│   ├── radial/            # Radial primitives (Bessel, wavefunctions, integrals)
-│   ├── simul/             # ARPES forward model (matrix elements, polarization,
-│   │                      #   self-energy, broadening, resolution, spectra)
-│   ├── tightb/            # Tight-binding models (Hamiltonians, diagonalization,
-│   │                      #   projections)
-│   ├── types/             # Equinox PyTree types, factories, and aliases
+│   ├── certify/           # Forward certification and evidence
+│   ├── constants/         # Immutable source values and lookup data
+│   │   ├── __init__.py
+│   │   ├── carriers.py
+│   │   ├── certification.py
+│   │   ├── numerical.py
+│   │   ├── shared.py
+│   │   └── wannier.py
+│   ├── inout/             # Data input, output, and plotting
+│   ├── maths/             # Mathematical and angular primitives
+│   ├── matrixel/          # Coherent matrix-element primitives
+│   │   ├── __init__.py
+│   │   ├── parameters.py
+│   │   └── transition.py
+│   ├── radial/            # Radial functions and integrals
+│   ├── simul/             # ARPES forward and detector models
+│   ├── tightb/            # Tight-binding and slab models
+│   ├── types/             # PyTree types, factories, and aliases
 │   └── utils/             # Mathematical utilities
-├── tests/                 # Test suite (mirrors src layout, see below)
+├── tests/                 # Test suite that mirrors the source layout
 └── docs/                  # Sphinx documentation
 ```
+
+The source split uses these focused ownership modules:
+
+- `certify`: `builtin_transformations` and `registry_resources`.
+- `inout`: `band_plotting`, `certificate_decoding`, `certificate_storage`,
+  `wannier90`, and `wannier90_parser`.
+- `radial`: `coulomb_asymptotics`, `coulomb_functions`, `coulomb_numerov`,
+  and `coulomb_ode`.
+- `simul`: `counting`, `detector_response`, `kz_broadening`, `resolution`,
+  `retarded_self_energy`, `spectral_eigen`, `spectral_resolvent`, and
+  `transmission`.
+- Private `simul` stages: `_detector_cube`, `_detector_geometry`,
+  `_detector_spectrum`, `_kramers_kronig`, `_kz_spectrum`,
+  `_principal_value`, `_source_carriers`, `_spectrum_stream`, and
+  `_spectrum_validation`.
+- `tightb`: `neighbor_shells`, `slab_assembly`, `slab_operators`,
+  `slab_rotation`, `slab_surface_cell`, `slab_topology`, and
+  `slaterkoster_model`.
+- `types`: `arpes`, `certification_validation`, `derivatives`,
+  `detector_data`, `diagonalized_bands`, `electronic_structure_validation`,
+  `evidence`, `orbital_basis`, `radial_profiles`, `registry`, `reports`,
+  `slab_geometry`, `slab_topology`, `slater_koster_params`, and
+  `specification`.
+
+The other source modules remain in their listed subpackages. Each test module
+uses the corresponding path under `tests/test_diffpes/`.
 
 Each subpackage exposes its public API through `__init__.py` with an explicit
 `__all__`. The top-level `src/diffpes/__init__.py` enables 64-bit precision
@@ -307,8 +340,8 @@ def simulate_spectrum(
   subpackage must export the name publicly. The module `Routine Listings`,
   module `__all__`, and package `__init__.py` must contain the name. Second,
   import the name from the subpackage, not from one of its files. For example,
-  use `from diffpes.types import KB_EV_PER_K`. Do not import it from
-  `diffpes.types.constants`. A name that another subpackage needs is public.
+  use `from diffpes.constants import KB_EV_PER_K`. Do not import it from
+  `diffpes.constants.shared`. A name that another subpackage needs is public.
   Promote such a name. Use deep relative imports only within one subpackage.
 - **Never rename diffpes names on import** (`import ... as`). Do not use
   `KB_EV_PER_K as _KB` or `_N_ORBITALS as _NORBS`. An alias creates a
@@ -318,6 +351,28 @@ def simulate_spectrum(
   `numpy.ndarray` to `NDArray` with an alias.
 - Import typing constructs (`Optional`, `Union`, `Tuple`, `List`, `Dict`,
   `TypeAlias`) from `beartype.typing`, not the stdlib `typing` module.
+
+### Constants
+
+Put every immutable declarative source value in `diffpes.constants`. This
+group includes physical values, schema identifiers, parser tokens, static
+selector vocabularies, array dimensions, and validation tolerances. Import
+each value through `from diffpes.constants import ...`. Do not define a local
+uppercase or underscore-prefixed declarative value in another source module.
+
+Freeze generated lookup data in `diffpes.constants` too. Store its exact
+float64 payload with round-tripping literals. Keep a public rebuild function
+only when verification needs one. Mutable runtime state is not a constant, so
+keep `_PYTREE_REGISTRY` with the HDF5 runtime service. Keep `__version__` at
+the package root because it is package metadata from the installed
+distribution. These two bindings are the only source-level exceptions.
+
+Authenticated external tabulations and registry documents are package
+resources, not declarative Python source values. Keep each resource beside
+its owning loader with its checksum manifest. Do not transcribe an external
+authority into Python literals merely to place it in `diffpes.constants`.
+This resource rule covers the Yeh--Lindau table under `simul/data` and the
+packaged certification registry manifest.
 
 ### Custom Types and PyTrees
 
@@ -385,10 +440,10 @@ def make_band_structure(
     kpoints = jnp.asarray(kpoints)
     eigenvalues = jnp.asarray(eigenvalues)
 
-    if eigenvalues.shape[0] != kpoints.shape[0]:   # static -> ValueError
+    if eigenvalues.shape[0] != kpoints.shape[0]:  # static -> ValueError
         raise ValueError("eigenvalues and kpoints disagree on nkpt")
 
-    checked_eigenvalues = eqx.error_if(            # traced -> eqx.error_if
+    checked_eigenvalues = eqx.error_if(  # traced -> eqx.error_if
         eigenvalues,
         jnp.any(jnp.isnan(eigenvalues)),
         "eigenvalues must be finite",
@@ -823,6 +878,11 @@ class LifetimeModel(eqx.Module):
   as `PRIVATE: <imperative sentence>`. The marker states the audience at
   the first word. The function is internal, its contract can change without
   a `CHANGELOG.md` entry, and no `Routine Listings` entry exists for it.
+- **The `PRIVATE:` marker also opens every private module docstring.** A
+  `_`-prefixed module file starts its module docstring with
+  `PRIVATE: <imperative sentence>`, exactly as a private function does. The
+  module stays out of the subpackage `Routine Listings`, and its seams stay
+  internal to the subpackage.
 
   ```python
   @jaxtyped(typechecker=beartype)
@@ -870,6 +930,23 @@ S, A, C4, PIE, PT, RET, SIM, ARG, ERA, PL`. Key conventions:
 - **Imports**: sorted by isort (`I`); imports inside functions only to guard
   optional dependencies or platform branches.
 
+**Limit every `src/` file to 1000 lines.** One overflow case is acceptable:
+when a single function and its docstring push a file past the limit, keep
+that function whole. Do not add any further code to a file at or above the
+limit. Put the next function or class in a new module instead. Split along a
+physical or structural boundary. Name the new module for its content. Update
+every import under the zero-legacy rules. Keep the three-place listings
+synchronized. Record the move in `CHANGELOG.md`.
+
+Two file classes are exempt from the limit:
+
+- **Test files.** Mirror the source structure with one `test_<module>.py` per
+  source module. A test file therefore grows with its source module. Add the
+  mirrored test module when a source split creates a module.
+- **`__init__.py` files.** A package `__init__.py` carries the subpackage
+  docstring, the `Routine Listings`, the imports, and the `__all__` value.
+  It grows with the public surface of its subpackage and cannot split.
+
 ## Testing
 
 The test suite uses `pytest` with `chex`, `pytest-cov`, and `pytest-xdist`.
@@ -885,6 +962,11 @@ Tests mirror the source layout under `tests/test_diffpes/`:
 ```
 tests/
 └── test_diffpes/
+    ├── test_constants/test_carriers.py
+    ├── test_constants/test_certification.py
+    ├── test_constants/test_numerical.py
+    ├── test_constants/test_shared.py
+    ├── test_constants/test_wannier.py
     ├── test_inout/test_chgcar.py
     ├── test_inout/test_doscar.py
     ├── test_inout/test_eigenval.py
@@ -892,6 +974,8 @@ tests/
     ├── test_inout/test_poscar.py
     ├── test_inout/test_procar.py
     ├── test_maths/test_gaunt.py
+    ├── test_matrixel/test_parameters.py
+    ├── test_matrixel/test_transition.py
     ├── test_radial/test_bessel.py
     ├── test_simul/...
     ├── test_tightb/test_hamiltonian.py

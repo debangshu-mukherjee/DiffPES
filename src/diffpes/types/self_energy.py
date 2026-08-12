@@ -11,20 +11,16 @@ Routine Listings
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Dict, Optional, Tuple
+from beartype.typing import Dict, Optional
 from jaxtyping import Array, Float, Float64, jaxtyped
 
-from .aliases import ScalarFloat
-
-_MODES: Tuple[str, ...] = (
-    "constant",
-    "poly",
-    "grid",
-    "fermi_liquid",
-    "bosonic_kink",
+from diffpes.constants import (
+    MIN_GRID_NODES,
+    SELF_ENERGY_MODES,
+    TAIL_COORDINATE_BOUND,
 )
-_MIN_GRID_NODES: int = 2
-_TAIL_COORDINATE_BOUND: float = 30.0
+
+from .aliases import ScalarFloat
 
 
 class SelfEnergyModel(eqx.Module):
@@ -89,9 +85,9 @@ class SelfEnergyModel(eqx.Module):
         domain and tail fields against the carrier state table. Every
         violation raises :class:`ValueError` before tracing.
         """
-        if self.mode not in _MODES:
+        if self.mode not in SELF_ENERGY_MODES:
             raise ValueError(
-                f"mode must be one of {_MODES}, got {self.mode!r}"
+                f"mode must be one of {SELF_ENERGY_MODES}, got {self.mode!r}"
             )
         if self.coefficients.ndim != 1:
             raise ValueError("coefficients must be a one-dimensional array")
@@ -159,7 +155,7 @@ class SelfEnergyModel(eqx.Module):
             if (
                 nodes is None
                 or nodes.ndim != 1
-                or nodes.shape[0] < _MIN_GRID_NODES
+                or nodes.shape[0] < MIN_GRID_NODES
             ):
                 raise ValueError(
                     "energy_nodes_rel_fermi_ev must be a vector of length >= 2"
@@ -259,8 +255,8 @@ class SelfEnergyModel(eqx.Module):
                 tail,
                 ~jnp.all(
                     jnp.isfinite(tail)
-                    & (tail >= -_TAIL_COORDINATE_BOUND)
-                    & (tail <= _TAIL_COORDINATE_BOUND)
+                    & (tail >= -TAIL_COORDINATE_BOUND)
+                    & (tail <= TAIL_COORDINATE_BOUND)
                 ),
                 "tail_coefficients must be finite and inside [-30, 30]",
             )
@@ -290,7 +286,7 @@ def make_self_energy_model(  # noqa: DOC503 -- traced Equinox guards.
     --------------------
     1. **Validate the static inputs**::
 
-           if mode not in _MODES:
+           if mode not in SELF_ENERGY_MODES:
                raise ValueError(msg)
            if coefficients is not None and gamma is not None:
                raise ValueError(msg)
@@ -347,8 +343,10 @@ def make_self_energy_model(  # noqa: DOC503 -- traced Equinox guards.
         If a traced numerical value violates its finite, ordering, domain, or
         tail-bound constraint.
     """
-    if mode not in _MODES:
-        raise ValueError(f"mode must be one of {_MODES}, got {mode!r}")
+    if mode not in SELF_ENERGY_MODES:
+        raise ValueError(
+            f"mode must be one of {SELF_ENERGY_MODES}, got {mode!r}"
+        )
     if coefficients is not None and gamma is not None:
         raise ValueError(
             "the gamma shortcut is exclusive; supply gamma or explicit "

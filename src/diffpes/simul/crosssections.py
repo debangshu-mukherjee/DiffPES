@@ -10,10 +10,10 @@ entries remain missing. The interpolator never adds a floor or extrapolates.
 
 Routine Listings
 ----------------
-:func:`yeh_lindau_cross_section_table`
-    Return one raw Yeh--Lindau subshell row.
 :func:`yeh_lindau_cross_section`
     Interpolate an atomic subshell photoionization cross section.
+:func:`yeh_lindau_cross_section_table`
+    Return one raw Yeh--Lindau subshell row.
 :func:`yeh_lindau_orbital_weights`
     Return Yeh--Lindau weights for every orbital in a basis.
 
@@ -21,7 +21,7 @@ Notes
 -----
 The tables describe isolated-atom cross sections.  They provide the grounded
 weighting for explicit probability-level diagnostics; coherent
-matrix-element calculations use :mod:`diffpes.simul.matrixel` instead.
+matrix-element calculations use :mod:`diffpes.matrixel` instead.
 """
 
 from __future__ import annotations

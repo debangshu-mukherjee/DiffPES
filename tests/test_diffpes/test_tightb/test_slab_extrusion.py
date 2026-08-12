@@ -16,7 +16,7 @@ from diffpes.tightb import (
     rotate_tb_model,
     validate_open_surface_adjacency,
 )
-from diffpes.tightb.slab import _propagate_hoppings
+from diffpes.tightb.slab_assembly import _propagate_hoppings
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,

@@ -59,7 +59,7 @@
       "registered_solve_tape_bytes": 134217728
     },
     "checkpoint": true,
-    "compilation_seconds": 4.914861772005679,
+    "compilation_seconds": 5.206802234024508,
     "executed": false,
     "execution_seconds": null,
     "k_chunk": 32,
@@ -80,8 +80,8 @@
     "n_tail": 256,
     "omega_chunk": 32,
     "passes_registered_1p5x_bound": true,
-    "process_peak_rss_after_bytes_non_authoritative": 688840704,
-    "process_peak_rss_before_bytes_non_authoritative": 464891904,
+    "process_peak_rss_after_bytes_non_authoritative": 686735360,
+    "process_peak_rss_before_bytes_non_authoritative": 464285696,
     "program": "value_and_hamiltonian_gradient"
   },
   "numpy_version": "2.4.2",
@@ -106,13 +106,15 @@
   "schema": "diffpes.spectral-scalability.v1",
   "source_sha256": {
     "pyproject.toml": "0138b1caf0151db298c10ee861f821247beb9fabe203bf3e6e214b85b4824c5d",
+    "src/diffpes/matrixel/__init__.py": "de281500689af3bf96a78e499340b77bc47fb5ba864385b8234671eaccd0062f",
+    "src/diffpes/matrixel/parameters.py": "b65ece8149abd39a1569074a21a19cf534cc3940ed92aabbaf3b5e15ab4f83b9",
+    "src/diffpes/matrixel/transition.py": "6a5e5b7863f1e6e14883a488413cc4ac2f2ef94a0b72c40f172e3d0c68f9ce18",
     "src/diffpes/radial/integrate.py": "ce56faa08b1e928ee855c54d54b933d29b66502bd0b20e2472d44d3b1548d5df",
-    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
-    "src/diffpes/simul/spectral.py": "5364621f115dcc10dc922aa4a06a4739db4adac144588be963757f23a057b422",
+    "src/diffpes/simul/spectral.py": "4984f42c95dd6a7c97d3aca8a261d97af552d17fa04e7f150f97ec31bcff9dbf",
     "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
     "src/diffpes/types/self_energy.py": "46f229f1eb50bdd72e55f69cb72d12d34346ca924a9dc72ef5a514f2ed54c420",
     "src/diffpes/types/spectral.py": "2c0dd8bb9d670f548715b8b450103b25878ce4161d3ea79c6cdb5e6872f4e12c",
-    "tests/_reference_tools/measure_spectral_scaling.py": "7d9e5b503ecaa770113ac396da4a562d7c32bdb18ad6a1f58a5f8c7d3a8e1c67",
+    "tests/_reference_tools/measure_spectral_scaling.py": "ecc27927412b52f8e044376698c5edf63231e4a096955f10f5894d2618956366",
     "uv.lock": "299c8130df47a0ebf73e1ecf6506c590cde2272ac702095e9f1809e22390b9ee"
   },
   "x64_enabled": true

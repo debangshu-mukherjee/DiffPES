@@ -28,10 +28,12 @@ from beartype import beartype
 from beartype.typing import Dict, List, Tuple
 from jaxtyping import Array, Bool, Complex128, Float64, jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     DEGENERACY_GROUP_TOL_EV,
     EPS,
     GROUP_COMPLEMENT_GAP_MIN_EV,
+)
+from diffpes.types import (
     DiagonalizedBands,
     OrbitalBasis,
     ScalarFloat,

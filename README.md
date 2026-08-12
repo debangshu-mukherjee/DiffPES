@@ -31,6 +31,11 @@ azimuth, and detector frame.
 
 ## Coherent spectral workflows
 
+[`diffpes.matrixel`](https://diffpes.readthedocs.io/en/latest/api/matrixel.html)
+owns coherent channel assembly, band projection, polarization contraction, and
+matrix-element inversion coordinates. `diffpes.simul` consumes these amplitudes
+in the spectral and detector pipeline.
+
 The production spectral surface preserves complex transition sources through
 the final observable. `diffpes.simul.spectral_intensity_resolvent` is the
 degeneracy-safe path. `spectral_intensity_eigen` is a faster path for

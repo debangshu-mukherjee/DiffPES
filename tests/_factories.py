@@ -12,7 +12,7 @@ import chex
 import jax
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import List, Tuple
+from beartype.typing import Any, List, Tuple
 from jaxtyping import Array, Complex128, Float64, PRNGKeyArray, jaxtyped
 
 from diffpes.tightb import (
@@ -22,16 +22,35 @@ from diffpes.types import (
     BandStructure,
     CrystalGeometry,
     DiagonalizedBands,
+    ForwardCertificate,
+    ForwardModelSpec,
     OrbitalBasis,
     OrbitalProjection,
+    ScalarFloat,
     TBModel,
+    make_artifact_ref,
     make_band_structure,
+    make_certification_claim,
+    make_convention_ref,
     make_crystal_geometry,
+    make_dependency_map,
+    make_derivative_evidence,
+    make_domain_predicate,
+    make_domain_result,
+    make_evidence_lineage,
+    make_evidence_ref,
+    make_execution_manifest,
+    make_forward_certificate,
+    make_forward_model_spec,
+    make_human_attestation_ref,
+    make_information_spectrum,
     make_orbital_basis,
     make_orbital_projection,
+    make_policy_report,
+    make_sensitivity_map,
     make_tb_model,
+    make_transformation_record,
 )
-from diffpes.types.aliases import ScalarFloat
 
 
 def _assert_finite(tree: object) -> None:
@@ -50,6 +69,81 @@ def _assert_finite(tree: object) -> None:
     """
     leaves: Tuple[object, ...] = tuple(jax.tree.leaves(tree))
     chex.assert_tree_all_finite(leaves)
+
+
+@jaxtyped(typechecker=beartype)
+def make_minimal_crystal_geometry(
+    n_atoms: int = 1,
+) -> CrystalGeometry:
+    """Build a right-handed cubic geometry for carrier tests.
+
+    The fixture uses an identity lattice and places each species-``X`` atom
+    at the fractional origin. It supplies the common geometry for tests that
+    isolate electronic-structure carrier behavior.
+
+    Parameters
+    ----------
+    n_atoms : int, optional
+        Number of coincident atoms. Default 1.
+
+    Returns
+    -------
+    geometry : CrystalGeometry
+        Validated identity-cell geometry with ``n_atoms`` species entries.
+
+    Notes
+    -----
+    The positive unit-cell determinant satisfies the handedness contract.
+    """
+    positions: Float64[Array, "n_atoms 3"] = jnp.zeros(
+        (n_atoms, 3), dtype=jnp.float64
+    )
+    geometry: CrystalGeometry = make_crystal_geometry(
+        lattice=jnp.eye(3, dtype=jnp.float64),
+        positions=positions,
+        species=tuple("X" for _ in range(n_atoms)),
+    )
+    return geometry
+
+
+@jaxtyped(typechecker=beartype)
+def make_minimal_orbital_basis(
+    atom_indices: Tuple[int, ...] = (0,),
+    spin: Tuple[int, ...] = (),
+) -> OrbitalBasis:
+    """Build one valid s orbital for each supplied atom index.
+
+    The fixture gives every orbital the same hydrogenic quantum numbers and
+    assigns deterministic labels in input order.
+
+    Parameters
+    ----------
+    atom_indices : Tuple[int, ...], optional
+        Atom index for each orbital. Default ``(0,)``.
+    spin : Tuple[int, ...], optional
+        Spin channel for each orbital, or an empty tuple for spinless data.
+        Default ``()``.
+
+    Returns
+    -------
+    basis : OrbitalBasis
+        Validated static orbital metadata with one s orbital per index.
+
+    Notes
+    -----
+    The helper labels orbitals ``s0``, ``s1``, and so on. The factory validates
+    all tuple lengths and spin values.
+    """
+    n_orbitals: int = len(atom_indices)
+    basis: OrbitalBasis = make_orbital_basis(
+        atom_indices=atom_indices,
+        n=(1,) * n_orbitals,
+        l=(0,) * n_orbitals,
+        m=(0,) * n_orbitals,
+        spin=spin,
+        labels=tuple(f"s{index}" for index in range(n_orbitals)),
+    )
+    return basis
 
 
 @jaxtyped(typechecker=beartype)
@@ -394,6 +488,288 @@ def toy_graphene_diagonalized(
     _assert_finite((model, bands))
     result: Tuple[TBModel, DiagonalizedBands] = (model, bands)
     return result
+
+
+def registry_model_spec(name: str) -> ForwardModelSpec:
+    """PRIVATE: Build one registry-test forward-model spec from a name.
+
+    Parameters
+    ----------
+    name : str
+        Short name that sets the model identity and the implementation
+        reference.
+
+    Returns
+    -------
+    spec : ForwardModelSpec
+        Forward-model spec at version 1.0.0 for the ARPES intensity
+        observable with one differentiable scale path.
+
+    Notes
+    -----
+    Embeds the name in the identity
+    ``org.diffpes.model.registry_test.<name>`` and in the implementation
+    reference ``tests.registry:<name>``.
+    """
+    spec: ForwardModelSpec = make_forward_model_spec(
+        model_id=f"org.diffpes.model.registry_test.{name}",
+        model_version="1.0.0",
+        observable_id="org.diffpes.observable.arpes.intensity",
+        implementation_ref=f"tests.registry:{name}",
+        differentiable_paths=("parameters.scale",),
+    )
+    return spec
+
+
+def sample_forward_certificate(
+    *,
+    execution_id: str = "run-001",
+    started_at_utc: str = "2026-07-21T12:00:00Z",
+    model_version: str = "1.0.0",
+    environment_checksum: str = (
+        "sha256:1:environment:"
+        "89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef89abcdef"
+    ),
+    extensions_json: str = '{"project":"demo","unicode":"Å"}',
+) -> ForwardCertificate:
+    """Build one small, fully populated forward certificate.
+
+    Parameters
+    ----------
+    execution_id : str, optional
+        Stable execution identifier. Default ``"run-001"``.
+    started_at_utc : str, optional
+        Absolute UTC start time. Default ``"2026-07-21T12:00:00Z"``.
+    model_version : str, optional
+        Semantic version of the test model. Default ``"1.0.0"``.
+    environment_checksum : str, optional
+        Canonical environment checksum used by the execution manifest.
+    extensions_json : str, optional
+        Canonical JSON object retained in the certificate extensions.
+
+    Returns
+    -------
+    certificate : ForwardCertificate
+        Validated certificate with representative evidence, derivative,
+        dependency, sensitivity, information, and policy records.
+
+    Notes
+    -----
+    The values are deterministic and intentionally cover every persisted
+    certification carrier used by the JSON and HDF5 storage tests.
+    """
+    convention: Any
+    predicate: Any
+    model: Any
+    manifest: Any
+    artifact: Any
+    transformation: Any
+    attestation: Any
+    evidence: Any
+    claim: Any
+    domain: Any
+    derivatives: Any
+    dependencies: Any
+    sensitivities: Any
+    information: Any
+    policy: Any
+    convention = make_convention_ref(
+        "org.diffpes.convention.energy.fermi_referenced_ev",
+        "1.0.0",
+    )
+    predicate = make_domain_predicate(
+        "org.diffpes.domain.photon_energy.positive",
+        "photon_energy_ev > 0",
+        units="eV",
+    )
+    model = make_forward_model_spec(
+        model_id="org.diffpes.model.arpes.test",
+        model_version=model_version,
+        observable_id="org.diffpes.observable.arpes.intensity",
+        implementation_ref="tests.forward",
+        assumptions=("dipole_approximation",),
+        conventions=(convention,),
+        domain=(predicate,),
+        differentiable_paths=("params.sigma", "params.temperature"),
+    )
+    manifest = make_execution_manifest(
+        execution_id=execution_id,
+        model_ref=f"{model.model_id}@{model.model_version}",
+        schema_version="1.0.0",
+        package_version="2026.06.02",
+        source_checksum=(
+            "sha256:1:source:"
+            "0123456701234567012345670123456701234567012345670123456701234567"
+        ),
+        environment_checksum=environment_checksum,
+        backend="cpu",
+        precision_policy="float64",
+        deterministic=True,
+        started_at_utc=started_at_utc,
+    )
+    artifact = make_artifact_ref(
+        artifact_id="bands",
+        media_type="application/x-vasp-eigenval",
+        byte_checksum=(
+            "sha256:1:artifact-bytes:"
+            "1020304010203040102030401020304010203040102030401020304010203040"
+        ),
+        content_checksum=(
+            "sha256:1:normalized-content:"
+            "2030405020304050203040502030405020304050203040502030405020304050"
+        ),
+        semantic_checksum=(
+            "sha256:1:semantic:"
+            "3040506030405060304050603040506030405060304050603040506030405060"
+        ),
+        locator="/private/data/EIGENVAL",
+        role="initial_state",
+    )
+    transformation = make_transformation_record(
+        transformation_id="org.diffpes.transform.amplitude.intensity",
+        transformation_version="1.0.0",
+        parent_ids=("amplitude",),
+        output_ids=("intensity",),
+        preserves=("energy_reference",),
+        destroys=("overall_phase",),
+        invalidates_claims=("claim.phase",),
+        parameters_checksum=(
+            "sha256:1:parameters:"
+            "4050607040506070405060704050607040506070405060704050607040506070"
+        ),
+    )
+    attestation = make_human_attestation_ref(
+        attestation_id="attestation.reference-review",
+        reviewer_ref="reviewer.example",
+        scope_ids=("reference-spectrum",),
+        statement="Reviewed the named evidence lineage.",
+        recorded_at_utc="2026-07-24T12:00:00Z",
+    )
+    evidence = make_evidence_ref(
+        evidence_id="reference-spectrum",
+        method_id="org.diffpes.method.reference",
+        source_type="analytic_reference",
+        measured=jnp.array([1.0, 2.0]),
+        reference=jnp.array([1.0, 2.0]),
+        residual=jnp.zeros(2),
+        tolerance=jnp.full(2, 1e-8),
+        lineage=make_evidence_lineage(
+            implementation_refs=("reference.impl",),
+            generator_refs=("reference.generator",),
+            artifact_refs=("bands",),
+            derivation_refs=("reference.derivation",),
+            relationship_ids=(
+                "independent-derivation:reference.derivation",
+                "resolves-node:reference.impl",
+                "resolves-node:reference.generator",
+                "resolves-node:reference.derivation",
+            ),
+        ),
+        human_attestation_refs=(attestation.attestation_id,),
+    )
+    claim = make_certification_claim(
+        claim_id="claim.output.finite",
+        subject_id=model.observable_id,
+        predicate_id="output.finite",
+        evidence_ids=(evidence.evidence_id,),
+        measured=jnp.zeros(1),
+        reference=jnp.zeros(1),
+        residual=jnp.zeros(1),
+        tolerance=jnp.zeros(1),
+        passed=True,
+        checked=True,
+        in_domain=True,
+        margin=0.5,
+        severity_code=1,
+    )
+    domain = make_domain_result(
+        predicate_id=predicate.predicate_id,
+        measured=21.2,
+        reference=20.0,
+        residual=1.2,
+        tolerance=20.0,
+        margin=18.8,
+        passed=True,
+        checked=True,
+        in_domain=True,
+        severity_code=1,
+    )
+    derivatives = make_derivative_evidence(
+        input_paths=("params.sigma", "params.temperature"),
+        output_projection_ids=("total_intensity",),
+        method="jax.linearize+jvp+vjp+central_fd",
+        scales=jnp.array([0.05, 30.0]),
+        jvp_probes=jnp.array([[1.0], [0.5]]),
+        vjp_probes=jnp.array([[1.0, 0.5], [0.2, 0.1]]),
+        reference_derivatives=jnp.array([[1.0], [0.5]]),
+        derivative_residuals=jnp.zeros((2, 1)),
+        singular_values=jnp.array([2.0, 0.25]),
+        effective_rank=2,
+        condition_estimate=8.0,
+        finite=True,
+        fd_correct=True,
+    )
+    dependencies = make_dependency_map(
+        model_id=model.model_id,
+        input_paths=("params.sigma", "params.temperature"),
+        output_paths=("spectrum.intensity",),
+        structural=jnp.array([[True, True]]),
+        traced=jnp.array([[True, True]]),
+    )
+    sensitivities = make_sensitivity_map(
+        input_paths=("params.sigma", "params.temperature"),
+        output_projection_ids=("total_intensity",),
+        scales=jnp.array([0.05, 30.0]),
+        sensitivities=jnp.array([[1.0, 0.5]]),
+        threshold=1e-12,
+        active=jnp.array([[True, True]]),
+    )
+    information = make_information_spectrum(
+        input_paths=("params.sigma", "params.temperature"),
+        singular_values=jnp.array([2.0, 0.25]),
+        right_singular_vectors=jnp.eye(2),
+        effective_rank=2,
+        condition_estimate=8.0,
+        threshold=1e-10,
+    )
+    policy = make_policy_report(
+        policy_id="org.diffpes.policy.research.v1",
+        level_ids=(
+            "identified",
+            "validated",
+            "differentiable",
+            "verified",
+            "benchmarked",
+            "reproducible",
+        ),
+        required_claim_ids=(claim.claim_id,),
+        claim_passed=jnp.array([True]),
+        claim_checked=jnp.array([True]),
+        claim_in_domain=jnp.array([True]),
+        achieved=jnp.array([True, True, True, True, False, False]),
+    )
+    certificate: ForwardCertificate = make_forward_certificate(
+        manifest=manifest,
+        model=model,
+        artifacts=(artifact,),
+        transformations=(transformation,),
+        evidence=(evidence,),
+        attestations=(attestation,),
+        claims=(claim,),
+        domains=(domain,),
+        derivatives=derivatives,
+        dependencies=dependencies,
+        sensitivities=sensitivities,
+        information=information,
+        policy_report=policy,
+        policy_id=policy.policy_id,
+        certificate_checksum=(
+            "sha256:1:certificate:"
+            "5060708050607080506070805060708050607080506070805060708050607080"
+        ),
+        extensions_json=extensions_json,
+    )
+    return certificate
 
 
 @jaxtyped(typechecker=beartype)

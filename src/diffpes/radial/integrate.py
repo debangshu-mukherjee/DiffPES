@@ -36,15 +36,17 @@ from beartype.typing import List, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     BOHR_TO_ANGSTROM,
+)
+from diffpes.types import (
     FinalStateSpec,
     RadialQuadratureSpec,
     RadialSpec,
 )
 
 from .bessel import spherical_bessel_jl
-from .coulomb import final_state_radial
+from .coulomb_numerov import final_state_radial
 from .wavefunctions import evaluate_radial
 
 

@@ -3,8 +3,8 @@ Testing & Validation
 
 This section publishes diffpes's test suite as a validation reference: what
 the library guarantees, where each guarantee is checked, and how the check is
-implemented. The pages mirror ``tests/test_diffpes`` by subpackage so the
-validation surface lines up with the public API surface.
+implemented. The pages mirror ``tests/test_diffpes`` by public module and
+subpackage. Thus, the validation surface lines up with the public API surface.
 
 How to Read
 -----------
@@ -29,9 +29,12 @@ Coverage Map
 .. toctree::
    :maxdepth: 1
 
-   inout
    certify
+   constants
+   contracts
+   inout
    maths
+   matrixel
    radial
    simul
    tightb

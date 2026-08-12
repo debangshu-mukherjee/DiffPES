@@ -1980,22 +1980,29 @@ class TestRepositoryArchitecture(chex.TestCase):
                     violations.append(f"{path}:{node.lineno}: missing match")
         self.assertEqual(violations, [])
 
-    def test_declarative_constants_are_types_owned(self) -> None:
-        """Keep declarative constants under ``diffpes.types``.
+    def test_declarative_constants_are_centrally_owned(self) -> None:
+        """Keep declarative constants under ``diffpes.constants``.
 
-        The test confirms non-types modules contain only approved generated or
-        runtime state in addition to their public export lists.
+        The test confirms other modules contain only approved generated data,
+        runtime state, package metadata, type aliases, and public export lists.
 
         Notes
         -----
         The test parses module-level assignments. It compares them with the
-        narrow allowlist for version, registry, and generated data.
+        narrow allowlist for version, registry, generated data, and aliases.
         """
         allowed: Dict[str, set[str]] = {
             "__init__.py": {"__version__"},
             "inout/hdf5.py": {"_PYTREE_REGISTRY"},
-            "maths/gaunt.py": {"GAUNT_TABLE"},
-            "utils/math.py": {"_W_POLY"},
+            "types/aliases.py": {
+                "NonJaxNumber",
+                "ScalarBool",
+                "ScalarComplex",
+                "ScalarFloat",
+                "ScalarInteger",
+                "ScalarNumeric",
+            },
+            "types/context.py": {"DosType", "ProjectionType"},
         }
         violations: List[str] = []
         path: Path
@@ -2003,7 +2010,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         node: ast.stmt
         name: str
         for path, module in self._production_modules():
-            if path.parent.name == "types":
+            if "constants" in path.parts:
                 continue
             relative_path: str = path.as_posix().split("/src/diffpes/", 1)[1]
             for node in module.body:
@@ -2024,6 +2031,114 @@ class TestRepositoryArchitecture(chex.TestCase):
                     ):
                         continue
                     violations.append(f"{path}:{node.lineno}:{name}")
+        self.assertEqual(violations, [])
+
+    def test_production_modules_follow_the_source_line_limit(self) -> None:
+        """Limit each production implementation file to 1000 lines.
+
+        The test accepts one function that starts before the limit and ends
+        after it. Only the required literal export list may follow that
+        function.
+
+        Notes
+        -----
+        Exclude package initializers because their public listings cannot
+        split. Report every other oversized file that lacks the narrow
+        single-function exception.
+        """
+        line_limit: int = 1000
+        violations: List[str] = []
+        path: Path
+        module: ast.Module
+        for path, module in self._production_modules():
+            if path.name == "__init__.py":
+                continue
+            line_count: int = len(
+                path.read_text(encoding="utf-8").splitlines()
+            )
+            if line_count <= line_limit:
+                continue
+            crossing_functions: List[
+                ast.FunctionDef | ast.AsyncFunctionDef
+            ] = [
+                node
+                for node in module.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and min(
+                    [node.lineno]
+                    + [decorator.lineno for decorator in node.decorator_list]
+                )
+                <= line_limit
+                and node.end_lineno is not None
+                and node.end_lineno > line_limit
+            ]
+            if len(crossing_functions) != 1:
+                violations.append(
+                    f"{path}: lines={line_count}, "
+                    f"crossing_functions={len(crossing_functions)}"
+                )
+                continue
+            crossing_function: ast.FunctionDef | ast.AsyncFunctionDef = (
+                crossing_functions[0]
+            )
+            trailing_nodes: List[ast.stmt] = []
+            node: ast.stmt
+            for node in module.body:
+                if (
+                    crossing_function.end_lineno is not None
+                    and node.lineno <= crossing_function.end_lineno
+                ):
+                    continue
+                if (
+                    isinstance(node, ast.AnnAssign)
+                    and isinstance(node.target, ast.Name)
+                    and node.target.id == "__all__"
+                    and isinstance(node.value, ast.List)
+                ):
+                    continue
+                trailing_nodes.append(node)
+            if trailing_nodes:
+                locations: List[str] = [
+                    f"{type(node).__name__}:{node.lineno}"
+                    for node in trailing_nodes
+                ]
+                violations.append(
+                    f"{path}: lines={line_count}, trailing={locations}"
+                )
+        self.assertEqual(violations, [])
+
+    def test_source_modules_have_exact_mirrored_test_modules(self) -> None:
+        """Mirror every source module with its literal test-module name.
+
+        The test preserves leading underscores when it prefixes a source
+        filename with ``test_``. Package initializers map to the matching test
+        package initializer.
+
+        Notes
+        -----
+        Walk the complete source tree without importing it. Resolve each path
+        under ``tests/test_diffpes`` and report every missing mirror.
+        """
+        repository_root: Path = Path(__file__).resolve().parents[1]
+        source_root: Path = repository_root / "src/diffpes"
+        tests_root: Path = repository_root / "tests/test_diffpes"
+        violations: List[str] = []
+        source_path: Path
+        for source_path in sorted(source_root.rglob("*.py")):
+            relative_path: Path = source_path.relative_to(source_root)
+            if len(relative_path.parts) == 1:
+                test_parent: Path = tests_root
+            else:
+                test_parent = tests_root / f"test_{relative_path.parts[0]}"
+                test_parent = test_parent.joinpath(*relative_path.parts[1:-1])
+            test_name: str = (
+                "__init__.py"
+                if source_path.name == "__init__.py"
+                else f"test_{source_path.name}"
+            )
+            test_path: Path = test_parent / test_name
+            if not test_path.is_file():
+                violations.append(f"{relative_path} -> {test_path}")
         self.assertEqual(violations, [])
 
     def test_type_aliases_are_types_owned(self) -> None:
@@ -2688,17 +2803,28 @@ class TestRepositoryArchitecture(chex.TestCase):
         The test compares filenames and summaries with Sphinx module roles. It
         parses descriptions from each production package docstring.
         """
+        source_root: Path = Path(__file__).resolve().parents[1] / "src/diffpes"
         violations: List[str] = []
         path: Path
         module: ast.Module
         for path, module in self._production_modules():
             if path.name != "__init__.py":
                 continue
-            actual_modules: set[str] = {
-                sibling.stem
+            module_paths: Dict[str, Path] = {
+                sibling.stem: sibling
                 for sibling in path.parent.glob("*.py")
                 if sibling.name != "__init__.py"
             }
+            if path.parent == source_root:
+                module_paths.update(
+                    {
+                        sibling.name: sibling / "__init__.py"
+                        for sibling in path.parent.iterdir()
+                        if sibling.is_dir()
+                        and (sibling / "__init__.py").is_file()
+                    }
+                )
+            actual_modules: set[str] = set(module_paths)
             module_docstring: str = (
                 ast.get_docstring(module, clean=False) or ""
             )
@@ -2717,18 +2843,17 @@ class TestRepositoryArchitecture(chex.TestCase):
                     f"{sorted(actual_modules - listed_modules)} "
                     f"stale={sorted(listed_modules - actual_modules)}"
                 )
+            module_name: str
             sibling: Path
-            for sibling in path.parent.glob("*.py"):
-                if sibling.name == "__init__.py":
-                    continue
+            for module_name, sibling in sorted(module_paths.items()):
                 sibling_module: ast.Module = ast.parse(sibling.read_text())
                 sibling_docstring: str = (
                     ast.get_docstring(sibling_module, clean=False) or ""
                 )
                 sibling_summary: str = sibling_docstring.splitlines()[0]
-                if listed_descriptions.get(sibling.stem) != sibling_summary:
+                if listed_descriptions.get(module_name) != sibling_summary:
                     violations.append(
-                        f"{path}: submodule summary mismatch: {sibling.stem}"
+                        f"{path}: submodule summary mismatch: {module_name}"
                     )
         self.assertEqual(violations, [])
 

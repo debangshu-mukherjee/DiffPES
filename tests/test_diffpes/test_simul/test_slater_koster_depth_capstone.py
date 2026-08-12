@@ -18,13 +18,15 @@ import pytest
 from beartype.typing import Tuple
 from jaxtyping import Array, Bool, Complex128, Float64
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     assemble_orbital_transition_channels,
     band_group_weight_sensitivity,
-    contract_experiment_polarization,
     matrix_element_intensity,
-    polarization_from_angles,
     project_band_channels,
+)
+from diffpes.simul import (
+    contract_experiment_polarization,
+    polarization_from_angles,
 )
 from diffpes.tightb import (
     build_sk_model,

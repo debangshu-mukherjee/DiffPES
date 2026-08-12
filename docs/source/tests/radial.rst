@@ -23,7 +23,22 @@ Validation and regression tests for :mod:`diffpes.radial`.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: tests.test_diffpes.test_radial.test_coulomb
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb_asymptotics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb_functions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb_numerov
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_radial.test_coulomb_ode
    :members:
    :undoc-members:
    :show-inheritance:

@@ -67,14 +67,12 @@ Routine Listings
     Construct a Wigner D matrix for an active z--y--z rotation.
 :func:`wigner_small_d`
     Construct a Wigner small-d matrix from its finite factorial sum.
-:obj:`GAUNT_TABLE`
-    Module-level precomputed Gaunt coefficient table for l_max=4.
 
 Notes
 -----
-All functions support JAX transformations and automatic differentiation. Pure
-Python computes the Gaunt table once during import. The module stores the
-table as a JAX array for constant-time lookup during traced computation.
+All functions support JAX transformations and automatic differentiation. The
+subpackage imports the frozen Gaunt table from :mod:`diffpes.constants` for
+constant-time lookup during traced computation.
 """
 
 from .dipole import (
@@ -86,7 +84,7 @@ from .dipole import (
     polarization_complex_to_cart,
     polarization_real_to_cart,
 )
-from .gaunt import GAUNT_TABLE, build_gaunt_table, gaunt_lookup
+from .gaunt import build_gaunt_table, gaunt_lookup
 from .rotations import (
     bond_angles,
     real_harmonic_unitary,
@@ -132,5 +130,4 @@ __all__: list[str] = [
     "safe_sqrt",
     "wigner_d",
     "wigner_small_d",
-    "GAUNT_TABLE",
 ]

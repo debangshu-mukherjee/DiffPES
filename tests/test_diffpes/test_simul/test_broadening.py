@@ -17,12 +17,14 @@ from beartype.typing import Any, Callable, List, Tuple
 from jaxtyping import Array, Float64, Int64
 from scipy import stats
 
+from diffpes.constants import (
+    KB_EV_PER_K,
+)
 from diffpes.simul import (
     fermi_dirac,
     gaussian,
     voigt,
 )
-from diffpes.types import KB_EV_PER_K
 from tests._assertions import assert_rejects
 from tests._gradients import assert_grad_matches_fd
 

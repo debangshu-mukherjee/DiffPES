@@ -7,20 +7,47 @@ simulations with JAX automatic differentiation and GPU acceleration.
 The same differentiable physics maps an electronic structure to ARPES
 spectra and supports inverse recovery of band-structure parameters.
 The package provides coherent matrix-element and intrinsic spectral
-primitives.
+primitives through separate top-level modules.
+
+The following list describes the top-level modules:
+
+- :mod:`certify`
+    Certify differentiable DiffPES forward-model executions.
+- :mod:`constants`
+    Expose the declarative constants of diffpes.
+- :mod:`inout`
+    Parse VASP files for ARPES simulation input.
+- :mod:`maths`
+    Compute angular matrix elements for dipole photoemission.
+- :mod:`matrixel`
+    Assemble coherent orbital and band photoemission matrix elements.
+- :mod:`radial`
+    Provide differentiable radial primitives for ARPES matrix elements.
+- :mod:`simul`
+    Provide differentiable ARPES simulation primitives.
+- :mod:`tightb`
+    Provide native tight-binding tools and ARPES-side adapters.
+- :mod:`types`
+    Define types and factory functions for diffpes.
+- :mod:`utils`
+    Provide utility functions for ARPES simulations.
 
 Routine Listings
 ----------------
+:mod:`certify`
+    Certify differentiable DiffPES forward-model executions.
+:mod:`constants`
+    Expose the declarative constants of diffpes.
 :mod:`inout`
     Parse VASP files for ARPES simulation input.
-:mod:`certify`
-    JAX-native scientific assurance for differentiable forward models.
 :mod:`maths`
     Compute angular matrix elements for dipole photoemission.
+:mod:`matrixel`
+    Assemble coherent orbital and band photoemission matrix elements.
 :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 :mod:`simul`
-    Provide coherent matrix-element and spectral simulation primitives.
+    Provide differentiable ARPES simulation primitives.
 :mod:`tightb`
     Provide native tight-binding tools and ARPES-side adapters.
 :mod:`types`
@@ -65,8 +92,10 @@ jax.config.update("jax_enable_x64", True)
 
 from . import (  # noqa: E402
     certify,
+    constants,
     inout,
     maths,
+    matrixel,
     radial,
     simul,
     tightb,
@@ -78,8 +107,10 @@ __version__: str = version("diffpes")
 
 __all__: list[str] = [
     "certify",
+    "constants",
     "inout",
     "maths",
+    "matrixel",
     "radial",
     "simul",
     "tightb",

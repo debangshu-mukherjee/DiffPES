@@ -25,13 +25,14 @@ defined by the incidence angles.
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
-from .aliases import ScalarFloat
+from diffpes.constants import (
+    SLIT_ORIENTATIONS,
+    TRANSVERSALITY_ATOL,
+)
 
-_SLIT_ORIENTATIONS: Tuple[str, ...] = ("H", "V")
-_TRANSVERSALITY_ATOL: float = 1.0e-10
+from .aliases import ScalarFloat
 
 
 class ExperimentGeometry(eqx.Module):
@@ -198,7 +199,7 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
     Inversion code must rebuild polarization from a transverse basis when it
     changes incidence angles.
     """
-    if slit not in _SLIT_ORIENTATIONS:
+    if slit not in SLIT_ORIENTATIONS:
         message: str = "slit must be 'H' or 'V'"
         raise ValueError(message)
 
@@ -275,7 +276,7 @@ def make_experiment_geometry(  # noqa: DOC503, PLR0913, PLR0917
     )
     normalized_polarization = eqx.error_if(
         normalized_polarization,
-        jnp.abs(longitudinal_amplitude) > _TRANSVERSALITY_ATOL,
+        jnp.abs(longitudinal_amplitude) > TRANSVERSALITY_ATOL,
         "polarization must be transverse to the photon incidence direction",
     )
     azimuth = eqx.error_if(

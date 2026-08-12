@@ -20,3 +20,34 @@ Tight-binding and Wannier90 files
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: diffpes.inout.wannier90
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.inout.wannier90_parser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Certificate persistence
+-----------------------
+
+.. automodule:: diffpes.inout.certificate_decoding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.inout.certificate_storage
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Projected-band plotting
+-----------------------
+
+.. automodule:: diffpes.inout.band_plotting
+   :members:
+   :undoc-members:
+   :show-inheritance:

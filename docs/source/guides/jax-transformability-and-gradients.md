@@ -33,7 +33,7 @@ Use `pack_matrixel_params` to obtain a real optimizer vector:
 
 ```python
 theta, tree_definition, packing_metadata = (
-    diffpes.simul.pack_matrixel_params(
+    diffpes.matrixel.pack_matrixel_params(
         radial,
         me_params,
         experiment.mean_free_path_ang,
@@ -42,7 +42,7 @@ theta, tree_definition, packing_metadata = (
 
 def rebuild(candidate):
     radial_i, params_i, mean_free_path_i = (
-        diffpes.simul.unpack_matrixel_params(
+        diffpes.matrixel.unpack_matrixel_params(
             candidate,
             tree_definition,
             packing_metadata,
@@ -66,10 +66,10 @@ Normalized Slater contractions also do not identify a common coefficient
 scale for each shell. Obtain the corresponding packed unit tangents with:
 
 ```python
-phase_null = diffpes.simul.matrix_element_phase_gauge_direction(
+phase_null = diffpes.matrixel.matrix_element_phase_gauge_direction(
     radial, me_params, experiment.mean_free_path_ang
 )
-scale_nulls = diffpes.simul.radial_coefficient_scale_gauge_directions(
+scale_nulls = diffpes.matrixel.radial_coefficient_scale_gauge_directions(
     radial, me_params, experiment.mean_free_path_ang
 )
 ```
@@ -87,7 +87,7 @@ $\sum_s |M_s|^2$, sums each complete group, and computes
 `dw/dtheta` with `jax.jacfwd`.
 
 ```python
-weights, dweights = diffpes.simul.band_group_weight_sensitivity(
+weights, dweights = diffpes.matrixel.band_group_weight_sensitivity(
     theta,
     rebuild,
     bands,

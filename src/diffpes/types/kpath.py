@@ -28,9 +28,11 @@ from beartype.typing import List, Optional, Tuple, Union
 from jax.core import Tracer
 from jaxtyping import Array, Float64, Int32, jaxtyped
 
-from .aliases import ScalarFloat
+from diffpes.constants import (
+    KPATH_MODES,
+)
 
-_KPATH_MODES: Tuple[str, ...] = ("Automatic", "Line-mode", "Explicit")
+from .aliases import ScalarFloat
 
 
 class KPathInfo(eqx.Module):
@@ -231,7 +233,7 @@ def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
 
     2. **Apply static validation**::
 
-           mode not in _KPATH_MODES
+           mode not in KPATH_MODES
 
        This predicate rejects invalid structure before JAX traces the
        numerical checks.
@@ -307,8 +309,8 @@ def make_kpath_info(  # noqa: DOC503, PLR0913, PLR0917
     --------
     KPathInfo : The PyTree class constructed by this factory.
     """
-    if mode not in _KPATH_MODES:
-        msg: str = f"make_kpath_info: mode must be one of {_KPATH_MODES}"
+    if mode not in KPATH_MODES:
+        msg: str = f"make_kpath_info: mode must be one of {KPATH_MODES}"
         raise ValueError(msg)
     if mode == "Line-mode" and len(label_indices) < 1:
         msg: str = "make_kpath_info: at least one label index is required"

@@ -14,21 +14,16 @@ from beartype import beartype
 from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
-from .aliases import ScalarFloat
-
-_ACQUISITION_MODES: Tuple[str, ...] = ("poisson", "fixed_total")
-_BACKGROUND_MODES: Tuple[str, ...] = ("flat", "shirley", "smooth")
-_COORDINATE_DENSITY: str = "per_native_volume"
-_POST_COUNT_MODES: Tuple[str, ...] = ("none", "calibrated")
-_REGISTERED_DOMAIN_FRAME_IDS: Tuple[str, ...] = (
-    "org.diffpes.frame.sample_cartesian",
+from diffpes.constants import (
+    ACQUISITION_MODES,
+    BACKGROUND_MODES,
+    COORDINATE_DENSITY,
+    POST_COUNT_MODES,
+    REGISTERED_DOMAIN_FRAME_IDS,
+    SENSITIVITY_MODES,
 )
-_SENSITIVITY_MODES: Tuple[str, ...] = ("constant", "smooth")
 
-__all__: list[str] = [
-    "DetectorEffects",
-    "make_detector_effects",
-]
+from .aliases import ScalarFloat
 
 
 class DetectorEffects(eqx.Module):
@@ -167,7 +162,7 @@ def make_detector_effects(  # noqa: DOC503, PLR0912, PLR0913, PLR0915, PLR0917
     sensitivity_mode: str,
     post_count_mode: str = "none",
     post_count_kernel: Optional[Float64[Array, " K"]] = None,
-    coordinate_density: str = _COORDINATE_DENSITY,
+    coordinate_density: str = COORDINATE_DENSITY,
     acquisition_mode: str = "poisson",
     fixed_total_count: Optional[int] = None,
     domain_frame_ids: Tuple[str, ...],
@@ -270,11 +265,11 @@ def make_detector_effects(  # noqa: DOC503, PLR0912, PLR0913, PLR0915, PLR0917
     if exposure_arr.ndim != 0:
         raise ValueError("make_detector_effects: exposure must be scalar")
 
-    _require_mode(background_mode, _BACKGROUND_MODES, "background mode")
-    _require_mode(sensitivity_mode, _SENSITIVITY_MODES, "sensitivity mode")
-    _require_mode(post_count_mode, _POST_COUNT_MODES, "post-count mode")
-    _require_mode(acquisition_mode, _ACQUISITION_MODES, "acquisition mode")
-    if coordinate_density != _COORDINATE_DENSITY:
+    _require_mode(background_mode, BACKGROUND_MODES, "background mode")
+    _require_mode(sensitivity_mode, SENSITIVITY_MODES, "sensitivity mode")
+    _require_mode(post_count_mode, POST_COUNT_MODES, "post-count mode")
+    _require_mode(acquisition_mode, ACQUISITION_MODES, "acquisition mode")
+    if coordinate_density != COORDINATE_DENSITY:
         raise ValueError(
             "make_detector_effects: coordinate density must be "
             "per_native_volume"
@@ -319,7 +314,7 @@ def make_detector_effects(  # noqa: DOC503, PLR0912, PLR0913, PLR0915, PLR0917
             "disagree"
         )
     if any(
-        frame_id not in _REGISTERED_DOMAIN_FRAME_IDS
+        frame_id not in REGISTERED_DOMAIN_FRAME_IDS
         for frame_id in domain_frame_ids
     ):
         raise ValueError(
@@ -402,3 +397,9 @@ def make_detector_effects(  # noqa: DOC503, PLR0912, PLR0913, PLR0915, PLR0917
         domain_frame_ids=domain_frame_ids,
     )
     return effects
+
+
+__all__: list[str] = [
+    "DetectorEffects",
+    "make_detector_effects",
+]

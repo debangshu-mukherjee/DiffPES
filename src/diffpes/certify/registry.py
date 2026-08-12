@@ -1,4 +1,4 @@
-"""Register certified models and transformations deterministically.
+r"""Register certified models and transformations deterministically.
 
 Extended Summary
 ----------------
@@ -8,61 +8,53 @@ tuples and rejects duplicate identities. Callers receive frozen snapshots.
 Registration order therefore cannot alter lookup, listing, or the registry
 consistency checksum.
 
-Registry checksums are non-security bookkeeping values.  They identify an
+Registry checksums are non-security bookkeeping values. They identify an
 accidental record mismatch and never establish scientific validity or the
 identity of an author.
 
 Routine Listings
 ----------------
-:func:`register_model`
-    Register an exact model identity once.
+:func:`freeze_registry`
+    Prevent later registration and return the final immutable snapshot.
 :func:`get_model`
     Resolve an exact registered model.
-:func:`register_transformation`
-    Register an exact transformation contract once.
-:func:`register_handshake`
-    Register declarative requirements from one domain owner.
 :func:`get_transformation`
     Resolve an exact registered transformation contract.
+:func:`list_handshakes`
+    Return owner handshakes in deterministic identity order.
 :func:`list_models`
     Return model specifications in deterministic identity order.
 :func:`list_registered_models`
     Return an immutable deterministic snapshot including executors.
 :func:`list_transformations`
     Return transformation contracts in deterministic identity order.
-:func:`list_handshakes`
-    Return owner handshakes in deterministic identity order.
+:func:`register_handshake`
+    Register declarative requirements from one domain owner.
+:func:`register_model`
+    Register an exact model identity once.
+:func:`register_transformation`
+    Register an exact transformation contract once.
 :func:`registry_snapshot`
     Return one internally consistent immutable registry snapshot.
-:func:`freeze_registry`
-    Prevent later registration and return the final immutable snapshot.
-:func:`validate_registry`
-    Recompute registry structure and consistency checksums.
 :func:`validate_handshake`
     Validate one owner handshake against available records.
-:func:`validate_registry_manifest`
-    Compare the packaged registry manifest with live entries.
-:func:`render_model_card`
-    Render a model card directly from a model specification.
-:func:`packaged_model_card`
-    Read the packaged generated card for one model identity.
-:func:`registry_manifest`
-    Read the packaged registry manifest.
+:func:`validate_registry`
+    Recompute registry structure and consistency checksums.
 """
 
 from __future__ import annotations
 
-import json
 from functools import cache
-from importlib import resources
 
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, List, Tuple
+from beartype.typing import Any, Callable, List, Tuple
 from jaxtyping import jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     CERTIFICATION_IDENTIFIER_PATTERN,
     CERTIFICATION_SEMVER_PATTERN,
+)
+from diffpes.types import (
     CertificationRegistryState,
     ForwardModelSpec,
     HandshakeReport,
@@ -76,7 +68,6 @@ from diffpes.types import (
     make_handshake_report,
     make_registered_model,
     make_registered_transformation,
-    make_registration_handshake,
     make_registry_report,
     make_registry_snapshot,
 )
@@ -724,204 +715,6 @@ def validate_handshake(
     return report
 
 
-@jaxtyped(typechecker=beartype)
-def registry_manifest() -> Dict[str, Any]:
-    """Read the packaged registry manifest.
-
-    The manifest records generated model and transformation identities.
-
-    :see: :class:`~.test_registry.TestRegistryManifest`
-
-    Implementation Logic
-    --------------------
-    1. **Parse the package resource**::
-
-           decoded = json.loads(text)
-
-       The function rejects a root that is not a JSON object.
-
-    Returns
-    -------
-    manifest : Dict[str, Any]
-        Parsed manifest with generated model and transformation identities.
-
-    Raises
-    ------
-    ValueError
-        If the manifest root is not a JSON object.
-    """
-    text: str = (
-        resources.files("diffpes.certify")
-        .joinpath("_registry", "manifest.json")
-        .read_text(encoding="utf-8")
-    )
-    decoded: Any = json.loads(text)
-    if not isinstance(decoded, dict):
-        msg: str = "registry manifest root must be an object"
-        raise ValueError(msg)
-    return decoded
-
-
-@jaxtyped(typechecker=beartype)
-def render_model_card(spec: ForwardModelSpec) -> str:
-    r"""Render a model card directly from a model specification.
-
-    The generated Markdown contains no separately maintained scientific data.
-
-    :see: :class:`~.test_registry.TestRenderModelCard`
-
-    Implementation Logic
-    --------------------
-    1. **Render registry fields**::
-
-           card = f"# {spec.model_id}\\n\\nVersion: `{spec.model_version}`."
-
-       The complete output also lists assumptions, conventions, and domains.
-
-    Parameters
-    ----------
-    spec : ForwardModelSpec
-        Registered scientific model specification.
-
-    Returns
-    -------
-    card : str
-        Deterministic Markdown generated only from registry truth.
-    """
-    assumptions: str = "\n".join(
-        f"- The model uses `{item}`." for item in spec.assumptions
-    )
-    conventions: str = "\n".join(
-        f"- The model uses `{item.convention_id}@{item.version}`."
-        for item in spec.conventions
-    )
-    domains: str = "\n".join(
-        f"- `{item.predicate_id}` uses `{item.expression_id}` with "
-        f"`{item.severity}` severity."
-        for item in spec.domain
-    )
-    card: str = (
-        f"# {spec.model_id}\n\n"
-        f"Version: `{spec.model_version}`.\n\n"
-        f"Observable: `{spec.observable_id}`.\n\n"
-        f"Implementation: `{spec.implementation_ref}`.\n\n"
-        "## Assumptions\n\n"
-        f"{assumptions}\n\n"
-        "## Conventions\n\n"
-        f"{conventions}\n\n"
-        "## Domain\n\n"
-        f"{domains}\n"
-    )
-    return card
-
-
-@jaxtyped(typechecker=beartype)
-def packaged_model_card(model_id: str, model_version: str) -> str:
-    """Read the packaged generated card for one model identity.
-
-    The filename combines the permanent model ID with its semantic version.
-
-    :see: :class:`~.test_registry.TestPackagedModelCard`
-
-    Implementation Logic
-    --------------------
-    1. **Read the generated resource**::
-
-           filename = f"{model_id}@{model_version}.md"
-
-       The package resource contains the canonical generated Markdown view.
-
-    Parameters
-    ----------
-    model_id : str
-        Exact permanent model ID.
-    model_version : str
-        Exact semantic model version.
-
-    Returns
-    -------
-    card : str
-        Packaged Markdown model card.
-    """
-    filename: str = f"{model_id}@{model_version}.md"
-    card: str = (
-        resources.files("diffpes.certify")
-        .joinpath("_registry", "model-cards", filename)
-        .read_text(encoding="utf-8")
-    )
-    return card
-
-
-@jaxtyped(typechecker=beartype)
-def validate_registry_manifest() -> Tuple[str, ...]:
-    """Compare the packaged registry manifest with live entries.
-
-    The comparison detects missing entries and generated model-card drift.
-
-    :see: :class:`~.test_registry.TestValidateRegistryManifest`
-
-    Implementation Logic
-    --------------------
-    1. **Compare packaged entries**::
-
-           manifest = registry_manifest()
-
-       The function compares each manifest identity with the live registry.
-
-    Returns
-    -------
-    errors : Tuple[str, ...]
-        Sorted missing-entry and generated-card drift messages.
-    """
-    manifest: Dict[str, Any] = registry_manifest()
-    errors: List[str] = []
-    models: Dict[Tuple[str, str], ForwardModelSpec] = {
-        (item.model_id, item.model_version): item for item in list_models()
-    }
-    transformations: set[Tuple[str, str]] = {
-        (item.transformation_id, item.transformation_version)
-        for item in list_transformations()
-    }
-    handshakes: Dict[str, RegistrationHandshake] = {
-        item.owner_id: item for item in list_handshakes()
-    }
-    entry: Any
-    for entry in manifest.get("models", ()):
-        key: Tuple[str, str] = (entry["model_id"], entry["model_version"])
-        if key not in models:
-            errors.append(f"missing packaged model: {key[0]}@{key[1]}")
-            continue
-        generated: str = render_model_card(models[key])
-        packaged: str = packaged_model_card(*key)
-        if generated != packaged:
-            errors.append(f"model card drift: {key[0]}@{key[1]}")
-    for entry in manifest.get("transformations", ()):
-        key = (
-            entry["transformation_id"],
-            entry["transformation_version"],
-        )
-        if key not in transformations:
-            errors.append(
-                f"missing packaged transformation: {key[0]}@{key[1]}"
-            )
-    for entry in manifest.get("handshakes", ()):
-        owner_id: str = entry["owner_id"]
-        expected: RegistrationHandshake = make_registration_handshake(
-            owner_id=owner_id,
-            model_refs=tuple(entry["model_refs"]),
-            transformation_refs=tuple(entry["transformation_refs"]),
-            convention_refs=tuple(entry["convention_refs"]),
-            evidence_ids=tuple(entry["evidence_ids"]),
-        )
-        actual: RegistrationHandshake | None = handshakes.get(owner_id)
-        if actual is None:
-            errors.append(f"missing packaged handshake: {owner_id}")
-        elif actual != expected:
-            errors.append(f"packaged handshake drift: {owner_id}")
-    result: Tuple[str, ...] = tuple(sorted(errors))
-    return result
-
-
 def _registry_checksum(
     models: Tuple[RegisteredModel, ...],
     transformations: Tuple[RegisteredTransformation, ...],
@@ -1146,14 +939,10 @@ __all__: list[str] = [
     "list_models",
     "list_registered_models",
     "list_transformations",
-    "packaged_model_card",
     "register_handshake",
     "register_model",
     "register_transformation",
-    "registry_manifest",
     "registry_snapshot",
-    "render_model_card",
     "validate_handshake",
     "validate_registry",
-    "validate_registry_manifest",
 ]

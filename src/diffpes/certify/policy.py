@@ -22,7 +22,7 @@ from beartype import beartype
 from beartype.typing import Any, Dict, Iterable, List, Tuple
 from jaxtyping import Array, Bool, Int32, jaxtyped
 
-from diffpes.types import (
+from diffpes.constants import (
     CERTIFICATION_INDEPENDENT_CLAIM_PREFIXES,
     CERTIFICATION_LEVEL_IDS,
     CERTIFICATION_LEVEL_PREFIXES,
@@ -30,6 +30,8 @@ from diffpes.types import (
     CERTIFICATION_POLICY_IDS,
     CERTIFICATION_POLICY_LEVEL_COUNT,
     CERTIFICATION_SHARED_RELATIONSHIPS,
+)
+from diffpes.types import (
     CertificationClaim,
     EvidenceLineage,
     EvidenceRef,

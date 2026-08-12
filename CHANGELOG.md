@@ -33,7 +33,7 @@ and the project uses calendar versioning.
   widths.
 - The obsolete coherent prototype is removed:
   `diffpes.simul.simulate_tb_radial` and its `simul.forward` module. Use the
-  matrix-element channel and contraction APIs in `diffpes.simul.matrixel`.
+  matrix-element channel and contraction APIs in `diffpes.matrixel`.
 - The heuristic polarization symbols
   `diffpes.simul.dipole_matrix_elements`,
   `diffpes.types.ORBITAL_DIRS_NORMALIZED`, and the private
@@ -70,6 +70,29 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Source modules now follow the 1000-line limit through focused physical and
+  structural splits. Dedicated modules now own certification registries,
+  certificate storage, Wannier parsing, Coulomb solvers, detector stages,
+  spectral methods, slab assembly, and carrier families. These structural
+  splits do not change public subpackage imports or numerical behavior. The
+  old deep module paths have no compatibility shims.
+- **Breaking:** Declarative constants move from `diffpes.types` and carrier
+  modules to the top-level `diffpes.constants` package. The package groups
+  shared physics and parser values, certification schema values, carrier
+  validation values, Wannier format values, and frozen numerical tables.
+  Consumers import every public
+  constant through `diffpes.constants`; the old types-owned paths are removed
+  without compatibility exports. Constant values, dtypes, and ordering do not
+  change. `GAUNT_TABLE` moves from `diffpes.maths`, and the private Weideman
+  coefficient array becomes the public
+  `diffpes.constants.FADDEEVA_WEIDEMAN_COEFFICIENTS` constant.
+- **Breaking:** The coherent matrix-element API moves from
+  `diffpes.simul.matrixel` to the top-level `diffpes.matrixel` subpackage. The
+  old module and `diffpes.simul` re-exports are removed. All 14 owned public
+  symbols move without a compatibility shim. The new subpackage separates
+  parameter and transition primitives into two implementation modules.
+  `contract_experiment_polarization` remains in `diffpes.simul` as the
+  experiment-frame seam. The equations and numerical behavior do not change.
 - Every project-tracking name in the repository moved to domain terms. The
   reference-data artifacts are now `kz_quadrature_convergence.json`,
   `kz_double_counting_materiality.json`, and `kz_scan_scalability.json` with
@@ -190,14 +213,14 @@ and the project uses calendar versioning.
 - `CrystalGeometry` now follows the field contract. It uses
   `lattice`, `reciprocal`, `positions`, and static per-atom `species`.
   `read_poscar` expands VASP species counts at the parser boundary.
-- The package merges `orbital_constants` and `vasp_constants` into
-  `diffpes.types.constants`. The package removes both old modules without
-  compatibility shims. Cross-subpackage constants are now public and omit
-  their leading underscores. Examples include `_EPS` to `EPS` and
-  `_N_ORBITALS` to `N_ORBITALS`. Another example is `_PHASE_LOSS_MESSAGE` to
-  `PHASE_LOSS_MESSAGE`. `diffpes.types` re-exports these constants. Only
-  module-internal intermediate values remain private. The constants module
-  now imports JAX because orbital direction tables are device arrays.
+- The package removes `orbital_constants` and `vasp_constants` without
+  compatibility shims. Their immutable values now live in
+  `diffpes.constants`. Cross-subpackage constants are public and omit their
+  leading underscores. Examples include `_EPS` to `EPS` and `_N_ORBITALS` to
+  `N_ORBITALS`. Another example is `_PHASE_LOSS_MESSAGE` to
+  `PHASE_LOSS_MESSAGE`. `diffpes.types` does not re-export these constants.
+  Only module-internal intermediate values remain private. The constants
+  package imports JAX because orbital direction tables are device arrays.
 - The project adopts the generalized import rule from CONTRIBUTING.
   Cross-subpackage imports use the source subpackage's public surface.
   They do not import a file inside that subpackage. The update fixes the deep
@@ -212,8 +235,8 @@ and the project uses calendar versioning.
   requires keywords.
   Use `equinox.tree_at` for immutable updates instead of
   `NamedTuple._replace`.
-- `diffpes.types` now owns the declarative constants, orbital conventions,
-  parser schemas, and lookup tables.
+- `diffpes.constants` now owns the declarative constants, orbital conventions,
+  parser schemas, and immutable lookup tables.
 - `diffpes.types` now owns the workflow context and its projection and DOS
   aliases. The context PyTree now uses an Equinox module.
 - Repository links, documentation, and release surfaces now use lowercase
@@ -245,14 +268,14 @@ and the project uses calendar versioning.
   integration remains node-local and forbids a complete all-node band,
   source, kinematics, or intensity carrier.
 - The authenticated kz-scan scalability record
-  `e7ff6ea629d09fd41ca6ce8fd1a43fd4723dc39bba0c3da979898d83504f34b9`
+  `819b24a88e654a7523db526a50596411c6e1749f1b9dce1388312b044e6f8a07`
   compiles the exact `256 x 256 x 400`, 20-band, 2048-node target. It records
   1,074,870,048-byte forward and 2,567,802,048-byte full-H-gradient live
   allocations. It also records zero forbidden all-node carriers,
   rematerialization equality, and flat photon-scan auxiliary allocation. The
   source-handshake refresh rebinds the spectral and detector records as
-  `2043fbf8f04de9c4f2c835b40d4381ddf3bef294510a850a477469684b012576`
-  and `ca642cd6d4b1276937508f404c46487c505b1f1888e726747f6b21d345d3d0b4`.
+  `73e14ff43beabbbbad71d7dbe1ee1ba8defa1d5f9e16fb24febf115b40daa50f`
+  and `c03efce3550f22a16161f8ad236e38d94d26c0edb8e01eb2d3997f534c408cde`.
   All registered budgets and companions remain green.
 - The certification registry adds the `org.diffpes.kz` owner and immutable
   wrapped-integration/photon-energy-scan transformations. Registration

@@ -47,7 +47,12 @@ from beartype import beartype
 from beartype.typing import List, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 
-from diffpes.types import L_MAX, ScalarFloat
+from diffpes.constants import (
+    L_MAX,
+)
+from diffpes.types import (
+    ScalarFloat,
+)
 
 from .safe import safe_arccos, safe_arctan2, safe_divide, safe_norm
 

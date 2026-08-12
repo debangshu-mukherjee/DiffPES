@@ -10,6 +10,9 @@ import pytest
 from beartype.typing import Any
 from matplotlib import pyplot as plt
 
+from diffpes.constants import (
+    ORBITAL_INDEX,
+)
 from diffpes.inout import (
     load_from_h5,
     plot_band_scatter_preset,
@@ -22,7 +25,6 @@ from diffpes.tightb import (
     orbital_weights,
 )
 from diffpes.types import (
-    ORBITAL_INDEX,
     CrystalGeometry,
     DiagonalizedBands,
     OrbitalBasis,

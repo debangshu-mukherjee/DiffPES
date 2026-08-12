@@ -25,30 +25,6 @@ Routine Listings
     Create a line cursor from one UTF-8 text file.
 :func:`make_wannier_operator_data`
     Create validated Wannier operator metadata.
-:obj:`HOPPING_LIST_COMPLEX_FIELDS`
-    Number of fields in a complex Cartesian hopping-list row.
-:obj:`HOPPING_LIST_REAL_FIELDS`
-    Number of fields in a real Cartesian hopping-list row.
-:obj:`WANNIER_CELL_FIELDS`
-    Number of integer components in a Wannier translation.
-:obj:`WANNIER_CENTRE_CONSISTENCY_TOLERANCE`
-    Cartesian tolerance for centres assigned to one atom.
-:obj:`WANNIER_DEGENERACIES_PER_LINE`
-    Maximum degeneracy weights on one Wannier90 line.
-:obj:`WANNIER_HERMITICITY_TOLERANCE`
-    Absolute tolerance for real-space Hermitian closure.
-:obj:`WANNIER_HR_HAMILTONIAN_FIELDS`
-    Number of fields in a Wannier90 HR Hamiltonian row.
-:obj:`WANNIER_HR_SUFFIX`
-    Required suffix for a Wannier90 HR file.
-:obj:`WANNIER_INTEGER_RECOVERY_TOLERANCE`
-    Fractional tolerance for recovering an exact translation.
-:obj:`WANNIER_TB_HAMILTONIAN_FIELDS`
-    Number of fields in a Wannier90 TB Hamiltonian row.
-:obj:`WANNIER_TB_POSITION_FIELDS`
-    Number of fields in a Wannier90 TB position row.
-:obj:`WANNIER_TB_SUFFIX`
-    Required suffix for a Wannier90 TB file.
 
 Notes
 -----
@@ -66,27 +42,12 @@ from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Complex128, Float64, Int64, jaxtyped
 from numpy.typing import NDArray
 
-HOPPING_LIST_COMPLEX_FIELDS: int = 7
-HOPPING_LIST_REAL_FIELDS: int = 6
-WANNIER_CELL_FIELDS: int = 3
-WANNIER_CENTRE_CONSISTENCY_TOLERANCE: float = 1e-10
-WANNIER_DEGENERACIES_PER_LINE: int = 15
-WANNIER_HERMITICITY_TOLERANCE: float = 1e-12
-WANNIER_HR_HAMILTONIAN_FIELDS: int = 7
-WANNIER_HR_SUFFIX: str = "_hr.dat"
-WANNIER_INTEGER_RECOVERY_TOLERANCE: float = 1e-10
-WANNIER_TB_HAMILTONIAN_FIELDS: int = 4
-WANNIER_TB_POSITION_FIELDS: int = 8
-WANNIER_TB_SUFFIX: str = "_tb.dat"
-
-_CELL_COMPONENTS: int = 3
-_POSITION_COMPONENTS: int = 3
-_CENTRE_NDIM: int = 2
-_POSITION_NDIM: int = 4
-_SOURCE_FORMATS: Tuple[str, ...] = ("hr", "tb")
-_SPIN_LAYOUTS: Tuple[str, ...] = (
-    "block_down_up",
-    "interleaved_up_down",
+from diffpes.constants import (
+    CARTESIAN_COMPONENTS,
+    WANNIER_CENTRE_NDIM,
+    WANNIER_POSITION_NDIM,
+    WANNIER_SOURCE_FORMATS,
+    WANNIER_SPIN_LAYOUTS,
 )
 
 
@@ -349,8 +310,8 @@ def _validate_wannier_operator_structure(  # noqa: PLR0912
         the static construction-time contract.
     """
     if (
-        centres_cart.ndim != _CENTRE_NDIM
-        or centres_cart.shape[1] != _POSITION_COMPONENTS
+        centres_cart.ndim != WANNIER_CENTRE_NDIM
+        or centres_cart.shape[1] != CARTESIAN_COMPONENTS
     ):
         message: str = "centres_cart must have shape (n_orb, 3)"
         raise ValueError(message)
@@ -365,7 +326,7 @@ def _validate_wannier_operator_structure(  # noqa: PLR0912
         raise ValueError(message)
     if any(
         type(cell) is not tuple
-        or len(cell) != _CELL_COMPONENTS
+        or len(cell) != CARTESIAN_COMPONENTS
         or any(type(component) is not int for component in cell)
         for cell in cells
     ):
@@ -377,12 +338,12 @@ def _validate_wannier_operator_structure(  # noqa: PLR0912
     if any(type(weight) is not int or weight <= 0 for weight in degeneracies):
         message = "degeneracies must contain positive integers"
         raise ValueError(message)
-    if spin_layout not in _SPIN_LAYOUTS:
+    if spin_layout not in WANNIER_SPIN_LAYOUTS:
         message = (
             "spin_layout must be 'block_down_up' or 'interleaved_up_down'"
         )
         raise ValueError(message)
-    if source_format not in _SOURCE_FORMATS:
+    if source_format not in WANNIER_SOURCE_FORMATS:
         message = "source_format must be 'hr' or 'tb'"
         raise ValueError(message)
     if source_format == "hr" and position_matrices is not None:
@@ -392,11 +353,11 @@ def _validate_wannier_operator_structure(  # noqa: PLR0912
         message = "tb operator data requires position_matrices"
         raise ValueError(message)
     if position_matrices is not None and (
-        position_matrices.ndim != _POSITION_NDIM
+        position_matrices.ndim != WANNIER_POSITION_NDIM
         or position_matrices.shape[0] != len(cells)
         or position_matrices.shape[1] != centres_cart.shape[0]
         or position_matrices.shape[2] != centres_cart.shape[0]
-        or position_matrices.shape[3] != _POSITION_COMPONENTS
+        or position_matrices.shape[3] != CARTESIAN_COMPONENTS
     ):
         message = (
             "position_matrices must have shape (len(cells), n_orb, n_orb, 3)"
@@ -705,16 +666,4 @@ __all__: list[str] = [
     "make_hopping_record",
     "make_text_line_cursor",
     "make_wannier_operator_data",
-    "HOPPING_LIST_COMPLEX_FIELDS",
-    "HOPPING_LIST_REAL_FIELDS",
-    "WANNIER_CELL_FIELDS",
-    "WANNIER_CENTRE_CONSISTENCY_TOLERANCE",
-    "WANNIER_DEGENERACIES_PER_LINE",
-    "WANNIER_HERMITICITY_TOLERANCE",
-    "WANNIER_HR_HAMILTONIAN_FIELDS",
-    "WANNIER_HR_SUFFIX",
-    "WANNIER_INTEGER_RECOVERY_TOLERANCE",
-    "WANNIER_TB_HAMILTONIAN_FIELDS",
-    "WANNIER_TB_POSITION_FIELDS",
-    "WANNIER_TB_SUFFIX",
 ]

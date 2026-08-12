@@ -40,12 +40,12 @@
   "device": "TFRT_CPU_0",
   "dtype_policy": "JAX x64",
   "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
-  "host_setup_seconds": 1.7087155820045155,
+  "host_setup_seconds": 1.592434509017039,
   "jax_version": "0.9.0.1",
   "literal_allocation": {
     "compilation_seconds": {
-      "reduced_scan": 0.6355279569979757,
-      "scalar_value_and_gradient": 0.6588105900009396
+      "reduced_scan": 0.5685017310024705,
+      "scalar_value_and_gradient": 0.663214522995986
     },
     "forbidden_k_e_b_shape_present": false,
     "forbidden_k_e_b_shapes": [],
@@ -53,7 +53,7 @@
       18
     ],
     "hlo_gzip": "channel_scan_hlo.txt.gz",
-    "hlo_gzip_sha256": "8048b292c6ae353d2dc41852c02d4da305025cec56d44ee273a37caa73933771",
+    "hlo_gzip_sha256": "9b1774ae198730edfb00d11cee72f4f63175a336bdcdf0e06fecf667494e7876",
     "jaxpr_gzip": "channel_scan_jaxpr.txt.gz",
     "jaxpr_gzip_sha256": "e28f0b92743cacb9d5ec85ca5dfd7264fd47c0eccf5eefe666884f671f46a019",
     "memory_analysis": {
@@ -104,7 +104,7 @@
   },
   "numpy_version": "2.4.2",
   "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 908025856,
+  "process_peak_rss_bytes_non_authoritative": 905871360,
   "requirements": [
     "matrix-element-forward-scaling",
     "matrix-element-compiled-graph-scaling",
@@ -112,65 +112,67 @@
   ],
   "schema": "diffpes.matrix-element-scalability.v2",
   "source_sha256": {
-    "src/diffpes/simul/matrixel.py": "f29f79b30d307e12f4122366eac27f535c5fc8c1f50462cfbd258e6d85dfcd62",
+    "src/diffpes/matrixel/__init__.py": "de281500689af3bf96a78e499340b77bc47fb5ba864385b8234671eaccd0062f",
+    "src/diffpes/matrixel/parameters.py": "b65ece8149abd39a1569074a21a19cf534cc3940ed92aabbaf3b5e15ab4f83b9",
+    "src/diffpes/matrixel/transition.py": "6a5e5b7863f1e6e14883a488413cc4ac2f2ef94a0b72c40f172e3d0c68f9ce18",
     "src/diffpes/types/radial_params.py": "c7ea22a0d8b095032ebe09b914aaa764c927299d89bae75a0fcf326ea698c561",
-    "tests/_reference_tools/measure_matrix_element_scaling.py": "4fb4868c962623e97f28c5b5d6e97d190d1198c82abd4cf248700e9315e0148d"
+    "tests/_reference_tools/measure_matrix_element_scaling.py": "344948dd65f56f1302bff269c0ac5b482f671cc4edb3a26386514d282a39f129"
   },
   "throughput": {
     "compilation_seconds": {
-      "batch_contraction": 0.07708346800063737,
-      "channel": 0.5562785910005914,
-      "late_reuse_pipeline": 0.5875437040085671,
-      "single_contraction": 0.07411708400468342,
-      "single_rebuild_pipeline": 0.5704067260085139
+      "batch_contraction": 0.07893628301098943,
+      "channel": 0.556245683983434,
+      "late_reuse_pipeline": 0.5553227310010698,
+      "single_contraction": 0.07287000701762736,
+      "single_rebuild_pipeline": 0.5785946900141425
     },
-    "contraction_ratio": 0.2091091783674566,
+    "contraction_ratio": 0.2252635357544175,
     "median_seconds": {
-      "batched_contraction": 0.0010352550016250461,
-      "late_reuse_pipeline": 0.014277371999924071,
-      "six_rebuild_pipelines": 0.05614619099651463,
-      "six_sequential_contractions": 0.004950786998961121
+      "batched_contraction": 0.001040515024214983,
+      "late_reuse_pipeline": 0.01445754399173893,
+      "six_rebuild_pipelines": 0.05570191299193539,
+      "six_sequential_contractions": 0.004619101004209369
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.25428923577042584,
+    "pipeline_ratio": 0.25955201922476373,
     "raw_seconds": {
       "batched_contraction": [
-        0.001061927992850542,
-        0.0010352550016250461,
-        0.0010657930106390268,
-        0.0010337290004827082,
-        0.001010482999845408,
-        0.0010059530031867325,
-        0.0011866470013046637
+        0.0010514880123082548,
+        0.0009938560251612216,
+        0.001036180998198688,
+        0.0010749520151875913,
+        0.0009764010028447956,
+        0.0010446850210428238,
+        0.001040515024214983
       ],
       "late_reuse_pipeline": [
-        0.01490090299921576,
-        0.01404381099564489,
-        0.014419729996006936,
-        0.014206870997441001,
-        0.014277371999924071,
-        0.014523621008265764,
-        0.014014560001669452
+        0.014413956989301369,
+        0.014474545983830467,
+        0.01427007099846378,
+        0.014334792998852208,
+        0.014738608995685354,
+        0.014571944018825889,
+        0.01445754399173893
       ],
       "six_rebuild_pipelines": [
-        0.05629158600640949,
-        0.05743001800146885,
-        0.05614619099651463,
-        0.05592992999299895,
-        0.05555961499339901,
-        0.05688861200178508,
-        0.05546763900201768
+        0.05544251800165512,
+        0.05748761698487215,
+        0.05570191299193539,
+        0.05581943699507974,
+        0.053584111999953166,
+        0.05605279697920196,
+        0.055381160986144096
       ],
       "six_sequential_contractions": [
-        0.004845656003453769,
-        0.004752690001623705,
-        0.004950786998961121,
-        0.005139393004355952,
-        0.00391774698800873,
-        0.005034290996263735,
-        0.005040004994953051
+        0.004619101004209369,
+        0.004151800007093698,
+        0.003728801995748654,
+        0.004438344010850415,
+        0.005353941000066698,
+        0.0050956689810846,
+        0.004742313001770526
       ]
     },
     "repetitions": 7,

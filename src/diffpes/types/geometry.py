@@ -25,10 +25,12 @@ from beartype import beartype
 from beartype.typing import List, Tuple, Union
 from jaxtyping import Array, Float64, jaxtyped
 
-from .aliases import ScalarNumeric
+from diffpes.constants import (
+    MAX_LATTICE_CONDITION_NUMBER,
+    MIN_SCALED_SINGULAR_VALUE,
+)
 
-_MAX_LATTICE_CONDITION_NUMBER: float = 1e12
-_MIN_SCALED_SINGULAR_VALUE: float = 1e-12
+from .aliases import ScalarNumeric
 
 
 class CrystalGeometry(eqx.Module):
@@ -244,13 +246,13 @@ def make_crystal_geometry(  # noqa: DOC503
         scaled_smallest: Float64[Array, " "] = smallest / largest
         lattice_arr = eqx.error_if(
             lattice_arr,
-            scaled_smallest < _MIN_SCALED_SINGULAR_VALUE,
+            scaled_smallest < MIN_SCALED_SINGULAR_VALUE,
             "make_crystal_geometry: scaled singular value below limit",
         )
         condition_number: Float64[Array, " "] = largest / smallest
         lattice_arr = eqx.error_if(
             lattice_arr,
-            condition_number > _MAX_LATTICE_CONDITION_NUMBER,
+            condition_number > MAX_LATTICE_CONDITION_NUMBER,
             "make_crystal_geometry: lattice condition number exceeds limit",
         )
         positions_arr = eqx.error_if(

@@ -3,6 +3,11 @@ diffpes.certify tests
 
 Validation and regression tests for :mod:`diffpes.certify`.
 
+.. automodule:: tests.test_diffpes.test_certify.test_builtin_transformations
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: tests.test_diffpes.test_certify.test_canonical
    :members:
    :undoc-members:
@@ -59,6 +64,11 @@ Validation and regression tests for :mod:`diffpes.certify`.
    :show-inheritance:
 
 .. automodule:: tests.test_diffpes.test_certify.test_registry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_certify.test_registry_resources
    :members:
    :undoc-members:
    :show-inheritance:

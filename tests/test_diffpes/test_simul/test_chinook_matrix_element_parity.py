@@ -18,7 +18,7 @@ from beartype.typing import Any, Dict, List
 from jaxtyping import Array, Bool, Complex128, Float64, Int64, Shaped
 from numpy.typing import NDArray
 
-from diffpes.simul import (
+from diffpes.matrixel import (
     contract_polarization,
     orbital_transition_channels,
     project_band_channels,

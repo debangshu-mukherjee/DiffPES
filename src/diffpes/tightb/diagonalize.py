@@ -37,11 +37,13 @@ from beartype import beartype
 from beartype.typing import Callable, Dict, List, Literal, Tuple
 from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
-from diffpes.maths import safe_divide, safe_norm, safe_sqrt
-from diffpes.types import (
+from diffpes.constants import (
     EPS,
     EPS_DEG,
     PHASE_LOSS_MESSAGE,
+)
+from diffpes.maths import safe_divide, safe_norm, safe_sqrt
+from diffpes.types import (
     BandStructure,
     CrystalGeometry,
     DiagonalizedBands,

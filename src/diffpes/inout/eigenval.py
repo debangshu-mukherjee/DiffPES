@@ -27,13 +27,15 @@ from beartype.typing import List, Literal, Optional, TextIO, Union
 from jaxtyping import Float64, jaxtyped
 from numpy.typing import NDArray
 
-from diffpes.types import (
+from diffpes.constants import (
     BAND_LINE_MIN_VALUES,
     BAND_LINE_SPIN_VALUES,
     EIG_DOWN_INDEX,
     EIG_UP_INDEX,
     ISPIN_SPIN_POLARIZED,
     KPOINT_LINE_VALUES,
+)
+from diffpes.types import (
     BandStructure,
     ScalarFloat,
     SpinBandStructure,
@@ -228,8 +230,6 @@ def read_eigenval(  # noqa: PLR0915
 def _read_next_nonempty_line(fid: TextIO) -> str:
     """PRIVATE: Read and return the next non-empty line, or ``""`` at EOF.
 
-    Extended Summary
-    ----------------
     The helper skips blank lines in the EIGENVAL file. VASP separates k-point
     blocks with empty lines. The helper consumes them before the main parsing
     loop processes the data.

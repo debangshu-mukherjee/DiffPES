@@ -8,10 +8,16 @@ also provides HDF5 persistence, workflow helpers, and plotting utilities.
 
 The following list describes the submodules:
 
+- :mod:`band_plotting`
+    Plot projected tight-binding bands with analysis utilities.
+- :mod:`certificate`
+    Encode and identify portable forward-model certificates.
+- :mod:`certificate_decoding`
+    Decode portable forward-model certificate documents.
+- :mod:`certificate_storage`
+    Persist forward-model certificates in portable storage formats.
 - :mod:`chgcar`
     Parse a VASP CHGCAR file.
-- :mod:`certificate`
-    Persist forward-model certificates in portable formats.
 - :mod:`doscar`
     Parse a VASP DOSCAR file.
 - :mod:`eigenval`
@@ -29,30 +35,34 @@ The following list describes the submodules:
 - :mod:`procar`
     Parse a VASP PROCAR file.
 - :mod:`tb_files`
-    Parse explicit hopping lists and normative Wannier90 TB files.
+    Parse explicit Cartesian tight-binding hopping lists.
+- :mod:`wannier90`
+    Read normative Wannier90 tight-binding files.
+- :mod:`wannier90_parser`
+    Parse normative Wannier90 text records.
 
 Routine Listings
 ----------------
 :func:`aggregate_atoms`
     Sum orbital projections over a set of atoms.
+:func:`apply_kpath_ticks`
+    Apply symmetry-point ticks/labels from KPathInfo to an axis.
 :func:`attach_certificate_h5`
     Attach a certificate atomically to an HDF5 result file.
 :func:`certificate_identity`
     Compute the scientific identity of a canonical certificate.
-:func:`apply_kpath_ticks`
-    Apply symmetry-point ticks/labels from KPathInfo to an axis.
 :func:`check_consistency`
     Check dimension agreement across parsed VASP files.
-:func:`list_band_scatter_presets`
-    Return supported preset names for projected band scatter plots.
-:func:`load_from_h5`
-    Load PyTrees from an HDF5 file.
 :func:`finalize_certificate`
     Replace the kernel placeholder with the canonical identity.
+:func:`list_band_scatter_presets`
+    Return supported preset names for projected band scatter plots.
 :func:`load_certificate_h5`
     Load a certificate embedded in an HDF5 result file.
 :func:`load_certificate_json`
     Load a validated forward certificate from canonical JSON.
+:func:`load_from_h5`
+    Load PyTrees from an HDF5 file.
 :func:`plot_arpes_spectrum`
     Plot an ARPES intensity map from an ArpesSpectrum PyTree.
 :func:`plot_arpes_with_kpath`
@@ -67,24 +77,24 @@ Routine Listings
     Parse a VASP DOSCAR file.
 :func:`read_eigenval`
     Parse a VASP EIGENVAL file.
+:func:`read_hopping_list`
+    Parse a zero-based Cartesian tight-binding hopping list.
 :func:`read_kpoints`
     Parse a VASP KPOINTS file.
 :func:`read_poscar`
     Parse a VASP POSCAR/CONTCAR file.
 :func:`read_procar`
     Parse a VASP PROCAR file.
-:func:`read_hopping_list`
-    Parse a zero-based Cartesian tight-binding hopping list.
 :func:`read_wannier90_hr`
     Parse a normative Wannier90 ``seedname_hr.dat`` file.
 :func:`read_wannier90_tb`
     Parse a normative Wannier90 ``seedname_tb.dat`` file.
 :func:`reduce_orbitals`
     Reduce 9 orbital channels to s/p/d totals.
-:func:`save_to_h5`
-    Save one or more named PyTrees to an HDF5 file.
 :func:`save_certificate_json`
     Save a forward certificate atomically as canonical JSON.
+:func:`save_to_h5`
+    Save one or more named PyTrees to an HDF5 file.
 :func:`select_atoms`
     Extract orbital projections for a subset of atoms.
 
@@ -94,10 +104,17 @@ All parsers use standard Python I/O because file parsing is sequential. Factory
 functions convert the parsed data to JAX arrays.
 """
 
+from .band_plotting import (
+    list_band_scatter_presets,
+    plot_band_scatter_preset,
+    plot_band_scatter_with_kpath,
+)
 from .certificate import (
-    attach_certificate_h5,
     certificate_identity,
     finalize_certificate,
+)
+from .certificate_storage import (
+    attach_certificate_h5,
     load_certificate_h5,
     load_certificate_json,
     save_certificate_json,
@@ -115,19 +132,13 @@ from .helpers import (
 from .kpoints import read_kpoints
 from .plotting import (
     apply_kpath_ticks,
-    list_band_scatter_presets,
     plot_arpes_spectrum,
     plot_arpes_with_kpath,
-    plot_band_scatter_preset,
-    plot_band_scatter_with_kpath,
 )
 from .poscar import read_poscar
 from .procar import read_procar
-from .tb_files import (
-    read_hopping_list,
-    read_wannier90_hr,
-    read_wannier90_tb,
-)
+from .tb_files import read_hopping_list
+from .wannier90 import read_wannier90_hr, read_wannier90_tb
 
 __all__: list[str] = [
     "aggregate_atoms",

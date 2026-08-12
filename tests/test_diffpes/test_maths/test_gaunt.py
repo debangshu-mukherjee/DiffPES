@@ -22,9 +22,12 @@ from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 from scipy.special import sph_harm_y
 
-from diffpes.maths import GAUNT_TABLE, build_gaunt_table, gaunt_lookup
+from diffpes.constants import (
+    GAUNT_TABLE,
+    L_MAX,
+)
+from diffpes.maths import build_gaunt_table, gaunt_lookup
 from diffpes.maths.gaunt import _complex_gaunt, _wigner3j
-from diffpes.types import L_MAX
 
 
 @jaxtyped(typechecker=beartype)

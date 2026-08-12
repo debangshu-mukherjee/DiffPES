@@ -11,6 +11,72 @@ outputs, certification records, transformation contracts, and provenance.
    :imported-members:
    :exclude-members: __builtins__, __cached__, __doc__, __file__, __loader__, __name__, __package__, __path__, __spec__
 
+ARPES carriers and slices
+-------------------------
+
+.. automodule:: diffpes.types.arpes
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Band and projection carriers
+----------------------------
+
+.. automodule:: diffpes.types.bands
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Certification aggregates
+------------------------
+
+.. automodule:: diffpes.types.certification
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.certification_validation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Derivative evidence
+-------------------
+
+.. automodule:: diffpes.types.derivatives
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Detector data
+-------------
+
+.. automodule:: diffpes.types.detector_data
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Diagonalized bands
+------------------
+
+.. automodule:: diffpes.types.diagonalized_bands
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.electronic_structure_validation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Certification evidence
+----------------------
+
+.. automodule:: diffpes.types.evidence
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Experiment geometry
 -------------------
 
@@ -38,13 +104,56 @@ Crystal geometry
 Orbital and Slater--Koster parameters
 -------------------------------------
 
+.. automodule:: diffpes.types.orbital_basis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: diffpes.types.radial_params
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.radial_profiles
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.slater_koster_params
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Certification registry and reports
+----------------------------------
+
+.. automodule:: diffpes.types.registry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.reports
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.specification
    :members:
    :undoc-members:
    :show-inheritance:
 
 Tight-binding carriers
 ----------------------
+
+.. automodule:: diffpes.types.slab_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.slab_topology
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. automodule:: diffpes.types.tb_model
    :members:

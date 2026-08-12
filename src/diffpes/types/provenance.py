@@ -33,7 +33,7 @@ from beartype import beartype
 from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
-from .certification import TransformationRecord
+from .evidence import TransformationRecord
 
 
 class InformationState(eqx.Module):

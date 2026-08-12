@@ -1,45 +1,20 @@
-"""Define radial-wavefunction parameter structures.
+"""Define radial-wavefunction and matrix-element parameters.
 
 Extended Summary
 ----------------
-This module defines PyTree types for orbital basis metadata and Slater-type
-radial wavefunction parameters used by the differentiable dipole
-matrix element pipeline.
+This module defines differentiable shell-shared radial parameters
+and coherent matrix-element channel scales and phases.
 
 Routine Listings
 ----------------
-:class:`FinalStateSpec`
-    Store a certified radial final-state selection.
 :class:`MatrixElementParams`
     Store shell-shared matrix-element scales and channel phases.
-:class:`OrbitalBasis`
-    Store orbital quantum-number metadata in a JAX PyTree.
-:class:`RadialQuadratureSpec`
-    Store one immutable certified radial-quadrature profile.
 :class:`RadialSpec`
     Store shell-shared radial-wavefunction parameters.
-:class:`SlaterKosterParams`
-    Store differentiable Slater--Koster two-center integrals.
-:func:`make_final_state_spec`
-    Create a validated radial final-state selection.
 :func:`make_matrix_element_params`
     Create validated shell-shared matrix-element parameters.
-:func:`make_orbital_basis`
-    Create a validated ``OrbitalBasis`` instance.
-:func:`make_radial_quadrature_spec`
-    Select one immutable certified quadrature profile.
 :func:`make_radial_spec`
     Create a validated shell-shared radial specification.
-:func:`make_slater_koster_params`
-    Create validated Slater--Koster two-center parameters.
-
-Notes
------
-``OrbitalBasis`` contains only static auxiliary data. Atom assignments,
-quantum numbers, spin channels, and labels define the traced program shape.
-``RadialSpec`` wraps differentiable shell-shared radial parameters alongside
-the static orbital basis. ``SlaterKosterParams`` separates differentiable
-two-center values from their static material/channel identifiers.
 """
 
 import math
@@ -48,67 +23,23 @@ import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Dict, List, Optional, Tuple
-from jaxtyping import Array, Float, Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 
-_ARRAY_MATRIX_NDIM: int = 2
-_MIN_COMPACT_GRID_POINTS: int = 3
-_RADIAL_MODES: Tuple[str, ...] = (
-    "slater",
-    "hydrogenic",
-    "grid",
-    "fixed",
+from diffpes.constants import (
+    ARRAY_MATRIX_NDIM,
+    CERTIFIED_R_MAX_BOHR,
+    CERTIFIED_TAIL_ENVELOPE_ID,
+    MAX_COEFFICIENT_CONDITION,
+    MAX_DECAY_PARAMETER,
+    MAX_EFFECTIVE_PRINCIPAL,
+    MAX_HYDROGENIC_PRINCIPAL,
+    MAX_MATRIXEL_L,
+    MIN_COMPACT_GRID_POINTS,
+    MIN_DECAY_PARAMETER,
+    RADIAL_MODES,
 )
-_FINAL_STATE_MODES: Tuple[str, ...] = ("plane_wave", "coulomb")
-_RADIAL_ACCELERATORS: Tuple[str, ...] = ("direct", "hermite")
-_HERMITE_TABLE_POINTS: Tuple[int, ...] = (257, 513, 1025, 2049)
-_CERTIFIED_RADIAL_PROFILES: Dict[
-    str,
-    Tuple[
-        int,
-        float,
-        float,
-        int,
-        float,
-        float,
-        str,
-        float,
-        float,
-        float,
-    ],
-] = {
-    "gl1024-r120-k4-l9-v1": (
-        1024,
-        120.0,
-        4.0,
-        9,
-        1.0e-10,
-        1.0e-8,
-        "analytic-exp-r120-or-compact-v1",
-        32.0,
-        0.5,
-        4.0,
-    ),
-    "gl2048-r120-k4-l9-reference-v1": (
-        2048,
-        120.0,
-        4.0,
-        9,
-        5.0e-11,
-        5.0e-9,
-        "analytic-exp-r120-or-compact-v1",
-        32.0,
-        0.5,
-        4.0,
-    ),
-}
-_CERTIFIED_TAIL_ENVELOPE_ID: str = "r120-zeta0p5-to4-v1"
-_CERTIFIED_R_MAX_BOHR: float = 120.0
-_MIN_DECAY_PARAMETER: float = 0.5
-_MAX_DECAY_PARAMETER: float = 4.0
-_MAX_COEFFICIENT_CONDITION: float = 32.0
-_MAX_EFFECTIVE_PRINCIPAL: float = 4.2
-_MAX_HYDROGENIC_PRINCIPAL: int = 7
-_MAX_MATRIXEL_L: int = 4
+
+from .orbital_basis import OrbitalBasis
 
 
 def _shell_representatives(
@@ -298,173 +229,6 @@ def _slater_coefficient_condition(
     return condition
 
 
-def _validate_orbital_basis_structure(
-    atom_indices: Tuple[int, ...],
-    n: Tuple[int, ...],
-    l: Tuple[int, ...],  # noqa: E741
-    m: Tuple[int, ...],
-    spin: Tuple[int, ...],
-    labels: Tuple[str, ...],
-) -> None:
-    """PRIVATE: Validate static orbital-basis metadata.
-
-    Implementation Logic
-    --------------------
-    Use exact ``type`` comparisons to reject bools and NumPy integers.
-    Check quantum-number consistency pairwise with
-    ``zip(..., strict=True)`` over ``(n, l)`` and ``(l, m)``.
-
-    Parameters
-    ----------
-    atom_indices : Tuple[int, ...]
-        Atom-row index for each orbital.
-    n : Tuple[int, ...]
-        Principal quantum numbers, one per orbital.
-    l : Tuple[int, ...]
-        Angular momentum quantum numbers, one per orbital.
-    m : Tuple[int, ...]
-        Magnetic quantum numbers, one per orbital.
-    spin : Tuple[int, ...]
-        Spin channels: empty for a spinless basis, otherwise one ``+1``
-        or ``-1`` entry per orbital.
-    labels : Tuple[str, ...]
-        Human-readable orbital labels.
-
-    Raises
-    ------
-    ValueError
-        If a field has the wrong container type or length. If an atom,
-        principal, or angular quantum number is invalid. If ``spin``
-        has the wrong length or channel values. If a label is not a
-        string. This is the static construction-time contract.
-    """
-    if any(
-        type(values) is not tuple
-        for values in (atom_indices, n, l, m, spin, labels)
-    ):
-        message: str = "all OrbitalBasis fields must be tuples"
-        raise ValueError(message)
-    n_orbitals: int = len(n)
-    if not (
-        len(atom_indices) == len(l) == len(m) == len(labels) == n_orbitals
-    ):
-        message: str = (
-            "atom_indices, n, l, m, and labels must have the same length"
-        )
-        raise ValueError(message)
-    if any(type(index) is not int or index < 0 for index in atom_indices):
-        message = "atom_indices must contain non-negative integers"
-        raise ValueError(message)
-    if any(type(value) is not int or value < 1 for value in n):
-        message = "n must contain integers of at least 1"
-        raise ValueError(message)
-    if any(
-        type(angular) is not int or angular < 0 or angular >= principal
-        for principal, angular in zip(n, l, strict=True)
-    ):
-        message = "l must contain integers satisfying 0 <= l < n"
-        raise ValueError(message)
-    if any(
-        type(magnetic) is not int or abs(magnetic) > angular
-        for angular, magnetic in zip(l, m, strict=True)
-    ):
-        message = "m must contain integers satisfying abs(m) <= l"
-        raise ValueError(message)
-    if spin and len(spin) != n_orbitals:
-        message = "spin must be empty or have one entry per orbital"
-        raise ValueError(message)
-    if any(
-        type(channel) is not int or channel not in (-1, 1) for channel in spin
-    ):
-        message = "spin entries must be +1 or -1"
-        raise ValueError(message)
-    if any(type(label) is not str for label in labels):
-        message = "labels must contain strings"
-        raise ValueError(message)
-
-
-class OrbitalBasis(eqx.Module):
-    """Store orbital quantum-number metadata in a JAX PyTree.
-
-    This type describes the orbital basis for dipole matrix-element
-    calculations for the differentiable Chinook pipeline. The quantum
-    numbers (n, l, m) parameterize the radial wavefunctions (via
-    Slater-type orbitals) and angular parts (spherical harmonics) that
-    enter the photoemission matrix element.
-
-    All fields contain static auxiliary data because quantum numbers control
-    code paths. They determine recurrence depths in spherical Bessel functions
-    and associated Legendre polynomials. They also index the Gaunt coefficient
-    table. A quantum-number change alters the computational graph. JAX must
-    therefore recompile after this change.
-
-
-    :see: :class:`~.test_radial_params.TestOrbitalBasis`
-
-    Attributes
-    ----------
-    atom_indices : Tuple[int, ...]
-        Atom-row index for each orbital. Each entry refers to a row of
-        :attr:`~diffpes.types.CrystalGeometry.positions` (**static** -- a
-        compile-time constant; changing it triggers retracing).
-    n : Tuple[int, ...]
-        Principal quantum numbers, one per orbital. Each value controls the
-        radial node count and the power of *r*. The Slater form
-        R_nl(r) ~ r^{n-1} exp(-zeta*r) uses static compile-time values;
-        changing them triggers retracing.
-    l : Tuple[int, ...]
-        Angular momentum quantum numbers, one per orbital (0=s, 1=p,
-        2=d, 3=f). Determines the spherical harmonic Y_l^m used in
-        the matrix element integral (**static** -- compile-time constants;
-        changing them triggers retracing).
-    m : Tuple[int, ...]
-        Magnetic quantum numbers, one per orbital. Ranges from -l to
-        +l for each orbital. Selects the specific spherical harmonic
-        component (**static** -- compile-time constants; changing them
-        triggers retracing).
-    spin : Tuple[int, ...]
-        Spin channel for each orbital. The empty tuple denotes a spinless
-        basis; a spinor basis stores ``+1`` or ``-1`` for every orbital
-        (**static** -- a compile-time constant; changing it triggers
-        retracing).
-    labels : Tuple[str, ...]
-        Human-readable orbital labels (e.g. ``("2s", "2px", ...)``).
-        Used for plotting and debugging (**static** -- compile-time constants;
-        changing them triggers retracing).
-
-    Notes
-    -----
-    Implemented as an immutable :class:`equinox.Module` PyTree.
-    All fields are auxiliary data (no JAX array children) because
-    changing any quantum number changes the computational graph and
-    requires JIT recompilation. The children tuple is always empty.
-
-    See Also
-    --------
-    RadialSpec : Wraps shell-shared radial parameters alongside this basis.
-    make_orbital_basis : Factory function with length validation and
-        default label generation.
-    """
-
-    atom_indices: Tuple[int, ...] = eqx.field(static=True)
-    n: Tuple[int, ...] = eqx.field(static=True)
-    l: Tuple[int, ...] = eqx.field(static=True)  # noqa: E741
-    m: Tuple[int, ...] = eqx.field(static=True)
-    spin: Tuple[int, ...] = eqx.field(static=True)
-    labels: Tuple[str, ...] = eqx.field(static=True)
-
-    def __check_init__(self) -> None:
-        """Validate the static orbital-basis invariants again."""
-        _validate_orbital_basis_structure(
-            self.atom_indices,
-            self.n,
-            self.l,
-            self.m,
-            self.spin,
-            self.labels,
-        )
-
-
 def _validate_radial_shell_structure(
     basis: OrbitalBasis,
     radial_shell_index: Tuple[int, ...],
@@ -512,7 +276,7 @@ def _validate_radial_shell_structure(
     ):
         message = "radial_shell_index must contain non-negative integers"
         raise ValueError(message)
-    if any(angular > _MAX_MATRIXEL_L for angular in basis.l):
+    if any(angular > MAX_MATRIXEL_L for angular in basis.l):
         message = "matrix-element radial bases require l <= 4"
         raise ValueError(message)
     n_shells: int = max(radial_shell_index, default=-1) + 1
@@ -578,8 +342,8 @@ def _validate_radial_array_shapes(
     stay traced inside the factory.
     """
     if (
-        zeta_shell.ndim != _ARRAY_MATRIX_NDIM
-        or coefficients_shell.ndim != _ARRAY_MATRIX_NDIM
+        zeta_shell.ndim != ARRAY_MATRIX_NDIM
+        or coefficients_shell.ndim != ARRAY_MATRIX_NDIM
     ):
         message: str = "zeta_shell and coefficients_shell must be matrices"
         raise ValueError(message)
@@ -663,13 +427,13 @@ class RadialSpec(eqx.Module):
             self.effective_charge_shell,
             n_shells,
         )
-        if self.mode not in _RADIAL_MODES:
-            message: str = f"mode must be one of {_RADIAL_MODES}"
+        if self.mode not in RADIAL_MODES:
+            message: str = f"mode must be one of {RADIAL_MODES}"
             raise ValueError(message)
         if len(self.n_star_shell) != n_shells:
             message = "n_star_shell must have one entry per shell"
             raise ValueError(message)
-        if self.tail_envelope_id != _CERTIFIED_TAIL_ENVELOPE_ID:
+        if self.tail_envelope_id != CERTIFIED_TAIL_ENVELOPE_ID:
             message = "tail_envelope_id is not a certified radial envelope"
             raise ValueError(message)
 
@@ -735,355 +499,6 @@ class MatrixElementParams(eqx.Module):
             raise ValueError(message)
 
 
-class RadialQuadratureSpec(eqx.Module):
-    """Store one immutable certified radial-quadrature profile.
-
-    Callers select a registered identity. They cannot self-assert numerical
-    tolerances or enlarge its domain.
-
-    :see: :class:`~.test_radial_params.TestRadialQuadratureSpec`
-
-    Attributes
-    ----------
-    profile_id : str
-        Registered profile identity (**static**).
-    n_nodes : int
-        Gauss--Legendre node count (**static**).
-    r_max_bohr : float
-        Certified radial cutoff in Bohr (**static**).
-    k_max_bohr_inv : float
-        Certified momentum limit in inverse Bohr (**static**).
-    l_prime_max : int
-        Certified final angular-momentum limit (**static**).
-    value_rtol : float
-        Registered value tolerance (**static**).
-    gradient_rtol : float
-        Registered derivative tolerance (**static**).
-    tail_bound_method_id : str
-        Registered tail-bound method (**static**).
-    coefficient_condition_max : float
-        Maximum certified normalized-contraction condition (**static**).
-    min_decay_parameter : float
-        Minimum certified exponential decay in inverse Bohr (**static**).
-    max_decay_parameter : float
-        Maximum certified exponential decay in inverse Bohr (**static**).
-
-    See Also
-    --------
-    make_radial_quadrature_spec : Validated factory for this type.
-    """
-
-    profile_id: str = eqx.field(static=True)
-    n_nodes: int = eqx.field(static=True)
-    r_max_bohr: float = eqx.field(static=True)
-    k_max_bohr_inv: float = eqx.field(static=True)
-    l_prime_max: int = eqx.field(static=True)
-    value_rtol: float = eqx.field(static=True)
-    gradient_rtol: float = eqx.field(static=True)
-    tail_bound_method_id: str = eqx.field(static=True)
-    coefficient_condition_max: float = eqx.field(static=True)
-    min_decay_parameter: float = eqx.field(static=True)
-    max_decay_parameter: float = eqx.field(static=True)
-
-    def __check_init__(self) -> None:
-        """Require exact agreement with the selected certified profile."""
-        expected: (
-            Tuple[
-                int,
-                float,
-                float,
-                int,
-                float,
-                float,
-                str,
-                float,
-                float,
-                float,
-            ]
-            | None
-        ) = _CERTIFIED_RADIAL_PROFILES.get(self.profile_id)
-        actual: Tuple[
-            int,
-            float,
-            float,
-            int,
-            float,
-            float,
-            str,
-            float,
-            float,
-            float,
-        ] = (
-            self.n_nodes,
-            self.r_max_bohr,
-            self.k_max_bohr_inv,
-            self.l_prime_max,
-            self.value_rtol,
-            self.gradient_rtol,
-            self.tail_bound_method_id,
-            self.coefficient_condition_max,
-            self.min_decay_parameter,
-            self.max_decay_parameter,
-        )
-        if expected is None or actual != expected:
-            message: str = (
-                "quadrature properties must match a certified profile"
-            )
-            raise ValueError(message)
-
-
-class FinalStateSpec(eqx.Module):
-    """Store a certified radial final-state selection.
-
-    The numerical effective charge remains differentiable. Static mode and
-    accelerator choices determine the compiled radial kernel.
-
-    :see: :class:`~.test_radial_params.TestFinalStateSpec`
-
-    Attributes
-    ----------
-    effective_charge : Float64[Array, ""]
-        Coulomb effective charge in elementary-charge units.
-    mode : str
-        ``"plane_wave"`` or ``"coulomb"`` (**static**).
-    radial_accelerator : str
-        ``"direct"`` (**static**). The schema retains ``"hermite"`` for
-        validation and raises because the frozen radial accelerator fails.
-    table_n_points : int
-        Registered Hermite table size (**static**).
-
-    See Also
-    --------
-    make_final_state_spec : Validated factory for this type.
-    """
-
-    effective_charge: Float64[Array, ""]
-    mode: str = eqx.field(static=True)
-    radial_accelerator: str = eqx.field(static=True)
-    table_n_points: int = eqx.field(static=True)
-
-    def __check_init__(self) -> None:
-        """Validate static final-state choices."""
-        if self.mode not in _FINAL_STATE_MODES:
-            message: str = f"mode must be one of {_FINAL_STATE_MODES}"
-            raise ValueError(message)
-        if self.radial_accelerator not in _RADIAL_ACCELERATORS:
-            message = (
-                f"radial_accelerator must be one of {_RADIAL_ACCELERATORS}"
-            )
-            raise ValueError(message)
-        if self.radial_accelerator == "hermite":
-            message = (
-                "Hermite mode failed the frozen radial accelerator "
-                "1025-to-2049 next-rung certification"
-            )
-            raise ValueError(message)
-        if self.table_n_points not in _HERMITE_TABLE_POINTS:
-            message = f"table_n_points must be one of {_HERMITE_TABLE_POINTS}"
-            raise ValueError(message)
-        if self.mode == "coulomb" and self.radial_accelerator != "direct":
-            message = "coulomb final states require direct radial evaluation"
-            raise ValueError(message)
-
-
-def _validate_slater_koster_structure(
-    values: Float64[Array, " n_sk"],
-    keys: Tuple[str, ...],
-) -> None:
-    """PRIVATE: Validate Slater--Koster parameter axes and identifiers.
-
-    Implementation Logic
-    --------------------
-    Check the traced axis only through ``ndim`` and ``shape`` so that no
-    numerical value leaves the traced domain. Compare the key-set size
-    against the tuple length to reject duplicates.
-
-    Parameters
-    ----------
-    values : Float64[Array, " n_sk"]
-        Fundamental two-center hopping integrals in eV.
-    keys : Tuple[str, ...]
-        Static material/channel identifiers, one per value.
-
-    Raises
-    ------
-    ValueError
-        If ``values`` is not one-dimensional. If ``keys`` disagrees
-        with ``values`` on length or contains invalid or duplicate
-        strings. This is the static construction-time contract.
-    """
-    if values.ndim != 1:
-        message: str = "SlaterKosterParams values must be one-dimensional"
-        raise ValueError(message)
-    if type(keys) is not tuple:
-        message = "SlaterKosterParams keys must be a tuple"
-        raise ValueError(message)
-    if len(keys) != values.shape[0]:
-        message = (
-            "SlaterKosterParams values and keys must have the same length"
-        )
-        raise ValueError(message)
-    if any(type(key) is not str or not key for key in keys):
-        message = "SlaterKosterParams keys must contain non-empty strings"
-        raise ValueError(message)
-    if len(set(keys)) != len(keys):
-        message = "SlaterKosterParams keys must be unique"
-        raise ValueError(message)
-
-
-class SlaterKosterParams(eqx.Module):
-    """Store differentiable Slater--Koster two-center integrals.
-
-    The numerical values are the flat-real optimization coordinates for a
-    Slater--Koster material model. Their keys are static identifiers such as
-    ``"C-C:pp_sigma"`` or ``"Ru-O:pd_pi"``. A key change alters the material
-    topology and therefore triggers JAX retracing.
-
-    :see: :class:`~.test_radial_params.TestSlaterKosterParams`
-
-    Attributes
-    ----------
-    values : Float64[Array, " n_sk"]
-        Fundamental two-center hopping integrals in eV. These values remain
-        differentiable JAX leaves.
-    keys : Tuple[str, ...]
-        Unique material/channel identifiers (**static** -- changing them
-        triggers retracing).
-
-    Notes
-    -----
-    The carrier deliberately does not prescribe distance scaling. The
-    Slater--Koster builder interprets the identifiers and assigns them to
-    frozen neighbor shells.
-
-    See Also
-    --------
-    make_slater_koster_params : Validating factory for this carrier.
-    """
-
-    values: Float64[Array, " n_sk"]
-    keys: Tuple[str, ...] = eqx.field(static=True)
-
-    def __check_init__(self) -> None:
-        """Validate the traced axis against the static key tuple."""
-        _validate_slater_koster_structure(self.values, self.keys)
-
-
-@jaxtyped(typechecker=beartype)
-def make_orbital_basis(  # noqa: DOC502
-    atom_indices: Tuple[int, ...],
-    n: Tuple[int, ...],
-    l: Tuple[int, ...],  # noqa: E741
-    m: Tuple[int, ...],
-    spin: Tuple[int, ...] = (),
-    labels: Optional[Tuple[str, ...]] = None,
-) -> OrbitalBasis:
-    """Create a validated ``OrbitalBasis`` instance.
-
-    The factory validates quantum number tuples and
-    constructs an ``OrbitalBasis`` PyTree. The three quantum number
-    tuples must all have the same length (one entry per orbital).
-    If ``labels`` is absent, the factory generates generic labels such as
-    ``"orb_0"`` and ``"orb_1"``.
-
-    Use this factory instead of the raw ``OrbitalBasis`` constructor
-    to get automatic length validation and default label generation.
-
-    :see: :class:`~.test_radial_params.TestMakeOrbitalBasis`
-
-    Implementation Logic
-    --------------------
-    1. **Prepare the normalized values**::
-
-           n_orbitals = len(n)
-
-       This expression gives the later validation steps a stable shape and
-       dtype.
-
-    2. **Apply static validation**::
-
-           _validate_orbital_basis_structure(...)
-
-       This predicate rejects invalid structure before JAX traces the
-       numerical checks.
-
-    3. **Return the named instance**::
-
-           return basis
-
-       The explicit name keeps the implementation and the Returns section
-       synchronized.
-
-    Parameters
-    ----------
-    atom_indices : Tuple[int, ...]
-        Atom-row indices (**static** -- compile-time constants; changing them
-        triggers retracing), one per orbital.
-    n : Tuple[int, ...]
-        Principal quantum numbers (**static** -- compile-time constants;
-        changing them triggers retracing), one per orbital.
-    l : Tuple[int, ...]
-        Angular momentum quantum numbers (**static** -- compile-time
-        constants; changing them triggers retracing), one per orbital.
-    m : Tuple[int, ...]
-        Magnetic quantum numbers (**static** -- compile-time constants;
-        changing them triggers retracing), one per orbital.
-    spin : Tuple[int, ...], optional
-        Spin channels (**static** -- compile-time constants; changing them
-        triggers retracing). The empty tuple denotes a spinless basis;
-        otherwise every entry must be ``+1`` or ``-1``. Default is empty.
-    labels : Optional[Tuple[str, ...]], optional
-        Human-readable orbital labels (**static** -- compile-time constants;
-        changing them triggers retracing). Defaults to
-        ``("orb_0", "orb_1", ...)``.
-
-    Returns
-    -------
-    basis : OrbitalBasis
-        Validated orbital basis with consistent lengths.
-
-    Raises
-    ------
-    ValueError
-        If any per-orbital tuple has a different length. The function also
-        rejects invalid atom indices, quantum numbers, or spin channels.
-
-    Notes
-    -----
-    Every ``OrbitalBasis`` field uses ``eqx.field(static=True)``, so the
-    factory performs static validation. Invalid tuple lengths or quantum
-    numbers raise ``ValueError`` before tracing. No ``eqx.error_if`` checks
-    apply.
-
-    See Also
-    --------
-    OrbitalBasis : The PyTree class constructed by this factory.
-    """
-    n_orbitals: int = len(n)
-    resolved_labels: Tuple[str, ...] = (
-        tuple(f"orb_{i}" for i in range(n_orbitals))
-        if labels is None
-        else labels
-    )
-    _validate_orbital_basis_structure(
-        atom_indices,
-        n,
-        l,
-        m,
-        spin,
-        resolved_labels,
-    )
-    basis: OrbitalBasis = OrbitalBasis(
-        atom_indices=atom_indices,
-        n=n,
-        l=l,
-        m=m,
-        spin=spin,
-        labels=resolved_labels,
-    )
-    return basis
-
-
 @jaxtyped(typechecker=beartype)
 def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915, PLR0917
     basis: OrbitalBasis,
@@ -1098,7 +513,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     grid_values_shell: Optional[Float64[Array, "n_shell n_r"]] = None,
     fixed_integrals_shell: Optional[Float64[Array, "n_shell 2"]] = None,
     n_star_shell: Optional[Tuple[float, ...]] = None,
-    tail_envelope_id: str = _CERTIFIED_TAIL_ENVELOPE_ID,
+    tail_envelope_id: str = CERTIFIED_TAIL_ENVELOPE_ID,
 ) -> RadialSpec:
     """Create a validated shell-shared radial specification.
 
@@ -1150,8 +565,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     The initial certified envelope requires active decay parameters in
     ``[0.5, 4]`` and compact grids ending no later than 120 Bohr.
     """
-    if mode not in _RADIAL_MODES:
-        message: str = f"mode must be one of {_RADIAL_MODES}"
+    if mode not in RADIAL_MODES:
+        message: str = f"mode must be one of {RADIAL_MODES}"
         raise ValueError(message)
     n_shells: int = _validate_radial_shell_structure(
         basis,
@@ -1167,7 +582,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     )
     if len(resolved_n_star) != n_shells or any(
         type(value) not in (float, int)
-        or not 1.0 <= float(value) <= _MAX_EFFECTIVE_PRINCIPAL
+        or not 1.0 <= float(value) <= MAX_EFFECTIVE_PRINCIPAL
         for value in resolved_n_star
     ):
         message = (
@@ -1175,7 +590,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             "one per shell"
         )
         raise ValueError(message)
-    if tail_envelope_id != _CERTIFIED_TAIL_ENVELOPE_ID:
+    if tail_envelope_id != CERTIFIED_TAIL_ENVELOPE_ID:
         message = "tail_envelope_id is not a certified radial envelope"
         raise ValueError(message)
 
@@ -1229,7 +644,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         )
         if (
             grid_array.ndim != 1
-            or grid_array.shape[0] < _MIN_COMPACT_GRID_POINTS
+            or grid_array.shape[0] < MIN_COMPACT_GRID_POINTS
             or grid_value_array.shape != (n_shells, grid_array.shape[0])
         ):
             message = "grid mode arrays have inconsistent shapes"
@@ -1239,7 +654,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             grid_array,
             ~jnp.all(jnp.isfinite(grid_array))
             | (grid_array[0] != 0.0)
-            | (grid_array[-1] > _CERTIFIED_R_MAX_BOHR)
+            | (grid_array[-1] > CERTIFIED_R_MAX_BOHR)
             | ~jnp.all(spacings > 0.0)
             | ~jnp.allclose(spacings, spacings[0], rtol=1.0e-12, atol=0.0),
             (
@@ -1313,8 +728,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
     if mode == "slater":
         zeta_array = eqx.error_if(
             zeta_array,
-            jnp.any(zeta_array < _MIN_DECAY_PARAMETER)
-            | jnp.any(zeta_array > _MAX_DECAY_PARAMETER),
+            jnp.any(zeta_array < MIN_DECAY_PARAMETER)
+            | jnp.any(zeta_array > MAX_DECAY_PARAMETER),
             "slater zeta_shell leaves the certified tail envelope",
         )
         shell_norms: List[Float64[Array, ""]] = []
@@ -1345,7 +760,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             ~jnp.all(jnp.isfinite(contraction_norms))
             | jnp.any(contraction_norms <= 0.0)
             | ~jnp.all(jnp.isfinite(contraction_conditions))
-            | jnp.any(contraction_conditions > _MAX_COEFFICIENT_CONDITION),
+            | jnp.any(contraction_conditions > MAX_COEFFICIENT_CONDITION),
             (
                 "slater contraction rows must have positive finite norm "
                 "and coefficient condition at most 32"
@@ -1356,7 +771,7 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
             message = "hydrogenic mode has exactly one radial row per shell"
             raise ValueError(message)
         if any(
-            basis.n[orbital_index] > _MAX_HYDROGENIC_PRINCIPAL
+            basis.n[orbital_index] > MAX_HYDROGENIC_PRINCIPAL
             for orbital_index in representatives
         ):
             message = "hydrogenic mode is certified only through n=7"
@@ -1367,8 +782,8 @@ def make_radial_spec(  # noqa: DOC105, DOC502, DOC503, PLR0912, PLR0913, PLR0915
         )
         charge_array = eqx.error_if(
             charge_array,
-            jnp.any(charge_array / principal_array < _MIN_DECAY_PARAMETER)
-            | jnp.any(charge_array / principal_array > _MAX_DECAY_PARAMETER),
+            jnp.any(charge_array / principal_array < MIN_DECAY_PARAMETER)
+            | jnp.any(charge_array / principal_array > MAX_DECAY_PARAMETER),
             "hydrogenic effective charge leaves the certified tail envelope",
         )
 
@@ -1480,224 +895,9 @@ def make_matrix_element_params(  # noqa: DOC502, DOC503
     return params
 
 
-@jaxtyped(typechecker=beartype)
-def make_radial_quadrature_spec(
-    profile_id: str = "gl1024-r120-k4-l9-v1",
-) -> RadialQuadratureSpec:
-    """Select one immutable certified quadrature profile.
-
-    The profile identity resolves every numerical property. Callers cannot
-    override tolerances or domain limits.
-
-    :see: :class:`~.test_radial_params.TestMakeRadialQuadratureSpec`
-
-    Notes
-    -----
-    Resolve every domain and tolerance field from the immutable profile map.
-
-    Parameters
-    ----------
-    profile_id : str, optional
-        Registered profile identity.
-
-    Returns
-    -------
-    spec : RadialQuadratureSpec
-        Immutable certified profile.
-
-    Raises
-    ------
-    ValueError
-        If ``profile_id`` is not registered.
-    """
-    profile: (
-        Tuple[
-            int,
-            float,
-            float,
-            int,
-            float,
-            float,
-            str,
-            float,
-            float,
-            float,
-        ]
-        | None
-    ) = _CERTIFIED_RADIAL_PROFILES.get(profile_id)
-    if profile is None:
-        message: str = "unknown certified radial quadrature profile"
-        raise ValueError(message)
-    spec: RadialQuadratureSpec = RadialQuadratureSpec(
-        profile_id=profile_id,
-        n_nodes=profile[0],
-        r_max_bohr=profile[1],
-        k_max_bohr_inv=profile[2],
-        l_prime_max=profile[3],
-        value_rtol=profile[4],
-        gradient_rtol=profile[5],
-        tail_bound_method_id=profile[6],
-        coefficient_condition_max=profile[7],
-        min_decay_parameter=profile[8],
-        max_decay_parameter=profile[9],
-    )
-    return spec
-
-
-@jaxtyped(typechecker=beartype)
-def make_final_state_spec(  # noqa: DOC503
-    mode: str = "plane_wave",
-    effective_charge: float | Float64[Array, ""] = 0.0,
-    radial_accelerator: str = "direct",
-    table_n_points: int = 257,
-) -> FinalStateSpec:
-    """Create a validated radial final-state selection.
-
-    Plane waves require zero charge. All final states require direct radial
-    evaluation because the frozen Hermite convergence criterion failed.
-
-    :see: :class:`~.test_radial_params.TestMakeFinalStateSpec`
-
-    Notes
-    -----
-    Validate static mode compatibility before checking the traced charge.
-
-    Parameters
-    ----------
-    mode : str, optional
-        ``"plane_wave"`` or ``"coulomb"``.
-    effective_charge : float | Float64[Array, ""], optional
-        Final-state effective charge.
-    radial_accelerator : str, optional
-        ``"direct"``. The factory recognizes ``"hermite"`` but raises.
-    table_n_points : int, optional
-        Registered Hermite table size.
-
-    Returns
-    -------
-    spec : FinalStateSpec
-        Validated final-state carrier.
-
-    Raises
-    ------
-    ValueError
-        When a static choice falls outside the registered options.
-    EquinoxRuntimeError
-        If the charge is non-finite or nonzero for a plane wave.
-    """
-    if mode not in _FINAL_STATE_MODES:
-        message: str = f"mode must be one of {_FINAL_STATE_MODES}"
-        raise ValueError(message)
-    if radial_accelerator not in _RADIAL_ACCELERATORS:
-        message = f"radial_accelerator must be one of {_RADIAL_ACCELERATORS}"
-        raise ValueError(message)
-    if radial_accelerator == "hermite":
-        message = (
-            "Hermite mode failed the frozen radial accelerator "
-            "1025-to-2049 next-rung certification"
-        )
-        raise ValueError(message)
-    if table_n_points not in _HERMITE_TABLE_POINTS:
-        message = f"table_n_points must be one of {_HERMITE_TABLE_POINTS}"
-        raise ValueError(message)
-    if mode == "coulomb" and radial_accelerator != "direct":
-        message = "coulomb final states require direct radial evaluation"
-        raise ValueError(message)
-    charge: Float64[Array, ""] = jnp.asarray(
-        effective_charge,
-        dtype=jnp.float64,
-    )
-    charge = eqx.error_if(
-        charge,
-        ~jnp.isfinite(charge),
-        "effective_charge must be finite",
-    )
-    if mode == "plane_wave":
-        charge = eqx.error_if(
-            charge,
-            charge != 0.0,
-            "plane-wave final states require zero effective charge",
-        )
-    spec: FinalStateSpec = FinalStateSpec(
-        effective_charge=charge,
-        mode=mode,
-        radial_accelerator=radial_accelerator,
-        table_n_points=table_n_points,
-    )
-    return spec
-
-
-@jaxtyped(typechecker=beartype)
-def make_slater_koster_params(  # noqa: DOC502, DOC503
-    values: Float[Array, " n_sk"],
-    keys: Tuple[str, ...],
-) -> SlaterKosterParams:
-    """Create validated Slater--Koster two-center parameters.
-
-    The factory normalizes numerical values and validates every static channel
-    identifier before constructing the carrier.
-
-    :see: :class:`~.test_radial_params.TestMakeSlaterKosterParams`
-
-    Parameters
-    ----------
-    values : Float[Array, " n_sk"]
-        Fundamental two-center hopping integrals in eV.
-    keys : Tuple[str, ...]
-        Unique static identifiers, one for every value. Material builders use
-        identifiers such as ``"C-C:pp_sigma"``.
-
-    Returns
-    -------
-    params : SlaterKosterParams
-        Parameter carrier with float64 differentiable values and static keys.
-
-    Raises
-    ------
-    ValueError
-        If values are not one-dimensional, keys are not a tuple, lengths
-        differ, or a key is empty or duplicated.
-    EquinoxRuntimeError
-        If any value is non-finite, in eager or compiled execution.
-
-    Notes
-    -----
-    Values may have either sign and may be zero. Only finiteness is a
-    numerical invariant; channel and material semantics belong to the
-    Slater--Koster model builder.
-
-    See Also
-    --------
-    SlaterKosterParams : Carrier constructed by this factory.
-    """
-    value_array: Float64[Array, " n_sk"] = jnp.asarray(
-        values,
-        dtype=jnp.float64,
-    )
-    _validate_slater_koster_structure(value_array, keys)
-    value_array = eqx.error_if(
-        value_array,
-        ~jnp.all(jnp.isfinite(value_array)),
-        "make_slater_koster_params: values finite",
-    )
-    params: SlaterKosterParams = SlaterKosterParams(
-        values=value_array,
-        keys=keys,
-    )
-    return params
-
-
 __all__: list[str] = [
-    "FinalStateSpec",
     "MatrixElementParams",
-    "OrbitalBasis",
-    "RadialQuadratureSpec",
     "RadialSpec",
-    "SlaterKosterParams",
-    "make_final_state_spec",
     "make_matrix_element_params",
-    "make_orbital_basis",
-    "make_radial_quadrature_spec",
     "make_radial_spec",
-    "make_slater_koster_params",
 ]

@@ -20,15 +20,14 @@ from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 from scipy import special
 
-from diffpes.simul import (
-    assemble_spectral_intensity_chunk,
+from diffpes.matrixel import (
     contract_polarization,
-    effects,
     matrix_element_intensity,
     orbital_transition_channels,
     project_band_channels,
     transition_source,
 )
+from diffpes.simul import assemble_spectral_intensity_chunk, effects
 from diffpes.types import (
     ExperimentGeometry,
     MatrixElementParams,

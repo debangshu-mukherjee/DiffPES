@@ -16,14 +16,14 @@ Routine Listings
 ----------------
 :func:`build_provenance`
     Build a deterministic provenance DAG and propagate information.
-:func:`validate_provenance`
-    Re-evaluate graph structure and derived state independently.
 :func:`effective_information`
     Return propagated semantics, losses, and invalidations for one node.
 :func:`invalidated_claims`
     Return every claim invalidated at or upstream of one output.
 :func:`lineage`
     Return the transitive parent-node lineage of one output.
+:func:`validate_provenance`
+    Re-evaluate graph structure and derived state independently.
 """
 
 from __future__ import annotations

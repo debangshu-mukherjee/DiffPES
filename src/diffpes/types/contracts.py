@@ -27,7 +27,7 @@ from beartype import beartype
 from beartype.typing import Tuple
 from jaxtyping import jaxtyped
 
-from .certification_constants import (
+from diffpes.constants import (
     CERTIFICATION_IDENTIFIER_PATTERN,
     CERTIFICATION_SEMVER_PATTERN,
 )

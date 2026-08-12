@@ -98,7 +98,7 @@ Keeping polarization late preserves arbitrary elliptical phase and avoids
 turning a coherent vector relation into three separate intensities.
 
 ```python
-orbital_channels = diffpes.simul.assemble_orbital_transition_channels(
+orbital_channels = diffpes.matrixel.assemble_orbital_transition_channels(
     bands,
     radial,
     me_params,
@@ -112,7 +112,7 @@ polarized_orbitals = diffpes.simul.contract_experiment_polarization(
     orbital_channels,
     experiment,
 )
-band_amplitudes = diffpes.simul.project_band_channels(
+band_amplitudes = diffpes.matrixel.project_band_channels(
     orbital_channels,
     bands.eigenvectors,
 )
@@ -120,7 +120,7 @@ polarized_bands = diffpes.simul.contract_experiment_polarization(
     band_amplitudes,
     experiment,
 )
-intensity = diffpes.simul.matrix_element_intensity(polarized_bands)
+intensity = diffpes.matrixel.matrix_element_intensity(polarized_bands)
 ```
 
 `project_band_channels` follows the stored ket-coefficient convention and
