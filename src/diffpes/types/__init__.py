@@ -22,6 +22,8 @@ The package contains these submodules:
     Validate shared certification values.
 - :mod:`context`
     Define structured inputs for high-level VASP simulation workflows.
+- :mod:`coordinates`
+    Define typed coordinate axes for detector and source representations.
 - :mod:`contracts`
     Define static carriers for certified transformation contracts.
 - :mod:`derivatives`
@@ -36,8 +38,16 @@ The package contains these submodules:
     Define density-of-states data structures.
 - :mod:`electronic_structure_validation`
     Validate shared electronic-structure geometry.
+- :mod:`electronic_state`
+    Define solver-neutral electronic-state capability protocols.
 - :mod:`evidence`
     Define certification evidence and lineage records.
+- :mod:`experiment_state`
+    Define split beam, sample, pose, and acquisition state.
+- :mod:`fidelity`
+    Define immutable scientific-fidelity declarations.
+- :mod:`generalized_spectral`
+    Define typed retarded spectral sources and evaluated batches.
 - :mod:`experiment`
     Define the geometry of an ARPES experiment.
 - :mod:`geometry`
@@ -48,6 +58,10 @@ The package contains these submodules:
     Define k-space path and grid data structures.
 - :mod:`orbital_basis`
     Define orbital-basis metadata for radial models.
+- :mod:`photocurrent`
+    Define the typed factorized-photocurrent model boundary.
+- :mod:`plane_wave`
+    Define bounded plane-wave, PAW, and WAVECAR carriers.
 - :mod:`provenance`
     Store types-owned carriers for artifact provenance and information flow.
 - :mod:`radial_params`
@@ -60,6 +74,8 @@ The package contains these submodules:
     Define certification policy and verification reports.
 - :mod:`runtime`
     Store mutable host-side state for certification services.
+- :mod:`sharding`
+    Define static execution policies for bounded JAX sharding.
 - :mod:`self_energy`
     Define the causal self-energy model carrier.
 - :mod:`slab_geometry`
@@ -474,6 +490,7 @@ from .contracts import (
     make_composition_report,
     make_transformation_contract,
 )
+from .coordinates import MeasurementCoordinates, make_measurement_coordinates
 from .derivatives import (
     DependencyMap,
     DerivativeEvidence,
@@ -498,6 +515,19 @@ from .dos import (
     make_density_of_states,
     make_full_density_of_states,
 )
+from .electronic_state import (
+    EigensystemSource,
+    ElectronicStateArchive,
+    ElectronicStateSource,
+    HamiltonianOverlapSource,
+    HamiltonianSource,
+    OverlapSource,
+    RetardedGreenFunctionSource,
+    TightBindingStateSource,
+    WavefunctionSource,
+    make_electronic_state_archive,
+    make_tight_binding_state_source,
+)
 from .evidence import (
     CertificationClaim,
     EvidenceLineage,
@@ -511,6 +541,43 @@ from .evidence import (
     make_transformation_record,
 )
 from .experiment import ExperimentGeometry, make_experiment_geometry
+from .experiment_state import (
+    Acquisition,
+    Experiment,
+    PhotonBeam,
+    SamplePose,
+    SampleState,
+    make_acquisition,
+    make_experiment,
+    make_photon_beam,
+    make_sample_pose,
+    make_sample_state,
+)
+from .fidelity import (
+    DerivativeCapability,
+    FidelityManifest,
+    make_derivative_capability,
+    make_fidelity_manifest,
+)
+from .generalized_spectral import (
+    DysonSpectralSource,
+    ParametricSelfEnergy,
+    RetardedGreenBatch,
+    RetardedSelfEnergySource,
+    RetardedValidationReport,
+    SelfEnergyBatch,
+    SpectralEvaluationRequest,
+    TabulatedMatrixSelfEnergy,
+    TabulatedRetardedGreenFunctionSource,
+    make_dyson_spectral_source,
+    make_parametric_self_energy,
+    make_retarded_green_batch,
+    make_retarded_validation_report,
+    make_self_energy_batch,
+    make_spectral_evaluation_request,
+    make_tabulated_matrix_self_energy,
+    make_tabulated_retarded_green_function_source,
+)
 from .geometry import (
     CrystalGeometry,
     make_crystal_geometry,
@@ -524,7 +591,46 @@ from .kpath import (
     make_kpath,
     make_kpath_info,
 )
+from .ks_scattering import (
+    BackingAbsorberSpec,
+    DenseSliceOperator,
+    KSScatteringBatch,
+    KSScatteringBoundaryProfile,
+    KSScatteringProblem,
+    KSScatteringRequest,
+    KSScatteringSolverSpec,
+    LightMatterCouplingSpec,
+    SliceOperator,
+    SparseSliceOperator,
+    VacuumBoundarySpec,
+    make_backing_absorber_spec,
+    make_dense_slice_operator,
+    make_ks_scattering_batch,
+    make_ks_scattering_boundary_profile,
+    make_ks_scattering_problem,
+    make_ks_scattering_request,
+    make_ks_scattering_solver_spec,
+    make_light_matter_coupling_spec,
+    make_sparse_slice_operator,
+    make_vacuum_boundary_spec,
+)
 from .orbital_basis import OrbitalBasis, make_orbital_basis
+from .photocurrent import FactorizedArpesModel, make_factorized_arpes_model
+from .plane_wave import (
+    InMemoryPlaneWaveSource,
+    PlaneWaveBatch,
+    PlaneWaveStateSource,
+    StateBatchRequest,
+    VaspWavefunctionSource,
+    WavecarDataset,
+    WavecarHeader,
+    make_in_memory_plane_wave_source,
+    make_plane_wave_batch,
+    make_state_batch_request,
+    make_vasp_wavefunction_source,
+    make_wavecar_dataset,
+    make_wavecar_header,
+)
 from .provenance import (
     InformationState,
     ProvenanceAnalysis,
@@ -575,6 +681,12 @@ from .reports import (
     make_waiver_record,
     make_waiver_report,
 )
+from .result import (
+    IntrinsicPhotocurrent,
+    SimulationResult,
+    make_intrinsic_photocurrent,
+    make_simulation_result,
+)
 from .runtime import (
     CertificationRegistryState,
     DependencyAnalysisCache,
@@ -585,6 +697,7 @@ from .self_energy import (
     SelfEnergyModel,
     make_self_energy_model,
 )
+from .sharding import ShardSpec, make_shard_spec
 from .slab_geometry import (
     SlabSpec,
     SurfaceCell,
@@ -638,9 +751,11 @@ from .wannier import (
 )
 
 __all__: list[str] = [
+    "Acquisition",
     "ArpesCube",
     "ArpesSpectrum",
     "ArtifactRef",
+    "BackingAbsorberSpec",
     "BandStructure",
     "CertificateDiff",
     "CertificationClaim",
@@ -651,9 +766,12 @@ __all__: list[str] = [
     "ConventionRef",
     "CrystalGeometry",
     "DensityOfStates",
+    "DerivativeCapability",
+    "DysonSpectralSource",
     "DependencyAnalysisCache",
     "DependencyMap",
     "DerivativeEvidence",
+    "DenseSliceOperator",
     "DetectorCalibration",
     "DetectorEffects",
     "DetectorRaster",
@@ -661,26 +779,45 @@ __all__: list[str] = [
     "DomainPredicate",
     "DomainResult",
     "EvidenceLineage",
+    "Experiment",
     "EvidenceRef",
     "EvidenceReport",
     "ExecutionManifest",
     "ExperimentGeometry",
+    "ElectronicStateSource",
+    "ElectronicStateArchive",
+    "EigensystemSource",
+    "FidelityManifest",
     "FinalStateSpec",
+    "FactorizedArpesModel",
     "ForwardCertificate",
     "ForwardModelSpec",
     "FullDensityOfStates",
     "HamiltonianBlocks",
+    "HamiltonianSource",
+    "HamiltonianOverlapSource",
     "HandshakeReport",
     "HoppingRecord",
     "HumanAttestationRef",
     "InformationSpectrum",
     "InformationState",
+    "IntrinsicPhotocurrent",
+    "InMemoryPlaneWaveSource",
     "KGrid",
     "KPath",
     "KPathInfo",
+    "KSScatteringBatch",
+    "KSScatteringBoundaryProfile",
+    "KSScatteringProblem",
+    "KSScatteringRequest",
+    "KSScatteringSolverSpec",
+    "LightMatterCouplingSpec",
     "MatrixElementParams",
+    "MeasurementCoordinates",
+    "OverlapSource",
     "OrbitalBasis",
     "OrbitalProjection",
+    "PhotonBeam",
     "PolicyReport",
     "Power2TailSpec",
     "ProvenanceAnalysis",
@@ -696,27 +833,52 @@ __all__: list[str] = [
     "RegistrySnapshot",
     "ReproductionReport",
     "SOCVolumetricData",
+    "SamplePose",
+    "SampleState",
     "SelfEnergyModel",
+    "ShardSpec",
+    "RetardedGreenFunctionSource",
+    "RetardedGreenBatch",
+    "RetardedSelfEnergySource",
+    "RetardedValidationReport",
+    "SelfEnergyBatch",
+    "SimulationResult",
+    "SpectralEvaluationRequest",
+    "StateBatchRequest",
+    "VaspWavefunctionSource",
+    "WavecarDataset",
+    "WavecarHeader",
+    "ParametricSelfEnergy",
+    "PlaneWaveBatch",
+    "PlaneWaveStateSource",
+    "TabulatedMatrixSelfEnergy",
+    "TabulatedRetardedGreenFunctionSource",
     "SensitivityMap",
     "SlabSpec",
     "SlabTopology",
     "SlaterKosterParams",
+    "SliceOperator",
     "SpinBandStructure",
     "SpinOrbitalProjection",
     "SurfaceCell",
+    "SparseSliceOperator",
     "TBModel",
+    "TightBindingStateSource",
+    "WavefunctionSource",
     "TextLineCursor",
     "TransformationContract",
     "TransformationRecord",
     "TransitionSourceSchedule",
     "VerificationReport",
     "VolumetricData",
+    "VacuumBoundarySpec",
     "WaiverRecord",
     "WaiverReport",
     "WannierOperatorData",
     "WorkflowContext",
     "constant_energy_map",
     "fermi_surface_map",
+    "make_acquisition",
     "make_arpes_cube",
     "make_arpes_spectrum",
     "make_artifact_ref",
@@ -730,6 +892,9 @@ __all__: list[str] = [
     "make_convention_ref",
     "make_crystal_geometry",
     "make_density_of_states",
+    "make_dyson_spectral_source",
+    "make_derivative_capability",
+    "make_fidelity_manifest",
     "make_dependency_analysis_cache",
     "make_dependency_map",
     "make_derivative_evidence",
@@ -743,21 +908,52 @@ __all__: list[str] = [
     "make_evidence_ref",
     "make_evidence_report",
     "make_execution_manifest",
+    "make_experiment",
     "make_experiment_geometry",
+    "make_ks_scattering_solver_spec",
+    "make_backing_absorber_spec",
+    "make_dense_slice_operator",
+    "make_ks_scattering_batch",
+    "make_ks_scattering_boundary_profile",
+    "make_ks_scattering_problem",
+    "make_ks_scattering_request",
+    "make_light_matter_coupling_spec",
+    "make_sparse_slice_operator",
+    "make_electronic_state_archive",
     "make_final_state_spec",
+    "make_factorized_arpes_model",
     "make_forward_certificate",
     "make_forward_model_spec",
     "make_full_density_of_states",
     "make_hamiltonian_blocks",
+    "make_measurement_coordinates",
+    "make_parametric_self_energy",
+    "make_plane_wave_batch",
+    "make_in_memory_plane_wave_source",
+    "make_retarded_green_batch",
+    "make_retarded_validation_report",
+    "make_self_energy_batch",
+    "make_spectral_evaluation_request",
+    "make_tabulated_matrix_self_energy",
+    "make_tabulated_retarded_green_function_source",
+    "make_state_batch_request",
+    "make_vasp_wavefunction_source",
+    "make_wavecar_dataset",
+    "make_wavecar_header",
+    "make_vacuum_boundary_spec",
     "make_handshake_report",
     "make_hopping_record",
     "make_human_attestation_ref",
     "make_information_spectrum",
     "make_information_state",
+    "make_intrinsic_photocurrent",
     "make_kgrid",
     "make_kpath",
     "make_kpath_info",
     "make_matrix_element_params",
+    "make_photon_beam",
+    "make_sample_pose",
+    "make_sample_state",
     "make_orbital_basis",
     "make_orbital_projection",
     "make_policy_report",
@@ -774,7 +970,9 @@ __all__: list[str] = [
     "make_registry_snapshot",
     "make_reproduction_report",
     "make_self_energy_model",
+    "make_shard_spec",
     "make_sensitivity_map",
+    "make_simulation_result",
     "make_slab_spec",
     "make_slab_topology",
     "make_slater_koster_params",
@@ -783,6 +981,7 @@ __all__: list[str] = [
     "make_spin_orbital_projection",
     "make_surface_cell",
     "make_tb_model",
+    "make_tight_binding_state_source",
     "make_text_line_cursor",
     "make_transformation_contract",
     "make_transformation_record",

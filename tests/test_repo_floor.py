@@ -1732,10 +1732,12 @@ class TestRepositoryArchitecture(chex.TestCase):
         self.assertEqual(violations, [])
 
     def test_all_production_carriers_are_types_equinox_modules(self) -> None:
-        """Keep every production type under ``diffpes.types``.
+        """Keep data carriers in ``diffpes.types`` and retain pure interfaces.
 
-        The test confirms every production class is an Equinox module and has
-        the types subpackage as its single architectural owner.
+        The test confirms every data-holding production class is an Equinox
+        module in the types subpackage. A pure Protocol is an interface, not
+        a carrier, when it has direct Protocol inheritance, no default values,
+        and only ellipsis method bodies.
 
         Notes
         -----
@@ -1753,9 +1755,80 @@ class TestRepositoryArchitecture(chex.TestCase):
                 if not isinstance(node, ast.ClassDef):
                     continue
                 bases: set[str] = {ast.unparse(base) for base in node.bases}
+                is_protocol: bool = "Protocol" in bases
+                if is_protocol:
+                    if not in_types:
+                        violations.append(
+                            f"{path}:{node.lineno}:{node.name}:"
+                            "protocol-outside-types"
+                        )
+                    has_defaults: bool = any(
+                        isinstance(child, ast.AnnAssign)
+                        and child.value is not None
+                        for child in node.body
+                    )
+                    if has_defaults:
+                        violations.append(
+                            f"{path}:{node.lineno}:{node.name}:"
+                            "protocol-attribute-default"
+                        )
+                    for child in node.body:
+                        if not isinstance(child, ast.FunctionDef):
+                            continue
+                        body: List[ast.stmt] = [
+                            item
+                            for item in child.body
+                            if not (
+                                isinstance(item, ast.Expr)
+                                and isinstance(item.value, ast.Constant)
+                                and isinstance(item.value.value, str)
+                            )
+                        ]
+                        if not all(
+                            isinstance(item, ast.Expr)
+                            and isinstance(item.value, ast.Constant)
+                            and item.value.value is Ellipsis
+                            for item in body
+                        ):
+                            violations.append(
+                                f"{path}:{child.lineno}:{node.name}:"
+                                "protocol-method-body"
+                            )
+                    continue
                 if not in_types or "eqx.Module" not in bases:
                     violations.append(f"{path}:{node.lineno}:{node.name}")
         self.assertEqual(violations, [])
+
+    def test_protocol_outside_types_remains_a_carrier_violation(self) -> None:
+        """Reject a Protocol outside types by inspecting direct inheritance."""
+        fixture = ast.parse("class External(Protocol):\n    value: str\n")
+        protocol = fixture.body[0]
+        assert isinstance(protocol, ast.ClassDef)
+        bases: set[str] = {ast.unparse(base) for base in protocol.bases}
+        fixture_path: Path = Path("src/diffpes/simul/fixture.py")
+        is_violation: bool = (
+            "Protocol" in bases and fixture_path.parent.name != "types"
+        )
+        self.assertTrue(is_violation)
+
+    def test_protocol_logic_remains_a_carrier_violation(self) -> None:
+        """Reject a Protocol method that defines non-ellipsis behavior."""
+        fixture = ast.parse(
+            "class External(Protocol):\n"
+            "    def value(self):\n"
+            "        return 1\n"
+        )
+        protocol = fixture.body[0]
+        assert isinstance(protocol, ast.ClassDef)
+        method = protocol.body[0]
+        assert isinstance(method, ast.FunctionDef)
+        is_violation: bool = not all(
+            isinstance(item, ast.Expr)
+            and isinstance(item.value, ast.Constant)
+            and item.value.value is Ellipsis
+            for item in method.body
+        )
+        self.assertTrue(is_violation)
 
     def test_make_factories_are_types_owned(self) -> None:
         """Forbid ``make_*`` factories outside ``diffpes.types``.

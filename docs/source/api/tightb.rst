@@ -79,6 +79,7 @@ Slater--Koster models
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 .. automodule:: diffpes.tightb.slaterkoster_model
    :members:

@@ -7,6 +7,12 @@ and the project uses calendar versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Capability interfaces in `diffpes.types` may use pure `Protocol`
+  declarations. Repository architecture checks distinguish these data-free
+  interfaces from factory-validated Equinox carriers.
+
 ### Removed
 
 - The interim real-linewidth evaluator module `simul/self_energy.py` is

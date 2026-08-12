@@ -1,0 +1,1 @@
+"""Specify fidelity-manifest contracts."""

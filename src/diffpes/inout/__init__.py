@@ -104,6 +104,8 @@ All parsers use standard Python I/O because file parsing is sequential. Factory
 functions convert the parsed data to JAX arrays.
 """
 
+from diffpes.types import WavecarDataset, WavecarHeader
+
 from .band_plotting import (
     list_band_scatter_presets,
     plot_band_scatter_preset,
@@ -139,6 +141,11 @@ from .poscar import read_poscar
 from .procar import read_procar
 from .tb_files import read_hopping_list
 from .wannier90 import read_wannier90_hr, read_wannier90_tb
+from .wavecar import (
+    index_wavecar,
+    load_wavecar_records,
+    wavecar_header,
+)
 
 __all__: list[str] = [
     "aggregate_atoms",
@@ -168,4 +175,9 @@ __all__: list[str] = [
     "save_certificate_json",
     "save_to_h5",
     "select_atoms",
+    "WavecarDataset",
+    "WavecarHeader",
+    "index_wavecar",
+    "load_wavecar_records",
+    "wavecar_header",
 ]

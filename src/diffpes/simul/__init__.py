@@ -40,6 +40,10 @@ The following list describes the submodules:
     Assemble calibrated detector response fields and rates.
 - :mod:`effects`
     Compose source mapping and deterministic detector effects.
+- :mod:`factorized`
+    Compose typed electronic-state and factorized-current evaluation.
+- :mod:`generalized_spectral`
+    Evaluate metric-aware retarded Green functions and spectral projections.
 - :mod:`kinematics`
     Compute free-electron photoemission kinematics.
 - :mod:`kz_broadening`
@@ -48,6 +52,8 @@ The following list describes the submodules:
     Compute orbital angular momentum.
 - :mod:`polarization`
     Compute photon polarization and explicit frame transformations.
+- :mod:`plane_wave`
+    Compute bounded pseudo-wave and PAW-restored ARPES amplitudes.
 - :mod:`resolution`
     Apply finite-volume detector resolution.
 - :mod:`retarded_self_energy`
@@ -151,6 +157,8 @@ Routine Listings
     Prepare orbital projections for simulation.
 :func:`projected_spectral_density_resolvent`
     Compute the projected Hermitian resolvent spectral density.
+:func:`projected_spectral_density`
+    Contract transition sources with a metric-aware spectral matrix.
 :func:`rotate_frame_vectors`
     Rotate a detector-fixed real axis across a detector-angle grid.
 :func:`run_vasp_workflow`
@@ -209,6 +217,13 @@ from .detector_response import (
     sensitivity_field,
 )
 from .effects import apply_detector_effects, map_source_to_detector
+from .factorized import evaluate_spectral_projection
+from .generalized_spectral import (
+    projected_spectral_density,
+    solve_retarded_dyson,
+    spectral_density_matrix,
+    total_spectral_density,
+)
 from .kinematics import (
     detector_angles_to_kpar,
     emission_angles,
@@ -224,6 +239,11 @@ from .kz_broadening import (
     kz_wrapped_lorentzian_bin_weights,
 )
 from .oam import compute_oam
+from .plane_wave import (
+    plane_wave_mask,
+    plane_wave_pseudo_amplitude,
+    surface_window_transform,
+)
 from .polarization import (
     build_polarization_vectors,
     contract_experiment_polarization,
@@ -288,6 +308,7 @@ __all__: list[str] = [
     "detector_rotation",
     "emission_angles",
     "evaluate_self_energy",
+    "evaluate_spectral_projection",
     "expected_counts",
     "fermi_dirac",
     "final_state_k_inv_ang",
@@ -310,6 +331,9 @@ __all__: list[str] = [
     "polarization_to_spherical",
     "prepare_projection",
     "projected_spectral_density_resolvent",
+    "projected_spectral_density",
+    "plane_wave_mask",
+    "plane_wave_pseudo_amplitude",
     "rotate_frame_vectors",
     "run_vasp_workflow",
     "sample_azimuth_rotation",
@@ -320,8 +344,12 @@ __all__: list[str] = [
     "simulate_arpes_cut",
     "simulate_hv_scan",
     "spectral_intensity_eigen",
+    "spectral_density_matrix",
     "spectral_intensity_resolvent",
     "transmission_shape",
+    "surface_window_transform",
+    "solve_retarded_dyson",
+    "total_spectral_density",
     "voigt",
     "yeh_lindau_cross_section",
     "yeh_lindau_cross_section_table",

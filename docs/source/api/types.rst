@@ -141,6 +141,7 @@ Certification registry and reports
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: ArtifactRef
 
 Tight-binding carriers
 ----------------------

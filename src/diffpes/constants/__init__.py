@@ -117,6 +117,8 @@ Routine Listings
     Maximum group-to-complement gap treated as a cut degeneracy.
 :obj:`DEPTH_TOLERANCE_ANG`
     Nonnegative orbital-depth tolerance in Angstrom.
+:obj:`DERIVATIVE_CAPABILITY_MODES`
+    Derivative-boundary modes accepted by fidelity manifests.
 :obj:`DETECTOR_BOUNDARY_POLICY`
     Detector boundary-loss convention.
 :obj:`DETECTOR_COORDINATE_SYSTEM`
@@ -159,6 +161,8 @@ Routine Listings
     Store the free-electron dispersion constant in eV Angstrom squared.
 :obj:`HERMITE_TABLE_POINTS`
     Supported sizes of certified Hermite tables.
+:obj:`HERMITICITY_RELATIVE_TOLERANCE`
+    Relative tolerance for eager matrix-Hermiticity validation.
 :obj:`HOPPING_LIST_COMPLEX_FIELDS`
     Number of fields in a complex Cartesian hopping-list row.
 :obj:`HOPPING_LIST_REAL_FIELDS`
@@ -269,6 +273,8 @@ Routine Listings
     Tokens on a scalar CHGCAR header line.
 :obj:`SELF_ENERGY_MODES`
     Model modes accepted by self-energy carriers.
+:obj:`SHARD_CHECKPOINT_POLICIES`
+    Rematerialization policies accepted by static sharding carriers.
 :obj:`SENSITIVITY_MODES`
     Sensitivity modes accepted by detector-effects carriers.
 :obj:`SHELL_ATOLERANCE`
@@ -352,12 +358,14 @@ from .carriers import (
     CERTIFIED_TAIL_ENVELOPE_ID,
     COORDINATE_DENSITY,
     DEPTH_TOLERANCE_ANG,
+    DERIVATIVE_CAPABILITY_MODES,
     DETECTOR_BOUNDARY_POLICY,
     DETECTOR_COORDINATE_SYSTEM,
     EIGENVALUE_NDIM,
     EIGENVECTOR_NDIM,
     FINAL_STATE_MODES,
     HERMITE_TABLE_POINTS,
+    HERMITICITY_RELATIVE_TOLERANCE,
     KPATH_MODES,
     MAX_COEFFICIENT_CONDITION,
     MAX_DECAY_PARAMETER,
@@ -381,6 +389,7 @@ from .carriers import (
     SAMPLE_CARTESIAN_FRAME_ID,
     SELF_ENERGY_MODES,
     SENSITIVITY_MODES,
+    SHARD_CHECKPOINT_POLICIES,
     SLIT_ORIENTATIONS,
     SURFACE_VECTOR_COUNT,
     TAIL_COORDINATE_BOUND,
@@ -560,6 +569,7 @@ __all__: list[str] = [
     "COORDINATE_MODE_TOKENS",
     "DEGENERACY_GROUP_TOL_EV",
     "DEPTH_TOLERANCE_ANG",
+    "DERIVATIVE_CAPABILITY_MODES",
     "DETECTOR_BOUNDARY_POLICY",
     "DETECTOR_COORDINATE_SYSTEM",
     "D_ORBITAL_SLICE",
@@ -581,6 +591,7 @@ __all__: list[str] = [
     "HBAR_EV_S",
     "HBAR_SQ_OVER_2ME_EV_ANG2",
     "HERMITE_TABLE_POINTS",
+    "HERMITICITY_RELATIVE_TOLERANCE",
     "HOPPING_LIST_COMPLEX_FIELDS",
     "HOPPING_LIST_REAL_FIELDS",
     "INTENSITY_NDIM",
@@ -636,6 +647,7 @@ __all__: list[str] = [
     "SAMPLE_CARTESIAN_FRAME_ID",
     "SCALAR_LINE_COMPONENTS",
     "SELF_ENERGY_MODES",
+    "SHARD_CHECKPOINT_POLICIES",
     "SENSITIVITY_MODES",
     "SHELL_ATOLERANCE",
     "SHELL_RTOLERANCE",

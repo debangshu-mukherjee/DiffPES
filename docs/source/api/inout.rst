@@ -51,3 +51,4 @@ Projected-band plotting
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: Axes, Figure, PathCollection, SubFigure

@@ -24,6 +24,8 @@ Routine Listings
     Detector coordinate-density convention.
 :obj:`DEPTH_TOLERANCE_ANG`
     Nonnegative orbital-depth tolerance in Angstrom.
+:obj:`DERIVATIVE_CAPABILITY_MODES`
+    Derivative-boundary modes accepted by fidelity manifests.
 :obj:`DETECTOR_BOUNDARY_POLICY`
     Detector boundary-loss convention.
 :obj:`DETECTOR_COORDINATE_SYSTEM`
@@ -36,6 +38,8 @@ Routine Listings
     Final-state modes accepted by radial carriers.
 :obj:`HERMITE_TABLE_POINTS`
     Supported sizes of certified Hermite tables.
+:obj:`HERMITICITY_RELATIVE_TOLERANCE`
+    Relative tolerance for eager matrix-Hermiticity validation.
 :obj:`KPATH_MODES`
     K-point path modes accepted by VASP metadata carriers.
 :obj:`MAX_COEFFICIENT_CONDITION`
@@ -80,6 +84,8 @@ Routine Listings
     Stable identifier of the sample Cartesian frame.
 :obj:`SELF_ENERGY_MODES`
     Model modes accepted by self-energy carriers.
+:obj:`SHARD_CHECKPOINT_POLICIES`
+    Rematerialization policies accepted by static sharding carriers.
 :obj:`SENSITIVITY_MODES`
     Sensitivity modes accepted by detector-effects carriers.
 :obj:`SLIT_ORIENTATIONS`
@@ -157,12 +163,21 @@ CERTIFIED_R_MAX_BOHR: Final[float] = 120.0
 CERTIFIED_TAIL_ENVELOPE_ID: Final[str] = "r120-zeta0p5-to4-v1"
 COORDINATE_DENSITY: Final[str] = "per_native_volume"
 DEPTH_TOLERANCE_ANG: Final[float] = 1e-12
+DERIVATIVE_CAPABILITY_MODES: Final[Tuple[str, ...]] = (
+    "exact_ad",
+    "implicit_ad",
+    "frozen_upstream",
+    "finite_difference",
+    "surrogate",
+    "none",
+)
 DETECTOR_BOUNDARY_POLICY: Final[str] = "loss"
 DETECTOR_COORDINATE_SYSTEM: Final[str] = "hemispherical_angles"
 EIGENVALUE_NDIM: Final[int] = 2
 EIGENVECTOR_NDIM: Final[int] = 3
 FINAL_STATE_MODES: Final[Tuple[str, ...]] = ("plane_wave", "coulomb")
 HERMITE_TABLE_POINTS: Final[Tuple[int, ...]] = (257, 513, 1025, 2049)
+HERMITICITY_RELATIVE_TOLERANCE: Final[float] = 1.0e-12
 KPATH_MODES: Final[Tuple[str, ...]] = (
     "Automatic",
     "Line-mode",
@@ -202,6 +217,10 @@ SELF_ENERGY_MODES: Final[Tuple[str, ...]] = (
     "fermi_liquid",
     "bosonic_kink",
 )
+SHARD_CHECKPOINT_POLICIES: Final[Tuple[str, ...]] = (
+    "everything",
+    "dots_saveable",
+)
 SENSITIVITY_MODES: Final[Tuple[str, ...]] = ("constant", "smooth")
 SLIT_ORIENTATIONS: Final[Tuple[str, ...]] = ("H", "V")
 SURFACE_VECTOR_COUNT: Final[int] = 2
@@ -219,12 +238,14 @@ __all__: list[str] = [
     "CERTIFIED_TAIL_ENVELOPE_ID",
     "COORDINATE_DENSITY",
     "DEPTH_TOLERANCE_ANG",
+    "DERIVATIVE_CAPABILITY_MODES",
     "DETECTOR_BOUNDARY_POLICY",
     "DETECTOR_COORDINATE_SYSTEM",
     "EIGENVALUE_NDIM",
     "EIGENVECTOR_NDIM",
     "FINAL_STATE_MODES",
     "HERMITE_TABLE_POINTS",
+    "HERMITICITY_RELATIVE_TOLERANCE",
     "KPATH_MODES",
     "MAX_COEFFICIENT_CONDITION",
     "MAX_DECAY_PARAMETER",
@@ -247,6 +268,7 @@ __all__: list[str] = [
     "ROTATION_ORTHOGONALITY_TOLERANCE",
     "SAMPLE_CARTESIAN_FRAME_ID",
     "SELF_ENERGY_MODES",
+    "SHARD_CHECKPOINT_POLICIES",
     "SENSITIVITY_MODES",
     "SLIT_ORIENTATIONS",
     "SURFACE_VECTOR_COUNT",
