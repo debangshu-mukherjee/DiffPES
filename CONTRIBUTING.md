@@ -380,8 +380,8 @@ packaged certification registry manifest.
 PyTree, carrier, type alias, and `make_*` factory under `src/diffpes/types/`.
 
 Capability interfaces may use `typing.Protocol` under `src/diffpes/types/`.
-Protocols are not carriers: they must inherit `Protocol` directly, declare no
-attribute defaults, and contain only ellipsis method bodies plus docstrings.
+Protocols are not carriers. They must inherit `Protocol` directly and declare
+no attribute defaults. Their methods contain only ellipses and docstrings.
 Protocols outside `types` are forbidden.
 Other subpackages import these types from `diffpes.types`. They do not define
 local PyTrees, containers, or factories.

@@ -16,6 +16,11 @@ bulk-kz-and-photon-energy
 tight-binding-models
 slabs-and-surfaces
 matrix-element-sensitivity
+90-laser-window-audit
+91-anchor-band-structures
+92-orbital-character
+93-chgcar-floor-dry-run
+94-tb-dirac-cone-spectrum
 ```
 
 - [Quickstart](quickstart.md): Assemble a coherent intrinsic spectrum through
@@ -40,6 +45,17 @@ matrix-element-sensitivity
 - [Matrix-element sensitivity](matrix-element-sensitivity.md): Differentiate
   complete isolated band-group weights through a synthetic dark corridor and
   apply the logarithmic validity mask.
+- [Anchor material band structures](91-anchor-band-structures.md): Load local
+  DFT bands and compare their paths against one Fermi reference.
+- [Laser window audit](90-laser-window-audit.md): Compare low-energy
+  photoemission access against local DFT bands and a calibrated Dirac cone.
+- [Orbital character maps](92-orbital-character.md): Resolve local DFT bands
+  by orbital family, atomic species, and layer.
+- [Charge-density floor checks](93-chgcar-floor-dry-run.md): Inspect local
+  volumetric densities and surface-sensitive escape-depth weighting.
+- [Calibrated Dirac cone spectrum](94-tb-dirac-cone-spectrum.md): Run a
+  DFT-calibrated cone through matrix elements, detector response, and one
+  Poisson acquisition at 6.05 eV.
 
 The project is developing more complete examples:
 

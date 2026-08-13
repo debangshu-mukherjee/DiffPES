@@ -250,7 +250,7 @@ def _spectral_square(
     model: TBModel,
     kpoint: Float64[Array, " 3"],
 ) -> Float64[Array, ""]:
-    r"""PRIVATE: Return ``Tr(H**2)``, a symmetric spectral polynomial.
+    """PRIVATE: Return ``Tr(H**2)``, a symmetric spectral polynomial.
 
     Parameters
     ----------

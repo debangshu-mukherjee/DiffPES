@@ -551,9 +551,9 @@ class TestRepositoryArchitecture(chex.TestCase):
 
         The witness checks exact deleted module paths, every former six-tier
         assembler and expanded dispatcher symbol, ``SimulationParams``
-        consumers, and live ``tier``/``fidelity`` identifiers. It inspects
-        production ASTs and literal public exports, so historical changelog and
-        frozen reference prose remain valid evidence, not false positives.
+        consumers, and live tier identifiers. Fidelity metadata remains valid
+        only in its manifest carrier and factorized evaluator. The witness
+        inspects production ASTs and literal public exports.
 
         Notes
         -----
@@ -592,6 +592,9 @@ class TestRepositoryArchitecture(chex.TestCase):
         tier_literals: frozenset[str] = frozenset(
             {"advanced", "basic", "basicplus", "expert", "novice", "soc"}
         )
+        fidelity_paths: frozenset[Path] = frozenset(
+            {Path("simul/factorized.py"), Path("types/result.py")}
+        )
         violations: set[str] = {
             f"live deleted path: {relative_path}"
             for relative_path in deleted_paths
@@ -624,10 +627,11 @@ class TestRepositoryArchitecture(chex.TestCase):
                     symbol = (
                         node.asname or node.name.rsplit(".", maxsplit=1)[-1]
                     )
-                if symbol in forbidden_symbols or symbol in {
-                    "fidelity",
-                    "tier",
-                }:
+                forbidden_dispatch_name: bool = symbol == "tier" or (
+                    symbol == "fidelity"
+                    and relative_path not in fidelity_paths
+                )
+                if symbol in forbidden_symbols or forbidden_dispatch_name:
                     violations.add(
                         f"{relative_path}:{getattr(node, 'lineno', 0)}:"
                         f"retired symbol {symbol}"
@@ -638,7 +642,11 @@ class TestRepositoryArchitecture(chex.TestCase):
                     and (
                         node.value in forbidden_symbols
                         or node.value in tier_literals
-                        or node.value in {"fidelity", "tier"}
+                        or node.value == "tier"
+                        or (
+                            node.value == "fidelity"
+                            and relative_path not in fidelity_paths
+                        )
                     )
                 ):
                     violations.add(
@@ -1745,6 +1753,7 @@ class TestRepositoryArchitecture(chex.TestCase):
         state, and compares its direct bases and source directory with the
         type-ownership rule.
         """
+        child: ast.stmt
         violations: List[str] = []
         path: Path
         module: ast.Module
@@ -1763,8 +1772,11 @@ class TestRepositoryArchitecture(chex.TestCase):
                             "protocol-outside-types"
                         )
                     has_defaults: bool = any(
-                        isinstance(child, ast.AnnAssign)
-                        and child.value is not None
+                        (
+                            isinstance(child, ast.AnnAssign)
+                            and child.value is not None
+                        )
+                        or isinstance(child, ast.Assign)
                         for child in node.body
                     )
                     if has_defaults:
@@ -1773,7 +1785,10 @@ class TestRepositoryArchitecture(chex.TestCase):
                             "protocol-attribute-default"
                         )
                     for child in node.body:
-                        if not isinstance(child, ast.FunctionDef):
+                        if not isinstance(
+                            child,
+                            ast.FunctionDef | ast.AsyncFunctionDef,
+                        ):
                             continue
                         body: List[ast.stmt] = [
                             item
@@ -1800,7 +1815,16 @@ class TestRepositoryArchitecture(chex.TestCase):
         self.assertEqual(violations, [])
 
     def test_protocol_outside_types_remains_a_carrier_violation(self) -> None:
-        """Reject a Protocol outside types by inspecting direct inheritance."""
+        """Reject a Protocol outside types by inspecting direct inheritance.
+
+        The fixture places a direct Protocol subclass under a simulation path.
+
+        Notes
+        -----
+        Compare the fixture path with the single types ownership directory.
+        """
+        fixture: Any
+        protocol: Any
         fixture = ast.parse("class External(Protocol):\n    value: str\n")
         protocol = fixture.body[0]
         assert isinstance(protocol, ast.ClassDef)
@@ -1812,7 +1836,17 @@ class TestRepositoryArchitecture(chex.TestCase):
         self.assertTrue(is_violation)
 
     def test_protocol_logic_remains_a_carrier_violation(self) -> None:
-        """Reject a Protocol method that defines non-ellipsis behavior."""
+        """Reject a Protocol method that defines non-ellipsis behavior.
+
+        The fixture places executable return logic inside an interface method.
+
+        Notes
+        -----
+        Inspect every non-docstring statement and require an ellipsis literal.
+        """
+        fixture: Any
+        protocol: Any
+        method: Any
         fixture = ast.parse(
             "class External(Protocol):\n"
             "    def value(self):\n"
@@ -2075,11 +2109,13 @@ class TestRepositoryArchitecture(chex.TestCase):
             "inout/hdf5.py": {"_PYTREE_REGISTRY"},
             "types/aliases.py": {
                 "NonJaxNumber",
+                "RetardedSelfEnergySource",
                 "ScalarBool",
                 "ScalarComplex",
                 "ScalarFloat",
                 "ScalarInteger",
                 "ScalarNumeric",
+                "SliceOperator",
             },
             "types/context.py": {"DosType", "ProjectionType"},
         }

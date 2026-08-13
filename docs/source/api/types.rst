@@ -11,6 +11,81 @@ outputs, certification records, transformation contracts, and provenance.
    :imported-members:
    :exclude-members: __builtins__, __cached__, __doc__, __file__, __loader__, __name__, __package__, __path__, __spec__
 
+Measurement and experiment state
+--------------------------------
+
+.. automodule:: diffpes.types.coordinates
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.experiment_state
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Electronic-state and spectral contracts
+---------------------------------------
+
+.. automodule:: diffpes.types.electronic_state
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.generalized_spectral
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.retarded_validation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Fidelity, photocurrent, and results
+-----------------------------------
+
+.. automodule:: diffpes.types.fidelity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.photocurrent
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.result
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Plane-wave and scattering contracts
+-----------------------------------
+
+.. automodule:: diffpes.types.plane_wave
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.ks_scattering
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: diffpes.types.ks_scattering_solution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Sharding contracts
+------------------
+
+.. automodule:: diffpes.types.sharding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 ARPES carriers and slices
 -------------------------
 

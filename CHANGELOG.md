@@ -7,11 +7,31 @@ and the project uses calendar versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- `read_procar` parses the modern single-header SOC layout, where one band
+  record stacks the total, Sx, Sy, and Sz ion tables. The parser now scans
+  to the band and ion anchors instead of counting fixed line offsets, so
+  blank lines after a band header no longer break the read. Legacy
+  multi-header files keep their previous behavior, and an unexpected
+  projection-table count fails with a specific error.
+
 ### Changed
 
 - Capability interfaces in `diffpes.types` may use pure `Protocol`
   declarations. Repository architecture checks distinguish these data-free
   interfaces from factory-validated Equinox carriers.
+- The public simulation scaffold adds solver-neutral electronic-state
+  capabilities, generalized retarded spectral sources, and factorized
+  photocurrent composition. It also adds validated measurement and experiment
+  carriers, bounded WAVECAR indexing, pseudo-plane-wave amplitudes,
+  finite-slab scattering contracts, and static-shape sharded reductions.
+  The additions use the public `types`, `simul`, `inout`, and `utils` surfaces.
+  Unsupported all-electron restoration and scattering solves remain outside
+  the shipped numerical surface. Regenerated the frozen matrix-element,
+  spectral, detector, and kz-scan scalability artifacts. Additive constant
+  and public-export changes updated the SHA-256 pins for their monitored
+  package `__init__` files.
 
 ### Removed
 

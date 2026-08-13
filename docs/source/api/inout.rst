@@ -13,6 +13,14 @@ utilities for ARPES simulation input.
    :imported-members:
    :exclude-members: __builtins__, __cached__, __doc__, __file__, __loader__, __name__, __package__, __path__, __spec__
 
+VASP WAVECAR indexing
+---------------------
+
+.. automodule:: diffpes.inout.wavecar
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Tight-binding and Wannier90 files
 ---------------------------------
 

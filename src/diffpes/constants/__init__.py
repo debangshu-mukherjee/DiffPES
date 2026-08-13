@@ -311,6 +311,10 @@ Routine Listings
     Semantic version of the radial ARPES forward model.
 :obj:`TRANSVERSALITY_ATOL`
     Absolute transversality tolerance for polarization vectors.
+:obj:`WAVECAR_SECOND_RECORD_VALUES`
+    Number of float64 values in the supported WAVECAR metadata record.
+:obj:`WAVECAR_SINGLE_PRECISION_TAG`
+    VASP WAVECAR tag for complex64 coefficient records.
 :obj:`TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2`
     Store the inverse free-electron dispersion constant.
 :obj:`WANNIER_CELL_FIELDS`
@@ -396,6 +400,8 @@ from .carriers import (
     TB_HERMITICITY_TOLERANCE,
     TB_PAIR_LENGTH,
     TRANSVERSALITY_ATOL,
+    WAVECAR_SECOND_RECORD_VALUES,
+    WAVECAR_SINGLE_PRECISION_TAG,
 )
 from .certification import (
     CANONICAL_ARRAY_CHUNK_BYTES,
@@ -666,6 +672,8 @@ __all__: list[str] = [
     "TB_RADIAL_MODEL_ID",
     "TB_RADIAL_MODEL_VERSION",
     "TRANSVERSALITY_ATOL",
+    "WAVECAR_SECOND_RECORD_VALUES",
+    "WAVECAR_SINGLE_PRECISION_TAG",
     "TWO_ME_OVER_HBAR_SQ_INV_EV_ANG2",
     "WANNIER_CELL_FIELDS",
     "WANNIER_CENTRE_CONSISTENCY_TOLERANCE",

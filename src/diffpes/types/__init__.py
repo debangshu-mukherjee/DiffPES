@@ -1,15 +1,7 @@
-"""Define types and factory functions for diffpes.
+"""Expose the public :mod:`diffpes.types` surface.
 
 Extended Summary
 ----------------
-This package provides PyTree-compatible data structures and their factory
-functions for ARPES simulation data. The data includes crystal geometry,
-band structures, orbital projections, experiment geometry, and detector
-calibration. JAX stores fields that participate in autodiff as array children
-and static topology or selector values as auxiliary data.
-
-The package contains these submodules:
-
 - :mod:`aliases`
     Define scalar type aliases for JAX-compatible numeric types.
 - :mod:`arpes`
@@ -22,10 +14,10 @@ The package contains these submodules:
     Validate shared certification values.
 - :mod:`context`
     Define structured inputs for high-level VASP simulation workflows.
-- :mod:`coordinates`
-    Define typed coordinate axes for detector and source representations.
 - :mod:`contracts`
     Define static carriers for certified transformation contracts.
+- :mod:`coordinates`
+    Define typed measurement coordinates.
 - :mod:`derivatives`
     Define derivative and information evidence records.
 - :mod:`detector_data`
@@ -36,32 +28,36 @@ The package contains these submodules:
     Define diagonalized electronic-structure data.
 - :mod:`dos`
     Define density-of-states data structures.
+- :mod:`electronic_state`
+    Define solver-neutral electronic-state capabilities and a native source.
 - :mod:`electronic_structure_validation`
     Validate shared electronic-structure geometry.
-- :mod:`electronic_state`
-    Define solver-neutral electronic-state capability protocols.
 - :mod:`evidence`
     Define certification evidence and lineage records.
+- :mod:`experiment`
+    Define the geometry of an ARPES experiment.
 - :mod:`experiment_state`
-    Define split beam, sample, pose, and acquisition state.
+    Define split experiment carriers without hidden workflow state.
 - :mod:`fidelity`
     Define immutable scientific-fidelity declarations.
 - :mod:`generalized_spectral`
-    Define typed retarded spectral sources and evaluated batches.
-- :mod:`experiment`
-    Define the geometry of an ARPES experiment.
+    Define typed sources and evaluated batches for generalized spectra.
 - :mod:`geometry`
     Define crystal-geometry data structures for VASP crystal structures.
 - :mod:`inspection`
     Store types-owned records from certificate inspection.
 - :mod:`kpath`
     Define k-space path and grid data structures.
+- :mod:`ks_scattering`
+    Define native finite-slab Kohn--Sham scattering contracts.
+- :mod:`ks_scattering_solution`
+    Define scattering solver policies and evaluated result batches.
 - :mod:`orbital_basis`
     Define orbital-basis metadata for radial models.
 - :mod:`photocurrent`
     Define the typed factorized-photocurrent model boundary.
 - :mod:`plane_wave`
-    Define bounded plane-wave, PAW, and WAVECAR carriers.
+    Define bounded plane-wave and PAW carriers for solver-neutral ARPES.
 - :mod:`provenance`
     Store types-owned carriers for artifact provenance and information flow.
 - :mod:`radial_params`
@@ -72,12 +68,16 @@ The package contains these submodules:
     Define immutable certification registry records.
 - :mod:`reports`
     Define certification policy and verification reports.
+- :mod:`retarded_validation`
+    Validate matrix-valued retarded spectral evidence.
+- :mod:`result`
+    Define intrinsic and observed ARPES result carriers.
 - :mod:`runtime`
     Store mutable host-side state for certification services.
-- :mod:`sharding`
-    Define static execution policies for bounded JAX sharding.
 - :mod:`self_energy`
     Define the causal self-energy model carrier.
+- :mod:`sharding`
+    Define static execution policies for JAX sharding.
 - :mod:`slab_geometry`
     Define exact surface-cell and slab geometry metadata.
 - :mod:`slab_topology`
@@ -97,12 +97,16 @@ The package contains these submodules:
 
 Routine Listings
 ----------------
+:class:`Acquisition`
+    Define the ``Acquisition`` public contract.
 :class:`ArpesCube`
     Store source-coordinate ARPES intensity on a Cartesian momentum raster.
 :class:`ArpesSpectrum`
     Store self-describing ARPES path intensity in a JAX PyTree.
 :class:`ArtifactRef`
     Store static identity and role for one source or derived artifact.
+:class:`BackingAbsorberSpec`
+    Define the ``BackingAbsorberSpec`` public contract.
 :class:`BandStructure`
     Store electronic band-structure data in a JAX PyTree.
 :class:`CertificateDiff`
@@ -123,12 +127,18 @@ Routine Listings
     Store VASP POSCAR crystal geometry in a JAX PyTree.
 :class:`DensityOfStates`
     Store density-of-states data in a JAX PyTree.
+:class:`DerivativeCapability`
+    Define the ``DerivativeCapability`` public contract.
+:class:`DysonSpectralSource`
+    Define the ``DysonSpectralSource`` public contract.
 :class:`DependencyAnalysisCache`
     Store cached structural dependency analyses and access counters.
 :class:`DependencyMap`
     Store declared and JAXPR-observed dependency relations.
 :class:`DerivativeEvidence`
     Store JVP, VJP, reference, and information-spectrum evidence.
+:class:`DenseSliceOperator`
+    Define the ``DenseSliceOperator`` public contract.
 :class:`DetectorCalibration`
     Store native detector-bin and point-spread calibration.
 :class:`DetectorEffects`
@@ -143,6 +153,8 @@ Routine Listings
     Store the traced evaluation of one declared domain predicate.
 :class:`EvidenceLineage`
     Store named implementation, generator, artifact, and derivation lineage.
+:class:`Experiment`
+    Define the ``Experiment`` public contract.
 :class:`EvidenceRef`
     Store numerical evidence with static method and source identity.
 :class:`EvidenceReport`
@@ -151,8 +163,18 @@ Routine Listings
     Store software and execution identity prepared at the I/O boundary.
 :class:`ExperimentGeometry`
     Store the geometry of an ARPES experiment.
+:class:`ElectronicStateSource`
+    Define the ``ElectronicStateSource`` public contract.
+:class:`ElectronicStateArchive`
+    Define the ``ElectronicStateArchive`` public contract.
+:class:`EigensystemSource`
+    Define the ``EigensystemSource`` public contract.
+:class:`FidelityManifest`
+    Define the ``FidelityManifest`` public contract.
 :class:`FinalStateSpec`
     Store a certified radial final-state selection.
+:class:`FactorizedArpesModel`
+    Define the ``FactorizedArpesModel`` public contract.
 :class:`ForwardCertificate`
     Store the complete assurance record for one forward execution.
 :class:`ForwardModelSpec`
@@ -161,6 +183,10 @@ Routine Listings
     Store spin-resolved total and projected DOS data in a JAX PyTree.
 :class:`HamiltonianBlocks`
     Store normalized Hamiltonian matrices with exact block metadata.
+:class:`HamiltonianSource`
+    Define the ``HamiltonianSource`` public contract.
+:class:`HamiltonianOverlapSource`
+    Define the ``HamiltonianOverlapSource`` public contract.
 :class:`HandshakeReport`
     Store the validation outcome for one registration handshake.
 :class:`HoppingRecord`
@@ -171,18 +197,40 @@ Routine Listings
     Store a matrix-free information spectrum in input coordinates.
 :class:`InformationState`
     Store effective semantic state for one artifact or result node.
+:class:`IntrinsicPhotocurrent`
+    Define the ``IntrinsicPhotocurrent`` public contract.
+:class:`InMemoryPlaneWaveSource`
+    Define the ``InMemoryPlaneWaveSource`` public contract.
 :class:`KGrid`
     Store a fixed-shape raster in fractional k-space.
 :class:`KPath`
     Store a generated path through fractional k-space.
 :class:`KPathInfo`
     Store k-point path metadata in a JAX PyTree.
+:class:`KSScatteringBatch`
+    Define the ``KSScatteringBatch`` public contract.
+:class:`KSScatteringBoundaryProfile`
+    Define the ``KSScatteringBoundaryProfile`` public contract.
+:class:`KSScatteringProblem`
+    Define the ``KSScatteringProblem`` public contract.
+:class:`KSScatteringRequest`
+    Define the ``KSScatteringRequest`` public contract.
+:class:`KSScatteringSolverSpec`
+    Define the ``KSScatteringSolverSpec`` public contract.
+:class:`LightMatterCouplingSpec`
+    Define the ``LightMatterCouplingSpec`` public contract.
 :class:`MatrixElementParams`
     Store shell-shared matrix-element scales and channel phases.
+:class:`MeasurementCoordinates`
+    Define the ``MeasurementCoordinates`` public contract.
+:class:`OverlapSource`
+    Define the ``OverlapSource`` public contract.
 :class:`OrbitalBasis`
     Store orbital quantum-number metadata in a JAX PyTree.
 :class:`OrbitalProjection`
     Store orbital-resolved band projections in a JAX PyTree.
+:class:`PhotonBeam`
+    Define the ``PhotonBeam`` public contract.
 :class:`PolicyReport`
     Store a traced policy truth table for derived certification levels.
 :class:`Power2TailSpec`
@@ -193,7 +241,7 @@ Routine Listings
     Store a validated lineage graph and its propagated semantics.
 :class:`ProvenanceReport`
     Store a structural and semantic provenance-validation report.
-:class:`PyTreeDef`
+:obj:`PyTreeDef`
     Runtime pytree definition with a typed static-analysis stand-in.
 :class:`RadialQuadratureSpec`
     Store one immutable certified radial-quadrature profile.
@@ -213,8 +261,46 @@ Routine Listings
     Store a numerical comparison from deliberate forward re-execution.
 :class:`SOCVolumetricData`
     Store SOC CHGCAR volumetric-grid data in a JAX PyTree.
+:class:`SamplePose`
+    Define the ``SamplePose`` public contract.
+:class:`SampleState`
+    Define the ``SampleState`` public contract.
 :class:`SelfEnergyModel`
     Store a causal self-energy parameterization as a JAX PyTree.
+:class:`ShardSpec`
+    Define the ``ShardSpec`` public contract.
+:class:`RetardedGreenFunctionSource`
+    Define the ``RetardedGreenFunctionSource`` public contract.
+:class:`RetardedGreenBatch`
+    Define the ``RetardedGreenBatch`` public contract.
+:obj:`RetardedSelfEnergySource`
+    Union of parametric and tabulated retarded self-energy sources.
+:class:`RetardedValidationReport`
+    Define the ``RetardedValidationReport`` public contract.
+:class:`SelfEnergyBatch`
+    Define the ``SelfEnergyBatch`` public contract.
+:class:`SimulationResult`
+    Define the ``SimulationResult`` public contract.
+:class:`SpectralEvaluationRequest`
+    Define the ``SpectralEvaluationRequest`` public contract.
+:class:`StateBatchRequest`
+    Define the ``StateBatchRequest`` public contract.
+:class:`VaspWavefunctionSource`
+    Define the ``VaspWavefunctionSource`` public contract.
+:class:`WavecarDataset`
+    Define the ``WavecarDataset`` public contract.
+:class:`WavecarHeader`
+    Define the ``WavecarHeader`` public contract.
+:class:`ParametricSelfEnergy`
+    Define the ``ParametricSelfEnergy`` public contract.
+:class:`PlaneWaveBatch`
+    Define the ``PlaneWaveBatch`` public contract.
+:class:`PlaneWaveStateSource`
+    Define the ``PlaneWaveStateSource`` public contract.
+:class:`TabulatedMatrixSelfEnergy`
+    Define the ``TabulatedMatrixSelfEnergy`` public contract.
+:class:`TabulatedRetardedGreenFunctionSource`
+    Define the ``TabulatedRetardedGreenFunctionSource`` public contract.
 :class:`SensitivityMap`
     Store scaled sensitivities from inputs to output projections.
 :class:`SlabSpec`
@@ -223,14 +309,22 @@ Routine Listings
     Store host-selected discrete slab topology for pure-JAX rebuilding.
 :class:`SlaterKosterParams`
     Store differentiable Slater--Koster two-center integrals.
+:obj:`SliceOperator`
+    Union of dense and sparse finite-slice operators.
 :class:`SpinBandStructure`
     Store spin-resolved electronic band-structure data in a JAX PyTree.
 :class:`SpinOrbitalProjection`
     Store orbital projections with spin data in a JAX PyTree.
 :class:`SurfaceCell`
     Store a validated Cartesian surface-cell frame.
+:class:`SparseSliceOperator`
+    Define the ``SparseSliceOperator`` public contract.
 :class:`TBModel`
     Store tight-binding parameters in a JAX PyTree.
+:class:`TightBindingStateSource`
+    Define the ``TightBindingStateSource`` public contract.
+:class:`WavefunctionSource`
+    Define the ``WavefunctionSource`` public contract.
 :class:`TextLineCursor`
     Record strict line-numbered parsing for one text file.
 :class:`TransformationContract`
@@ -243,6 +337,8 @@ Routine Listings
     Store an offline certificate-verification outcome.
 :class:`VolumetricData`
     Store CHGCAR volumetric-grid data in a JAX PyTree.
+:class:`VacuumBoundarySpec`
+    Define the ``VacuumBoundarySpec`` public contract.
 :class:`WaiverRecord`
     Store a bounded policy-waiver declaration without changing claim status.
 :class:`WaiverReport`
@@ -255,6 +351,8 @@ Routine Listings
     Compute an ARPES map inside an explicit energy window.
 :func:`fermi_surface_map`
     Compute an ARPES map around the Fermi level.
+:func:`make_acquisition`
+    Compute the ``make_acquisition`` public contract.
 :func:`make_arpes_cube`
     Create a validated ``ArpesCube`` instance.
 :func:`make_arpes_spectrum`
@@ -281,6 +379,12 @@ Routine Listings
     Create a validated CrystalGeometry instance.
 :func:`make_density_of_states`
     Create a validated DensityOfStates instance.
+:func:`make_dyson_spectral_source`
+    Compute the ``make_dyson_spectral_source`` public contract.
+:func:`make_derivative_capability`
+    Compute the ``make_derivative_capability`` public contract.
+:func:`make_fidelity_manifest`
+    Compute the ``make_fidelity_manifest`` public contract.
 :func:`make_dependency_analysis_cache`
     Create an empty mutable cache for dependency analyses.
 :func:`make_dependency_map`
@@ -307,10 +411,34 @@ Routine Listings
     Create an offline evidence-verification report.
 :func:`make_execution_manifest`
     Create a validated execution manifest.
+:func:`make_experiment`
+    Compute the ``make_experiment`` public contract.
 :func:`make_experiment_geometry`
     Create a validated geometry for an ARPES experiment.
+:func:`make_ks_scattering_solver_spec`
+    Compute the ``make_ks_scattering_solver_spec`` public contract.
+:func:`make_backing_absorber_spec`
+    Compute the ``make_backing_absorber_spec`` public contract.
+:func:`make_dense_slice_operator`
+    Compute the ``make_dense_slice_operator`` public contract.
+:func:`make_ks_scattering_batch`
+    Compute the ``make_ks_scattering_batch`` public contract.
+:func:`make_ks_scattering_boundary_profile`
+    Compute the ``make_ks_scattering_boundary_profile`` public contract.
+:func:`make_ks_scattering_problem`
+    Compute the ``make_ks_scattering_problem`` public contract.
+:func:`make_ks_scattering_request`
+    Compute the ``make_ks_scattering_request`` public contract.
+:func:`make_light_matter_coupling_spec`
+    Compute the ``make_light_matter_coupling_spec`` public contract.
+:func:`make_sparse_slice_operator`
+    Compute the ``make_sparse_slice_operator`` public contract.
+:func:`make_electronic_state_archive`
+    Compute the ``make_electronic_state_archive`` public contract.
 :func:`make_final_state_spec`
     Create a validated radial final-state selection.
+:func:`make_factorized_arpes_model`
+    Compute the ``make_factorized_arpes_model`` public contract.
 :func:`make_forward_certificate`
     Create and cross-validate a complete forward certificate.
 :func:`make_forward_model_spec`
@@ -319,6 +447,36 @@ Routine Listings
     Create a validated ``FullDensityOfStates`` instance.
 :func:`make_hamiltonian_blocks`
     Create normalized Hamiltonian blocks without changing parsed values.
+:func:`make_measurement_coordinates`
+    Compute the ``make_measurement_coordinates`` public contract.
+:func:`make_parametric_self_energy`
+    Compute the ``make_parametric_self_energy`` public contract.
+:func:`make_plane_wave_batch`
+    Compute the ``make_plane_wave_batch`` public contract.
+:func:`make_in_memory_plane_wave_source`
+    Compute the ``make_in_memory_plane_wave_source`` public contract.
+:func:`make_retarded_green_batch`
+    Compute the ``make_retarded_green_batch`` public contract.
+:func:`make_retarded_validation_report`
+    Compute the ``make_retarded_validation_report`` public contract.
+:func:`make_self_energy_batch`
+    Compute the ``make_self_energy_batch`` public contract.
+:func:`make_spectral_evaluation_request`
+    Compute the ``make_spectral_evaluation_request`` public contract.
+:func:`make_tabulated_matrix_self_energy`
+    Compute the ``make_tabulated_matrix_self_energy`` public contract.
+:func:`make_tabulated_retarded_green_function_source`
+    Create a tabulated retarded Green-function source.
+:func:`make_state_batch_request`
+    Compute the ``make_state_batch_request`` public contract.
+:func:`make_vasp_wavefunction_source`
+    Compute the ``make_vasp_wavefunction_source`` public contract.
+:func:`make_wavecar_dataset`
+    Compute the ``make_wavecar_dataset`` public contract.
+:func:`make_wavecar_header`
+    Compute the ``make_wavecar_header`` public contract.
+:func:`make_vacuum_boundary_spec`
+    Compute the ``make_vacuum_boundary_spec`` public contract.
 :func:`make_handshake_report`
     Create a report for one registration handshake.
 :func:`make_hopping_record`
@@ -329,6 +487,8 @@ Routine Listings
     Create a validated local information spectrum.
 :func:`make_information_state`
     Create a validated semantic-information state for one graph node.
+:func:`make_intrinsic_photocurrent`
+    Compute the ``make_intrinsic_photocurrent`` public contract.
 :func:`make_kgrid`
     Create a validated fixed-shape k-space raster.
 :func:`make_kpath`
@@ -337,6 +497,12 @@ Routine Listings
     Create a validated KPathInfo instance.
 :func:`make_matrix_element_params`
     Create validated shell-shared matrix-element parameters.
+:func:`make_photon_beam`
+    Compute the ``make_photon_beam`` public contract.
+:func:`make_sample_pose`
+    Compute the ``make_sample_pose`` public contract.
+:func:`make_sample_state`
+    Compute the ``make_sample_state`` public contract.
 :func:`make_orbital_basis`
     Create a validated ``OrbitalBasis`` instance.
 :func:`make_orbital_projection`
@@ -369,8 +535,12 @@ Routine Listings
     Create a report comparing a result with its re-execution.
 :func:`make_self_energy_model`
     Create a validated self-energy model.
+:func:`make_shard_spec`
+    Compute the ``make_shard_spec`` public contract.
 :func:`make_sensitivity_map`
     Create a named, scaled local-sensitivity map.
+:func:`make_simulation_result`
+    Compute the ``make_simulation_result`` public contract.
 :func:`make_slab_spec`
     Create a validated slab-construction sidecar.
 :func:`make_slab_topology`
@@ -387,6 +557,8 @@ Routine Listings
     Create a validated Cartesian surface-cell carrier.
 :func:`make_tb_model`
     Create a validated ``TBModel`` instance.
+:func:`make_tight_binding_state_source`
+    Compute the ``make_tight_binding_state_source`` public contract.
 :func:`make_text_line_cursor`
     Create a line cursor from one UTF-8 text file.
 :func:`make_transformation_contract`
@@ -431,22 +603,18 @@ Routine Listings
     Union of ``int`` and ``Int[Array, " "]``.
 :obj:`ScalarNumeric`
     Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
-
-Notes
------
-All structured carriers are immutable :class:`equinox.Module` PyTrees.
-Array fields remain differentiable leaves, while shape and control-flow
-metadata use ``equinox.field(static=True)``.
 """
 
 from .aliases import (
     NonJaxNumber,
     PyTreeDef,
+    RetardedSelfEnergySource,
     ScalarBool,
     ScalarComplex,
     ScalarFloat,
     ScalarInteger,
     ScalarNumeric,
+    SliceOperator,
 )
 from .arpes import (
     ArpesCube,
@@ -563,8 +731,6 @@ from .generalized_spectral import (
     DysonSpectralSource,
     ParametricSelfEnergy,
     RetardedGreenBatch,
-    RetardedSelfEnergySource,
-    RetardedValidationReport,
     SelfEnergyBatch,
     SpectralEvaluationRequest,
     TabulatedMatrixSelfEnergy,
@@ -572,7 +738,6 @@ from .generalized_spectral import (
     make_dyson_spectral_source,
     make_parametric_self_energy,
     make_retarded_green_batch,
-    make_retarded_validation_report,
     make_self_energy_batch,
     make_spectral_evaluation_request,
     make_tabulated_matrix_self_energy,
@@ -594,25 +759,26 @@ from .kpath import (
 from .ks_scattering import (
     BackingAbsorberSpec,
     DenseSliceOperator,
-    KSScatteringBatch,
     KSScatteringBoundaryProfile,
     KSScatteringProblem,
     KSScatteringRequest,
-    KSScatteringSolverSpec,
     LightMatterCouplingSpec,
-    SliceOperator,
     SparseSliceOperator,
     VacuumBoundarySpec,
     make_backing_absorber_spec,
     make_dense_slice_operator,
-    make_ks_scattering_batch,
     make_ks_scattering_boundary_profile,
     make_ks_scattering_problem,
     make_ks_scattering_request,
-    make_ks_scattering_solver_spec,
     make_light_matter_coupling_spec,
     make_sparse_slice_operator,
     make_vacuum_boundary_spec,
+)
+from .ks_scattering_solution import (
+    KSScatteringBatch,
+    KSScatteringSolverSpec,
+    make_ks_scattering_batch,
+    make_ks_scattering_solver_spec,
 )
 from .orbital_basis import OrbitalBasis, make_orbital_basis
 from .photocurrent import FactorizedArpesModel, make_factorized_arpes_model
@@ -686,6 +852,10 @@ from .result import (
     SimulationResult,
     make_intrinsic_photocurrent,
     make_simulation_result,
+)
+from .retarded_validation import (
+    RetardedValidationReport,
+    make_retarded_validation_report,
 )
 from .runtime import (
     CertificationRegistryState,

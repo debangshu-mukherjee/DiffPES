@@ -171,7 +171,7 @@ def _complex_formula_amplitude(
     radial_channels: Complex128[NDArray, " 2"],
     polarization_cart: Complex128[NDArray, " 3"],
 ) -> complex:
-    r"""PRIVATE: Evaluate the independent complex-Ylm amplitude.
+    """PRIVATE: Evaluate the independent complex-Ylm amplitude.
 
     The oracle contracts
     ``sum_q (-1)^q epsilon_q Y_1^{-q}`` and

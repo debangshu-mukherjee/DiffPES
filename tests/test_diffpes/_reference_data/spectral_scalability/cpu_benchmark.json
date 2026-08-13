@@ -59,7 +59,7 @@
       "registered_solve_tape_bytes": 134217728
     },
     "checkpoint": true,
-    "compilation_seconds": 5.386574684001971,
+    "compilation_seconds": 4.9695056499913335,
     "executed": false,
     "execution_seconds": null,
     "k_chunk": 32,
@@ -80,13 +80,13 @@
     "n_tail": 256,
     "omega_chunk": 32,
     "passes_registered_1p5x_bound": true,
-    "process_peak_rss_after_bytes_non_authoritative": 658485248,
-    "process_peak_rss_before_bytes_non_authoritative": 428138496,
+    "process_peak_rss_after_bytes_non_authoritative": 655245312,
+    "process_peak_rss_before_bytes_non_authoritative": 435933184,
     "program": "value_and_hamiltonian_gradient"
   },
   "numpy_version": "2.4.2",
   "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "preallocate_environment": "false",
+  "preallocate_environment": "unset",
   "python_version": "3.13.6",
   "reference_comparison": {
     "gradient_passes_rtol_1e_12": true,
@@ -105,9 +105,9 @@
   "result": "pass",
   "schema": "diffpes.spectral-scalability.v1",
   "source_sha256": {
-    "pyproject.toml": "9149b035d6f0745dfc3501a3d6c23065044a1dcb648f766e34ac828c35fde302",
-    "src/diffpes/constants/__init__.py": "adf296244e455fefa22f78bfcfc8e12a86d907cce0226270308a76f4c8ba6438",
-    "src/diffpes/constants/carriers.py": "838ff3acc9799d5db7ae5ecdfd2c61662702f0aad89983a415ef4c30fca6a9b3",
+    "pyproject.toml": "4249b4172bd7c6ba4396e5921f074e2cdb091456f421c721d07c727d58ad8b38",
+    "src/diffpes/constants/__init__.py": "3c672de1ee5a2085b30a5d7f5b3859f8b704db0b95db88b47b5a2f3eb1cb7eb5",
+    "src/diffpes/constants/carriers.py": "abb005e64305479bc510d7d1d25d7e49ac301eda088e33f77d981f07b286a124",
     "src/diffpes/constants/numerical.py": "71d2a3e74520dd5794093b1ef765bf4dd64955ff6351f1d53e47eeec4cf58560",
     "src/diffpes/constants/shared.py": "56b8f95a28d0821a18ba61ab1035c2b48a2ddd25b628acdd5670195b4d89ba10",
     "src/diffpes/maths/__init__.py": "d0151b9916392547abe712b9bc9e7b976f74d709ac17126a6622e465e80e1d3c",
@@ -130,8 +130,8 @@
     "src/diffpes/simul/spectral.py": "a2f7b07099d50e76e4c68b43c2d18c2eaed8cb9b1b2518cb6cfb098b80474484",
     "src/diffpes/simul/spectral_eigen.py": "61229b7c38d434f8e70365d79552bed4e19b115bfd159e938a2ac21da9f762fb",
     "src/diffpes/simul/spectral_resolvent.py": "75fd65646b3cfa9688d6f32bcffc1f65b50ae873e3f2a6a45fd27e74b4919c59",
-    "src/diffpes/types/__init__.py": "44bef1277db101b72af390c906c8108afbf848d13067f2dcb1f0fcc2b81bde56",
-    "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+    "src/diffpes/types/__init__.py": "7201a9a2214bf985e8d0966476da70cb67a4ea0c2d4c114e320fa5c7b107ea84",
+    "src/diffpes/types/aliases.py": "423b81a7bb2220db74d3fd22e33e2282f8e183930e65421d1435cf138956c131",
     "src/diffpes/types/diagonalized_bands.py": "1bfb18769de50d40f428aa4db487044fd111bbfd3b977c81c9bffce8746fbbbd",
     "src/diffpes/types/electronic_structure_validation.py": "7effc470dd67db6d5eac0af66f718ed9ea13c67d5b95212f6c775f5eaa6b5d78",
     "src/diffpes/types/experiment.py": "1c5ed445dd94a522501dd1c522079d1c70ed402a543b44f9578420698ff70fbc",
@@ -141,10 +141,10 @@
     "src/diffpes/types/radial_profiles.py": "b5267f49e5716ed0bca60f6fb1f0807fc4388cd562863f17dcbb71168df57772",
     "src/diffpes/types/self_energy.py": "405a5d1225614d9ccbce9346e0292e0b2c17b681473db47ce42d2efce78f5fc3",
     "src/diffpes/types/spectral.py": "c21b92d39fa1dd48e74f50c3a375d48e0ed4423cf287f2e7f18faf719b4fb721",
-    "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+    "src/diffpes/utils/__init__.py": "fe9c1e4588a4cb81c4d402759268139a0643da080e738de144ae40a665050769",
     "src/diffpes/utils/math.py": "6713cc173fae8b111fba2953280f305ba0a763ac204475e8ea43e0b8f17d96a5",
     "tests/_reference_tools/measure_spectral_scaling.py": "3284b973212182b8bc8b0debb31c76dfeaba51866e68c182d6666ebf10dbf434",
-    "uv.lock": "27735f1e8f2538b9ccf12e328841f0c569ee46b2b5c6897b6ed2b107003a0920"
+    "uv.lock": "a37e883954966dda739739c4aa16e60d304b5b9683ad3c113e7e4a5dadc8968a"
   },
   "x64_enabled": true
 }

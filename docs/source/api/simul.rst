@@ -11,6 +11,30 @@ integration, photon-energy scans, polarization, and detector response.
    :imported-members:
    :exclude-members: __builtins__, __cached__, __doc__, __file__, __loader__, __name__, __package__, __path__, __spec__
 
+Factorized spectral projection
+------------------------------
+
+.. automodule:: diffpes.simul.factorized
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Generalized spectral functions
+------------------------------
+
+.. automodule:: diffpes.simul.generalized_spectral
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Plane-wave pseudo amplitudes
+----------------------------
+
+.. automodule:: diffpes.simul.plane_wave
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Out-of-plane broadening
 -----------------------
 

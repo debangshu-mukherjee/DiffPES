@@ -294,7 +294,7 @@ class TestFaddeeva(chex.TestCase):
                     Complex128[NDArray, ""],
                 ],
             ) -> Float64[Array, ""]:
-                """PRIVATE: Evaluate a real projection of one Faddeeva value.
+                """PRIVATE: Check the private helper behavior.
 
                 Parameters
                 ----------

@@ -2,16 +2,14 @@
 
 Extended Summary
 ----------------
-This module stores axes and auxiliary coordinates without a dense coordinate
-mesh. The carrier keeps coordinate names, units, dimensions, and frame
-identity next to the JAX numerical leaves.
+Use this module for its validated public contracts and operations.
 
 Routine Listings
 ----------------
 :class:`MeasurementCoordinates`
-    Store typed axes and auxiliary measurement coordinates.
+    Define the ``MeasurementCoordinates`` public contract.
 :func:`make_measurement_coordinates`
-    Create validated typed measurement coordinates.
+    Compute the ``make_measurement_coordinates`` public contract.
 """
 
 import equinox as eqx
@@ -22,35 +20,33 @@ from jaxtyping import Array, Float64, jaxtyped
 
 
 class MeasurementCoordinates(eqx.Module):
-    """Store typed axes and auxiliary measurement coordinates.
+    """Define the ``MeasurementCoordinates`` public contract.
 
-    The carrier stores each coordinate as a separate leaf. It does not create
-    a dense mesh. Static metadata identifies the coordinate system and frame.
+    Validate documented inputs and preserve the declared scientific identity.
 
     :see: :class:`~.test_coordinates.TestMeasurementCoordinates`
 
     Attributes
     ----------
     coordinate_arrays : Tuple[Float64[Array, "..."], ...]
-        Numeric coordinates in ``coordinate_names`` order.
+        Store coordinate arrays.
     coordinate_names : Tuple[str, ...]
-        **Static.** Unique coordinate labels. Changing a label triggers
-        retracing.
+        Store coordinate names.
     coordinate_units : Tuple[str, ...]
-        **Static.** Units for every coordinate.
+        Store coordinate units.
     coordinate_dimensions : Tuple[Tuple[str, ...], ...]
-        **Static.** Named dimensions for every coordinate leaf.
+        Store dimensions for each coordinate.
     dimension_names : Tuple[str, ...]
-        **Static.** Unique dimensions of the measurement representation.
+        Store dimension names.
     coordinate_system : str
-        **Static.** Registered coordinate-system identity.
+        Store the coordinate-system identity.
     frame_id : str
-        **Static.** Registered coordinate-frame identity.
+        Store the frame identity.
 
     See Also
     --------
-    make_measurement_coordinates : Create validated typed measurement
-        coordinates.
+    make_measurement_coordinates
+        Construct validated measurement coordinates.
     """
 
     coordinate_arrays: Tuple[Float64[Array, "..."], ...]
@@ -89,6 +85,8 @@ class MeasurementCoordinates(eqx.Module):
             )
             for array in self.coordinate_arrays
         )
+        array: Float64[Array, "..."]
+        dimensions: Tuple[str, ...]
         for array, dimensions in zip(
             checked_arrays, self.coordinate_dimensions, strict=True
         ):
@@ -112,35 +110,37 @@ def make_measurement_coordinates(
     coordinate_system: str,
     frame_id: str,
 ) -> MeasurementCoordinates:
-    """Create validated typed measurement coordinates.
+    """Compute the ``make_measurement_coordinates`` public contract.
 
-    The factory converts numeric leaves to float64. It validates static
-    topology eagerly. The carrier validates finite values under tracing.
+    Validate documented inputs and preserve the declared scientific identity.
 
     :see: :class:`~.test_coordinates.TestMakeMeasurementCoordinates`
 
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
     Parameters
     ----------
-    coordinate_arrays : Tuple[Float64[Array, "..."], ...]
-        Numeric coordinate leaves.
+    coordinate_arrays : Tuple[Float64[Array, '...'], ...]
+        Input value for this operation.
     coordinate_names : Tuple[str, ...]
-        **Static.** Labels for the coordinate leaves.
+        Input value for this operation.
     coordinate_units : Tuple[str, ...]
-        **Static.** Units for the coordinate leaves.
+        Input value for this operation.
     coordinate_dimensions : Tuple[Tuple[str, ...], ...]
-        **Static.** Dimensions for the coordinate leaves.
+        Input value for this operation.
     dimension_names : Tuple[str, ...]
-        **Static.** All declared dimensions.
+        Input value for this operation.
     coordinate_system : str
-        **Static.** Coordinate-system identity.
+        Input value for this operation.
     frame_id : str
-        **Static.** Coordinate-frame identity.
+        Input value for this operation.
 
     Returns
     -------
-    coordinates : MeasurementCoordinates
-        Validated measurement coordinates with float64 leaves.
-
+    result : MeasurementCoordinates
+        Validated operation result.
     """
     arrays: Tuple[Float64[Array, "..."], ...] = tuple(
         jnp.asarray(array, dtype=jnp.float64) for array in coordinate_arrays

@@ -2,21 +2,18 @@
 
 Extended Summary
 ----------------
-Fidelity manifests record the non-numerical scientific identity resolved for
-one forward result.  They deliberately keep references and derivative
-boundaries static so that changing a declaration changes the PyTree identity
-without introducing differentiable leaves.
+Use this module for its validated public contracts and operations.
 
 Routine Listings
 ----------------
 :class:`DerivativeCapability`
-    Declare the derivative treatment of one stable input path.
+    Define the ``DerivativeCapability`` public contract.
 :class:`FidelityManifest`
-    Declare the resolved scientific identity of a simulation result.
+    Define the ``FidelityManifest`` public contract.
 :func:`make_derivative_capability`
-    Construct a validated derivative-capability declaration.
+    Compute the ``make_derivative_capability`` public contract.
 :func:`make_fidelity_manifest`
-    Construct a validated immutable fidelity manifest.
+    Compute the ``make_fidelity_manifest`` public contract.
 """
 
 import equinox as eqx
@@ -28,21 +25,25 @@ from diffpes.constants import DERIVATIVE_CAPABILITY_MODES
 
 
 class DerivativeCapability(eqx.Module):
-    """Declare derivative treatment for one stable parameter path.
+    """Define the ``DerivativeCapability`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_fidelity.TestDerivativecapability`
 
     Attributes
     ----------
     input_path : str
-        Stable dotted path naming the differentiated input.
+        Store the differentiable input path.
     mode : str
-        One of :obj:`diffpes.constants.DERIVATIVE_CAPABILITY_MODES`.
+        Store the derivative mode.
     policy_ref : str
-        Stable reference describing the derivative policy.
+        Store the derivative-policy identity.
 
     See Also
     --------
-    FidelityManifest
-        Collects declarations for one resolved scientific calculation.
+    make_derivative_capability
+        Construct a validated derivative capability.
     """
 
     input_path: str = eqx.field(static=True)
@@ -55,7 +56,7 @@ class DerivativeCapability(eqx.Module):
         Raises
         ------
         ValueError
-            If a reference is empty or the mode is unsupported.
+            When a reference is empty or the mode has no support.
 
         Notes
         -----
@@ -70,41 +71,45 @@ class DerivativeCapability(eqx.Module):
 
 
 class FidelityManifest(eqx.Module):
-    """Store the resolved scientific identity of a simulation result.
+    """Define the ``FidelityManifest`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_fidelity.TestFidelitymanifest`
 
     Attributes
     ----------
     schema_version : str
-        Version of the manifest schema.
+        Store the schema version.
     model_ref : str
-        Registered forward-model identity.
+        Store the model identity.
     instrument_ref : str
-        Registered instrument identity.
+        Store the instrument identity.
     acquisition_ref : str
-        Registered acquisition-model identity.
+        Store the acquisition identity.
     initial_state : str
-        Initial-state modelling declaration.
+        Store the initial-state declaration.
     spectral_physics : str
-        Spectral-function modelling declaration.
+        Store the spectral-physics declaration.
     photocurrent : str
-        Intrinsic-photocurrent modelling declaration.
+        Store the photocurrent declaration.
     light_interaction : str
-        Light--matter interaction declaration.
+        Store the light-interaction declaration.
     instrument : str
-        Detector and instrument-response declaration.
+        Store the instrument declaration.
     derivative_capabilities : Tuple[DerivativeCapability, ...]
-        Derivative boundaries for exposed parameter paths.
+        Store derivative capabilities.
     validation_refs : Tuple[str, ...]
-        References to validation evidence.
+        Store validation identities.
     validity_domain_refs : Tuple[str, ...]
-        References to declared validity domains.
+        Store validity-domain identities.
     discrepancy_ref : Optional[str]
-        Optional model-discrepancy declaration.
+        Store the discrepancy-model identity.
 
     See Also
     --------
-    DerivativeCapability
-        Defines each element of ``derivative_capabilities``.
+    make_fidelity_manifest
+        Construct a validated fidelity manifest.
     """
 
     schema_version: str = eqx.field(static=True)
@@ -131,7 +136,7 @@ class FidelityManifest(eqx.Module):
         ValueError
             If a required declaration or reference is empty.
         """
-        required = (
+        required: Tuple[str, ...] = (
             self.schema_version,
             self.model_ref,
             self.instrument_ref,
@@ -148,6 +153,14 @@ class FidelityManifest(eqx.Module):
             raise ValueError("validation references must be nonempty")
         if any(not reference for reference in self.validity_domain_refs):
             raise ValueError("validity-domain references must be nonempty")
+        input_paths: Tuple[str, ...] = tuple(
+            capability.input_path
+            for capability in self.derivative_capabilities
+        )
+        if len(set(input_paths)) != len(input_paths):
+            raise ValueError("derivative capability paths must be unique")
+        if self.discrepancy_ref == "":
+            raise ValueError("discrepancy reference must be nonempty when set")
 
 
 @jaxtyped(typechecker=beartype)
@@ -156,23 +169,34 @@ def make_derivative_capability(
     mode: str,
     policy_ref: str,
 ) -> DerivativeCapability:
-    """Construct a validated derivative-capability declaration.
+    """Compute the ``make_derivative_capability`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_fidelity.TestMakeDerivativeCapability`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
 
     Parameters
     ----------
     input_path : str
-        Stable dotted path naming the differentiated input.
+        Input value for this operation.
     mode : str
-        Supported derivative-boundary mode.
+        Input value for this operation.
     policy_ref : str
-        Stable reference documenting the policy.
+        Input value for this operation.
 
     Returns
     -------
-    DerivativeCapability
-        Immutable declaration with static metadata.
+    result : DerivativeCapability
+        Validated operation result.
     """
-    return DerivativeCapability(input_path, mode, policy_ref)
+    result: DerivativeCapability = DerivativeCapability(
+        input_path, mode, policy_ref
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)  # noqa: PLR0913
@@ -192,43 +216,51 @@ def make_fidelity_manifest(  # noqa: PLR0913
     validity_domain_refs: Tuple[str, ...] = (),
     discrepancy_ref: Optional[str] = None,
 ) -> FidelityManifest:
-    """Construct a validated immutable fidelity manifest.
+    """Compute the ``make_fidelity_manifest`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_fidelity.TestMakeFidelityManifest`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
 
     Parameters
     ----------
     schema_version : str
-        Version of the manifest schema.
+        Input value for this operation.
     model_ref : str
-        Registered forward-model identity.
+        Input value for this operation.
     instrument_ref : str
-        Registered instrument identity.
+        Input value for this operation.
     acquisition_ref : str
-        Registered acquisition-model identity.
+        Input value for this operation.
     initial_state : str
-        Electronic initial-state declaration.
+        Input value for this operation.
     spectral_physics : str
-        Spectral-physics declaration.
+        Input value for this operation.
     photocurrent : str
-        Photocurrent approximation declaration.
+        Input value for this operation.
     light_interaction : str
-        Light-interaction declaration.
+        Input value for this operation.
     instrument : str
-        Instrument declaration.
+        Input value for this operation.
     derivative_capabilities : Tuple[DerivativeCapability, ...]
-        Static derivative-boundary declarations.
+        Input value for this operation.
     validation_refs : Tuple[str, ...]
-        Validation-evidence references.
+        Input value for this operation.
     validity_domain_refs : Tuple[str, ...]
-        Validity-domain references.
+        Input value for this operation.
     discrepancy_ref : Optional[str]
-        Optional model-discrepancy declaration.
+        Input value for this operation.
 
     Returns
     -------
-    FidelityManifest
-        Immutable manifest carrying no numerical leaves.
+    result : FidelityManifest
+        Validated operation result.
     """
-    return FidelityManifest(
+    result: FidelityManifest = FidelityManifest(
         schema_version,
         model_ref,
         instrument_ref,
@@ -243,6 +275,7 @@ def make_fidelity_manifest(  # noqa: PLR0913
         validity_domain_refs,
         discrepancy_ref,
     )
+    return result
 
 
 __all__: list[str] = [

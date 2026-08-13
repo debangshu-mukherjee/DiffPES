@@ -28,7 +28,7 @@
     "finite_execution": null,
     "forward": {
       "budget_bytes": 2000000000,
-      "compilation_seconds": 1.6264750459813513,
+      "compilation_seconds": 1.5578554199892096,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 6400,
@@ -42,7 +42,7 @@
     },
     "forward_and_full_h_gradient": {
       "budget_bytes": 12000000000,
-      "compilation_seconds": 3.5249046529934276,
+      "compilation_seconds": 3.640175723005086,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 6400,
@@ -59,8 +59,8 @@
       20
     ],
     "jaxpr_seconds": {
-      "forward": 1.4401168590120506,
-      "forward_and_full_h_gradient": 1.5282336340169422
+      "forward": 1.3961707740090787,
+      "forward_and_full_h_gradient": 1.4076537750079297
     },
     "jaxpr_shape_audit": {
       "audit_scope": "recursive forward and value-plus-full-H-gradient JAXPRs, including invars, constvars, outvars, and equation variables",
@@ -122,8 +122,8 @@
       "result": "pass"
     },
     "nonzero_full_h_gradient": null,
-    "process_peak_rss_after_bytes_non_authoritative": 824004608,
-    "process_peak_rss_before_bytes_non_authoritative": 553275392,
+    "process_peak_rss_after_bytes_non_authoritative": 831213568,
+    "process_peak_rss_before_bytes_non_authoritative": 558395392,
     "programs_executed": false,
     "result": "pass"
   },
@@ -145,7 +145,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 42672,
-          "compilation_seconds": 1.8569327460136265,
+          "compilation_seconds": 1.6917419949895702,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 8,
@@ -167,7 +167,7 @@
         "required_scan_output_bytes": 840,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 123048,
-          "compilation_seconds": 6.572513416991569,
+          "compilation_seconds": 6.465897031011991,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 8,
@@ -186,7 +186,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 44080,
-          "compilation_seconds": 1.675915472995257,
+          "compilation_seconds": 1.7223525440203957,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 40,
@@ -208,7 +208,7 @@
         "required_scan_output_bytes": 4200,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 134696,
-          "compilation_seconds": 5.797929405991454,
+          "compilation_seconds": 6.129523086012341,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 40,
@@ -227,7 +227,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 44208,
-          "compilation_seconds": 2.1315163660037797,
+          "compilation_seconds": 2.2060722809983417,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 160,
@@ -249,7 +249,7 @@
         "required_scan_output_bytes": 16800,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 160040,
-          "compilation_seconds": 5.815043634996982,
+          "compilation_seconds": 5.900743035017513,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 160,
@@ -324,10 +324,10 @@
   "schema_version": 1,
   "selected_n_kz": 2048,
   "source_sha256": {
-    "pyproject.toml": "9149b035d6f0745dfc3501a3d6c23065044a1dcb648f766e34ac828c35fde302",
-    "src/diffpes/__init__.py": "6779fb395bea2d52c451a85dd9a066ba774efb4b7e60600a0e83adfcafc8896e",
-    "src/diffpes/constants/__init__.py": "adf296244e455fefa22f78bfcfc8e12a86d907cce0226270308a76f4c8ba6438",
-    "src/diffpes/constants/carriers.py": "838ff3acc9799d5db7ae5ecdfd2c61662702f0aad89983a415ef4c30fca6a9b3",
+    "pyproject.toml": "4249b4172bd7c6ba4396e5921f074e2cdb091456f421c721d07c727d58ad8b38",
+    "src/diffpes/__init__.py": "71aa97778684d9515de24c1a39e3d2a4570a15dd5b470f5f392cdf0c2a871a10",
+    "src/diffpes/constants/__init__.py": "3c672de1ee5a2085b30a5d7f5b3859f8b704db0b95db88b47b5a2f3eb1cb7eb5",
+    "src/diffpes/constants/carriers.py": "abb005e64305479bc510d7d1d25d7e49ac301eda088e33f77d981f07b286a124",
     "src/diffpes/constants/certification.py": "2a514ec8b06b1302ddbd055f6f6c1806cc669e21f00849201f1789eb48e793f5",
     "src/diffpes/constants/numerical.py": "71d2a3e74520dd5794093b1ef765bf4dd64955ff6351f1d53e47eeec4cf58560",
     "src/diffpes/constants/shared.py": "56b8f95a28d0821a18ba61ab1035c2b48a2ddd25b628acdd5670195b4d89ba10",
@@ -349,7 +349,7 @@
     "src/diffpes/radial/coulomb_ode.py": "c890536f2ff8e947173564db816ef0fbe4861b9d72d5f339c29e0cb1441cead1",
     "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
     "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
-    "src/diffpes/simul/__init__.py": "cd509487000c6a33430293851c2ee7a5236f076163107694bf5aa8179df49e98",
+    "src/diffpes/simul/__init__.py": "8cb16aecec461243f97749bd7c6d80408c2423ca7f1a7e8278350a128c37ac5e",
     "src/diffpes/simul/_detector_cube.py": "8b1f2db3dc6ea61cfef667ce7cb18cbc34a62964141468c25b501c750ffce2aa",
     "src/diffpes/simul/_detector_geometry.py": "16fd78d5cc3f011863c8d564374e3bef3d059e6a4e17919ebb685a5a5af3d50e",
     "src/diffpes/simul/_detector_map.py": "050ac804230c7066b073ddb56e066e1bf68f37bbde71b7e31229fd48f31a9a50",
@@ -376,8 +376,8 @@
     "src/diffpes/tightb/__init__.py": "2d17c9ea88935d7e14a12c988f7a042cdb0f7eca29888e7571135596ede5ba26",
     "src/diffpes/tightb/hamiltonian.py": "4a5e5aefe73c24fd37000cf9b6bf063be97b73076ba3ce0bc270e814cc0e3ba6",
     "src/diffpes/tightb/soc.py": "f145345a1dc04d5ed6158bcc2b40548c0ced35263a9831ba82e9d857bd512404",
-    "src/diffpes/types/__init__.py": "44bef1277db101b72af390c906c8108afbf848d13067f2dcb1f0fcc2b81bde56",
-    "src/diffpes/types/aliases.py": "ba71d3fbfa081838571ff9b3e0c83893bae6c2ec35007bd5e7c585e4863f7a3d",
+    "src/diffpes/types/__init__.py": "7201a9a2214bf985e8d0966476da70cb67a4ea0c2d4c114e320fa5c7b107ea84",
+    "src/diffpes/types/aliases.py": "423b81a7bb2220db74d3fd22e33e2282f8e183930e65421d1435cf138956c131",
     "src/diffpes/types/arpes.py": "fa3c042693066214945511755c332f9e1e6f1e4536fc44f4f4a0761534d75afb",
     "src/diffpes/types/detector_data.py": "a27ed0fa5b3aba02a47b89d4bd90ef5aa25c44539b4df6ca509f4e219b0de2fe",
     "src/diffpes/types/detector_effects.py": "c1bf3eaa6472692a07c5d8fe449be9f9bdca509341af626ba7589b0a0dc2235a",
@@ -393,9 +393,9 @@
     "src/diffpes/types/slab_geometry.py": "a8965a9b24afa72b83e86fa836ae22c02dc494fb78b52d423c04ef0cab0b7dfe",
     "src/diffpes/types/spectral.py": "c21b92d39fa1dd48e74f50c3a375d48e0ed4423cf287f2e7f18faf719b4fb721",
     "src/diffpes/types/tb_model.py": "e68b91f120f604d5e84eb35ffc22834af4bb19ed2d61ecf47079828bddff52ab",
-    "src/diffpes/utils/__init__.py": "48afb609f338f27d1cb0092e0a2cda8ea4fb288b4b065c589ba31e95132ddfd3",
+    "src/diffpes/utils/__init__.py": "fe9c1e4588a4cb81c4d402759268139a0643da080e738de144ae40a665050769",
     "src/diffpes/utils/math.py": "6713cc173fae8b111fba2953280f305ba0a763ac204475e8ea43e0b8f17d96a5",
-    "uv.lock": "27735f1e8f2538b9ccf12e328841f0c569ee46b2b5c6897b6ed2b107003a0920"
+    "uv.lock": "a37e883954966dda739739c4aa16e60d304b5b9683ad3c113e7e4a5dadc8968a"
   },
   "x64_enabled": true
 }

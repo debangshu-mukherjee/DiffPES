@@ -1,37 +1,75 @@
-"""Specify static sharding-policy validation.
+"""Check static sharding-policy validation.
 
-Extended Summary
-----------------
-These tests exercise static factory validation without requiring a physical
-mesh or a compiled scientific model.
-
-Routine Listings
-----------------
-:class:`TestMakeShardSpec`
-    Specify static sharding-policy factory behavior.
+Use independent inputs to define the covered behavior.
 """
 
 import pytest
+from beartype.typing import Any, Dict
 
 from diffpes.types import make_shard_spec
 
 
-class TestMakeShardSpec:
-    """Specify static sharding-policy factory behavior.
+class TestShardSpec:
+    """Check the public symbol contract.
 
-    See Also
-    --------
-    diffpes.types.make_shard_spec
-        Production factory covered by these contract tests.
+    Use independent inputs to define the covered behavior.
+
+    ``diffpes.types.ShardSpec``
     """
 
-    def test_rejects_nondivisible_capacity(self) -> None:
-        """Reject a capacity that cannot form device-local chunks."""
-        with pytest.raises(ValueError, match="invalid"):
-            make_shard_spec(n_devices=2, chunk_size=4, nk_max=9)
+    def test_exposes_documented_defaults(self) -> None:
+        """Resolve default mesh, chunk, checkpoint, and precision policy.
 
-    def test_declares_all_static_execution_fields(self) -> None:
-        """Preserve the same execution-policy surface on one device."""
-        spec = make_shard_spec(n_devices=1, chunk_size=4, nk_max=8)
-        assert spec.n_devices == 1
-        assert spec.nk_max == 8
+        Compare the result with an independent expected property.
+
+        Notes
+        -----
+        Use direct arithmetic or explicit rejection messages as the oracle.
+        """
+        spec: Any
+        spec = make_shard_spec(n_devices=1)
+        assert spec.device_axis == "k"
+        assert spec.chunk_size == 256
+        assert spec.checkpoint_policy == "everything"
+        assert spec.demote_accumulation is False
+
+
+class TestMakeShardSpec:
+    """Check the public symbol contract.
+
+    Use independent inputs to define the covered behavior.
+
+    ``diffpes.types.make_shard_spec``
+    """
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"device_axis": ""}, "device axis must be nonempty"),
+            ({"n_devices": 0}, "device count must be positive"),
+            ({"chunk_size": 0}, "chunk size must be positive"),
+            ({"nk_max": 0}, "capacity must be positive"),
+            (
+                {"n_devices": 2, "chunk_size": 4, "nk_max": 9},
+                "capacity must divide into local chunks",
+            ),
+            ({"checkpoint_policy": "unknown"}, "policy is unsupported"),
+            (
+                {"demote_accumulation": True},
+                "f32 accumulation is not implemented",
+            ),
+        ],
+    )
+    def test_rejects_each_invalid_field(
+        self, kwargs: Dict[str, object], message: str
+    ) -> None:
+        """Reject each malformed field with its own exact diagnostic.
+
+        Compare the result with an independent expected property.
+
+        Notes
+        -----
+        Use direct arithmetic or explicit rejection messages as the oracle.
+        """
+        with pytest.raises(ValueError, match=message):
+            make_shard_spec(**kwargs)

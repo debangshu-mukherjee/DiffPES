@@ -12,6 +12,8 @@ Routine Listings
     Runtime pytree definition with a typed static-analysis stand-in.
 :obj:`NonJaxNumber`
     Union of ``int``, ``float``, and ``complex``.
+:obj:`RetardedSelfEnergySource`
+    Union of parametric and tabulated retarded self-energy sources.
 :obj:`ScalarBool`
     Union of ``bool`` and ``Bool[Array, " "]``.
 :obj:`ScalarComplex`
@@ -22,6 +24,8 @@ Routine Listings
     Union of ``int`` and ``Int[Array, " "]``.
 :obj:`ScalarNumeric`
     Union of ``int``, ``float``, ``complex``, and ``Num[Array, " "]``.
+:obj:`SliceOperator`
+    Union of dense and sparse finite-slice operators.
 
 Notes
 -----
@@ -34,6 +38,15 @@ from jaxtyping import Array, Bool, Complex, Float, Int, Num
 
 if TYPE_CHECKING:
     from beartype.typing import Any, Iterable
+
+    from .generalized_spectral import (
+        ParametricSelfEnergy,  # noqa: F401
+        TabulatedMatrixSelfEnergy,  # noqa: F401
+    )
+    from .ks_scattering import (  # noqa: F401
+        DenseSliceOperator,
+        SparseSliceOperator,
+    )
 
     class PyTreeDef:
         """Represent the unstubbed jaxlib pytree definition statically.
@@ -77,13 +90,19 @@ ScalarComplex: TypeAlias = Union[complex, Complex[Array, " "]]
 ScalarFloat: TypeAlias = Union[float, Float[Array, " "]]
 ScalarInteger: TypeAlias = Union[int, Int[Array, " "]]
 ScalarNumeric: TypeAlias = Union[int, float, complex, Num[Array, " "]]
+RetardedSelfEnergySource: TypeAlias = Union[
+    "ParametricSelfEnergy", "TabulatedMatrixSelfEnergy"
+]
+SliceOperator: TypeAlias = Union["DenseSliceOperator", "SparseSliceOperator"]
 
 __all__: list[str] = [
     "PyTreeDef",
     "NonJaxNumber",
+    "RetardedSelfEnergySource",
     "ScalarBool",
     "ScalarComplex",
     "ScalarFloat",
     "ScalarInteger",
     "ScalarNumeric",
+    "SliceOperator",
 ]

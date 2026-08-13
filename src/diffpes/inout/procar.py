@@ -23,7 +23,16 @@ from pathlib import Path
 import jax.numpy as jnp
 import numpy as np
 from beartype import beartype
-from beartype.typing import Any, Dict, List, Literal, Optional, TextIO, Union
+from beartype.typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    TextIO,
+    Tuple,
+    Union,
+)
 from jaxtyping import Array, Float64, jaxtyped
 from numpy.typing import NDArray
 
@@ -70,12 +79,17 @@ def read_procar(
       the ion index, nine orbitals, and ``tot``. A ``tot`` line and a blank
       line follow each record.
 
-    The number of blocks determines the spin layout:
+    The number of projection tables determines the spin layout:
 
-    * 1 block: non-spin-polarized (ISPIN=1).
-    * 2 blocks: spin-polarized (ISPIN=2), block 0 = spin-up,
-      block 1 = spin-down.
-    * 4 blocks: spin-orbit coupling (SOC), blocks = total, Sx, Sy, Sz.
+    * 1 table: non-spin-polarized (ISPIN=1).
+    * 2 tables: spin-polarized (ISPIN=2), table 0 = spin-up,
+      table 1 = spin-down.
+    * 4 tables: spin-orbit coupling (SOC), tables = total, Sx, Sy, Sz.
+
+    SOC files arrive in two layouts. Legacy files repeat the whole
+    k-point block four times. Modern files write one header and stack the
+    four projection tables under each band record. The parser accepts
+    both layouts and returns the same four-table structure.
 
     :see: :class:`~.test_procar.TestReadProcar`
 
@@ -132,6 +146,7 @@ def read_procar(
     ------
     ValueError
         If the parser finds no valid PROCAR blocks in the file.
+        If the parsed projection-table count is not one, two, or four.
 
     Notes
     -----
@@ -157,6 +172,11 @@ def read_procar(
         raise ValueError(msg)
 
     nblocks: int = len(blocks)
+    if nblocks not in (1, ISPIN2_BLOCKS, SOC_BLOCKS):
+        count_msg: str = (
+            f"unsupported PROCAR projection-table count: {nblocks}"
+        )
+        raise ValueError(count_msg)
     nkpts: int = blocks[0]["nkpts"]
     nbands: int = blocks[0]["nbands"]
     natoms: int = blocks[0]["natoms"]
@@ -216,15 +236,146 @@ def read_procar(
     return projection_result
 
 
+def _read_ion_rows(
+    lines: List[str],
+    start: int,
+) -> Tuple[List[List[float]], int]:
+    """PRIVATE: Read consecutive ion and total rows from one band record.
+
+    Parameters
+    ----------
+    lines : List[str]
+        Complete PROCAR text split into lines.
+    start : int
+        First candidate ion-row index.
+
+    Returns
+    -------
+    result : Tuple[List[List[float]], int]
+        Parsed orbital rows and the first unread line index.
+
+    Implementation Logic
+    --------------------
+    Parse numeric ion rows, skip total rows, and stop at the next record.
+    """
+    band_rows: List[List[float]] = []
+    i: int = start
+    while i < len(lines):
+        tokens: List[str] = lines[i].split()
+        if tokens and tokens[0].isdigit():
+            row: List[float] = [
+                float(value) for value in tokens[1 : N_ORBITALS + 1]
+            ]
+            band_rows.append(row)
+            i += 1
+        elif tokens and tokens[0] == "tot":
+            i += 1
+        else:
+            break
+    result: Tuple[List[List[float]], int] = (band_rows, i)
+    return result
+
+
+def _read_projection_tables(
+    lines: List[str],
+    start: int,
+    nkpts: int,
+    nbands: int,
+    natoms: int,
+) -> Tuple[List[Float64[NDArray, "K B A O"]], int]:
+    """PRIVATE: Read every projection table under one PROCAR header.
+
+    Parameters
+    ----------
+    lines : List[str]
+        Complete PROCAR text split into lines.
+    start : int
+        First line after the parsed dimensions header.
+    nkpts : int
+        Number of k-points declared by the header.
+    nbands : int
+        Number of bands declared by the header.
+    natoms : int
+        Number of ion rows in each projection table.
+
+    Returns
+    -------
+    result : Tuple[List[Float64[NDArray, "K B A O"]], int]
+        Projection tables and the first unread line index.
+
+    Implementation Logic
+    --------------------
+    Locate each k-point and band header. Collect consecutive ion rows, split
+    stacked SOC tables by atom count, and require one stable table count.
+
+    Raises
+    ------
+    ValueError
+        If ion-row counts are malformed or table counts vary by band.
+    """
+    b: int
+    s: int
+    sub_tables: List[Float64[NDArray, "K B A O"]] = []
+    i: int = start
+    k_re: str = r"k-point\s+(\d+)\s*:\s*" r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
+    kpts_found: int = 0
+    while i < len(lines) and kpts_found < nkpts:
+        k_match: Optional[re.Match[str]] = re.search(k_re, lines[i])
+        if k_match is None:
+            i += 1
+            continue
+        k_idx: int = int(k_match.group(1)) - 1
+        i += 1
+        for b in range(nbands):
+            while i < len(lines) and not lines[i].lstrip().startswith("band"):
+                i += 1
+            while i < len(lines) and not lines[i].lstrip().startswith("ion"):
+                i += 1
+            i += 1
+            band_rows: List[List[float]]
+            band_rows, i = _read_ion_rows(lines, i)
+            if not band_rows or len(band_rows) % natoms != 0:
+                rows_msg: str = (
+                    "PROCAR band record has a malformed ion-row count"
+                )
+                raise ValueError(rows_msg)
+            n_sub: int = len(band_rows) // natoms
+            if not sub_tables:
+                sub_tables = [
+                    np.zeros(
+                        (nkpts, nbands, natoms, N_ORBITALS),
+                        dtype=np.float64,
+                    )
+                    for _ in range(n_sub)
+                ]
+            if n_sub != len(sub_tables):
+                tables_msg: str = (
+                    "PROCAR band records disagree on the "
+                    "projection-table count"
+                )
+                raise ValueError(tables_msg)
+            for s in range(n_sub):
+                row_block: Float64[NDArray, "A O"] = np.asarray(
+                    band_rows[s * natoms : (s + 1) * natoms],
+                    dtype=np.float64,
+                )
+                sub_tables[s][k_idx, b] = row_block
+        kpts_found += 1
+    result: Tuple[List[Float64[NDArray, "K B A O"]], int] = (sub_tables, i)
+    return result
+
+
 def _parse_procar_blocks(
     content: str,
 ) -> List[Dict[str, Any]]:
     """PRIVATE: Parse all PROCAR blocks from the full file content string.
 
-    A PROCAR file may contain 1, 2, or 4 consecutive blocks depending
-    on the spin configuration. A header line starts each block. The header
-    matches ``"# of k-points: K  # of bands: B  # of ions: A"``. Nested
-    projection data follows the header.
+    A PROCAR file may contain one, two, or four projection tables. A
+    header line matching ``"# of k-points: K  # of bands: B  # of
+    ions: A"`` starts each k-point block. Legacy layouts repeat the
+    whole header block per table. Modern SOC layouts write one header
+    and stack four ion tables under each band record. The parser emits
+    one dict per projection table for both layouts.
 
     Implementation Logic
     --------------------
@@ -232,25 +383,25 @@ def _parse_procar_blocks(
        substring ``"k-points"`` (the block header).
     2. Extract ``(nkpts, nbands, natoms)`` from the header using a
        regex that captures all integers on the line.
-    3. Allocate a ``(nkpts, nbands, natoms, 9)`` NumPy array for the
-       orbital projections.
-    4. For each k-point within the block:
+    3. For each k-point within the block, search forward for a line
+       matching ``k-point <index> : kx ky kz`` with a regex.
+    4. For each band within the k-point:
 
-       a. Search forward for a line matching the pattern
-          ``k-point <index> : kx ky kz`` using a regex.
-       b. For each band within the k-point:
+       a. Scan forward to the band energy header, then to the orbital
+          header line (``ion  s  py ...``). The scan tolerates blank
+          lines between the anchors.
+       b. Read every consecutive ion row (first token is the ion
+          index), parsing columns 1 through 9 and skipping each
+          ``tot`` summation row. Consecutive stacked tables produce
+          ``natoms`` rows per table.
+       c. Reject a row count that is not a positive multiple of
+          ``natoms``, and reject a table count that changes between
+          band records.
 
-          i.   Skip lines until the helper finds the band energy header.
-          ii.  Skip the orbital-name header line (``ion  s  py ...``).
-          iii. Read ``natoms`` lines, parsing columns 1 through 9
-               (skipping the ion index in column 0) as the orbital
-               projections.
-          iv.  Skip the ``tot`` summation line and the trailing blank
-               line.
-
-    5. Append a dict with keys ``'nkpts'``, ``'nbands'``,
-       ``'natoms'``, and ``'projections'`` for each block.
-    6. Return the list of block dicts.
+    5. Split the collected rows into per-table arrays and append one
+       dict per table with keys ``'nkpts'``, ``'nbands'``,
+       ``'natoms'``, and ``'projections'``.
+    6. Return the list of table dicts.
 
     Parameters
     ----------
@@ -275,9 +426,6 @@ def _parse_procar_blocks(
     The parser reads band and atom lines in sequence, not by their parsed
     indices. It does not store the ``tot`` column.
     """
-    b: int
-    a: int
-
     blocks: List[Dict[str, Any]] = []
     lines: List[str] = content.splitlines()
     i: int = 0
@@ -291,43 +439,25 @@ def _parse_procar_blocks(
         nkpts: int = params[0]
         nbands: int = params[1]
         natoms: int = params[2]
-        projections: Float64[NDArray, "K B A O"] = np.zeros(
-            (nkpts, nbands, natoms, N_ORBITALS), dtype=np.float64
+        sub_tables: List[Float64[NDArray, "K B A O"]]
+        sub_tables, i = _read_projection_tables(
+            lines,
+            i + 1,
+            nkpts,
+            nbands,
+            natoms,
         )
-        i += 1
 
-        k_re: str = (
-            r"k-point\s+(\d+)\s*:\s*" r"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
-        )
-        kpts_found: int = 0
-        while i < len(lines) and kpts_found < nkpts:
-            k_match: Optional[re.Match[str]] = re.search(k_re, lines[i])
-            if k_match is None:
-                i += 1
-                continue
-            k_idx: int = int(k_match.group(1)) - 1
-            i += 1
-            for b in range(nbands):
-                while i < len(lines) and "band" not in lines[i]:
-                    i += 1
-                i += 1
-                i += 1
-                for a in range(natoms):
-                    vals: List[float] = [float(x) for x in lines[i].split()]
-                    projections[k_idx, b, a, :] = vals[1 : N_ORBITALS + 1]
-                    i += 1
-                i += 1
-                i += 1
-            kpts_found += 1
-
-        blocks.append(
-            {
-                "nkpts": nkpts,
-                "nbands": nbands,
-                "natoms": natoms,
-                "projections": projections,
-            }
-        )
+        sub_table: Float64[NDArray, "K B A O"]
+        for sub_table in sub_tables:
+            blocks.append(
+                {
+                    "nkpts": nkpts,
+                    "nbands": nbands,
+                    "natoms": natoms,
+                    "projections": sub_table,
+                }
+            )
 
     return blocks
 

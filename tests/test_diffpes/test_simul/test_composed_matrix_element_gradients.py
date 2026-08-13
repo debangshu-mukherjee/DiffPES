@@ -852,7 +852,7 @@ class TestIntensityAndGroupWeightGradients:
                 candidate: Complex128[Array, "1 n_group 4"],
                 transition_channels: Complex128[Array, "1 1 4 3"] = transition,
             ) -> Float64[Array, ""]:
-                """PRIVATE: Return a complete unresolved-spin group weight.
+                """PRIVATE: Check the private helper behavior.
 
                 Parameters
                 ----------

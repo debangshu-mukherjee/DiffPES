@@ -194,3 +194,70 @@ class TestReadProcarSOC(chex.TestCase):
         chex.assert_trees_all_close(
             orb.projections[0, 0, 0, 0], jnp.float64(0.1), atol=1e-12
         )
+
+    def test_soc_single_header_full(self) -> None:
+        """Read a single-header SOC PROCAR and verify the spin channels.
+
+        The ``PROCAR_soc_single`` fixture uses the modern SOC layout: one
+        header and four stacked ion tables under one band record, with a
+        blank line after the band header. The test checks the carrier
+        type, both shapes, the charge-table s value, and the signed spin
+        sums mapped onto the six nonnegative channels.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        path: Path
+        orb: (
+            diffpes.types.OrbitalProjection
+            | diffpes.types.SpinOrbitalProjection
+        )
+
+        path = _FIXTURES_DIR / "PROCAR_soc_single"
+        orb = read_procar(str(path), return_mode="full")
+        assert isinstance(orb, SpinOrbitalProjection)
+        chex.assert_shape(orb.projections, (1, 1, 2, 9))
+        chex.assert_shape(orb.spin, (1, 1, 2, 6))
+        chex.assert_trees_all_close(
+            orb.projections[0, 0, 0, 0], jnp.float64(0.1), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            orb.spin[0, 0, 0, 0], jnp.float64(0.05), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            orb.spin[0, 0, 1, 1], jnp.float64(0.02), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            orb.spin[0, 0, 0, 3], jnp.float64(0.01), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            orb.spin[0, 0, 1, 4], jnp.float64(0.07), atol=1e-12
+        )
+
+    def test_soc_single_header_legacy(self) -> None:
+        """Read a single-header SOC PROCAR in legacy mode.
+
+        The test parses the ``PROCAR_soc_single`` fixture with the default
+        legacy mode. It checks that the result carries only the charge
+        table, with the ion-two s value and ``spin`` absent.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        path: Path
+        orb: (
+            diffpes.types.OrbitalProjection
+            | diffpes.types.SpinOrbitalProjection
+        )
+
+        path = _FIXTURES_DIR / "PROCAR_soc_single"
+        orb = read_procar(str(path))
+        chex.assert_shape(orb.projections, (1, 1, 2, 9))
+        chex.assert_trees_all_close(
+            orb.projections[0, 0, 1, 0], jnp.float64(0.2), atol=1e-12
+        )
+        assert orb.spin is None

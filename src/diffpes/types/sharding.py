@@ -2,16 +2,14 @@
 
 Extended Summary
 ----------------
-This module stores the static mesh, chunk, rematerialization, and precision
-choices for one bounded single-host evaluation. Numerical physics leaves do
-not live in this carrier.
+Use this module for its validated public contracts and operations.
 
 Routine Listings
 ----------------
 :class:`ShardSpec`
-    Store a static execution policy for JAX sharding.
+    Define the ``ShardSpec`` public contract.
 :func:`make_shard_spec`
-    Create a validated static execution policy for JAX sharding.
+    Compute the ``make_shard_spec`` public contract.
 """
 
 import equinox as eqx
@@ -24,36 +22,31 @@ from diffpes.constants import SHARD_CHECKPOINT_POLICIES
 
 
 class ShardSpec(eqx.Module):
-    """Store a static execution policy for JAX sharding.
+    """Define the ``ShardSpec`` public contract.
 
-    The fields define compilation structure only. A changed field causes
-    retracing. The carrier does not select scientific physics.
+    Validate documented inputs and preserve the declared scientific identity.
 
     :see: :class:`~.test_sharding.TestShardSpec`
 
     Attributes
     ----------
     device_axis : str
-        **Static.** Mesh axis name. Changing it triggers retracing.
+        Store the mesh-axis name.
     n_devices : int
-        **Static.** Number of local mesh devices. Changing it triggers
-        retracing.
+        Store the device count.
     chunk_size : int
-        **Static.** Number of k points per compiled chunk. Changing it
-        triggers retracing.
+        Store the per-device chunk size.
     nk_max : int
-        **Static.** Padded k-point capacity. Changing it triggers retracing.
+        Store the padded capacity.
     checkpoint_policy : str
-        **Static.** ``"everything"`` or ``"dots_saveable"``. Changing it
-        triggers retracing.
+        Store the checkpoint policy.
     demote_accumulation : bool
-        **Static.** Opt-in final real accumulation demotion. Changing it
-        triggers retracing.
+        Store the accumulation-precision policy.
 
     See Also
     --------
-    make_shard_spec : Create a validated static execution policy for JAX
-        sharding.
+    make_shard_spec
+        Construct a validated sharding specification.
     """
 
     device_axis: str = eqx.field(static=True)
@@ -73,15 +66,18 @@ class ShardSpec(eqx.Module):
             padded capacity does not divide into local chunks.
         """
         local_capacity: int = self.n_devices * self.chunk_size
-        if (
-            not self.device_axis
-            or self.n_devices <= 0
-            or self.chunk_size <= 0
-            or self.nk_max <= 0
-            or self.nk_max % local_capacity != 0
-            or self.checkpoint_policy not in SHARD_CHECKPOINT_POLICIES
-        ):
-            raise ValueError("invalid static sharding execution policy")
+        if not self.device_axis:
+            raise ValueError("sharding device axis must be nonempty")
+        if self.n_devices <= 0:
+            raise ValueError("sharding device count must be positive")
+        if self.chunk_size <= 0:
+            raise ValueError("sharding chunk size must be positive")
+        if self.nk_max <= 0:
+            raise ValueError("sharding capacity must be positive")
+        if self.nk_max % local_capacity != 0:
+            raise ValueError("sharding capacity must divide into local chunks")
+        if self.checkpoint_policy not in SHARD_CHECKPOINT_POLICIES:
+            raise ValueError("sharding checkpoint policy is unsupported")
 
 
 @jaxtyped(typechecker=beartype)
@@ -94,40 +90,40 @@ def make_shard_spec(
     *,
     device_axis: str = "k",
 ) -> ShardSpec:
-    """Create a validated static execution policy for JAX sharding.
+    """Compute the ``make_shard_spec`` public contract.
 
-    The factory uses the local device count only when callers omit it. The
-    padded capacity remains static for the complete compiled model family.
+    Validate documented inputs and preserve the declared scientific identity.
 
     :see: :class:`~.test_sharding.TestMakeShardSpec`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
 
     Parameters
     ----------
     n_devices : Optional[int]
-        **Static.** Local device count. Default ``None`` uses JAX local
-        devices.
+        Input value for this operation.
     chunk_size : int
-        **Static.** K points per chunk. Default 256.
+        Input value for this operation.
     nk_max : Optional[int]
-        **Static.** Padded k-point capacity. Default ``None`` selects one
-        chunk.
+        Input value for this operation.
     checkpoint_policy : str
-        **Static.** Rematerialization selector. Default ``"everything"``.
+        Input value for this operation.
     demote_accumulation : bool
-        **Static.** Enable approved final real accumulation demotion. Default
-        ``False``.
+        Input value for this operation.
     device_axis : str
-        **Static.** Mesh axis label. Default ``"k"``.
+        Input value for this operation.
 
     Returns
     -------
-    spec : ShardSpec
-        Validated static execution policy.
+    result : ShardSpec
+        Validated operation result.
 
     Raises
     ------
     ValueError
-        If the static capacity is incompatible with device-local chunks.
+        If accumulation demotion lacks an implementation.
     """
     resolved_devices: int
     if n_devices is None:

@@ -1431,7 +1431,7 @@ class TestGaugeEquivalence:
             def _real_gauges(
                 variable_charge: Float64[Array, ""],
             ) -> Float64[Array, " 4"]:
-                """PRIVATE: Evaluate real gauge components for one charge.
+                """PRIVATE: Check the private helper behavior.
 
                 Parameters
                 ----------

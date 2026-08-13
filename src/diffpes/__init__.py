@@ -16,7 +16,7 @@ The following list describes the top-level modules:
 - :mod:`constants`
     Expose the declarative constants of diffpes.
 - :mod:`inout`
-    Parse VASP files for ARPES simulation input.
+    Expose the public :mod:`diffpes.inout` surface.
 - :mod:`maths`
     Compute angular matrix elements for dipole photoemission.
 - :mod:`matrixel`
@@ -24,13 +24,13 @@ The following list describes the top-level modules:
 - :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 - :mod:`simul`
-    Provide differentiable ARPES simulation primitives.
+    Expose the public :mod:`diffpes.simul` surface.
 - :mod:`tightb`
     Provide native tight-binding tools and ARPES-side adapters.
 - :mod:`types`
-    Define types and factory functions for diffpes.
+    Expose the public :mod:`diffpes.types` surface.
 - :mod:`utils`
-    Provide utility functions for ARPES simulations.
+    Expose the public :mod:`diffpes.utils` surface.
 
 Routine Listings
 ----------------

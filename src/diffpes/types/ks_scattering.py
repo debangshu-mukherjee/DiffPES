@@ -1,37 +1,83 @@
-"""Define native finite-slab Kohn--Sham scattering contracts."""
+"""Define native finite-slab Kohn--Sham scattering contracts.
+
+Extended Summary
+----------------
+Use this module for its validated public contracts and operations.
+
+Routine Listings
+----------------
+:class:`BackingAbsorberSpec`
+    Define the ``BackingAbsorberSpec`` public contract.
+:class:`DenseSliceOperator`
+    Define the ``DenseSliceOperator`` public contract.
+:class:`KSScatteringBoundaryProfile`
+    Define the ``KSScatteringBoundaryProfile`` public contract.
+:class:`KSScatteringProblem`
+    Define the ``KSScatteringProblem`` public contract.
+:class:`KSScatteringRequest`
+    Define the ``KSScatteringRequest`` public contract.
+:class:`LightMatterCouplingSpec`
+    Define the ``LightMatterCouplingSpec`` public contract.
+:class:`SparseSliceOperator`
+    Define the ``SparseSliceOperator`` public contract.
+:class:`VacuumBoundarySpec`
+    Define the ``VacuumBoundarySpec`` public contract.
+:func:`make_backing_absorber_spec`
+    Compute the ``make_backing_absorber_spec`` public contract.
+:func:`make_dense_slice_operator`
+    Compute the ``make_dense_slice_operator`` public contract.
+:func:`make_ks_scattering_boundary_profile`
+    Compute the ``make_ks_scattering_boundary_profile`` public contract.
+:func:`make_ks_scattering_problem`
+    Compute the ``make_ks_scattering_problem`` public contract.
+:func:`make_ks_scattering_request`
+    Compute the ``make_ks_scattering_request`` public contract.
+:func:`make_light_matter_coupling_spec`
+    Compute the ``make_light_matter_coupling_spec`` public contract.
+:func:`make_sparse_slice_operator`
+    Compute the ``make_sparse_slice_operator`` public contract.
+:func:`make_vacuum_boundary_spec`
+    Compute the ``make_vacuum_boundary_spec`` public contract.
+"""
+
+# Exact pydoclint attribute types cannot split across physical lines.
+# ruff: noqa: E501
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Optional, Tuple, Union
-from jaxtyping import Array, Bool, Complex128, Float64, Int32, jaxtyped
+from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.constants import CARTESIAN_COMPONENTS
 
-_NormalStencilValues = Complex128[Array, "n_normal_stencil n_slice n_chan"]
-
 
 class KSScatteringRequest(eqx.Module):
-    """Describe outgoing parallel momentum, energy, and incident channels.
+    """Define the ``KSScatteringRequest`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestKsscatteringrequest`
 
     Attributes
     ----------
     k_parallel_cart_inv_ang : Float64[Array, "n_state 2"]
-        Parallel momenta.
+        Store parallel momenta.
     kinetic_energy_ev : Float64[Array, " n_state"]
-        Kinetic energies.
+        Store kinetic energies.
     outgoing_channel_index : Int32[Array, " n_state"]
-        Selected channel indices.
+        Store outgoing-channel indices.
     surface_normal_cart : Float64[Array, " 3"]
-        Surface normal.
+        Store the surface normal.
     energy_block_size : int
-        Static energy block size.
+        Store the energy block size.
     validity_profile_ref : str
-        Static validity profile.
+        Store the validity-profile identity.
 
     See Also
     --------
-    make_ks_scattering_request : Create this request.
+    make_ks_scattering_request
+        Construct a validated request.
     """
 
     k_parallel_cart_inv_ang: Float64[Array, "n_state 2"]
@@ -43,36 +89,46 @@ class KSScatteringRequest(eqx.Module):
 
 
 class DenseSliceOperator(eqx.Module):
-    """Store dense Laue coupled-channel blocks by normal slice.
+    """Define the ``DenseSliceOperator`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestDensesliceoperator`
 
     Attributes
     ----------
     blocks_ev : Complex128[Array, "n_slice n_chan n_chan"]
-        Dense slice blocks.
+        Store dense operator blocks.
 
     See Also
     --------
-    make_dense_slice_operator : Create this operator.
+    make_dense_slice_operator
+        Construct a validated dense operator.
     """
 
     blocks_ev: Complex128[Array, "n_slice n_chan n_chan"]
 
 
 class SparseSliceOperator(eqx.Module):
-    """Store sorted sparse real-space lateral operator values.
+    """Define the ``SparseSliceOperator`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestSparsesliceoperator`
 
     Attributes
     ----------
     values_ev : Complex128[Array, " n_nonzero"]
-        Sparse values.
+        Store sparse values.
     indices : Int32[Array, "n_nonzero 3"]
-        Sparse integer indices.
+        Store sparse indices.
     shape : Tuple[int, int, int]
-        Static sparse-grid shape.
+        Store the dense shape.
 
     See Also
     --------
-    make_sparse_slice_operator : Create this operator.
+    make_sparse_slice_operator
+        Construct a validated sparse operator.
     """
 
     values_ev: Complex128[Array, " n_nonzero"]
@@ -80,48 +136,51 @@ class SparseSliceOperator(eqx.Module):
     shape: Tuple[int, int, int] = eqx.field(static=True)
 
 
-SliceOperator = Union[DenseSliceOperator, SparseSliceOperator]
-
-
 class KSScatteringProblem(eqx.Module):
-    """Store one lowered finite-slab scattering problem without a global
-    matrix.
+    """Define the ``KSScatteringProblem`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestKsscatteringproblem`
 
     Attributes
     ----------
-    slice_operator : SliceOperator
-        Lowered slice operator.
+    slice_operator : Union[DenseSliceOperator, SparseSliceOperator]
+        Store the slice operator.
     normal_stencil_offsets : Int32[Array, " n_normal_stencil"]
-        Normal-direction stencil offsets.
-    normal_stencil_values_ev : _NormalStencilValues
-        Normal-direction stencil values.
+        Store normal-stencil offsets.
+    normal_stencil_values_ev : Complex128[Array, "n_normal_stencil n_slice n_chan"]
+        Store normal-stencil values.
     nonlocal_projectors : Complex128[Array, "n_projector n_slice n_chan"]
-        Nonlocal projector values.
+        Store nonlocal projectors.
     nonlocal_couplings_ev : Complex128[Array, "n_projector n_projector"]
-        Nonlocal coupling matrix.
+        Store nonlocal couplings.
     slice_coordinates_ang : Float64[Array, " n_slice"]
-        Slice coordinates.
+        Store slice coordinates.
     channel_coordinates : Float64[Array, "n_chan 2"]
-        Channel coordinates.
+        Store channel coordinates.
     hamiltonian_ref : str
-        Hamiltonian identity.
+        Store the Hamiltonian identity.
     basis_kind : str
-        Basis declaration.
+        Store the basis kind.
     channel_coordinate_kind : str
-        Channel-coordinate declaration.
+        Store the channel-coordinate kind.
     operator_storage_ref : str
-        Storage declaration.
+        Store the storage identity.
     discretization_ref : str
-        Discretization identity.
+        Store the discretization identity.
 
     See Also
     --------
-    make_ks_scattering_problem : Create this problem.
+    make_ks_scattering_problem
+        Construct a validated problem.
     """
 
-    slice_operator: SliceOperator
+    slice_operator: Union[DenseSliceOperator, SparseSliceOperator]
     normal_stencil_offsets: Int32[Array, " n_normal_stencil"]
-    normal_stencil_values_ev: _NormalStencilValues
+    normal_stencil_values_ev: Complex128[
+        Array, "n_normal_stencil n_slice n_chan"
+    ]
     nonlocal_projectors: Complex128[Array, "n_projector n_slice n_chan"]
     nonlocal_couplings_ev: Complex128[Array, "n_projector n_projector"]
     slice_coordinates_ang: Float64[Array, " n_slice"]
@@ -134,20 +193,25 @@ class KSScatteringProblem(eqx.Module):
 
 
 class VacuumBoundarySpec(eqx.Module):
-    """Specify one unit-normal-flux vacuum lead.
+    """Define the ``VacuumBoundarySpec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestVacuumboundaryspec`
 
     Attributes
     ----------
     reference_potential_ev : Float64[Array, ""]
-        Reference potential.
+        Store the reference potential.
     direction : str
-        Lead direction.
+        Store the propagation direction.
     normalization : str
-        Flux normalization.
+        Store the normalization convention.
 
     See Also
     --------
-    make_vacuum_boundary_spec : Create this boundary.
+    make_vacuum_boundary_spec
+        Construct a validated vacuum boundary.
     """
 
     reference_potential_ev: Float64[Array, ""]
@@ -156,26 +220,31 @@ class VacuumBoundarySpec(eqx.Module):
 
 
 class BackingAbsorberSpec(eqx.Module):
-    """Specify an optional convergence-tested finite-domain absorber.
+    """Define the ``BackingAbsorberSpec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestBackingabsorberspec`
 
     Attributes
     ----------
     absorber_strength_ev : Float64[Array, ""]
-        Absorber strength.
+        Store absorber strength.
     absorber_start_ang : Float64[Array, ""]
-        Absorber start position.
+        Store absorber start position.
     absorber_width_ang : Float64[Array, ""]
-        Absorber width.
+        Store absorber width.
     side : str
-        Absorbing boundary side.
+        Store absorber side.
     shape : str
-        Absorber profile shape.
+        Store the profile shape.
     profile_ref : str
-        Static profile reference.
+        Store the profile identity.
 
     See Also
     --------
-    make_backing_absorber_spec : Create this absorber.
+    make_backing_absorber_spec
+        Construct a validated absorber.
     """
 
     absorber_strength_ev: Float64[Array, ""]
@@ -187,28 +256,33 @@ class BackingAbsorberSpec(eqx.Module):
 
 
 class KSScatteringBoundaryProfile(eqx.Module):
-    """Bind both vacuum leads and optional backing absorption.
+    """Define the ``KSScatteringBoundaryProfile`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestKsscatteringboundaryprofile`
 
     Attributes
     ----------
     left : VacuumBoundarySpec
-        Left vacuum lead.
+        Store the left boundary.
     right : VacuumBoundarySpec
-        Right vacuum lead.
+        Store the right boundary.
     backing_absorber : Optional[BackingAbsorberSpec]
-        Optional backing absorber.
+        Store the backing absorber.
     vacuum_convergence_ref : str
-        Vacuum convergence evidence.
+        Store vacuum-convergence evidence.
     slab_convergence_ref : str
-        Slab convergence evidence.
+        Store slab-convergence evidence.
     absorber_convergence_ref : Optional[str]
-        Absorber convergence evidence.
+        Store absorber-convergence evidence.
     profile_ref : str
-        Boundary profile identity.
+        Store the profile identity.
 
     See Also
     --------
-    make_ks_scattering_boundary_profile : Create this profile.
+    make_ks_scattering_boundary_profile
+        Construct a validated boundary profile.
     """
 
     left: VacuumBoundarySpec
@@ -221,102 +295,33 @@ class KSScatteringBoundaryProfile(eqx.Module):
 
 
 class LightMatterCouplingSpec(eqx.Module):
-    """Declare the nonlocal velocity and spin-contraction convention.
+    """Define the ``LightMatterCouplingSpec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestLightmattercouplingspec`
 
     Attributes
     ----------
     representation : str
-        Coupling representation.
+        Store the coupling representation.
     photon_momentum : str
-        Photon-momentum convention.
+        Store the photon-momentum policy.
     final_spin_mode : str
-        Final-state spin convention.
+        Store the final-spin mode.
     profile_ref : str
-        Static coupling profile.
+        Store the profile identity.
 
     See Also
     --------
-    make_light_matter_coupling_spec : Create this convention.
+    make_light_matter_coupling_spec
+        Construct a validated coupling specification.
     """
 
     representation: str = eqx.field(static=True)
     photon_momentum: str = eqx.field(static=True)
     final_spin_mode: str = eqx.field(static=True)
     profile_ref: str = eqx.field(static=True)
-
-
-class KSScatteringSolverSpec(eqx.Module):
-    """Pin one residual-controlled matrix-free solver execution profile.
-
-    Attributes
-    ----------
-    relative_residual : float
-        Relative residual limit.
-    absolute_residual : float
-        Absolute residual limit.
-    max_iterations : int
-        Static iteration limit.
-    krylov_dimension : int
-        Static Krylov dimension.
-    preconditioner_ref : str
-        Static preconditioner identity.
-    threshold_guard_ev : float
-        Threshold guard energy.
-
-    See Also
-    --------
-    make_ks_scattering_solver_spec : Create this solver profile.
-    """
-
-    relative_residual: float = eqx.field(static=True)
-    absolute_residual: float = eqx.field(static=True)
-    max_iterations: int = eqx.field(static=True)
-    krylov_dimension: int = eqx.field(static=True)
-    preconditioner_ref: str = eqx.field(static=True)
-    threshold_guard_ev: float = eqx.field(static=True)
-
-
-class KSScatteringBatch(eqx.Module):
-    """Store bounded scattering states and physical flux diagnostics.
-
-    Attributes
-    ----------
-    states : Complex128[Array, "n_state n_slice n_chan n_out_spin"]
-        Computed scattering states.
-    reflection_amplitudes : Complex128[Array, "n_state n_open n_out_spin"]
-        Reflection amplitudes.
-    transmission_amplitudes : Complex128[Array, "n_state n_open n_out_spin"]
-        Transmission amplitudes.
-    open_channel_mask : Bool[Array, "n_state n_chan"]
-        Open-channel selector.
-    residual_norm : Float64[Array, " n_state"]
-        Residual diagnostics.
-    incident_flux : Float64[Array, " n_state"]
-        Incident flux.
-    reflected_flux : Float64[Array, " n_state"]
-        Reflected flux.
-    transmitted_flux : Float64[Array, " n_state"]
-        Transmitted flux.
-    absorbed_flux : Float64[Array, " n_state"]
-        Absorbed flux.
-    state_ref : str
-        State identity.
-
-    See Also
-    --------
-    make_ks_scattering_batch : Create this result batch.
-    """
-
-    states: Complex128[Array, "n_state n_slice n_chan n_out_spin"]
-    reflection_amplitudes: Complex128[Array, "n_state n_open n_out_spin"]
-    transmission_amplitudes: Complex128[Array, "n_state n_open n_out_spin"]
-    open_channel_mask: Bool[Array, "n_state n_chan"]
-    residual_norm: Float64[Array, " n_state"]
-    incident_flux: Float64[Array, " n_state"]
-    reflected_flux: Float64[Array, " n_state"]
-    transmitted_flux: Float64[Array, " n_state"]
-    absorbed_flux: Float64[Array, " n_state"]
-    state_ref: str = eqx.field(static=True)
 
 
 @jaxtyped(typechecker=beartype)
@@ -329,31 +334,133 @@ def make_ks_scattering_request(
     energy_block_size: int,
     validity_profile_ref: str,
 ) -> KSScatteringRequest:
-    """Create a bounded Kohn--Sham scattering request."""
+    """Compute the ``make_ks_scattering_request`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeKsScatteringRequest`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    k_parallel_cart_inv_ang : Float64[Array, 'n_state 2']
+        Input value for this operation.
+    kinetic_energy_ev : Float64[Array, ' n_state']
+        Input value for this operation.
+    outgoing_channel_index : Int32[Array, ' n_state']
+        Input value for this operation.
+    surface_normal_cart : Float64[Array, ' 3']
+        Input value for this operation.
+    energy_block_size : int
+        Input value for this operation.
+    validity_profile_ref : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : KSScatteringRequest
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If request metadata or state axes are inconsistent.
+    """
     if energy_block_size <= 0 or not validity_profile_ref:
         raise ValueError("scattering request metadata is invalid")
-    return KSScatteringRequest(
-        jnp.asarray(k_parallel_cart_inv_ang, dtype=jnp.float64),
-        jnp.asarray(kinetic_energy_ev, dtype=jnp.float64),
-        jnp.asarray(outgoing_channel_index, dtype=jnp.int32),
-        jnp.asarray(surface_normal_cart, dtype=jnp.float64),
+    parallel: Float64[Array, "n_state 2"] = jnp.asarray(
+        k_parallel_cart_inv_ang, dtype=jnp.float64
+    )
+    energy: Float64[Array, " n_state"] = jnp.asarray(
+        kinetic_energy_ev, dtype=jnp.float64
+    )
+    channels: Int32[Array, " n_state"] = jnp.asarray(
+        outgoing_channel_index, dtype=jnp.int32
+    )
+    normal: Float64[Array, " 3"] = jnp.asarray(
+        surface_normal_cart, dtype=jnp.float64
+    )
+    if parallel.shape[0] != energy.shape[0] or channels.shape != energy.shape:
+        raise ValueError("scattering request state axes must agree")
+    parallel = eqx.error_if(
+        parallel,
+        ~jnp.all(jnp.isfinite(parallel)),
+        "parallel momenta must be finite",
+    )
+    energy = eqx.error_if(
+        energy,
+        ~jnp.all(jnp.isfinite(energy)) | jnp.any(energy <= 0.0),
+        "kinetic energies must be finite and positive",
+    )
+    channels = eqx.error_if(
+        channels,
+        jnp.any(channels < 0),
+        "outgoing channel indices must be nonnegative",
+    )
+    normal = eqx.error_if(
+        normal,
+        ~jnp.all(jnp.isfinite(normal))
+        | ~jnp.isclose(jnp.linalg.norm(normal), 1.0),
+        "surface normal must be finite and normalized",
+    )
+    result: KSScatteringRequest = KSScatteringRequest(
+        parallel,
+        energy,
+        channels,
+        normal,
         energy_block_size,
         validity_profile_ref,
     )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
 def make_dense_slice_operator(
     blocks_ev: Complex128[Array, "n_slice n_chan n_chan"],
 ) -> DenseSliceOperator:
-    """Create a dense finite-slab slice operator."""
-    blocks = jnp.asarray(blocks_ev, dtype=jnp.complex128)
+    """Compute the ``make_dense_slice_operator`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeDenseSliceOperator`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    blocks_ev : Complex128[Array, 'n_slice n_chan n_chan']
+        Input value for this operation.
+
+    Returns
+    -------
+    result : DenseSliceOperator
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If the dense blocks are not square matrices.
+    """
+    blocks: Complex128[Array, "n_slice n_chan n_chan"] = jnp.asarray(
+        blocks_ev, dtype=jnp.complex128
+    )
     if (
         blocks.ndim != CARTESIAN_COMPONENTS
         or blocks.shape[-1] != blocks.shape[-2]
     ):
         raise ValueError("dense slice blocks must be square matrices")
-    return DenseSliceOperator(blocks)
+    blocks = eqx.error_if(
+        blocks,
+        ~jnp.all(jnp.isfinite(blocks)),
+        "dense slice blocks must be finite",
+    )
+    result: DenseSliceOperator = DenseSliceOperator(blocks)
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -363,21 +470,69 @@ def make_sparse_slice_operator(
     *,
     shape: Tuple[int, int, int],
 ) -> SparseSliceOperator:
-    """Create a sparse finite-slab slice operator."""
-    values = jnp.asarray(values_ev, dtype=jnp.complex128)
-    sparse_indices = jnp.asarray(indices, dtype=jnp.int32)
+    """Compute the ``make_sparse_slice_operator`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeSparseSliceOperator`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    values_ev : Complex128[Array, ' n_nonzero']
+        Input value for this operation.
+    indices : Int32[Array, 'n_nonzero 3']
+        Input value for this operation.
+    shape : Tuple[int, int, int]
+        Input value for this operation.
+
+    Returns
+    -------
+    result : SparseSliceOperator
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If the declared shape or sparse entry axes are inconsistent.
+    """
+    values: Complex128[Array, " n_nonzero"] = jnp.asarray(
+        values_ev, dtype=jnp.complex128
+    )
+    sparse_indices: Int32[Array, "n_nonzero 3"] = jnp.asarray(
+        indices, dtype=jnp.int32
+    )
     if len(shape) != CARTESIAN_COMPONENTS or any(size <= 0 for size in shape):
         raise ValueError("sparse slice shape must have three positive entries")
     if sparse_indices.shape != (values.shape[0], CARTESIAN_COMPONENTS):
         raise ValueError("sparse slice indices must align with values")
-    return SparseSliceOperator(values, sparse_indices, shape)
+    values = eqx.error_if(
+        values,
+        ~jnp.all(jnp.isfinite(values)),
+        "sparse slice values must be finite",
+    )
+    sparse_indices = eqx.error_if(
+        sparse_indices,
+        jnp.any(sparse_indices < 0)
+        | jnp.any(sparse_indices >= jnp.asarray(shape)[None, :]),
+        "sparse slice indices must lie within the declared shape",
+    )
+    result: SparseSliceOperator = SparseSliceOperator(
+        values, sparse_indices, shape
+    )
+    return result
 
 
 @jaxtyped(typechecker=beartype)  # noqa: PLR0913
-def make_ks_scattering_problem(  # noqa: PLR0913
-    slice_operator: SliceOperator,
+def make_ks_scattering_problem(  # noqa: DOC105, PLR0913
+    slice_operator: Union[DenseSliceOperator, SparseSliceOperator],
     normal_stencil_offsets: Int32[Array, " n_normal_stencil"],
-    normal_stencil_values_ev: _NormalStencilValues,
+    normal_stencil_values_ev: Complex128[
+        Array, "n_normal_stencil n_slice n_chan"
+    ],
     nonlocal_projectors: Complex128[Array, "n_projector n_slice n_chan"],
     nonlocal_couplings_ev: Complex128[Array, "n_projector n_projector"],
     slice_coordinates_ang: Float64[Array, " n_slice"],
@@ -389,7 +544,53 @@ def make_ks_scattering_problem(  # noqa: PLR0913
     operator_storage_ref: str,
     discretization_ref: str,
 ) -> KSScatteringProblem:
-    """Create a lowered finite-slab scattering problem."""
+    """Compute the ``make_ks_scattering_problem`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeKsScatteringProblem`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    slice_operator : SliceOperator
+        Input value for this operation.
+    normal_stencil_offsets : Int32[Array, ' n_normal_stencil']
+        Input value for this operation.
+    normal_stencil_values_ev : _NormalStencilValues
+        Input value for this operation.
+    nonlocal_projectors : Complex128[Array, 'n_projector n_slice n_chan']
+        Input value for this operation.
+    nonlocal_couplings_ev : Complex128[Array, 'n_projector n_projector']
+        Input value for this operation.
+    slice_coordinates_ang : Float64[Array, ' n_slice']
+        Input value for this operation.
+    channel_coordinates : Float64[Array, 'n_chan 2']
+        Input value for this operation.
+    hamiltonian_ref : str
+        Input value for this operation.
+    basis_kind : str
+        Input value for this operation.
+    channel_coordinate_kind : str
+        Input value for this operation.
+    operator_storage_ref : str
+        Input value for this operation.
+    discretization_ref : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : KSScatteringProblem
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If identities, numerical axes, or slice-operator axes disagree.
+    """
     if not all(
         (
             hamiltonian_ref,
@@ -400,34 +601,118 @@ def make_ks_scattering_problem(  # noqa: PLR0913
         )
     ):
         raise ValueError("scattering problem references must be nonempty")
-    return KSScatteringProblem(
+    offsets: Int32[Array, " n_normal_stencil"] = jnp.asarray(
+        normal_stencil_offsets, dtype=jnp.int32
+    )
+    stencil: Complex128[Array, "n_normal_stencil n_slice n_chan"] = (
+        jnp.asarray(normal_stencil_values_ev, dtype=jnp.complex128)
+    )
+    projectors: Complex128[Array, "n_projector n_slice n_chan"] = jnp.asarray(
+        nonlocal_projectors, dtype=jnp.complex128
+    )
+    couplings: Complex128[Array, "n_projector n_projector"] = jnp.asarray(
+        nonlocal_couplings_ev, dtype=jnp.complex128
+    )
+    slices: Float64[Array, " n_slice"] = jnp.asarray(
+        slice_coordinates_ang, dtype=jnp.float64
+    )
+    channels: Float64[Array, "n_chan 2"] = jnp.asarray(
+        channel_coordinates, dtype=jnp.float64
+    )
+    if (
+        stencil.shape[0] != offsets.shape[0]
+        or stencil.shape[1] != slices.shape[0]
+        or stencil.shape[2] != channels.shape[0]
+        or projectors.shape[1:] != stencil.shape[1:]
+        or couplings.shape != (projectors.shape[0], projectors.shape[0])
+    ):
+        raise ValueError("scattering problem numerical axes are inconsistent")
+    operator_shape: Tuple[int, int, int] = (
+        slice_operator.blocks_ev.shape
+        if isinstance(slice_operator, DenseSliceOperator)
+        else slice_operator.shape
+    )
+    if operator_shape != (
+        slices.shape[0],
+        channels.shape[0],
+        channels.shape[0],
+    ):
+        raise ValueError(
+            "slice operator axes must match problem slices and channels"
+        )
+    stencil = eqx.error_if(
+        stencil,
+        ~jnp.all(jnp.isfinite(stencil))
+        | ~jnp.all(jnp.isfinite(projectors))
+        | ~jnp.all(jnp.isfinite(couplings))
+        | ~jnp.all(jnp.isfinite(slices))
+        | ~jnp.all(jnp.isfinite(channels)),
+        "scattering problem numerical values must be finite",
+    )
+    result: KSScatteringProblem = KSScatteringProblem(
         slice_operator,
-        jnp.asarray(normal_stencil_offsets, dtype=jnp.int32),
-        jnp.asarray(normal_stencil_values_ev, dtype=jnp.complex128),
-        jnp.asarray(nonlocal_projectors, dtype=jnp.complex128),
-        jnp.asarray(nonlocal_couplings_ev, dtype=jnp.complex128),
-        jnp.asarray(slice_coordinates_ang, dtype=jnp.float64),
-        jnp.asarray(channel_coordinates, dtype=jnp.float64),
+        offsets,
+        stencil,
+        projectors,
+        couplings,
+        slices,
+        channels,
         hamiltonian_ref,
         basis_kind,
         channel_coordinate_kind,
         operator_storage_ref,
         discretization_ref,
     )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
 def make_vacuum_boundary_spec(
     reference_potential_ev: Float64[Array, ""], *, direction: str
 ) -> VacuumBoundarySpec:
-    """Create a unit-normal-flux vacuum boundary declaration."""
+    """Compute the ``make_vacuum_boundary_spec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeVacuumBoundarySpec`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    reference_potential_ev : Float64[Array, '']
+        Input value for this operation.
+    direction : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : VacuumBoundarySpec
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If the boundary direction lacks support.
+    """
     if direction not in ("left", "right"):
         raise ValueError("vacuum boundary direction must be left or right")
-    return VacuumBoundarySpec(
-        jnp.asarray(reference_potential_ev, dtype=jnp.float64),
+    potential: Float64[Array, ""] = jnp.asarray(
+        reference_potential_ev, dtype=jnp.float64
+    )
+    potential = eqx.error_if(
+        potential,
+        ~jnp.isfinite(potential),
+        "vacuum reference potential must be finite",
+    )
+    result: VacuumBoundarySpec = VacuumBoundarySpec(
+        potential,
         direction,
         "unit_normal_flux",
     )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -440,17 +725,81 @@ def make_backing_absorber_spec(
     shape: str,
     profile_ref: str,
 ) -> BackingAbsorberSpec:
-    """Create a finite-domain absorber declaration."""
+    """Compute the ``make_backing_absorber_spec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeBackingAbsorberSpec`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    absorber_strength_ev : Float64[Array, '']
+        Input value for this operation.
+    absorber_start_ang : Float64[Array, '']
+        Input value for this operation.
+    absorber_width_ang : Float64[Array, '']
+        Input value for this operation.
+    side : str
+        Input value for this operation.
+    shape : str
+        Input value for this operation.
+    profile_ref : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : BackingAbsorberSpec
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If absorber identity, side, or shape metadata is invalid.
+    """
     if not all((side, shape, profile_ref)):
         raise ValueError("absorber metadata must be nonempty")
-    return BackingAbsorberSpec(
-        jnp.asarray(absorber_strength_ev, dtype=jnp.float64),
-        jnp.asarray(absorber_start_ang, dtype=jnp.float64),
-        jnp.asarray(absorber_width_ang, dtype=jnp.float64),
+    if side not in ("left", "right") or shape not in (
+        "polynomial",
+        "cosine",
+    ):
+        raise ValueError("absorber side or shape is unsupported")
+    strength: Float64[Array, ""] = jnp.asarray(
+        absorber_strength_ev, dtype=jnp.float64
+    )
+    start: Float64[Array, ""] = jnp.asarray(
+        absorber_start_ang, dtype=jnp.float64
+    )
+    width: Float64[Array, ""] = jnp.asarray(
+        absorber_width_ang, dtype=jnp.float64
+    )
+    strength = eqx.error_if(
+        strength,
+        ~jnp.isfinite(strength) | (strength < 0.0),
+        "absorber strength must be finite and nonnegative",
+    )
+    start = eqx.error_if(
+        start,
+        ~jnp.isfinite(start),
+        "absorber start must be finite",
+    )
+    width = eqx.error_if(
+        width,
+        ~jnp.isfinite(width) | (width <= 0.0),
+        "absorber width must be finite and positive",
+    )
+    result: BackingAbsorberSpec = BackingAbsorberSpec(
+        strength,
+        start,
+        width,
         side,
         shape,
         profile_ref,
     )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -464,10 +813,50 @@ def make_ks_scattering_boundary_profile(
     absorber_convergence_ref: Optional[str],
     profile_ref: str,
 ) -> KSScatteringBoundaryProfile:
-    """Create a complete finite-slab boundary profile."""
+    """Compute the ``make_ks_scattering_boundary_profile`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeKsScatteringBoundaryProfile`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    left : VacuumBoundarySpec
+        Input value for this operation.
+    right : VacuumBoundarySpec
+        Input value for this operation.
+    backing_absorber : Optional[BackingAbsorberSpec]
+        Input value for this operation.
+    vacuum_convergence_ref : str
+        Input value for this operation.
+    slab_convergence_ref : str
+        Input value for this operation.
+    absorber_convergence_ref : Optional[str]
+        Input value for this operation.
+    profile_ref : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : KSScatteringBoundaryProfile
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If profile identities, lead directions, or absorber evidence disagree.
+    """
     if not all((vacuum_convergence_ref, slab_convergence_ref, profile_ref)):
         raise ValueError("boundary profile references must be nonempty")
-    return KSScatteringBoundaryProfile(
+    if left.direction != "left" or right.direction != "right":
+        raise ValueError("boundary profile lead directions are inconsistent")
+    if (backing_absorber is None) != (absorber_convergence_ref is None):
+        raise ValueError("absorber convergence must match absorber presence")
+    result: KSScatteringBoundaryProfile = KSScatteringBoundaryProfile(
         left,
         right,
         backing_absorber,
@@ -476,6 +865,7 @@ def make_ks_scattering_boundary_profile(
         absorber_convergence_ref,
         profile_ref,
     )
+    return result
 
 
 @jaxtyped(typechecker=beartype)
@@ -486,95 +876,63 @@ def make_light_matter_coupling_spec(
     final_spin_mode: str,
     profile_ref: str,
 ) -> LightMatterCouplingSpec:
-    """Create a light-matter coupling convention declaration."""
+    """Compute the ``make_light_matter_coupling_spec`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_ks_scattering.TestMakeLightMatterCouplingSpec`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
+
+    Parameters
+    ----------
+    representation : str
+        Input value for this operation.
+    photon_momentum : str
+        Input value for this operation.
+    final_spin_mode : str
+        Input value for this operation.
+    profile_ref : str
+        Input value for this operation.
+
+    Returns
+    -------
+    result : LightMatterCouplingSpec
+        Validated operation result.
+
+    Raises
+    ------
+    ValueError
+        If coupling metadata is empty or its final-spin mode lacks support.
+    """
     if not all(
         (representation, photon_momentum, final_spin_mode, profile_ref)
     ):
         raise ValueError("light-matter metadata must be nonempty")
-    return LightMatterCouplingSpec(
+    if final_spin_mode not in ("scalar", "spinor"):
+        raise ValueError("light-matter final spin mode is unsupported")
+    result: LightMatterCouplingSpec = LightMatterCouplingSpec(
         representation, photon_momentum, final_spin_mode, profile_ref
     )
-
-
-@jaxtyped(typechecker=beartype)
-def make_ks_scattering_solver_spec(
-    *,
-    relative_residual: float = 1.0e-10,
-    absolute_residual: float = 1.0e-12,
-    max_iterations: int = 500,
-    krylov_dimension: int = 32,
-    preconditioner_ref: str = "org.diffpes.preconditioner.kinetic@1.0.0",
-    threshold_guard_ev: float = 1.0e-5,
-) -> KSScatteringSolverSpec:
-    """Create a residual-controlled native scattering solver profile."""
-    if (
-        min(relative_residual, absolute_residual, threshold_guard_ev) <= 0.0
-        or max_iterations <= 0
-        or krylov_dimension <= 0
-    ):
-        raise ValueError(
-            "scattering solver tolerances and dimensions must be positive"
-        )
-    return KSScatteringSolverSpec(
-        relative_residual,
-        absolute_residual,
-        max_iterations,
-        krylov_dimension,
-        preconditioner_ref,
-        threshold_guard_ev,
-    )
-
-
-@jaxtyped(typechecker=beartype)  # noqa: PLR0913
-def make_ks_scattering_batch(  # noqa: PLR0913
-    states: Complex128[Array, "n_state n_slice n_chan n_out_spin"],
-    reflection_amplitudes: Complex128[Array, "n_state n_open n_out_spin"],
-    transmission_amplitudes: Complex128[Array, "n_state n_open n_out_spin"],
-    open_channel_mask: Bool[Array, "n_state n_chan"],
-    residual_norm: Float64[Array, " n_state"],
-    incident_flux: Float64[Array, " n_state"],
-    reflected_flux: Float64[Array, " n_state"],
-    transmitted_flux: Float64[Array, " n_state"],
-    absorbed_flux: Float64[Array, " n_state"],
-    *,
-    state_ref: str,
-) -> KSScatteringBatch:
-    """Create bounded scattering states with explicit flux diagnostics."""
-    if not state_ref:
-        raise ValueError("scattering batch state_ref must be nonempty")
-    return KSScatteringBatch(
-        jnp.asarray(states, dtype=jnp.complex128),
-        jnp.asarray(reflection_amplitudes, dtype=jnp.complex128),
-        jnp.asarray(transmission_amplitudes, dtype=jnp.complex128),
-        jnp.asarray(open_channel_mask, dtype=jnp.bool),
-        jnp.asarray(residual_norm, dtype=jnp.float64),
-        jnp.asarray(incident_flux, dtype=jnp.float64),
-        jnp.asarray(reflected_flux, dtype=jnp.float64),
-        jnp.asarray(transmitted_flux, dtype=jnp.float64),
-        jnp.asarray(absorbed_flux, dtype=jnp.float64),
-        state_ref,
-    )
+    return result
 
 
 __all__: list[str] = [
     "BackingAbsorberSpec",
     "DenseSliceOperator",
-    "KSScatteringBatch",
     "KSScatteringBoundaryProfile",
     "KSScatteringProblem",
     "KSScatteringRequest",
-    "KSScatteringSolverSpec",
     "LightMatterCouplingSpec",
-    "SliceOperator",
     "SparseSliceOperator",
     "VacuumBoundarySpec",
     "make_backing_absorber_spec",
     "make_dense_slice_operator",
-    "make_ks_scattering_batch",
     "make_ks_scattering_boundary_profile",
     "make_ks_scattering_problem",
     "make_ks_scattering_request",
-    "make_ks_scattering_solver_spec",
     "make_light_matter_coupling_spec",
     "make_sparse_slice_operator",
     "make_vacuum_boundary_spec",

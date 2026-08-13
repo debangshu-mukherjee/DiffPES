@@ -1,13 +1,7 @@
-"""Parse VASP files for ARPES simulation input.
+"""Expose the public :mod:`diffpes.inout` surface.
 
 Extended Summary
 ----------------
-The subpackage parses VASP output files into PyTrees for ARPES simulations.
-It supports POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, and CHGCAR files. It
-also provides HDF5 persistence, workflow helpers, and plotting utilities.
-
-The following list describes the submodules:
-
 - :mod:`band_plotting`
     Plot projected tight-binding bands with analysis utilities.
 - :mod:`certificate`
@@ -40,6 +34,8 @@ The following list describes the submodules:
     Read normative Wannier90 tight-binding files.
 - :mod:`wannier90_parser`
     Parse normative Wannier90 text records.
+- :mod:`wavecar`
+    Read bounded VASP WAVECAR direct-access records.
 
 Routine Listings
 ----------------
@@ -97,14 +93,13 @@ Routine Listings
     Save one or more named PyTrees to an HDF5 file.
 :func:`select_atoms`
     Extract orbital projections for a subset of atoms.
-
-Notes
------
-All parsers use standard Python I/O because file parsing is sequential. Factory
-functions convert the parsed data to JAX arrays.
+:func:`index_wavecar`
+    Compute the ``index_wavecar`` public contract.
+:func:`load_wavecar_records`
+    Compute the ``load_wavecar_records`` public contract.
+:func:`wavecar_header`
+    Compute the ``wavecar_header`` public contract.
 """
-
-from diffpes.types import WavecarDataset, WavecarHeader
 
 from .band_plotting import (
     list_band_scatter_presets,
@@ -175,8 +170,6 @@ __all__: list[str] = [
     "save_certificate_json",
     "save_to_h5",
     "select_atoms",
-    "WavecarDataset",
-    "WavecarHeader",
     "index_wavecar",
     "load_wavecar_records",
     "wavecar_header",

@@ -1,15 +1,7 @@
-r"""Provide differentiable ARPES simulation primitives.
+"""Expose the public :mod:`diffpes.simul` surface.
 
 Extended Summary
 ----------------
-The subpackage provides coherent spectral assembly, authenticated atomic
-cross sections, detector kinematics, polarization frame transforms,
-broadening primitives, and orbital angular momentum. The resolvent and eigen
-assembly in :mod:`spectral` combines matrix-element amplitudes with a causal
-self-energy and sampled-energy Fermi occupation.
-
-The following list describes the submodules:
-
 - :mod:`_detector_cube`
     PRIVATE: Map Cartesian source cubes to native detector bins.
 - :mod:`_detector_geometry`
@@ -41,7 +33,7 @@ The following list describes the submodules:
 - :mod:`effects`
     Compose source mapping and deterministic detector effects.
 - :mod:`factorized`
-    Compose typed electronic-state and factorized-current evaluation.
+    Compose typed electronic-state, factorized-current, and observation.
 - :mod:`generalized_spectral`
     Evaluate metric-aware retarded Green functions and spectral projections.
 - :mod:`kinematics`
@@ -50,10 +42,10 @@ The following list describes the submodules:
     Apply wrapped out-of-plane momentum broadening.
 - :mod:`oam`
     Compute orbital angular momentum.
+- :mod:`plane_wave`
+    Compute pseudo-wave point-detector ARPES amplitudes.
 - :mod:`polarization`
     Compute photon polarization and explicit frame transformations.
-- :mod:`plane_wave`
-    Compute bounded pseudo-wave and PAW-restored ARPES amplitudes.
 - :mod:`resolution`
     Apply finite-volume detector resolution.
 - :mod:`retarded_self_energy`
@@ -113,6 +105,8 @@ Routine Listings
     Convert Cartesian momentum to emission angles.
 :func:`evaluate_self_energy`
     Evaluate the complex retarded self-energy for one causal model.
+:func:`evaluate_spectral_projection`
+    Compute the ``evaluate_spectral_projection`` public contract.
 :func:`expected_counts`
     Assemble deterministic expected detector counts.
 :func:`fermi_dirac`
@@ -158,7 +152,13 @@ Routine Listings
 :func:`projected_spectral_density_resolvent`
     Compute the projected Hermitian resolvent spectral density.
 :func:`projected_spectral_density`
-    Contract transition sources with a metric-aware spectral matrix.
+    Compute the ``projected_spectral_density`` public contract.
+:func:`projected_spectral_density_solve`
+    Compute the ``projected_spectral_density_solve`` public contract.
+:func:`plane_wave_mask`
+    Compute the ``plane_wave_mask`` public contract.
+:func:`plane_wave_pseudo_amplitude`
+    Compute the ``plane_wave_pseudo_amplitude`` public contract.
 :func:`rotate_frame_vectors`
     Rotate a detector-fixed real axis across a detector-angle grid.
 :func:`run_vasp_workflow`
@@ -179,10 +179,20 @@ Routine Listings
     Simulate a single-domain pre-detector photon-energy scan.
 :func:`spectral_intensity_eigen`
     Evaluate spectral intensity from eigenvalues and invariant weights.
+:func:`spectral_density_matrix`
+    Compute the ``spectral_density_matrix`` public contract.
 :func:`spectral_intensity_resolvent`
     Evaluate degeneracy-safe spectral intensity through a linear solve.
 :func:`transmission_shape`
     Evaluate positive monotone analyser transmission with fixed mean one.
+:func:`surface_window_transform`
+    Compute the ``surface_window_transform`` public contract.
+:func:`solve_retarded_dyson`
+    Compute the ``solve_retarded_dyson`` public contract.
+:func:`total_spectral_density`
+    Compute the ``total_spectral_density`` public contract.
+:func:`total_spectral_density_solve`
+    Compute the ``total_spectral_density_solve`` public contract.
 :func:`voigt`
     Compute a normalized Voigt profile through the Faddeeva function.
 :func:`yeh_lindau_cross_section`
@@ -191,11 +201,6 @@ Routine Listings
     Return one raw Yeh--Lindau subshell row.
 :func:`yeh_lindau_orbital_weights`
     Return Yeh--Lindau weights for every orbital in a basis.
-
-Notes
------
-The spectral functions are JAX-compatible and preserve coherent source
-amplitudes through the final spectral reduction.
 """
 
 from .broadening import fermi_dirac, gaussian, voigt
@@ -220,9 +225,11 @@ from .effects import apply_detector_effects, map_source_to_detector
 from .factorized import evaluate_spectral_projection
 from .generalized_spectral import (
     projected_spectral_density,
+    projected_spectral_density_solve,
     solve_retarded_dyson,
     spectral_density_matrix,
     total_spectral_density,
+    total_spectral_density_solve,
 )
 from .kinematics import (
     detector_angles_to_kpar,
@@ -332,6 +339,7 @@ __all__: list[str] = [
     "prepare_projection",
     "projected_spectral_density_resolvent",
     "projected_spectral_density",
+    "projected_spectral_density_solve",
     "plane_wave_mask",
     "plane_wave_pseudo_amplitude",
     "rotate_frame_vectors",
@@ -350,6 +358,7 @@ __all__: list[str] = [
     "surface_window_transform",
     "solve_retarded_dyson",
     "total_spectral_density",
+    "total_spectral_density_solve",
     "voigt",
     "yeh_lindau_cross_section",
     "yeh_lindau_cross_section_table",

@@ -2,62 +2,68 @@
 
 Extended Summary
 ----------------
-The factorized model binds radial, final-state, self-energy, and static
-execution choices while leaving electronic-state data behind a capability
-protocol.  Its sole observable is intrinsic scalar intensity; detector
-response remains a later operation.
+Use this module for its validated public contracts and operations.
 
 Routine Listings
 ----------------
 :class:`FactorizedArpesModel`
-    Bind factorized photocurrent physics to a stable model identity.
+    Define the ``FactorizedArpesModel`` public contract.
 :func:`make_factorized_arpes_model`
-    Construct a validated factorized-photocurrent model.
+    Compute the ``make_factorized_arpes_model`` public contract.
 """
+
+import importlib
 
 import equinox as eqx
 import jax.numpy as jnp
 from beartype import beartype
-from beartype.typing import Optional, Tuple
+from beartype.typing import Callable, Optional, Tuple
 from jaxtyping import Array, Float64, jaxtyped
 
+from .coordinates import MeasurementCoordinates
+from .electronic_state import HamiltonianOverlapSource
 from .radial_params import MatrixElementParams, RadialSpec
 from .radial_profiles import FinalStateSpec, RadialQuadratureSpec
+from .result import IntrinsicPhotocurrent
 from .self_energy import SelfEnergyModel
 
 
 class FactorizedArpesModel(eqx.Module):
-    """Bind factorized photocurrent physics to a stable model identity.
+    """Define the ``FactorizedArpesModel`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_photocurrent.TestFactorizedarpesmodel`
 
     Attributes
     ----------
     radial_spec : RadialSpec
-        Differentiable radial-wavefunction parameters.
+        Store radial parameters.
     matrix_element_params : MatrixElementParams
-        Differentiable dipole matrix-element parameters.
+        Store matrix-element parameters.
     radial_quadrature : RadialQuadratureSpec
-        Static certified radial integration profile.
+        Store radial quadrature.
     final_state : FinalStateSpec
-        Static final-state model selection.
+        Store the final-state model.
     self_energy : SelfEnergyModel
-        Causal electronic self-energy parameterization.
+        Store the self-energy model.
     eta_ev : Float64[Array, ""]
-        Positive retarded regulator in eV.
+        Store the retarded regulator.
     kz_nodes_frac : Optional[Float64[Array, " n_kz"]]
-        Optional explicit out-of-plane quadrature nodes.
+        Store out-of-plane nodes.
     kz_mode : str
-        Static out-of-plane modelling declaration.
+        Store the out-of-plane mode.
     required_capabilities : Tuple[str, ...]
-        Electronic-state capabilities required before evaluation.
+        Store required capabilities.
     intrinsic_payload_kind : str
-        Static intrinsic observable discriminator.
+        Store the payload kind.
     model_ref : str
-        Stable factorized-model identity.
+        Store the model identity.
 
     See Also
     --------
-    diffpes.simul.evaluate_spectral_projection
-        Evaluate this model through the electronic-state protocol.
+    make_factorized_arpes_model
+        Construct a validated factorized model.
     """
 
     radial_spec: RadialSpec
@@ -89,6 +95,33 @@ class FactorizedArpesModel(eqx.Module):
             )
         if self.kz_nodes_frac is not None and self.kz_nodes_frac.ndim != 1:
             raise ValueError("out-of-plane nodes must have one dimension")
+        if self.required_capabilities != ("hamiltonian", "overlap"):
+            raise ValueError(
+                "spectral projection requires Hamiltonian and overlap"
+            )
+
+    @jaxtyped(typechecker=beartype)
+    def evaluate(
+        self,
+        electronic_state: HamiltonianOverlapSource,
+        coordinates: MeasurementCoordinates,
+        omega_rel_fermi_ev: Float64[Array, " n_omega"],
+        temperature_k: Float64[Array, " n_temperature"],
+    ) -> IntrinsicPhotocurrent:
+        """Evaluate this model through the spectral-projection entry point."""
+        evaluator: Callable[..., IntrinsicPhotocurrent] = (
+            importlib.import_module(
+                "diffpes.simul"
+            ).evaluate_spectral_projection
+        )
+        photocurrent: IntrinsicPhotocurrent = evaluator(
+            self,
+            electronic_state,
+            coordinates,
+            omega_rel_fermi_ev,
+            temperature_k,
+        )
+        return photocurrent
 
 
 @jaxtyped(typechecker=beartype)
@@ -103,46 +136,63 @@ def make_factorized_arpes_model(
     kz_nodes_frac: Optional[Float64[Array, " n_kz"]] = None,
     kz_mode: str = "native_direct",
 ) -> FactorizedArpesModel:
-    """Construct a validated factorized-photocurrent model.
+    """Compute the ``make_factorized_arpes_model`` public contract.
+
+    Validate documented inputs and preserve the declared scientific identity.
+
+    :see: :class:`~.test_photocurrent.TestMakeFactorizedArpesModel`
+
+    Notes
+    -----
+    Validate inputs before returning the named result.
 
     Parameters
     ----------
     radial_spec : RadialSpec
-        Differentiable radial-wavefunction parameters.
+        Input value for this operation.
     matrix_element_params : MatrixElementParams
-        Differentiable dipole matrix-element parameters.
+        Input value for this operation.
     radial_quadrature : RadialQuadratureSpec
-        Static certified radial integration profile.
+        Input value for this operation.
     final_state : FinalStateSpec
-        Static final-state model selection.
+        Input value for this operation.
     self_energy : SelfEnergyModel
-        Causal self-energy parameterization.
-    eta_ev : Optional[Float64[Array, ""]]
-        Positive retarded regulator in eV.
-    kz_nodes_frac : Optional[Float64[Array, " n_kz"]]
-        Optional explicit fractional out-of-plane quadrature nodes.
+        Input value for this operation.
+    eta_ev : Optional[Float64[Array, '']]
+        Input value for this operation.
+    kz_nodes_frac : Optional[Float64[Array, ' n_kz']]
+        Input value for this operation.
     kz_mode : str
-        Static out-of-plane modelling declaration.
+        Input value for this operation.
 
     Returns
     -------
-    FactorizedArpesModel
-        Immutable typed factorized-photocurrent configuration.
+    result : FactorizedArpesModel
+        Validated operation result.
     """
-    raw_regulator = (
+    raw_regulator: Float64[Array, ""] = (
         jnp.asarray(1.0e-4, dtype=jnp.float64) if eta_ev is None else eta_ev
     )
-    regulator = eqx.error_if(
-        raw_regulator,
-        raw_regulator <= 0.0,
-        "factorized retarded regulator must be positive",
+    regulator: Float64[Array, ""] = jnp.asarray(
+        raw_regulator, dtype=jnp.float64
     )
-    nodes = (
+    regulator = eqx.error_if(
+        regulator,
+        ~jnp.isfinite(regulator) | (regulator <= 0.0),
+        "factorized retarded regulator must be finite and positive",
+    )
+    nodes: Optional[Float64[Array, " n_kz"]] = (
         None
         if kz_nodes_frac is None
-        else kz_nodes_frac.astype(regulator.dtype)
+        else jnp.asarray(kz_nodes_frac, dtype=regulator.dtype)
     )
-    return FactorizedArpesModel(
+    if nodes is not None:
+        nodes = eqx.error_if(
+            nodes,
+            ~jnp.all(jnp.isfinite(nodes)),
+            "out-of-plane nodes must be finite",
+        )
+    result: FactorizedArpesModel = FactorizedArpesModel(
         radial_spec,
         matrix_element_params,
         radial_quadrature,
@@ -155,6 +205,7 @@ def make_factorized_arpes_model(
         "scalar_intensity",
         "org.diffpes.photocurrent.spectral_projection@0.1.0",
     )
+    return result
 
 
 __all__: list[str] = [

@@ -100,6 +100,10 @@ Routine Listings
     Number of indices in a tight-binding orbital pair.
 :obj:`TRANSVERSALITY_ATOL`
     Absolute transversality tolerance for polarization vectors.
+:obj:`WAVECAR_SECOND_RECORD_VALUES`
+    Number of float64 values in the supported WAVECAR metadata record.
+:obj:`WAVECAR_SINGLE_PRECISION_TAG`
+    VASP WAVECAR tag for complex64 coefficient records.
 
 Notes
 -----
@@ -228,6 +232,8 @@ TAIL_COORDINATE_BOUND: Final[float] = 30.0
 TB_HERMITICITY_TOLERANCE: Final[float] = 1e-12
 TB_PAIR_LENGTH: Final[int] = 2
 TRANSVERSALITY_ATOL: Final[float] = 1.0e-10
+WAVECAR_SECOND_RECORD_VALUES: Final[int] = 13
+WAVECAR_SINGLE_PRECISION_TAG: Final[int] = 45200
 
 __all__: list[str] = [
     "ACQUISITION_MODES",
@@ -276,4 +282,6 @@ __all__: list[str] = [
     "TB_HERMITICITY_TOLERANCE",
     "TB_PAIR_LENGTH",
     "TRANSVERSALITY_ATOL",
+    "WAVECAR_SECOND_RECORD_VALUES",
+    "WAVECAR_SINGLE_PRECISION_TAG",
 ]
