@@ -1,6 +1,6 @@
 [project]
 name = "diffpes"
-version = "2026.06.11"
+version = "2026.06.12"
 description = "Differentiable ARPES simulations in JAX"
 authors = [
     {name = "Debangshu Mukherjee", email = "mukherjeed@ornl.gov"},

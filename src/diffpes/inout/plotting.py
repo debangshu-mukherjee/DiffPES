@@ -439,11 +439,9 @@ def plot_arpes_with_kpath(  # noqa: PLR0913, PLR0917
 
 @jaxtyped(typechecker=beartype)
 def plot_momentum_map(  # noqa: PLR0913, PLR0917
-    intensity: Union[
-        Float64[Array, "n_kx n_ky"], Float64[NDArray, "n_kx n_ky"]
-    ],
-    kx_axis: Union[Float64[Array, " n_kx"], Float64[NDArray, " n_kx"]],
-    ky_axis: Union[Float64[Array, " n_ky"], Float64[NDArray, " n_ky"]],
+    intensity: Float64[Array, "n_kx n_ky"] | Float64[NDArray, "n_kx n_ky"],
+    kx_axis: Float64[Array, " n_kx"] | Float64[NDArray, " n_kx"],
+    ky_axis: Float64[Array, " n_ky"] | Float64[NDArray, " n_ky"],
     ax: Optional[Axes] = None,
     cmap: str = "inferno",
     colorbar: bool = True,
@@ -486,11 +484,11 @@ def plot_momentum_map(  # noqa: PLR0913, PLR0917
 
     Parameters
     ----------
-    intensity : Float64[Array, "n_kx n_ky"]
+    intensity : Float64[Array, "n_kx n_ky"] | Float64[NDArray, "n_kx n_ky"]
         Momentum-momentum intensity map.
-    kx_axis : Float64[Array, " n_kx"]
+    kx_axis : Float64[Array, " n_kx"] | Float64[NDArray, " n_kx"]
         Cartesian ``k_x`` axis in inverse Angstroms.
-    ky_axis : Float64[Array, " n_ky"]
+    ky_axis : Float64[Array, " n_ky"] | Float64[NDArray, " n_ky"]
         Cartesian ``k_y`` axis in inverse Angstroms.
     ax : Optional[Axes], optional
         Existing axis for the image. If ``None``, the function creates

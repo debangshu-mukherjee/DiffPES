@@ -56,7 +56,7 @@ class OutcarData(eqx.Module):
 
 
 @jaxtyped(typechecker=beartype)
-def make_outcar_data(  # noqa: DOC503
+def make_outcar_data(  # noqa: DOC502, DOC503 -- traced Equinox guards.
     fermi_energy: ScalarFloat,
     nelect: ScalarFloat,
 ) -> OutcarData:

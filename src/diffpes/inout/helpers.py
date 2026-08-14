@@ -368,7 +368,7 @@ def planar_average(
 
     Parameters
     ----------
-    volume : VolumetricData or SOCVolumetricData
+    volume : Union[VolumetricData, SOCVolumetricData]
         Parsed volumetric grid with its lattice.
     axis : int, optional
         Lattice-vector index of the profile direction. Default is 2,
@@ -438,7 +438,7 @@ def integrate_charge(
 
     Parameters
     ----------
-    volume : VolumetricData or SOCVolumetricData
+    volume : Union[VolumetricData, SOCVolumetricData]
         Parsed volumetric grid with charge in electrons per cubic
         Angstrom.
 
