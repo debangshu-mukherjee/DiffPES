@@ -17,7 +17,7 @@ jobs:
           python-version: "3.13"
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - run: uv sync --frozen --extra docs --extra test --extra notebooks
+      - run: uv sync --frozen --extra docs --extra test
       - name: Verify canonical, output-free tutorial notebooks
         run: |
           uv run --frozen python tests/_tutorials.py
