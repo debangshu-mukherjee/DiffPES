@@ -78,6 +78,7 @@ class TestSimulateArpes:
         assert jnp.array_equal(cube.ky_axis, jnp.asarray([-0.04, 0.075]))
         assert cube.provenance == "simulate_arpes/domain=0/single-kz"
 
+    @pytest.mark.slow
     def test_explicit_hamiltonian_owns_the_resolvent_value(self) -> None:
         """Verify H ownership with deliberately stale eigensystem metadata.
 
@@ -100,6 +101,7 @@ class TestSimulateArpes:
         )[0].intensity
         assert not jnp.allclose(baseline, shifted, rtol=1.0e-6, atol=1.0e-9)
 
+    @pytest.mark.slow
     def test_calls_one_shared_detector_chain(self, monkeypatch: Any) -> None:
         """Verify exactly one downstream composition for a physical cube.
 
@@ -154,6 +156,7 @@ class TestSimulateArpes:
             raster.expected_counts[0], calls[0][0].intensity
         )
 
+    @pytest.mark.slow
     def test_rejects_nonseparable_cartesian_grid(self) -> None:
         """Reject a rotated raster that one-dimensional axes cannot encode.
 
@@ -189,6 +192,7 @@ class TestSimulateArpes:
         ):
             _physical_cube_fixture(rotated_fixture)
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3500)
     def test_registered_geometry_coordinates_are_fd_correct(self) -> None:
@@ -439,6 +443,7 @@ class TestSimulateHvScan:
     the public single-energy driver.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1800)
     def test_stacks_public_native_single_hv_calls(self) -> None:
@@ -606,6 +611,7 @@ class TestNormalizeIntensity:
             spectrum.normalize_intensity(cube, mode)
 
 
+@pytest.mark.slow
 @pytest.mark.big_mem
 @pytest.mark.rss_limit_mb(800)
 def test_analytic_one_level_occupation_convention() -> None:

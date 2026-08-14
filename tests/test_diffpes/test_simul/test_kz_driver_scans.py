@@ -1004,6 +1004,7 @@ class TestBulkKzKBlockStreaming:
             atol=1.0e-14,
         )
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "n_k",
         [2, 3],
@@ -1378,6 +1379,7 @@ class TestDirectAndCoherentModes:
     weights.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1800)
     def test_bulk_direct_matches_exact_off_grid_centers(self) -> None:
@@ -1418,6 +1420,7 @@ class TestDirectAndCoherentModes:
             )
         assert jnp.allclose(actual, expected, rtol=1.0e-10, atol=1.0e-13)
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1800)
     def test_native_default_and_coherent_exact_paths_are_preserved(
@@ -1477,6 +1480,7 @@ class TestDirectAndCoherentModes:
             coherent, coherent_reference, rtol=1.0e-10, atol=1.0e-13
         )
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2600)
     def test_nonpropagating_bulk_and_coherent_are_exact_zero(self) -> None:
@@ -1574,6 +1578,7 @@ class TestCanonicalBulkDomainComposition:
     the resulting cut with an explicit two-domain construction.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3200)
     def test_cut_matches_public_scans_then_detector_effects(self) -> None:
@@ -1705,6 +1710,7 @@ class TestCanonicalBulkRaster:
     raster and checks the returned spectrum structure.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2600)
     def test_public_simulate_arpes_bulk_direct_raster_succeeds(self) -> None:
@@ -1777,6 +1783,7 @@ class TestCanonicalBulkKzDetectorDerivatives:
     require JIT and vectorization to preserve the expected counts.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(4800)
     def test_full_detector_bulk_kz_gradients_match_fd(self) -> None:
@@ -1825,6 +1832,7 @@ class TestCanonicalBulkKzDetectorDerivatives:
         assert jnp.all(jnp.isfinite(gradient))
         assert jnp.all(jnp.abs(gradient) > 1.0e-12)
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(4400)
     def test_full_detector_bulk_kz_jit_and_vmap_preserve_counts(self) -> None:
@@ -1886,6 +1894,7 @@ class TestPhotonEnergyScan:
     compiled, and vectorized execution.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2600)
     def test_scan_matches_loop_jit_and_vmap(self) -> None:
@@ -1947,6 +1956,7 @@ class TestKzDriverGradients:
     energy, kinematic Jacobian, and photon-energy scan coordinates.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3200)
     def test_coherent_slab_mean_free_path_gradient_matches_fd(self) -> None:
@@ -2029,6 +2039,7 @@ class TestKzDriverGradients:
         assert jnp.abs(derivative) > 1.0e-12
         assert zero_depth_derivative == 0.0
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3600)
     @pytest.mark.parametrize("mean_free_path", [5.0, 10.0, 50.0])
@@ -2083,6 +2094,7 @@ class TestKzDriverGradients:
         assert jnp.isfinite(derivative)
         assert jnp.abs(derivative) > 1.0e-12
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3600)
     def test_bulk_kz_inner_potential_gradient_matches_fd(self) -> None:
@@ -2173,6 +2185,7 @@ class TestKzDriverGradients:
         assert jnp.allclose(jacobian[0], jacobian[2], rtol=1.0e-12)
         assert jnp.allclose(jacobian[0], -jacobian[1], rtol=1.0e-12)
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3200)
     def test_driver_work_function_and_omega_gradients_match_fd(
@@ -2228,6 +2241,7 @@ class TestKzDriverGradients:
         assert jnp.all(jnp.isfinite(gradient))
         assert jnp.all(jnp.abs(gradient) > 1.0e-12)
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3000)
     def test_scan_photon_energy_gradients_match_fd(self) -> None:

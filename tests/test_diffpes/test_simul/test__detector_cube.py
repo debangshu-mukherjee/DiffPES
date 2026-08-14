@@ -198,6 +198,7 @@ class TestCubeDetectorMap:
             order=4,
         )
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1100)
     def test_sample_azimuth_and_euler_derivatives_match_fd(self) -> None:
@@ -251,6 +252,7 @@ class TestCubeDetectorMap:
             loss, theta, regime="smooth", elementwise=True
         )
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1100)
     def test_energy_geometry_and_source_derivatives_match_fd(self) -> None:
@@ -337,6 +339,7 @@ class TestCubeDetectorMap:
         )
         assert_gradients_match_finite_differences(loss, theta, regime="smooth")
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1100)
     def test_target_edge_design_finite_differences_converge(self) -> None:
@@ -488,6 +491,7 @@ class TestCubeDetectorMap:
             order=4,
         )
 
+    @pytest.mark.slow
     def test_eager_jit_and_vmap_success_paths_agree(self) -> None:
         """Verify eager, compiled, and vectorized domain rotations.
 

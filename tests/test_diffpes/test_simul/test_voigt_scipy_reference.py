@@ -15,6 +15,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Any, Dict, List, Tuple
 from jax import test_util
 from jaxtyping import Array, Bool, Complex128, Float64
@@ -375,6 +376,7 @@ class TestVoigtScipyEvidence:
         assert np.all((ratios[0] >= 15.5) & (ratios[0] <= 16.5))
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
+    @pytest.mark.slow
     def test_scaled_full_line_reference_mass_is_unity(self) -> None:
         """Recompute the frozen 256-to-512 tangent-map mass battery.
 
@@ -757,6 +759,7 @@ class TestVoigtProduction:
         assert np.all((ratios[0] >= 15.5) & (ratios[0] <= 16.5))
         assert np.all((ratios[1] >= 3.9) & (ratios[1] <= 4.1))
 
+    @pytest.mark.slow
     def test_scaled_full_line_production_mass_is_unity(self) -> None:
         """Require both quadrature orders and delta to meet SciPy.
 
@@ -959,6 +962,7 @@ class TestVoigtProduction:
                 match="center.*finite",
             )
 
+    @pytest.mark.slow
     def test_width_derivative_autodiff_and_check_grads_match_truth(
         self,
     ) -> None:

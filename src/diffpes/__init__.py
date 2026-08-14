@@ -21,6 +21,8 @@ The following list describes the top-level modules:
     Compute angular matrix elements for dipole photoemission.
 - :mod:`matrixel`
     Assemble coherent orbital and band photoemission matrix elements.
+- :mod:`plots`
+    Plot the ARPES spectra and band structures.
 - :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 - :mod:`simul`
@@ -29,8 +31,6 @@ The following list describes the top-level modules:
     Provide native tight-binding tools and ARPES-side adapters.
 - :mod:`types`
     Expose the public :mod:`diffpes.types` surface.
-- :mod:`utils`
-    Expose the public :mod:`diffpes.utils` surface.
 
 Routine Listings
 ----------------
@@ -44,6 +44,8 @@ Routine Listings
     Compute angular matrix elements for dipole photoemission.
 :mod:`matrixel`
     Assemble coherent orbital and band photoemission matrix elements.
+:mod:`plots`
+    Render diffpes carriers with Matplotlib.
 :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 :mod:`simul`
@@ -52,8 +54,6 @@ Routine Listings
     Provide native tight-binding tools and ARPES-side adapters.
 :mod:`types`
     Define types and factory functions for diffpes.
-:mod:`utils`
-    Provide utility functions for ARPES simulations.
 
 Examples
 --------
@@ -96,11 +96,11 @@ from . import (  # noqa: E402
     inout,
     maths,
     matrixel,
+    plots,
     radial,
     simul,
     tightb,
     types,
-    utils,
 )
 
 __version__: str = version("diffpes")
@@ -111,9 +111,9 @@ __all__: list[str] = [
     "inout",
     "maths",
     "matrixel",
+    "plots",
     "radial",
     "simul",
     "tightb",
     "types",
-    "utils",
 ]

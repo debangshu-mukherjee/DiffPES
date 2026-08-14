@@ -587,17 +587,21 @@ wheels = [
 
 [[package]]
 name = "diffpes"
-version = "2026.6.12"
+version = "2026.6.13"
 source = { editable = "." }
 dependencies = [
     { name = "beartype" },
     { name = "chex" },
     { name = "equinox" },
     { name = "h5py" },
+    { name = "ipykernel" },
+    { name = "ipywidgets" },
     { name = "jax" },
     { name = "jaxtyping" },
+    { name = "jupyter" },
     { name = "lineax" },
     { name = "matplotlib" },
+    { name = "nbconvert" },
     { name = "numpy" },
     { name = "optax" },
     { name = "optimistix" },
@@ -609,13 +613,9 @@ all = [
     { name = "furo" },
     { name = "hypothesis" },
     { name = "interrogate" },
-    { name = "ipykernel" },
-    { name = "ipywidgets" },
     { name = "jax", extra = ["cuda12"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "jupyter" },
     { name = "mpmath" },
     { name = "myst-parser" },
-    { name = "nbconvert" },
     { name = "numpydoc" },
     { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pre-commit" },
@@ -641,12 +641,8 @@ dev = [
     { name = "furo" },
     { name = "hypothesis" },
     { name = "interrogate" },
-    { name = "ipykernel" },
-    { name = "ipywidgets" },
-    { name = "jupyter" },
     { name = "mpmath" },
     { name = "myst-parser" },
-    { name = "nbconvert" },
     { name = "numpydoc" },
     { name = "pre-commit" },
     { name = "psutil" },
@@ -667,13 +663,9 @@ dev-cuda = [
     { name = "furo" },
     { name = "hypothesis" },
     { name = "interrogate" },
-    { name = "ipykernel" },
-    { name = "ipywidgets" },
     { name = "jax", extra = ["cuda12"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "jupyter" },
     { name = "mpmath" },
     { name = "myst-parser" },
-    { name = "nbconvert" },
     { name = "numpydoc" },
     { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pre-commit" },
@@ -700,12 +692,6 @@ docs = [
     { name = "sphinx-autodoc-typehints" },
     { name = "sphinx-rtd-theme" },
 ]
-notebooks = [
-    { name = "ipykernel" },
-    { name = "ipywidgets" },
-    { name = "jupyter" },
-    { name = "nbconvert" },
-]
 test = [
     { name = "chex" },
     { name = "hypothesis" },
@@ -723,24 +709,24 @@ requires-dist = [
     { name = "chex", specifier = ">=0.1.85" },
     { name = "chex", marker = "extra == 'test'", specifier = ">=0.1.89" },
     { name = "diffpes", extras = ["dev", "cuda"], marker = "extra == 'dev-cuda'" },
-    { name = "diffpes", extras = ["docs", "test", "dev", "notebooks", "cuda"], marker = "extra == 'all'" },
-    { name = "diffpes", extras = ["docs", "test", "notebooks"], marker = "extra == 'dev'" },
+    { name = "diffpes", extras = ["docs", "test"], marker = "extra == 'dev'" },
+    { name = "diffpes", extras = ["docs", "test", "dev", "cuda"], marker = "extra == 'all'" },
     { name = "equinox", specifier = ">=0.13.8" },
     { name = "furo", marker = "extra == 'docs'", specifier = ">=2025.7.19" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.100" },
     { name = "interrogate", marker = "extra == 'docs'", specifier = ">=1.7.0" },
-    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=7.2.0" },
-    { name = "ipywidgets", marker = "extra == 'notebooks'", specifier = ">=8.1.0" },
+    { name = "ipykernel", specifier = ">=7.2.0" },
+    { name = "ipywidgets", specifier = ">=8.1.0" },
     { name = "jax", specifier = ">=0.7.0" },
     { name = "jax", extras = ["cuda12"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=0.7.0" },
     { name = "jaxtyping", specifier = ">=0.3.0" },
-    { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.1.1" },
+    { name = "jupyter", specifier = ">=1.1.1" },
     { name = "lineax", specifier = ">=0.1.0" },
     { name = "matplotlib", specifier = ">=3.10.0" },
     { name = "mpmath", marker = "extra == 'test'", specifier = ">=1.3.0" },
     { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=2.0.0" },
-    { name = "nbconvert", marker = "extra == 'notebooks'", specifier = ">=7.16.6" },
+    { name = "nbconvert", specifier = ">=7.16.6" },
     { name = "numpy", specifier = ">=2.2.1" },
     { name = "numpydoc", marker = "extra == 'docs'", specifier = ">=1.9.0" },
     { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=9.5.0" },
@@ -760,7 +746,7 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3.0.2" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.19" },
 ]
-provides-extras = ["cuda", "docs", "test", "notebooks", "dev", "dev-cuda", "all"]
+provides-extras = ["cuda", "docs", "test", "dev", "dev-cuda", "all"]
 
 [[package]]
 name = "distlib"

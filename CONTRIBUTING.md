@@ -89,12 +89,13 @@ diffpes/
 │   │   ├── numerical.py
 │   │   ├── shared.py
 │   │   └── wannier.py
-│   ├── inout/             # Data input, output, and plotting
+│   ├── inout/             # Data input, output, and workflow helpers
 │   ├── maths/             # Mathematical and angular primitives
 │   ├── matrixel/          # Coherent matrix-element primitives
 │   │   ├── __init__.py
 │   │   ├── parameters.py
 │   │   └── transition.py
+│   ├── plots/             # Matplotlib rendering of diffpes carriers
 │   ├── radial/            # Radial functions and integrals
 │   ├── simul/             # ARPES forward and detector models
 │   ├── tightb/            # Tight-binding and slab models
@@ -107,8 +108,11 @@ diffpes/
 The source split uses these focused ownership modules:
 
 - `certify`: `builtin_transformations` and `registry_resources`.
-- `inout`: `band_plotting`, `certificate_decoding`, `certificate_storage`,
-  `wannier90`, and `wannier90_parser`.
+- `inout`: `certificate_decoding`, `certificate_storage`, `wannier90`,
+  and `wannier90_parser`.
+- `plots`: `arpes_maps`, `band_lines`, `band_scatter`,
+  `comparison_panels`, `detector_views`, `distribution_curves`,
+  `scalar_curves`, and `volume_views`.
 - `radial`: `coulomb_asymptotics`, `coulomb_functions`, `coulomb_numerov`,
   and `coulomb_ode`.
 - `simul`: `counting`, `detector_response`, `kz_broadening`, `resolution`,
@@ -1177,15 +1181,17 @@ change:
 
 ```bash
 .venv/bin/jupyter nbconvert --to markdown --execute \
-  --output-dir docs/source/tutorials tutorials/<name>.ipynb
+  --output-dir docs/source/tutorials/<stage> tutorials/<stage>/<name>.ipynb
 ```
 
 **Canonical notebooks stay output-free; exports carry the outputs.** The
-pre-commit hooks strip execution counts and outputs from `tutorials/*.ipynb`.
+pre-commit hooks strip execution counts and outputs from every notebook under
+`tutorials/`.
 The executed outputs live only in the committed Markdown exports. The
-documentation CI verifies the canon with `tests/_tutorials.py`, regenerates
-every export, and rejects drift with `git diff --exit-code`. The strict
-Sphinx build then renders the exports as static pages.
+documentation CI verifies the canon with `tests/_tutorials.py` and executes a
+tutorial only when its export is missing. It rejects drift with
+`git diff --exit-code`. The strict Sphinx build then renders the exports as
+static pages.
 
 **Every new tutorial comes from the curated tutorial catalog in the planning
 repository.** Do not invent a tutorial outside that catalog; propose a
@@ -1197,7 +1203,7 @@ Apply these ASD-STE100 rules to all Markdown cells.
 
 ### Notebook Authoring Standards
 
-**Notebooks are long and detailed, with a target of ten or more figures.**
+**Notebooks have 10 to 25 purposeful figures.**
 A tutorial teaches one lesson in depth. It walks the reader through the
 physics step by step and shows each intermediate result. A short notebook
 that only calls one function and shows one plot is a guide example, not a

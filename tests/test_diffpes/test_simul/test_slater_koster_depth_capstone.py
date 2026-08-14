@@ -326,6 +326,7 @@ class TestSlaterKosterDepthGradient:
     group-weight gradient with a central finite difference.
     """
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1800)
     def test_sk_parameter_reaches_complete_group_weight(self) -> None:
         """Match both AD modes and retain nonzero sensitivity.

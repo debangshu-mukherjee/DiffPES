@@ -2,8 +2,6 @@
 
 Extended Summary
 ----------------
-- :mod:`band_plotting`
-    Plot projected tight-binding bands with analysis utilities.
 - :mod:`certificate`
     Encode and identify portable forward-model certificates.
 - :mod:`certificate_decoding`
@@ -24,8 +22,6 @@ Extended Summary
     Parse a VASP KPOINTS file.
 - :mod:`outcar`
     Parse scalar summary values from a VASP OUTCAR file.
-- :mod:`plotting`
-    Plot ARPES spectra with analysis utilities.
 - :mod:`poscar`
     Parse a VASP POSCAR/CONTCAR file.
 - :mod:`procar`
@@ -43,8 +39,6 @@ Routine Listings
 ----------------
 :func:`aggregate_atoms`
     Sum orbital projections over a set of atoms.
-:func:`apply_kpath_ticks`
-    Apply symmetry-point ticks/labels from KPathInfo to an axis.
 :func:`attach_certificate_h5`
     Attach a certificate atomically to an HDF5 result file.
 :func:`certificate_identity`
@@ -57,8 +51,6 @@ Routine Listings
     Replace the kernel placeholder with the canonical identity.
 :func:`integrate_charge`
     Integrate a volumetric charge density over the cell.
-:func:`list_band_scatter_presets`
-    Return supported preset names for projected band scatter plots.
 :func:`load_certificate_h5`
     Load a certificate embedded in an HDF5 result file.
 :func:`load_certificate_json`
@@ -67,16 +59,6 @@ Routine Listings
     Load PyTrees from an HDF5 file.
 :func:`planar_average`
     Compute the planar average of a volumetric grid along one axis.
-:func:`plot_arpes_spectrum`
-    Plot an ARPES intensity map from an ArpesSpectrum PyTree.
-:func:`plot_arpes_with_kpath`
-    Plot ARPES spectrum and annotate k-axis using KPathInfo.
-:func:`plot_band_scatter_preset`
-    Plot projected bands as marker-size-weighted scatter points.
-:func:`plot_band_scatter_with_kpath`
-    Plot projected band scatter and annotate x-axis with k-path labels.
-:func:`plot_momentum_map`
-    Plot a momentum-momentum intensity map with Cartesian axes.
 :func:`read_chgcar`
     Parse a VASP CHGCAR file.
 :func:`read_doscar`
@@ -113,11 +95,6 @@ Routine Listings
     Compute the ``wavecar_header`` public contract.
 """
 
-from .band_plotting import (
-    list_band_scatter_presets,
-    plot_band_scatter_preset,
-    plot_band_scatter_with_kpath,
-)
 from .certificate import (
     certificate_identity,
     finalize_certificate,
@@ -143,12 +120,6 @@ from .helpers import (
 )
 from .kpoints import read_kpoints
 from .outcar import read_outcar
-from .plotting import (
-    apply_kpath_ticks,
-    plot_arpes_spectrum,
-    plot_arpes_with_kpath,
-    plot_momentum_map,
-)
 from .poscar import read_poscar
 from .procar import read_procar
 from .tb_files import read_hopping_list
@@ -161,23 +132,16 @@ from .wavecar import (
 
 __all__: list[str] = [
     "aggregate_atoms",
-    "apply_kpath_ticks",
     "attach_certificate_h5",
     "certificate_identity",
     "check_consistency",
     "dedupe_band_path",
     "finalize_certificate",
     "integrate_charge",
-    "list_band_scatter_presets",
     "load_certificate_h5",
     "load_certificate_json",
     "load_from_h5",
     "planar_average",
-    "plot_arpes_spectrum",
-    "plot_arpes_with_kpath",
-    "plot_band_scatter_preset",
-    "plot_band_scatter_with_kpath",
-    "plot_momentum_map",
     "read_chgcar",
     "read_doscar",
     "read_eigenval",

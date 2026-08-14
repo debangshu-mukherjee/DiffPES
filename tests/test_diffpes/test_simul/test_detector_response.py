@@ -323,6 +323,7 @@ class TestExpectedCounts:
             match="channel axis cannot be empty",
         )
 
+    @pytest.mark.slow
     def test_rates_pass_fd_jit_and_vmap(self) -> None:
         """Differentiate every implemented continuous rate leaf.
 

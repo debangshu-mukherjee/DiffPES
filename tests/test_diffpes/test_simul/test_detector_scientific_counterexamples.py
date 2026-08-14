@@ -6,6 +6,7 @@ The battery isolates plausible defects while every unrelated seam stays fixed.
 import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
@@ -154,6 +155,7 @@ class TestExplicitTargetCounterexample:
     explicitly declared target maps.
     """
 
+    @pytest.mark.slow
     def test_two_calibrations_require_two_declared_target_maps(self) -> None:
         """Reject a planted mapper that silently reuses source-inferred bins.
 
@@ -299,6 +301,7 @@ class TestManufacturedSeamCounterexamples:
     corresponding change in the expected counts.
     """
 
+    @pytest.mark.slow
     def test_each_remaining_effect_seam_changes_expected_counts(self) -> None:
         """Expose every detector-response component.
 

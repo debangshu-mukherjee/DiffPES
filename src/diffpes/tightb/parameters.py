@@ -8,7 +8,7 @@ independently. This module packs one representative of each pair, followed by
 onsite energies, spin--orbit strengths, and optional fractional positions and
 lattice vectors.
 Complex representatives cross the optimizer boundary through
-``diffpes.utils.pack_complex``.
+``diffpes.maths.pack_complex``.
 
 Slater--Koster models have a separate view. Their primary coordinates are the
 fundamental two-center integrals rather than the redundant materialized
@@ -40,6 +40,7 @@ from beartype.typing import Dict, List, Tuple
 from jaxtyping import Array, Complex128, Float64, jaxtyped
 from numpy.typing import NDArray
 
+from diffpes.maths import pack_complex, unpack_complex
 from diffpes.types import (
     CrystalGeometry,
     OrbitalBasis,
@@ -49,7 +50,6 @@ from diffpes.types import (
     make_slater_koster_params,
     make_tb_model,
 )
-from diffpes.utils import pack_complex, unpack_complex
 
 from .slaterkoster_model import (
     _build_sk_model_from_topology,

@@ -387,9 +387,13 @@ class TestCI(chex.TestCase):
             for command in docs_commands
             if "jupyter nbconvert" in command
         )
-        self.assertIn("tutorials/*.ipynb", export_command)
+        self.assertIn("find tutorials -type f -name '*.ipynb'", export_command)
+        self.assertIn(
+            'export_md="docs/source/tutorials/${relative%.ipynb}.md"',
+            export_command,
+        )
         self.assertIn("--to markdown --execute", export_command)
-        self.assertIn("--output-dir docs/source/tutorials", export_command)
+        self.assertIn('--output-dir "$output_dir"', export_command)
         self.assertIn("git diff --exit-code", export_command)
         cache_steps: List[Dict[str, Any]] = [
             step
@@ -424,7 +428,7 @@ class TestCI(chex.TestCase):
         self.assertIs(rtd["sphinx"]["fail_on_warning"], True)
 
         tutorial_paths: List[Path] = sorted(
-            (repository_root / "docs/source/tutorials").glob("*.md")
+            (repository_root / "docs/source/tutorials").rglob("*.md")
         )
         tutorial_path: Path
         for tutorial_path in tutorial_paths:
@@ -433,8 +437,8 @@ class TestCI(chex.TestCase):
             self.assertNotIn("```{code-cell}", tutorial_text)
 
         matrix_tutorial: Path = (
-            repository_root
-            / "docs/source/tutorials/matrix-element-sensitivity.md"
+            repository_root / "docs/source/tutorials/03-coherent-detector/"
+            "matrix-element-sensitivity.md"
         )
         matrix_tutorial_text: str = matrix_tutorial.read_text()
         self.assertGreaterEqual(matrix_tutorial_text.count("```python"), 4)

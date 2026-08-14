@@ -16,6 +16,7 @@ import pytest
 from beartype.typing import List, Tuple, Union
 from jaxtyping import Array, Complex128, Float64
 
+from diffpes.maths import unpack_complex
 from diffpes.tightb import (
     bloch_hamiltonian,
     build_sk_model,
@@ -32,7 +33,6 @@ from diffpes.types import (
     make_slater_koster_params,
     make_tb_model,
 )
-from diffpes.utils import unpack_complex
 
 
 def _materialized_model(

@@ -237,5 +237,5 @@ $h\nu-W+\omega$, so $J_W=-J_\omega$ exactly. A photon-energy scan does not
 lift this gauge without an external energy or work-function reference. It can
 still constrain $V_0$ through the $k_z$ dispersion.
 
-See [Geometry and kinematics](../tutorials/geometry-and-kinematics.md) for a
-complete executable example.
+The [ARPES cube tutorial](../tutorials/01-intrinsic/02-explore-an-arpes-cube.md) shows how
+the physical momentum axes feed directly into visual cuts and maps.

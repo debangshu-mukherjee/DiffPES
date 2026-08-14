@@ -33,6 +33,7 @@ from beartype.typing import Any, Callable, Dict, List, Optional, Tuple
 from jax import core
 from jaxtyping import Array, Bool, Float, Int, Int32, PyTree, Shaped, jaxtyped
 
+from diffpes.maths import pack_complex, unpack_complex
 from diffpes.types import (
     DependencyAnalysisCache,
     DependencyMap,
@@ -43,7 +44,6 @@ from diffpes.types import (
     make_information_spectrum,
     make_sensitivity_map,
 )
-from diffpes.utils import pack_complex, unpack_complex
 
 
 @cache
@@ -759,7 +759,7 @@ def _ravel_real_pytree(
     --------------------
     Flattens the tree and converts each leaf: a complex leaf becomes
     interleaved real and imaginary pairs through
-    :func:`~diffpes.utils.pack_complex`; a real inexact leaf ravels
+    :func:`~diffpes.maths.pack_complex`; a real inexact leaf ravels
     directly; any other dtype raises. The returned ``unravel`` closure
     inverts the layout leaf by leaf and restores the original dtypes and
     tree structure.

@@ -223,7 +223,7 @@ Fit and design against `expected_counts`; call
 simulated acquisition. Every continuous input above -- hoppings, radial
 scales, phases, polarization, self-energy, transmission slopes, exposure --
 supports `jax.grad` through the driver. The executed
-[tight-binding-to-detector tutorial](../tutorials/coherent-detector-paper-path.md)
+[detector-acquisition tutorial](../tutorials/03-coherent-detector/05-detector-arpes-acquisition.md)
 runs this same pipeline with plots at every stage.
 
 ## Bulk Samples and Photon-Energy Scans
@@ -266,7 +266,7 @@ The chunk assemblers
 with sampled-energy Fermi occupation for streaming over large
 `(k, omega)` blocks. Use them directly when you want the intrinsic
 spectrum before detector effects, as in the
-[quickstart](../tutorials/quickstart.md).
+[quickstart](../tutorials/01-intrinsic/quickstart.md).
 
 ```{figure} figures/pipeline-ek-cut.png
 :alt: Occupied spectral intensity along the graphene Gamma-K-M-Gamma path

@@ -12,6 +12,8 @@ The following list describes the submodules:
     Convert dipole channels and compute Cartesian dipole gauges.
 - :mod:`gaunt`
     Build the Gaunt coefficient table for dipole transitions.
+- :mod:`numerics`
+    Compute numerical utilities for ARPES simulations.
 - :mod:`rotations`
     Construct differentiable three-dimensional rotations.
 - :mod:`safe`
@@ -31,8 +33,12 @@ Routine Listings
     Compute a sampled Cartesian length-gauge contraction.
 :func:`dipole_momentum_cartesian`
     Compute a sampled Cartesian momentum-gauge contraction.
+:func:`faddeeva`
+    Evaluate the Faddeeva function w(z) = exp(-z^2) erfc(-iz).
 :func:`gaunt_lookup`
     Look up a single Gaunt coefficient from the precomputed table.
+:func:`pack_complex`
+    Pack complex parameters as stacked real values.
 :func:`polarization_cart_to_complex`
     Convert Cartesian polarization to complex spherical components.
 :func:`polarization_cart_to_real`
@@ -63,10 +69,14 @@ Routine Listings
     Raise positive inputs to a power and return zero otherwise.
 :func:`safe_sqrt`
     Evaluate sqrt on positive inputs and return zero otherwise.
+:func:`unpack_complex`
+    Unpack stacked real parameters into complex values.
 :func:`wigner_d`
     Construct a Wigner D matrix for an active z--y--z rotation.
 :func:`wigner_small_d`
     Construct a Wigner small-d matrix from its finite factorial sum.
+:func:`zscore_normalize`
+    Apply z-score normalization (zero-mean, unit-variance).
 
 Notes
 -----
@@ -85,6 +95,12 @@ from .dipole import (
     polarization_real_to_cart,
 )
 from .gaunt import build_gaunt_table, gaunt_lookup
+from .numerics import (
+    faddeeva,
+    pack_complex,
+    unpack_complex,
+    zscore_normalize,
+)
 from .rotations import (
     bond_angles,
     real_harmonic_unitary,
@@ -112,7 +128,9 @@ __all__: list[str] = [
     "channel_tables",
     "dipole_length_cartesian",
     "dipole_momentum_cartesian",
+    "faddeeva",
     "gaunt_lookup",
+    "pack_complex",
     "polarization_cart_to_complex",
     "polarization_cart_to_real",
     "polarization_complex_to_cart",
@@ -128,6 +146,8 @@ __all__: list[str] = [
     "safe_norm",
     "safe_power",
     "safe_sqrt",
+    "unpack_complex",
     "wigner_d",
     "wigner_small_d",
+    "zscore_normalize",
 ]

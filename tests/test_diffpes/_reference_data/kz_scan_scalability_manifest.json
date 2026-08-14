@@ -1,18 +1,18 @@
 {
   "artifact": {
     "path_from_diffpes_root": "tests/test_diffpes/_reference_data/kz_scan_scalability.json",
-    "sha256": "1b9b7a1d1858c0f34b22f77470ba89dd50e3a7d280723678aa495ca8704821de"
+    "sha256": "ca6ed412a3e3783aa4a9e367c75349bdf6df63d30ff4f63794950fdcfecfc37a"
   },
   "classification": "inert kz scan-scalability evidence mirror",
   "consumer_boundary": "pytest authenticates and parses this inert mirror without importing or executing the scaling harness",
   "generator": {
     "mutable_authority_count": 1,
     "path": "diffpes-plans/verification/measure_kz_scan_scalability.py",
-    "sha256": "607320aea72976b82e185e92b6be582aca0a6f645ef68d792c992db8c17ca47a"
+    "sha256": "4e4f9b6fb0aa85e61bcf87f67239c621f4b2c61d0909446ff3ba61a426d3b4dc"
   },
   "plans_artifact": {
     "path": "diffpes-plans/verification/kz_scan_scalability.json",
-    "sha256": "1b9b7a1d1858c0f34b22f77470ba89dd50e3a7d280723678aa495ca8704821de"
+    "sha256": "ca6ed412a3e3783aa4a9e367c75349bdf6df63d30ff4f63794950fdcfecfc37a"
   },
   "schema_version": 1
 }

@@ -15,10 +15,10 @@ from beartype.typing import Any, Dict, List
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
 
+from diffpes.maths import faddeeva
 from diffpes.simul import (
     voigt,
 )
-from diffpes.utils import faddeeva
 
 from ._spectral_helpers import (
     _ANALYTIC_ARCHIVE_SHA256,
@@ -417,7 +417,7 @@ class TestKramersKronigEvidence(chex.TestCase):
 
         The strictly positive branch must equal
         ``Re w((E - E0 + i*gamma) / (sigma*sqrt(2))) / (sigma*sqrt(2*pi))``
-        with the certified :func:`diffpes.utils.faddeeva` envelope. The
+        with the certified :func:`diffpes.maths.faddeeva` envelope. The
         check guards this composition when :mod:`diffpes.simul.spectral`
         lands next to the broadening module.
 

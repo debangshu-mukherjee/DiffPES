@@ -32,6 +32,7 @@ REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[1]
 NOTEBOOK_DIRECTORY: Path = Path("tutorials")
 EXPORT_DIRECTORY: Path = Path("docs/source/tutorials")
 MINIMUM_TUTORIAL_FIGURES: int = 10
+MAXIMUM_TUTORIAL_FIGURES: int = 25
 
 
 def discover_tutorial_notebooks(
@@ -170,6 +171,12 @@ def _export_defects(
         defects.append(
             f"tutorial has {len(referenced_set)} executed figures; "
             f"requires at least {MINIMUM_TUTORIAL_FIGURES}: "
+            f"{relative_notebook}"
+        )
+    if len(referenced_set) > MAXIMUM_TUTORIAL_FIGURES:
+        defects.append(
+            f"tutorial has {len(referenced_set)} executed figures; "
+            f"requires at most {MAXIMUM_TUTORIAL_FIGURES}: "
             f"{relative_notebook}"
         )
     orphaned_asset: Path

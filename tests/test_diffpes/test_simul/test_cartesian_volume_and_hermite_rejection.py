@@ -258,6 +258,7 @@ def _production_amplitude(
     return amplitude
 
 
+@pytest.mark.slow
 def test_full_cartesian_volume_matches_production() -> None:
     """Match a normalized full-volume mixed-parity plane-wave amplitude.
 

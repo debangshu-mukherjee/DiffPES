@@ -35,9 +35,9 @@ Coverage Map
    inout
    maths
    matrixel
+   plots
    radial
    simul
    tightb
    types
-   utils
    gradients

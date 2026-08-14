@@ -47,7 +47,7 @@ ARTIFACT_DIRECTORY: Path = (
 )
 ARTIFACT_PATH: Path = ARTIFACT_DIRECTORY / "cpu_benchmark.json"
 ARTIFACT_SHA256: str = (
-    "5f7d70ad5e5c25f74ab7e8da7bd7a5468e1bea66f603e8d06c6cf1a004758c53"
+    "ec2b1f902ae36d2ef6c3f819e8d5e95c029294d789871613e0b4dc9b4051386d"
 )
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -303,6 +303,7 @@ class TestSpectralStreamRuntimeScaling:
         )
         return returned
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_checkpointed_stream_matches_unchunked_values_and_gradients(

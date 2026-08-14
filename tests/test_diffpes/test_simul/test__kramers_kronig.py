@@ -599,6 +599,7 @@ class TestProductionKkConvergence(chex.TestCase):
             atol=2.0e-12,
         )
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_pole_refinement_domain_and_tail_rules_use_production_seam(
@@ -847,6 +848,7 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
         )
         assert np.all(column_norms > 1.0e-8)
 
+    @pytest.mark.slow
     def test_poly_parameter_jacobian_matches_central_fd(self) -> None:
         """Match every smooth polynomial coefficient against central FD.
 
@@ -858,6 +860,7 @@ class TestProductionKkContinuityAndDerivatives(chex.TestCase):
         """
         self._assert_parameter_jacobian_matches_central_fd("poly")
 
+    @pytest.mark.slow
     def test_grid_parameter_jacobian_matches_central_fd_away_from_knots(
         self,
     ) -> None:

@@ -381,6 +381,7 @@ class TestGenericKDerivatives:
     SOC and atomic positions.
     """
 
+    @pytest.mark.slow
     def test_soc_lambda_forward_reverse_fd_and_nonzero(self) -> None:
         """Differentiate one nondegenerate magnetic t2g+SOC band.
 
@@ -425,6 +426,7 @@ class TestGenericKDerivatives:
         )
         assert abs(float(jax.grad(loss)(coupling))) > 1e-3
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(900)
     def test_atomic_position_forward_reverse_fd_and_nonzero(self) -> None:
         """Differentiate an off-crossing buckled-honeycomb band.
@@ -525,6 +527,7 @@ class TestExactDegeneracyDerivatives:
         )
         assert bool(jnp.isfinite(jax.grad(loss)(pi)))
 
+    @pytest.mark.slow
     def test_kramers_sk_and_position_invariant_is_nonzero(self) -> None:
         """Validate SK and position classes through exact Kramers pairs.
 

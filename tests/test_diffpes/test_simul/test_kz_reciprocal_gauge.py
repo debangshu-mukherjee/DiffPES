@@ -371,6 +371,7 @@ class TestKzProductionQuadratureReplay:
     directional derivative against the authenticated reference.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(3200)
     def test_selected_value_sum_and_mean_free_path_jvp_match_reference(

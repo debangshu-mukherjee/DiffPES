@@ -141,6 +141,7 @@ def _node_doubling_with_parameter_gradient(
         )
 
 
+@pytest.mark.slow
 def test_sto_and_hydrogenic_envelope_values_gradients_and_tails(  # noqa: PLR0915
 ) -> None:
     """Validate both analytic envelopes at slowest-decay boundaries.
@@ -406,6 +407,7 @@ def test_sto_and_hydrogenic_envelope_values_gradients_and_tails(  # noqa: PLR091
         assert abs(hydrogenic_signed_tail) <= hydrogenic_half_budget
 
 
+@pytest.mark.slow
 def test_near_condition_limit_cancellation() -> None:
     """Validate an admitted STO contraction immediately below kappa 32.
 

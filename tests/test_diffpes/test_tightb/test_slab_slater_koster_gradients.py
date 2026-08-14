@@ -458,6 +458,7 @@ class TestFundamentalSlaterKosterGradients:
     differences of fundamental integrals.
     """
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1536)
     def test_graphene_sk_parameter_gradient_matches_fd(self) -> None:
         """Match fwd/rev/FD and retain nonzero graphene pp-pi sensitivity.
@@ -480,6 +481,7 @@ class TestFundamentalSlaterKosterGradients:
             directional_atol=2e-8,
         )
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1800)
     def test_complete_shell_soc_sk_parameter_gradient_matches_fd(self) -> None:
         """Match every pp SK row through a generic-complex SOC slab.

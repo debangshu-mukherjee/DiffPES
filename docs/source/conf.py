@@ -226,7 +226,7 @@ napoleon_preprocess_types = True
 napoleon_attr_annotations = True
 
 # All runtime dependencies are installed during the docs build (RTD installs
-# the [docs, test, notebooks] extras), so no imports need to be mocked.
+# the [docs, test] extras), so no imports need to be mocked.
 autodoc_mock_imports = []
 
 # Autodoc settings

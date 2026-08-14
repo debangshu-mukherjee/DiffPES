@@ -127,5 +127,5 @@ counting statistics are outside the current detector-independent model.
   false mask, not a finite physical derivative.
 
 The executable
-[matrix-element sensitivity tutorial](../tutorials/matrix-element-sensitivity.md)
+[matrix-element sensitivity tutorial](../tutorials/03-coherent-detector/matrix-element-sensitivity.md)
 demonstrates the complete-group and dark-mask behavior.

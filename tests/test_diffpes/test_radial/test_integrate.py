@@ -568,6 +568,7 @@ class TestRadialBvals:
             atol=1.0e-12,
         )
 
+    @pytest.mark.slow
     def test_slater_gradient_and_coefficient_scale_gauge(self) -> None:
         """Check a physical exponent gradient and the normalized scale gauge.
 
@@ -678,6 +679,7 @@ class TestRadialBvals:
             atol=2.0e-12,
         )
 
+    @pytest.mark.slow
     def test_registered_profile_node_doubling_values_and_gradient(
         self,
     ) -> None:
@@ -870,6 +872,7 @@ class TestRadialBvals:
             actual, expected, rtol=1.0e-12, atol=1.0e-14
         )
 
+    @pytest.mark.slow
     def test_domain_and_rejected_accelerator_guards(self) -> None:
         """Reject out-of-profile momentum and uncertified acceleration.
 

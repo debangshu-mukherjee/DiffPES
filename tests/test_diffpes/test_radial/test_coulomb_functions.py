@@ -77,6 +77,7 @@ class TestCoulombFg:
             target: Path = root / relative
             assert hashlib.sha256(target.read_bytes()).hexdigest() == expected
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("order", range(5))
     @pytest.mark.rss_limit_mb(1500)
     def test_dense_reference_domain_in_isolated_processes(
@@ -108,6 +109,7 @@ class TestCoulombFg:
         )
         assert completed.returncode == 0, completed.stdout + completed.stderr
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("order", range(5))
     @pytest.mark.rss_limit_mb(1600)
     def test_frozen_product_in_isolated_processes(
@@ -136,6 +138,7 @@ class TestCoulombFg:
         )
         assert completed.returncode == 0, completed.stdout + completed.stderr
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1200)
     def test_plane_wave_identity_ode_and_parameter_gradients(self) -> None:
         """Check the plane limit, ODE residual, and parameter gradients.
@@ -228,6 +231,7 @@ class TestCoulombFg:
         )
         assert float(jnp.max(jnp.abs(residual) / scale)) < 1.0e-9
 
+    @pytest.mark.slow
     def test_jit_vmap_and_domain_rejections(self) -> None:
         """Check transformations and reject arguments outside the domain.
 

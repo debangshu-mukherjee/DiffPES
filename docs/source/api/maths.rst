@@ -1,8 +1,9 @@
 diffpes.maths
 =============
 
-Differentiable Cartesian rotations and angular matrix elements for dipole
-photoemission.
+Differentiable Cartesian rotations, angular matrix elements for dipole
+photoemission, the Faddeeva function used by Voigt broadening, and complex
+parameter packing at the optimizer boundary.
 
 .. automodule:: diffpes.maths
    :members:

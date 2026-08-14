@@ -30,10 +30,10 @@ from jaxtyping import Array, Bool, Complex128, Float, Float64, jaxtyped
 from diffpes.constants import (
     KB_EV_PER_K,
 )
+from diffpes.maths import faddeeva
 from diffpes.types import (
     ScalarFloat,
 )
-from diffpes.utils import faddeeva
 
 
 @jaxtyped(typechecker=beartype)

@@ -10,6 +10,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Tuple
 from jaxtyping import Array, Complex128, Float64
 
@@ -210,6 +211,7 @@ def test_random_complete_p_d_shell_wigner_covariance() -> None:
                 )
 
 
+@pytest.mark.slow
 def test_each_coefficient_scale_direction_nulls_full_intensity() -> None:
     """Verify null intensity slopes for both radial coefficient gauges.
 

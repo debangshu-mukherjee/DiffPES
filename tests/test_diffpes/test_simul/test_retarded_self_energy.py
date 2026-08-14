@@ -360,6 +360,7 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
     :see: :func:`diffpes.simul.retarded_self_energy.evaluate_self_energy`
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_public_forward_and_reverse_ad_follow_the_composite_route(
@@ -454,6 +455,7 @@ class TestEvaluateSelfEnergyDerivatives(chex.TestCase):
             atol=1e-14,
         )
 
+    @pytest.mark.slow
     def test_parameter_derivative_rows_match_frozen_complex_step_truths(
         self,
     ) -> None:

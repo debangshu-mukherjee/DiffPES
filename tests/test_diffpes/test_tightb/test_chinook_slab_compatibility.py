@@ -9,6 +9,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Complex128, Float64
 from numpy.typing import NDArray
@@ -333,6 +334,7 @@ class TestChinookSlabCompatibility:
             atol=_COMPATIBILITY_ATOL_EV,
         )
 
+    @pytest.mark.slow
     def test_surface_projection_agrees_off_degeneracy(self) -> None:
         """Match Chinook's depth law and per-band surface expectations.
 

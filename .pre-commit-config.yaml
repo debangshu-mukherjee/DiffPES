@@ -20,6 +20,15 @@ repos:
         entry: uv run --frozen ty check
         language: system
         pass_filenames: false
+      - id: docs-strict-build
+        name: strict sphinx build (Read the Docs parity)
+        entry: >-
+          uv run --frozen sphinx-build -W -a -E --keep-going -b html
+          docs/source docs/build/html
+        language: system
+        pass_filenames: false
+        files: >-
+          ^(docs/source/.*|README\.md|src/.*\.py|\.readthedocs\.yaml)$
       - id: notebook-output-strip
         name: strip tutorial notebook outputs
         entry: uv run --frozen python tests/_tutorials.py --strip

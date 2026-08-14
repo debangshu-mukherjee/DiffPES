@@ -1,0 +1,30 @@
+# Run the long-running reference tests excluded from the per-push suite.
+name: slow-tests
+
+"on":
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  slow-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen pytest -m slow --cov=diffpes --cov-report=xml
+      - uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: false

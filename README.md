@@ -13,102 +13,249 @@
 [![jax_badge](https://tinyurl.com/mucknrvu)](https://docs.jax.dev/)
 [![Lines of Code](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/debangshu-mukherjee/diffpes/main/.github/badges/loc.json)](https://github.com/debangshu-mukherjee/diffpes)
 
-diffpes is a JAX-based ARPES simulation toolkit with Python-native APIs and
-certified forward execution. A certified run stores its observable and
-scientific evidence in the same differentiable PyTree. The evidence includes
-bounded physics claims, provenance, domain margins, derivatives, local
-information-flow diagnostics, and a named assurance policy. JAX compiles and
-batches the numerical certification path. Portable serialization stays at the
-filesystem boundary.
+Differentiable ARPES simulation in JAX: from tight-binding or DFT electronic
+structure to band structures, spectra, Fermi surfaces, and detector-level
+photoemission data. Gradients flow through the entire chain.
 
-Certification here means bounded scientific evidence, not a security
-credential. Storage consistency markers detect accidental mismatches only.
+<p align="center">
+  <b><a href="https://diffpes.readthedocs.io/en/latest/tutorials/">Tutorials</a></b> ·
+  <b><a href="https://diffpes.readthedocs.io/en/latest/guides/">Guides</a></b> ·
+  <b><a href="https://diffpes.readthedocs.io/en/latest/api/">API reference</a></b>
+</p>
 
-The geometry layer converts crystal coordinates, detector angles, and photon
-energy into fixed-shape momentum rasters. Its JAX derivatives expose
-calibration sensitivity to the work function, inner potential, sample
-azimuth, and detector frame.
+```bash
+pip install diffpes
+```
 
-## Coherent spectral workflows
+## From bands to spectra
 
-[`diffpes.matrixel`](https://diffpes.readthedocs.io/en/latest/api/matrixel.html)
-owns coherent channel assembly, band projection, polarization contraction, and
-matrix-element inversion coordinates. `diffpes.simul` consumes these amplitudes
-in the spectral and detector pipeline.
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-bands-to-arpes.png" alt="Graphene tight-binding band structure along Gamma-K-M-Gamma next to the simulated ARPES spectrum of the same path" width="900">
+</p>
 
-The production spectral surface preserves complex transition sources through
-the final observable. `diffpes.simul.spectral_intensity_resolvent` is the
-degeneracy-safe path. `spectral_intensity_eigen` is a faster path for
-gauge-invariant band weights away from degeneracies. Both consume the causal
-self-energy returned by `evaluate_self_energy`.
+The graphene π bands and their simulated ARPES spectrum: the occupied band
+is bright. The Fermi function at 300 K cuts off the unoccupied band.
 
-`diffpes.simul.simulate_arpes` and `simulate_arpes_cut` compose that intrinsic
-observable with the canonical single-kz detector chain. They require explicit
-Hamiltonians and the complete matrix-element carriers. Each source domain is
-conservatively mapped into `DetectorCalibration` bins. Domains are mixed in
-detector space before transmission, native-coordinate resolution, background,
-sensitivity, exposure, and bin-volume conversion. There is no level-string
-workflow or projection-probability compatibility dispatcher.
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-linewidth-series.png" alt="The same Dirac cone cut simulated with 20, 80, and 250 meV self-energy linewidths" width="900">
+</p>
 
-### Python indexing conventions
+The self-energy is an explicit model parameter — the same cut at 20, 80,
+and 250 meV linewidth.
 
-Use standard Python/NumPy indexing everywhere (zero-based, end-exclusive).
+<p align="center">
+  <img src="docs/source/_static/readme/honeycomb-gap-bands-arpes.png" alt="Gapped honeycomb band structure and the simulated ARPES spectrum showing only the occupied valence band" width="900">
+</p>
 
-- Non-s orbitals: `slice(1, 9)` -> indices 1..8
-- p orbitals: `slice(1, 4)` -> indices 1..3
-- d orbitals: `slice(4, 9)` -> indices 4..8
+Stagger the two onsite energies and the Dirac crossing opens into a gap;
+ARPES sees the valence band.
 
-Do not use MATLAB-style indexing notation in Python code.
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-fermi-edge.png" alt="Momentum-summed Fermi edge simulated at 25, 100, and 300 kelvin" width="620">
+</p>
 
-### Example
+The Fermi edge at 25, 100, and 300 K.
+
+## Across the Brillouin zone
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-constant-energy-maps.png" alt="Four constant-energy ARPES maps of graphene: Dirac points, trigonally warped pockets, the van Hove crossing at M, and a Gamma-centered ring" width="900">
+</p>
+
+Constant-energy slices: Dirac points grow into trigonally warped pockets,
+touch at the van Hove singularity, and close into a ring around Γ.
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-doped-fermi-surface.png" alt="Simulated Fermi surface of hole-doped graphene with pockets at every zone corner" width="520">
+</p>
+
+Move the Fermi level and the Fermi surface follows — hole-doped by 1 eV.
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-band-surface-3d.png" alt="Three-dimensional pi and pi-star band surfaces of graphene with six Dirac points" width="620">
+</p>
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-dos.png" alt="Gaussian-broadened pi-band density of states with van Hove peaks and the occupied part shaded" width="620">
+</p>
+
+## The intensity cube
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-dirac-cone-cube.png" alt="Translucent three-dimensional rendering of the simulated ARPES intensity cube around the Dirac point" width="620">
+</p>
+
+The full cube I(kx, ky, E) around one Dirac point, rendered by intensity
+transparency over its deepest constant-energy slice.
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-energy-window-maps.png" alt="Three energy-window integrals of the Dirac cone cube showing rings collapsing onto the apex" width="900">
+</p>
+
+Energy-window integrals of the cube — rings collapse onto the cone apex.
+
+<p align="center">
+  <img src="docs/source/_static/readme/graphene-edc-mdc.png" alt="Stacked energy distribution curves and momentum distribution curves through the Dirac cone" width="900">
+</p>
+
+EDC and MDC stacks pulled from the same cut.
+
+## Through the detector
+
+<p align="center">
+  <img src="docs/source/_static/readme/intrinsic-vs-measured.png" alt="Intrinsic spectral function beside the same spectrum after analyser optics, resolution, background, and Poisson counting" width="900">
+</p>
+
+The same physics before and after the instrument: analyser calibration,
+point-spread functions, transmission, background, exposure, and counting.
+
+<p align="center">
+  <img src="docs/source/_static/readme/detector-poisson-acquisition.png" alt="Expected detector image beside one Poisson-sampled acquisition of the same spectrum" width="900">
+</p>
+
+Expected counts and one reproducible Poisson acquisition.
+
+<p align="center">
+  <img src="docs/source/_static/readme/detector-expected-counts.png" alt="Expected photoelectron counts over the detector plane" width="520">
+</p>
+
+<p align="center">
+  <img src="docs/source/_static/readme/detector-polarization-contrast.png" alt="Difference of expected detector counts between two photon polarizations" width="520">
+</p>
+
+Rotate the photon polarization and difference the two acquisitions —
+matrix-element contrast at the detector.
+
+## First spectrum
+
+This script is complete — a graphene π-band model, a momentum cut through
+the Dirac point, and the finite-temperature spectral function:
 
 ```python
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
-import jax
-
-from diffpes.simul import evaluate_self_energy, spectral_intensity_eigen
-from diffpes.types import make_self_energy_model
-
-omega = jnp.linspace(-1.0, 1.0, 501)
-self_energy = evaluate_self_energy(
-    omega,
-    make_self_energy_model(gamma=0.08),
+from diffpes.plots import plot_arpes_spectrum
+from diffpes.simul import assemble_spectral_intensity_bands_chunk
+from diffpes.tightb import (
+    build_kpath,
+    diagonalize_tb,
+    kpath_arc_length,
+    kpoints_frac_to_cart,
 )
-eigenvalues = jnp.array([-0.25, 0.30])
-band_weights = jnp.array([0.8, 0.2])
-intrinsic = jax.vmap(
-    lambda energy, sigma: spectral_intensity_eigen(
-        eigenvalues,
-        band_weights,
-        energy,
-        sigma,
-        1.0e-4,
-    )
-)(
-    omega,
-    self_energy,
+from diffpes.types import (
+    make_arpes_spectrum,
+    make_crystal_geometry,
+    make_orbital_basis,
+    make_self_energy_model,
+    make_tb_model,
 )
+
+# Graphene pi bands: two carbon sites, six nearest-neighbour hoppings.
+a = 2.46
+crystal = make_crystal_geometry(
+    lattice=jnp.asarray(
+        [[a, 0.0, 0.0], [a / 2, a * 3**0.5 / 2, 0.0], [0.0, 0.0, 20.0]]
+    ),
+    positions=jnp.asarray([[0.0, 0.0, 0.0], [1 / 3, 1 / 3, 0.0]]),
+    species=("C", "C"),
+)
+basis = make_orbital_basis(
+    atom_indices=(0, 1), n=(2, 2), l=(0, 0), m=(0, 0), labels=("pz_A", "pz_B")
+)
+model = make_tb_model(
+    hopping_amplitudes=-2.7 * jnp.ones(6, dtype=jnp.complex128),
+    onsite_energies=jnp.zeros(2),
+    soc_lambdas=jnp.zeros(0),
+    geometry=crystal,
+    basis=basis,
+    hopping_pairs=((0, 1), (0, 1), (0, 1), (1, 0), (1, 0), (1, 0)),
+    hopping_cells=(
+        (0, 0, 0), (-1, 0, 0), (0, -1, 0),
+        (0, 0, 0), (1, 0, 0), (0, 1, 0),
+    ),
+    shell_index=(-1, -1),
+)
+
+# A straight momentum cut through the Dirac point at K.
+path = build_kpath(
+    jnp.asarray([[0.0, 0.0, 0.0], [0.5, 1.0, 0.0]]),
+    crystal,
+    301,
+    ("Gamma", "K'"),
+)
+bands = diagonalize_tb(model, path.kpoints)
+
+# Occupied spectral function: Lorentzian self-energy + Fermi cutoff at 300 K.
+energies = jnp.linspace(-9.2, 1.2, 480)
+intensity = assemble_spectral_intensity_bands_chunk(
+    bands.eigenvalues,
+    jnp.ones((path.kpoints.shape[0], energies.shape[0], 2)),
+    energies,
+    make_self_energy_model(gamma=0.09),
+    jnp.asarray(0.0),
+    300.0,
+    allow_degenerate_value_only=True,
+)
+spectrum = make_arpes_spectrum(
+    intensity,
+    energies,
+    kpath_arc_length(path, crystal),
+    kpoints_frac_to_cart(path.kpoints, crystal),
+)
+plot_arpes_spectrum(spectrum, cmap="magma")
+plt.show()
 ```
 
-## Test coverage
+## From DFT
 
-Test coverage identifies the source lines that the tests execute. Run the
-coverage check with this command:
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-dft-bands-to-arpes.png" alt="Bi2Se3 slab band structure read from a VASP EIGENVAL file next to its simulated occupied ARPES map along M-Gamma-M" width="900">
+</p>
 
-```bash
-source .venv/bin/activate
-pytest tests/ --cov=src/diffpes --cov-report=term-missing
-```
+A real material, straight from VASP output: the Bi₂Se₃ slab bands along
+M–Γ–M and their occupied spectrum at 35 K.
 
-Use these priorities to increase coverage toward 100%:
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-surface-state-window.png" alt="Near-Fermi window of the Bi2Se3 slab spectrum with quantum-well-split conduction states above the valence manifold" width="620">
+</p>
 
-1. **Simulation and types:** These modules already have good coverage.
-   Add a test for each coherent matrix-element or spectral branch.
-2. **HDF5:** Round-trip every PyTree type. Test each load and save error path.
-3. **VASP file readers:** Test `read_doscar`, `read_eigenval`, `read_kpoints`,
-   `read_poscar`, and `read_procar` with minimal repository fixtures.
-4. **Plotting:** Exercise the public plotting API in tests. GUI code can use a
-   lower coverage target.
-5. **Edge branches:** Cover optional arguments and their error messages.
-   Include `make_band_structure(..., kpoint_weights=...)`.
+The near-Fermi window of the same calculation, sharpened to a 12 meV
+linewidth.
+
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-slab-vs-bulk.png" alt="Simulated spectra of the Bi2Se3 six-quintuple-layer slab and of bulk Bi2Se3 on the same M-Gamma-K-M path, with in-gap states only in the slab" width="900">
+</p>
+
+Slab and bulk calculations on the same M–Γ–K–M path: the slab carries
+states inside the bulk gap.
+
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-edc-stack.png" alt="Stacked energy distribution curves around Gamma from the Bi2Se3 slab spectrum" width="620">
+</p>
+
+EDCs around Γ from the same map.
+
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-dos.png" alt="Normalized densities of states of the Bi2Se3 slab and bulk from DOSCAR files" width="620">
+</p>
+
+<p align="center">
+  <img src="docs/source/_static/readme/bi2se3-charge-profile.png" alt="Planar-averaged CHGCAR charge density of the slab showing six quintuple layers separated by van der Waals gaps" width="900">
+</p>
+
+DOSCAR densities of states and the CHGCAR charge density, resolving all
+six quintuple layers.
+
+`diffpes.inout` reads `EIGENVAL`, `PROCAR`, `POSCAR`, `KPOINTS`, `OUTCAR`,
+`DOSCAR`, `CHGCAR`, `WAVECAR`, Wannier90 `hr.dat`/`tb.dat`, and Cartesian
+hopping lists. Parsed eigenvalues and orbital projections drop into the same
+spectral calls as tight-binding models, so a converged VASP calculation
+becomes a simulated ARPES measurement.
+
+## Differentiable end to end
+
+`jax.grad`, `jax.vmap`, and `jax.jit` work through the whole pipeline —
+crystal geometry, hoppings, self-energy, matrix elements, experiment
+geometry, and detector response to expected counts. Fit any of it to
+measured spectra by gradient descent.

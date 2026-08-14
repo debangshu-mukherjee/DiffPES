@@ -340,6 +340,7 @@ class TestManufacturedDetectorChain:
             atol=5.0e-15,
         )
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(800)
     def test_every_physical_seam_and_final_counts_match(self) -> None:
         """Match mapping, transmission, resolution, sensitivity, and counts.
@@ -426,6 +427,7 @@ class TestManufacturedDetectorChain:
             atol=1.0e-12,
         )
 
+    @pytest.mark.slow
     def test_planted_mixing_measure_and_order_defects_fail_truth(self) -> None:
         """Reject source-wise mixing, omitted volumes, and reordered stages.
 
@@ -529,6 +531,7 @@ class TestDetectorChainDerivatives:
     They also exercise the same leaves under JIT and vectorization.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2500)
     def test_expected_rate_leaves_pass_fd_jit_and_vmap(self) -> None:
@@ -581,6 +584,7 @@ class TestDetectorChainDerivatives:
             vectorized, sequential, rtol=1.0e-10, atol=0.0
         )
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(2500)
     def test_probability_leaves_pass_fd_jit_and_vmap(self) -> None:

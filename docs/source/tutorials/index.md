@@ -1,67 +1,68 @@
 # Tutorials
 
-The diffpes tutorials use executable notebooks. Registered tutorials pair a
-stripped notebook in this directory with a reviewable Jupytext percent script
-in ``tutorials/``. The documentation build executes the notebook cells and
-stores outputs only in its cache.
+The numbered notebooks are an approximation ladder: every one puts an ARPES
+calculation on screen, then adds a missing layer of physics. They are not one
+material calculation carried unchanged through five files. Tutorials 1, 2, and
+5 use compact tight-binding examples; 3 and 4 use independent VASP examples.
+
+## Approximation Ladder
+
+| Tutorial | Adds to the working calculation | Deliberately still assumed |
+| --- | --- | --- |
+| 1. [Minimal intrinsic spectrum](01-intrinsic/01-simulate-an-arpes-spectrum.md) | Band dispersion, Fermi occupation, and a fixed lifetime on one momentum cut | Two-orbital graphene, uniform band visibility, no photoemission geometry or instrument |
+| 2. [Intrinsic ARPES cube](01-intrinsic/02-explore-an-arpes-cube.md) | Both in-plane momentum dimensions and source-cube views | The same compact, uniform-weight source; fixed linewidth; no beamline or detector |
+| 3. [VASP bands to a map](02-material-proxies/03-vasp-bands-to-arpes.md) | Material-specific VASP eigenvalues on a physical path | Uniform weights and constant linewidth; no phases, matrix elements, or detector |
+| 4. [PROCAR orbital contrast](02-material-proxies/04-orbital-resolved-arpes.md) | Orbital-population-dependent spectral weights | Projection magnitudes are not coherent dipole cross sections; no instrument response |
+| 5. [Coherent detector acquisition](03-coherent-detector/05-detector-arpes-acquisition.md) | Phase-complete tight-binding input, matrix elements, beamline geometry, detector response, and counting noise | The Hamiltonian, radial and final-state choices, and detector calibration must be supplied or calibrated |
+
+All of these quick examples are two-dimensional. A bulk `kz`-dependent
+calculation needs an appropriate material model and momentum sampling.
 
 ```{toctree}
 :maxdepth: 1
 
-quickstart
-certified-forward-model
-geometry-and-kinematics
-coherent-detector-paper-path
-bulk-kz-and-photon-energy
-tight-binding-models
-slabs-and-surfaces
-matrix-element-sensitivity
-90-laser-window-audit
-91-anchor-band-structures
-92-orbital-character
-93-chgcar-floor-dry-run
-94-tb-dirac-cone-spectrum
+01-intrinsic/01-simulate-an-arpes-spectrum
+01-intrinsic/02-explore-an-arpes-cube
+02-material-proxies/03-vasp-bands-to-arpes
+02-material-proxies/04-orbital-resolved-arpes
+03-coherent-detector/05-detector-arpes-acquisition
+01-intrinsic/tight-binding-models
+02-material-proxies/slabs-and-surfaces
+03-coherent-detector/matrix-element-sensitivity
+01-intrinsic/quickstart
+03-coherent-detector/certified-forward-model
 ```
 
-- [Quickstart](quickstart.md): Assemble a coherent intrinsic spectrum through
-  the eigen and resolvent paths, map it into native expected counts, then
-  differentiate a spectral observable with `jax.grad`.
-- [Inspect and persist a certified forward run](certified-forward-model.md):
-  Read bounded claims and differentiable evidence. Save canonical JSON and
-  attach the same record to an HDF5 result.
-- [Geometry and kinematics](geometry-and-kinematics.md): Build k-space rasters,
-  detector frames, inner-potential scans, and a geometry Jacobian.
-- [Coherent tight-binding model to detector counts](coherent-detector-paper-path.md):
-  Build a coherent ARPES cube, inspect its Fermi-surface map, fit analyser
-  transmission, and run the canonical native-detector count driver.
-- [Bulk kz integration and photon-energy scans](bulk-kz-and-photon-energy.md):
-  Distinguish the four out-of-plane modes, inspect wrapped-kz weights, and
-  evaluate a compact bulk photon-energy map.
-- [Native tight-binding models](tight-binding-models.md): Build graphene by
-  hand and with Slater--Koster parameters. Add spin--orbit coupling, then
-  inspect fat bands, spin texture, and density of states.
-- [Slabs and surfaces](slabs-and-surfaces.md): Build a Miller-index slab,
-  verify an analytic finite-chain spectrum, and inspect depth-weighted bands.
-- [Matrix-element sensitivity](matrix-element-sensitivity.md): Differentiate
-  complete isolated band-group weights through a synthetic dark corridor and
-  apply the logarithmic validity mask.
-- [Anchor material band structures](91-anchor-band-structures.md): Load local
-  DFT bands and compare their paths against one Fermi reference.
-- [Laser window audit](90-laser-window-audit.md): Compare low-energy
-  photoemission access against local DFT bands and a calibrated Dirac cone.
-- [Orbital character maps](92-orbital-character.md): Resolve local DFT bands
-  by orbital family, atomic species, and layer.
-- [Charge-density floor checks](93-chgcar-floor-dry-run.md): Inspect local
-  volumetric densities and surface-sensitive escape-depth weighting.
-- [Calibrated Dirac cone spectrum](94-tb-dirac-cone-spectrum.md): Run a
-  DFT-calibrated cone through matrix elements, detector response, and one
-  Poisson acquisition at 6.05 eV.
+## Follow the Ladder
 
-The project is developing more complete examples:
+1. [Simulate an ARPES spectrum](01-intrinsic/01-simulate-an-arpes-spectrum.md): start with
+   an occupied high-resolution energy-momentum image, EDCs, MDCs, and one
+   explicit linewidth control.
+2. [Explore an ARPES cube](01-intrinsic/02-explore-an-arpes-cube.md): retain the intrinsic
+   source approximation while adding a transparent `I(kx, ky, E)` volume,
+   orthogonal cuts, constant-energy maps, and energy windows.
+3. [Use VASP bands](02-material-proxies/03-vasp-bands-to-arpes.md): replace the toy dispersion
+   with a line-mode DFT calculation and make an intrinsic ARPES-style map.
+4. [Add PROCAR weights](02-material-proxies/04-orbital-resolved-arpes.md): reveal orbital contrast
+   while keeping the boundary between projection weights and coherent matrix
+   elements explicit.
+5. [Simulate detector counts](03-coherent-detector/05-detector-arpes-acquisition.md): begin with a
+   phase-complete tight-binding or Wannier input. Then add matrix elements,
+   native detector bins, and Poisson noise.
 
-- Loading phase-complete electronic-structure inputs for coherent ARPES
-- Polarization-dependent matrix element effects
-- Gradient-based recovery of band-structure parameters from spectra
+## Focused Workflows
 
-Read the [guides](../guides/index.md) for theory and architecture. Read the
+- [Native tight-binding models](01-intrinsic/tight-binding-models.md): build multi-orbital
+  models with Slater--Koster parameters and spin--orbit coupling, or import a
+  phase-complete Wannier90 model for Tutorial 5.
+- [Slabs and surfaces](02-material-proxies/slabs-and-surfaces.md): construct surface models and
+  inspect depth-weighted bands.
+- [Matrix-element sensitivity](03-coherent-detector/matrix-element-sensitivity.md): differentiate
+  complete isolated band-group weights through polarization-dependent contrast.
+- [Quickstart](01-intrinsic/quickstart.md): compare the two intrinsic spectral paths and
+  their differentiation behavior.
+- [Inspect and persist a certified forward run](03-coherent-detector/certified-forward-model.md):
+  store bounded claims and differentiable evidence with a result.
+
+Read the [guides](../guides/index.md) for theory and API choices, and the
 [API reference](../api/index.rst) for complete function documentation.

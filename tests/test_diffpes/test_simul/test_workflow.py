@@ -435,6 +435,7 @@ class TestRunVaspWorkflow:
         assert path.kz is not None
         chex.assert_trees_all_close(path.kz, jnp.asarray(0.0), atol=1e-12)
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1024)
     def test_committed_fixture_reaches_finite_detector_counts(
         self,

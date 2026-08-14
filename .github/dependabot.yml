@@ -9,6 +9,13 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+    ignore:
+      # pydoclint >=0.9 rejects the Implementation Logic docstring section;
+      # the pyproject cap <0.9 is deliberate. Patch releases stay allowed.
+      - dependency-name: "pydoclint"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"

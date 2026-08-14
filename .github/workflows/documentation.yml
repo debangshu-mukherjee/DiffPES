@@ -23,15 +23,18 @@ jobs:
           uv run --frozen python tests/_tutorials.py
       - name: Execute notebooks that lack a committed markdown export
         run: |
-          for notebook in tutorials/*.ipynb; do
-            export_md="docs/source/tutorials/$(basename "$notebook" .ipynb).md"
+          while IFS= read -r -d '' notebook; do
+            relative="${notebook#tutorials/}"
+            export_md="docs/source/tutorials/${relative%.ipynb}.md"
             if [ -f "$export_md" ]; then
               echo "skip $notebook: committed export $export_md is authoritative"
               continue
             fi
+            output_dir="$(dirname "$export_md")"
+            mkdir -p "$output_dir"
             uv run --frozen jupyter nbconvert --to markdown --execute \
-              --output-dir docs/source/tutorials "$notebook"
-          done
+              --output-dir "$output_dir" "$notebook"
+          done < <(find tutorials -type f -name '*.ipynb' -print0 | sort -z)
           git diff --exit-code -- tutorials docs/source/tutorials
       - name: Build strict documentation
         run: >-

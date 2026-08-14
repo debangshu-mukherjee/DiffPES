@@ -661,6 +661,7 @@ class TestSlabDifferentiability:
     and depth probes.
     """
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1536)
     def test_generic_complex_soc_slab_gradient_matches_fd(self) -> None:
         """Match fwd/rev/FD for every active hopping and SOC coordinate.
@@ -689,6 +690,7 @@ class TestSlabDifferentiability:
         )
         assert jnp.linalg.norm(group_gradient) > 1e-9
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1024)
     @pytest.mark.parametrize("observable", ["spacing", "rotation", "depths"])
     def test_oblique_frozen_surface_geometry_gradient(

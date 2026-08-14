@@ -5,8 +5,8 @@ Extended Summary
 Every figure under ``docs/source/guides/figures`` comes from this script and
 the public diffpes API. The sources are a graphene tight-binding model with
 Dirac cones, the square-lattice model from the simulation guide, and the
-compact bulk model from the photon-energy tutorial. Rerun the script after an
-API change that alters any depicted spectrum.
+compact bulk model used for the photon-energy guide. Rerun the script after
+an API change that alters any depicted spectrum.
 
 Run the script from the repository root::
 
@@ -27,6 +27,18 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from diffpes import matrixel, simul, tightb, types
+from diffpes.plots import (
+    plot_band_dispersion,
+    plot_cube_faces,
+    plot_curve_family,
+    plot_detector_energy_cut,
+    plot_detector_image,
+    plot_difference_map,
+    plot_momentum_map,
+    plot_momentum_map_grid,
+    plot_spectral_cut,
+    plot_spectral_cut_series,
+)
 
 FIGURE_DIRECTORY: Path = (
     Path(__file__).parent / "source" / "guides" / "figures"
@@ -208,46 +220,20 @@ def graphene_path_spectrum() -> tuple[
     return distance, energy_axis, intensity, ticks, labels
 
 
-def spectrum_extent(
-    distance: jnp.ndarray, energy_axis: jnp.ndarray
-) -> tuple[float, float, float, float]:
-    """Return the imshow extent for one path spectrum.
-
-    Parameters
-    ----------
-    distance : jnp.ndarray
-        Path coordinate axis.
-    energy_axis : jnp.ndarray
-        Energy axis in eV.
-
-    Returns
-    -------
-    extent : tuple[float, float, float, float]
-        Axis limits in imshow order.
-    """
-    extent: tuple[float, float, float, float] = (
-        float(distance[0]),
-        float(distance[-1]),
-        float(energy_axis[0]),
-        float(energy_axis[-1]),
-    )
-    return extent
-
-
 def figure_pipeline_cube() -> None:
     """Draw the three-face spectral cube for the simulation guide.
 
-    The cube corner sits on one K point, so the front and side faces are
+    The cube corner sits on one K point, so the outer momentum faces are
     momentum-energy slices through Dirac cones while the top face is a
     constant-energy map. Each face is normalized to its own maximum for
     display.
     """
     model: types.TBModel = build_graphene()
-    corner_x: float = -4.0 * jnp.pi / (3.0 * 2.46)
-    corner_y: float = -2.0 * jnp.pi / (jnp.sqrt(3.0) * 2.46)
+    corner_x: float = 4.0 * jnp.pi / (3.0 * 2.46)
+    corner_y: float = 2.0 * jnp.pi / (jnp.sqrt(3.0) * 2.46)
     n_k: int = 161
-    axis_x: jnp.ndarray = jnp.linspace(corner_x, -corner_x + 0.4, n_k)
-    axis_y: jnp.ndarray = jnp.linspace(corner_y, -corner_y + 0.4, n_k)
+    axis_x: jnp.ndarray = jnp.linspace(-corner_x - 0.4, corner_x, n_k)
+    axis_y: jnp.ndarray = jnp.linspace(-corner_y - 0.4, corner_y, n_k)
     mesh_x, mesh_y = jnp.meshgrid(axis_x, axis_y, indexing="ij")
     kpoints_cart: jnp.ndarray = jnp.stack(
         (mesh_x, mesh_y, jnp.zeros_like(mesh_x)), axis=-1
@@ -257,60 +243,24 @@ def figure_pipeline_cube() -> None:
     )
     eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, kpoints_frac)
     energy_axis: jnp.ndarray = jnp.linspace(-3.5, -0.1, 121)
-    cube: jnp.ndarray = intrinsic_spectrum(
+    intensity: jnp.ndarray = intrinsic_spectrum(
         eigenvalues,
         jnp.ones_like(eigenvalues),
         energy_axis,
         gamma_ev=0.09,
     ).reshape((n_k, n_k, -1))
-    top_index: int = int(energy_axis.shape[0] - 1)
-    faces: tuple = (
-        cube[:, :, top_index],
-        cube[:, 0, :],
-        cube[0, :, :],
+    cube: types.ArpesCube = types.make_arpes_cube(
+        intensity, axis_x, axis_y, energy_axis
     )
-    normalized: tuple = tuple(
-        jnp.asarray(face) / float(face.max()) for face in faces
-    )
-    mesh_a, mesh_b = jnp.meshgrid(axis_x, axis_y, indexing="ij")
-    mesh_kxe, mesh_exk = jnp.meshgrid(axis_x, energy_axis, indexing="ij")
-    mesh_kye, mesh_eyk = jnp.meshgrid(axis_y, energy_axis, indexing="ij")
-    colormap = plt.get_cmap("inferno")
     figure = plt.figure(figsize=(7.2, 6.4))
     axes3d = figure.add_subplot(projection="3d", computed_zorder=False)
-    axes3d.plot_surface(
-        mesh_kxe,
-        jnp.full_like(mesh_kxe, float(axis_y[0])),
-        mesh_exk,
-        facecolors=colormap(normalized[1]),
-        rstride=1,
-        cstride=1,
-        shade=False,
+    plot_cube_faces(
+        cube,
+        ax=axes3d,
+        cmap="inferno",
+        title="graphene spectral cube $I(k_x, k_y, E)$",
     )
-    axes3d.plot_surface(
-        jnp.full_like(mesh_kye, float(axis_x[0])),
-        mesh_kye,
-        mesh_eyk,
-        facecolors=colormap(normalized[2]),
-        rstride=1,
-        cstride=1,
-        shade=False,
-    )
-    axes3d.plot_surface(
-        mesh_a,
-        mesh_b,
-        jnp.full_like(mesh_a, float(energy_axis[top_index])),
-        facecolors=colormap(normalized[0]),
-        rstride=1,
-        cstride=1,
-        shade=False,
-    )
-    axes3d.set_xlabel(r"$k_x$ ($\mathrm{\AA}^{-1}$)")
-    axes3d.set_ylabel(r"$k_y$ ($\mathrm{\AA}^{-1}$)")
     axes3d.set_zlabel(r"$E-E_F$ (eV)", labelpad=12.0)
-    axes3d.set_title("graphene spectral cube $I(k_x, k_y, E)$")
-    axes3d.set_box_aspect((1.0, 1.0, 0.85))
-    axes3d.view_init(elev=20.0, azim=-55.0)
     figure.savefig(FIGURE_DIRECTORY / "pipeline-cube.png", dpi=200)
     plt.close(figure)
 
@@ -319,36 +269,33 @@ def figure_pipeline_ek_and_map() -> None:
     """Draw the path spectrum and the Fermi-surface map."""
     distance, energy_axis, intensity, ticks, labels = graphene_path_spectrum()
     figure, axes = plt.subplots(figsize=(6.4, 4.2))
-    image = axes.imshow(
-        intensity.T,
-        origin="lower",
-        aspect="auto",
-        extent=spectrum_extent(distance, energy_axis),
+    plot_spectral_cut(
+        intensity,
+        distance,
+        energy_axis,
+        ax=axes,
         cmap="inferno",
+        fermi_line=False,
+        xlabel="",
+        ylabel=r"$E-E_F$ (eV)",
+        title=r"graphene $\pi$ bands: occupied spectral intensity",
     )
     axes.set_xticks(ticks, labels)
-    axes.set_ylabel(r"$E-E_F$ (eV)")
-    axes.set_title(r"graphene $\pi$ bands: occupied spectral intensity")
-    figure.colorbar(image, ax=axes, label="intensity (1/eV)")
     figure.savefig(FIGURE_DIRECTORY / "pipeline-ek-cut.png", **SAVE_OPTIONS)
     plt.close(figure)
 
     axis, cube_energy_axis, cube = graphene_cube()
     fermi_index: int = int(jnp.argmin(jnp.abs(cube_energy_axis)))
     figure, axes = plt.subplots(figsize=(5.4, 4.6))
-    image = axes.imshow(
-        cube[:, :, fermi_index].T,
-        origin="lower",
-        extent=(float(axis[0]), float(axis[-1])) * 2,
+    plot_momentum_map(
+        cube[:, :, fermi_index],
+        axis,
+        axis,
+        ax=axes,
         cmap="inferno",
+        title=r"Fermi-surface map at $E_F$",
     )
-    axes.set_xlabel(r"$k_x$ ($\mathrm{\AA}^{-1}$)")
-    axes.set_ylabel(r"$k_y$ ($\mathrm{\AA}^{-1}$)")
-    axes.set_title(r"Fermi-surface map at $E_F$")
-    figure.colorbar(image, ax=axes, label="intensity (1/eV)")
-    figure.savefig(
-        FIGURE_DIRECTORY / "pipeline-fermi-map.png", **SAVE_OPTIONS
-    )
+    figure.savefig(FIGURE_DIRECTORY / "pipeline-fermi-map.png", **SAVE_OPTIONS)
     plt.close(figure)
 
 
@@ -356,45 +303,49 @@ def figure_geometry() -> None:
     """Draw kinematics curves and constant-energy slices."""
     k_parallel: jnp.ndarray = jnp.asarray([0.0, 0.6, 1.2, 1.8])
     photon_energies: jnp.ndarray = jnp.linspace(15.0, 120.0, 400)
-    figure, axes = plt.subplots(figsize=(6.2, 3.8))
+    kz_curves: list = []
+    kz_labels: list = []
     for k_par in k_parallel:
         kz_values, propagating = jax.vmap(
             lambda hv, kp=k_par: simul.kz_from_inner_potential(
                 hv, 4.5, 12.0, jnp.asarray(0.0), jnp.asarray(kp)
             )
         )(photon_energies)
-        kz_real: jnp.ndarray = jnp.where(
-            propagating, jnp.real(kz_values), jnp.nan
-        )
-        axes.plot(
-            photon_energies,
-            kz_real,
-            label=rf"$k_\parallel = {float(k_par):.1f}$",
-        )
-    axes.set_xlabel(r"photon energy $h\nu$ (eV)")
-    axes.set_ylabel(r"$k_z$ ($\mathrm{\AA}^{-1}$)")
-    axes.set_title(r"free-electron $k_z(h\nu)$ with $V_0 = 12$ eV")
-    axes.legend(title=r"$\mathrm{\AA}^{-1}$")
+        kz_curves.append(jnp.where(propagating, jnp.real(kz_values), jnp.nan))
+        kz_labels.append(rf"$k_\parallel = {float(k_par):.1f}$")
+    figure, axes = plt.subplots(figsize=(6.2, 3.8))
+    plot_curve_family(
+        photon_energies,
+        tuple(kz_curves),
+        labels=tuple(kz_labels),
+        ax=axes,
+        legend_title=r"$\mathrm{\AA}^{-1}$",
+        xlabel=r"photon energy $h\nu$ (eV)",
+        ylabel=r"$k_z$ ($\mathrm{\AA}^{-1}$)",
+        title=r"free-electron $k_z(h\nu)$ with $V_0 = 12$ eV",
+    )
     figure.savefig(FIGURE_DIRECTORY / "geometry-kz-hv.png", **SAVE_OPTIONS)
     plt.close(figure)
 
     axis, energy_axis, cube = graphene_cube()
     slice_energies: tuple = (0.0, -0.8, -1.6)
+    slice_maps: list = []
+    slice_titles: list = []
+    for target in slice_energies:
+        index: int = int(jnp.argmin(jnp.abs(energy_axis - target)))
+        slice_maps.append(cube[:, :, index])
+        slice_titles.append(rf"$E-E_F = {target:.1f}$ eV")
     figure, axes_row = plt.subplots(
         1, 3, figsize=(11.4, 3.9), sharey=True, constrained_layout=True
     )
-    for target, axes in zip(slice_energies, axes_row, strict=True):
-        index: int = int(jnp.argmin(jnp.abs(energy_axis - target)))
-        image = axes.imshow(
-            cube[:, :, index].T,
-            origin="lower",
-            extent=(float(axis[0]), float(axis[-1])) * 2,
-            cmap="inferno",
-        )
-        axes.set_xlabel(r"$k_x$ ($\mathrm{\AA}^{-1}$)")
-        axes.set_title(rf"$E-E_F = {target:.1f}$ eV")
-    axes_row[0].set_ylabel(r"$k_y$ ($\mathrm{\AA}^{-1}$)")
-    figure.colorbar(image, ax=axes_row, label="intensity (1/eV)", shrink=0.86)
+    plot_momentum_map_grid(
+        tuple(slice_maps),
+        axis,
+        axis,
+        titles=tuple(slice_titles),
+        axes=tuple(axes_row),
+        colorbar_label="intensity (1/eV)",
+    )
     figure.savefig(
         FIGURE_DIRECTORY / "geometry-energy-slices.png", **SAVE_OPTIONS
     )
@@ -402,7 +353,7 @@ def figure_geometry() -> None:
 
 
 def figure_kz_guide() -> None:
-    """Draw wrapped escape-depth weights and a photon-energy scan."""
+    """Draw wrapped escape-depth weights for the kz guide."""
     edges: jnp.ndarray = jnp.linspace(-0.5, 0.5, 257)
     nodes: jnp.ndarray = simul.kz_fractional_nodes(256)
     reciprocal_period: jnp.ndarray = jnp.asarray(2.0 * jnp.pi / 3.2)
@@ -411,20 +362,22 @@ def figure_kz_guide() -> None:
         simul.kz_wrapped_lorentzian_bin_weights,
         in_axes=(None, None, 0, None),
     )(edges, jnp.asarray(0.0), mean_free_paths, reciprocal_period)
-    figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    for path_length, values in zip(mean_free_paths, weights, strict=True):
-        axes.plot(
-            nodes,
-            values * nodes.shape[0],
-            label=rf"$\lambda = {float(path_length):.1f}$ $\mathrm{{\AA}}$",
-        )
-    axes.set_xlabel(r"surface-fractional $k_z$")
-    axes.set_ylabel("wrapped Lorentzian density")
-    axes.set_title("escape depth controls the $k_z$ width")
-    axes.legend()
-    figure.savefig(
-        FIGURE_DIRECTORY / "kz-wrapped-weights.png", **SAVE_OPTIONS
+    curves: tuple = tuple(values * nodes.shape[0] for values in weights)
+    labels: tuple = tuple(
+        rf"$\lambda = {float(path_length):.1f}$ $\mathrm{{\AA}}$"
+        for path_length in mean_free_paths
     )
+    figure, axes = plt.subplots(figsize=(6.2, 3.8))
+    plot_curve_family(
+        nodes,
+        curves,
+        labels=labels,
+        ax=axes,
+        xlabel=r"surface-fractional $k_z$",
+        ylabel="wrapped Lorentzian density",
+        title="escape depth controls the $k_z$ width",
+    )
+    figure.savefig(FIGURE_DIRECTORY / "kz-wrapped-weights.png", **SAVE_OPTIONS)
     plt.close(figure)
 
 
@@ -533,22 +486,18 @@ def figure_hv_scan() -> None:
     )
     normal_emission: jnp.ndarray = scan[:, scan.shape[1] // 2, :]
     figure, axes = plt.subplots(figsize=(6.2, 4.2))
-    image = axes.imshow(
-        normal_emission.T,
-        origin="lower",
-        aspect="auto",
-        extent=(
-            float(photon_energies[0]),
-            float(photon_energies[-1]),
-            float(energy_axis[0]),
-            float(energy_axis[-1]),
-        ),
+    plot_spectral_cut(
+        normal_emission,
+        photon_energies,
+        energy_axis,
+        ax=axes,
         cmap="magma",
+        colorbar_label="intensity",
+        fermi_line=False,
+        xlabel=r"photon energy $h\nu$ (eV)",
+        ylabel=r"$E-E_F$ (eV)",
+        title="normal-emission photon-energy scan, bulk $k_z$ mode",
     )
-    axes.set_xlabel(r"photon energy $h\nu$ (eV)")
-    axes.set_ylabel(r"$E-E_F$ (eV)")
-    axes.set_title("normal-emission photon-energy scan, bulk $k_z$ mode")
-    figure.colorbar(image, ax=axes, label="intensity")
     figure.savefig(FIGURE_DIRECTORY / "kz-hv-scan.png", **SAVE_OPTIONS)
     plt.close(figure)
 
@@ -588,31 +537,22 @@ def figure_kz_broadening_compare() -> None:
             kz_nodes_frac=nodes,
             kz_mode=kz_mode,
         )
-        maps.append(scan[0])
+        maps.append(scan[0] / float(scan[0].max()))
     path_coordinate: jnp.ndarray = carriers["path_coordinate"]
     figure, axes_row = plt.subplots(
         1, 2, figsize=(9.6, 3.9), sharey=True, constrained_layout=True
     )
-    for values, (_, _, title), axes in zip(
-        maps, modes, axes_row, strict=True
-    ):
-        image = axes.imshow(
-            values.T / float(values.max()),
-            origin="lower",
-            aspect="auto",
-            extent=(
-                float(path_coordinate[0]),
-                float(path_coordinate[-1]),
-                float(energy_axis[0]),
-                float(energy_axis[-1]),
-            ),
-            cmap="magma",
-        )
-        axes.set_xlabel("fractional path coordinate")
-        axes.set_title(title)
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    figure.colorbar(
-        image, ax=axes_row, label="normalized intensity", shrink=0.86
+    plot_spectral_cut_series(
+        tuple(maps),
+        path_coordinate,
+        energy_axis,
+        titles=tuple(title for _, _, title in modes),
+        axes=tuple(axes_row),
+        cmap="magma",
+        colorbar_label="normalized intensity",
+        fermi_line=False,
+        xlabel="fractional path coordinate",
+        ylabel=r"$E-E_F$ (eV)",
     )
     figure.savefig(
         FIGURE_DIRECTORY / "kz-broadening-compare.png", **SAVE_OPTIONS
@@ -659,9 +599,7 @@ def polarized_band_weights(
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
     distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
-    bands: types.DiagonalizedBands = tightb.diagonalize_tb(
-        model, path.kpoints
-    )
+    bands: types.DiagonalizedBands = tightb.diagonalize_tb(model, path.kpoints)
     experiment: types.ExperimentGeometry = types.make_experiment_geometry(
         photon_energy_ev=60.0,
         polarization=polarization,
@@ -729,52 +667,61 @@ def figure_matrix_elements() -> None:
         (simul.polarization_from_angles(0.75, 0.0, "p"), "p polarization"),
     )
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
+    intensities: list = []
+    panel_titles: list = []
+    for polarization, label in polarizations:
+        distance, eigenvalues, weights, ticks, tick_labels = (
+            polarized_band_weights(polarization)
+        )
+        intensities.append(
+            intrinsic_spectrum(eigenvalues, weights, energy_axis)
+        )
+        panel_titles.append(label)
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    for (polarization, label), axes in zip(
-        polarizations, axes_row, strict=True
-    ):
-        distance, eigenvalues, weights, ticks, labels = (
-            polarized_band_weights(polarization)
-        )
-        intensity: jnp.ndarray = intrinsic_spectrum(
-            eigenvalues, weights, energy_axis
-        )
-        image = axes.imshow(
-            intensity.T,
-            origin="lower",
-            aspect="auto",
-            extent=spectrum_extent(distance, energy_axis),
-            cmap="inferno",
-        )
-        axes.set_xticks(ticks, labels)
-        axes.set_title(label)
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    figure.colorbar(
-        image, ax=axes_row, label="intensity (1/eV)", shrink=0.86
+    plot_spectral_cut_series(
+        tuple(intensities),
+        distance,
+        energy_axis,
+        titles=tuple(panel_titles),
+        axes=tuple(axes_row),
+        cmap="inferno",
+        fermi_line=False,
+        xlabel="",
+        ylabel=r"$E-E_F$ (eV)",
     )
+    for axes in axes_row:
+        axes.set_xticks(ticks, tick_labels)
     figure.savefig(
         FIGURE_DIRECTORY / "matrixel-polarization.png", **SAVE_OPTIONS
     )
     plt.close(figure)
 
-    figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    for atomic_number, n_quantum, l_quantum, label in (
+    subshells: tuple = (
         (29, 3, 2, "Cu 3d"),
         (6, 2, 1, "C 2p"),
         (83, 6, 1, "Bi 6p"),
+    )
+    figure, axes = plt.subplots(figsize=(6.2, 3.8))
+    for position, (atomic_number, n_quantum, l_quantum, label) in enumerate(
+        subshells
     ):
         energy, sigma = simul.yeh_lindau_cross_section_table(
             atomic_number, n_quantum, l_quantum
         )[:2]
-        axes.plot(energy, sigma, label=label)
-    axes.set_xlabel("photon energy (eV)")
-    axes.set_ylabel("cross section (Mb)")
-    axes.set_xscale("log")
-    axes.set_yscale("log")
-    axes.set_title("Yeh--Lindau atomic photoionization cross sections")
-    axes.legend()
+        plot_curve_family(
+            energy,
+            (sigma,),
+            labels=(label,),
+            ax=axes,
+            log_x=True,
+            log_y=True,
+            legend=position == len(subshells) - 1,
+            xlabel="photon energy (eV)",
+            ylabel="cross section (Mb)",
+            title="Yeh--Lindau atomic photoionization cross sections",
+        )
     figure.savefig(
         FIGURE_DIRECTORY / "matrixel-cross-sections.png", **SAVE_OPTIONS
     )
@@ -784,26 +731,26 @@ def figure_matrix_elements() -> None:
 def figure_broadening() -> None:
     """Draw lineshape profiles and self-energy comparisons."""
     energy_axis: jnp.ndarray = jnp.linspace(-0.5, 0.5, 601)
-    figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    axes.plot(
-        energy_axis,
+    profiles: tuple = (
         simul.gaussian(energy_axis, 0.0, 0.05),
-        label=r"Gaussian $\sigma = 50$ meV",
-    )
-    axes.plot(
-        energy_axis,
         simul.voigt(energy_axis, 0.0, 0.05, 0.05),
-        label=r"Voigt $\sigma = \gamma = 50$ meV",
-    )
-    axes.plot(
-        energy_axis,
         simul.voigt(energy_axis, 0.0, 0.008, 0.1),
-        label=r"near-Lorentzian $\gamma = 100$ meV",
     )
-    axes.set_xlabel(r"$E - E_0$ (eV)")
-    axes.set_ylabel("normalized profile (1/eV)")
-    axes.set_title("energy lineshapes")
-    axes.legend()
+    profile_labels: tuple = (
+        r"Gaussian $\sigma = 50$ meV",
+        r"Voigt $\sigma = \gamma = 50$ meV",
+        r"near-Lorentzian $\gamma = 100$ meV",
+    )
+    figure, axes = plt.subplots(figsize=(6.2, 3.8))
+    plot_curve_family(
+        energy_axis,
+        profiles,
+        labels=profile_labels,
+        ax=axes,
+        xlabel=r"$E - E_0$ (eV)",
+        ylabel="normalized profile (1/eV)",
+        title="energy lineshapes",
+    )
     figure.savefig(
         FIGURE_DIRECTORY / "broadening-profiles.png", **SAVE_OPTIONS
     )
@@ -831,23 +778,24 @@ def figure_broadening() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    for gamma, axes in zip(gammas, axes_row, strict=True):
-        intensity: jnp.ndarray = intrinsic_spectrum(
-            eigenvalues, weights, energy_axis, gamma_ev=gamma
-        )
-        image = axes.imshow(
-            intensity.T,
-            origin="lower",
-            aspect="auto",
-            extent=spectrum_extent(distance, energy_axis),
-            cmap="inferno",
-        )
-        axes.set_xticks(ticks, labels)
-        axes.set_title(rf"$\Gamma = {1000 * gamma:.0f}$ meV")
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    figure.colorbar(
-        image, ax=axes_row, label="intensity (1/eV)", shrink=0.86
+    plot_spectral_cut_series(
+        tuple(
+            intrinsic_spectrum(eigenvalues, weights, energy_axis, gamma)
+            for gamma in gammas
+        ),
+        distance,
+        energy_axis,
+        titles=tuple(
+            rf"$\Gamma = {1000 * gamma:.0f}$ meV" for gamma in gammas
+        ),
+        axes=tuple(axes_row),
+        cmap="inferno",
+        fermi_line=False,
+        xlabel="",
+        ylabel=r"$E-E_F$ (eV)",
     )
+    for axes in axes_row:
+        axes.set_xticks(ticks, labels)
     figure.savefig(
         FIGURE_DIRECTORY / "broadening-linewidth-ek.png", **SAVE_OPTIONS
     )
@@ -856,31 +804,23 @@ def figure_broadening() -> None:
     narrow: jnp.ndarray = intrinsic_spectrum(
         eigenvalues, weights, energy_axis, gamma_ev=0.03
     )
-    convolved: jnp.ndarray = simul.convolve_energy(
-        narrow, energy_axis, 0.12
-    )
+    convolved: jnp.ndarray = simul.convolve_energy(narrow, energy_axis, 0.12)
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    for values, title, axes in zip(
+    plot_spectral_cut_series(
         (narrow, convolved),
-        ("intrinsic", "with 120 meV Gaussian resolution"),
-        axes_row,
-        strict=True,
-    ):
-        image = axes.imshow(
-            values.T,
-            origin="lower",
-            aspect="auto",
-            extent=spectrum_extent(distance, energy_axis),
-            cmap="inferno",
-        )
-        axes.set_xticks(ticks, labels)
-        axes.set_title(title)
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    figure.colorbar(
-        image, ax=axes_row, label="intensity (1/eV)", shrink=0.86
+        distance,
+        energy_axis,
+        titles=("intrinsic", "with 120 meV Gaussian resolution"),
+        axes=tuple(axes_row),
+        cmap="inferno",
+        fermi_line=False,
+        xlabel="",
+        ylabel=r"$E-E_F$ (eV)",
     )
+    for axes in axes_row:
+        axes.set_xticks(ticks, labels)
     figure.savefig(
         FIGURE_DIRECTORY / "broadening-resolution.png", **SAVE_OPTIONS
     )
@@ -919,12 +859,8 @@ def detector_example() -> types.DetectorRaster:
     kpoints: jnp.ndarray = jnp.stack(
         (mesh_x, mesh_y, jnp.zeros_like(mesh_x)), axis=-1
     ).reshape((-1, 3))
-    kgrid: types.KGrid = types.make_kgrid(
-        kpoints, mesh_shape=(13, 13), kz=0.0
-    )
-    hamiltonians: jnp.ndarray = tightb.bloch_hamiltonian_batch(
-        model, kpoints
-    )
+    kgrid: types.KGrid = types.make_kgrid(kpoints, mesh_shape=(13, 13), kz=0.0)
+    hamiltonians: jnp.ndarray = tightb.bloch_hamiltonian_batch(model, kpoints)
     bands: types.DiagonalizedBands = tightb.diagonalize_tb(model, kpoints)
     experiment: types.ExperimentGeometry = types.make_experiment_geometry(
         photon_energy_ev=50.0,
@@ -994,37 +930,34 @@ def figure_detector_counts(
         Output file name inside the figure directory.
     """
     detector: types.DetectorRaster = detector_example()
-    expected: jnp.ndarray = detector.expected_counts[0]
-    observed: jnp.ndarray = simul.sample_poisson_counts(
-        jax.random.key(20260813), detector.expected_counts
-    )[0]
+    observed: jnp.ndarray = jnp.asarray(
+        simul.sample_poisson_counts(
+            jax.random.key(20260813), detector.expected_counts
+        )[0],
+        dtype=jnp.float64,
+    )
     figure, axes_row = plt.subplots(
         1, 3, figsize=(12.4, 3.6), constrained_layout=True
     )
-    image = axes_row[0].imshow(
-        expected[:, expected.shape[1] // 2, :].T,
-        origin="lower",
-        aspect="auto",
-        cmap="magma",
+    plot_detector_energy_cut(
+        detector,
+        ax=axes_row[0],
+        log_counts=False,
+        colorbar_label="events",
+        title="expected counts, central $v$ row",
     )
-    axes_row[0].set_xlabel("detector $u$ bin")
-    axes_row[0].set_ylabel("detector energy bin")
-    axes_row[0].set_title("expected counts, central $v$ row")
-    figure.colorbar(image, ax=axes_row[0], label="events")
-    image = axes_row[1].imshow(
-        expected.sum(axis=-1).T, origin="lower", cmap="magma"
+    plot_detector_image(
+        detector,
+        ax=axes_row[1],
+        colorbar_label="events",
+        title="expected counts, energy sum",
     )
-    axes_row[1].set_xlabel("detector $u$ bin")
-    axes_row[1].set_ylabel("detector $v$ bin")
-    axes_row[1].set_title("expected counts, energy sum")
-    figure.colorbar(image, ax=axes_row[1], label="events")
-    image = axes_row[2].imshow(
-        observed.sum(axis=-1).T, origin="lower", cmap="magma"
+    plot_detector_image(
+        observed,
+        ax=axes_row[2],
+        colorbar_label="events",
+        title="one Poisson acquisition",
     )
-    axes_row[2].set_xlabel("detector $u$ bin")
-    axes_row[2].set_ylabel("detector $v$ bin")
-    axes_row[2].set_title("one Poisson acquisition")
-    figure.colorbar(image, ax=axes_row[2], label="events")
     figure.savefig(FIGURE_DIRECTORY / file_name, **SAVE_OPTIONS)
     plt.close(figure)
 
@@ -1053,37 +986,33 @@ def figure_pytree_update() -> None:
     )
     distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
+    intensities: list = []
+    for tree in (model, softened):
+        eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(tree, path.kpoints)
+        intensities.append(
+            intrinsic_spectrum(
+                eigenvalues, jnp.ones_like(eigenvalues), energy_axis
+            )
+        )
+    ticks: tuple = tuple(
+        float(distance[index]) for index in path.label_indices
+    )
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    for tree, title, axes in zip(
-        (model, softened),
-        (r"$t = -2.7$ eV", r"$t = -1.62$ eV via tree_at"),
-        axes_row,
-        strict=True,
-    ):
-        eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(
-            tree, path.kpoints
-        )
-        intensity: jnp.ndarray = intrinsic_spectrum(
-            eigenvalues, jnp.ones_like(eigenvalues), energy_axis
-        )
-        image = axes.imshow(
-            intensity.T,
-            origin="lower",
-            aspect="auto",
-            extent=spectrum_extent(distance, energy_axis),
-            cmap="inferno",
-        )
-        ticks: tuple = tuple(
-            float(distance[index]) for index in path.label_indices
-        )
-        axes.set_xticks(ticks, path.labels)
-        axes.set_title(title)
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    figure.colorbar(
-        image, ax=axes_row, label="intensity (1/eV)", shrink=0.86
+    plot_spectral_cut_series(
+        tuple(intensities),
+        distance,
+        energy_axis,
+        titles=(r"$t = -2.7$ eV", r"$t = -1.62$ eV via tree_at"),
+        axes=tuple(axes_row),
+        cmap="inferno",
+        fermi_line=False,
+        xlabel="",
+        ylabel=r"$E-E_F$ (eV)",
     )
+    for axes in axes_row:
+        axes.set_xticks(ticks, path.labels)
     figure.savefig(
         FIGURE_DIRECTORY / "pytree-hopping-update.png", **SAVE_OPTIONS
     )
@@ -1132,26 +1061,21 @@ def figure_gradient_map() -> None:
     sensitivity: jnp.ndarray = jax.jacfwd(spectrum_of_gamma)(
         jnp.asarray(GRAPHENE_GAMMA_EV)
     )
-    bound: float = float(jnp.percentile(jnp.abs(sensitivity), 99.5))
     figure, axes = plt.subplots(figsize=(6.4, 4.2))
-    image = axes.imshow(
-        sensitivity.T,
-        origin="lower",
-        aspect="auto",
-        extent=spectrum_extent(distance, energy_axis),
-        cmap="RdBu_r",
-        vmin=-bound,
-        vmax=bound,
+    plot_difference_map(
+        sensitivity,
+        distance,
+        energy_axis,
+        ax=axes,
+        scale_percentile=99.5,
+        colorbar_label=r"$\partial I/\partial\Gamma$",
+        ylabel=r"$E-E_F$ (eV)",
+        title=r"$\partial I(k,\omega)/\partial\Gamma$ through jax.jacfwd",
     )
     ticks: tuple = tuple(
         float(distance[index]) for index in path.label_indices
     )
     axes.set_xticks(ticks, path.labels)
-    axes.set_ylabel(r"$E-E_F$ (eV)")
-    axes.set_title(
-        r"$\partial I(k,\omega)/\partial\Gamma$ through jax.jacfwd"
-    )
-    figure.colorbar(image, ax=axes, label=r"$\partial I/\partial\Gamma$")
     figure.savefig(FIGURE_DIRECTORY / "jax-gradient-map.png", **SAVE_OPTIONS)
     plt.close(figure)
 
@@ -1190,29 +1114,25 @@ def figure_band_carrier_spectrum() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    axes_row[0].plot(path_coordinate, bands.eigenvalues)
-    axes_row[0].axhline(0.0, color="0.5", linewidth=0.8)
-    axes_row[0].set_xlabel("fractional path coordinate")
-    axes_row[0].set_ylabel(r"$E-E_F$ (eV)")
-    axes_row[0].set_title("BandStructure eigenvalues")
-    image = axes_row[1].imshow(
-        intensity.T,
-        origin="lower",
-        aspect="auto",
-        extent=(
-            float(path_coordinate[0]),
-            float(path_coordinate[-1]),
-            float(energy_axis[0]),
-            float(energy_axis[-1]),
-        ),
+    plot_band_dispersion(
+        bands,
+        momentum_axis=path_coordinate,
+        ax=axes_row[0],
+        xlabel="fractional path coordinate",
+        title="BandStructure eigenvalues",
+    )
+    plot_spectral_cut(
+        intensity,
+        path_coordinate,
+        energy_axis,
+        ax=axes_row[1],
         cmap="inferno",
+        fermi_line=False,
+        xlabel="fractional path coordinate",
+        ylabel="",
+        title="occupied spectrum from the same carrier",
     )
-    axes_row[1].set_xlabel("fractional path coordinate")
-    axes_row[1].set_title("occupied spectrum from the same carrier")
-    figure.colorbar(image, ax=axes_row[1], label="intensity (1/eV)")
-    figure.savefig(
-        FIGURE_DIRECTORY / "bands-to-spectrum.png", **SAVE_OPTIONS
-    )
+    figure.savefig(FIGURE_DIRECTORY / "bands-to-spectrum.png", **SAVE_OPTIONS)
     plt.close(figure)
 
 

@@ -40,6 +40,7 @@ from diffpes.constants import (
     BAND_GROUP_COMPLEMENT_GAP_MIN_EV,
     CARTESIAN_COMPONENTS,
 )
+from diffpes.maths import pack_complex, unpack_complex
 from diffpes.types import (
     DiagonalizedBands,
     ExperimentGeometry,
@@ -47,7 +48,6 @@ from diffpes.types import (
     PyTreeDef,
     RadialSpec,
 )
-from diffpes.utils import pack_complex, unpack_complex
 
 from .transition import _basis_key, matrix_element_intensity
 

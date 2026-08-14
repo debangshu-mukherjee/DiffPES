@@ -50,6 +50,8 @@ Extended Summary
     Apply finite-volume detector resolution.
 - :mod:`retarded_self_energy`
     Evaluate causal retarded self-energy models.
+- :mod:`sharding`
+    Compute static-shape sharding operations.
 - :mod:`spectral`
     Assemble chunked occupied intrinsic spectral intensity.
 - :mod:`spectral_eigen`
@@ -147,6 +149,8 @@ Routine Listings
     Convert one source density to native detector bins conservatively.
 :func:`normalize_intensity`
     Return an explicit display-only normalization of carrier values.
+:func:`pad_with_mask`
+    Compute the ``pad_with_mask`` public contract.
 :func:`photon_wavevector`
     Build the unit photon wavevector from incidence angles.
 :func:`polarization_from_angles`
@@ -177,6 +181,10 @@ Routine Listings
     Generate independent Poisson counts for a rate tensor.
 :func:`sensitivity_field`
     Evaluate the positive normalized detector sensitivity field.
+:func:`sharded_kmap`
+    Compute the ``sharded_kmap`` public contract.
+:func:`sharded_ksum`
+    Compute the ``sharded_ksum`` public contract.
 :func:`simulate_arpes`
     Simulate the canonical detector raster.
 :func:`simulate_arpes_cut`
@@ -278,6 +286,7 @@ from .resolution import (
     gaussian_kernel_1d,
 )
 from .retarded_self_energy import evaluate_self_energy
+from .sharding import pad_with_mask, sharded_kmap, sharded_ksum
 from .spectral import (
     assemble_spectral_intensity_bands_chunk,
     assemble_spectral_intensity_chunk,
@@ -345,6 +354,7 @@ __all__: list[str] = [
     "load_vasp_context",
     "map_source_to_detector",
     "normalize_intensity",
+    "pad_with_mask",
     "photon_wavevector",
     "polarization_from_angles",
     "polarization_to_spherical",
@@ -360,6 +370,8 @@ __all__: list[str] = [
     "sample_fixed_total_counts",
     "sample_poisson_counts",
     "sensitivity_field",
+    "sharded_kmap",
+    "sharded_ksum",
     "simulate_arpes",
     "simulate_arpes_cut",
     "simulate_hv_scan",

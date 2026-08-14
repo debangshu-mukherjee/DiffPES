@@ -15,9 +15,9 @@ from diffpes.constants import (
 )
 from diffpes.inout import (
     load_from_h5,
-    plot_band_scatter_preset,
     save_to_h5,
 )
+from diffpes.plots import plot_band_scatter_preset
 from diffpes.tightb import (
     diagonalize_tb,
     fat_bands,

@@ -868,8 +868,7 @@ def main() -> None:
         "src/diffpes/types/radial_profiles.py",
         "src/diffpes/types/self_energy.py",
         "src/diffpes/types/spectral.py",
-        "src/diffpes/utils/__init__.py",
-        "src/diffpes/utils/math.py",
+        "src/diffpes/maths/numerics.py",
         "pyproject.toml",
         "uv.lock",
     )

@@ -6,6 +6,7 @@ The cases use analytic values, invariants, and finite differences.
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
 from jaxtyping import Array, Float64
 
 from diffpes.simul import (
@@ -122,6 +123,7 @@ class TestApplyDetectorEffects:
         chex.assert_trees_all_equal(raster.energy_axis, recorded_energy)
         assert raster.channel_labels == ("intensity",)
 
+    @pytest.mark.slow
     def test_jit_success_path_preserves_counts(self) -> None:
         """Compile the whole deterministic source-to-count chain.
 

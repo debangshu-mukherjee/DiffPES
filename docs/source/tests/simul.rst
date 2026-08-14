@@ -242,3 +242,8 @@ Validation and regression tests for :mod:`diffpes.simul`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_simul.test_sharding
+   :members:
+   :undoc-members:
+   :show-inheritance:

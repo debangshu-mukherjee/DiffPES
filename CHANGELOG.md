@@ -9,6 +9,24 @@ and the project uses calendar versioning.
 
 ### Added
 
+- The `diffpes.plots` subpackage renders diffpes carriers with
+  Matplotlib. It collects every plotting function of the package. The
+  surface covers energy-momentum cuts, momentum maps, band dispersions,
+  and weighted band scatters. It also covers distribution curves,
+  comparison panels, difference maps, detector views, curve families,
+  densities of states, planar-average profiles, and three-dimensional
+  views. Tutorial notebooks and figure generators call these functions
+  instead of raw Matplotlib.
+
+### Changed
+
+- The plotting functions moved from `diffpes.inout` to the new
+  `diffpes.plots` subpackage: `apply_kpath_ticks`,
+  `plot_arpes_spectrum`, `plot_arpes_with_kpath`, `plot_momentum_map`,
+  `list_band_scatter_presets`, `plot_band_scatter_preset`, and
+  `plot_band_scatter_with_kpath`. The old `diffpes.inout` import paths
+  no longer exist.
+
 - `diffpes.inout.read_outcar` parses the Fermi energy and electron count
   from a VASP OUTCAR file. The values arrive in the new validated
   `diffpes.types.OutcarData` carrier.

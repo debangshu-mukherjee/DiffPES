@@ -22,11 +22,11 @@ Submodules
    inout
    maths
    matrixel
+   plots
    radial
    simul
    tightb
    types
-   utils
 
 :mod:`diffpes.certify`
     JAX-native scientific certification, provenance, evidence, policy
@@ -38,15 +38,21 @@ Submodules
 
 :mod:`diffpes.inout`
     VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, CHGCAR),
-    HDF5 persistence, and plotting helpers for ARPES simulation input.
+    HDF5 persistence, and workflow helpers for ARPES simulation input.
 
 :mod:`diffpes.maths`
     Angular matrix elements for dipole photoemission: Gaunt coefficients,
-    real spherical harmonics, and dipole matrix element assembly.
+    real spherical harmonics, and dipole matrix element assembly. Also the
+    Faddeeva function, complex parameter packing, and z-score
+    normalization.
 
 :mod:`diffpes.matrixel`
     Coherent photoemission channels, band projection, late polarization
     contraction, and differentiable inversion coordinates.
+
+:mod:`diffpes.plots`
+    Matplotlib rendering of diffpes carriers: ARPES maps, projected band
+    scatters, distribution curves, and detector-plane images.
 
 :mod:`diffpes.radial`
     Differentiable radial primitives: spherical Bessel functions, atomic
@@ -54,7 +60,8 @@ Submodules
 
 :mod:`diffpes.simul`
     Spectral assembly, detector mapping, broadening, cross sections,
-    polarization, orbital angular momentum, and free-electron kinematics.
+    polarization, orbital angular momentum, free-electron kinematics, and
+    static-shape sharding.
 
 :mod:`diffpes.tightb`
     Native tight-binding model construction, diagonalization, and
@@ -63,10 +70,6 @@ Submodules
 :mod:`diffpes.types`
     PyTree-compatible physical inputs, forward outputs, certification records,
     transformation contracts, and provenance carriers.
-
-:mod:`diffpes.utils`
-    Mathematical utilities: the Faddeeva function and z-score
-    normalization.
 
 Examples
 --------

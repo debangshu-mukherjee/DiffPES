@@ -317,6 +317,7 @@ class TestAssembleSpectralIntensityChunk(chex.TestCase):
         assert batched.shape == (2, 2, 5)
         assert bool(jnp.all(jnp.isfinite(batched)))
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_poly_coefficient_gradient_through_kk_and_resolvent(self) -> None:
@@ -754,6 +755,7 @@ class TestStreamSpectralIntensity(chex.TestCase):
         )
         return returned
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1200)
     def test_checkpointed_values_and_gradients_match_uncheckpointed(
@@ -882,6 +884,7 @@ class TestStreamSpectralIntensity(chex.TestCase):
         jax.block_until_ready((first, second))
         assert trace_count[0] == 1
 
+    @pytest.mark.slow
     def test_block_local_aperture_masks_column_and_gradients(self) -> None:
         """Verify exact masking outside the vacuum aperture.
 

@@ -27,6 +27,7 @@ class TestFinalStateRadial:
     :see: :func:`~diffpes.radial.final_state_radial`
     """
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(700)
     def test_plane_wave_limit_origin_and_charge_gradient(self) -> None:
         """Match the plane limit and retain a nonzero charge gradient.

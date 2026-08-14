@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 class TestCoulombComposedAssembly:
     """Certify charge and photon-energy derivatives through full assembly.
@@ -21,6 +23,7 @@ class TestCoulombComposedAssembly:
     in an isolated process and requires a successful exit with diagnostics.
     """
 
+    @pytest.mark.slow
     def test_forward_reverse_and_fd_witnesses_in_isolated_process(
         self,
     ) -> None:

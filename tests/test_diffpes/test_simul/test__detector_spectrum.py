@@ -6,6 +6,7 @@ The cases use analytic values, invariants, and finite differences.
 import chex
 import jax
 import jax.numpy as jnp
+import pytest
 from jaxtyping import Array, Float64
 
 from diffpes.simul._detector_map import (
@@ -74,6 +75,7 @@ class TestSpectrumDetectorMap:
         )
         assert 0.0 < float(fraction) < 1.0
 
+    @pytest.mark.slow
     def test_gamma_x_gamma_y_rotation_and_detector_space_mixture(self) -> None:
         """Verify Gamma-X/Gamma-Y maps before unequal-logit mixing.
 

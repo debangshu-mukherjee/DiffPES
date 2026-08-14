@@ -1151,8 +1151,7 @@ def main() -> None:
         "src/diffpes/types/slab_geometry.py",
         "src/diffpes/types/spectral.py",
         "src/diffpes/types/tb_model.py",
-        "src/diffpes/utils/__init__.py",
-        "src/diffpes/utils/math.py",
+        "src/diffpes/maths/numerics.py",
         "pyproject.toml",
         "uv.lock",
     )

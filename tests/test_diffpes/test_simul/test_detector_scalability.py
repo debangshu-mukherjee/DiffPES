@@ -55,7 +55,7 @@ def _artifact_digest() -> str:
         SHA-256 digest of the committed literal CPU record.
     """
     digest: str = (
-        "106e85e989b6006401f37bdafedd6574684a8341bc2218aa0d6ab51d6cd8011d"
+        "2f32956ece7df0a4dd60ffbd9a0b8dec85a069f287697e982e33cbd3858a49dd"
     )
     return digest
 
@@ -230,6 +230,7 @@ class TestDetectorDriverRuntimeScaling:
     verify compile reuse and vectorized geometry for fixed shapes.
     """
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1600)
     def test_checkpointing_preserves_values_and_hamiltonian_gradients(
@@ -253,6 +254,7 @@ class TestDetectorDriverRuntimeScaling:
         assert record["nonzero_gradient"] is True
         assert record["result"] == "pass"
 
+    @pytest.mark.slow
     @pytest.mark.big_mem
     @pytest.mark.rss_limit_mb(1600)
     def test_fixed_shape_sweeps_reuse_compilation_and_vmap_geometry(

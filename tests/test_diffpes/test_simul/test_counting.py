@@ -64,6 +64,7 @@ class TestFixedTotalProbabilities:
             match="positive sum",
         )
 
+    @pytest.mark.slow
     def test_probabilities_pass_fd_jit_and_vmap(self) -> None:
         """Differentiate implemented leaves through event probabilities.
 

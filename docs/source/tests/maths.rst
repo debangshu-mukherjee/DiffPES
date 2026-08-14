@@ -37,3 +37,8 @@ Validation and regression tests for :mod:`diffpes.maths`.
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: tests.test_diffpes.test_maths.test_numerics
+   :members:
+   :undoc-members:
+   :show-inheritance:

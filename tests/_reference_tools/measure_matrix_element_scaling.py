@@ -1473,8 +1473,7 @@ def main() -> None:
         repository_root / "src/diffpes/types/orbital_basis.py",
         repository_root / "src/diffpes/types/radial_params.py",
         repository_root / "src/diffpes/types/radial_profiles.py",
-        repository_root / "src/diffpes/utils/__init__.py",
-        repository_root / "src/diffpes/utils/math.py",
+        repository_root / "src/diffpes/maths/numerics.py",
         repository_root / "pyproject.toml",
         repository_root / "uv.lock",
     )

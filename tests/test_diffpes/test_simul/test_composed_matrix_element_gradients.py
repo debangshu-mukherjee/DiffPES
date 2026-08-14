@@ -333,6 +333,7 @@ class TestRadialAndChannelGradients:
     radial coefficients, channel coefficients, and the vacuum momentum.
     """
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(1024)
     def test_slater_exponents_and_coefficients(self) -> None:
         """Match autodiff for normalized multi-zeta intensity.
@@ -389,6 +390,7 @@ class TestRadialAndChannelGradients:
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
         assert_nonzero_grad(loss, initial, elementwise=True)
 
+    @pytest.mark.slow
     @pytest.mark.rss_limit_mb(768)
     def test_photon_energy_to_explicit_vacuum_momentum(self) -> None:
         """Match derivatives through energy conservation and vacuum momentum.
@@ -519,6 +521,7 @@ class TestProjectionAndPolarizationGradients:
         assert_grad_matches_fd(loss, initial, modes=("fwd", "rev"))
         assert_nonzero_grad(loss, initial, elementwise=True)
 
+    @pytest.mark.slow
     def test_fractional_centres_and_lattice(self) -> None:
         """Match derivatives through explicit and atom-fallback centre maps.
 

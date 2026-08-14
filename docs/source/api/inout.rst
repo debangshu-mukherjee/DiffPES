@@ -3,8 +3,8 @@ diffpes.inout
 
 VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, CHGCAR),
 native hopping-list and Wannier90 parsers, typed-result HDF5 persistence,
-portable JSON/HDF5 forward certificates, workflow helpers, and plotting
-utilities for ARPES simulation input.
+portable JSON/HDF5 forward certificates, and workflow helpers for ARPES
+simulation input.
 
 .. automodule:: diffpes.inout
    :members:
@@ -51,12 +51,3 @@ Certificate persistence
    :members:
    :undoc-members:
    :show-inheritance:
-
-Projected-band plotting
------------------------
-
-.. automodule:: diffpes.inout.band_plotting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :exclude-members: Axes, Figure, PathCollection, SubFigure

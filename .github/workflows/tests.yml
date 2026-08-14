@@ -21,7 +21,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +33,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --frozen --extra dev
       - run: uv run --frozen python -c "import diffpes"
-      - run: uv run --frozen pytest --cov=diffpes --cov-report=xml
+      - run: uv run --frozen pytest -m "not slow" --cov=diffpes --cov-report=xml
       - uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: false

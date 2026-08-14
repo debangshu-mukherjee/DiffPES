@@ -10,6 +10,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from beartype.typing import Any, Dict, Tuple
 from jaxtyping import Array, Float64
 from numpy.typing import NDArray
@@ -101,6 +102,7 @@ def _wannier_context(
     return context
 
 
+@pytest.mark.slow
 def test_published_wse2_hr_gamma_x_eigenvalues(tmp_path: Path) -> None:
     """Parse the authenticated input and reproduce frozen Γ/X eigenvalues.
 
