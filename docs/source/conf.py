@@ -143,10 +143,13 @@ myst_enable_extensions = [
 # warnings emitted when sphinx_autodoc_typehints introspects generated Chex or
 # Hypothesis test wrappers. These wrappers have no stable local signature for
 # Sphinx to publish, while their original test method remains documented.
+# "forward_reference": upstream jax annotations (e.g. AxisName on the P
+# PartitionSpec re-export) carry forward references Sphinx cannot resolve.
 suppress_warnings = [
     "myst.mathjax",
     "autodoc",
     "sphinx_autodoc_typehints.local_function",
+    "sphinx_autodoc_typehints.forward_reference",
 ]
 
 # Ensure MyST parses all dollar-delimited math correctly
