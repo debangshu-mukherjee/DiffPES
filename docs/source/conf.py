@@ -18,8 +18,9 @@ import os
 import sys
 import tomllib
 from datetime import datetime
+from pathlib import Path
 
-from beartype.typing import Any, Dict, Optional, Tuple
+from beartype.typing import Any, Dict, List, Optional, Tuple
 from sphinx.application import Sphinx
 
 # Keep the documentation build on the CPU.
@@ -417,6 +418,42 @@ def _process_signature(
     return result
 
 
+def _rewrite_included_asset_paths(
+    app: Sphinx,
+    relative_path: Path,
+    parent_docname: str,
+    content: List[str],
+) -> None:
+    """PRIVATE: Repoint repository image paths for included Markdown files.
+
+    Parameters
+    ----------
+    app : Sphinx
+        Active Sphinx application.
+    relative_path : Path
+        Path of the included file, relative to the source directory.
+    parent_docname : str
+        Document that pulled the file in through an include directive.
+    content : List[str]
+        Single-element list holding the included file text; mutated in
+        place.
+
+    Notes
+    -----
+    README.md references its figures as ``docs/source/_static/readme/...``
+    so they render on GitHub and in IDE previews. Raw ``<img>`` tags pass
+    through MyST untouched, and that repository-relative prefix points
+    nowhere in the built site, where the same files are served from
+    ``_static/``. Rewriting the prefix at include time keeps one set of
+    paths in the README while the landing page loads the copies Sphinx
+    ships under ``_static/readme/``.
+    """
+    if relative_path.name == "README.md":
+        content[0] = content[0].replace(
+            'src="docs/source/_static/', 'src="_static/'
+        )
+
+
 def setup(app: Sphinx) -> Dict[str, object]:
     """Register the local autodoc callbacks.
 
@@ -436,6 +473,7 @@ def setup(app: Sphinx) -> Dict[str, object]:
     """
     app.connect("autodoc-skip-member", _skip_member)
     app.connect("autodoc-process-signature", _process_signature)
+    app.connect("include-read", _rewrite_included_asset_paths)
     metadata: Dict[str, object] = {
         "version": "1.0",
         "parallel_read_safe": True,

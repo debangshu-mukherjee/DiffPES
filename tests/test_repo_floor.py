@@ -366,7 +366,7 @@ class TestCI(chex.TestCase):
         )
         self.assertEqual(documentation["on"], triggers)
         self.assertIn(
-            "uv sync --frozen --extra docs --extra test --extra notebooks",
+            "uv sync --frozen --extra docs --extra test",
             docs_commands,
         )
         self.assertTrue(

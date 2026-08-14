@@ -12,12 +12,13 @@ Self-energy, background, sensitivity, and detector calibration also need replace
 
 ## 1. Supply a Phase-Complete Source on an ARPES Raster
 
-At 21.2 eV photon energy and a 4.5 eV work function the photoelectron
-leaves with about 16.7 eV of kinetic energy, so the ±0.075 rad analyser
-window collects ±0.16 Å⁻¹ of parallel momentum around normal emission.
-The source is therefore a two-orbital Dirac cone at the zone centre — the
-geometry of a topological-insulator surface state — with a 3.3 eV Å
-velocity and its node 0.30 eV below the Fermi level. The source model and
+At 21.2 eV photon energy and a 4.5 eV work function, the photoelectron
+leaves with about 16.7 eV of kinetic energy. The ±0.075 rad analyser
+window therefore collects ±0.16 Å⁻¹ of parallel momentum around normal
+emission.
+The source is therefore a two-orbital Dirac cone at the zone centre, the
+geometry of a topological-insulator surface state. The cone has a 3.3 eV Å
+velocity, and its node sits 0.30 eV below the Fermi level. The source model and
 `build_arpes_kmesh` are the two pieces to replace when moving to a
 material-specific Hamiltonian and momentum window. `plot_momentum_map`
 draws the lower cone branch on the source window.

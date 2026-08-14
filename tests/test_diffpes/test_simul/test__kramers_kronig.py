@@ -325,7 +325,10 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
         Notes
         -----
         The test rebuilds the grid from the query extrema and drives the
-        shared rejection helper on the seam.
+        shared rejection helper on the seam. The planted grid violates
+        the domain check and the frozen tail-edge check together. The
+        compiled program reports one of the two traced rejections, and
+        the order depends on the XLA schedule.
         """
         domain: Float64[Array, " 2"]
         spec: Any
@@ -341,7 +344,7 @@ class TestPlantedNoncompliantConstructions(chex.TestCase):
             spec,
             queries,
             _N_TAIL,
-            match="domain|grid",
+            match="domain|grid|tail edge",
         )
 
 
