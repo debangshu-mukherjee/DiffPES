@@ -10,15 +10,15 @@ The synthetic callback stands in for the longer
 contraction pipeline. Its required output shape is `[K, B, S]`.
 
 ```python
-import diffpes
+import diffpes as dp
 import jax.numpy as jnp
 
-geometry = diffpes.types.make_crystal_geometry(
+geometry = dp.types.make_crystal_geometry(
     lattice=jnp.eye(3) * 5.0,
     positions=jnp.array([[0.0, 0.0, 0.0]]),
     species=("X",),
 )
-basis = diffpes.types.make_orbital_basis(
+basis = dp.types.make_orbital_basis(
     atom_indices=(0, 0),
     n=(2, 2),
     l=(0, 1),
@@ -34,14 +34,14 @@ eigenvectors = jnp.broadcast_to(
     jnp.eye(2, dtype=jnp.complex128),
     (kpoints.shape[0], 2, 2),
 )
-bands = diffpes.types.make_diagonalized_bands(
+bands = dp.types.make_diagonalized_bands(
     eigenvalues=eigenvalues,
     eigenvectors=eigenvectors,
     kpoints=kpoints,
     geometry=geometry,
     basis=basis,
 )
-experiment = diffpes.types.make_experiment_geometry(
+experiment = dp.types.make_experiment_geometry(
     photon_energy_ev=21.2,
     polarization=jnp.array([0.0, 1.0, 0.0], dtype=jnp.complex128),
 )
@@ -67,7 +67,7 @@ def rebuild(candidate, bands, experiment):
 
 
 theta = jnp.array([0.0])
-weights, dweights = diffpes.matrixel.band_group_weight_sensitivity(
+weights, dweights = dp.matrixel.band_group_weight_sensitivity(
     theta,
     rebuild,
     bands,
@@ -92,7 +92,7 @@ code must use the mask.
 
 ```python
 log_derivative, valid = (
-    diffpes.matrixel.log_band_group_weight_sensitivity(
+    dp.matrixel.log_band_group_weight_sensitivity(
         weights,
         dweights,
         min_band_group_weight=1.0e-12,
@@ -113,7 +113,7 @@ $d\log w/d\theta=2\cot\theta$.
 ```python
 theta_lit = jnp.array([0.2])
 weights_lit, dweights_lit = (
-    diffpes.matrixel.band_group_weight_sensitivity(
+    dp.matrixel.band_group_weight_sensitivity(
         theta_lit,
         rebuild,
         bands,
@@ -121,7 +121,7 @@ weights_lit, dweights_lit = (
         band_groups=((0,), (1,)),
     )
 )
-log_lit, valid_lit = diffpes.matrixel.log_band_group_weight_sensitivity(
+log_lit, valid_lit = dp.matrixel.log_band_group_weight_sensitivity(
     weights_lit,
     dweights_lit,
     min_band_group_weight=1.0e-12,

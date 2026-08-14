@@ -26,19 +26,7 @@ matplotlib.use("Agg")
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from diffpes import matrixel, simul, tightb, types
-from diffpes.plots import (
-    plot_band_dispersion,
-    plot_cube_faces,
-    plot_curve_family,
-    plot_detector_energy_cut,
-    plot_detector_image,
-    plot_difference_map,
-    plot_momentum_map,
-    plot_momentum_map_grid,
-    plot_spectral_cut,
-    plot_spectral_cut_series,
-)
+import diffpes as dp
 
 FIGURE_DIRECTORY: Path = (
     Path(__file__).parent / "source" / "guides" / "figures"
@@ -50,16 +38,16 @@ GRAPHENE_GAMMA_EV: float = 0.06
 TEMPERATURE_K: float = 30.0
 
 
-def build_graphene() -> types.TBModel:
+def build_graphene() -> dp.types.TBModel:
     """Return the nearest-neighbor graphene pz model.
 
     Returns
     -------
-    model : types.TBModel
+    model : dp.types.TBModel
         Two-orbital model with Hermitian-closed hoppings.
     """
     a: float = 2.46
-    geometry: types.CrystalGeometry = types.make_crystal_geometry(
+    geometry: dp.types.CrystalGeometry = dp.types.make_crystal_geometry(
         lattice=jnp.asarray(
             [
                 [a, 0.0, 0.0],
@@ -70,14 +58,14 @@ def build_graphene() -> types.TBModel:
         positions=jnp.asarray([[0.0, 0.0, 0.0], [1.0 / 3.0, 1.0 / 3.0, 0.0]]),
         species=("C", "C"),
     )
-    basis: types.OrbitalBasis = types.make_orbital_basis(
+    basis: dp.types.OrbitalBasis = dp.types.make_orbital_basis(
         atom_indices=(0, 1),
         n=(2, 2),
         l=(1, 1),
         m=(0, 0),
         labels=("A_pz", "B_pz"),
     )
-    model: types.TBModel = types.make_tb_model(
+    model: dp.types.TBModel = dp.types.make_tb_model(
         hopping_amplitudes=GRAPHENE_HOPPING_EV
         * jnp.ones(6, dtype=jnp.complex128),
         onsite_energies=jnp.asarray([0.008, -0.008]),
@@ -125,14 +113,14 @@ def intrinsic_spectrum(
     intensity : jnp.ndarray
         Occupied spectral intensity with shape ``[K, E]``.
     """
-    self_energy: types.SelfEnergyModel = types.make_self_energy_model(
+    self_energy: dp.types.SelfEnergyModel = dp.types.make_self_energy_model(
         gamma=gamma_ev
     )
     weights_ke: jnp.ndarray = jnp.broadcast_to(
         weights[:, None, :],
         (weights.shape[0], energy_axis.shape[0], weights.shape[1]),
     )
-    intensity: jnp.ndarray = simul.assemble_spectral_intensity_bands_chunk(
+    intensity: jnp.ndarray = dp.simul.assemble_spectral_intensity_bands_chunk(
         eigenvalues,
         weights_ke,
         energy_axis,
@@ -155,17 +143,17 @@ def graphene_cube() -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     cube : jnp.ndarray
         Occupied intensity with shape ``[n_kx, n_ky, n_e]``.
     """
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     n_k: int = 141
     axis: jnp.ndarray = jnp.linspace(-2.2, 2.2, n_k)
     mesh_x, mesh_y = jnp.meshgrid(axis, axis, indexing="ij")
     kpoints_cart: jnp.ndarray = jnp.stack(
         (mesh_x, mesh_y, jnp.zeros_like(mesh_x)), axis=-1
     ).reshape((-1, 3))
-    kpoints_frac: jnp.ndarray = tightb.kpoints_cart_to_frac(
+    kpoints_frac: jnp.ndarray = dp.tightb.kpoints_cart_to_frac(
         kpoints_cart, model.geometry
     )
-    eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, kpoints_frac)
+    eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(model, kpoints_frac)
     energy_axis: jnp.ndarray = jnp.linspace(-2.6, 0.5, 121)
     weights: jnp.ndarray = jnp.ones_like(eigenvalues)
     cube: jnp.ndarray = intrinsic_spectrum(
@@ -192,7 +180,7 @@ def graphene_path_spectrum() -> tuple[
     tick_labels : tuple
         Anchor labels.
     """
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     anchors: jnp.ndarray = jnp.asarray(
         [
             [0.0, 0.0, 0.0],
@@ -201,14 +189,14 @@ def graphene_path_spectrum() -> tuple[
             [0.0, 0.0, 0.0],
         ]
     )
-    path: types.KPath = tightb.build_kpath(
+    path: dp.types.KPath = dp.tightb.build_kpath(
         anchors,
         model.geometry,
         n_per_segment=161,
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
-    distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
-    eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, path.kpoints)
+    distance: jnp.ndarray = dp.tightb.kpath_arc_length(path, model.geometry)
+    eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(model, path.kpoints)
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
     intensity: jnp.ndarray = intrinsic_spectrum(
         eigenvalues, jnp.ones_like(eigenvalues), energy_axis
@@ -228,7 +216,7 @@ def figure_pipeline_cube() -> None:
     constant-energy map. Each face is normalized to its own maximum for
     display.
     """
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     corner_x: float = 4.0 * jnp.pi / (3.0 * 2.46)
     corner_y: float = 2.0 * jnp.pi / (jnp.sqrt(3.0) * 2.46)
     n_k: int = 161
@@ -238,10 +226,10 @@ def figure_pipeline_cube() -> None:
     kpoints_cart: jnp.ndarray = jnp.stack(
         (mesh_x, mesh_y, jnp.zeros_like(mesh_x)), axis=-1
     ).reshape((-1, 3))
-    kpoints_frac: jnp.ndarray = tightb.kpoints_cart_to_frac(
+    kpoints_frac: jnp.ndarray = dp.tightb.kpoints_cart_to_frac(
         kpoints_cart, model.geometry
     )
-    eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, kpoints_frac)
+    eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(model, kpoints_frac)
     energy_axis: jnp.ndarray = jnp.linspace(-3.5, -0.1, 121)
     intensity: jnp.ndarray = intrinsic_spectrum(
         eigenvalues,
@@ -249,12 +237,12 @@ def figure_pipeline_cube() -> None:
         energy_axis,
         gamma_ev=0.09,
     ).reshape((n_k, n_k, -1))
-    cube: types.ArpesCube = types.make_arpes_cube(
+    cube: dp.types.ArpesCube = dp.types.make_arpes_cube(
         intensity, axis_x, axis_y, energy_axis
     )
     figure = plt.figure(figsize=(7.2, 6.4))
     axes3d = figure.add_subplot(projection="3d", computed_zorder=False)
-    plot_cube_faces(
+    dp.plots.plot_cube_faces(
         cube,
         ax=axes3d,
         cmap="inferno",
@@ -269,7 +257,7 @@ def figure_pipeline_ek_and_map() -> None:
     """Draw the path spectrum and the Fermi-surface map."""
     distance, energy_axis, intensity, ticks, labels = graphene_path_spectrum()
     figure, axes = plt.subplots(figsize=(6.4, 4.2))
-    plot_spectral_cut(
+    dp.plots.plot_spectral_cut(
         intensity,
         distance,
         energy_axis,
@@ -287,7 +275,7 @@ def figure_pipeline_ek_and_map() -> None:
     axis, cube_energy_axis, cube = graphene_cube()
     fermi_index: int = int(jnp.argmin(jnp.abs(cube_energy_axis)))
     figure, axes = plt.subplots(figsize=(5.4, 4.6))
-    plot_momentum_map(
+    dp.plots.plot_momentum_map(
         cube[:, :, fermi_index],
         axis,
         axis,
@@ -307,14 +295,14 @@ def figure_geometry() -> None:
     kz_labels: list = []
     for k_par in k_parallel:
         kz_values, propagating = jax.vmap(
-            lambda hv, kp=k_par: simul.kz_from_inner_potential(
+            lambda hv, kp=k_par: dp.simul.kz_from_inner_potential(
                 hv, 4.5, 12.0, jnp.asarray(0.0), jnp.asarray(kp)
             )
         )(photon_energies)
         kz_curves.append(jnp.where(propagating, jnp.real(kz_values), jnp.nan))
         kz_labels.append(rf"$k_\parallel = {float(k_par):.1f}$")
     figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    plot_curve_family(
+    dp.plots.plot_curve_family(
         photon_energies,
         tuple(kz_curves),
         labels=tuple(kz_labels),
@@ -338,7 +326,7 @@ def figure_geometry() -> None:
     figure, axes_row = plt.subplots(
         1, 3, figsize=(11.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_momentum_map_grid(
+    dp.plots.plot_momentum_map_grid(
         tuple(slice_maps),
         axis,
         axis,
@@ -355,11 +343,11 @@ def figure_geometry() -> None:
 def figure_kz_guide() -> None:
     """Draw wrapped escape-depth weights for the kz guide."""
     edges: jnp.ndarray = jnp.linspace(-0.5, 0.5, 257)
-    nodes: jnp.ndarray = simul.kz_fractional_nodes(256)
+    nodes: jnp.ndarray = dp.simul.kz_fractional_nodes(256)
     reciprocal_period: jnp.ndarray = jnp.asarray(2.0 * jnp.pi / 3.2)
     mean_free_paths: jnp.ndarray = jnp.asarray([4.0, 7.5, 15.0])
     weights: jnp.ndarray = jax.vmap(
-        simul.kz_wrapped_lorentzian_bin_weights,
+        dp.simul.kz_wrapped_lorentzian_bin_weights,
         in_axes=(None, None, 0, None),
     )(edges, jnp.asarray(0.0), mean_free_paths, reciprocal_period)
     curves: tuple = tuple(values * nodes.shape[0] for values in weights)
@@ -368,7 +356,7 @@ def figure_kz_guide() -> None:
         for path_length in mean_free_paths
     )
     figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    plot_curve_family(
+    dp.plots.plot_curve_family(
         nodes,
         curves,
         labels=labels,
@@ -390,13 +378,13 @@ def bulk_scan_inputs() -> dict:
         Keyword inputs for :func:`diffpes.simul.simulate_hv_scan`.
     """
     lattice_scale: float = 3.2
-    crystal: types.CrystalGeometry = types.make_crystal_geometry(
+    crystal: dp.types.CrystalGeometry = dp.types.make_crystal_geometry(
         lattice_scale * jnp.eye(3), jnp.zeros((1, 3)), ("X",)
     )
-    basis: types.OrbitalBasis = types.make_orbital_basis(
+    basis: dp.types.OrbitalBasis = dp.types.make_orbital_basis(
         atom_indices=(0,), n=(1,), l=(0,), m=(0,), labels=("1s",)
     )
-    bulk_model: types.TBModel = types.make_tb_model(
+    bulk_model: dp.types.TBModel = dp.types.make_tb_model(
         hopping_amplitudes=jnp.asarray(
             (-0.12, -0.12, -0.38, -0.38), dtype=jnp.complex128
         ),
@@ -408,7 +396,7 @@ def bulk_scan_inputs() -> dict:
         hopping_cells=((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)),
         shell_index=(-1,),
     )
-    surface_cell: types.SurfaceCell = types.make_surface_cell(
+    surface_cell: dp.types.SurfaceCell = dp.types.make_surface_cell(
         in_plane_vectors=lattice_scale
         * jnp.asarray(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))),
         stacking_vector=lattice_scale * jnp.asarray((0.0, 0.0, 1.0)),
@@ -431,23 +419,23 @@ def bulk_scan_inputs() -> dict:
         "bulk_model": bulk_model,
         "surface_cell": surface_cell,
         "basis": basis,
-        "kpath": types.make_kpath(path_points, kz=0.0),
+        "kpath": dp.types.make_kpath(path_points, kz=0.0),
         "path_coordinate": path_coordinate,
-        "radial_spec": types.make_radial_spec(
+        "radial_spec": dp.types.make_radial_spec(
             basis,
             (0,),
             mode="fixed",
             fixed_integrals_shell=jnp.asarray(((0.0, 1.0),)),
         ),
-        "matrix_element_params": types.make_matrix_element_params(
+        "matrix_element_params": dp.types.make_matrix_element_params(
             basis,
             (0,),
             sigma_shell=jnp.asarray((1.13,)),
             phase_shift_angles_shell=jnp.asarray((0.21,)),
         ),
-        "experiment": types.make_experiment_geometry(
+        "experiment": dp.types.make_experiment_geometry(
             photon_energy_ev=28.0,
-            polarization=simul.polarization_from_angles(0.75, 0.0, "p"),
+            polarization=dp.simul.polarization_from_angles(0.75, 0.0, "p"),
             incidence_theta=0.75,
             incidence_phi=0.0,
             work_function_ev=4.3,
@@ -464,15 +452,15 @@ def figure_hv_scan() -> None:
     carriers: dict = bulk_scan_inputs()
     energy_axis: jnp.ndarray = jnp.linspace(-1.15, 0.05, 61)
     photon_energies: jnp.ndarray = jnp.linspace(18.0, 80.0, 32)
-    scan: jnp.ndarray = simul.simulate_hv_scan(
+    scan: jnp.ndarray = dp.simul.simulate_hv_scan(
         None,
         None,
         carriers["radial_spec"],
         carriers["matrix_element_params"],
-        types.make_radial_quadrature_spec(),
-        types.make_final_state_spec(),
+        dp.types.make_radial_quadrature_spec(),
+        dp.types.make_final_state_spec(),
         carriers["experiment"],
-        types.make_self_energy_model(gamma=0.035),
+        dp.types.make_self_energy_model(gamma=0.035),
         carriers["kpath"],
         energy_axis,
         photon_energies,
@@ -481,12 +469,12 @@ def figure_hv_scan() -> None:
         checkpoint=True,
         bulk_model=carriers["bulk_model"],
         surface_cell=carriers["surface_cell"],
-        kz_nodes_frac=simul.kz_fractional_nodes(64),
+        kz_nodes_frac=dp.simul.kz_fractional_nodes(64),
         kz_mode="bulk_kz",
     )
     normal_emission: jnp.ndarray = scan[:, scan.shape[1] // 2, :]
     figure, axes = plt.subplots(figsize=(6.2, 4.2))
-    plot_spectral_cut(
+    dp.plots.plot_spectral_cut(
         normal_emission,
         photon_energies,
         energy_axis,
@@ -512,20 +500,20 @@ def figure_kz_broadening_compare() -> None:
         ("bulk_direct", None, "exact final-state $k_z$ (bulk_direct)"),
         (
             "bulk_kz",
-            simul.kz_fractional_nodes(512),
+            dp.simul.kz_fractional_nodes(512),
             r"$\lambda = 7.5$ $\mathrm{\AA}$ escape depth (bulk_kz)",
         ),
     )
     for kz_mode, nodes, _ in modes:
-        scan: jnp.ndarray = simul.simulate_hv_scan(
+        scan: jnp.ndarray = dp.simul.simulate_hv_scan(
             None,
             None,
             carriers["radial_spec"],
             carriers["matrix_element_params"],
-            types.make_radial_quadrature_spec(),
-            types.make_final_state_spec(),
+            dp.types.make_radial_quadrature_spec(),
+            dp.types.make_final_state_spec(),
             carriers["experiment"],
-            types.make_self_energy_model(gamma=0.02),
+            dp.types.make_self_energy_model(gamma=0.02),
             carriers["kpath"],
             energy_axis,
             photon_energy,
@@ -542,7 +530,7 @@ def figure_kz_broadening_compare() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(9.6, 3.9), sharey=True, constrained_layout=True
     )
-    plot_spectral_cut_series(
+    dp.plots.plot_spectral_cut_series(
         tuple(maps),
         path_coordinate,
         energy_axis,
@@ -583,7 +571,7 @@ def polarized_band_weights(
     labels : tuple
         Anchor labels.
     """
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     anchors: jnp.ndarray = jnp.asarray(
         [
             [0.0, 0.0, 0.0],
@@ -592,42 +580,48 @@ def polarized_band_weights(
             [0.0, 0.0, 0.0],
         ]
     )
-    path: types.KPath = tightb.build_kpath(
+    path: dp.types.KPath = dp.tightb.build_kpath(
         anchors,
         model.geometry,
         n_per_segment=161,
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
-    distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
-    bands: types.DiagonalizedBands = tightb.diagonalize_tb(model, path.kpoints)
-    experiment: types.ExperimentGeometry = types.make_experiment_geometry(
-        photon_energy_ev=60.0,
-        polarization=polarization,
-        incidence_theta=0.75,
-        incidence_phi=0.0,
-        work_function_ev=4.5,
-        temperature_k=TEMPERATURE_K,
-        mean_free_path_ang=8.0,
+    distance: jnp.ndarray = dp.tightb.kpath_arc_length(path, model.geometry)
+    bands: dp.types.DiagonalizedBands = dp.tightb.diagonalize_tb(
+        model, path.kpoints
     )
-    radial: types.RadialSpec = types.make_radial_spec(
+    experiment: dp.types.ExperimentGeometry = (
+        dp.types.make_experiment_geometry(
+            photon_energy_ev=60.0,
+            polarization=polarization,
+            incidence_theta=0.75,
+            incidence_phi=0.0,
+            work_function_ev=4.5,
+            temperature_k=TEMPERATURE_K,
+            mean_free_path_ang=8.0,
+        )
+    )
+    radial: dp.types.RadialSpec = dp.types.make_radial_spec(
         model.basis,
         (0, 1),
         mode="fixed",
         fixed_integrals_shell=jnp.asarray([[0.6, 1.0], [0.6, 1.0]]),
     )
-    me_params: types.MatrixElementParams = types.make_matrix_element_params(
-        model.basis,
-        (0, 1),
-        sigma_shell=jnp.asarray([1.0, 1.0]),
-        phase_shift_angles_shell=jnp.asarray([0.15, 0.4, 0.15, 0.4]),
+    me_params: dp.types.MatrixElementParams = (
+        dp.types.make_matrix_element_params(
+            model.basis,
+            (0, 1),
+            sigma_shell=jnp.asarray([1.0, 1.0]),
+            phase_shift_angles_shell=jnp.asarray([0.15, 0.4, 0.15, 0.4]),
+        )
     )
-    kpoints_cart: jnp.ndarray = tightb.kpoints_frac_to_cart(
+    kpoints_cart: jnp.ndarray = dp.tightb.kpoints_frac_to_cart(
         path.kpoints, model.geometry
     )
-    kinetic, emission_valid = simul.kinetic_energy_ev(
+    kinetic, emission_valid = dp.simul.kinetic_energy_ev(
         60.0, 4.5, jnp.zeros(kpoints_cart.shape[0])
     )
-    k_f_magnitude, _ = simul.final_state_k_inv_ang(kinetic)
+    k_f_magnitude, _ = dp.simul.final_state_k_inv_ang(kinetic)
     k_parallel_sq: jnp.ndarray = (
         kpoints_cart[:, 0] ** 2 + kpoints_cart[:, 1] ** 2
     )
@@ -637,23 +631,23 @@ def polarized_band_weights(
     k_f_cart: jnp.ndarray = jnp.stack(
         (kpoints_cart[:, 0], kpoints_cart[:, 1], k_f_z), axis=-1
     )
-    channels: jnp.ndarray = matrixel.assemble_orbital_transition_channels(
+    channels: jnp.ndarray = dp.matrixel.assemble_orbital_transition_channels(
         bands,
         radial,
         me_params,
-        types.make_radial_quadrature_spec(),
-        types.make_final_state_spec(),
+        dp.types.make_radial_quadrature_spec(),
+        dp.types.make_final_state_spec(),
         experiment,
         k_f_cart,
         emission_valid,
     )
-    band_channels: jnp.ndarray = matrixel.project_band_channels(
+    band_channels: jnp.ndarray = dp.matrixel.project_band_channels(
         channels, bands.eigenvectors
     )
-    polarized: jnp.ndarray = simul.contract_experiment_polarization(
+    polarized: jnp.ndarray = dp.simul.contract_experiment_polarization(
         band_channels, experiment
     )
-    weights: jnp.ndarray = matrixel.matrix_element_intensity(polarized)
+    weights: jnp.ndarray = dp.matrixel.matrix_element_intensity(polarized)
     ticks: tuple = tuple(
         float(distance[index]) for index in path.label_indices
     )
@@ -663,8 +657,8 @@ def polarized_band_weights(
 def figure_matrix_elements() -> None:
     """Draw polarization contrast and atomic cross sections."""
     polarizations: tuple = (
-        (simul.polarization_from_angles(0.75, 0.0, "s"), "s polarization"),
-        (simul.polarization_from_angles(0.75, 0.0, "p"), "p polarization"),
+        (dp.simul.polarization_from_angles(0.75, 0.0, "s"), "s polarization"),
+        (dp.simul.polarization_from_angles(0.75, 0.0, "p"), "p polarization"),
     )
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
     intensities: list = []
@@ -680,7 +674,7 @@ def figure_matrix_elements() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_spectral_cut_series(
+    dp.plots.plot_spectral_cut_series(
         tuple(intensities),
         distance,
         energy_axis,
@@ -707,10 +701,10 @@ def figure_matrix_elements() -> None:
     for position, (atomic_number, n_quantum, l_quantum, label) in enumerate(
         subshells
     ):
-        energy, sigma = simul.yeh_lindau_cross_section_table(
+        energy, sigma = dp.simul.yeh_lindau_cross_section_table(
             atomic_number, n_quantum, l_quantum
         )[:2]
-        plot_curve_family(
+        dp.plots.plot_curve_family(
             energy,
             (sigma,),
             labels=(label,),
@@ -732,9 +726,9 @@ def figure_broadening() -> None:
     """Draw lineshape profiles and self-energy comparisons."""
     energy_axis: jnp.ndarray = jnp.linspace(-0.5, 0.5, 601)
     profiles: tuple = (
-        simul.gaussian(energy_axis, 0.0, 0.05),
-        simul.voigt(energy_axis, 0.0, 0.05, 0.05),
-        simul.voigt(energy_axis, 0.0, 0.008, 0.1),
+        dp.simul.gaussian(energy_axis, 0.0, 0.05),
+        dp.simul.voigt(energy_axis, 0.0, 0.05, 0.05),
+        dp.simul.voigt(energy_axis, 0.0, 0.008, 0.1),
     )
     profile_labels: tuple = (
         r"Gaussian $\sigma = 50$ meV",
@@ -742,7 +736,7 @@ def figure_broadening() -> None:
         r"near-Lorentzian $\gamma = 100$ meV",
     )
     figure, axes = plt.subplots(figsize=(6.2, 3.8))
-    plot_curve_family(
+    dp.plots.plot_curve_family(
         energy_axis,
         profiles,
         labels=profile_labels,
@@ -757,7 +751,7 @@ def figure_broadening() -> None:
     plt.close(figure)
 
     distance, energy_axis, _, ticks, labels = graphene_path_spectrum()
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     anchors: jnp.ndarray = jnp.asarray(
         [
             [0.0, 0.0, 0.0],
@@ -766,19 +760,19 @@ def figure_broadening() -> None:
             [0.0, 0.0, 0.0],
         ]
     )
-    path: types.KPath = tightb.build_kpath(
+    path: dp.types.KPath = dp.tightb.build_kpath(
         anchors,
         model.geometry,
         n_per_segment=161,
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
-    eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, path.kpoints)
+    eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(model, path.kpoints)
     weights: jnp.ndarray = jnp.ones_like(eigenvalues)
     gammas: tuple = (0.03, 0.25)
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_spectral_cut_series(
+    dp.plots.plot_spectral_cut_series(
         tuple(
             intrinsic_spectrum(eigenvalues, weights, energy_axis, gamma)
             for gamma in gammas
@@ -804,11 +798,13 @@ def figure_broadening() -> None:
     narrow: jnp.ndarray = intrinsic_spectrum(
         eigenvalues, weights, energy_axis, gamma_ev=0.03
     )
-    convolved: jnp.ndarray = simul.convolve_energy(narrow, energy_axis, 0.12)
+    convolved: jnp.ndarray = dp.simul.convolve_energy(
+        narrow, energy_axis, 0.12
+    )
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_spectral_cut_series(
+    dp.plots.plot_spectral_cut_series(
         (narrow, convolved),
         distance,
         energy_axis,
@@ -827,23 +823,23 @@ def figure_broadening() -> None:
     plt.close(figure)
 
 
-def detector_example() -> types.DetectorRaster:
+def detector_example() -> dp.types.DetectorRaster:
     """Return the expected counts from the simulation-guide example.
 
     Returns
     -------
-    detector : types.DetectorRaster
+    detector : dp.types.DetectorRaster
         Native-raster expected counts.
     """
-    crystal: types.CrystalGeometry = types.make_crystal_geometry(
+    crystal: dp.types.CrystalGeometry = dp.types.make_crystal_geometry(
         lattice=2.0 * jnp.pi * jnp.eye(3),
         positions=jnp.zeros((1, 3)),
         species=("X",),
     )
-    basis: types.OrbitalBasis = types.make_orbital_basis(
+    basis: dp.types.OrbitalBasis = dp.types.make_orbital_basis(
         atom_indices=(0,), n=(1,), l=(0,), m=(0,), labels=("1s",)
     )
-    model: types.TBModel = types.make_tb_model(
+    model: dp.types.TBModel = dp.types.make_tb_model(
         hopping_amplitudes=0.18 * jnp.ones(4, dtype=jnp.complex128),
         onsite_energies=jnp.asarray([-0.36]),
         soc_lambdas=jnp.zeros(0),
@@ -859,55 +855,67 @@ def detector_example() -> types.DetectorRaster:
     kpoints: jnp.ndarray = jnp.stack(
         (mesh_x, mesh_y, jnp.zeros_like(mesh_x)), axis=-1
     ).reshape((-1, 3))
-    kgrid: types.KGrid = types.make_kgrid(kpoints, mesh_shape=(13, 13), kz=0.0)
-    hamiltonians: jnp.ndarray = tightb.bloch_hamiltonian_batch(model, kpoints)
-    bands: types.DiagonalizedBands = tightb.diagonalize_tb(model, kpoints)
-    experiment: types.ExperimentGeometry = types.make_experiment_geometry(
-        photon_energy_ev=50.0,
-        polarization=jnp.asarray([1.0 + 0.0j, 0.25j, 0.0j]),
-        work_function_ev=4.5,
-        temperature_k=25.0,
-        mean_free_path_ang=8.0,
+    kgrid: dp.types.KGrid = dp.types.make_kgrid(
+        kpoints, mesh_shape=(13, 13), kz=0.0
     )
-    calibration: types.DetectorCalibration = types.make_detector_calibration(
-        u_bin_edges=jnp.linspace(-0.050, 0.050, 17),
-        v_bin_edges=jnp.linspace(-0.050, 0.050, 17),
-        energy_bin_edges_ev=jnp.linspace(-0.22, 0.06, 29),
-        psf_fwhm_u=0.008,
-        psf_fwhm_v=0.010,
-        psf_fwhm_energy_ev=0.025,
-        transmission_reference_domain_ev=jnp.asarray([44.5, 46.0]),
+    hamiltonians: jnp.ndarray = dp.tightb.bloch_hamiltonian_batch(
+        model, kpoints
     )
-    detector_effects: types.DetectorEffects = types.make_detector_effects(
-        domain_logits=jnp.asarray([0.0]),
-        domain_euler_angles_rad=jnp.zeros((1, 3)),
-        transmission_raw_slopes=jnp.asarray([-0.65, 0.30]),
-        background_coefficients=jnp.asarray([-12.0]),
-        sensitivity_coefficients=jnp.asarray([]),
-        exposure=2.0e9,
-        background_mode="flat",
-        sensitivity_mode="constant",
-        domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
+    bands: dp.types.DiagonalizedBands = dp.tightb.diagonalize_tb(
+        model, kpoints
     )
-    detector: types.DetectorRaster = simul.simulate_arpes(
+    experiment: dp.types.ExperimentGeometry = (
+        dp.types.make_experiment_geometry(
+            photon_energy_ev=50.0,
+            polarization=jnp.asarray([1.0 + 0.0j, 0.25j, 0.0j]),
+            work_function_ev=4.5,
+            temperature_k=25.0,
+            mean_free_path_ang=8.0,
+        )
+    )
+    calibration: dp.types.DetectorCalibration = (
+        dp.types.make_detector_calibration(
+            u_bin_edges=jnp.linspace(-0.050, 0.050, 17),
+            v_bin_edges=jnp.linspace(-0.050, 0.050, 17),
+            energy_bin_edges_ev=jnp.linspace(-0.22, 0.06, 29),
+            psf_fwhm_u=0.008,
+            psf_fwhm_v=0.010,
+            psf_fwhm_energy_ev=0.025,
+            transmission_reference_domain_ev=jnp.asarray([44.5, 46.0]),
+        )
+    )
+    detector_effects: dp.types.DetectorEffects = (
+        dp.types.make_detector_effects(
+            domain_logits=jnp.asarray([0.0]),
+            domain_euler_angles_rad=jnp.zeros((1, 3)),
+            transmission_raw_slopes=jnp.asarray([-0.65, 0.30]),
+            background_coefficients=jnp.asarray([-12.0]),
+            sensitivity_coefficients=jnp.asarray([]),
+            exposure=2.0e9,
+            background_mode="flat",
+            sensitivity_mode="constant",
+            domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
+        )
+    )
+    detector: dp.types.DetectorRaster = dp.simul.simulate_arpes(
         (hamiltonians,),
         (bands,),
-        types.make_radial_spec(
+        dp.types.make_radial_spec(
             basis,
             (0,),
             mode="fixed",
             fixed_integrals_shell=jnp.asarray([[0.0, 1.0]]),
         ),
-        types.make_matrix_element_params(
+        dp.types.make_matrix_element_params(
             basis,
             (0,),
             sigma_shell=jnp.asarray([1.0]),
             phase_shift_angles_shell=jnp.asarray([0.15]),
         ),
-        types.make_radial_quadrature_spec(),
-        types.make_final_state_spec(),
+        dp.types.make_radial_quadrature_spec(),
+        dp.types.make_final_state_spec(),
         experiment,
-        types.make_self_energy_model(gamma=0.035),
+        dp.types.make_self_energy_model(gamma=0.035),
         kgrid,
         jnp.linspace(-0.24, 0.08, 33),
         calibration,
@@ -929,9 +937,9 @@ def figure_detector_counts(
     file_name : str
         Output file name inside the figure directory.
     """
-    detector: types.DetectorRaster = detector_example()
+    detector: dp.types.DetectorRaster = detector_example()
     observed: jnp.ndarray = jnp.asarray(
-        simul.sample_poisson_counts(
+        dp.simul.sample_poisson_counts(
             jax.random.key(20260813), detector.expected_counts
         )[0],
         dtype=jnp.float64,
@@ -939,20 +947,20 @@ def figure_detector_counts(
     figure, axes_row = plt.subplots(
         1, 3, figsize=(12.4, 3.6), constrained_layout=True
     )
-    plot_detector_energy_cut(
+    dp.plots.plot_detector_energy_cut(
         detector,
         ax=axes_row[0],
         log_counts=False,
         colorbar_label="events",
         title="expected counts, central $v$ row",
     )
-    plot_detector_image(
+    dp.plots.plot_detector_image(
         detector,
         ax=axes_row[1],
         colorbar_label="events",
         title="expected counts, energy sum",
     )
-    plot_detector_image(
+    dp.plots.plot_detector_image(
         observed,
         ax=axes_row[2],
         colorbar_label="events",
@@ -964,8 +972,8 @@ def figure_detector_counts(
 
 def figure_pytree_update() -> None:
     """Draw spectra from a carrier update through equinox.tree_at."""
-    model: types.TBModel = build_graphene()
-    softened: types.TBModel = equinox.tree_at(
+    model: dp.types.TBModel = build_graphene()
+    softened: dp.types.TBModel = equinox.tree_at(
         lambda tree: tree.hopping_amplitudes,
         model,
         0.6 * model.hopping_amplitudes,
@@ -978,17 +986,17 @@ def figure_pytree_update() -> None:
             [0.0, 0.0, 0.0],
         ]
     )
-    path: types.KPath = tightb.build_kpath(
+    path: dp.types.KPath = dp.tightb.build_kpath(
         anchors,
         model.geometry,
         n_per_segment=161,
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
-    distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
+    distance: jnp.ndarray = dp.tightb.kpath_arc_length(path, model.geometry)
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
     intensities: list = []
     for tree in (model, softened):
-        eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(tree, path.kpoints)
+        eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(tree, path.kpoints)
         intensities.append(
             intrinsic_spectrum(
                 eigenvalues, jnp.ones_like(eigenvalues), energy_axis
@@ -1000,7 +1008,7 @@ def figure_pytree_update() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_spectral_cut_series(
+    dp.plots.plot_spectral_cut_series(
         tuple(intensities),
         distance,
         energy_axis,
@@ -1021,7 +1029,7 @@ def figure_pytree_update() -> None:
 
 def figure_gradient_map() -> None:
     """Draw the linewidth sensitivity map for the gradients guide."""
-    model: types.TBModel = build_graphene()
+    model: dp.types.TBModel = build_graphene()
     anchors: jnp.ndarray = jnp.asarray(
         [
             [0.0, 0.0, 0.0],
@@ -1030,26 +1038,26 @@ def figure_gradient_map() -> None:
             [0.0, 0.0, 0.0],
         ]
     )
-    path: types.KPath = tightb.build_kpath(
+    path: dp.types.KPath = dp.tightb.build_kpath(
         anchors,
         model.geometry,
         n_per_segment=161,
         labels=("$\\Gamma$", "K", "M", "$\\Gamma$"),
     )
-    distance: jnp.ndarray = tightb.kpath_arc_length(path, model.geometry)
-    eigenvalues: jnp.ndarray = tightb.eigvalsh_bands(model, path.kpoints)
+    distance: jnp.ndarray = dp.tightb.kpath_arc_length(path, model.geometry)
+    eigenvalues: jnp.ndarray = dp.tightb.eigvalsh_bands(model, path.kpoints)
     energy_axis: jnp.ndarray = jnp.linspace(-8.6, 0.5, 241)
     weights: jnp.ndarray = jnp.ones_like(eigenvalues)
 
     def spectrum_of_gamma(gamma: jnp.ndarray) -> jnp.ndarray:
-        self_energy: types.SelfEnergyModel = types.make_self_energy_model(
-            gamma=gamma
+        self_energy: dp.types.SelfEnergyModel = (
+            dp.types.make_self_energy_model(gamma=gamma)
         )
         weights_ke: jnp.ndarray = jnp.broadcast_to(
             weights[:, None, :],
             (weights.shape[0], energy_axis.shape[0], weights.shape[1]),
         )
-        return simul.assemble_spectral_intensity_bands_chunk(
+        return dp.simul.assemble_spectral_intensity_bands_chunk(
             eigenvalues,
             weights_ke,
             energy_axis,
@@ -1062,7 +1070,7 @@ def figure_gradient_map() -> None:
         jnp.asarray(GRAPHENE_GAMMA_EV)
     )
     figure, axes = plt.subplots(figsize=(6.4, 4.2))
-    plot_difference_map(
+    dp.plots.plot_difference_map(
         sensitivity,
         distance,
         energy_axis,
@@ -1100,7 +1108,7 @@ def figure_band_carrier_spectrum() -> None:
         ),
         axis=-1,
     )
-    bands: types.BandStructure = types.make_band_structure(
+    bands: dp.types.BandStructure = dp.types.make_band_structure(
         eigenvalues, kpoints, fermi_energy=0.0
     )
     energy_axis: jnp.ndarray = jnp.linspace(-3.6, 0.4, 221)
@@ -1114,14 +1122,14 @@ def figure_band_carrier_spectrum() -> None:
     figure, axes_row = plt.subplots(
         1, 2, figsize=(10.4, 3.9), sharey=True, constrained_layout=True
     )
-    plot_band_dispersion(
+    dp.plots.plot_band_dispersion(
         bands,
         momentum_axis=path_coordinate,
         ax=axes_row[0],
         xlabel="fractional path coordinate",
         title="BandStructure eigenvalues",
     )
-    plot_spectral_cut(
+    dp.plots.plot_spectral_cut(
         intensity,
         path_coordinate,
         energy_axis,

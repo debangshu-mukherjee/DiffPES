@@ -23,35 +23,17 @@ import os
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 
+import diffpes as dp
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 
-from diffpes.plots import (
-    plot_band_dispersion,
-    plot_bands_over_spectrum,
-    plot_curve_family,
-    plot_distribution_curves,
-    plot_edc_mdc_panels,
-    plot_momentum_profile,
-    plot_spectral_cut,
-    plot_spectral_cut_series,
-)
-from diffpes.simul import assemble_spectral_intensity_bands_chunk
-from diffpes.tightb import eigvalsh_bands, kpoints_frac_to_cart
-from diffpes.types import (
-    make_crystal_geometry,
-    make_orbital_basis,
-    make_self_energy_model,
-    make_tb_model,
-)
 
 FERMI_ENERGY_EV = 0.00
 TEMPERATURE_K = 40.0
 LINEWIDTH_EV = 0.025
 
 lattice_constant_ang = 2.46
-crystal = make_crystal_geometry(
+crystal = dp.types.make_crystal_geometry(
     lattice=jnp.asarray(
         [
             [lattice_constant_ang, 0.0, 0.0],
@@ -68,14 +50,14 @@ crystal = make_crystal_geometry(
     ),
     species=("C", "C"),
 )
-basis = make_orbital_basis(
+basis = dp.types.make_orbital_basis(
     atom_indices=(0, 1),
     n=(2, 2),
     l=(1, 1),
     m=(0, 0),
     labels=("A pz", "B pz"),
 )
-model = make_tb_model(
+model = dp.types.make_tb_model(
     hopping_amplitudes=-2.7 * jnp.ones(6, dtype=jnp.complex128),
     onsite_energies=jnp.zeros(2),
     soc_lambdas=jnp.zeros(0),
@@ -109,13 +91,13 @@ path_fractional = jnp.linspace(
     jnp.asarray([0.86, 1.0 / 3.0, 0.0]),
     401,
 )
-path_cartesian = kpoints_frac_to_cart(path_fractional, crystal)
+path_cartesian = dp.tightb.kpoints_frac_to_cart(path_fractional, crystal)
 path_distance = np.asarray(
     jnp.linalg.norm(path_cartesian - path_cartesian[0], axis=1)
 )
 dirac_path_index = path_fractional.shape[0] // 2
 path_distance = path_distance - path_distance[dirac_path_index]
-path_eigenvalues = eigvalsh_bands(model, path_fractional)
+path_eigenvalues = dp.tightb.eigvalsh_bands(model, path_fractional)
 path_relative_energy = np.asarray(path_eigenvalues) - FERMI_ENERGY_EV
 energy_axis = jnp.linspace(-3.0, 0.18, 401)
 band_weights = jnp.broadcast_to(
@@ -126,17 +108,17 @@ band_weights = jnp.broadcast_to(
         path_eigenvalues.shape[1],
     ),
 )
-intensity = assemble_spectral_intensity_bands_chunk(
+intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     path_eigenvalues,
     band_weights,
     energy_axis,
-    make_self_energy_model(gamma=LINEWIDTH_EV),
+    dp.types.make_self_energy_model(gamma=LINEWIDTH_EV),
     jnp.asarray(FERMI_ENERGY_EV),
     TEMPERATURE_K,
     allow_degenerate_value_only=True,
 )
 
-fig, ax, image = plot_spectral_cut(
+fig, ax, image = dp.plots.plot_spectral_cut(
     intensity,
     path_distance,
     energy_axis,
@@ -167,7 +149,7 @@ path_fractional = jnp.linspace(
     jnp.asarray([0.86, 1.0 / 3.0, 0.0]),
     401,
 )
-path_cartesian = kpoints_frac_to_cart(path_fractional, crystal)
+path_cartesian = dp.tightb.kpoints_frac_to_cart(path_fractional, crystal)
 path_distance = np.asarray(
     jnp.linalg.norm(
         path_cartesian - path_cartesian[0], axis=1
@@ -175,12 +157,12 @@ path_distance = np.asarray(
 )
 dirac_path_index = path_fractional.shape[0] // 2
 path_distance = path_distance - path_distance[dirac_path_index]
-path_eigenvalues = eigvalsh_bands(model, path_fractional)
+path_eigenvalues = dp.tightb.eigvalsh_bands(model, path_fractional)
 path_relative_energy = (
     np.asarray(path_eigenvalues) - FERMI_ENERGY_EV
 )
 
-fig, ax, lines = plot_band_dispersion(
+fig, ax, lines = dp.plots.plot_band_dispersion(
     path_relative_energy,
     momentum_axis=path_distance,
     color="tab:blue",
@@ -205,7 +187,7 @@ lines over the intensity image.
 
 
 ```python
-fig, ax, image = plot_bands_over_spectrum(
+fig, ax, image = dp.plots.plot_bands_over_spectrum(
     intensity,
     path_distance,
     energy_axis,
@@ -238,16 +220,12 @@ selected_energy_index = int(
     np.argmin(np.abs(np.asarray(energy_axis) - selected_energy_ev))
 )
 
-fig, (edc_ax, mdc_ax) = plt.subplots(
-    1, 2, figsize=(11.0, 3.8), constrained_layout=True
-)
-fig, axes, lines = plot_edc_mdc_panels(
+fig, axes, lines = dp.plots.plot_edc_mdc_panels(
     intensity,
     path_distance,
     energy_axis,
     k_value=selected_k_inv_ang,
     energy_value=selected_energy_ev,
-    axes=(edc_ax, mdc_ax),
 )
 ```
 
@@ -267,25 +245,25 @@ the two labeled EDCs on one energy axis.
 
 
 ```python
-narrow_intensity = assemble_spectral_intensity_bands_chunk(
+narrow_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     path_eigenvalues,
     band_weights,
     energy_axis,
-    make_self_energy_model(gamma=0.020),
+    dp.types.make_self_energy_model(gamma=0.020),
     jnp.asarray(FERMI_ENERGY_EV),
     TEMPERATURE_K,
     allow_degenerate_value_only=True,
 )
-broad_intensity = assemble_spectral_intensity_bands_chunk(
+broad_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     path_eigenvalues,
     band_weights,
     energy_axis,
-    make_self_energy_model(gamma=0.080),
+    dp.types.make_self_energy_model(gamma=0.080),
     jnp.asarray(FERMI_ENERGY_EV),
     TEMPERATURE_K,
     allow_degenerate_value_only=True,
 )
-fig, ax, lines = plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     energy_axis,
     (
         narrow_intensity[selected_path_index],
@@ -319,7 +297,7 @@ scale. `plot_curve_family` contrasts fixed-position cuts, and
 probe_path_indices = (dirac_path_index - 90, dirac_path_index, dirac_path_index + 90)
 probe_colors = ("tab:blue", "tab:green", "tab:orange")
 edc_positions = tuple(float(path_distance[index]) for index in probe_path_indices)
-fig, ax, lines = plot_distribution_curves(
+fig, ax, lines = dp.plots.plot_distribution_curves(
     intensity,
     path_distance,
     energy_axis,
@@ -330,7 +308,7 @@ fig, ax, lines = plot_distribution_curves(
 )
 
 mdc_energies_ev = (-1.20, -0.80, -0.40)
-fig, ax, lines = plot_distribution_curves(
+fig, ax, lines = dp.plots.plot_distribution_curves(
     intensity,
     path_distance,
     energy_axis,
@@ -342,19 +320,15 @@ fig, ax, lines = plot_distribution_curves(
 )
 ax.axvline(0.0, color="0.35", linewidth=0.8)
 
-fig, (narrow_ax, broad_ax) = plt.subplots(
-    1, 2, figsize=(12.0, 4.5), sharey=True, constrained_layout=True
-)
-fig, axes, images = plot_spectral_cut_series(
+fig, axes, images = dp.plots.plot_spectral_cut_series(
     (narrow_intensity, broad_intensity),
     path_distance,
     energy_axis,
     titles=("20 meV intrinsic linewidth", "80 meV intrinsic linewidth"),
-    axes=(narrow_ax, broad_ax),
     xlabel=r"momentum through K ($\AA^{-1}$)",
 )
 
-fig, ax, lines = plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     path_distance,
     (
         narrow_intensity[:, selected_energy_index],
@@ -367,17 +341,17 @@ fig, ax, lines = plot_curve_family(
 )
 ax.axvline(0.0, color="0.35", linewidth=0.8)
 
-hot_intensity = assemble_spectral_intensity_bands_chunk(
+hot_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     path_eigenvalues,
     band_weights,
     energy_axis,
-    make_self_energy_model(gamma=LINEWIDTH_EV),
+    dp.types.make_self_energy_model(gamma=LINEWIDTH_EV),
     jnp.asarray(FERMI_ENERGY_EV),
     250.0,
     allow_degenerate_value_only=True,
 )
 near_fermi = np.asarray(energy_axis) >= -0.25
-fig, ax, lines = plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     np.asarray(energy_axis)[near_fermi],
     (
         np.asarray(intensity)[dirac_path_index, near_fermi],
@@ -390,7 +364,7 @@ fig, ax, lines = plot_curve_family(
 )
 ax.axvline(0.0, color="0.35", linewidth=0.8)
 
-fig, ax, line = plot_momentum_profile(
+fig, ax, line = dp.plots.plot_momentum_profile(
     intensity,
     path_distance,
     energy_axis,

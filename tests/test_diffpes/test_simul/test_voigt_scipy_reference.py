@@ -45,6 +45,14 @@ _ENDPOINT_RTL: float = 1.0e-12
 _ENDPOINT_FLOOR: float = 5.0e-15
 _DERIVATIVE_RTL: float = 1.0e-6
 _DERIVATIVE_ATL: float = 2.0e-10
+# NumPy dispatches exp, tan, cos, and hypot to SIMD kernels selected by the
+# host CPU at runtime, so their last bit varies between machines. Frozen
+# evidence recomputed through those kernels therefore matches to a small ULP
+# budget rather than bitwise; SciPy replays stay exact. Quadrature masses get
+# a larger budget because last-bit variance in the leggauss, tangent, and
+# cosine node chain propagates through the profile before the weighted sum.
+_TRANSCENDENTAL_MAX_ULP: int = 2
+_QUADRATURE_MAX_ULP: int = 16
 
 
 def _load_npz(path: Path) -> Dict[str, Float64[NDArray, "..."]]:
@@ -302,7 +310,7 @@ class TestVoigtScipyEvidence:
         assert np.all(np.isfinite(desired))
         assert np.all(desired >= 0.0)
 
-    def test_endpoint_reference_rows_are_exact_analytic_values(self) -> None:
+    def test_endpoint_reference_rows_match_analytic_values(self) -> None:
         """Recompute every value-only Gaussian and Cauchy endpoint row.
 
         Extended Summary
@@ -313,7 +321,7 @@ class TestVoigtScipyEvidence:
         Notes
         -----
         Reconstruct each normalized coordinate, evaluate its analytic density,
-        and compare the resulting arrays exactly.
+        and compare the resulting arrays within the transcendental ULP budget.
         """
         reference: Dict[str, Float64[NDArray, "..."]] = _load_npz(
             _REFERENCE_PATH
@@ -339,7 +347,11 @@ class TestVoigtScipyEvidence:
                 row = 1.0 / (np.pi * nonzero_width * (1.0 + q_hat**2))
             rows.append(row)
         actual: Float64[NDArray, "n_endpoint n_q"] = np.stack(rows)
-        np.testing.assert_array_equal(actual, reference["endpoint_values"])
+        np.testing.assert_array_max_ulp(
+            actual,
+            reference["endpoint_values"],
+            maxulp=_TRANSCENDENTAL_MAX_ULP,
+        )
 
     def test_one_sided_reference_rates_are_registered(self) -> None:
         """Require quadratic sigma and linear gamma endpoint convergence.
@@ -431,7 +443,11 @@ class TestVoigtScipyEvidence:
                     * _profile(energy, _CENTER, sigma, gamma)
                     * jacobian
                 )
-        np.testing.assert_array_equal(actual_masses, expected_masses)
+        np.testing.assert_array_max_ulp(
+            actual_masses,
+            expected_masses,
+            maxulp=_QUADRATURE_MAX_ULP,
+        )
         assert np.max(np.abs(actual_masses - 1.0)) <= 2.0e-10
         assert (
             np.max(np.abs(actual_masses[:, 1] - actual_masses[:, 0]))
@@ -466,9 +482,10 @@ class TestVoigtScipyEvidence:
             axis=1,
         )
         radii: Float64[NDArray, " n_envelope"] = reference["envelope_radii"]
-        np.testing.assert_array_equal(
+        np.testing.assert_array_max_ulp(
             reconstructed,
             reference["envelope_reconstructed_radii"],
+            maxulp=_TRANSCENDENTAL_MAX_ULP,
         )
         assert np.all(
             np.abs(reconstructed - radii)
@@ -608,9 +625,10 @@ class TestVoigtScipyEvidence:
             band_weights[..., None] * occupations[..., None] * profiles,
             axis=1,
         )
-        np.testing.assert_array_equal(
+        np.testing.assert_array_max_ulp(
             intensity,
             novice["leaf_000_intensity"],
+            maxulp=_TRANSCENDENTAL_MAX_ULP,
         )
         np.testing.assert_array_equal(
             energy_axis,

@@ -29,25 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import (
-    check_consistency,
-    dedupe_band_path,
-    read_eigenval,
-    read_kpoints,
-    read_outcar,
-    read_poscar,
-    read_procar,
-)
-from diffpes.plots import (
-    plot_band_dispersion,
-    plot_band_scatter_weights,
-    plot_curve_family,
-    plot_difference_map,
-    plot_spectral_cut,
-)
-from diffpes.simul import assemble_spectral_intensity_bands_chunk
-from diffpes.tightb import kpath_arc_length
-from diffpes.types import make_kpath, make_self_energy_model
+import diffpes as dp
 
 CALCULATION_DIR = (
     Path("..") / ".." / "data" / "DFT" / "PdTe2" / "4ML" / "Output"
@@ -71,17 +53,17 @@ for required_path in (
 ):
     assert required_path.is_file(), required_path
 
-fermi_energy_ev = float(read_outcar(str(OUTCAR_PATH)).fermi_energy)
-geometry = read_poscar(str(POSCAR_PATH))
-bands = read_eigenval(str(EIGENVAL_PATH), fermi_energy=fermi_energy_ev)
-kpath_info = read_kpoints(str(KPOINTS_PATH))
-projection = read_procar(str(PROCAR_PATH), return_mode="full")
-check_consistency(bands, projection, kpath_info)
-bands, kpath_info, projection = dedupe_band_path(
+fermi_energy_ev = float(dp.inout.read_outcar(str(OUTCAR_PATH)).fermi_energy)
+geometry = dp.inout.read_poscar(str(POSCAR_PATH))
+bands = dp.inout.read_eigenval(str(EIGENVAL_PATH), fermi_energy=fermi_energy_ev)
+kpath_info = dp.inout.read_kpoints(str(KPOINTS_PATH))
+projection = dp.inout.read_procar(str(PROCAR_PATH), return_mode="full")
+dp.inout.check_consistency(bands, projection, kpath_info)
+bands, kpath_info, projection = dp.inout.dedupe_band_path(
     bands, kpath_info, projection
 )
 k_distance = np.asarray(
-    kpath_arc_length(make_kpath(bands.kpoints), geometry)
+    dp.tightb.kpath_arc_length(dp.types.make_kpath(bands.kpoints), geometry)
 )
 relative_energies = np.asarray(bands.eigenvalues) - fermi_energy_ev
 gamma_index = int(
@@ -107,8 +89,8 @@ intrinsic_weights = jnp.ones(
         spectral_eigenvalues.shape[1],
     )
 )
-self_energy = make_self_energy_model(gamma=0.035)
-intrinsic_intensity = assemble_spectral_intensity_bands_chunk(
+self_energy = dp.types.make_self_energy_model(gamma=0.035)
+intrinsic_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     intrinsic_weights,
     energy_axis,
@@ -137,17 +119,16 @@ every bright and dark orbital feature below.
 
 
 ```python
-fig, ax = plt.subplots(figsize=(6.9, 4.9))
-plot_spectral_cut(
+fig, ax, image = dp.plots.plot_spectral_cut(
     intrinsic_intensity,
     centered_k_distance,
     energy_axis,
-    ax=ax,
     momentum_guides=(0.0,),
     xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
     title="equal-weight intrinsic ARPES-style spectrum",
 )
 plt.show()
+
 ```
 
 
@@ -179,7 +160,7 @@ for ax, fraction, color, title in (
     (axes[0], pd_d_fraction, "tab:green", "palladium d character"),
     (axes[1], te_p_fraction, "tab:orange", "tellurium p character"),
 ):
-    plot_band_scatter_weights(
+    dp.plots.plot_band_scatter_weights(
         relative_energies,
         fraction,
         momentum_axis=centered_k_distance,
@@ -208,9 +189,8 @@ plt.show()
 
 These maps retain only bands in the displayed energy window. PROCAR
 weights carry orbital character, while a phase-complete Hamiltonian is
-required for a coherent matrix-element simulation. Two
-`plot_spectral_cut` panels then share one spanning colorbar, with one
-colormap per orbital channel.
+required for a coherent matrix-element simulation. `plot_spectral_cut_series` gives the two maps one shared intensity scale
+and one spanning colorbar, so their brightness can be compared directly.
 
 
 
@@ -247,7 +227,7 @@ te_pxy_weights = jnp.broadcast_to(
         spectral_eigenvalues.shape[1],
     )
 )
-pd_d_intensity = assemble_spectral_intensity_bands_chunk(
+pd_d_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     pd_d_weights,
     energy_axis,
@@ -256,7 +236,7 @@ pd_d_intensity = assemble_spectral_intensity_bands_chunk(
     45.0,
     allow_degenerate_value_only=True,
 )
-te_p_intensity = assemble_spectral_intensity_bands_chunk(
+te_p_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     te_p_weights,
     energy_axis,
@@ -265,7 +245,7 @@ te_p_intensity = assemble_spectral_intensity_bands_chunk(
     45.0,
     allow_degenerate_value_only=True,
 )
-te_pz_intensity = assemble_spectral_intensity_bands_chunk(
+te_pz_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     te_pz_weights,
     energy_axis,
@@ -274,7 +254,7 @@ te_pz_intensity = assemble_spectral_intensity_bands_chunk(
     45.0,
     allow_degenerate_value_only=True,
 )
-te_pxy_intensity = assemble_spectral_intensity_bands_chunk(
+te_pxy_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     te_pxy_weights,
     energy_axis,
@@ -287,26 +267,19 @@ te_pxy_intensity = assemble_spectral_intensity_bands_chunk(
 
 
 ```python
-fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.8), sharey=True)
-images = []
-for ax, intensity_map, cmap, title in (
-    (axes[0], pd_d_intensity, "viridis", "Pd d weighted ARPES-style map"),
-    (axes[1], te_p_intensity, "plasma", "Te p weighted ARPES-style map"),
-):
-    _, _, image = plot_spectral_cut(
-        intensity_map,
-        centered_k_distance,
-        energy_axis,
-        ax=ax,
-        cmap=cmap,
-        colorbar=False,
-        xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
-        title=title,
-    )
-    images.append(image)
-axes[1].set_ylabel("")
-fig.colorbar(images[-1], ax=axes, label=r"intensity (1/eV)")
+fig, axes, images = dp.plots.plot_spectral_cut_series(
+    (pd_d_intensity, te_p_intensity),
+    centered_k_distance,
+    energy_axis,
+    titles=(
+        "Pd d weighted ARPES-style map",
+        "Te p weighted ARPES-style map",
+    ),
+    cmap="magma",
+    xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
+)
 plt.show()
+
 ```
 
 
@@ -326,12 +299,10 @@ photon-energy dependence.
 
 
 ```python
-fig, ax = plt.subplots(figsize=(6.8, 4.9))
-plot_difference_map(
+fig, ax, image = dp.plots.plot_difference_map(
     pd_d_intensity - te_p_intensity,
     centered_k_distance,
     energy_axis,
-    ax=ax,
     zero_lines=True,
     colorbar_label=r"intensity difference (1/eV)",
     xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
@@ -339,6 +310,7 @@ plot_difference_map(
     title="Pd d minus Te p spectral contrast",
 )
 plt.show()
+
 ```
 
 
@@ -352,17 +324,15 @@ plt.show()
 The following figures retain the same equal-linewidth spectral proxy.
 `plot_band_dispersion` draws the full and near-Fermi band windows.
 `plot_band_scatter_weights` splits the tellurium p character into pz
-and px plus py. `plot_spectral_cut` panels show the weighted maps, and
-`plot_curve_family` compares normalized EDC, MDC, and window profiles.
+and px plus py. `plot_spectral_cut_series` compares the weighted maps on a shared scale,
+and `plot_curve_family` compares normalized EDC, MDC, and window profiles.
 
 
 
 ```python
-fig, ax = plt.subplots(figsize=(6.7, 4.8))
-plot_band_dispersion(
+fig, ax, lines = dp.plots.plot_band_dispersion(
     relative_energies,
     momentum_axis=centered_k_distance,
-    ax=ax,
     color="0.50",
     linewidth=0.35,
     xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
@@ -370,6 +340,7 @@ plot_band_dispersion(
 )
 ax.set_ylim(-3.0, 0.7)
 plt.show()
+
 ```
 
 
@@ -380,11 +351,9 @@ plt.show()
 
 
 ```python
-fig, ax = plt.subplots(figsize=(6.7, 4.8))
-plot_band_dispersion(
+fig, ax, lines = dp.plots.plot_band_dispersion(
     relative_energies,
     momentum_axis=centered_k_distance,
-    ax=ax,
     color="0.50",
     linewidth=0.45,
     xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
@@ -393,6 +362,7 @@ plot_band_dispersion(
 ax.set_xlim(-0.48, 0.48)
 ax.set_ylim(-0.90, 0.25)
 plt.show()
+
 ```
 
 
@@ -408,7 +378,7 @@ for ax, fraction, color, title in (
     (axes[0], te_pz_fraction, "tab:blue", "Te out-of-plane pz character"),
     (axes[1], te_pxy_fraction, "tab:red", "Te in-plane px plus py character"),
 ):
-    plot_band_scatter_weights(
+    dp.plots.plot_band_scatter_weights(
         relative_energies,
         fraction,
         momentum_axis=centered_k_distance,
@@ -435,27 +405,19 @@ plt.show()
 
 
 ```python
-fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.8), sharey=True)
-images = []
-for ax, intensity_map, cmap, title in (
-    (axes[0], te_pz_intensity, "Blues", "Te pz weighted ARPES-style map"),
-    (axes[1], te_pxy_intensity, "Reds", "Te px plus py weighted ARPES-style map"),
-):
-    _, _, image = plot_spectral_cut(
-        intensity_map,
-        centered_k_distance,
-        energy_axis,
-        ax=ax,
-        cmap=cmap,
-        colorbar=False,
-        guide_color="black",
-        xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
-        title=title,
-    )
-    images.append(image)
-axes[1].set_ylabel("")
-fig.colorbar(images[-1], ax=axes, label=r"intensity (1/eV)")
+fig, axes, images = dp.plots.plot_spectral_cut_series(
+    (te_pz_intensity, te_pxy_intensity),
+    centered_k_distance,
+    energy_axis,
+    titles=(
+        "Te pz weighted ARPES-style map",
+        "Te px plus py weighted ARPES-style map",
+    ),
+    cmap="magma",
+    xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
+)
 plt.show()
+
 ```
 
 
@@ -466,28 +428,19 @@ plt.show()
 
 
 ```python
-fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.8), sharey=True)
-images = []
-for ax, intensity_map, cmap, title in (
-    (axes[0], pd_d_intensity, "viridis", "Pd d near the Fermi level"),
-    (axes[1], te_p_intensity, "plasma", "Te p near the Fermi level"),
-):
-    _, _, image = plot_spectral_cut(
-        intensity_map,
-        centered_k_distance,
-        energy_axis,
-        ax=ax,
-        cmap=cmap,
-        colorbar=False,
-        xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
-        title=title,
-    )
-    images.append(image)
+fig, axes, images = dp.plots.plot_spectral_cut_series(
+    (pd_d_intensity, te_p_intensity),
+    centered_k_distance,
+    energy_axis,
+    titles=("Pd d near the Fermi level", "Te p near the Fermi level"),
+    cmap="magma",
+    xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
+)
+for ax in axes:
     ax.set_xlim(-0.48, 0.48)
     ax.set_ylim(-0.90, 0.20)
-axes[1].set_ylabel("")
-fig.colorbar(images[-1], ax=axes, label=r"intensity (1/eV)")
 plt.show()
+
 ```
 
 
@@ -507,18 +460,17 @@ gamma_edcs = np.asarray(
     )
 )
 gamma_edcs = gamma_edcs / gamma_edcs.max(axis=1, keepdims=True)
-fig, ax = plt.subplots(figsize=(6.8, 4.0))
-plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     energy_values,
     tuple(gamma_edcs),
     labels=("equal weight", "Pd d weight", "Te p weight"),
-    ax=ax,
     xlabel=r"$E - E_F$ (eV)",
     ylabel="normalized intensity",
     title="Gamma EDC before and after orbital weighting",
 )
 ax.axvline(0.0, color="0.35", linewidth=0.8)
 plt.show()
+
 ```
 
 
@@ -539,18 +491,17 @@ mdc_profiles = np.asarray(
     )
 )
 mdc_profiles = mdc_profiles / mdc_profiles.max(axis=1, keepdims=True)
-fig, ax = plt.subplots(figsize=(6.8, 4.0))
-plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     centered_k_distance,
     tuple(mdc_profiles),
     labels=("equal weight", "Pd d weight", "Te p weight"),
-    ax=ax,
     xlabel=fr"{PATH_LABEL} distance ($\AA^{{-1}}$)",
     ylabel="normalized intensity",
     title=f"MDC at {energy_values[mdc_energy_index]:.2f} eV",
 )
 ax.axvline(0.0, color="0.35", linewidth=0.8)
 plt.show()
+
 ```
 
 
@@ -567,7 +518,7 @@ for ax, (lower_ev, upper_ev) in zip(axes, energy_windows_ev):
     window_mask = (energy_values >= lower_ev) & (energy_values <= upper_ev)
     pd_profile = np.asarray(pd_d_intensity)[:, window_mask].sum(axis=1)
     te_profile = np.asarray(te_p_intensity)[:, window_mask].sum(axis=1)
-    plot_curve_family(
+    dp.plots.plot_curve_family(
         centered_k_distance,
         (pd_profile / pd_profile.max(), te_profile / te_profile.max()),
         labels=("Pd d", "Te p"),

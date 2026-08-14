@@ -1,4 +1,4 @@
-"""Expose the public :mod:`diffpes.types` surface.
+"""Type carrier PyTrees and factory functions for loading PyTrees.
 
 Extended Summary
 ----------------

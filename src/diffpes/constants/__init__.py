@@ -1,4 +1,4 @@
-"""Expose the declarative constants of diffpes.
+"""List all the constant values used throughout diffpes.
 
 Extended Summary
 ----------------

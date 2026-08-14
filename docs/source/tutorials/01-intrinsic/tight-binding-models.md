@@ -7,28 +7,9 @@ broadened density of states. Every numerical object remains a JAX PyTree.
 The same models can later become optimization variables.
 
 ```python
+import diffpes as dp
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-
-from diffpes.tightb import (
-    build_kpath,
-    build_sk_model,
-    diagonalize_tb,
-    dos_gaussian,
-    eigvalsh_bands,
-    expectation_path,
-    fat_bands,
-    fermi_level_from_filling,
-    kpath_arc_length,
-    spin_double_model,
-    spin_operator,
-)
-from diffpes.types import (
-    make_crystal_geometry,
-    make_orbital_basis,
-    make_slater_koster_params,
-    make_tb_model,
-)
 ```
 
 ## Graphene from an Explicit Hopping List
@@ -40,7 +21,7 @@ partner `(j, i, -R)`.
 
 ```python
 a = 2.46
-graphene_geometry = make_crystal_geometry(
+graphene_geometry = dp.types.make_crystal_geometry(
     lattice=jnp.asarray(
         [
             [a, 0.0, 0.0],
@@ -53,7 +34,7 @@ graphene_geometry = make_crystal_geometry(
     ),
     species=("C", "C"),
 )
-graphene_basis = make_orbital_basis(
+graphene_basis = dp.types.make_orbital_basis(
     atom_indices=(0, 1),
     n=(2, 2),
     l=(1, 1),
@@ -62,7 +43,7 @@ graphene_basis = make_orbital_basis(
 )
 
 hopping = -2.7
-graphene_hand = make_tb_model(
+graphene_hand = dp.types.make_tb_model(
     hopping_amplitudes=hopping * jnp.ones(6, dtype=jnp.complex128),
     onsite_energies=jnp.zeros(2),
     soc_lambdas=jnp.zeros(0),
@@ -116,14 +97,14 @@ anchors = jnp.asarray(
         [0.0, 0.0, 0.0],
     ]
 )
-graphene_path = build_kpath(
+graphene_path = dp.tightb.build_kpath(
     anchors,
     graphene_geometry,
     n_per_segment=51,
     labels=("Gamma", "K", "M", "Gamma"),
 )
-path_distance = kpath_arc_length(graphene_path, graphene_geometry)
-hand_bands = diagonalize_tb(graphene_hand, graphene_path.kpoints)
+path_distance = dp.tightb.kpath_arc_length(graphene_path, graphene_geometry)
+hand_bands = dp.tightb.diagonalize_tb(graphene_hand, graphene_path.kpoints)
 print(hand_bands.eigenvalues.shape)
 print("Dirac-point energies (eV):", hand_bands.eigenvalues[51])
 ```
@@ -136,11 +117,11 @@ then retains exact cells. Away from cutoff crossings, differentiation covers
 the bond geometry and Slater--Koster value.
 
 ```python
-graphene_sk_params = make_slater_koster_params(
+graphene_sk_params = dp.types.make_slater_koster_params(
     values=jnp.asarray([hopping]),
     keys=("C-C:pp_pi",),
 )
-graphene_sk = build_sk_model(
+graphene_sk = dp.tightb.build_sk_model(
     geometry=graphene_geometry,
     basis=graphene_basis,
     sk_params=graphene_sk_params,
@@ -149,7 +130,7 @@ graphene_sk = build_sk_model(
     shell_index=(-1, -1),
     cutoff=1.5,
 )
-sk_bands = diagonalize_tb(graphene_sk, graphene_path.kpoints)
+sk_bands = dp.tightb.diagonalize_tb(graphene_sk, graphene_path.kpoints)
 maximum_difference = jnp.max(
     jnp.abs(sk_bands.eigenvalues - hand_bands.eigenvalues)
 )
@@ -169,18 +150,18 @@ The declared spin order is all spin-down orbitals followed by all spin-up
 orbitals; `spinor=True` never doubles this basis again.
 
 ```python
-p_basis = make_orbital_basis(
+p_basis = dp.types.make_orbital_basis(
     atom_indices=(0, 0, 0),
     n=(2, 2, 2),
     l=(1, 1, 1),
     m=(-1, 0, 1),
     labels=("p_y", "p_z", "p_x"),
 )
-p_atom = make_tb_model(
+p_atom = dp.types.make_tb_model(
     hopping_amplitudes=jnp.zeros(0, dtype=jnp.complex128),
     onsite_energies=jnp.zeros(3),
     soc_lambdas=jnp.asarray([0.30]),
-    geometry=make_crystal_geometry(
+    geometry=dp.types.make_crystal_geometry(
         lattice=4.0 * jnp.eye(3),
         positions=jnp.zeros((1, 3)),
         species=("X",),
@@ -190,8 +171,8 @@ p_atom = make_tb_model(
     hopping_cells=(),
     shell_index=(0, 0, 0),
 )
-p_atom_soc = spin_double_model(p_atom)
-atomic_bands = eigvalsh_bands(
+p_atom_soc = dp.tightb.spin_double_model(p_atom)
+atomic_bands = dp.tightb.eigvalsh_bands(
     p_atom_soc,
     jnp.zeros((1, 3)),
 )
@@ -210,7 +191,7 @@ degenerate groups. At graphene's Dirac point both sublattices carry one-half
 of each averaged state.
 
 ```python
-a_sublattice = fat_bands(sk_bands, (0,))
+a_sublattice = dp.tightb.fat_bands(sk_bands, (0,))
 print("A-sublattice weights at K:", a_sublattice[51])
 
 fig, ax = plt.subplots(figsize=(7, 4))
@@ -245,12 +226,12 @@ spin-flip hoppings. The resulting square-lattice Rashba field winds around
 $\Gamma$.
 
 ```python
-rashba_geometry = make_crystal_geometry(
+rashba_geometry = dp.types.make_crystal_geometry(
     lattice=jnp.diag(jnp.asarray([3.2, 3.2, 12.0])),
     positions=jnp.zeros((1, 3)),
     species=("X",),
 )
-rashba_basis = make_orbital_basis(
+rashba_basis = dp.types.make_orbital_basis(
     atom_indices=(0, 0),
     n=(1, 1),
     l=(0, 0),
@@ -259,7 +240,7 @@ rashba_basis = make_orbital_basis(
     labels=("s_down", "s_up"),
 )
 alpha = 0.27
-rashba_model = make_tb_model(
+rashba_model = dp.types.make_tb_model(
     hopping_amplitudes=alpha
     * jnp.asarray(
         [-0.5, -0.5, 0.5, 0.5, -0.5j, 0.5j, 0.5j, -0.5j],
@@ -302,14 +283,14 @@ rashba_kpoints = jnp.stack(
     ),
     axis=-1,
 )
-rashba_bands = diagonalize_tb(rashba_model, rashba_kpoints)
-sx = expectation_path(
+rashba_bands = dp.tightb.diagonalize_tb(rashba_model, rashba_kpoints)
+sx = dp.tightb.expectation_path(
     rashba_bands,
-    spin_operator(rashba_basis, jnp.asarray([1.0, 0.0, 0.0])),
+    dp.tightb.spin_operator(rashba_basis, jnp.asarray([1.0, 0.0, 0.0])),
 )
-sy = expectation_path(
+sy = dp.tightb.expectation_path(
     rashba_bands,
-    spin_operator(rashba_basis, jnp.asarray([0.0, 1.0, 0.0])),
+    dp.tightb.spin_operator(rashba_basis, jnp.asarray([0.0, 1.0, 0.0])),
 )
 spin_magnitude = jnp.sqrt(sx[:, 1] ** 2 + sy[:, 1] ** 2)
 print(
@@ -353,19 +334,19 @@ mesh_kpoints = jnp.stack(
     (jnp.ravel(k1), jnp.ravel(k2), jnp.zeros(k1.size)),
     axis=-1,
 )
-mesh_eigenvalues = eigvalsh_bands(graphene_sk, mesh_kpoints)
+mesh_eigenvalues = dp.tightb.eigvalsh_bands(graphene_sk, mesh_kpoints)
 k_weights = jnp.full(
     mesh_kpoints.shape[0],
     1.0 / mesh_kpoints.shape[0],
 )
 energy_axis = jnp.linspace(-9.0, 9.0, 801)
-graphene_dos = dos_gaussian(
+graphene_dos = dp.tightb.dos_gaussian(
     mesh_eigenvalues,
     k_weights,
     energy_axis,
     sigma=0.12,
 )
-chemical_potential = fermi_level_from_filling(
+chemical_potential = dp.tightb.fermi_level_from_filling(
     mesh_eigenvalues,
     k_weights,
     n_electrons=1.0,
@@ -399,16 +380,14 @@ centres, pass the atomic `geometry` explicitly: Wannier centres do not by
 themselves determine nuclear positions.
 
 ```python
-from diffpes.inout import read_wannier90_hr, read_wannier90_tb
-
-model, operators = read_wannier90_hr(
+model, operators = dp.inout.read_wannier90_hr(
     "seedname_hr.dat",
     geometry,
     basis,
     centres_cart,
 )
 
-model, operators = read_wannier90_tb(
+model, operators = dp.inout.read_wannier90_tb(
     "seedname_tb.dat",
     basis,
     spin_layout="block_down_up",

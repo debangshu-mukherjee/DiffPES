@@ -93,7 +93,7 @@ class TestTutorialPolicy:
             }
         ]
         notebook_target.write_text(json.dumps(notebook))
-        defects: List[str] = check_tutorials(tmp_path)
+        defects = check_tutorials(tmp_path)
         assert any("committed output" in defect for defect in defects)
         assert strip_tutorial_outputs(tmp_path) == [notebook_target]
         assert check_tutorials(tmp_path) == []
@@ -142,3 +142,32 @@ class TestTutorialPolicy:
         assert any(
             "forbidden canonical tutorial file" in defect for defect in defects
         )
+
+    def test_check_rejects_direct_diffpes_import(self, tmp_path: Path) -> None:
+        """Reject a tutorial that bypasses the public package namespace."""
+        repository_root: Path = Path(__file__).resolve().parents[1]
+        notebook_source: Path = (
+            repository_root
+            / "tutorials/01-intrinsic/01-simulate-an-arpes-spectrum.ipynb"
+        )
+        notebook_target: Path = tmp_path / "tutorials/example.ipynb"
+        notebook_target.parent.mkdir(parents=True)
+        notebook: Dict[str, Any] = json.loads(notebook_source.read_text())
+        code_cell: Dict[str, Any] = next(
+            cell
+            for cell in notebook["cells"]
+            if "import diffpes as dp" in str(cell["source"])
+        )
+        source_lines: List[str] = list(code_cell["source"])
+        code_cell["source"] = [
+            line.replace(
+                "import diffpes as dp",
+                "from diffpes.types import make_tb_model",
+            )
+            for line in source_lines
+        ]
+        notebook_target.write_text(json.dumps(notebook))
+
+        defects: List[str] = check_tutorials(tmp_path)
+
+        assert any("direct diffpes import" in defect for defect in defects)

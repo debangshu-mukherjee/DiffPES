@@ -1,4 +1,4 @@
-"""Expose the public :mod:`diffpes.simul` surface.
+"""Simulate ARPES spectra.
 
 Extended Summary
 ----------------

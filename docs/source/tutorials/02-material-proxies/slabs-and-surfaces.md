@@ -8,28 +8,19 @@ This static page records each call and its expected analytic check.
 ```python
 import jax.numpy as jnp
 
-from diffpes.tightb import (
-    diagonalize_tb,
-    gen_slab,
-    layer_resolved_weights,
-)
-from diffpes.types import (
-    make_crystal_geometry,
-    make_orbital_basis,
-    make_tb_model,
-)
+import diffpes as dp
 ```
 
 The periodic bulk model has one hopping in each normal direction. Exact
 integer cells remain separate from the differentiable hopping values.
 
 ```python
-geometry = make_crystal_geometry(
+geometry = dp.types.make_crystal_geometry(
     lattice=jnp.eye(3),
     positions=jnp.zeros((1, 3)),
     species=("X",),
 )
-basis = make_orbital_basis(
+basis = dp.types.make_orbital_basis(
     atom_indices=(0,),
     n=(1,),
     l=(0,),
@@ -37,7 +28,7 @@ basis = make_orbital_basis(
     labels=("s",),
 )
 hopping = -0.8
-bulk = make_tb_model(
+bulk = dp.types.make_tb_model(
     hopping_amplitudes=jnp.asarray([hopping, hopping], dtype=jnp.complex128),
     onsite_energies=jnp.zeros(1),
     soc_lambdas=jnp.zeros(0),
@@ -60,7 +51,7 @@ vacuum size is not used as a substitute for this graph invariant.
 under `jit`, `grad`, or `vmap` while the discrete topology remains valid.
 
 ```python
-slab, slab_spec = gen_slab(
+slab, slab_spec = dp.tightb.gen_slab(
     bulk,
     miller=(0, 0, 1),
     thickness_ang=6.0,
@@ -77,7 +68,7 @@ than a comparison with another slab implementation.
 
 ```python
 k_parallel = jnp.zeros((1, 3))
-bands = diagonalize_tb(slab, k_parallel)
+bands = dp.tightb.diagonalize_tb(slab, k_parallel)
 modes = jnp.arange(1, slab_spec.n_layers + 1)
 expected = jnp.sort(
     2.0 * hopping * jnp.cos(modes * jnp.pi / (slab_spec.n_layers + 1))
@@ -91,7 +82,7 @@ weight is `exp(-depth/lambda_I)`. Coherent photoemission amplitudes use the
 separate `exp(-depth/(2*lambda_I))` law owned by the matrix-element stage.
 
 ```python
-surface_weights = layer_resolved_weights(
+surface_weights = dp.tightb.layer_resolved_weights(
     bands,
     intensity_escape_length_ang=2.0,
 )

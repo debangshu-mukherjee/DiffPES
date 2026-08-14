@@ -12,13 +12,8 @@ Self-energy, background, sensitivity, and detector calibration also need replace
 
 ## 1. Supply a Phase-Complete Source on an ARPES Raster
 
-At 21.2 eV photon energy and a 4.5 eV work function, the photoelectron
-leaves with about 16.7 eV of kinetic energy. The ±0.075 rad analyser
-window therefore collects ±0.16 Å⁻¹ of parallel momentum around normal
-emission.
-The source is therefore a two-orbital Dirac cone at the zone centre, the
-geometry of a topological-insulator surface state. The cone has a 3.3 eV Å
-velocity, and its node sits 0.30 eV below the Fermi level. The source model and
+At 21.2 eV photon energy and a 4.5 eV work function, the photoelectron leaves with about 16.7 eV of kinetic energy. The ±0.075 rad analyser window therefore collects ±0.16 Å⁻¹ of parallel momentum around normal emission.
+The source is therefore a two-orbital Dirac cone at the zone centre, the geometry of a topological-insulator surface state. The cone has a 3.3 eV Å velocity, and its node sits 0.30 eV below the Fermi level. The source model and
 `build_arpes_kmesh` are the two pieces to replace when moving to a
 material-specific Hamiltonian and momentum window. `plot_momentum_map`
 draws the lower cone branch on the source window.
@@ -34,40 +29,13 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diffpes.plots import (
-    plot_band_dispersion,
-    plot_detector_comparison,
-    plot_detector_energy_cut,
-    plot_detector_image,
-    plot_detector_residual,
-    plot_distribution_curves,
-    plot_momentum_map,
-)
-from diffpes.simul import sample_poisson_counts, simulate_arpes
-from diffpes.tightb import (
-    bloch_hamiltonian_batch,
-    build_arpes_kmesh,
-    diagonalize_tb,
-)
-from diffpes.types import (
-    make_crystal_geometry,
-    make_detector_calibration,
-    make_detector_effects,
-    make_experiment_geometry,
-    make_final_state_spec,
-    make_matrix_element_params,
-    make_orbital_basis,
-    make_radial_quadrature_spec,
-    make_radial_spec,
-    make_self_energy_model,
-    make_tb_model,
-)
+import diffpes as dp
 
 lattice_constant_ang = 2.0
 cone_velocity_ev_ang = 3.3
 hopping_ev = cone_velocity_ev_ang / lattice_constant_ang
 dirac_energy_ev = -0.30
-crystal = make_crystal_geometry(
+crystal = dp.types.make_crystal_geometry(
     lattice=jnp.asarray(
         [
             [lattice_constant_ang, 0.0, 0.0],
@@ -78,14 +46,14 @@ crystal = make_crystal_geometry(
     positions=jnp.zeros((1, 3)),
     species=("X",),
 )
-basis = make_orbital_basis(
+basis = dp.types.make_orbital_basis(
     atom_indices=(0, 0),
     n=(1, 2),
     l=(0, 0),
     m=(0, 0),
     labels=("s+", "s-"),
 )
-model = make_tb_model(
+model = dp.types.make_tb_model(
     hopping_amplitudes=0.5
     * hopping_ev
     * jnp.asarray([-1.0j, 1.0j, 1.0, -1.0, 1.0j, -1.0j, 1.0, -1.0]),
@@ -117,9 +85,9 @@ model = make_tb_model(
     depths=jnp.zeros(2),
 )
 source_axis = jnp.linspace(-0.24, 0.24, 33)
-kgrid = build_arpes_kmesh(source_axis, source_axis, 0.0, 0.0, crystal)
-hamiltonians = bloch_hamiltonian_batch(model, kgrid.kpoints)
-bands = diagonalize_tb(model, kgrid.kpoints)
+kgrid = dp.tightb.build_arpes_kmesh(source_axis, source_axis, 0.0, 0.0, crystal)
+hamiltonians = dp.tightb.bloch_hamiltonian_batch(model, kgrid.kpoints)
+bands = dp.tightb.diagonalize_tb(model, kgrid.kpoints)
 energy_axis = jnp.linspace(-0.80, 0.15, 81)
 print("source k grid:", kgrid.mesh_shape)
 ```
@@ -132,7 +100,7 @@ print("source k grid:", kgrid.mesh_shape)
 lower_branch = (
     np.asarray(bands.eigenvalues[:, 0]).reshape(kgrid.mesh_shape).T
 )
-plot_momentum_map(
+dp.plots.plot_momentum_map(
     lower_branch,
     source_axis,
     source_axis,
@@ -162,7 +130,7 @@ source_eigenvalues = np.asarray(bands.eigenvalues).reshape(
     (*kgrid.mesh_shape, bands.eigenvalues.shape[-1])
 )
 center_source_v_index = kgrid.mesh_shape[1] // 2
-plot_band_dispersion(
+dp.plots.plot_band_dispersion(
     source_eigenvalues[:, center_source_v_index, :],
     momentum_axis=np.asarray(source_axis),
     color="tab:blue",
@@ -188,26 +156,26 @@ your instrument rather than fitting around undocumented defaults.
 
 
 ```python
-experiment = make_experiment_geometry(
+experiment = dp.types.make_experiment_geometry(
     photon_energy_ev=21.2,
     polarization=jnp.asarray([1.0 + 0.0j, 0.25j, 0.0j]),
     work_function_ev=4.5,
     temperature_k=45.0,
     mean_free_path_ang=9.0,
 )
-radial_spec = make_radial_spec(
+radial_spec = dp.types.make_radial_spec(
     basis,
     (0, 1),
     mode="fixed",
     fixed_integrals_shell=jnp.asarray([[0.0, 1.0], [0.0, 1.0]]),
 )
-matrix_element_params = make_matrix_element_params(
+matrix_element_params = dp.types.make_matrix_element_params(
     basis,
     (0, 1),
     sigma_shell=jnp.asarray([1.0, 1.0]),
     phase_shift_angles_shell=jnp.asarray([0.15, 0.15]),
 )
-calibration = make_detector_calibration(
+calibration = dp.types.make_detector_calibration(
     u_bin_edges=jnp.linspace(-0.075, 0.075, 33),
     v_bin_edges=jnp.linspace(-0.075, 0.075, 33),
     energy_bin_edges_ev=jnp.linspace(-0.72, 0.10, 49),
@@ -216,7 +184,7 @@ calibration = make_detector_calibration(
     psf_fwhm_energy_ev=0.012,
     transmission_reference_domain_ev=jnp.asarray([14.0, 18.0]),
 )
-detector_effects = make_detector_effects(
+detector_effects = dp.types.make_detector_effects(
     domain_logits=jnp.asarray([0.0]),
     domain_euler_angles_rad=jnp.zeros((1, 3)),
     transmission_raw_slopes=jnp.asarray([-0.35, 0.15]),
@@ -239,15 +207,15 @@ acquisition.
 
 
 ```python
-detector = simulate_arpes(
+detector = dp.simul.simulate_arpes(
     (hamiltonians,),
     (bands,),
     radial_spec,
     matrix_element_params,
-    make_radial_quadrature_spec(),
-    make_final_state_spec(),
+    dp.types.make_radial_quadrature_spec(),
+    dp.types.make_final_state_spec(),
     experiment,
-    make_self_energy_model(gamma=0.025),
+    dp.types.make_self_energy_model(gamma=0.025),
     kgrid,
     energy_axis,
     calibration,
@@ -273,7 +241,7 @@ complementary energy-v cut to the energy-u cut below.
 
 
 ```python
-plot_detector_energy_cut(
+dp.plots.plot_detector_energy_cut(
     detector,
     cut_axis="v",
     colorbar=False,
@@ -311,7 +279,7 @@ edc_positions = tuple(
         3 * expected_counts.shape[0] // 4,
     )
 )
-plot_distribution_curves(
+dp.plots.plot_distribution_curves(
     central_v_map,
     detector_u_axis,
     np.asarray(detector.energy_axis),
@@ -333,7 +301,7 @@ plt.show()
 
 
 ```python
-plot_distribution_curves(
+dp.plots.plot_distribution_curves(
     central_v_map,
     detector_u_axis,
     np.asarray(detector.energy_axis),
@@ -355,7 +323,7 @@ plt.show()
 
 
 ```python
-plot_detector_image(
+dp.plots.plot_detector_image(
     detector,
     title="expected detector angular image",
 )
@@ -370,7 +338,7 @@ plt.show()
 
 
 ```python
-plot_detector_energy_cut(
+dp.plots.plot_detector_energy_cut(
     detector,
     cut_axis="u",
     colorbar=False,
@@ -398,10 +366,10 @@ projected observable.
 
 ```python
 observed_counts = np.asarray(
-    sample_poisson_counts(jax.random.key(20260814), detector.expected_counts)[0],
+    dp.simul.sample_poisson_counts(jax.random.key(20260814), detector.expected_counts)[0],
     dtype=np.float64,
 )
-plot_detector_comparison(
+dp.plots.plot_detector_comparison(
     detector,
     observed_counts,
     view="energy",
@@ -427,7 +395,7 @@ without relabeling detector coordinates as sample momentum.
 
 
 ```python
-plot_detector_comparison(
+dp.plots.plot_detector_comparison(
     detector,
     observed_counts,
     view="angular",
@@ -444,7 +412,7 @@ plt.show()
 
 
 ```python
-plot_detector_residual(
+dp.plots.plot_detector_residual(
     detector,
     observed_counts,
     title="standardized Poisson residual of the angular image",

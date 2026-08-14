@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 import nbformat
-from beartype.typing import Any, Dict, List, Set
+from beartype.typing import Any, Dict, List, Set, Tuple
 
 REPOSITORY_ROOT: Path = Path(__file__).resolve().parents[1]
 NOTEBOOK_DIRECTORY: Path = Path("tutorials")
@@ -189,6 +189,64 @@ def _export_defects(
     return defects
 
 
+def _diffpes_import_defects(
+    tree: ast.Module,
+    relative_notebook: Path,
+    cell_index: int,
+) -> Tuple[List[str], int]:
+    """Return public-API import defects and package import count.
+
+    Parameters
+    ----------
+    tree : ast.Module
+        Parsed Python source from one notebook cell.
+    relative_notebook : Path
+        Notebook path relative to the repository root.
+    cell_index : int
+        Index of the parsed notebook cell.
+
+    Returns
+    -------
+    defects : List[str]
+        Violations of the package-qualified public API convention.
+    package_import_count : int
+        Number of direct ``diffpes`` package import aliases in the cell.
+    """
+    defects: List[str] = []
+    package_import_count: int = 0
+    node: ast.AST
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            matching_aliases: List[ast.alias] = [
+                alias for alias in node.names if alias.name == "diffpes"
+            ]
+            package_import_count += len(matching_aliases)
+            if matching_aliases and (
+                len(node.names) != 1 or matching_aliases[0].asname != "dp"
+            ):
+                defects.append(
+                    f"invalid diffpes package import in {relative_notebook} "
+                    f"cell {cell_index}; use `import diffpes as dp` alone"
+                )
+            if any(alias.name.startswith("diffpes.") for alias in node.names):
+                defects.append(
+                    f"direct diffpes submodule import in {relative_notebook} "
+                    f"cell {cell_index}; use `import diffpes as dp`"
+                )
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module is not None
+            and (
+                node.module == "diffpes" or node.module.startswith("diffpes.")
+            )
+        ):
+            defects.append(
+                f"direct diffpes import in {relative_notebook} cell "
+                f"{cell_index}; use `import diffpes as dp`"
+            )
+    return defects, package_import_count
+
+
 def _notebook_defects(
     repository_root: Path,
     notebook_path: Path,
@@ -209,11 +267,12 @@ def _notebook_defects(
 
     Notes
     -----
-    Tutorial code calls the public API. It does not define local functions or
-    classes.
+    Tutorial code calls the public API through one ``import diffpes as dp``.
+    It does not define local functions or classes.
     """
     defects: List[str] = []
     relative_notebook: Path = notebook_path.relative_to(repository_root)
+    diffpes_import_count: int = 0
     notebook: Any = nbformat.read(notebook_path, as_version=4)
     kernelspec: Any = notebook.metadata.get("kernelspec", {})
     if kernelspec.get("name") != "python3":
@@ -250,6 +309,15 @@ def _notebook_defects(
                 f"invalid Python in {relative_notebook} cell {index}"
             )
         else:
+            import_defects: List[str]
+            cell_import_count: int
+            import_defects, cell_import_count = _diffpes_import_defects(
+                tree,
+                relative_notebook,
+                index,
+            )
+            defects.extend(import_defects)
+            diffpes_import_count += cell_import_count
             if any(
                 isinstance(
                     definition,
@@ -264,6 +332,11 @@ def _notebook_defects(
             defects.append(
                 f"committed output in {relative_notebook} cell {index}"
             )
+    defects.extend(
+        [f"requires exactly one `import diffpes as dp`: {relative_notebook}"]
+        if diffpes_import_count != 1
+        else []
+    )
     return defects
 
 

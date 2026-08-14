@@ -1,4 +1,4 @@
-"""Expose the public :mod:`diffpes.inout` surface.
+"""Load data from VASP files, and unload PyTrees to HDF5.
 
 Extended Summary
 ----------------

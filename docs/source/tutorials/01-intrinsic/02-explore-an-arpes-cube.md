@@ -23,38 +23,16 @@ import os
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 
+import diffpes as dp
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diffpes.plots import (
-    plot_cube_scatter,
-    plot_curve_family,
-    plot_distribution_curves,
-    plot_momentum_map_grid,
-    plot_spectral_cut,
-    plot_spectral_cut_series,
-)
-from diffpes.simul import (
-    assemble_spectral_intensity_bands_chunk,
-    constant_energy_slice,
-    energy_window_map,
-)
-from diffpes.tightb import eigvalsh_bands, kpoints_cart_to_frac, kpoints_frac_to_cart
-from diffpes.types import (
-    make_arpes_cube,
-    make_crystal_geometry,
-    make_orbital_basis,
-    make_self_energy_model,
-    make_tb_model,
-    slice_edc,
-    slice_mdc,
-)
 
 n_k = 121
 n_energy = 181
 lattice_constant_ang = 2.46
-crystal = make_crystal_geometry(
+crystal = dp.types.make_crystal_geometry(
     lattice=jnp.asarray(
         [
             [lattice_constant_ang, 0.0, 0.0],
@@ -71,14 +49,14 @@ crystal = make_crystal_geometry(
     ),
     species=("C", "C"),
 )
-basis = make_orbital_basis(
+basis = dp.types.make_orbital_basis(
     atom_indices=(0, 1),
     n=(2, 2),
     l=(1, 1),
     m=(0, 0),
     labels=("A pz", "B pz"),
 )
-model = make_tb_model(
+model = dp.types.make_tb_model(
     hopping_amplitudes=-2.7 * jnp.ones(6, dtype=jnp.complex128),
     onsite_energies=jnp.zeros(2),
     soc_lambdas=jnp.zeros(0),
@@ -97,7 +75,7 @@ model = make_tb_model(
 )
 dirac_fractional = jnp.asarray([[2.0 / 3.0, 1.0 / 3.0, 0.0]])
 dirac_cartesian = np.asarray(
-    kpoints_frac_to_cart(dirac_fractional, crystal)[0]
+    dp.tightb.kpoints_frac_to_cart(dirac_fractional, crystal)[0]
 )
 half_width_inv_ang = 0.55
 kx_axis = jnp.linspace(
@@ -114,22 +92,22 @@ mesh_kx, mesh_ky = jnp.meshgrid(kx_axis, ky_axis, indexing="ij")
 cartesian_kpoints = jnp.stack(
     (mesh_kx, mesh_ky, jnp.zeros_like(mesh_kx)), axis=-1
 ).reshape((-1, 3))
-fractional_kpoints = kpoints_cart_to_frac(cartesian_kpoints, crystal)
-eigenvalues = eigvalsh_bands(model, fractional_kpoints)
+fractional_kpoints = dp.tightb.kpoints_cart_to_frac(cartesian_kpoints, crystal)
+eigenvalues = dp.tightb.eigvalsh_bands(model, fractional_kpoints)
 energy_axis = jnp.linspace(-1.60, 0.12, n_energy)
 cube_weights = jnp.ones(
     (eigenvalues.shape[0], energy_axis.shape[0], eigenvalues.shape[1])
 )
-cube_flat = assemble_spectral_intensity_bands_chunk(
+cube_flat = dp.simul.assemble_spectral_intensity_bands_chunk(
     eigenvalues,
     cube_weights,
     energy_axis,
-    make_self_energy_model(gamma=0.025),
+    dp.types.make_self_energy_model(gamma=0.025),
     jnp.asarray(0.0),
     40.0,
     allow_degenerate_value_only=True,
 )
-cube = make_arpes_cube(
+cube = dp.types.make_arpes_cube(
     cube_flat.reshape((n_k, n_k, n_energy)),
     kx_axis,
     ky_axis,
@@ -152,15 +130,11 @@ point, so the two cuts align.
 ```python
 center_index = n_k // 2
 relative_momentum = np.asarray(cube.kx_axis) - dirac_cartesian[0]
-fig, axes = plt.subplots(
-    1, 2, figsize=(12.0, 4.8), sharey=True, constrained_layout=True
-)
-plot_spectral_cut_series(
+fig, axes, images = dp.plots.plot_spectral_cut_series(
     (cube_intensity[:, center_index, :], cube_intensity[center_index, :, :]),
     relative_momentum,
     cube.energy_axis,
     titles=(r"central $k_x-E$ spectrum", r"central $k_y-E$ spectrum"),
-    axes=tuple(axes),
     xlabel=r"$k - K$ ($\mathrm{\AA}^{-1}$)",
 )
 plt.show()
@@ -184,14 +158,14 @@ at once.
 
 ```python
 display_stride = 4
-display_cube = make_arpes_cube(
+display_cube = dp.types.make_arpes_cube(
     cube.intensity[::display_stride, ::display_stride, ::display_stride],
     cube.kx_axis[::display_stride],
     cube.ky_axis[::display_stride],
     cube.energy_axis[::display_stride],
     provenance="down-sampled display cube",
 )
-fig, ax, points = plot_cube_scatter(
+fig, ax, points = dp.plots.plot_cube_scatter(
     display_cube,
     intensity_floor=0.006,
     cmap="inferno",
@@ -221,15 +195,11 @@ color scale, so the intensity comparison stays honest.
 
 ```python
 offset_index = center_index + 24
-fig, axes = plt.subplots(
-    1, 2, figsize=(12.0, 4.6), sharey=True, constrained_layout=True
-)
-plot_spectral_cut_series(
+fig, axes, images = dp.plots.plot_spectral_cut_series(
     (cube_intensity[:, offset_index, :], cube_intensity[offset_index, :, :]),
     relative_momentum,
     cube.energy_axis,
     titles=(r"$k_x-E$ cut at offset $k_y$", r"$k_y-E$ cut at offset $k_x$"),
-    axes=tuple(axes),
     xlabel=r"$k - K$ ($\mathrm{\AA}^{-1}$)",
 )
 plt.show()
@@ -252,12 +222,9 @@ Fermi level.
 
 ```python
 slice_energies_ev = (-1.20, -0.65, -0.20)
-fig, axes = plt.subplots(
-    1, 3, figsize=(12.6, 3.9), sharey=True, constrained_layout=True
-)
-plot_momentum_map_grid(
+fig, axes, images = dp.plots.plot_momentum_map_grid(
     tuple(
-        constant_energy_slice(cube, slice_energy_ev)
+        dp.simul.constant_energy_slice(cube, slice_energy_ev)
         for slice_energy_ev in slice_energies_ev
     ),
     cube.kx_axis,
@@ -266,7 +233,6 @@ plot_momentum_map_grid(
         f"E = {slice_energy_ev:.2f} eV"
         for slice_energy_ev in slice_energies_ev
     ),
-    axes=tuple(axes),
     colorbar_label="intensity (1/eV)",
 )
 plt.show()
@@ -289,12 +255,9 @@ scale.
 
 ```python
 energy_windows_ev = ((-1.35, -1.10), (-0.78, -0.52), (-0.30, -0.08))
-fig, axes = plt.subplots(
-    1, 3, figsize=(12.6, 3.9), sharey=True, constrained_layout=True
-)
-plot_momentum_map_grid(
+fig, axes, images = dp.plots.plot_momentum_map_grid(
     tuple(
-        energy_window_map(cube, lower_ev, upper_ev)
+        dp.simul.energy_window_map(cube, lower_ev, upper_ev)
         for lower_ev, upper_ev in energy_windows_ev
     ),
     cube.kx_axis,
@@ -303,7 +266,6 @@ plot_momentum_map_grid(
         f"{lower_ev:.2f} to {upper_ev:.2f} eV"
         for lower_ev, upper_ev in energy_windows_ev
     ),
-    axes=tuple(axes),
     colorbar_label="integrated intensity",
 )
 plt.show()
@@ -328,10 +290,10 @@ panel.
 edc_kx = float(cube.kx_axis[center_index + 18])
 edc_ky = float(cube.ky_axis[center_index])
 mdc_energy_ev = -0.65
-edc = slice_edc(cube, edc_kx, edc_ky)
-mdc_map = slice_mdc(cube, mdc_energy_ev)
+edc = dp.types.slice_edc(cube, edc_kx, edc_ky)
+mdc_map = dp.types.slice_mdc(cube, mdc_energy_ev)
 fig, axes = plt.subplots(1, 2, figsize=(11.0, 3.8))
-plot_curve_family(
+dp.plots.plot_curve_family(
     cube.energy_axis,
     (edc,),
     ax=axes[0],
@@ -341,7 +303,7 @@ plot_curve_family(
     title="interpolated EDC",
 )
 axes[0].axvline(0.0, color="0.35", linewidth=0.8)
-plot_curve_family(
+dp.plots.plot_curve_family(
     cube.kx_axis,
     (mdc_map[:, center_index],),
     ax=axes[1],
@@ -373,7 +335,7 @@ source cube.
 ```python
 diagonal_indices = np.arange(n_k)
 diagonal_momentum = np.sqrt(2.0) * (np.asarray(cube.kx_axis) - dirac_cartesian[0])
-plot_spectral_cut(
+dp.plots.plot_spectral_cut(
     cube_intensity[diagonal_indices, diagonal_indices, :],
     diagonal_momentum,
     cube.energy_axis,
@@ -389,15 +351,11 @@ parallel_titles = tuple(
     + r" $\AA^{-1}$"
     for ky_index in parallel_indices
 )
-fig, axes = plt.subplots(
-    1, 3, figsize=(13.0, 4.2), sharey=True, constrained_layout=True
-)
-plot_spectral_cut_series(
+fig, axes, images = dp.plots.plot_spectral_cut_series(
     tuple(cube_intensity[:, ky_index, :] for ky_index in parallel_indices),
     cube.kx_axis,
     cube.energy_axis,
     titles=parallel_titles,
-    axes=tuple(axes),
     xlabel=r"$k_x$ ($\mathrm{\AA}^{-1}$)",
 )
 plt.show()
@@ -407,7 +365,7 @@ edc_positions = tuple(
     float(cube.kx_axis[kx_index] - dirac_cartesian[0])
     for kx_index in edc_indices
 )
-plot_distribution_curves(
+dp.plots.plot_distribution_curves(
     cube_intensity[:, center_index, :],
     relative_momentum,
     cube.energy_axis,
@@ -420,7 +378,7 @@ plot_distribution_curves(
 plt.show()
 
 mdc_series_energies = (-1.20, -0.80, -0.40)
-fig, ax, mdc_lines = plot_distribution_curves(
+fig, ax, mdc_lines = dp.plots.plot_distribution_curves(
     cube_intensity[:, center_index, :],
     relative_momentum,
     cube.energy_axis,
@@ -439,7 +397,7 @@ right_peak_indices = center_index + np.argmax(central_cut[center_index:, :], axi
 peak_energy_mask = (np.asarray(cube.energy_axis) >= -1.25) & (
     np.asarray(cube.energy_axis) <= -0.12
 )
-fig, ax, branch_lines = plot_curve_family(
+fig, ax, branch_lines = dp.plots.plot_curve_family(
     np.asarray(cube.energy_axis)[peak_energy_mask],
     (
         np.asarray(cube.kx_axis)[left_peak_indices][peak_energy_mask]
@@ -456,8 +414,8 @@ fig, ax, branch_lines = plot_curve_family(
 ax.axhline(0.0, color="0.35", linewidth=0.8)
 plt.show()
 
-occupied_map = energy_window_map(cube, -1.50, -0.10)
-plot_momentum_map_grid(
+occupied_map = dp.simul.energy_window_map(cube, -1.50, -0.10)
+dp.plots.plot_momentum_map_grid(
     (occupied_map,),
     cube.kx_axis,
     cube.ky_axis,

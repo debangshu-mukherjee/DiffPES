@@ -8,12 +8,12 @@ The final section maps this intrinsic observable into explicit native detector
 bins and applies the same effects chain used by the canonical coherent driver.
 
 ```python
-import diffpes
+import diffpes as dp
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-print(f"diffpes {diffpes.__version__}")
+print(f"diffpes {dp.__version__}")
 print(f"x64 enabled: {jax.config.jax_enable_x64}")
 ```
 
@@ -57,12 +57,12 @@ primitive, and apply Fermi occupation on the same energy nodes.
 
 ```python
 omega = jnp.linspace(-1.5, 0.8, 500)
-self_energy_model = diffpes.types.make_self_energy_model(gamma=0.08)
-sigma_omega = diffpes.simul.evaluate_self_energy(omega, self_energy_model)
+self_energy_model = dp.types.make_self_energy_model(gamma=0.08)
+sigma_omega = dp.simul.evaluate_self_energy(omega, self_energy_model)
 
 def one_k_spectrum(eigenvalues_k, weights_k):
     return jax.vmap(
-        lambda energy, sigma: diffpes.simul.spectral_intensity_eigen(
+        lambda energy, sigma: dp.simul.spectral_intensity_eigen(
             eigenvalues_k,
             weights_k,
             energy,
@@ -73,9 +73,9 @@ def one_k_spectrum(eigenvalues_k, weights_k):
 
 intrinsic = jax.vmap(one_k_spectrum)(eigenvalues, band_weights)
 occupation = jax.vmap(
-    lambda energy: diffpes.simul.fermi_dirac(energy, 0.0, 30.0)
+    lambda energy: dp.simul.fermi_dirac(energy, 0.0, 30.0)
 )(omega)
-spectrum = diffpes.types.make_arpes_spectrum(
+spectrum = dp.types.make_arpes_spectrum(
     intensity=intrinsic * occupation[None, :],
     energy_axis=omega,
     k_axis=k_axis,
@@ -118,7 +118,7 @@ hamiltonian = jnp.array(
     dtype=jnp.complex128,
 )
 transition_sources = jnp.array([[1.0 + 0.0j, 0.5 + 0.2j]])
-resolvent_value = diffpes.simul.spectral_intensity_resolvent(
+resolvent_value = dp.simul.spectral_intensity_resolvent(
     hamiltonian,
     transition_sources,
     jnp.asarray(0.0),
@@ -136,14 +136,14 @@ recorded-energy bins before applying transmission, resolution, background,
 sensitivity, exposure, and bin-volume conversion.
 
 ```python
-experiment = diffpes.types.make_experiment_geometry(
+experiment = dp.types.make_experiment_geometry(
     photon_energy_ev=50.0,
     polarization=jnp.array([1.0 + 0.0j, 0.0j, 0.0j]),
     work_function_ev=4.0,
     temperature_k=30.0,
     slit="H",
 )
-calibration = diffpes.types.make_detector_calibration(
+calibration = dp.types.make_detector_calibration(
     u_bin_edges=jnp.linspace(-0.24, 0.24, 49),
     v_bin_edges=jnp.array([-0.04, 0.04]),
     energy_bin_edges_ev=jnp.linspace(-1.35, 0.65, 81),
@@ -152,7 +152,7 @@ calibration = diffpes.types.make_detector_calibration(
     psf_fwhm_energy_ev=0.040,
     transmission_reference_domain_ev=jnp.array([44.0, 47.0]),
 )
-effects = diffpes.types.make_detector_effects(
+effects = dp.types.make_detector_effects(
     domain_logits=jnp.array([0.0]),
     domain_euler_angles_rad=jnp.zeros((1, 3)),
     transmission_raw_slopes=jnp.array([-0.4, 0.2]),
@@ -163,7 +163,7 @@ effects = diffpes.types.make_detector_effects(
     sensitivity_mode="constant",
     domain_frame_ids=("org.diffpes.frame.sample_cartesian",),
 )
-detector = diffpes.simul.apply_detector_effects(
+detector = dp.simul.apply_detector_effects(
     (spectrum,), experiment, calibration, effects
 )
 print(detector.expected_counts.shape, detector.channel_labels)
@@ -199,10 +199,10 @@ spectral assembly.
 
 ```python
 def occupied_weight(gamma):
-    model = diffpes.types.make_self_energy_model(gamma=gamma)
-    sigma = diffpes.simul.evaluate_self_energy(omega, model)
+    model = dp.types.make_self_energy_model(gamma=gamma)
+    sigma = dp.simul.evaluate_self_energy(omega, model)
     intensity = jax.vmap(
-        lambda energy, sigma_i: diffpes.simul.spectral_intensity_eigen(
+        lambda energy, sigma_i: dp.simul.spectral_intensity_eigen(
             eigenvalues[0],
             band_weights[0],
             energy,

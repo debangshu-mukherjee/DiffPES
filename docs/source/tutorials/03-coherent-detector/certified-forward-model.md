@@ -6,24 +6,15 @@ contains the ordinary JAX result. Its `certificate` contains the scientific
 assurance record.
 
 ```python
-from diffpes.certify import (
-    certify_forward,
-    explain_claim,
-    prepare_certification,
-    register_builtin_models,
-    summarize_certificate,
-)
-from diffpes.types import (
-    TB_RADIAL_MODEL_ID,
-    TB_RADIAL_MODEL_VERSION,
-    make_execution_manifest,
-)
+import diffpes as dp
 
-register_builtin_models()
+dp.certify.register_builtin_models()
 
-manifest = make_execution_manifest(
+manifest = dp.types.make_execution_manifest(
     execution_id="tb-radial-example",
-    model_ref=f"{TB_RADIAL_MODEL_ID}@{TB_RADIAL_MODEL_VERSION}",
+    model_ref=(
+        f"{dp.constants.TB_RADIAL_MODEL_ID}@{dp.constants.TB_RADIAL_MODEL_VERSION}"
+    ),
     schema_version="1",
     package_version="development",
     source_checksum="working-tree",
@@ -34,9 +25,9 @@ manifest = make_execution_manifest(
     started_at_utc="2026-07-21T00:00:00Z",
 )
 
-context = prepare_certification(
-    TB_RADIAL_MODEL_ID,
-    TB_RADIAL_MODEL_VERSION,
+context = dp.certify.prepare_certification(
+    dp.constants.TB_RADIAL_MODEL_ID,
+    dp.constants.TB_RADIAL_MODEL_VERSION,
     manifest,
     policy_id="org.diffpes.policy.research.v1",
 )
@@ -53,7 +44,7 @@ model_inputs = (
     radial_grid,
     None,
 )
-run = certify_forward(context, model_inputs)
+run = dp.certify.certify_forward(context, model_inputs)
 ```
 
 JAX runs the forward model and its scientific checks together. The envelope
@@ -64,7 +55,7 @@ does not change the spectrum, JVP, or VJP from the ordinary model path.
 Start with the stable text summary:
 
 ```python
-print(summarize_certificate(run.certificate))
+print(dp.certify.summarize_certificate(run.certificate))
 ```
 
 The summary identifies the model, implementation, policy outcome, and input
@@ -75,7 +66,7 @@ Request a claim by its stable ID to examine its result:
 
 ```python
 print(
-    explain_claim(
+    dp.certify.explain_claim(
         run.certificate,
         "claim.output.finite",
     )
@@ -91,28 +82,22 @@ sensitivity as a local observation. It does not claim global independence.
 Use JSON when the certificate travels independently:
 
 ```python
-from diffpes.inout import save_certificate_json
-
-save_certificate_json(run.certificate, "tb-radial.certificate.json")
+dp.inout.save_certificate_json(run.certificate, "tb-radial.certificate.json")
 ```
 
 Use an HDF5 attachment when an HDF5 file already stores the numerical result:
 
 ```python
-from diffpes.inout import attach_certificate_h5, save_to_h5
-
-save_to_h5("tb-radial.h5", spectrum=run.value)
-attach_certificate_h5("tb-radial.h5", "spectrum", run.certificate)
+dp.inout.save_to_h5("tb-radial.h5", spectrum=run.value)
+dp.inout.attach_certificate_h5("tb-radial.h5", "spectrum", run.certificate)
 ```
 
 The HDF5 attachment contains the exact authoritative JSON bytes. Both forms
 load as the same {class}`~diffpes.types.ForwardCertificate`:
 
 ```python
-from diffpes.inout import load_certificate_h5, load_certificate_json
-
-from_json = load_certificate_json("tb-radial.certificate.json")
-from_h5 = load_certificate_h5("tb-radial.h5", "spectrum")
+from_json = dp.inout.load_certificate_json("tb-radial.certificate.json")
+from_h5 = dp.inout.load_certificate_h5("tb-radial.h5", "spectrum")
 ```
 
 The stored consistency marker detects accidental storage mismatches only. It
@@ -123,9 +108,7 @@ provide scientific assurance.
 ## Compare reruns
 
 ```python
-from diffpes.certify import diff_certificates
-
-change = diff_certificates(from_json, later_run.certificate)
+change = dp.certify.diff_certificates(from_json, later_run.certificate)
 print(change.summary)
 ```
 

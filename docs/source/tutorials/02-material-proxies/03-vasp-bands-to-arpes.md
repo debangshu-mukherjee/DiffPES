@@ -31,26 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import (
-    dedupe_band_path,
-    read_eigenval,
-    read_kpoints,
-    read_outcar,
-    read_poscar,
-)
-from diffpes.plots import (
-    plot_band_dispersion,
-    plot_band_scatter_weights,
-    plot_bands_over_spectrum,
-    plot_curve_family,
-    plot_distribution_curves,
-    plot_edc_mdc_panels,
-    plot_momentum_profile,
-    plot_spectral_cut,
-)
-from diffpes.simul import assemble_spectral_intensity_bands_chunk
-from diffpes.tightb import kpath_arc_length
-from diffpes.types import make_kpath, make_self_energy_model
+import diffpes as dp
 
 CALCULATION_DIR = (
     Path("..") / ".." / "data" / "DFT" / "Bi2Se3" / "6QL" / "Output few bands"
@@ -82,15 +63,15 @@ eigenvalues as lines on the arc-length axis.
 
 
 ```python
-fermi_energy_ev = float(read_outcar(str(OUTCAR_PATH)).fermi_energy)
-geometry = read_poscar(str(POSCAR_PATH))
-bands = read_eigenval(
+fermi_energy_ev = float(dp.inout.read_outcar(str(OUTCAR_PATH)).fermi_energy)
+geometry = dp.inout.read_poscar(str(POSCAR_PATH))
+bands = dp.inout.read_eigenval(
     str(EIGENVAL_PATH), fermi_energy=fermi_energy_ev
 )
-kpath_info = read_kpoints(str(KPOINTS_PATH))
-bands, kpath_info, _ = dedupe_band_path(bands, kpath_info)
+kpath_info = dp.inout.read_kpoints(str(KPOINTS_PATH))
+bands, kpath_info, _ = dp.inout.dedupe_band_path(bands, kpath_info)
 k_distance = np.asarray(
-    kpath_arc_length(make_kpath(bands.kpoints), geometry)
+    dp.tightb.kpath_arc_length(dp.types.make_kpath(bands.kpoints), geometry)
 )
 relative_energies = np.asarray(bands.eigenvalues) - fermi_energy_ev
 gamma_index = int(
@@ -113,8 +94,8 @@ spectral_weights = jnp.ones(
         spectral_eigenvalues.shape[1],
     )
 )
-self_energy = make_self_energy_model(gamma=0.030)
-arpes_intensity = assemble_spectral_intensity_bands_chunk(
+self_energy = dp.types.make_self_energy_model(gamma=0.030)
+arpes_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     spectral_weights,
     energy_axis,
@@ -136,7 +117,7 @@ print("Fermi energy (eV):", fermi_energy_ev)
 
 ```python
 selected_mdc_energies_ev = (-0.20, -0.50, -0.85)
-fig, ax, image = plot_spectral_cut(
+fig, ax, image = dp.plots.plot_spectral_cut(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -156,7 +137,7 @@ plt.show()
 
 
 ```python
-fig, ax, lines = plot_band_dispersion(
+fig, ax, lines = dp.plots.plot_band_dispersion(
     relative_energies,
     momentum_axis=centered_k_distance,
     color="tab:blue",
@@ -184,7 +165,7 @@ image, so each bright ridge maps to one eigenvalue branch.
 
 
 ```python
-fig, ax, lines = plot_band_dispersion(
+fig, ax, lines = dp.plots.plot_band_dispersion(
     relative_energies,
     momentum_axis=centered_k_distance,
     color="tab:blue",
@@ -211,7 +192,7 @@ occupation = 1.0 / (
     np.exp(np.clip(relative_energies / (boltzmann_ev_per_k * temperature_k), -60.0, 60.0))
     + 1.0
 )
-fig, ax, points = plot_band_scatter_weights(
+fig, ax, points = dp.plots.plot_band_scatter_weights(
     relative_energies,
     occupation,
     momentum_axis=centered_k_distance,
@@ -236,7 +217,7 @@ plt.show()
 
 
 ```python
-fig, ax, image = plot_bands_over_spectrum(
+fig, ax, image = dp.plots.plot_bands_over_spectrum(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -266,7 +247,7 @@ path.
 ```python
 gamma_index = int(np.argmin(np.abs(centered_k_distance)))
 cut_energy_ev = -0.35
-fig, axes, lines = plot_edc_mdc_panels(
+fig, axes, lines = dp.plots.plot_edc_mdc_panels(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -293,7 +274,7 @@ path-integrated spectrum after each curve is scaled by its own maximum.
 
 
 ```python
-fig, ax, image = plot_spectral_cut(
+fig, ax, image = dp.plots.plot_spectral_cut(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -318,7 +299,7 @@ energy_values = np.asarray(energy_axis)
 energy_windows_ev = ((-0.20, -0.05), (-0.55, -0.35), (-1.00, -0.80))
 fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.8), sharey=True)
 for ax, (lower_ev, upper_ev) in zip(axes, energy_windows_ev):
-    plot_momentum_profile(
+    dp.plots.plot_momentum_profile(
         arpes_intensity,
         centered_k_distance,
         energy_axis,
@@ -344,7 +325,7 @@ plt.show()
 
 ```python
 edc_positions_inv_ang = (0.0, -0.18, 0.18)
-fig, ax, lines = plot_distribution_curves(
+fig, ax, lines = dp.plots.plot_distribution_curves(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -363,7 +344,7 @@ plt.show()
 
 
 ```python
-fig, ax, lines = plot_distribution_curves(
+fig, ax, lines = dp.plots.plot_distribution_curves(
     arpes_intensity,
     centered_k_distance,
     energy_axis,
@@ -386,7 +367,7 @@ plt.show()
 ```python
 gamma_edc = np.asarray(arpes_intensity[gamma_index])
 path_integrated_edc = np.asarray(arpes_intensity).sum(axis=0)
-fig, ax, lines = plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     energy_values,
     (
         gamma_edc / gamma_edc.max(),
@@ -417,25 +398,25 @@ which change primarily moves the Fermi-edge cutoff.
 
 
 ```python
-narrow_intensity = assemble_spectral_intensity_bands_chunk(
+narrow_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     spectral_weights,
     energy_axis,
-    make_self_energy_model(gamma=0.015),
+    dp.types.make_self_energy_model(gamma=0.015),
     jnp.asarray(fermi_energy_ev),
     35.0,
     allow_degenerate_value_only=True,
 )
-broad_intensity = assemble_spectral_intensity_bands_chunk(
+broad_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     spectral_weights,
     energy_axis,
-    make_self_energy_model(gamma=0.075),
+    dp.types.make_self_energy_model(gamma=0.075),
     jnp.asarray(fermi_energy_ev),
     35.0,
     allow_degenerate_value_only=True,
 )
-fig, ax, lines = plot_curve_family(
+fig, ax, lines = dp.plots.plot_curve_family(
     energy_values,
     (
         np.asarray(narrow_intensity[gamma_index]),
@@ -460,7 +441,7 @@ plt.show()
 
 
 ```python
-cold_intensity = assemble_spectral_intensity_bands_chunk(
+cold_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     spectral_weights,
     energy_axis,
@@ -469,7 +450,7 @@ cold_intensity = assemble_spectral_intensity_bands_chunk(
     10.0,
     allow_degenerate_value_only=True,
 )
-warm_intensity = assemble_spectral_intensity_bands_chunk(
+warm_intensity = dp.simul.assemble_spectral_intensity_bands_chunk(
     spectral_eigenvalues,
     spectral_weights,
     energy_axis,
@@ -479,7 +460,7 @@ warm_intensity = assemble_spectral_intensity_bands_chunk(
     allow_degenerate_value_only=True,
 )
 fig, axes = plt.subplots(1, 2, figsize=(11.2, 3.8), sharey=True)
-plot_curve_family(
+dp.plots.plot_curve_family(
     energy_values,
     (
         np.asarray(cold_intensity[gamma_index]),
@@ -491,7 +472,7 @@ plot_curve_family(
     ylabel=r"intensity (1/eV)",
     title="Gamma EDC",
 )
-plot_curve_family(
+dp.plots.plot_curve_family(
     energy_values,
     (
         np.asarray(cold_intensity).sum(axis=0),
