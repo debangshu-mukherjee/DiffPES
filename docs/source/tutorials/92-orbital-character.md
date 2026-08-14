@@ -7,9 +7,9 @@ The notebook reads the local `data/DFT` tree.
 
 ## Load the Public API
 
-The structure and eigenvalue readers supply the geometry, the path, and
-the Fermi reference. The projection reader returns the spin-orbit
-carrier with orbital weights and spin channels.
+The readers return the geometry, the path metadata, the Fermi reference,
+and the spin-orbit projection carrier. The helper calls select atoms,
+reduce orbitals, and check the parsed dimensions against each other.
 
 
 ```python
@@ -18,11 +18,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import read_eigenval, read_poscar, read_procar
+from diffpes.inout import (
+    check_consistency,
+    dedupe_band_path,
+    plot_arpes_with_kpath,
+    plot_band_scatter_with_kpath,
+    read_eigenval,
+    read_kpoints,
+    read_outcar,
+    read_poscar,
+    read_procar,
+    reduce_orbitals,
+    select_atoms,
+)
+from diffpes.simul import assemble_spectral_intensity_bands_chunk
+from diffpes.tightb import kpath_arc_length, kpoints_frac_to_cart
+from diffpes.types import (
+    make_arpes_spectrum,
+    make_kpath,
+    make_self_energy_model,
+)
 ```
-
-    WARNING:2026-08-13 18:43:55,006:jax._src.xla_bridge:876: An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
-
 
 ## Load the Path and the Geometry
 
@@ -34,13 +50,7 @@ separate the top and bottom halves of the slab.
 DATA_ROOT = Path("..") / "data" / "DFT"
 PDTE2_MGM_DIR = DATA_ROOT / "PdTe2" / "4ML" / "Output" / "MGM"
 pdte2_fermi_ev = float(
-    next(
-        line
-        for line in open(
-            PDTE2_MGM_DIR / "OAM DATA" / "OUTCAR", encoding="utf-8"
-        )
-        if "E-fermi" in line
-    ).split()[2]
+    read_outcar(str(PDTE2_MGM_DIR / "OAM DATA" / "OUTCAR")).fermi_energy
 )
 pdte2_geo = read_poscar(
     str(DATA_ROOT / "PdTe2" / "4ML" / "PdTe2_4ML_0x_0y_0z.vasp")
@@ -48,29 +58,32 @@ pdte2_geo = read_poscar(
 pdte2_bands = read_eigenval(
     str(PDTE2_MGM_DIR / "EIGENVAL"), fermi_energy=pdte2_fermi_ev
 )
+pdte2_kinfo = read_kpoints(str(PDTE2_MGM_DIR / "KPOINTS"))
 band_shift = np.asarray(pdte2_bands.eigenvalues) - pdte2_fermi_ev
-kcart = np.asarray(pdte2_bands.kpoints) @ np.asarray(pdte2_geo.reciprocal)
-path_step = np.linalg.norm(np.diff(kcart, axis=0), axis=1)
-path_dist = np.concatenate(([0.0], np.cumsum(path_step)))
+path_dist = kpath_arc_length(
+    make_kpath(pdte2_bands.kpoints), pdte2_geo
+)
 gamma_index = int(
     np.argmin(np.linalg.norm(np.asarray(pdte2_bands.kpoints), axis=1))
 )
-path_axis = path_dist - path_dist[gamma_index]
+path_axis = np.asarray(path_dist - path_dist[gamma_index])
 species = np.asarray(pdte2_geo.species)
 heights = np.asarray(pdte2_geo.positions)[:, 2]
-print("species:", list(species))
-print("fractional heights:", np.round(heights, 3))
+print("Fermi energy (eV):", pdte2_fermi_ev)
+print("species counts:", {s: int((species == s).sum()) for s in set(species)})
+print("path labels:", pdte2_kinfo.labels)
 ```
 
-    species: [np.str_('Pd'), np.str_('Pd'), np.str_('Pd'), np.str_('Pd'), np.str_('Te'), np.str_('Te'), np.str_('Te'), np.str_('Te'), np.str_('Te'), np.str_('Te'), np.str_('Te'), np.str_('Te')]
-    fractional heights: [0.313 0.438 0.563 0.688 0.281 0.406 0.531 0.656 0.344 0.469 0.594 0.719]
+    Fermi energy (eV): 2.1733
+    species counts: {np.str_('Te'): 8, np.str_('Pd'): 4}
+    path labels: ('M', 'G', 'M')
 
 
 ## Read the Projection Tables
 
 The reader returns the spin-orbit projection carrier: one charge table
-and six nonnegative spin channels. The weight array covers every
-k-point, band, ion, and orbital on the path.
+and six nonnegative spin channels. The consistency check confirms the
+k-point and band counts against the eigenvalue file and the path.
 
 
 ```python
@@ -79,6 +92,7 @@ projection = read_procar(
 )
 weights = np.asarray(projection.projections)
 spin_channels = np.asarray(projection.spin)
+check_consistency(pdte2_bands, projection, pdte2_kinfo)
 print("weight block:", weights.shape)
 print("spin block:", spin_channels.shape)
 print(
@@ -92,26 +106,21 @@ print(
     mean state weight: 0.611
 
 
-## Group the Weights
+## Group the Atoms
 
-The orbital columns follow the VASP order: s, then three p, then five d.
 The species masks split palladium from tellurium. The height masks split
-the top half of the slab from the bottom half.
+the top half of the slab from the bottom half. `select_atoms` restricts
+the carrier to the top-half ions for the layer panels.
 
 
 ```python
+pd_indices = [int(i) for i in np.nonzero(species == "Pd")[0]]
+te_indices = [int(i) for i in np.nonzero(species == "Te")[0]]
+top_indices = [
+    int(i) for i in np.nonzero(heights > np.median(heights))[0]
+]
+top_projection = select_atoms(projection, top_indices)
 total_weight = weights.sum(axis=(2, 3))
-safe_total = np.where(total_weight > 1.0e-12, total_weight, 1.0)
-pd_mask = species == "Pd"
-te_mask = species == "Te"
-top_mask = heights > np.median(heights)
-pd_d_fraction = weights[:, :, pd_mask, 4:9].sum(axis=(2, 3)) / safe_total
-te_p_fraction = weights[:, :, te_mask, 1:4].sum(axis=(2, 3)) / safe_total
-p_total = weights[:, :, :, 1:4].sum(axis=(2, 3))
-pz_fraction = weights[:, :, :, 2].sum(axis=2) / np.where(
-    p_total > 1.0e-12, p_total, 1.0
-)
-surface_fraction = weights[:, :, top_mask, :].sum(axis=(2, 3)) / safe_total
 fig, ax = plt.subplots(figsize=(6.2, 4.0))
 ax.hist(total_weight.ravel(), bins=60, color="tab:gray")
 ax.set_xlabel("summed projection weight per state")
@@ -126,31 +135,28 @@ plt.show()
 
 
 
-## Color the Bands by Character
+## Draw the Preset Band Scatters
 
-Each scatter colors the same path by one fraction. The palladium d
-weight dominates the deeper valence manifold. The tellurium p weight
-carries the states near the Fermi level.
+`plot_band_scatter_with_kpath` sizes each marker with the selected
+preset weight and labels the momentum axis with the KPOINTS symmetry
+points. The palladium d weight dominates the deeper valence manifold.
+The tellurium p weight carries the states near the Fermi level.
 
 
 ```python
-path_mesh = np.repeat(path_axis[:, None], band_shift.shape[1], axis=1)
-window = (band_shift > -3.0) & (band_shift < 1.0)
 fig, ax = plt.subplots(figsize=(6.8, 4.8))
-points = ax.scatter(
-    path_mesh[window],
-    band_shift[window],
-    c=pd_d_fraction[window],
-    s=2.0,
-    cmap="viridis",
-    vmin=0.0,
-    vmax=1.0,
+plot_band_scatter_with_kpath(
+    pdte2_bands,
+    projection,
+    pdte2_kinfo,
+    preset="d",
+    atom_indices=pd_indices,
+    ax=ax,
+    color="tab:green",
+    size_scale=40.0,
+    title="palladium d weight along M--Gamma--M",
 )
-ax.axhline(0.0, color="0.4", linewidth=0.8)
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("palladium d fraction along M--Gamma--M")
-fig.colorbar(points, ax=ax, label="Pd d fraction")
+ax.set_ylim(-3.0, 1.0)
 plt.show()
 ```
 
@@ -163,20 +169,18 @@ plt.show()
 
 ```python
 fig, ax = plt.subplots(figsize=(6.8, 4.8))
-points = ax.scatter(
-    path_mesh[window],
-    band_shift[window],
-    c=te_p_fraction[window],
-    s=2.0,
-    cmap="plasma",
-    vmin=0.0,
-    vmax=1.0,
+plot_band_scatter_with_kpath(
+    pdte2_bands,
+    projection,
+    pdte2_kinfo,
+    preset="p",
+    atom_indices=te_indices,
+    ax=ax,
+    color="tab:orange",
+    size_scale=40.0,
+    title="tellurium p weight along M--Gamma--M",
 )
-ax.axhline(0.0, color="0.4", linewidth=0.8)
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("tellurium p fraction along M--Gamma--M")
-fig.colorbar(points, ax=ax, label="Te p fraction")
+ax.set_ylim(-3.0, 1.0)
 plt.show()
 ```
 
@@ -189,20 +193,17 @@ plt.show()
 
 ```python
 fig, ax = plt.subplots(figsize=(6.8, 4.8))
-points = ax.scatter(
-    path_mesh[window],
-    band_shift[window],
-    c=pz_fraction[window],
-    s=2.0,
-    cmap="coolwarm",
-    vmin=0.0,
-    vmax=1.0,
+plot_band_scatter_with_kpath(
+    pdte2_bands,
+    projection,
+    pdte2_kinfo,
+    preset="pz",
+    ax=ax,
+    color="tab:blue",
+    size_scale=40.0,
+    title="out-of-plane p weight along M--Gamma--M",
 )
-ax.axhline(0.0, color="0.4", linewidth=0.8)
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("out-of-plane share of the p weight")
-fig.colorbar(points, ax=ax, label=r"$p_z$ / $p$ fraction")
+ax.set_ylim(-3.0, 1.0)
 plt.show()
 ```
 
@@ -215,20 +216,17 @@ plt.show()
 
 ```python
 fig, ax = plt.subplots(figsize=(6.8, 4.8))
-points = ax.scatter(
-    path_mesh[window],
-    band_shift[window],
-    c=surface_fraction[window],
-    s=2.0,
-    cmap="magma",
-    vmin=0.0,
-    vmax=1.0,
+plot_band_scatter_with_kpath(
+    pdte2_bands,
+    top_projection,
+    pdte2_kinfo,
+    preset="total",
+    ax=ax,
+    color="tab:purple",
+    size_scale=25.0,
+    title="top-half weight along M--Gamma--M",
 )
-ax.axhline(0.0, color="0.4", linewidth=0.8)
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("top-half weight along the path")
-fig.colorbar(points, ax=ax, label="top-half fraction")
+ax.set_ylim(-3.0, 1.0)
 plt.show()
 ```
 
@@ -240,37 +238,37 @@ plt.show()
 
 ## Decompose the Gamma-Point States
 
-The stacked bars split every Gamma state in the window into s, p, and d
-weight. The valence top mixes tellurium p with palladium d.
+`reduce_orbitals` collapses the nine orbital channels into s, p, and d
+shell totals. The stacked bars split every Gamma state in the window.
+The valence top mixes tellurium p with palladium d.
 
 
 ```python
+shell_totals = np.asarray(
+    reduce_orbitals(projection.projections)
+).sum(axis=2)
 gamma_window = (band_shift[gamma_index] > -2.0) & (
     band_shift[gamma_index] < 0.5
 )
 gamma_band_indices = np.nonzero(gamma_window)[0]
 gamma_energies = band_shift[gamma_index, gamma_band_indices]
-gamma_s = weights[gamma_index, gamma_band_indices, :, 0].sum(axis=1)
-gamma_p = weights[gamma_index, gamma_band_indices, :, 1:4].sum(axis=(1, 2))
-gamma_d = weights[gamma_index, gamma_band_indices, :, 4:9].sum(axis=(1, 2))
+gamma_shells = shell_totals[gamma_index, gamma_band_indices]
 gamma_norm = np.where(
-    gamma_s + gamma_p + gamma_d > 1.0e-12,
-    gamma_s + gamma_p + gamma_d,
-    1.0,
+    gamma_shells.sum(axis=1) > 1.0e-12, gamma_shells.sum(axis=1), 1.0
 )
 bar_positions = np.arange(gamma_band_indices.shape[0], dtype=np.float64)
 fig, ax = plt.subplots(figsize=(7.2, 4.2))
-ax.bar(bar_positions, gamma_s / gamma_norm, label="s")
+ax.bar(bar_positions, gamma_shells[:, 0] / gamma_norm, label="s")
 ax.bar(
     bar_positions,
-    gamma_p / gamma_norm,
-    bottom=gamma_s / gamma_norm,
+    gamma_shells[:, 1] / gamma_norm,
+    bottom=gamma_shells[:, 0] / gamma_norm,
     label="p",
 )
 ax.bar(
     bar_positions,
-    gamma_d / gamma_norm,
-    bottom=(gamma_s + gamma_p) / gamma_norm,
+    gamma_shells[:, 2] / gamma_norm,
+    bottom=(gamma_shells[:, 0] + gamma_shells[:, 1]) / gamma_norm,
     label="d",
 )
 ax.set_xticks(bar_positions[:: max(1, bar_positions.shape[0] // 12)])
@@ -298,41 +296,55 @@ plt.show()
 
 ## Fold the Weights into Fat-Band Maps
 
-Each state contributes one Lorentzian line scaled by its weight. A Fermi
-factor at 100 K removes the unoccupied side. The three maps show the
-palladium d channel, the tellurium p channel, and their difference.
+`dedupe_band_path` removes the repeated Gamma anchor and carries the
+projections through the same selection. The spectral assembly scales
+each Lorentzian line with its channel weight at 100 K.
+`plot_arpes_with_kpath` draws each map with the symmetry labels.
 
 
 ```python
+map_bands, map_kinfo, map_projection = dedupe_band_path(
+    pdte2_bands, pdte2_kinfo, projection
+)
+map_dist = kpath_arc_length(make_kpath(map_bands.kpoints), pdte2_geo)
+map_kcart = kpoints_frac_to_cart(map_bands.kpoints, pdte2_geo)
+map_weights = np.asarray(map_projection.projections)
+map_total = map_weights.sum(axis=(2, 3))
+map_safe = np.where(map_total > 1.0e-12, map_total, 1.0)
+pd_d_fraction = jnp.asarray(
+    map_weights[:, :, pd_indices, 4:9].sum(axis=(2, 3)) / map_safe
+)
+te_p_fraction = jnp.asarray(
+    map_weights[:, :, te_indices, 1:4].sum(axis=(2, 3)) / map_safe
+)
+top_fraction = jnp.asarray(
+    map_weights[:, :, top_indices, :].sum(axis=(2, 3)) / map_safe
+)
 omega_ev = jnp.linspace(-3.0, 0.5, 241)
-gamma_width_ev = 0.035
-occupation = 1.0 / (1.0 + jnp.exp(omega_ev / 0.0086))
-levels = jnp.asarray(band_shift)
-lorentzians = (gamma_width_ev / jnp.pi) / (
-    (omega_ev[None, None, :] - levels[:, :, None]) ** 2
-    + gamma_width_ev**2
-)
-pd_d_map = (
-    (lorentzians * jnp.asarray(pd_d_fraction)[:, :, None]).sum(axis=1)
-    * occupation[None, :]
-).T
-fig, ax = plt.subplots(figsize=(6.6, 4.8))
-image = ax.imshow(
-    np.asarray(pd_d_map),
-    origin="lower",
-    aspect="auto",
-    extent=(
-        float(path_axis[0]),
-        float(path_axis[-1]),
-        float(omega_ev[0]),
-        float(omega_ev[-1]),
+map_self_energy = make_self_energy_model(gamma=0.035)
+n_k, n_bands = map_bands.eigenvalues.shape
+pd_d_intensity = assemble_spectral_intensity_bands_chunk(
+    map_bands.eigenvalues,
+    jnp.broadcast_to(
+        pd_d_fraction[:, None, :], (n_k, omega_ev.shape[0], n_bands)
     ),
-    cmap="viridis",
+    omega_ev,
+    map_self_energy,
+    jnp.asarray(pdte2_fermi_ev),
+    100.0,
+    allow_degenerate_value_only=True,
 )
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("palladium d fat-band map")
-fig.colorbar(image, ax=ax, label="weighted intensity")
+pd_d_spectrum = make_arpes_spectrum(
+    pd_d_intensity, omega_ev, map_dist, map_kcart
+)
+fig, ax = plt.subplots(figsize=(6.6, 4.8))
+plot_arpes_with_kpath(
+    pd_d_spectrum,
+    map_kinfo,
+    ax=ax,
+    cmap="viridis",
+    title="palladium d fat-band map",
+)
 plt.show()
 ```
 
@@ -344,27 +356,28 @@ plt.show()
 
 
 ```python
-te_p_map = (
-    (lorentzians * jnp.asarray(te_p_fraction)[:, :, None]).sum(axis=1)
-    * occupation[None, :]
-).T
-fig, ax = plt.subplots(figsize=(6.6, 4.8))
-image = ax.imshow(
-    np.asarray(te_p_map),
-    origin="lower",
-    aspect="auto",
-    extent=(
-        float(path_axis[0]),
-        float(path_axis[-1]),
-        float(omega_ev[0]),
-        float(omega_ev[-1]),
+te_p_intensity = assemble_spectral_intensity_bands_chunk(
+    map_bands.eigenvalues,
+    jnp.broadcast_to(
+        te_p_fraction[:, None, :], (n_k, omega_ev.shape[0], n_bands)
     ),
-    cmap="plasma",
+    omega_ev,
+    map_self_energy,
+    jnp.asarray(pdte2_fermi_ev),
+    100.0,
+    allow_degenerate_value_only=True,
 )
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("tellurium p fat-band map")
-fig.colorbar(image, ax=ax, label="weighted intensity")
+te_p_spectrum = make_arpes_spectrum(
+    te_p_intensity, omega_ev, map_dist, map_kcart
+)
+fig, ax = plt.subplots(figsize=(6.6, 4.8))
+plot_arpes_with_kpath(
+    te_p_spectrum,
+    map_kinfo,
+    ax=ax,
+    cmap="plasma",
+    title="tellurium p fat-band map",
+)
 plt.show()
 ```
 
@@ -376,7 +389,9 @@ plt.show()
 
 
 ```python
-difference_map = np.asarray(pd_d_map) - np.asarray(te_p_map)
+difference_map = np.asarray(pd_d_intensity).T - np.asarray(
+    te_p_intensity
+).T
 difference_scale = float(np.abs(difference_map).max())
 fig, ax = plt.subplots(figsize=(6.6, 4.8))
 image = ax.imshow(
@@ -384,8 +399,8 @@ image = ax.imshow(
     origin="lower",
     aspect="auto",
     extent=(
-        float(path_axis[0]),
-        float(path_axis[-1]),
+        float(map_dist[0]),
+        float(map_dist[-1]),
         float(omega_ev[0]),
         float(omega_ev[-1]),
     ),
@@ -393,7 +408,7 @@ image = ax.imshow(
     vmin=-difference_scale,
     vmax=difference_scale,
 )
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
+ax.set_xlabel(r"M--$\Gamma$--M path distance ($\AA^{-1}$)")
 ax.set_ylabel(r"$E - E_F$ (eV)")
 ax.set_title("d minus p channel contrast")
 fig.colorbar(image, ax=ax, label="intensity difference")
@@ -408,27 +423,28 @@ plt.show()
 
 
 ```python
-surface_map = (
-    (lorentzians * jnp.asarray(surface_fraction)[:, :, None]).sum(axis=1)
-    * occupation[None, :]
-).T
-fig, ax = plt.subplots(figsize=(6.6, 4.8))
-image = ax.imshow(
-    np.asarray(surface_map),
-    origin="lower",
-    aspect="auto",
-    extent=(
-        float(path_axis[0]),
-        float(path_axis[-1]),
-        float(omega_ev[0]),
-        float(omega_ev[-1]),
+top_intensity = assemble_spectral_intensity_bands_chunk(
+    map_bands.eigenvalues,
+    jnp.broadcast_to(
+        top_fraction[:, None, :], (n_k, omega_ev.shape[0], n_bands)
     ),
-    cmap="magma",
+    omega_ev,
+    map_self_energy,
+    jnp.asarray(pdte2_fermi_ev),
+    100.0,
+    allow_degenerate_value_only=True,
 )
-ax.set_xlabel(r"$k - k_\Gamma$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$E - E_F$ (eV)")
-ax.set_title("top-half weighted fat-band map")
-fig.colorbar(image, ax=ax, label="weighted intensity")
+top_spectrum = make_arpes_spectrum(
+    top_intensity, omega_ev, map_dist, map_kcart
+)
+fig, ax = plt.subplots(figsize=(6.6, 4.8))
+plot_arpes_with_kpath(
+    top_spectrum,
+    map_kinfo,
+    ax=ax,
+    cmap="magma",
+    title="top-half weighted fat-band map",
+)
 plt.show()
 ```
 
@@ -450,6 +466,8 @@ sz_signed = (
     spin_channels[:, :, :, 4] - spin_channels[:, :, :, 5]
 ).sum(axis=2)
 sz_scale = float(np.abs(sz_signed).max())
+path_mesh = np.repeat(path_axis[:, None], band_shift.shape[1], axis=1)
+window = (band_shift > -3.0) & (band_shift < 1.0)
 fig, ax = plt.subplots(figsize=(6.8, 4.8))
 points = ax.scatter(
     path_mesh[window],

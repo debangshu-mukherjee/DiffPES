@@ -7,21 +7,34 @@ simulated spectrum. The notebook reads the local `data/DFT` tree.
 
 ## Load the Public API
 
-The readers supply band structures and reciprocal lattices. The
-tight-binding and spectral calls build the simulated cone at the end.
+The kinematics calls convert photon energies into momentum horizons.
+The readers supply band structures, Fermi levels, and reciprocal
+lattices. The tight-binding and spectral calls build the simulated cone
+at the end.
 
 
 ```python
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import read_eigenval, read_poscar
-from diffpes.simul import assemble_spectral_intensity_chunk
-from diffpes.tightb import bloch_hamiltonian_batch, diagonalize_tb
+from diffpes.inout import read_eigenval, read_outcar, read_poscar
+from diffpes.simul import (
+    assemble_spectral_intensity_chunk,
+    final_state_k_inv_ang,
+    kinetic_energy_ev,
+)
+from diffpes.tightb import (
+    bloch_hamiltonian_batch,
+    diagonalize_tb,
+    kpath_arc_length,
+    kpoints_cart_to_frac,
+)
 from diffpes.types import (
     make_crystal_geometry,
+    make_kpath,
     make_orbital_basis,
     make_self_energy_model,
     make_tb_model,
@@ -30,23 +43,25 @@ from diffpes.types import (
 
 ## Draw the Photoemission Horizon
 
-The parallel-momentum bound is $k_{\parallel} = 0.5123\,\sqrt{h\nu -
-W - E_b}$ in inverse Angstrom. Here $h\nu$ is the photon energy, $W$ the
-work function, and $E_b$ the binding energy. The audit covers laser lines
-at 6.05, 6.4, 7.0, and 10.8 eV. The work function enters as 4.5 eV.
+`kinetic_energy_ev` applies energy conservation for each photon energy.
+`final_state_k_inv_ang` converts the kinetic energy into the maximal
+parallel momentum. The audit covers laser lines at 6.05, 6.4, 7.0, and
+10.8 eV. The work function enters as 4.5 eV.
 
 
 ```python
-KINETIC_FACTOR = 0.5123
 LASER_LINES_EV = np.asarray([6.05, 6.4, 7.0, 10.8])
 WORK_FUNCTION_EV = 4.5
-photon_grid_ev = np.linspace(5.0, 12.0, 281)
+photon_grid_ev = jnp.linspace(5.0, 12.0, 281)
 fig, ax = plt.subplots(figsize=(6.4, 4.4))
 for trial_work_function in (4.0, 4.5, 5.0, 5.5):
-    horizon = KINETIC_FACTOR * np.sqrt(
-        np.clip(photon_grid_ev - trial_work_function, 0.0, None)
+    kinetic_grid, _ = jax.vmap(
+        kinetic_energy_ev, in_axes=(0, None, None)
+    )(photon_grid_ev, trial_work_function, jnp.asarray(0.0))
+    horizon, _ = final_state_k_inv_ang(kinetic_grid)
+    ax.plot(
+        photon_grid_ev, horizon, label=f"W = {trial_work_function} eV"
     )
-    ax.plot(photon_grid_ev, horizon, label=f"W = {trial_work_function} eV")
 for laser_line in LASER_LINES_EV:
     ax.axvline(laser_line, color="0.75", linewidth=0.8)
 ax.set_xlabel("photon energy (eV)")
@@ -64,13 +79,13 @@ plt.show()
 
 
 ```python
+kinetic_grid, _ = jax.vmap(kinetic_energy_ev, in_axes=(0, None, None))(
+    photon_grid_ev, WORK_FUNCTION_EV, jnp.asarray(0.0)
+)
+full_reach, _ = final_state_k_inv_ang(kinetic_grid)
 fig, ax = plt.subplots(figsize=(6.4, 4.4))
 for acceptance_deg in (15.0, 30.0, 90.0):
-    reach = (
-        KINETIC_FACTOR
-        * np.sqrt(np.clip(photon_grid_ev - WORK_FUNCTION_EV, 0.0, None))
-        * np.sin(np.deg2rad(acceptance_deg))
-    )
+    reach = full_reach * np.sin(np.deg2rad(acceptance_deg))
     ax.plot(
         photon_grid_ev,
         reach,
@@ -93,7 +108,7 @@ plt.show()
 
 
 ```python
-binding_window_ev = np.clip(photon_grid_ev - WORK_FUNCTION_EV, 0.0, None)
+binding_window_ev = jnp.where(kinetic_grid > 0.0, kinetic_grid, 0.0)
 fig, ax = plt.subplots(figsize=(6.4, 4.0))
 ax.plot(photon_grid_ev, binding_window_ev, color="tab:blue")
 for laser_line in LASER_LINES_EV:
@@ -118,9 +133,9 @@ plt.show()
 
 ## Load the Anchor Band Paths
 
-The Fermi levels come from the retained OUTCAR files. The structure
-files convert the fractional paths to inverse Angstrom, centered at
-Gamma.
+`read_outcar` supplies the Fermi level of each calculation. `make_kpath`
+and `kpath_arc_length` convert each fractional path into a cumulative
+momentum axis in inverse Angstrom, centered at Gamma.
 
 
 ```python
@@ -128,20 +143,12 @@ DATA_ROOT = Path("..") / "data" / "DFT"
 BI2SE3_DIR = DATA_ROOT / "Bi2Se3" / "6QL" / "Output few bands"
 PDTE2_DIR = DATA_ROOT / "PdTe2" / "4ML" / "Output"
 bi2se3_fermi_ev = float(
-    next(
-        line
-        for line in open(BI2SE3_DIR / "OUTCAR_SCF", encoding="utf-8")
-        if "E-fermi" in line
-    ).split()[2]
+    read_outcar(str(BI2SE3_DIR / "OUTCAR_SCF")).fermi_energy
 )
 pdte2_fermi_ev = float(
-    next(
-        line
-        for line in open(
-            PDTE2_DIR / "MGM" / "OAM DATA" / "OUTCAR", encoding="utf-8"
-        )
-        if "E-fermi" in line
-    ).split()[2]
+    read_outcar(
+        str(PDTE2_DIR / "MGM" / "OAM DATA" / "OUTCAR")
+    ).fermi_energy
 )
 bi2se3_geo = read_poscar(str(BI2SE3_DIR / "POSCAR"))
 pdte2_geo = read_poscar(
@@ -156,48 +163,33 @@ pdte2_mgm = read_eigenval(
 pdte2_kgk = read_eigenval(
     str(PDTE2_DIR / "KGK" / "EIGENVAL"), fermi_energy=pdte2_fermi_ev
 )
-bi2se3_kcart = np.asarray(bi2se3_bands.kpoints) @ np.asarray(
-    bi2se3_geo.reciprocal
-)
-bi2se3_dist = np.concatenate(
-    (
-        [0.0],
-        np.cumsum(np.linalg.norm(np.diff(bi2se3_kcart, axis=0), axis=1)),
-    )
+bi2se3_dist = kpath_arc_length(
+    make_kpath(bi2se3_bands.kpoints), bi2se3_geo
 )
 bi2se3_gamma = int(
     np.argmin(np.linalg.norm(np.asarray(bi2se3_bands.kpoints), axis=1))
 )
-bi2se3_axis = bi2se3_dist - bi2se3_dist[bi2se3_gamma]
+bi2se3_axis = np.asarray(bi2se3_dist - bi2se3_dist[bi2se3_gamma])
 bi2se3_shift = np.asarray(bi2se3_bands.eigenvalues) - bi2se3_fermi_ev
-pdte2_reciprocal = np.asarray(pdte2_geo.reciprocal)
-pdte2_mgm_kcart = np.asarray(pdte2_mgm.kpoints) @ pdte2_reciprocal
-pdte2_mgm_dist = np.concatenate(
-    (
-        [0.0],
-        np.cumsum(
-            np.linalg.norm(np.diff(pdte2_mgm_kcart, axis=0), axis=1)
-        ),
-    )
+pdte2_mgm_dist = kpath_arc_length(
+    make_kpath(pdte2_mgm.kpoints), pdte2_geo
 )
 pdte2_mgm_gamma = int(
     np.argmin(np.linalg.norm(np.asarray(pdte2_mgm.kpoints), axis=1))
 )
-pdte2_mgm_axis = pdte2_mgm_dist - pdte2_mgm_dist[pdte2_mgm_gamma]
+pdte2_mgm_axis = np.asarray(
+    pdte2_mgm_dist - pdte2_mgm_dist[pdte2_mgm_gamma]
+)
 pdte2_mgm_shift = np.asarray(pdte2_mgm.eigenvalues) - pdte2_fermi_ev
-pdte2_kgk_kcart = np.asarray(pdte2_kgk.kpoints) @ pdte2_reciprocal
-pdte2_kgk_dist = np.concatenate(
-    (
-        [0.0],
-        np.cumsum(
-            np.linalg.norm(np.diff(pdte2_kgk_kcart, axis=0), axis=1)
-        ),
-    )
+pdte2_kgk_dist = kpath_arc_length(
+    make_kpath(pdte2_kgk.kpoints), pdte2_geo
 )
 pdte2_kgk_gamma = int(
     np.argmin(np.linalg.norm(np.asarray(pdte2_kgk.kpoints), axis=1))
 )
-pdte2_kgk_axis = pdte2_kgk_dist - pdte2_kgk_dist[pdte2_kgk_gamma]
+pdte2_kgk_axis = np.asarray(
+    pdte2_kgk_dist - pdte2_kgk_dist[pdte2_kgk_gamma]
+)
 pdte2_kgk_shift = np.asarray(pdte2_kgk.eigenvalues) - pdte2_fermi_ev
 print("Bi2Se3 Fermi energy (eV):", bi2se3_fermi_ev)
 print("PdTe2 Fermi energy (eV):", pdte2_fermi_ev)
@@ -209,21 +201,20 @@ print("PdTe2 Fermi energy (eV):", pdte2_fermi_ev)
 
 ## Overlay the Horizon on the Bands
 
-Each curve bounds the states one laser line reaches. The bound follows
-$k_{\parallel}(E) = 0.5123\,\sqrt{h\nu - W + (E - E_F)}$ for occupied
-states. States outside the curves stay dark at that photon energy.
+Each curve bounds the states one laser line reaches. The boundary at
+each energy comes from the same kinematics calls. States outside the
+curves stay dark at that photon energy.
 
 
 ```python
-overlay_energy_ev = np.linspace(-1.5, 0.0, 301)
+overlay_energy_ev = jnp.linspace(-1.5, 0.0, 301)
 fig, ax = plt.subplots(figsize=(6.4, 4.8))
 ax.plot(bi2se3_axis, bi2se3_shift, color="0.6", linewidth=0.5)
 for laser_line in LASER_LINES_EV:
-    boundary = KINETIC_FACTOR * np.sqrt(
-        np.clip(
-            laser_line - WORK_FUNCTION_EV + overlay_energy_ev, 0.0, None
-        )
+    kinetic_line, _ = kinetic_energy_ev(
+        float(laser_line), WORK_FUNCTION_EV, overlay_energy_ev
     )
+    boundary, _ = final_state_k_inv_ang(kinetic_line)
     ax.plot(boundary, overlay_energy_ev, label=f"{laser_line} eV")
     ax.plot(-boundary, overlay_energy_ev, color=ax.lines[-1].get_color())
 ax.axhline(0.0, color="0.4", linewidth=0.8)
@@ -247,11 +238,10 @@ plt.show()
 fig, ax = plt.subplots(figsize=(6.4, 4.8))
 ax.plot(pdte2_mgm_axis, pdte2_mgm_shift, color="0.6", linewidth=0.5)
 for laser_line in LASER_LINES_EV:
-    boundary = KINETIC_FACTOR * np.sqrt(
-        np.clip(
-            laser_line - WORK_FUNCTION_EV + overlay_energy_ev, 0.0, None
-        )
+    kinetic_line, _ = kinetic_energy_ev(
+        float(laser_line), WORK_FUNCTION_EV, overlay_energy_ev
     )
+    boundary, _ = final_state_k_inv_ang(kinetic_line)
     ax.plot(boundary, overlay_energy_ev, label=f"{laser_line} eV")
     ax.plot(-boundary, overlay_energy_ev, color=ax.lines[-1].get_color())
 ax.axhline(0.0, color="0.4", linewidth=0.8)
@@ -275,11 +265,10 @@ plt.show()
 fig, ax = plt.subplots(figsize=(7.0, 4.8))
 ax.plot(pdte2_kgk_axis, pdte2_kgk_shift, color="0.6", linewidth=0.4)
 for laser_line in LASER_LINES_EV:
-    boundary = KINETIC_FACTOR * np.sqrt(
-        np.clip(
-            laser_line - WORK_FUNCTION_EV + overlay_energy_ev, 0.0, None
-        )
+    kinetic_line, _ = kinetic_energy_ev(
+        float(laser_line), WORK_FUNCTION_EV, overlay_energy_ev
     )
+    boundary, _ = final_state_k_inv_ang(kinetic_line)
     ax.plot(boundary, overlay_energy_ev, label=f"{laser_line} eV")
     ax.plot(-boundary, overlay_energy_ev, color=ax.lines[-1].get_color())
 ax.axhline(0.0, color="0.4", linewidth=0.8)
@@ -305,32 +294,21 @@ energy. The 10.8 eV line covers most of both retained paths. The
 
 
 ```python
-probe_binding_ev = 0.3
+probe_binding_ev = jnp.asarray(-0.3)
 bar_offsets = np.arange(LASER_LINES_EV.shape[0], dtype=np.float64)
-bi2se3_fractions = [
-    float(
-        np.mean(
-            np.abs(bi2se3_axis)
-            <= KINETIC_FACTOR
-            * np.sqrt(
-                max(laser_line - WORK_FUNCTION_EV - probe_binding_ev, 0.0)
-            )
-        )
+bi2se3_fractions = []
+pdte2_fractions = []
+for laser_line in LASER_LINES_EV:
+    kinetic_probe, _ = kinetic_energy_ev(
+        float(laser_line), WORK_FUNCTION_EV, probe_binding_ev
     )
-    for laser_line in LASER_LINES_EV
-]
-pdte2_fractions = [
-    float(
-        np.mean(
-            np.abs(pdte2_kgk_axis)
-            <= KINETIC_FACTOR
-            * np.sqrt(
-                max(laser_line - WORK_FUNCTION_EV - probe_binding_ev, 0.0)
-            )
-        )
+    probe_horizon, _ = final_state_k_inv_ang(kinetic_probe)
+    bi2se3_fractions.append(
+        float(np.mean(np.abs(bi2se3_axis) <= float(probe_horizon)))
     )
-    for laser_line in LASER_LINES_EV
-]
+    pdte2_fractions.append(
+        float(np.mean(np.abs(pdte2_kgk_axis) <= float(probe_horizon)))
+    )
 fig, ax = plt.subplots(figsize=(6.4, 4.0))
 ax.bar(
     bar_offsets - 0.18,
@@ -437,13 +415,12 @@ model = make_tb_model(
     shell_index=(-1, -1),
     depths=jnp.zeros(2),
 )
-dirac_frac = np.asarray([1.0 / 3.0, 2.0 / 3.0, 0.0])
-reciprocal = np.asarray(crystal.reciprocal)
-dirac_cart = dirac_frac @ reciprocal
+dirac_frac = jnp.asarray([1.0 / 3.0, 2.0 / 3.0, 0.0])
+dirac_cart = np.asarray(dirac_frac @ crystal.reciprocal)
 path_direction = dirac_cart / np.linalg.norm(dirac_cart)
 cone_axis = np.linspace(-0.30, 0.30, 181)
 cone_cart = dirac_cart[None, :] + cone_axis[:, None] * path_direction
-cone_frac = jnp.asarray(cone_cart @ np.linalg.inv(reciprocal))
+cone_frac = kpoints_cart_to_frac(jnp.asarray(cone_cart), crystal)
 cone_hamiltonians = bloch_hamiltonian_batch(model, cone_frac)
 cone_bands = diagonalize_tb(model, cone_frac)
 print("cone Hamiltonians:", cone_hamiltonians.shape)
@@ -534,15 +511,17 @@ plt.show()
 
 The 6.05 eV panel keeps the narrow cone that a fixed-wavelength laser
 sees. The 10.8 eV panel restores most of the momentum range. The dashed
-curves trace the horizon.
+curves trace the horizon from the kinematics calls.
 
 
 ```python
 energy_grid = np.asarray(spectrum_energy_ev)
 momentum_grid = cone_axis
-low_boundary = KINETIC_FACTOR * np.sqrt(
-    np.clip(6.05 - WORK_FUNCTION_EV + energy_grid, 0.0, None)
+low_kinetic, _ = kinetic_energy_ev(
+    6.05, WORK_FUNCTION_EV, spectrum_energy_ev
 )
+low_boundary, _ = final_state_k_inv_ang(low_kinetic)
+low_boundary = np.asarray(low_boundary)
 low_mask = (
     np.abs(momentum_grid[None, :]) <= low_boundary[:, None]
 ).astype(np.float64)
@@ -578,9 +557,11 @@ plt.show()
 
 
 ```python
-high_boundary = KINETIC_FACTOR * np.sqrt(
-    np.clip(10.8 - WORK_FUNCTION_EV + energy_grid, 0.0, None)
+high_kinetic, _ = kinetic_energy_ev(
+    10.8, WORK_FUNCTION_EV, spectrum_energy_ev
 )
+high_boundary, _ = final_state_k_inv_ang(high_kinetic)
+high_boundary = np.asarray(high_boundary)
 high_mask = (
     np.abs(momentum_grid[None, :]) <= high_boundary[:, None]
 ).astype(np.float64)

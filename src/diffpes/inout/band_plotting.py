@@ -108,7 +108,7 @@ def _prepare_band_arrays(
     return band_arrays
 
 
-@beartype
+@jaxtyped(typechecker=beartype)
 def _subset_atom_axis(
     data: Float64[NDArray, "K B A C"],
     atom_indices: Optional[List[int]],

@@ -803,3 +803,39 @@ class TestPlotBandScatterEdgeCases(chex.TestCase):
         )
         chex.assert_equal(out_fig is fig0, True)
         plt.close(fig0)
+
+    def test_atom_subset_with_spin_carrier(self) -> None:
+        """Subset atoms on a carrier that also holds spin channels.
+
+        The preset reduction subsets the nine-channel projections and
+        the six-channel spin table in one call. Distinct trailing sizes
+        must not collide inside the shape checks.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        bands: BandStructure
+        orb: OrbitalProjection
+        fig: Figure
+        ax: Axes
+        nk: int
+        nb: int
+        _points: PathCollection
+
+        nk, nb = 4, 2
+        bands = make_band_structure(
+            eigenvalues=jnp.zeros((nk, nb), dtype=jnp.float64),
+            kpoints=jnp.zeros((nk, 3), dtype=jnp.float64),
+        )
+        orb = self._make_orb_with_spin_and_oam(nk=nk, nb=nb, na=2)
+        fig, ax, _points = plot_band_scatter_preset(
+            bands=bands,
+            orb_proj=orb,
+            preset="d",
+            atom_indices=[0],
+            colorbar=False,
+        )
+        chex.assert_equal(isinstance(ax, Axes), True)
+        plt.close(fig)

@@ -129,6 +129,15 @@ outgoing-spin amplitude. `matrix_element_intensity` then computes
 $\sum_s |M_s|^2$: outgoing spins are unresolved and incoherent, while all
 orbital interference inside a given $M_s$ survives.
 
+```{figure} figures/matrixel-polarization.png
+:alt: Graphene path spectra under s and p polarization
+
+Graphene $\pi$-band spectra weighted by this pipeline for s and p
+polarization at the same grazing incidence. Polarization selects which
+band and which part of the path light up, and sublattice interference
+darkens entire corridors.
+```
+
 ## Atomic Cross Sections
 
 The packaged Yeh--Lindau data support the inexpensive `basic` projection
@@ -145,6 +154,15 @@ weights = diffpes.simul.yeh_lindau_orbital_weights(
 These isolated-atom cross sections are not a substitute for coherent
 solid-state amplitudes. The interpolator stays inside valid tabulated
 segments and reports unsupported energies rather than extrapolating.
+
+```{figure} figures/matrixel-cross-sections.png
+:alt: Yeh-Lindau cross sections for Cu 3d, C 2p, and Bi 6p
+:width: 74%
+
+Packaged Yeh--Lindau photoionization cross sections. Relative subshell
+weights shift by orders of magnitude across the photon-energy range, which
+is why photon energy is a practical orbital-contrast knob.
+```
 
 ## Inversion Coordinates and Gauges
 

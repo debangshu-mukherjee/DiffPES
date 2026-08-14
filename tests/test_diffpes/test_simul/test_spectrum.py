@@ -681,3 +681,115 @@ def test_analytic_one_level_occupation_convention() -> None:
         rtol=1.0e-12,
         atol=1.0e-14,
     )
+
+
+def _make_ramp_cube() -> ArpesCube:
+    """PRIVATE: Create a small cube whose intensity is linear in energy.
+
+    Returns
+    -------
+    ArpesCube
+        Cube with intensity ``|E|`` on a five-by-five raster and a
+        seven-node energy axis from -0.5 eV to 0.1 eV.
+    """
+    kx_axis: Float64[Array, " 5"] = jnp.linspace(-0.2, 0.2, 5)
+    energy_axis: Float64[Array, " 7"] = jnp.linspace(-0.5, 0.1, 7)
+    intensity: Float64[Array, "5 5 7"] = jnp.broadcast_to(
+        jnp.abs(energy_axis), (5, 5, 7)
+    )
+    cube: ArpesCube = make_arpes_cube(intensity, kx_axis, kx_axis, energy_axis)
+    return cube
+
+
+class TestConstantEnergySlice:
+    """Verify :func:`diffpes.simul.constant_energy_slice`.
+
+    The cases check linear interpolation between sampled energies and the
+    out-of-domain guard.
+    """
+
+    def test_interpolates_between_energy_nodes(self) -> None:
+        """Interpolate the ramp cube midway between two nodes.
+
+        The intensity equals ``|E|`` everywhere, so the slice at
+        -0.25 eV holds 0.25 on every pixel.
+
+        Notes
+        -----
+        Compare the eager and compiled values with the closed form.
+        """
+        cube: ArpesCube = _make_ramp_cube()
+        actual: Float64[Array, "5 5"] = spectrum.constant_energy_slice(
+            cube, -0.25
+        )
+        compiled: Float64[Array, "5 5"] = jax.jit(
+            spectrum.constant_energy_slice
+        )(cube, -0.25)
+        assert actual.shape == (5, 5)
+        assert jnp.allclose(actual, 0.25, rtol=1.0e-13, atol=1.0e-14)
+        assert jnp.allclose(compiled, actual, rtol=1.0e-13, atol=1.0e-14)
+
+    def test_out_of_domain_query_raises(self) -> None:
+        """Reject a query outside the sampled cube domain.
+
+        The query sits above the last sampled energy, so the traced
+        domain guard trips.
+
+        Notes
+        -----
+        The guard trips before any interpolation output forms.
+        """
+        cube: ArpesCube = _make_ramp_cube()
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="the energy query must lie inside the sampled cube domain",
+        ):
+            spectrum.constant_energy_slice(cube, 0.5)
+
+
+class TestEnergyWindowMap:
+    """Verify :func:`diffpes.simul.energy_window_map`.
+
+    The cases check trapezoid integration over interior segments and the
+    empty-window guard.
+    """
+
+    def test_integrates_interior_segments(self) -> None:
+        """Integrate the ramp cube over an interior window.
+
+        The window from -0.4 eV to -0.1 eV covers three complete
+        segments of the ``|E|`` ramp. The trapezoid sum equals 0.075 eV
+        times the unit map.
+
+        Notes
+        -----
+        Compare the eager and compiled values with the closed form.
+        """
+        cube: ArpesCube = _make_ramp_cube()
+        actual: Float64[Array, "5 5"] = spectrum.energy_window_map(
+            cube, -0.4, -0.1
+        )
+        compiled: Float64[Array, "5 5"] = jax.jit(spectrum.energy_window_map)(
+            cube, -0.4, -0.1
+        )
+        assert actual.shape == (5, 5)
+        assert jnp.allclose(actual, 0.075, rtol=1.0e-12, atol=1.0e-14)
+        assert jnp.allclose(compiled, actual, rtol=1.0e-12, atol=1.0e-14)
+
+    def test_empty_window_raises(self) -> None:
+        """Reject a window without one complete sampled segment.
+
+        The traced guard trips because the window covers no complete
+        sampled segment.
+
+        Notes
+        -----
+        The window sits between two adjacent nodes, so no segment has
+        both ends inside it.
+        """
+        cube: ArpesCube = _make_ramp_cube()
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="the energy window must cover at least one sampled segment",
+        ):
+            spectrum.energy_window_map(cube, -0.29, -0.21)

@@ -85,6 +85,8 @@ Routine Listings
     Construct s- and p-polarization basis vectors.
 :func:`compute_oam`
     Compute orbital angular momentum z-component.
+:func:`constant_energy_slice`
+    Interpolate a source cube at one sampled relative energy.
 :func:`contract_experiment_polarization`
     Rotate laboratory polarization to the sample and contract it late.
 :func:`convolve_energy`
@@ -103,6 +105,10 @@ Routine Listings
     Build the detector-frame rotation.
 :func:`emission_angles`
     Convert Cartesian momentum to emission angles.
+:func:`energy_window_map`
+    Integrate a source cube over one relative-energy window.
+:func:`escape_depth_weights`
+    Compute exponential escape weights for depth positions.
 :func:`evaluate_self_energy`
     Evaluate the complex retarded self-energy for one causal model.
 :func:`evaluate_spectral_projection`
@@ -234,6 +240,7 @@ from .generalized_spectral import (
 from .kinematics import (
     detector_angles_to_kpar,
     emission_angles,
+    escape_depth_weights,
     final_state_k_inv_ang,
     kinetic_energy_ev,
     kpar_to_detector_angles,
@@ -281,6 +288,8 @@ from .spectral_resolvent import (
     spectral_intensity_resolvent,
 )
 from .spectrum import (
+    constant_energy_slice,
+    energy_window_map,
     hv_map_at_energy,
     normalize_intensity,
     simulate_arpes,
@@ -305,6 +314,7 @@ __all__: list[str] = [
     "broaden_kz",
     "build_polarization_vectors",
     "compute_oam",
+    "constant_energy_slice",
     "contract_experiment_polarization",
     "convolve_energy",
     "convolve_kpath",
@@ -314,6 +324,8 @@ __all__: list[str] = [
     "detector_bin_volumes",
     "detector_rotation",
     "emission_angles",
+    "energy_window_map",
+    "escape_depth_weights",
     "evaluate_self_energy",
     "evaluate_spectral_projection",
     "expected_counts",

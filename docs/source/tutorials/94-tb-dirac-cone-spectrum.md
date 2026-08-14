@@ -8,8 +8,9 @@ The notebook reads the local `data/DFT` tree.
 
 ## Load the Public API
 
-The chain uses the tight-binding builders, the spectral assembly, the
-detector simulation, and the Poisson sampler.
+The chain uses the tight-binding builders, the k-space raster builder,
+the spectral assembly, the cube slicing calls, the detector simulation,
+and the Poisson sampler.
 
 
 ```python
@@ -19,13 +20,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import read_eigenval, read_poscar
+from diffpes.inout import (
+    plot_momentum_map,
+    read_eigenval,
+    read_outcar,
+    read_poscar,
+)
 from diffpes.simul import (
     assemble_spectral_intensity_chunk,
+    constant_energy_slice,
+    energy_window_map,
     sample_poisson_counts,
     simulate_arpes,
 )
-from diffpes.tightb import bloch_hamiltonian_batch, diagonalize_tb
+from diffpes.tightb import (
+    bloch_hamiltonian_batch,
+    build_arpes_kmesh,
+    diagonalize_tb,
+    kpath_arc_length,
+)
 from diffpes.types import (
     fermi_surface_map,
     make_arpes_cube,
@@ -34,7 +47,7 @@ from diffpes.types import (
     make_detector_effects,
     make_experiment_geometry,
     make_final_state_spec,
-    make_kgrid,
+    make_kpath,
     make_matrix_element_params,
     make_orbital_basis,
     make_radial_quadrature_spec,
@@ -55,30 +68,20 @@ reproduces that velocity.
 DATA_ROOT = Path("..") / "data" / "DFT"
 BI2SE3_DIR = DATA_ROOT / "Bi2Se3" / "6QL" / "Output few bands"
 bi2se3_fermi_ev = float(
-    next(
-        line
-        for line in open(BI2SE3_DIR / "OUTCAR_SCF", encoding="utf-8")
-        if "E-fermi" in line
-    ).split()[2]
+    read_outcar(str(BI2SE3_DIR / "OUTCAR_SCF")).fermi_energy
 )
 bi2se3_geo = read_poscar(str(BI2SE3_DIR / "POSCAR"))
 bi2se3_bands = read_eigenval(
     str(BI2SE3_DIR / "MGM" / "EIGENVAL"), fermi_energy=bi2se3_fermi_ev
 )
 bi2se3_shift = np.asarray(bi2se3_bands.eigenvalues) - bi2se3_fermi_ev
-bi2se3_kcart = np.asarray(bi2se3_bands.kpoints) @ np.asarray(
-    bi2se3_geo.reciprocal
-)
-bi2se3_dist = np.concatenate(
-    (
-        [0.0],
-        np.cumsum(np.linalg.norm(np.diff(bi2se3_kcart, axis=0), axis=1)),
-    )
+bi2se3_dist = kpath_arc_length(
+    make_kpath(bi2se3_bands.kpoints), bi2se3_geo
 )
 bi2se3_gamma = int(
     np.argmin(np.linalg.norm(np.asarray(bi2se3_bands.kpoints), axis=1))
 )
-bi2se3_axis = bi2se3_dist - bi2se3_dist[bi2se3_gamma]
+bi2se3_axis = np.asarray(bi2se3_dist - bi2se3_dist[bi2se3_gamma])
 gamma_column = bi2se3_shift[bi2se3_gamma]
 surface_band = int(np.argmin(np.abs(gamma_column + 0.05)))
 fit_mask = (np.abs(bi2se3_axis) > 0.02) & (np.abs(bi2se3_axis) < 0.12)
@@ -153,9 +156,8 @@ model = make_tb_model(
     shell_index=(-1, -1),
     depths=jnp.zeros(2),
 )
-dirac_frac = np.asarray([1.0 / 3.0, 2.0 / 3.0, 0.0])
-reciprocal = np.asarray(crystal.reciprocal)
-dirac_cart = dirac_frac @ reciprocal
+dirac_frac = jnp.asarray([1.0 / 3.0, 2.0 / 3.0, 0.0])
+dirac_cart = np.asarray(dirac_frac @ crystal.reciprocal)
 print("Dirac point (1/Ang):", np.round(dirac_cart, 3))
 ```
 
@@ -164,58 +166,52 @@ print("Dirac point (1/Ang):", np.round(dirac_cart, 3))
 
 ## Raster the Zone Corner
 
-A square momentum raster surrounds the Dirac point. The mesh feeds the
-Bloch Hamiltonians, the band energies, and every later stage.
+`build_arpes_kmesh` converts two Cartesian momentum axes around the
+Dirac point into the fractional raster. The raster feeds the Bloch
+Hamiltonians, the band energies, and every later stage.
 
 
 ```python
 mesh_half_width = 0.22
 mesh_points = 21
 mesh_axis = np.linspace(-mesh_half_width, mesh_half_width, mesh_points)
-mesh_u, mesh_v = np.meshgrid(mesh_axis, mesh_axis, indexing="xy")
-mesh_cart = np.stack(
-    (
-        dirac_cart[0] + mesh_u.ravel(),
-        dirac_cart[1] + mesh_v.ravel(),
-        np.zeros(mesh_points * mesh_points),
-    ),
-    axis=-1,
+kgrid = build_arpes_kmesh(
+    jnp.asarray(dirac_cart[0] + mesh_axis),
+    jnp.asarray(dirac_cart[1] + mesh_axis),
+    0.0,
+    0.0,
+    crystal,
 )
-mesh_frac = jnp.asarray(mesh_cart @ np.linalg.inv(reciprocal))
-kgrid = make_kgrid(
-    mesh_frac, mesh_shape=(mesh_points, mesh_points), kz=0.0
+hamiltonians = bloch_hamiltonian_batch(model, kgrid.kpoints)
+bands = diagonalize_tb(model, kgrid.kpoints)
+lower_band = (
+    np.asarray(bands.eigenvalues[:, 0])
+    .reshape(kgrid.mesh_shape)
+    .T
 )
-hamiltonians = bloch_hamiltonian_batch(model, mesh_frac)
-bands = diagonalize_tb(model, mesh_frac)
-lower_band = np.asarray(bands.eigenvalues[:, 0]).reshape(
-    (mesh_points, mesh_points)
-)
-print("mesh Hamiltonians:", hamiltonians.shape)
+print("raster points:", kgrid.kpoints.shape)
+print("raster mesh shape:", kgrid.mesh_shape)
 print("model Fermi energy (eV):", float(bands.fermi_energy))
 ```
 
-    mesh Hamiltonians: (441, 2, 2)
+    raster points: (441, 3)
+    raster mesh shape: (21, 21)
     model Fermi energy (eV): 0.0
 
 
 
 ```python
 fig, ax = plt.subplots(figsize=(5.4, 4.6))
-image = ax.imshow(
+plot_momentum_map(
     lower_band,
-    origin="lower",
-    extent=(
-        -mesh_half_width,
-        mesh_half_width,
-        -mesh_half_width,
-        mesh_half_width,
-    ),
+    jnp.asarray(mesh_axis),
+    jnp.asarray(mesh_axis),
+    ax=ax,
     cmap="viridis",
+    xlabel=r"$k_x - k_D$ ($\AA^{-1}$)",
+    ylabel=r"$k_y - k_D$ ($\AA^{-1}$)",
+    title="lower cone branch over the raster",
 )
-ax.set_xlabel(r"$k_x - k_D$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$k_y - k_D$ ($\AA^{-1}$)")
-ax.set_title("lower cone branch over the raster")
-fig.colorbar(image, ax=ax, label="band energy (eV)")
 plt.show()
 ```
 
@@ -228,14 +224,15 @@ plt.show()
 ## Assemble the Source Spectral Cube
 
 Unit transition sources enter the resolvent assembly on the raster. A
-20 meV self-energy sets the linewidth at 100 K.
+20 meV self-energy sets the linewidth at 100 K. The cube carrier stores
+the intensity with both momentum axes and the energy axis.
 
 
 ```python
 energy_axis = jnp.linspace(-0.7, 0.25, 49)
 self_energy = make_self_energy_model(gamma=0.02)
 transition_sources = jnp.ones(
-    (mesh_frac.shape[0], energy_axis.shape[0], 1, 2),
+    (kgrid.kpoints.shape[0], energy_axis.shape[0], 1, 2),
     dtype=jnp.complex128,
 )
 source_flat = assemble_spectral_intensity_chunk(
@@ -246,9 +243,11 @@ source_flat = assemble_spectral_intensity_chunk(
     jnp.asarray(0.0),
     100.0,
 )
-source_intensity = np.asarray(source_flat).reshape(
-    (mesh_points, mesh_points, energy_axis.shape[0])
-).transpose((1, 0, 2))
+source_intensity = (
+    np.asarray(source_flat)
+    .reshape((*kgrid.mesh_shape, energy_axis.shape[0]))
+    .transpose((1, 0, 2))
+)
 source_cube = make_arpes_cube(
     jnp.asarray(source_intensity),
     jnp.asarray(mesh_axis),
@@ -296,21 +295,16 @@ plt.show()
 ```python
 fermi_map = fermi_surface_map(source_cube, tol_ev=0.03)
 fig, ax = plt.subplots(figsize=(5.4, 4.6))
-image = ax.imshow(
-    np.asarray(fermi_map).T,
-    origin="lower",
-    extent=(
-        -mesh_half_width,
-        mesh_half_width,
-        -mesh_half_width,
-        mesh_half_width,
-    ),
+plot_momentum_map(
+    fermi_map,
+    source_cube.kx_axis,
+    source_cube.ky_axis,
+    ax=ax,
     cmap="inferno",
+    xlabel=r"$k_x - k_D$ ($\AA^{-1}$)",
+    ylabel=r"$k_y - k_D$ ($\AA^{-1}$)",
+    title=r"Fermi ring at $E_F \pm 30$ meV",
 )
-ax.set_xlabel(r"$k_x - k_D$ ($\AA^{-1}$)")
-ax.set_ylabel(r"$k_y - k_D$ ($\AA^{-1}$)")
-ax.set_title(r"Fermi ring at $E_F \pm 30$ meV")
-fig.colorbar(image, ax=ax, label="mean spectral intensity")
 plt.show()
 ```
 
@@ -322,9 +316,10 @@ plt.show()
 
 ## Slice the Cone at Constant Energy
 
-Each panel is one momentum-momentum slice of the source cube. The
-occupied ring grows with binding energy below the Dirac point. The panel
-above the Fermi level stays dark at 100 K.
+`constant_energy_slice` interpolates the cube at one energy. Each panel
+is one momentum-momentum slice. The occupied ring grows with binding
+energy below the Dirac point. The panel above the Fermi level stays dark
+at 100 K.
 
 
 ```python
@@ -333,22 +328,17 @@ fig, axes = plt.subplots(
     1, 4, figsize=(13.6, 3.6), constrained_layout=True
 )
 for axis, slice_energy in zip(axes, slice_energies_ev):
-    slice_index = int(
-        np.argmin(np.abs(np.asarray(energy_axis) - slice_energy))
-    )
-    image = axis.imshow(
-        source_intensity[:, :, slice_index].T,
-        origin="lower",
-        extent=(
-            -mesh_half_width,
-            mesh_half_width,
-            -mesh_half_width,
-            mesh_half_width,
-        ),
+    _, _, image = plot_momentum_map(
+        constant_energy_slice(source_cube, float(slice_energy)),
+        source_cube.kx_axis,
+        source_cube.ky_axis,
+        ax=axis,
         cmap="inferno",
+        colorbar=False,
+        xlabel=r"$k_x - k_D$ ($\AA^{-1}$)",
+        ylabel="",
+        title=f"E = {slice_energy:.2f} eV",
     )
-    axis.set_title(f"E = {slice_energy:.2f} eV")
-    axis.set_xlabel(r"$k_x - k_D$ ($\AA^{-1}$)")
 axes[0].set_ylabel(r"$k_y - k_D$ ($\AA^{-1}$)")
 fig.colorbar(image, ax=axes, label="spectral intensity", shrink=0.85)
 plt.show()
@@ -362,36 +352,29 @@ plt.show()
 
 ## Sum the Energy Windows
 
-Each panel integrates the cube over one energy range. The deep window
-collects the wide lower-cone ring. The window around the Dirac point
-collapses onto the apex. The window above the Fermi level collects only
-the thermal tail.
+`energy_window_map` integrates the cube over one energy range. The deep
+window collects the wide lower-cone ring. The window around the Dirac
+point collapses onto the apex. The window above the Fermi level collects
+only the thermal tail.
 
 
 ```python
 window_bounds_ev = ((-0.45, -0.25), (-0.10, 0.05), (0.05, 0.20))
-energy_values = np.asarray(energy_axis)
 fig, axes = plt.subplots(
     1, 3, figsize=(11.4, 3.8), constrained_layout=True
 )
 for axis, bounds in zip(axes, window_bounds_ev):
-    window_mask = (energy_values >= bounds[0]) & (
-        energy_values <= bounds[1]
-    )
-    window_map = source_intensity[:, :, window_mask].sum(axis=2)
-    image = axis.imshow(
-        window_map.T,
-        origin="lower",
-        extent=(
-            -mesh_half_width,
-            mesh_half_width,
-            -mesh_half_width,
-            mesh_half_width,
-        ),
+    _, _, image = plot_momentum_map(
+        energy_window_map(source_cube, bounds[0], bounds[1]),
+        source_cube.kx_axis,
+        source_cube.ky_axis,
+        ax=axis,
         cmap="inferno",
+        colorbar=False,
+        xlabel=r"$k_x - k_D$ ($\AA^{-1}$)",
+        ylabel="",
+        title=f"{bounds[0]:.2f} to {bounds[1]:.2f} eV",
     )
-    axis.set_title(f"{bounds[0]:.2f} to {bounds[1]:.2f} eV")
-    axis.set_xlabel(r"$k_x - k_D$ ($\AA^{-1}$)")
 axes[0].set_ylabel(r"$k_y - k_D$ ($\AA^{-1}$)")
 fig.colorbar(image, ax=axes, label="integrated intensity", shrink=0.85)
 plt.show()
@@ -701,14 +684,8 @@ warm_flat = assemble_spectral_intensity_chunk(
     jnp.asarray(0.0),
     300.0,
 )
-cold_cube = np.asarray(cold_flat).reshape(
-    (mesh_points, mesh_points, energy_axis.shape[0])
-)
-warm_cube = np.asarray(warm_flat).reshape(
-    (mesh_points, mesh_points, energy_axis.shape[0])
-)
-cold_profile = cold_cube.sum(axis=(0, 1))
-warm_profile = warm_cube.sum(axis=(0, 1))
+cold_profile = np.asarray(cold_flat).sum(axis=0)
+warm_profile = np.asarray(warm_flat).sum(axis=0)
 fig, ax = plt.subplots(figsize=(6.2, 3.8))
 ax.plot(np.asarray(energy_axis), cold_profile, label="25 K")
 ax.plot(np.asarray(energy_axis), warm_profile, label="300 K")

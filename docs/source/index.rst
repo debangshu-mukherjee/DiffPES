@@ -10,8 +10,8 @@ diffpes
    :hidden:
 
    guides/index
+   guides/simulating-arpes-spectra
    guides/arpes-geometry-and-kinematics
-   guides/simulation-levels
    guides/kz-broadening-and-photon-energy-scans
    guides/matrix-elements-and-polarization
    guides/spectral-broadening-and-self-energy

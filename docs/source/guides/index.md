@@ -1,54 +1,43 @@
-# diffpes Theory and Architecture Guides
+# diffpes Guides
 
-These guides describe the physics and software architecture of diffpes.
-diffpes uses JAX for differentiable Angle-Resolved PhotoEmission Spectroscopy
-(ARPES) simulations.
+diffpes simulates Angle-Resolved PhotoEmission Spectroscopy (ARPES) with
+differentiable JAX programs. To simulate a spectrum, you build an
+electronic-structure source, matrix-element carriers, an experiment
+geometry, a self-energy, and a detector calibration. Then run
+{func}`~diffpes.simul.simulate_arpes` or
+{func}`~diffpes.simul.simulate_arpes_cut`.
 
-## Target Audience
+Start with [Simulating ARPES Spectra](simulating-arpes-spectra.md). It
+builds every driver input and runs one complete simulation from a
+tight-binding model to Poisson-sampled detector counts. The executed
+[tutorials](../tutorials/index.md) run the same pipelines with plots at
+every stage. Every spectrum figure in these guides comes from the public
+API; `docs/make_guide_figures.py` regenerates all of them.
 
-These guides support **physics researchers** who work with ARPES and want to
-understand:
+## Physics Guides
 
-- The photoemission physics across coherent assembly stages
-- Electronic-structure data flow through the simulation pipeline
-- The physical meaning of simulation parameters and outputs
-- Differentiability for inverse recovery of band-structure parameters
-
-## Guide Overview
-
-### Physics Foundations
-
-| Guide | Description |
+| Guide | What it covers |
 |-------|-------------|
+| [Simulating ARPES Spectra](simulating-arpes-spectra.md) | The complete forward pipeline: sources, drivers, `kz_mode` selection, and the two spectral paths |
 | [ARPES Geometry and Kinematics](arpes-geometry-and-kinematics.md) | Photoemission geometry, energy and momentum conservation, and detector coordinates |
-| [Coherent Spectral Assembly](simulation-levels.md) | Matrix-element sources, resolvent/eigen spectral paths, and the detector boundary |
-| [kz Broadening and Photon-Energy Scans](kz-broadening-and-photon-energy-scans.md) | Wrapped bulk-kz integration, mutually exclusive source modes, and differentiable hν scans |
-| [Matrix Elements and Polarization](matrix-elements-and-polarization.md) | Radial integrals, Gaunt coefficients, spherical harmonics, and light-polarization effects |
-| [Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md) | Voigt profiles, resolution convolution, and self-energy models |
+| [kz Broadening and Photon-Energy Scans](kz-broadening-and-photon-energy-scans.md) | Bulk-kz integration with finite escape depth and differentiable $h\nu$ scans |
+| [Matrix Elements and Polarization](matrix-elements-and-polarization.md) | Radial integrals, Gaunt couplings, atomic-centre phases, and light-polarization effects |
+| [Spectral Broadening and Self-Energy](spectral-broadening-and-self-energy.md) | Voigt profiles, self-energy models, and the instrument response chain |
 
-### Data and Architecture
+## Data and Architecture Guides
 
-| Guide | Description |
+| Guide | What it covers |
 |-------|-------------|
-| [PyTree Architecture](pytree-architecture.md) | Equinox data structures enabling GPU acceleration and autodiff |
-| [JAX Transformability and Gradients](jax-transformability-and-gradients.md) | Support for `grad`, `vmap`, and `jit`, with gradient flow through the forward model |
-| [Certified Forward Models](certified-forward-models.md) | Bounded scientific claims, provenance, differentiable evidence, information flow, and portable records |
 | [VASP Data Ingestion](vasp-data-ingestion.md) | Parsing POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, and CHGCAR into PyTrees |
-
-## Quick Start
-
-For hands-on examples, see the [tutorials](../tutorials/index.md).
+| [PyTree Architecture](pytree-architecture.md) | Equinox carriers, static versus traced fields, and factory validation |
+| [JAX Transformability and Gradients](jax-transformability-and-gradients.md) | `grad`, `vmap`, and `jit` through the forward model, and optimizer coordinates |
+| [Certified Forward Models](certified-forward-models.md) | Recording provenance, validity checks, and derivative evidence for one run |
 
 ## Mathematical Notation
-
-The guides use these symbols:
 
 - $\mathbf{k}$ for wavevectors (in $\text{Å}^{-1}$)
 - $E_B$ for binding energy and $E_F$ for the Fermi level (in eV)
 - $h\nu$ for photon energy (in eV)
 - $(n, l, m)$ for orbital quantum numbers
-- $\theta$ for polar emission angle
-- $\phi$ for azimuthal angle
+- $\theta$ for polar emission angle and $\phi$ for azimuthal angle
 - $\Sigma(\omega)$ for the electron self-energy
-
-GitHub and MathJax render the equations from compatible LaTeX notation.

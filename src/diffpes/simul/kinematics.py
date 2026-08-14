@@ -19,6 +19,8 @@ Routine Listings
     Convert detector angles to parallel momentum.
 :func:`emission_angles`
     Convert Cartesian momentum to emission angles.
+:func:`escape_depth_weights`
+    Compute exponential escape weights for depth positions.
 :func:`final_state_k_inv_ang`
     Convert kinetic energy to momentum and return its validity mask.
 :func:`kinetic_energy_ev`
@@ -552,9 +554,87 @@ def kpar_to_detector_angles(
     return detector_angles
 
 
+@jaxtyped(typechecker=beartype)
+def escape_depth_weights(  # noqa: DOC502 -- eqx.error_if raises when traced.
+    z_positions_ang: Float64[Array, " Z"],
+    surface_z_ang: ScalarFloat,
+    mean_free_path_ang: ScalarFloat,
+) -> Float64[Array, " Z"]:
+    """Compute exponential escape weights for depth positions.
+
+    The function evaluates the exponential attenuation of the
+    photoelectron flux below the surface. Positions above the surface
+    keep weight one.
+
+    :see: :class:`~.test_kinematics.TestEscapeDepthWeights`
+
+    Implementation Logic
+    --------------------
+    1. **Measure the depth below the surface**::
+
+           depths = jnp.clip(surface - positions, 0.0, None)
+
+       The clip keeps vacuum positions at zero depth.
+
+    2. **Apply the exponential attenuation**::
+
+           weights = jnp.exp(-depths / mean_free_path)
+
+       The inelastic mean free path sets the decay length.
+
+    Parameters
+    ----------
+    z_positions_ang : Float64[Array, " Z"]
+        Cartesian positions along the surface normal in Angstroms.
+    surface_z_ang : ScalarFloat
+        Surface position on the same axis in Angstroms.
+    mean_free_path_ang : ScalarFloat
+        Inelastic mean free path in Angstroms.
+
+    Returns
+    -------
+    weights : Float64[Array, " Z"]
+        Escape probability for each position, between zero and one.
+
+    Raises
+    ------
+    EquinoxRuntimeError
+        If the mean free path is not positive or an input is
+        non-finite.
+
+    Notes
+    -----
+    The exponential form follows the three-step model treatment of
+    inelastic attenuation [5]_.
+
+    References
+    ----------
+    .. [5] S. Hufner, "Photoelectron Spectroscopy", Springer (2003).
+    """
+    positions: Float64[Array, " Z"] = jnp.asarray(
+        z_positions_ang, dtype=jnp.float64
+    )
+    surface: Float64[Array, ""] = jnp.asarray(surface_z_ang, dtype=jnp.float64)
+    decay_length: Float64[Array, ""] = jnp.asarray(
+        mean_free_path_ang, dtype=jnp.float64
+    )
+    checked_decay: Float64[Array, ""] = eqx.error_if(
+        decay_length,
+        ~jnp.isfinite(decay_length)
+        | (decay_length <= 0.0)
+        | ~jnp.all(jnp.isfinite(positions))
+        | ~jnp.isfinite(surface),
+        "mean free path must be positive and all inputs finite",
+    )
+    depths: Float64[Array, " Z"] = jnp.clip(surface - positions, 0.0, None)
+    weights: Float64[Array, " Z"] = jnp.exp(-depths / checked_decay)
+    return weights
+
+
 __all__: list[str] = [
     "detector_angles_to_kpar",
     "emission_angles",
+    "escape_depth_weights",
     "final_state_k_inv_ang",
     "kinetic_energy_ev",
     "kpar_to_detector_angles",

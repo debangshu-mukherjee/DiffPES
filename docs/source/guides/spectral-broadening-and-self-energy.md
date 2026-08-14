@@ -22,6 +22,15 @@ g = gaussian(energy_axis, center=-0.3, sigma=0.04)
 v = voigt(energy_axis, center=-0.3, sigma=0.04, gamma=0.08)
 ```
 
+```{figure} figures/broadening-profiles.png
+:alt: Gaussian, Voigt, and near-Lorentzian energy profiles
+:width: 74%
+
+The normalized profiles. The Gaussian carries the instrument resolution,
+the Lorentzian carries lifetime broadening, and the Voigt is their true
+convolution.
+```
+
 The coherent spectral chunk assemblers apply finite-temperature
 `fermi_dirac` occupation on the sampled energy axis.
 
@@ -43,6 +52,13 @@ trusted interval of the declared domain.
 Self-energy and broadening do not create orbital coherence. If an input
 consists only of projection probabilities, applying a more elaborate
 lineshape cannot restore phase-sensitive matrix elements.
+
+```{figure} figures/broadening-linewidth-ek.png
+:alt: Graphene spectra with 30 meV and 250 meV constant self-energy
+
+The same graphene bands under a 30 meV and a 250 meV constant
+self-energy. The linewidth is the imaginary part of $\Sigma$ made visible.
+```
 
 ## Instrument Transmission and Resolution
 
@@ -67,6 +83,14 @@ blurred, captured_fractions, valid = diffpes.simul.apply_resolution(
     transmitted,
     calibration,
 )
+```
+
+```{figure} figures/broadening-resolution.png
+:alt: Intrinsic spectrum versus the same spectrum with Gaussian energy resolution
+
+An intrinsic spectrum before and after a 120 meV Gaussian energy
+resolution through `convolve_energy`. Lifetime and resolution broadening
+are separate operations with different lineshapes.
 ```
 
 `convolve_energy` and `convolve_momentum_map` are sampled, uniform-grid
@@ -175,30 +199,7 @@ post-resolution density-to-count primitive.
 - Keep validity masks for domain-limited quantities such as emission
   kinematics and logarithmic band-group derivatives.
 
-## Registered Scaling Evidence
-
-The streamed spectral CPU measurement compiled the literal `256 k x 512 omega x 32 orbital`
-spinless value-and-Hamiltonian-gradient target with static `32 x 32` chunks,
-checkpointing, `n_kk=4096`, and `n_tail=256`. XLA reported `4,211,032` argument
-bytes, `4,194,328` output bytes, `50,187,248` temporary bytes, and zero aliased
-bytes: `58,592,608` compiler-live bytes in total. This is below the registered
-spinless solve-tape estimate of `134,217,728` bytes and its `1.5x` ceiling of
-`201,326,592` bytes. The target was compiled for allocation analysis but was
-not executed; that fact is explicit in the authenticated artifact. Host RSS
-(`463,302,656` to `688,541,696` bytes) is diagnostic only. Its compact
-`k_i[K,3] + final_norm[E] + valid[E]` carrier uses `10,752` diagnostic bytes;
-final momenta are reconstructed only within each live spectral block.
-
-The companion comparison matched an unchunked production assembly to
-`5.9164567891575885e-31` maximum absolute value error and exactly zero maximum
-Hamiltonian-gradient error. Three active shapes inside one padded schedule
-produced one trace, and the lowered Lineax operator, RHS, and solution were all
-complex128. The reproducible record is
-`tests/test_diffpes/_reference_data/spectral_scalability/cpu_benchmark.json`.
-Its committed SHA-256 is
-`3d9ae1a3b8b60b0aba767aeec0a23fea0e17eab13fe9e51b82da2a5b79e98fea`.
-
-See [Simulation Tiers and the Coherent Pipeline](simulation-levels.md) for
-the model boundary and
+See [Simulating ARPES Spectra](simulating-arpes-spectra.md) for the complete
+driver pipeline and
 [JAX Transformability and Gradients](jax-transformability-and-gradients.md)
 for derivative semantics.

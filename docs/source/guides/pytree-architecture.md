@@ -87,6 +87,14 @@ and `jax.vjp`. Construct new carriers with factories, or use
 `equinox.tree_at` for controlled updates when the static structure stays
 unchanged. Avoid mutation: Equinox modules are immutable values.
 
+```{figure} figures/pytree-hopping-update.png
+:alt: Graphene spectra before and after a tree_at hopping update
+
+Two spectra from one `TBModel` carrier: the original hopping and a
+`tree_at` update that rescales `hopping_amplitudes`. Because hoppings are
+traced leaves, the same update path is what an optimizer differentiates.
+```
+
 See [JAX Transformability and Gradients](jax-transformability-and-gradients.md)
 for derivative boundaries and
 [Matrix Elements and Polarization](matrix-elements-and-polarization.md) for

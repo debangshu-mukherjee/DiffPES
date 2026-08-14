@@ -40,12 +40,12 @@
   "device": "TFRT_CPU_0",
   "dtype_policy": "JAX x64",
   "dynamic_input_sha256": "d1ce252770eb6d0a521139d9514b57d68862ff32dbd084b74bb9da5b42c8d981",
-  "host_setup_seconds": 1.6359222310129553,
+  "host_setup_seconds": 1.6756246429868042,
   "jax_version": "0.9.0.1",
   "literal_allocation": {
     "compilation_seconds": {
-      "reduced_scan": 0.5451679750112817,
-      "scalar_value_and_gradient": 0.6627321999985725
+      "reduced_scan": 0.5297988459933549,
+      "scalar_value_and_gradient": 0.6696179109858349
     },
     "forbidden_k_e_b_shape_present": false,
     "forbidden_k_e_b_shapes": [],
@@ -104,7 +104,7 @@
   },
   "numpy_version": "2.4.2",
   "platform": "Linux-5.15.0-187-generic-x86_64-with-glibc2.35",
-  "process_peak_rss_bytes_non_authoritative": 876380160,
+  "process_peak_rss_bytes_non_authoritative": 889593856,
   "requirements": [
     "matrix-element-forward-scaling",
     "matrix-element-compiled-graph-scaling",
@@ -129,7 +129,7 @@
     "src/diffpes/radial/coulomb_numerov.py": "0943dd31505571e7ba27cafadd7123ac19b70423c159bf15c96999e1602f4e21",
     "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
     "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
-    "src/diffpes/types/__init__.py": "7201a9a2214bf985e8d0966476da70cb67a4ea0c2d4c114e320fa5c7b107ea84",
+    "src/diffpes/types/__init__.py": "109abe52be19bba0c04ad9426e7c19fbd378f14e7c9c0503c3ba72d5d44f3fd9",
     "src/diffpes/types/aliases.py": "423b81a7bb2220db74d3fd22e33e2282f8e183930e65421d1435cf138956c131",
     "src/diffpes/types/diagonalized_bands.py": "1bfb18769de50d40f428aa4db487044fd111bbfd3b977c81c9bffce8746fbbbd",
     "src/diffpes/types/electronic_structure_validation.py": "7effc470dd67db6d5eac0af66f718ed9ea13c67d5b95212f6c775f5eaa6b5d78",
@@ -145,59 +145,59 @@
   },
   "throughput": {
     "compilation_seconds": {
-      "batch_contraction": 0.08387997199315578,
-      "channel": 0.5467717819847167,
-      "late_reuse_pipeline": 0.5825180649990216,
-      "single_contraction": 0.06925165402935818,
-      "single_rebuild_pipeline": 0.5617921870434657
+      "batch_contraction": 0.09668632503598928,
+      "channel": 0.560845184023492,
+      "late_reuse_pipeline": 0.5580343439942226,
+      "single_contraction": 0.06528793799225241,
+      "single_rebuild_pipeline": 0.557203667005524
     },
-    "contraction_ratio": 0.22440257778685557,
+    "contraction_ratio": 0.22712613121121267,
     "median_seconds": {
-      "batched_contraction": 0.0010550569859333336,
-      "late_reuse_pipeline": 0.014356727013364434,
-      "six_rebuild_pipelines": 0.0554823920247145,
-      "six_sequential_contractions": 0.004701625963207334
+      "batched_contraction": 0.0010426350054331124,
+      "late_reuse_pipeline": 0.01445954100927338,
+      "six_rebuild_pipelines": 0.056562261015642434,
+      "six_sequential_contractions": 0.00459055503597483
     },
     "n_k": 4096,
     "n_orb": 18,
     "n_polarization": 6,
-    "pipeline_ratio": 0.25876186100572707,
+    "pipeline_ratio": 0.2556393741981877,
     "raw_seconds": {
       "batched_contraction": [
-        0.0010641220142133534,
-        0.0010550569859333336,
-        0.0010208900202997029,
-        0.0010639550164341927,
-        0.000999776995740831,
-        0.0010372839751653373,
-        0.0010980289662256837
+        0.001076574029866606,
+        0.0009908260544762015,
+        0.0010458409669809043,
+        0.0010527009726502001,
+        0.0009624669910408556,
+        0.0009921210003085434,
+        0.0010426350054331124
       ],
       "late_reuse_pipeline": [
-        0.014380655018612742,
-        0.014400095969904214,
-        0.013902503007557243,
-        0.013917966978624463,
-        0.014065507974009961,
-        0.014465457992628217,
-        0.014356727013364434
+        0.014131707954220474,
+        0.013915599964093417,
+        0.01445954100927338,
+        0.014884663978591561,
+        0.014746420027222484,
+        0.014066905016079545,
+        0.014799102034885436
       ],
       "six_rebuild_pipelines": [
-        0.05639759398763999,
-        0.056586430000606924,
-        0.05544876697240397,
-        0.055463199969381094,
-        0.0554823920247145,
-        0.05529658403247595,
-        0.05689822300337255
+        0.0549317019758746,
+        0.05525952100288123,
+        0.05922703701071441,
+        0.057928068039473146,
+        0.056562261015642434,
+        0.05696202104445547,
+        0.05508496897527948
       ],
       "six_sequential_contractions": [
-        0.004742085002362728,
-        0.004608195042237639,
-        0.004719740012660623,
-        0.004679334000684321,
-        0.004285640956368297,
-        0.0047524949768558145,
-        0.004701625963207334
+        0.004589224001392722,
+        0.004764906014315784,
+        0.004786780977156013,
+        0.004410487017594278,
+        0.0046407069894485176,
+        0.004445659986231476,
+        0.00459055503597483
       ]
     },
     "repetitions": 7,

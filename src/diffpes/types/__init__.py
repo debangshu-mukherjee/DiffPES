@@ -54,6 +54,8 @@ Extended Summary
     Define scattering solver policies and evaluated result batches.
 - :mod:`orbital_basis`
     Define orbital-basis metadata for radial models.
+- :mod:`outcar`
+    Define the VASP OUTCAR summary data structure.
 - :mod:`photocurrent`
     Define the typed factorized-photocurrent model boundary.
 - :mod:`plane_wave`
@@ -229,6 +231,8 @@ Routine Listings
     Store orbital quantum-number metadata in a JAX PyTree.
 :class:`OrbitalProjection`
     Store orbital-resolved band projections in a JAX PyTree.
+:class:`OutcarData`
+    Store scalar VASP OUTCAR summary values in a JAX PyTree.
 :class:`PhotonBeam`
     Define the ``PhotonBeam`` public contract.
 :class:`PolicyReport`
@@ -507,6 +511,8 @@ Routine Listings
     Create a validated ``OrbitalBasis`` instance.
 :func:`make_orbital_projection`
     Create a validated ``OrbitalProjection`` instance.
+:func:`make_outcar_data`
+    Create a validated ``OutcarData`` instance.
 :func:`make_policy_report`
     Create a validated policy truth table.
 :func:`make_power2_tail_spec`
@@ -781,6 +787,7 @@ from .ks_scattering_solution import (
     make_ks_scattering_solver_spec,
 )
 from .orbital_basis import OrbitalBasis, make_orbital_basis
+from .outcar import OutcarData, make_outcar_data
 from .photocurrent import FactorizedArpesModel, make_factorized_arpes_model
 from .plane_wave import (
     InMemoryPlaneWaveSource,
@@ -987,6 +994,7 @@ __all__: list[str] = [
     "OverlapSource",
     "OrbitalBasis",
     "OrbitalProjection",
+    "OutcarData",
     "PhotonBeam",
     "PolicyReport",
     "Power2TailSpec",
@@ -1126,6 +1134,7 @@ __all__: list[str] = [
     "make_sample_state",
     "make_orbital_basis",
     "make_orbital_projection",
+    "make_outcar_data",
     "make_policy_report",
     "make_power2_tail_spec",
     "make_provenance_analysis",

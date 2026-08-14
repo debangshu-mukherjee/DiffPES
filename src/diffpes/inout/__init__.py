@@ -22,6 +22,8 @@ Extended Summary
     Provide workflow helpers for simulation-ready parser arrays.
 - :mod:`kpoints`
     Parse a VASP KPOINTS file.
+- :mod:`outcar`
+    Parse scalar summary values from a VASP OUTCAR file.
 - :mod:`plotting`
     Plot ARPES spectra with analysis utilities.
 - :mod:`poscar`
@@ -49,8 +51,12 @@ Routine Listings
     Compute the scientific identity of a canonical certificate.
 :func:`check_consistency`
     Check dimension agreement across parsed VASP files.
+:func:`dedupe_band_path`
+    Remove repeated k-points from a parsed line-mode band path.
 :func:`finalize_certificate`
     Replace the kernel placeholder with the canonical identity.
+:func:`integrate_charge`
+    Integrate a volumetric charge density over the cell.
 :func:`list_band_scatter_presets`
     Return supported preset names for projected band scatter plots.
 :func:`load_certificate_h5`
@@ -59,6 +65,8 @@ Routine Listings
     Load a validated forward certificate from canonical JSON.
 :func:`load_from_h5`
     Load PyTrees from an HDF5 file.
+:func:`planar_average`
+    Compute the planar average of a volumetric grid along one axis.
 :func:`plot_arpes_spectrum`
     Plot an ARPES intensity map from an ArpesSpectrum PyTree.
 :func:`plot_arpes_with_kpath`
@@ -67,6 +75,8 @@ Routine Listings
     Plot projected bands as marker-size-weighted scatter points.
 :func:`plot_band_scatter_with_kpath`
     Plot projected band scatter and annotate x-axis with k-path labels.
+:func:`plot_momentum_map`
+    Plot a momentum-momentum intensity map with Cartesian axes.
 :func:`read_chgcar`
     Parse a VASP CHGCAR file.
 :func:`read_doscar`
@@ -77,6 +87,8 @@ Routine Listings
     Parse a zero-based Cartesian tight-binding hopping list.
 :func:`read_kpoints`
     Parse a VASP KPOINTS file.
+:func:`read_outcar`
+    Parse scalar summary values from a VASP OUTCAR file.
 :func:`read_poscar`
     Parse a VASP POSCAR/CONTCAR file.
 :func:`read_procar`
@@ -123,14 +135,19 @@ from .hdf5 import load_from_h5, save_to_h5
 from .helpers import (
     aggregate_atoms,
     check_consistency,
+    dedupe_band_path,
+    integrate_charge,
+    planar_average,
     reduce_orbitals,
     select_atoms,
 )
 from .kpoints import read_kpoints
+from .outcar import read_outcar
 from .plotting import (
     apply_kpath_ticks,
     plot_arpes_spectrum,
     plot_arpes_with_kpath,
+    plot_momentum_map,
 )
 from .poscar import read_poscar
 from .procar import read_procar
@@ -148,20 +165,25 @@ __all__: list[str] = [
     "attach_certificate_h5",
     "certificate_identity",
     "check_consistency",
+    "dedupe_band_path",
     "finalize_certificate",
+    "integrate_charge",
     "list_band_scatter_presets",
     "load_certificate_h5",
     "load_certificate_json",
     "load_from_h5",
+    "planar_average",
     "plot_arpes_spectrum",
     "plot_arpes_with_kpath",
     "plot_band_scatter_preset",
     "plot_band_scatter_with_kpath",
+    "plot_momentum_map",
     "read_chgcar",
     "read_doscar",
     "read_eigenval",
     "read_hopping_list",
     "read_kpoints",
+    "read_outcar",
     "read_poscar",
     "read_procar",
     "read_wannier90_hr",

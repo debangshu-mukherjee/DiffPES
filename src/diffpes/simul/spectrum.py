@@ -7,6 +7,10 @@ It also exposes the photon-energy-scan boundary.
 
 Routine Listings
 ----------------
+:func:`constant_energy_slice`
+    Interpolate a source cube at one sampled relative energy.
+:func:`energy_window_map`
+    Integrate a source cube over one relative-energy window.
 :func:`hv_map_at_energy`
     Interpolate a photon-energy scan at one sampled binding energy.
 :func:`normalize_intensity`
@@ -24,7 +28,7 @@ import jax
 import jax.numpy as jnp
 from beartype import beartype
 from beartype.typing import Any, Tuple, Union
-from jaxtyping import Array, Complex128, Float64, Int32, jaxtyped
+from jaxtyping import Array, Bool, Complex128, Float64, Int32, jaxtyped
 
 from diffpes.types import (
     ArpesCube,
@@ -683,7 +687,175 @@ def normalize_intensity(  # noqa: DOC105, DOC503
     return normalized_zscore
 
 
+@jaxtyped(typechecker=beartype)
+def constant_energy_slice(  # noqa: DOC503
+    cube: ArpesCube,
+    energy_ev: ScalarFloat,
+) -> Float64[Array, "n_kx n_ky"]:
+    """Interpolate a source cube at one sampled relative energy.
+
+    The function applies piecewise-linear interpolation on the cube
+    energy axis. It returns the momentum-momentum map at the requested
+    energy.
+
+    :see: :class:`~.test_spectrum.TestConstantEnergySlice`
+
+    Implementation Logic
+    --------------------
+    1. **Locate the bracketing energy nodes**::
+
+           upper = jnp.searchsorted(energy_axis, query, side="right")
+
+       The clip keeps the bracket inside the sampled axis.
+
+    2. **Blend the two bracketing maps**::
+
+           values = (1.0 - fraction) * lower_map + fraction * upper_map
+
+       The blend is linear in the query energy.
+
+    Parameters
+    ----------
+    cube : ArpesCube
+        Source-coordinate intensity cube with its energy axis.
+    energy_ev : ScalarFloat
+        Requested in-domain relative energy in eV.
+
+    Returns
+    -------
+    energy_slice : Float64[Array, "n_kx n_ky"]
+        Linearly interpolated momentum-momentum map.
+
+    Raises
+    ------
+    ValueError
+        If the cube energy axis contains fewer than two nodes.
+    EquinoxRuntimeError
+        If the query is non-finite or out of the sampled domain.
+
+    Notes
+    -----
+    Query derivatives are piecewise linear away from sampled knots.
+    """
+    minimum_points: int = 2
+    energy_axis: Float64[Array, " n_e"] = cube.energy_axis
+    if energy_axis.shape[0] < minimum_points:
+        raise ValueError("cube energy axis must contain at least two nodes")
+    query: Float64[Array, ""] = jnp.asarray(energy_ev, dtype=jnp.float64)
+    checked_axis: Float64[Array, " n_e"] = eqx.error_if(
+        energy_axis,
+        ~jnp.isfinite(query)
+        | (query < energy_axis[0])
+        | (query > energy_axis[-1]),
+        "the energy query must lie inside the sampled cube domain",
+    )
+    upper: Int32[Array, ""] = jnp.clip(
+        jnp.searchsorted(checked_axis, query, side="right"),
+        1,
+        checked_axis.shape[0] - 1,
+    )
+    lower: Int32[Array, ""] = upper - 1
+    fraction: Float64[Array, ""] = (query - checked_axis[lower]) / (
+        checked_axis[upper] - checked_axis[lower]
+    )
+    energy_slice: Float64[Array, "n_kx n_ky"] = (
+        1.0 - fraction
+    ) * cube.intensity[:, :, lower] + fraction * cube.intensity[:, :, upper]
+    return energy_slice
+
+
+@jaxtyped(typechecker=beartype)
+def energy_window_map(  # noqa: DOC503
+    cube: ArpesCube,
+    energy_min_ev: ScalarFloat,
+    energy_max_ev: ScalarFloat,
+) -> Float64[Array, "n_kx n_ky"]:
+    """Integrate a source cube over one relative-energy window.
+
+    The function applies trapezoid quadrature over the sampled energy
+    segments inside the window. It returns one integrated
+    momentum-momentum map.
+
+    :see: :class:`~.test_spectrum.TestEnergyWindowMap`
+
+    Implementation Logic
+    --------------------
+    1. **Mark the segments inside the window**::
+
+           inside = mask[:-1] & mask[1:]
+
+       A segment contributes when both end nodes sit inside the
+       window.
+
+    2. **Sum the trapezoid contributions**::
+
+           window_map = jnp.sum(segments * inside, axis=-1)
+
+       Each segment carries the mean of its end maps times its width.
+
+    Parameters
+    ----------
+    cube : ArpesCube
+        Source-coordinate intensity cube with its energy axis.
+    energy_min_ev : ScalarFloat
+        Lower window edge as a relative energy in eV.
+    energy_max_ev : ScalarFloat
+        Upper window edge as a relative energy in eV.
+
+    Returns
+    -------
+    window_map : Float64[Array, "n_kx n_ky"]
+        Trapezoid-integrated intensity over the window, in intensity
+        times eV.
+
+    Raises
+    ------
+    ValueError
+        If the cube energy axis contains fewer than two nodes.
+    EquinoxRuntimeError
+        If the window is empty, reversed, or non-finite.
+
+    Notes
+    -----
+    The quadrature covers only complete sampled segments inside the
+    window. Partial edge segments do not contribute.
+    """
+    minimum_points: int = 2
+    energy_axis: Float64[Array, " n_e"] = cube.energy_axis
+    if energy_axis.shape[0] < minimum_points:
+        raise ValueError("cube energy axis must contain at least two nodes")
+    lower_edge: Float64[Array, ""] = jnp.asarray(
+        energy_min_ev, dtype=jnp.float64
+    )
+    upper_edge: Float64[Array, ""] = jnp.asarray(
+        energy_max_ev, dtype=jnp.float64
+    )
+    mask: Bool[Array, " n_e"] = (energy_axis >= lower_edge) & (
+        energy_axis <= upper_edge
+    )
+    inside: Bool[Array, " n_s"] = mask[:-1] & mask[1:]
+    checked_inside: Bool[Array, " n_s"] = eqx.error_if(
+        inside,
+        ~jnp.isfinite(lower_edge)
+        | ~jnp.isfinite(upper_edge)
+        | (upper_edge <= lower_edge)
+        | ~jnp.any(inside),
+        "the energy window must cover at least one sampled segment",
+    )
+    widths: Float64[Array, " n_s"] = jnp.diff(energy_axis)
+    segment_means: Float64[Array, "n_kx n_ky n_s"] = 0.5 * (
+        cube.intensity[:, :, :-1] + cube.intensity[:, :, 1:]
+    )
+    window_map: Float64[Array, "n_kx n_ky"] = jnp.sum(
+        segment_means * (widths * checked_inside),
+        axis=-1,
+    )
+    return window_map
+
+
 __all__: list[str] = [
+    "constant_energy_slice",
+    "energy_window_map",
     "hv_map_at_energy",
     "normalize_intensity",
     "simulate_arpes",

@@ -82,6 +82,15 @@ Two builders create ARPES rasters:
 Both builders rotate laboratory momentum into the sample frame. Their
 {class}`~diffpes.types.KGrid` outputs retain static raster shapes.
 
+```{figure} figures/geometry-energy-slices.png
+:alt: Constant-energy momentum maps of graphene at three binding energies
+
+Constant-energy $(k_x, k_y)$ maps of a graphene spectral cube at three
+binding energies. Rasters like these are what `build_arpes_kmesh`
+produces for the spectral assemblers; the pockets grow and warp as the
+slice moves below the Fermi level.
+```
+
 ## Free-Electron Kinematics
 
 The three-step model gives the vacuum kinetic energy:
@@ -122,6 +131,15 @@ aperture $(2m_e/\hbar^2)E_{\rm kin}$. The separately named
 {func}`~diffpes.simul.kz_from_inner_potential_at_fermi` is only the
 $\omega=0$ parity approximation.
 
+```{figure} figures/geometry-kz-hv.png
+:alt: Probed out-of-plane momentum versus photon energy for several parallel momenta
+:width: 74%
+
+The out-of-plane momentum probed at each photon energy from
+`kz_from_inner_potential`. Changing $h\nu$ scans $k_z$; larger
+$k_\parallel$ lowers the curve.
+```
+
 For a propagating channel,
 
 $$
@@ -143,14 +161,7 @@ R_H=R_x(t_y)R_y(t_x),
 R_V=R_x(t_x)R_y(t_y).
 $$
 
-The pinned Chinook comparison uses declared source-coordinate mappings. For
-the horizontal slit, `tilt.k_mesh` uses $T=-t_x$ and $P=t_y$.
-`gen_all_pol` uses $\theta=-t_x$ and $\phi=-t_y$. For the vertical slit,
-`tilt.k_mesh` uses $T=-t_y$ and $P=t_x$. `gen_all_pol` uses
-$\theta=-t_y$ and $\phi=-t_x$. The mappings give one active frame despite
-Chinook's different raw signs for the horizontal Ty coordinate.
-
-{func}`~diffpes.simul.detector_rotation` constructs this shared frame.
+{func}`~diffpes.simul.detector_rotation` constructs this frame.
 {func}`~diffpes.simul.detector_angles_to_kpar` maps detector angles to
 parallel momentum. {func}`~diffpes.simul.kpar_to_detector_angles` provides
 the inverse inside the physical disk $|k_\parallel|<k_f$.

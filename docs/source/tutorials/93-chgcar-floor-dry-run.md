@@ -8,7 +8,9 @@ reads the local `data/DFT` tree.
 ## Load the Public API
 
 The volumetric reader returns the charge in electrons per cubic
-Angstrom, the lattice, the grid shape, and the species list.
+Angstrom. `planar_average` and `integrate_charge` reduce the grids.
+`read_outcar` supplies the reference electron counts.
+`escape_depth_weights` applies the photoemission attenuation.
 
 
 ```python
@@ -16,7 +18,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-from diffpes.inout import read_chgcar
+from diffpes.inout import (
+    integrate_charge,
+    planar_average,
+    read_chgcar,
+    read_outcar,
+)
+from diffpes.simul import escape_depth_weights
 ```
 
 ## Read the Bi2Se3 Bulk Density
@@ -30,11 +38,10 @@ DATA_ROOT = Path("..") / "data" / "DFT"
 bulk_volume_data = read_chgcar(
     str(DATA_ROOT / "Bi2Se3" / "Bulk" / "Output" / "CHGCAR")
 )
-bulk_charge = np.asarray(bulk_volume_data.charge)
-bulk_lattice = np.asarray(bulk_volume_data.lattice)
+bulk_z_axis, bulk_profile = planar_average(bulk_volume_data)
 print("grid shape:", bulk_volume_data.grid_shape)
 print("species:", bulk_volume_data.symbols)
-print("atom counts:", bulk_volume_data.atom_counts)
+print("atom counts:", np.asarray(bulk_volume_data.atom_counts))
 ```
 
     grid shape: (36, 36, 252)
@@ -44,11 +51,6 @@ print("atom counts:", bulk_volume_data.atom_counts)
 
 
 ```python
-bulk_c_length = float(np.linalg.norm(bulk_lattice[2]))
-bulk_z_axis = (
-    np.arange(bulk_charge.shape[2]) / bulk_charge.shape[2] * bulk_c_length
-)
-bulk_profile = bulk_charge.mean(axis=(0, 1))
 fig, ax = plt.subplots(figsize=(6.4, 4.0))
 ax.plot(bulk_z_axis, bulk_profile, color="tab:blue")
 ax.set_xlabel(r"$z$ ($\AA$)")
@@ -65,7 +67,8 @@ plt.show()
 
 
 ```python
-bulk_plane_index = int(np.argmax(bulk_profile))
+bulk_charge = np.asarray(bulk_volume_data.charge)
+bulk_plane_index = int(np.argmax(np.asarray(bulk_profile)))
 fig, ax = plt.subplots(figsize=(5.4, 4.6))
 image = ax.imshow(
     bulk_charge[:, :, bulk_plane_index].T,
@@ -87,36 +90,22 @@ plt.show()
 
 ## Check the Electron Counts
 
-The grid integral is the mean density times the cell volume. The
-reference count is the NELECT value in the matching OUTCAR.
+`integrate_charge` multiplies the grid mean by the cell volume. The
+reference count is the NELECT value that `read_outcar` returns from the
+matching OUTCAR.
 
 
 ```python
-bulk_volume = float(abs(np.linalg.det(bulk_lattice)))
-bulk_integral = float(bulk_charge.mean() * bulk_volume)
+bulk_integral = float(integrate_charge(bulk_volume_data))
 bulk_nelect = float(
-    next(
-        line
-        for line in open(
-            DATA_ROOT / "Bi2Se3" / "Bulk" / "Output" / "OUTCAR_SCF",
-            encoding="utf-8",
-        )
-        if "NELECT" in line
-    ).split()[2]
+    read_outcar(
+        str(DATA_ROOT / "Bi2Se3" / "Bulk" / "Output" / "OUTCAR_SCF")
+    ).nelect
 )
 SLAB_DIR = DATA_ROOT / "Bi2Se3" / "6QL" / "Output few bands"
 slab_volume_data = read_chgcar(str(SLAB_DIR / "CHGCAR"))
-slab_charge = np.asarray(slab_volume_data.charge)
-slab_lattice = np.asarray(slab_volume_data.lattice)
-slab_volume = float(abs(np.linalg.det(slab_lattice)))
-slab_integral = float(slab_charge.mean() * slab_volume)
-slab_nelect = float(
-    next(
-        line
-        for line in open(SLAB_DIR / "OUTCAR_SCF", encoding="utf-8")
-        if "NELECT" in line
-    ).split()[2]
-)
+slab_integral = float(integrate_charge(slab_volume_data))
+slab_nelect = float(read_outcar(str(SLAB_DIR / "OUTCAR_SCF")).nelect)
 print("bulk integral (e):", round(bulk_integral, 2))
 print("bulk NELECT (e):", bulk_nelect)
 print("slab integral (e):", round(slab_integral, 2))
@@ -166,11 +155,7 @@ the exponential decay into the vacuum region.
 
 
 ```python
-slab_c_length = float(np.linalg.norm(slab_lattice[2]))
-slab_z_axis = (
-    np.arange(slab_charge.shape[2]) / slab_charge.shape[2] * slab_c_length
-)
-slab_profile = slab_charge.mean(axis=(0, 1))
+slab_z_axis, slab_profile = planar_average(slab_volume_data)
 fig, ax = plt.subplots(figsize=(6.8, 4.0))
 ax.plot(slab_z_axis, slab_profile, color="tab:cyan")
 ax.set_xlabel(r"$z$ ($\AA$)")
@@ -189,7 +174,9 @@ plt.show()
 ```python
 fig, ax = plt.subplots(figsize=(6.8, 4.0))
 ax.semilogy(
-    slab_z_axis, np.clip(slab_profile, 1.0e-9, None), color="tab:cyan"
+    slab_z_axis,
+    np.clip(np.asarray(slab_profile), 1.0e-9, None),
+    color="tab:cyan",
 )
 ax.set_xlabel(r"$z$ ($\AA$)")
 ax.set_ylabel(r"planar-averaged density (e/$\AA^3$)")
@@ -205,7 +192,8 @@ plt.show()
 
 
 ```python
-slab_plane_index = int(np.argmax(slab_profile))
+slab_charge = np.asarray(slab_volume_data.charge)
+slab_plane_index = int(np.argmax(np.asarray(slab_profile)))
 fig, ax = plt.subplots(figsize=(5.4, 4.6))
 image = ax.imshow(
     slab_charge[:, :, slab_plane_index].T,
@@ -238,19 +226,15 @@ dirac_state = read_chgcar(str(PDTE2_10ML_DIR / "PARCHG Dirac"))
 resonance_state = read_chgcar(str(PDTE2_10ML_DIR / "PARCHG Resonance"))
 deep_state = read_chgcar(str(PDTE2_10ML_DIR / "PARCHG 157 158"))
 shallow_state = read_chgcar(str(PDTE2_10ML_DIR / "PARCHG 197 198"))
-dirac_charge = np.asarray(dirac_state.charge)
-resonance_charge = np.asarray(resonance_state.charge)
-deep_charge = np.asarray(deep_state.charge)
-shallow_charge = np.asarray(shallow_state.charge)
-state_lattice = np.asarray(dirac_state.lattice)
-state_c_length = float(np.linalg.norm(state_lattice[2]))
-state_z_axis = (
-    np.arange(dirac_charge.shape[2])
-    / dirac_charge.shape[2]
-    * state_c_length
-)
+state_z_axis, dirac_profile = planar_average(dirac_state)
+_, resonance_profile = planar_average(resonance_state)
+_, deep_profile = planar_average(deep_state)
+_, shallow_profile = planar_average(shallow_state)
 print("PARCHG grid shape:", dirac_state.grid_shape)
-print("slab thickness axis (Ang):", round(state_c_length, 2))
+print(
+    "slab thickness axis (Ang):",
+    round(float(state_z_axis[-1]) + float(state_z_axis[1]), 2),
+)
 ```
 
     PARCHG grid shape: (36, 36, 640)
@@ -259,8 +243,6 @@ print("slab thickness axis (Ang):", round(state_c_length, 2))
 
 
 ```python
-dirac_profile = dirac_charge.mean(axis=(0, 1))
-resonance_profile = resonance_charge.mean(axis=(0, 1))
 fig, ax = plt.subplots(figsize=(6.8, 4.2))
 ax.plot(state_z_axis, dirac_profile, label="Dirac pair")
 ax.plot(state_z_axis, resonance_profile, label="resonance pair")
@@ -279,8 +261,6 @@ plt.show()
 
 
 ```python
-deep_profile = deep_charge.mean(axis=(0, 1))
-shallow_profile = shallow_charge.mean(axis=(0, 1))
 fig, ax = plt.subplots(figsize=(6.8, 4.2))
 ax.plot(state_z_axis, deep_profile, label="bands 157 and 158")
 ax.plot(state_z_axis, shallow_profile, label="bands 197 and 198")
@@ -299,7 +279,8 @@ plt.show()
 
 
 ```python
-dirac_plane_index = int(np.argmax(dirac_profile))
+dirac_charge = np.asarray(dirac_state.charge)
+dirac_plane_index = int(np.argmax(np.asarray(dirac_profile)))
 fig, ax = plt.subplots(figsize=(5.4, 4.6))
 image = ax.imshow(
     dirac_charge[:, :, dirac_plane_index].T,
@@ -321,26 +302,27 @@ plt.show()
 
 ## Weight the States with Escape Depths
 
-The weight is $\exp(-(z_{top} - z)/\lambda)$ below the top surface.
-Three inelastic mean free paths bracket the laser regime. The bars give
-the escape-weighted share of each state.
+`escape_depth_weights` attenuates each plane below the top surface with
+the inelastic mean free path. Three mean free paths bracket the laser
+regime. The bars give the escape-weighted share of each state.
 
 
 ```python
+dirac_values = np.asarray(dirac_profile)
 occupied_indices = np.nonzero(
-    dirac_profile > dirac_profile.max() * 1.0e-4
+    dirac_values > dirac_values.max() * 1.0e-4
 )[0]
 surface_z = float(state_z_axis[int(occupied_indices.max())])
 fig, ax = plt.subplots(figsize=(6.8, 4.2))
 ax.plot(
     state_z_axis,
-    dirac_profile / dirac_profile.max(),
+    dirac_values / dirac_values.max(),
     color="0.4",
     label="Dirac pair (normalized)",
 )
 for mean_free_path in (5.0, 10.0, 20.0):
-    escape_weight = np.exp(
-        -np.clip(surface_z - state_z_axis, 0.0, None) / mean_free_path
+    escape_weight = escape_depth_weights(
+        state_z_axis, surface_z, mean_free_path
     )
     ax.plot(
         state_z_axis,
@@ -364,10 +346,10 @@ plt.show()
 
 ```python
 state_profiles = [
-    dirac_profile,
-    resonance_profile,
-    deep_profile,
-    shallow_profile,
+    np.asarray(dirac_profile),
+    np.asarray(resonance_profile),
+    np.asarray(deep_profile),
+    np.asarray(shallow_profile),
 ]
 state_labels = [
     "Dirac",
@@ -379,8 +361,10 @@ weighted_shares = []
 for state_profile in state_profiles:
     row = []
     for mean_free_path in (5.0, 10.0, 20.0):
-        escape_weight = np.exp(
-            -np.clip(surface_z - state_z_axis, 0.0, None) / mean_free_path
+        escape_weight = np.asarray(
+            escape_depth_weights(
+                state_z_axis, surface_z, mean_free_path
+            )
         )
         row.append(
             float(

@@ -25,6 +25,7 @@ from diffpes.inout import (
     apply_kpath_ticks,
     plot_arpes_spectrum,
     plot_arpes_with_kpath,
+    plot_momentum_map,
 )
 from diffpes.types import (
     ArpesSpectrum,
@@ -400,4 +401,69 @@ class TestPlotArpesWithKpath(chex.TestCase):
         labels = [tick.get_text() for tick in ax.get_xticklabels()]
         chex.assert_equal(labels, ["G", "M", "K"])
         chex.assert_equal(ax.get_xlabel(), "Momentum (k)")
+        plt.close(fig)
+
+
+class TestPlotMomentumMap(chex.TestCase):
+    """Validate :func:`diffpes.inout.plot_momentum_map`.
+
+    :see: :func:`~diffpes.inout.plot_momentum_map`
+    """
+
+    def test_draws_map_with_momentum_extent(self) -> None:
+        """Plot one momentum map and verify the artists and extent.
+
+        The image extent follows the two momentum axes. The labels use
+        the momentum defaults.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        kx_axis: Float64[Array, " 4"]
+        ky_axis: Float64[Array, " 3"]
+        intensity: Float64[Array, "4 3"]
+        fig: Figure
+        ax: Axes
+        image: AxesImage
+        extent: Tuple[float, float, float, float]
+
+        kx_axis = jnp.linspace(-0.2, 0.2, 4)
+        ky_axis = jnp.linspace(-0.1, 0.1, 3)
+        intensity = jnp.ones((4, 3), dtype=jnp.float64)
+        fig, ax, image = plot_momentum_map(intensity, kx_axis, ky_axis)
+        assert isinstance(ax, Axes)
+        assert isinstance(image, AxesImage)
+        chex.assert_equal(image.get_array().shape, (3, 4))
+        extent = tuple(float(value) for value in image.get_extent())
+        chex.assert_equal(extent, (-0.2, 0.2, -0.1, 0.1))
+        plt.close(fig)
+
+    def test_reuses_supplied_axis(self) -> None:
+        """Plot the map on a caller-supplied axis.
+
+        The function keeps the supplied axis and its parent figure.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        kx_axis: Float64[Array, " 4"]
+        intensity: Float64[Array, "4 4"]
+        fig: Figure
+        ax: Axes
+        out_fig: Figure
+        out_ax: Axes
+        _image: AxesImage
+
+        kx_axis = jnp.linspace(-0.2, 0.2, 4)
+        intensity = jnp.ones((4, 4), dtype=jnp.float64)
+        fig, ax = plt.subplots()
+        out_fig, out_ax, _image = plot_momentum_map(
+            intensity, kx_axis, kx_axis, ax=ax
+        )
+        assert out_ax is ax
+        assert out_fig is fig
         plt.close(fig)

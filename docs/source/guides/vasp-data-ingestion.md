@@ -141,16 +141,23 @@ prepared = prepare_projection(context.orb_proj, atom_indices=[0, 1],
                               attach_oam=True)
 ```
 
+```{figure} figures/bands-to-spectrum.png
+:alt: Band-structure eigenvalues beside their broadened occupied spectrum
+
+What ingested bands become downstream: a `BandStructure` carrier (here
+with synthetic eigenvalues standing in for a parsed EIGENVAL) and the
+occupied spectrum the spectral assemblers produce from it.
+```
+
 `load_vasp_context` reads EIGENVAL and PROCAR. It also reads available DOSCAR
 and KPOINTS files. The function resolves the Fermi energy as described above.
 With `check_dimensions=True`, it checks the k-point and band counts before
 returning the context. `PROCAR` probabilities cannot reconstruct complex
-orbital or atomic-centre phase. The rebuilt `run_vasp_workflow` therefore
-requires a caller-owned, phase-complete Hamiltonian and every coherent
+orbital or atomic-centre phase. `run_vasp_workflow` therefore requires a
+caller-owned, phase-complete Hamiltonian alongside the coherent
 matrix-element, self-energy, geometry, calibration, and detector-effect
-carrier. It uses VASP eigenvalues and projections only as path and basis
-metadata, then calls `simulate_arpes_cut`; it never reconstructs a hidden
-Hamiltonian from projection weights.
+carriers. It uses VASP eigenvalues and projections as path and basis
+metadata, then calls `simulate_arpes_cut`.
 
 ## HDF5 Round-Trip
 

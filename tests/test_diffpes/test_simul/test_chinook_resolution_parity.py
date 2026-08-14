@@ -85,7 +85,7 @@ def test_lithium_chain_resolution_bundle_authenticates() -> None:
         / "_reference_tools/chinook_resolution_adapter.py"
     )
     assert _sha256(manifest_path) == (
-        "c90ee879010a83288ab9bfa6e200e5a7aaeb1e8af2f5481cbc384c49ef2f8b74"
+        "6d55b29e39e89318fb9c089135236345b49a54731a8b7bc13cfcf18654c06dea"
     )
     assert _sha256(model_path) == (
         "bf11fed1cd03bee97b255af4951b552d64ee181436492aed0c16727d6c49abbe"

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -25,6 +26,7 @@ from diffpes.constants import (
 from diffpes.simul import (
     detector_angles_to_kpar,
     emission_angles,
+    escape_depth_weights,
     final_state_k_inv_ang,
     kinetic_energy_ev,
     kpar_to_detector_angles,
@@ -1587,3 +1589,67 @@ class TestKparToDetectorAngles(chex.TestCase):
                 jnp.array(30.0),
                 "bad",
             )
+
+
+class TestEscapeDepthWeights(chex.TestCase):
+    """Validate :func:`diffpes.simul.escape_depth_weights`.
+
+    :see: :func:`~diffpes.simul.escape_depth_weights`
+    """
+
+    def test_exponential_attenuation_below_surface(self) -> None:
+        """Verify the exponential attenuation below the surface.
+
+        A position one mean free path below the surface keeps weight
+        ``exp(-1)``. The surface position keeps weight one.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        weights: Float64[Array, " Z"]
+
+        weights = escape_depth_weights(
+            jnp.asarray([10.0, 5.0, 0.0]), 10.0, 5.0
+        )
+        chex.assert_trees_all_close(
+            weights,
+            jnp.asarray([1.0, float(jnp.exp(-1.0)), float(jnp.exp(-2.0))]),
+            atol=1e-12,
+        )
+
+    def test_vacuum_positions_keep_unit_weight(self) -> None:
+        """Keep weight one for positions above the surface.
+
+        The clip maps vacuum positions to zero depth, so the weight
+        stays one.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        weights: Float64[Array, " Z"]
+
+        weights = escape_depth_weights(jnp.asarray([12.0, 15.0]), 10.0, 5.0)
+        chex.assert_trees_all_close(
+            weights, jnp.asarray([1.0, 1.0]), atol=1e-12
+        )
+
+    def test_nonpositive_mean_free_path_raises(self) -> None:
+        """Reject a nonpositive mean free path.
+
+        The traced guard trips before any weight forms when the decay
+        length is zero.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        with pytest.raises(
+            eqx.EquinoxRuntimeError,
+            match="mean free path must be positive and all inputs finite",
+        ):
+            escape_depth_weights(jnp.asarray([0.0]), 10.0, 0.0)

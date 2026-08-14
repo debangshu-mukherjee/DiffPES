@@ -311,7 +311,8 @@ def _read_projection_tables(
     Raises
     ------
     ValueError
-        If ion-row counts are malformed or table counts vary by band.
+        If a band record has a malformed ion-row count or the table
+        count varies by band.
     """
     b: int
     s: int
@@ -390,12 +391,12 @@ def _parse_procar_blocks(
        a. Scan forward to the band energy header, then to the orbital
           header line (``ion  s  py ...``). The scan tolerates blank
           lines between the anchors.
-       b. Read every consecutive ion row (first token is the ion
-          index), parsing columns 1 through 9 and skipping each
-          ``tot`` summation row. Consecutive stacked tables produce
+       b. Read every consecutive ion row through its leading index
+          token. Parse columns 1 through 9 and skip each ``tot``
+          summation row. Consecutive stacked tables produce
           ``natoms`` rows per table.
-       c. Reject a row count that is not a positive multiple of
-          ``natoms``, and reject a table count that changes between
+       c. Reject a row count that breaks the positive multiple of
+          ``natoms``. Reject a table count that changes between
           band records.
 
     5. Split the collected rows into per-table arrays and append one

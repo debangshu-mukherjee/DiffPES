@@ -33,6 +33,14 @@ diffpes performs filesystem discovery and persistence outside the JAX
 program. These operations cannot satisfy physics, numerical, or
 differentiability claims.
 
+```{figure} figures/pipeline-detector-counts.png
+:alt: Expected detector counts and one Poisson acquisition
+
+A typical certified observable: expected detector counts from
+`simulate_arpes`. A certificate records the model, inputs, conventions,
+transformations, and derivative evidence behind a raster like this one.
+```
+
 ## What a certificate records
 
 A {class}`~diffpes.types.ForwardCertificate` contains:

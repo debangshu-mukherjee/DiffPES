@@ -199,8 +199,8 @@ class TestReadProcarSOC(chex.TestCase):
         """Read a single-header SOC PROCAR and verify the spin channels.
 
         The ``PROCAR_soc_single`` fixture uses the modern SOC layout: one
-        header and four stacked ion tables under one band record, with a
-        blank line after the band header. The test checks the carrier
+        header and four stacked ion tables under one band record. A
+        blank line follows the band header. The test checks the carrier
         type, both shapes, the charge-table s value, and the signed spin
         sums mapped onto the six nonnegative channels.
 

@@ -219,7 +219,7 @@ print(f"d occupied weight / d gamma = {float(gradient):.3f}")
 
 ## Next Steps
 
-- Read [Coherent Spectral Assembly](../guides/simulation-levels.md).
+- Read [Simulating ARPES Spectra](../guides/simulating-arpes-spectra.md).
 - Work through the executable
   [matrix-element sensitivity tutorial](matrix-element-sensitivity.md).
 - Use the [VASP ingestion guide](../guides/vasp-data-ingestion.md) to prepare

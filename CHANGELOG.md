@@ -7,14 +7,39 @@ and the project uses calendar versioning.
 
 ## [Unreleased]
 
+### Added
+
+- `diffpes.inout.read_outcar` parses the Fermi energy and electron count
+  from a VASP OUTCAR file. The values arrive in the new validated
+  `diffpes.types.OutcarData` carrier.
+- `diffpes.inout.planar_average` and `diffpes.inout.integrate_charge`
+  reduce parsed volumetric grids. The first returns a stacking-axis
+  profile, and the second returns the cell electron count.
+- `diffpes.simul.escape_depth_weights` computes exponential
+  photoemission escape weights from an inelastic mean free path.
+- `diffpes.simul.constant_energy_slice` and
+  `diffpes.simul.energy_window_map` extract momentum-momentum maps from
+  an `ArpesCube`. The first interpolates one energy, and the second
+  integrates a window.
+- `diffpes.inout.plot_momentum_map` renders momentum-momentum maps with
+  Cartesian extents, completing the constant-energy plotting path.
+- `diffpes.inout.dedupe_band_path` removes the repeated segment anchors
+  that VASP line mode writes into parsed band paths. It shifts the
+  KPOINTS label indices and carries an optional projection carrier
+  through the same selection.
+
 ### Fixed
 
 - `read_procar` parses the modern single-header SOC layout, where one band
   record stacks the total, Sx, Sy, and Sz ion tables. The parser now scans
-  to the band and ion anchors instead of counting fixed line offsets, so
-  blank lines after a band header no longer break the read. Legacy
+  to the band and ion anchors instead of counting fixed line offsets.
+  Blank lines after a band header no longer break the read. Legacy
   multi-header files keep their previous behavior, and an unexpected
   projection-table count fails with a specific error.
+- Band scatter presets accept an atom subset on spin-orbit projection
+  carriers. The atom-axis helper now checks its shapes in an isolated
+  scope, so the nine orbital channels no longer collide with the six
+  spin channels.
 
 ### Changed
 

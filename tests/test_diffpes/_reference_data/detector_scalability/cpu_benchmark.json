@@ -69,7 +69,7 @@
     ],
     "forward": {
       "budget_bytes": 2000000000,
-      "compilation_seconds": 2.884212204022333,
+      "compilation_seconds": 2.9311277419910766,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
@@ -84,7 +84,7 @@
     },
     "forward_and_gradient": {
       "budget_bytes": 12000000000,
-      "compilation_seconds": 7.510087103000842,
+      "compilation_seconds": 7.776700697955675,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 419430400,
@@ -98,7 +98,7 @@
       "program": "value_and_complete_hamiltonian_gradient"
     },
     "jax_profiler_execution_trace": "not produced: literal CPU programs are compile-only; compiler allocation is the registered device-program authority",
-    "jaxpr_inspection_seconds": 2.758897445979528,
+    "jaxpr_inspection_seconds": 2.8963199889985844,
     "jaxpr_shape_audit": {
       "compact_kinematics_invariant": "no canonical, flattened, or factored shape with K*E*3 elements",
       "contains_full_kbe_materialization": false,
@@ -329,8 +329,8 @@
     "n_kx": 256,
     "n_ky": 256,
     "n_orbital": 20,
-    "process_peak_rss_after_bytes_non_authoritative": 2332069888,
-    "process_peak_rss_before_bytes_non_authoritative": 1878151168,
+    "process_peak_rss_after_bytes_non_authoritative": 2340548608,
+    "process_peak_rss_before_bytes_non_authoritative": 1877291008,
     "programs_executed": false,
     "result": "pass"
   },
@@ -385,7 +385,7 @@
     "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
     "src/diffpes/radial/screening.py": "38a92c00401b881eca31d6b1927ab4812d2643e51806c7d6005815113d3becd1",
     "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
-    "src/diffpes/simul/__init__.py": "8cb16aecec461243f97749bd7c6d80408c2423ca7f1a7e8278350a128c37ac5e",
+    "src/diffpes/simul/__init__.py": "ef85261fc8d7b1f1b17e6eb15dcc3c0b8621cd6523e7f1b98e7e437e0014889c",
     "src/diffpes/simul/_detector_cube.py": "8b1f2db3dc6ea61cfef667ce7cb18cbc34a62964141468c25b501c750ffce2aa",
     "src/diffpes/simul/_detector_geometry.py": "16fd78d5cc3f011863c8d564374e3bef3d059e6a4e17919ebb685a5a5af3d50e",
     "src/diffpes/simul/_detector_map.py": "050ac804230c7066b073ddb56e066e1bf68f37bbde71b7e31229fd48f31a9a50",
@@ -400,7 +400,7 @@
     "src/diffpes/simul/counting.py": "8e59be4ffc78b8034f8ea484d00764ac1356adfa48bded5f0ef54632d409f6c1",
     "src/diffpes/simul/detector_response.py": "d4865abb43f790f15315d7b315aa86e4f6f6e14b828b373e70bf043cd374eba7",
     "src/diffpes/simul/effects.py": "923eba7223b0c73233da9922ec494deca46c608f3054b01be8f1fa2e10ee8bd8",
-    "src/diffpes/simul/kinematics.py": "04e36114d44a5578bf427320f12207428b0bfeb775258353aa0621dda4a32d8b",
+    "src/diffpes/simul/kinematics.py": "513d3be1c81865b4a65ad266b8ce506f2783186a1a09529549fc5c1ee4c57c4b",
     "src/diffpes/simul/kz_broadening.py": "2444f46eb052edc79a10e9a5946720e341073895c5ccbe6bfbe06544cae47bca",
     "src/diffpes/simul/polarization.py": "6fdc2c522bad386d274a966ba0433de319bcbdf9e886ca5fa3e399de008a9ec2",
     "src/diffpes/simul/resolution.py": "35375f3fee04d96761debb11e29af0f6bfd0798a5c4a315a15602dd669d44cdf",
@@ -408,12 +408,12 @@
     "src/diffpes/simul/spectral.py": "a2f7b07099d50e76e4c68b43c2d18c2eaed8cb9b1b2518cb6cfb098b80474484",
     "src/diffpes/simul/spectral_eigen.py": "61229b7c38d434f8e70365d79552bed4e19b115bfd159e938a2ac21da9f762fb",
     "src/diffpes/simul/spectral_resolvent.py": "75fd65646b3cfa9688d6f32bcffc1f65b50ae873e3f2a6a45fd27e74b4919c59",
-    "src/diffpes/simul/spectrum.py": "75556df5f2b5a9dd27d9ee456ef1c38a4894f60d7f9cb240f026a676460c9a3b",
+    "src/diffpes/simul/spectrum.py": "e61b22008a5ec011672a5fd60e3e4f16974c0a45e3348a557bdb0266b417436f",
     "src/diffpes/simul/transmission.py": "8355f071c2dec982965bcd40d33e4484f000219ff8cfcc464ed10b207aa9fd80",
     "src/diffpes/tightb/__init__.py": "2d17c9ea88935d7e14a12c988f7a042cdb0f7eca29888e7571135596ede5ba26",
     "src/diffpes/tightb/hamiltonian.py": "4a5e5aefe73c24fd37000cf9b6bf063be97b73076ba3ce0bc270e814cc0e3ba6",
     "src/diffpes/tightb/soc.py": "f145345a1dc04d5ed6158bcc2b40548c0ced35263a9831ba82e9d857bd512404",
-    "src/diffpes/types/__init__.py": "7201a9a2214bf985e8d0966476da70cb67a4ea0c2d4c114e320fa5c7b107ea84",
+    "src/diffpes/types/__init__.py": "109abe52be19bba0c04ad9426e7c19fbd378f14e7c9c0503c3ba72d5d44f3fd9",
     "src/diffpes/types/aliases.py": "423b81a7bb2220db74d3fd22e33e2282f8e183930e65421d1435cf138956c131",
     "src/diffpes/types/arpes.py": "fa3c042693066214945511755c332f9e1e6f1e4536fc44f4f4a0761534d75afb",
     "src/diffpes/types/bands.py": "bfb9dc3895a97909ad6cf9e05142932a581e28db1f7072ce3c560f3e0001c98c",

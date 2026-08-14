@@ -41,14 +41,18 @@ one without truncating images, cropping a tail, or renormalizing a finite
 window. {func}`~diffpes.simul.broaden_kz` then applies those masses as an
 incoherent reduction.
 
+```{figure} figures/kz-wrapped-weights.png
+:alt: Wrapped Lorentzian kz densities for three escape depths
+:width: 74%
+
+The wrapped Lorentzian density over one surface-normal reciprocal period.
+A shorter mean free path spreads the detected intensity over more of the
+$k_z$ zone.
+```
+
 This is the free-electron-final-state escape-depth construction described by
 Strocov (J. Electron Spectrosc. Relat. Phenom. 130, 65, 2003) and by
 Damascelli, Hussain, and Shen (Rev. Mod. Phys. 75, 473, 2003, section II.B).
-Chinook provides useful compatibility evidence only for its single-kz
-kinematics: it chooses one $k_z$ per $(k_\parallel,h\nu)$ and uses escape depth
-for amplitude attenuation. It cannot validate this finite-width wrapped
-integral or its additional $\partial I/\partial\lambda$ and
-$\partial I/\partial V_0$ paths.
 
 The surface mapping uses a complete {class}`~diffpes.types.SurfaceCell`.
 Nodes are dimensionless centres in the third surface-fractional coordinate,
@@ -59,12 +63,7 @@ move to a neighboring *detected surface zone* is periodic. That move changes
 physical $k_\parallel$ and $k_f$, so radial and spherical-harmonic
 matrix-element factors retain genuine repeated-zone contrast.
 
-The registered quadrature calibration tested candidate counts
-$\{32,64,128,256,512,1024,2048\}$ against node doubling and a 4096-node small
-fixture. The smallest count meeting the registered pointwise/count
-$10^{-5}$, integrated-count $10^{-6}$, and gradient $10^{-4}$ budgets was
-`n_kz=2048`; the independent wrapped-reference remainder was below
-$10^{-12}$. Use
+Build the integration nodes with
 
 ```python
 from diffpes.simul import kz_fractional_nodes
@@ -72,9 +71,10 @@ from diffpes.simul import kz_fractional_nodes
 kz_nodes_frac = kz_fractional_nodes(2048)
 ```
 
-for inputs inside that frozen calibration profile. There is no silent public
-node-count default. A different physical profile requires an explicitly
-recalibrated count.
+The count `n_kz=2048` comes from a convergence calibration (pointwise
+$10^{-5}$, integrated $10^{-6}$, gradient $10^{-4}$ against node doubling).
+There is no default count, so pass one explicitly. Recheck convergence if
+your linewidths are much narrower than that calibration profile.
 
 ## Four mutually exclusive driver modes
 
@@ -135,6 +135,15 @@ mixture. Transmission acts at true kinetic energy before resolution. Display
 normalization and random count sampling remain outside the deterministic
 driver.
 
+```{figure} figures/kz-broadening-compare.png
+:alt: Momentum-energy maps comparing bulk_direct and bulk_kz modes
+
+The same bulk band at $h\nu = 43$ eV in two modes. `bulk_direct`
+evaluates the exact final-state $k_z$ and keeps the band sharp;
+`bulk_kz` integrates the wrapped Lorentzian for a 7.5 Å escape depth,
+smearing the band over its full $k_z$ dispersion.
+```
+
 ## Photon-energy scans
 
 {func}`~diffpes.simul.simulate_hv_scan` is the single-domain, pre-detector
@@ -171,27 +180,31 @@ map_k_hv = hv_map_at_energy(scan, energy_axis, energy_ev=-0.15)
 sampled energy axis and returns `[n_k, n_hv]` for plotting. The query must lie
 inside that axis.
 
+```{figure} figures/kz-hv-scan.png
+:alt: Normal-emission photon-energy scan showing kz band dispersion
+:width: 74%
+
+A normal-emission photon-energy scan in `bulk_kz` mode. The band bottom
+disperses with $h\nu$ as the probed $k_z$ sweeps through the out-of-plane
+zone -- the standard experimental signature used to assign $k_z$ and fit
+the inner potential.
+```
+
 The photon-energy axis is a `jax.lax.scan`, not a Python loop or a
 five-point interpolation. Each row recomputes the exact finite-$\omega$
 kinematics and photon-energy-dependent matrix elements. Photon-energy values,
 $V_0$, $W$, $\omega$, and the additional bulk-kz $\lambda$ path remain
 differentiable.
 
-## Memory contract and physical interpretation
+## Memory and physical interpretation
 
-Bulk integration is node-local. The production graph may hold one node's
-kinematics, Hamiltonian, sources, and a single `[K, E]` accumulator. It must
-not materialize a complete `[K, B, E, n_kz]`, `[K, B, B, n_kz]`,
-`[K, E, n_kz]`, or `[K, n_kz, 3]` carrier. Checkpointed `lax.scan` keeps
-reverse-mode storage flat in `n_kz`. The hν scan adds no growing auxiliary
-storage beyond its required returned scan.
-
-Physically, the explicit Lorentzian integral is the free-electron-final-state
-limit of a damped complex-$k_z$ treatment. Its linewidth is the observable
-shadow of the finite escape depth. It is more than a single-kz compatibility
-calculation, but it is not a full damped atomic radial matrix element. That
-candidate remains outside the current mode set and public API.
+Bulk integration streams one $k_z$ node at a time through a checkpointed
+`lax.scan`. Memory therefore stays flat in `n_kz`, and large node counts
+stay cheap to hold. Physically, the explicit Lorentzian integral is the
+free-electron-final-state limit of a damped complex-$k_z$ treatment. Its
+linewidth is the observable shadow of the finite escape depth.
 
 See [ARPES Geometry and Kinematics](arpes-geometry-and-kinematics.md) for the
-exact final-state branch and [Coherent Spectral
-Assembly](simulation-levels.md) for the resolvent and detector boundaries.
+exact final-state branch and [Simulating ARPES
+Spectra](simulating-arpes-spectra.md) for the resolvent and detector
+boundaries.

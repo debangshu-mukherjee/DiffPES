@@ -13,6 +13,8 @@ Routine Listings
     Plot an ARPES intensity map from an ArpesSpectrum PyTree.
 :func:`plot_arpes_with_kpath`
     Plot ARPES spectrum and annotate k-axis using KPathInfo.
+:func:`plot_momentum_map`
+    Plot a momentum-momentum intensity map with Cartesian axes.
 
 Notes
 -----
@@ -23,7 +25,7 @@ Use them for analysis visualizations outside JAX-compiled functions.
 import numpy as np
 from beartype import beartype
 from beartype.typing import List, Literal, Optional, Tuple, Union
-from jaxtyping import Float64, jaxtyped
+from jaxtyping import Array, Float64, jaxtyped
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
@@ -435,8 +437,145 @@ def plot_arpes_with_kpath(  # noqa: PLR0913, PLR0917
     return plot_result
 
 
+@jaxtyped(typechecker=beartype)
+def plot_momentum_map(  # noqa: PLR0913, PLR0917
+    intensity: Union[
+        Float64[Array, "n_kx n_ky"], Float64[NDArray, "n_kx n_ky"]
+    ],
+    kx_axis: Union[Float64[Array, " n_kx"], Float64[NDArray, " n_kx"]],
+    ky_axis: Union[Float64[Array, " n_ky"], Float64[NDArray, " n_ky"]],
+    ax: Optional[Axes] = None,
+    cmap: str = "inferno",
+    colorbar: bool = True,
+    clim: Optional[Tuple[float, float]] = None,
+    interpolation: str = "nearest",
+    aspect: Literal["equal", "auto"] = "equal",
+    xlabel: str = r"$k_x$ ($\mathrm{\AA}^{-1}$)",
+    ylabel: str = r"$k_y$ ($\mathrm{\AA}^{-1}$)",
+    title: str = "Constant-Energy Map",
+) -> Tuple[Union[Figure, SubFigure], Axes, AxesImage]:
+    """Plot a momentum-momentum intensity map with Cartesian axes.
+
+    The function renders one constant-energy or energy-integrated map
+    with ``matplotlib.axes.Axes.imshow``. The extent follows the two
+    momentum axes. The function accepts an existing axis. It creates a
+    figure and axis when the caller supplies none.
+
+    :see: :class:`~.test_plotting.TestPlotMomentumMap`
+
+    Implementation Logic
+    --------------------
+    1. **Normalize the plotting arrays**::
+
+           image_values = np.asarray(intensity, dtype=np.float64)
+
+       The conversion accepts JAX and NumPy inputs alike.
+
+    2. **Draw the transposed intensity image**::
+
+           image = ax.imshow(image_values.T, origin="lower", ...)
+
+       The transpose places ``ky`` vertically and ``kx``
+       horizontally.
+
+    3. **Return the Matplotlib objects**::
+
+           return plot_result
+
+       This binding keeps axis reuse and colorbar state explicit.
+
+    Parameters
+    ----------
+    intensity : Float64[Array, "n_kx n_ky"]
+        Momentum-momentum intensity map.
+    kx_axis : Float64[Array, " n_kx"]
+        Cartesian ``k_x`` axis in inverse Angstroms.
+    ky_axis : Float64[Array, " n_ky"]
+        Cartesian ``k_y`` axis in inverse Angstroms.
+    ax : Optional[Axes], optional
+        Existing axis for the image. If ``None``, the function creates
+        a figure and axis.
+    cmap : str, optional
+        Matplotlib colormap name. Default is ``"inferno"``.
+    colorbar : bool, optional
+        If True, add a colorbar labeled ``"Intensity (a.u.)"``.
+    clim : Optional[Tuple[float, float]], optional
+        Optional ``(vmin, vmax)`` color limits.
+    interpolation : str, optional
+        Image interpolation mode. Default is ``"nearest"``.
+    aspect : Literal["equal", "auto"], optional
+        Image aspect ratio passed to ``imshow``. Default is
+        ``"equal"``.
+    xlabel : str, optional
+        x-axis label text. Default names ``k_x`` in inverse Angstroms.
+    ylabel : str, optional
+        y-axis label text. Default names ``k_y`` in inverse Angstroms.
+    title : str, optional
+        Axis title text. Default is ``"Constant-Energy Map"``.
+
+    Returns
+    -------
+    fig : Figure
+        Matplotlib figure object.
+    ax : Axes
+        Axis used for plotting.
+    image : AxesImage
+        Image artist created by ``imshow``.
+
+    Notes
+    -----
+    The runtime type checks reject an intensity shape that disagrees
+    with the two momentum axes.
+    """
+    image_values: Float64[NDArray, "n_kx n_ky"] = np.asarray(
+        intensity, dtype=np.float64
+    )
+    kx_values: Float64[NDArray, " n_kx"] = np.asarray(
+        kx_axis, dtype=np.float64
+    )
+    ky_values: Float64[NDArray, " n_ky"] = np.asarray(
+        ky_axis, dtype=np.float64
+    )
+
+    fig: Union[Figure, SubFigure]
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    ax: Axes
+
+    image: AxesImage = ax.imshow(
+        image_values.T,
+        origin="lower",
+        aspect=aspect,
+        cmap=cmap,
+        interpolation=interpolation,
+        extent=(
+            float(kx_values[0]),
+            float(kx_values[-1]),
+            float(ky_values[0]),
+            float(ky_values[-1]),
+        ),
+    )
+    if clim is not None:
+        image.set_clim(clim[0], clim[1])
+    if colorbar:
+        fig.colorbar(image, ax=ax, label="Intensity (a.u.)")
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    plot_result: Tuple[Union[Figure, SubFigure], Axes, AxesImage] = (
+        fig,
+        ax,
+        image,
+    )
+    return plot_result
+
+
 __all__: list[str] = [
     "apply_kpath_ticks",
     "plot_arpes_spectrum",
     "plot_arpes_with_kpath",
+    "plot_momentum_map",
 ]

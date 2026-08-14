@@ -7,9 +7,10 @@ contains only stripped ``.ipynb`` notebooks. The documentation directory
 ``docs/source/tutorials`` carries one executed Markdown export, with code
 and outputs, for each canonical notebook, beside the Markdown-only tutorial
 pages. This module verifies that every canonical notebook is output-free,
-declares the ``python3`` kernel, and has a present export. The
-documentation workflow regenerates the exports. It rejects stale content
-through ``git diff``.
+declares the ``python3`` kernel, and has a present export. Committed
+exports are authoritative: the documentation workflow executes only
+notebooks that lack one. Contributors regenerate exports locally, where the
+untracked DFT data tree is available.
 
 Run the check directly::
 

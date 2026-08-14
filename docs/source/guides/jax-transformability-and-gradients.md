@@ -27,6 +27,16 @@ d_total_d_gamma = jax.grad(total_spectral_weight)(0.08)
 At degeneracy, use `spectral_intensity_resolvent`; it avoids raw eigenvector
 derivatives and retains the full transition source.
 
+```{figure} figures/jax-gradient-map.png
+:alt: Sensitivity of the graphene spectrum to the self-energy linewidth
+:width: 78%
+
+`jax.jacfwd` through the spectral assembly: the pointwise sensitivity
+$\partial I(k,\omega)/\partial\Gamma$ over the whole graphene spectrum.
+Peak intensity decreases with linewidth (blue) while the surrounding
+wings gain weight (red).
+```
+
 ## Coherent Matrix-Element Coordinates
 
 Use `pack_matrixel_params` to obtain a real optimizer vector:

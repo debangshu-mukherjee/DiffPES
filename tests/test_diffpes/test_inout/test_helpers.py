@@ -16,16 +16,21 @@ import diffpes
 from diffpes.inout import (
     aggregate_atoms,
     check_consistency,
+    dedupe_band_path,
+    integrate_charge,
+    planar_average,
     reduce_orbitals,
     select_atoms,
 )
 from diffpes.types import (
     OrbitalProjection,
     SpinOrbitalProjection,
+    VolumetricData,
     make_band_structure,
     make_kpath_info,
     make_orbital_projection,
     make_spin_orbital_projection,
+    make_volumetric_data,
 )
 
 
@@ -473,3 +478,262 @@ class TestSelectAtomsWithOAM(chex.TestCase):
         sub = select_atoms(orb, [0, 2])
         assert sub.oam is not None
         chex.assert_shape(sub.oam, (2, 2, 2, 3))
+
+
+@jaxtyped(typechecker=beartype)
+def _make_test_volume() -> VolumetricData:
+    """PRIVATE: Create a deterministic VolumetricData fixture.
+
+    The helper constructs a 10 Angstrom cubic cell with a 2 by 2 by 4
+    grid. The charge rises linearly along the third grid axis.
+
+    Returns
+    -------
+    VolumetricData
+        Validated volumetric fixture with a known planar profile.
+    """
+    charge: Float64[Array, "2 2 4"] = jnp.broadcast_to(
+        jnp.asarray([1.0, 2.0, 3.0, 4.0]), (2, 2, 4)
+    )
+    volume: VolumetricData = make_volumetric_data(
+        lattice=10.0 * jnp.eye(3),
+        coords=jnp.zeros((1, 3)),
+        charge=charge,
+        grid_shape=(2, 2, 4),
+        symbols=("X",),
+    )
+    return volume
+
+
+class TestPlanarAverage(chex.TestCase):
+    """Validate :func:`diffpes.inout.planar_average`.
+
+    :see: :func:`~diffpes.inout.planar_average`
+    """
+
+    def test_averages_stacking_axis(self) -> None:
+        """Compute the planar mean over the planes normal to axis two.
+
+        The fixture charge depends only on the third grid index, so the
+        planar mean returns the linear ramp. The positions cover the
+        10 Angstrom axis without the repeated end point.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        positions: Float64[Array, " G"]
+        profile: Float64[Array, " G"]
+
+        positions, profile = planar_average(_make_test_volume())
+        chex.assert_shape(positions, (4,))
+        chex.assert_trees_all_close(
+            positions, jnp.asarray([0.0, 2.5, 5.0, 7.5]), atol=1e-12
+        )
+        chex.assert_trees_all_close(
+            profile, jnp.asarray([1.0, 2.0, 3.0, 4.0]), atol=1e-12
+        )
+
+    def test_averages_first_axis(self) -> None:
+        """Compute the planar mean over the planes normal to axis zero.
+
+        The fixture charge is constant over the first grid axis, so the
+        profile holds the mean ramp value at both planes.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        positions: Float64[Array, " G"]
+        profile: Float64[Array, " G"]
+
+        positions, profile = planar_average(_make_test_volume(), axis=0)
+        chex.assert_shape(positions, (2,))
+        chex.assert_trees_all_close(
+            profile, jnp.asarray([2.5, 2.5]), atol=1e-12
+        )
+
+    def test_invalid_axis_raises(self) -> None:
+        """Reject an axis index outside the three lattice vectors.
+
+        The helper raises the documented ``ValueError`` before any
+        averaging when the axis index is not 0, 1, or 2.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        with pytest.raises(ValueError, match="axis must be 0, 1, or 2"):
+            planar_average(_make_test_volume(), axis=3)
+
+
+class TestIntegrateCharge(chex.TestCase):
+    """Validate :func:`diffpes.inout.integrate_charge`.
+
+    :see: :func:`~diffpes.inout.integrate_charge`
+    """
+
+    def test_matches_mean_times_volume(self) -> None:
+        """Match the grid mean times the cell volume.
+
+        The fixture mean density is 2.5 electrons per cubic Angstrom in
+        a 1000 cubic Angstrom cell, so the integral equals 2500.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        total: Float64[Array, ""]
+
+        total = integrate_charge(_make_test_volume())
+        chex.assert_trees_all_close(total, jnp.float64(2500.0), atol=1e-9)
+
+
+class TestDedupeBandPath(chex.TestCase):
+    """Validate :func:`diffpes.inout.dedupe_band_path`.
+
+    :see: :func:`~diffpes.inout.dedupe_band_path`
+    """
+
+    def test_removes_one_consecutive_anchor(self) -> None:
+        """Remove a repeated segment anchor while retaining band alignment.
+
+        The fixture repeats its middle k-point once. The result keeps the
+        first copy and applies the same index selection to the eigenvalues.
+
+        Notes
+        -----
+        Explicit expected arrays provide an independent reference.
+        """
+        bands: diffpes.types.BandStructure = make_band_structure(
+            eigenvalues=jnp.asarray([[0.0], [1.0], [2.0], [3.0]]),
+            kpoints=jnp.asarray(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                ]
+            ),
+        )
+        deduped: diffpes.types.BandStructure
+        shifted: None
+        _reduced: diffpes.types.OrbitalProjection | None
+        deduped, shifted, _reduced = dedupe_band_path(bands)
+        expected_eigenvalues: Float64[Array, "3 1"] = jnp.asarray(
+            [[0.0], [1.0], [3.0]], dtype=jnp.float64
+        )
+        expected_kpoints: Float64[Array, "3 3"] = jnp.asarray(
+            [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            dtype=jnp.float64,
+        )
+        chex.assert_trees_all_close(deduped.eigenvalues, expected_eigenvalues)
+        chex.assert_trees_all_close(deduped.kpoints, expected_kpoints)
+        assert shifted is None
+
+    def test_drops_repeated_anchor_and_shifts_labels(self) -> None:
+        """Remove one repeated anchor and shift the label indices.
+
+        The five-point path repeats its middle anchor, matching a
+        two-segment VASP line mode. The deduplicated carriers keep four
+        points, and the final label lands on the last kept point.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        kpoints: Float64[Array, "5 3"] = jnp.asarray(
+            [
+                [0.0, 0.0, 0.0],
+                [0.25, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.5, 0.25, 0.0],
+            ]
+        )
+        eigenvalues: Float64[Array, "5 2"] = jnp.arange(10.0).reshape((5, 2))
+        bands: diffpes.types.BandStructure = make_band_structure(
+            eigenvalues=eigenvalues, kpoints=kpoints
+        )
+        kpath: diffpes.types.KPathInfo = make_kpath_info(
+            num_kpoints=5,
+            label_indices=[0, 2, 4],
+            points_per_segment=2,
+            segments=2,
+            labels=("G", "X", "M"),
+        )
+        deduped: diffpes.types.BandStructure
+        shifted: diffpes.types.KPathInfo | None
+        _reduced: diffpes.types.OrbitalProjection | None
+        deduped, shifted, _reduced = dedupe_band_path(bands, kpath)
+        chex.assert_shape(deduped.eigenvalues, (4, 2))
+        chex.assert_shape(deduped.kpoints, (4, 3))
+        chex.assert_trees_all_close(
+            deduped.eigenvalues[3, 0], jnp.float64(8.0), atol=1e-12
+        )
+        assert shifted is not None
+        assert [int(v) for v in shifted.label_indices] == [0, 2, 3]
+
+    def test_clean_path_keeps_shapes(self) -> None:
+        """Keep the original shapes for a path without repeats.
+
+        Every point differs from its predecessor, so no point drops
+        and no metadata shifts.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        kpoints: Float64[Array, "3 3"] = jnp.asarray(
+            [[0.0, 0.0, 0.0], [0.25, 0.0, 0.0], [0.5, 0.0, 0.0]]
+        )
+        eigenvalues: Float64[Array, "3 2"] = jnp.ones((3, 2))
+        bands: diffpes.types.BandStructure = make_band_structure(
+            eigenvalues=eigenvalues, kpoints=kpoints
+        )
+        deduped: diffpes.types.BandStructure
+        shifted: diffpes.types.KPathInfo | None
+        _reduced: diffpes.types.OrbitalProjection | None
+        deduped, shifted, _reduced = dedupe_band_path(bands)
+        chex.assert_shape(deduped.eigenvalues, (3, 2))
+        assert shifted is None
+        assert _reduced is None
+
+    def test_reduces_matching_projections(self) -> None:
+        """Apply the k-point selection to a matching projection carrier.
+
+        The four-point path repeats its middle point, so the reduced
+        projection keeps three k-points on its leading axis.
+
+        Notes
+        -----
+        The test builds the inputs in the test body and checks the stated
+        property with the documented numerical or structural assertions.
+        """
+        kpoints: Float64[Array, "4 3"] = jnp.asarray(
+            [
+                [0.0, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
+        bands: diffpes.types.BandStructure = make_band_structure(
+            eigenvalues=jnp.ones((4, 2)), kpoints=kpoints
+        )
+        orb: diffpes.types.OrbitalProjection = make_orbital_projection(
+            projections=jnp.ones((4, 2, 1, 9))
+        )
+        deduped: diffpes.types.BandStructure
+        _shifted: diffpes.types.KPathInfo | None
+        reduced: diffpes.types.OrbitalProjection | None
+        deduped, _shifted, reduced = dedupe_band_path(bands, orb=orb)
+        chex.assert_shape(deduped.eigenvalues, (3, 2))
+        assert reduced is not None
+        chex.assert_shape(reduced.projections, (3, 2, 1, 9))
