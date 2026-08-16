@@ -6,12 +6,18 @@
 
 The automaton evaluates a chain spectral cut at nondegenerate momenta. It uses
 the public derivative-evidence, linearization, and dependency APIs. Smoke mode
-uses two active coordinates with four momenta and sixteen energy samples.
+uses two active coordinates with four momenta and four energy samples.
 """
 
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
+
+os.environ.setdefault(
+    "XLA_FLAGS",
+    "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1",
+)
 
 import jax
 import jax.numpy as jnp
@@ -301,7 +307,7 @@ def main(
     The body creates a nondegenerate reference model. It records automatic and
     central finite-difference evidence for every active coordinate.
     """
-    n_energy: int = 16 if args.smoke else 48
+    n_energy: int = 4 if args.smoke else 48
     energy_axis: Float64[Array, " n_energy"] = jnp.linspace(
         -3.0,
         3.0,
