@@ -9,6 +9,16 @@ and the project uses calendar versioning.
 
 ### Added
 
+- The `diffpes.harness` subpackage provides command, parameter, artifact,
+  result, and reference-model helpers for standalone experiments.
+- The `automatons/` directory provides agent-runnable forward simulation,
+  measurement ingest, inversion, identifiability, and diagnostics files.
+  It also provides catalog documents, JSON schemas, and a version-pin tool.
+- Continuous integration runs each automaton smoke command on the CPU.
+- The analytic chain and graphene fixture helpers remain local in
+  `tests/_factories.py`. Their `t`-only signatures do not yet match the
+  harness reference-model parameters.
+
 - The `diffpes.plots` subpackage renders diffpes carriers with
   Matplotlib. It collects every plotting function of the package. The
   surface covers energy-momentum cuts, momentum maps, band dispersions,
@@ -20,6 +30,9 @@ and the project uses calendar versioning.
 
 ### Changed
 
+- Regenerated the frozen matrix-element, spectral, and detector scalability
+  records after additive constants and public-export changes updated their
+  authenticated package-facade source hashes.
 - The plotting functions moved from `diffpes.inout` to the new
   `diffpes.plots` subpackage: `apply_kpath_ticks`,
   `plot_arpes_spectrum`, `plot_arpes_with_kpath`, `plot_momentum_map`,

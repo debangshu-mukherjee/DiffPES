@@ -1,9 +1,11 @@
-"""Type carrier PyTrees and factory functions for loading PyTrees.
+"""Define type carrier PyTrees and factory functions for loading PyTrees.
 
 Extended Summary
 ----------------
 - :mod:`aliases`
     Define scalar type aliases for JAX-compatible numeric types.
+- :mod:`automaton`
+    Define immutable carriers for executable experiment descriptions.
 - :mod:`arpes`
     Define ARPES data carriers and coordinate slices.
 - :mod:`bands`
@@ -107,6 +109,14 @@ Routine Listings
     Store self-describing ARPES path intensity in a JAX PyTree.
 :class:`ArtifactRef`
     Store static identity and role for one source or derived artifact.
+:class:`ArtifactRecord`
+    Store one manifest record for a saved artifact.
+:class:`AutomatonContext`
+    Store runtime inputs for one executable experiment.
+:class:`AutomatonParam`
+    Store one validated executable parameter description.
+:class:`AutomatonSpec`
+    Store metadata that describes one executable experiment.
 :class:`BackingAbsorberSpec`
     Define the ``BackingAbsorberSpec`` public contract.
 :class:`BandStructure`
@@ -357,10 +367,18 @@ Routine Listings
     Compute an ARPES map around the Fermi level.
 :func:`make_acquisition`
     Compute the ``make_acquisition`` public contract.
+:func:`make_artifact_record`
+    Create a validated record for one saved artifact.
 :func:`make_arpes_cube`
     Create a validated ``ArpesCube`` instance.
 :func:`make_arpes_spectrum`
     Create a validated ``ArpesSpectrum`` instance.
+:func:`make_automaton_context`
+    Create a runtime context and its deterministic JAX key.
+:func:`make_automaton_param`
+    Create a validated executable parameter description.
+:func:`make_automaton_spec`
+    Create metadata for one executable experiment.
 :func:`make_artifact_ref`
     Create a validated artifact reference.
 :func:`make_band_structure`
@@ -631,6 +649,16 @@ from .arpes import (
     make_arpes_spectrum,
     slice_edc,
     slice_mdc,
+)
+from .automaton import (
+    ArtifactRecord,
+    AutomatonContext,
+    AutomatonParam,
+    AutomatonSpec,
+    make_artifact_record,
+    make_automaton_context,
+    make_automaton_param,
+    make_automaton_spec,
 )
 from .bands import (
     BandStructure,
@@ -932,6 +960,10 @@ __all__: list[str] = [
     "ArpesCube",
     "ArpesSpectrum",
     "ArtifactRef",
+    "ArtifactRecord",
+    "AutomatonContext",
+    "AutomatonParam",
+    "AutomatonSpec",
     "BackingAbsorberSpec",
     "BandStructure",
     "CertificateDiff",
@@ -1057,8 +1089,12 @@ __all__: list[str] = [
     "constant_energy_map",
     "fermi_surface_map",
     "make_acquisition",
+    "make_artifact_record",
     "make_arpes_cube",
     "make_arpes_spectrum",
+    "make_automaton_context",
+    "make_automaton_param",
+    "make_automaton_spec",
     "make_artifact_ref",
     "make_band_structure",
     "make_certificate_diff",

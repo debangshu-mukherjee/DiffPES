@@ -22,10 +22,10 @@ _CONSUMER_MANIFEST_PATH: Path = (
     _REFERENCE_DIRECTORY / "kz_scan_scalability_manifest.json"
 )
 _ARTIFACT_SHA256: str = (
-    "ca6ed412a3e3783aa4a9e367c75349bdf6df63d30ff4f63794950fdcfecfc37a"
+    "38614e9cce5a9d24e182db6efb096f1e9793c0dda932ddd3f77be9d042fae58c"
 )
 _CONSUMER_MANIFEST_SHA256: str = (
-    "96dead6215871150f20dc730653f460b9a2a1f91dbb0724bae9d3eec6c8ae623"
+    "8edce5d73c856251e5f9b9d9679bea412a9419b9360b5ebf82d5f05892e59bb0"
 )
 _HARNESS_SHA256: str = (
     "4e4f9b6fb0aa85e61bcf87f67239c621f4b2c61d0909446ff3ba61a426d3b4dc"

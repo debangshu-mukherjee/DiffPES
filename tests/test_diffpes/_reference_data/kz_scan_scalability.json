@@ -28,7 +28,7 @@
     "finite_execution": null,
     "forward": {
       "budget_bytes": 2000000000,
-      "compilation_seconds": 1.6917193179833703,
+      "compilation_seconds": 1.5718408019747585,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 6400,
@@ -42,7 +42,7 @@
     },
     "forward_and_full_h_gradient": {
       "budget_bytes": 12000000000,
-      "compilation_seconds": 3.801059552002698,
+      "compilation_seconds": 3.6214658769895323,
       "memory_analysis": {
         "alias_size_bytes": 0,
         "argument_size_bytes": 6400,
@@ -59,8 +59,8 @@
       20
     ],
     "jaxpr_seconds": {
-      "forward": 1.421062453999184,
-      "forward_and_full_h_gradient": 1.5534692580113187
+      "forward": 1.394011934986338,
+      "forward_and_full_h_gradient": 1.4389576799585484
     },
     "jaxpr_shape_audit": {
       "audit_scope": "recursive forward and value-plus-full-H-gradient JAXPRs, including invars, constvars, outvars, and equation variables",
@@ -122,8 +122,8 @@
       "result": "pass"
     },
     "nonzero_full_h_gradient": null,
-    "process_peak_rss_after_bytes_non_authoritative": 835833856,
-    "process_peak_rss_before_bytes_non_authoritative": 560361472,
+    "process_peak_rss_after_bytes_non_authoritative": 836161536,
+    "process_peak_rss_before_bytes_non_authoritative": 558977024,
     "programs_executed": false,
     "result": "pass"
   },
@@ -145,7 +145,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 42672,
-          "compilation_seconds": 1.6022612619563006,
+          "compilation_seconds": 1.59560507099377,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 8,
@@ -167,7 +167,7 @@
         "required_scan_output_bytes": 840,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 123048,
-          "compilation_seconds": 6.20342823601095,
+          "compilation_seconds": 6.10292680299608,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 8,
@@ -186,7 +186,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 44080,
-          "compilation_seconds": 1.788448318024166,
+          "compilation_seconds": 1.740500141051598,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 40,
@@ -208,7 +208,7 @@
         "required_scan_output_bytes": 4200,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 134696,
-          "compilation_seconds": 5.654409118986223,
+          "compilation_seconds": 5.82887548400322,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 40,
@@ -227,7 +227,7 @@
       {
         "forward": {
           "auxiliary_beyond_scan_and_hv_input_bytes": 44208,
-          "compilation_seconds": 2.083133664971683,
+          "compilation_seconds": 1.719956460990943,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 160,
@@ -249,7 +249,7 @@
         "required_scan_output_bytes": 16800,
         "reverse_hv_gradient": {
           "auxiliary_beyond_scan_hv_input_gradient_scalar_bytes": 160040,
-          "compilation_seconds": 5.4777194039779715,
+          "compilation_seconds": 5.779547174985055,
           "memory_analysis": {
             "alias_size_bytes": 0,
             "argument_size_bytes": 160,
@@ -324,9 +324,9 @@
   "schema_version": 1,
   "selected_n_kz": 2048,
   "source_sha256": {
-    "pyproject.toml": "4be46e8b02ca4e0bc572d5151c7eaf5609e7479f9e887684f04c6a92f547acc2",
-    "src/diffpes/__init__.py": "b91304648b2e299dfef379f3639dc1b68ec3a28ce9368c7e2601183659100578",
-    "src/diffpes/constants/__init__.py": "3c672de1ee5a2085b30a5d7f5b3859f8b704db0b95db88b47b5a2f3eb1cb7eb5",
+    "pyproject.toml": "e9be87e6bcf348b90d87cf179b17f48c395b058ea725a1e76b21147024b52844",
+    "src/diffpes/__init__.py": "e6e406b7a630da97322bb5427c87912b24630fd9ed52aa900b16d28e7c2bfd50",
+    "src/diffpes/constants/__init__.py": "716d151a331c71d7037a3ab8427647fda45852af4788ff68e8c5281af6139285",
     "src/diffpes/constants/carriers.py": "abb005e64305479bc510d7d1d25d7e49ac301eda088e33f77d981f07b286a124",
     "src/diffpes/constants/certification.py": "2a514ec8b06b1302ddbd055f6f6c1806cc669e21f00849201f1789eb48e793f5",
     "src/diffpes/constants/numerical.py": "71d2a3e74520dd5794093b1ef765bf4dd64955ff6351f1d53e47eeec4cf58560",
@@ -350,7 +350,7 @@
     "src/diffpes/radial/coulomb_ode.py": "c890536f2ff8e947173564db816ef0fbe4861b9d72d5f339c29e0cb1441cead1",
     "src/diffpes/radial/integrate.py": "4846651d8c74df81351244d6b8bf70e6954428f00949254a0a7330745c502125",
     "src/diffpes/radial/wavefunctions.py": "7af2ab3f8a6e19d6e5a80aa03cb4527732d865ac637f8f35085850d5462c9e38",
-    "src/diffpes/simul/__init__.py": "2df3e41e690cb49fa70f1d92155e8961c14bb169d70697613e41d9078dfdc44d",
+    "src/diffpes/simul/__init__.py": "6a7c7671ac1ce79580e620e6cc454968f388812a29f7f6d41ed75fbcfb247787",
     "src/diffpes/simul/_detector_cube.py": "8b1f2db3dc6ea61cfef667ce7cb18cbc34a62964141468c25b501c750ffce2aa",
     "src/diffpes/simul/_detector_geometry.py": "16fd78d5cc3f011863c8d564374e3bef3d059e6a4e17919ebb685a5a5af3d50e",
     "src/diffpes/simul/_detector_map.py": "050ac804230c7066b073ddb56e066e1bf68f37bbde71b7e31229fd48f31a9a50",
@@ -377,7 +377,7 @@
     "src/diffpes/tightb/__init__.py": "2d17c9ea88935d7e14a12c988f7a042cdb0f7eca29888e7571135596ede5ba26",
     "src/diffpes/tightb/hamiltonian.py": "4a5e5aefe73c24fd37000cf9b6bf063be97b73076ba3ce0bc270e814cc0e3ba6",
     "src/diffpes/tightb/soc.py": "f145345a1dc04d5ed6158bcc2b40548c0ced35263a9831ba82e9d857bd512404",
-    "src/diffpes/types/__init__.py": "109abe52be19bba0c04ad9426e7c19fbd378f14e7c9c0503c3ba72d5d44f3fd9",
+    "src/diffpes/types/__init__.py": "45aa84e8079fabf1d74925ba18dc7ecb4a3f674bac9bbbe5bbb245bcd9bf6aba",
     "src/diffpes/types/aliases.py": "423b81a7bb2220db74d3fd22e33e2282f8e183930e65421d1435cf138956c131",
     "src/diffpes/types/arpes.py": "fa3c042693066214945511755c332f9e1e6f1e4536fc44f4f4a0761534d75afb",
     "src/diffpes/types/detector_data.py": "a27ed0fa5b3aba02a47b89d4bd90ef5aa25c44539b4df6ca509f4e219b0de2fe",

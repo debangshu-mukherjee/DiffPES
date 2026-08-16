@@ -30,8 +30,10 @@ Coverage Map
    :maxdepth: 1
 
    certify
+   automatons
    constants
    contracts
+   harness
    inout
    maths
    matrixel

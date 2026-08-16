@@ -194,7 +194,7 @@ def _diffpes_import_defects(
     relative_notebook: Path,
     cell_index: int,
 ) -> Tuple[List[str], int]:
-    """Return public-API import defects and package import count.
+    """PRIVATE: Return public-API import defects and package import count.
 
     Parameters
     ----------
@@ -244,7 +244,8 @@ def _diffpes_import_defects(
                 f"direct diffpes import in {relative_notebook} cell "
                 f"{cell_index}; use `import diffpes as dp`"
             )
-    return defects, package_import_count
+    result: Tuple[List[str], int] = (defects, package_import_count)
+    return result
 
 
 def _notebook_defects(

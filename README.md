@@ -259,3 +259,22 @@ becomes a simulated ARPES measurement.
 crystal geometry, hoppings, self-energy, matrix elements, experiment
 geometry, and detector response to expected counts. Fit any of it to
 measured spectra by gradient descent.
+
+## Agent-runnable experiments
+
+The `automatons/` directory provides standalone experiments for automated
+diffpes workflows.
+Each file supports discovery, parameter validation, smoke execution, and a
+final JSON result.
+
+Run a small example with:
+
+```bash
+JAX_PLATFORMS=cpu MPLCONFIGDIR=/tmp/dp-mpl .venv/bin/python \
+  automatons/forward_bands.py --smoke --outdir /tmp/dp-bands --json
+```
+
+Read the [experiment catalog](https://github.com/debangshu-mukherjee/diffpes/blob/main/automatons/INDEX.md)
+before selecting a file.
+Read the [agent guide](https://github.com/debangshu-mukherjee/diffpes/blob/main/docs/source/guides/running-experiments-as-an-agent.md)
+for the complete execution protocol.

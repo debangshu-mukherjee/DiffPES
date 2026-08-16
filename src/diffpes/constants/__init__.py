@@ -8,6 +8,8 @@ tolerances. Source modules import constants from :mod:`diffpes.constants`.
 
 The following submodules organize the constants:
 
+- :mod:`automaton`
+    Define static values for executable experiment handling.
 - :mod:`carriers`
     Define validation constants for diffpes carrier factories.
 - :mod:`certification`
@@ -31,6 +33,36 @@ Routine Listings
     HDF5 attribute name listing PyTree fields stored as None.
 :obj:`ATTR_TYPE`
     HDF5 attribute name storing the PyTree type name.
+:obj:`AUTOMATON_ARTIFACT_MIMES`
+    Map supported artifact suffixes to Internet media types.
+:obj:`AUTOMATON_CACHE_ENV_VAR`
+    Name the environment variable for the JAX compilation cache.
+:obj:`AUTOMATON_DEFAULT_OUTDIR`
+    Name the default root directory for experiment artifacts.
+:obj:`AUTOMATON_DESCRIBE_SCHEMA_VERSION`
+    Identify the executable description payload schema.
+:obj:`AUTOMATON_ERROR_KINDS`
+    List accepted executable error categories.
+:obj:`AUTOMATON_EXIT_CODES`
+    Map executable error categories to process exit codes.
+:obj:`AUTOMATON_INHERITED_FLAGS`
+    List inherited command-line flags and their help text.
+:obj:`AUTOMATON_JSON_TYPES`
+    Map supported Python parameter types to JSON Schema types.
+:obj:`AUTOMATON_PARAM_TYPES`
+    List supported Python parameter type names.
+:obj:`AUTOMATON_PIN_PATTERN`
+    Match a pinned diffpes requirement in script metadata.
+:obj:`AUTOMATON_PREVIEW_MAX_BYTES`
+    Limit embedded artifact previews in bytes.
+:obj:`AUTOMATON_RESULT_SCHEMA_VERSION`
+    Identify the executable result payload schema.
+:obj:`AUTOMATON_RUNTIME_CHECK_ENV_VAR`
+    Name the environment variable that disables runtime checks.
+:obj:`AUTOMATON_SMOKE_WALL_SECONDS`
+    Limit a CPU smoke execution wall time in seconds.
+:obj:`AUTOMATON_STATUS_VALUES`
+    List accepted executable result statuses.
 :obj:`BACKGROUND_MODES`
     Background modes accepted by detector-effects carriers.
 :obj:`BAND_GROUP_COMPLEMENT_GAP_MIN_EV`
@@ -353,6 +385,23 @@ Routine Listings
     Number of Cartesian vector components.
 """
 
+from .automaton import (
+    AUTOMATON_ARTIFACT_MIMES,
+    AUTOMATON_CACHE_ENV_VAR,
+    AUTOMATON_DEFAULT_OUTDIR,
+    AUTOMATON_DESCRIBE_SCHEMA_VERSION,
+    AUTOMATON_ERROR_KINDS,
+    AUTOMATON_EXIT_CODES,
+    AUTOMATON_INHERITED_FLAGS,
+    AUTOMATON_JSON_TYPES,
+    AUTOMATON_PARAM_TYPES,
+    AUTOMATON_PIN_PATTERN,
+    AUTOMATON_PREVIEW_MAX_BYTES,
+    AUTOMATON_RESULT_SCHEMA_VERSION,
+    AUTOMATON_RUNTIME_CHECK_ENV_VAR,
+    AUTOMATON_SMOKE_WALL_SECONDS,
+    AUTOMATON_STATUS_VALUES,
+)
 from .carriers import (
     ACQUISITION_MODES,
     ARRAY_MATRIX_NDIM,
@@ -532,6 +581,21 @@ __all__: list[str] = [
     "ATTR_AUX",
     "ATTR_NONE",
     "ATTR_TYPE",
+    "AUTOMATON_ARTIFACT_MIMES",
+    "AUTOMATON_CACHE_ENV_VAR",
+    "AUTOMATON_DEFAULT_OUTDIR",
+    "AUTOMATON_DESCRIBE_SCHEMA_VERSION",
+    "AUTOMATON_ERROR_KINDS",
+    "AUTOMATON_EXIT_CODES",
+    "AUTOMATON_INHERITED_FLAGS",
+    "AUTOMATON_JSON_TYPES",
+    "AUTOMATON_PARAM_TYPES",
+    "AUTOMATON_PIN_PATTERN",
+    "AUTOMATON_PREVIEW_MAX_BYTES",
+    "AUTOMATON_RESULT_SCHEMA_VERSION",
+    "AUTOMATON_RUNTIME_CHECK_ENV_VAR",
+    "AUTOMATON_SMOKE_WALL_SECONDS",
+    "AUTOMATON_STATUS_VALUES",
     "BACKGROUND_MODES",
     "BAND_GROUP_COMPLEMENT_GAP_MIN_EV",
     "BAND_LINE_MIN_VALUES",

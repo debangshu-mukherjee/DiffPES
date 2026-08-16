@@ -16,6 +16,7 @@ guides/pytree-architecture
 guides/jax-transformability-and-gradients
 guides/certified-forward-models
 guides/vasp-data-ingestion
+guides/running-experiments-as-an-agent
 ```
 
 ```{toctree}

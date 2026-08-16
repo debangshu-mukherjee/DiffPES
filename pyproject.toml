@@ -130,6 +130,7 @@ quiet = true
 [tool.ruff]
 include = [
     ".github/**/*.py",
+    "automatons/**/*.py",
     "docs/**/*.py",
     "pyproject.toml",
     "scripts/**/*.py",
@@ -250,7 +251,7 @@ root = ["./src", "."]
 python-platform = "linux"
 
 [tool.ty.src]
-include = ["src", "tests", "docs"]
+include = ["src", "tests", "docs", "automatons"]
 
 [tool.ty.rules]
 too-many-positional-arguments = "ignore"

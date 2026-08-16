@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diffpes.org/schemas/automaton_params.schema.json",
+  "title": "Automaton description payload",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "experiment",
+    "summary",
+    "params_schema",
+    "returns",
+    "inherited_flags"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "diffpes.automaton.describe.v1"
+    },
+    "experiment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string"
+    },
+    "params_schema": {
+      "type": "object",
+      "required": [
+        "type",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "properties": {
+          "type": "object"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {
+          "const": false
+        }
+      }
+    },
+    "returns": {
+      "type": "object"
+    },
+    "inherited_flags": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

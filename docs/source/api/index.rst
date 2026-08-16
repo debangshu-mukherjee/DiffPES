@@ -19,6 +19,7 @@ Submodules
 
    certify
    constants
+   harness
    inout
    maths
    matrixel
@@ -35,6 +36,10 @@ Submodules
 :mod:`diffpes.constants`
     Immutable physical values, schema identifiers, parser tokens, selector
     vocabularies, and validation tolerances.
+
+:mod:`diffpes.harness`
+    Process-boundary helpers for parameter validation, artifacts, results,
+    and executable experiment control.
 
 :mod:`diffpes.inout`
     VASP file parsers (POSCAR, EIGENVAL, KPOINTS, DOSCAR, PROCAR, CHGCAR),

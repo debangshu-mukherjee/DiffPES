@@ -32,6 +32,7 @@ API; `docs/make_guide_figures.py` regenerates all of them.
 | [PyTree Architecture](pytree-architecture.md) | Equinox carriers, static versus traced fields, and factory validation |
 | [JAX Transformability and Gradients](jax-transformability-and-gradients.md) | `grad`, `vmap`, and `jit` through the forward model, and optimizer coordinates |
 | [Certified Forward Models](certified-forward-models.md) | Recording provenance, validity checks, and derivative evidence for one run |
+| [Running Experiments as an Agent](running-experiments-as-an-agent.md) | Discovering, validating, and running machine-readable experiments |
 
 ## Mathematical Notation
 

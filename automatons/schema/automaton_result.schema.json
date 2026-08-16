@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diffpes.org/schemas/automaton_result.schema.json",
+  "title": "Automaton result payload",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "experiment",
+    "diffpes_version",
+    "jax_backend",
+    "seed",
+    "params",
+    "metrics",
+    "artifacts",
+    "wall_seconds",
+    "returns",
+    "result_key"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "diffpes.automaton.result.v1"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "error",
+        "timeout"
+      ]
+    },
+    "experiment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "diffpes_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "jax_backend": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "params": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "mime",
+          "path",
+          "preview_b64"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mime": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "preview_b64": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "wall_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "returns": {
+      "type": "object"
+    },
+    "result_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_kind": {
+      "type": "string"
+    },
+    "field": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

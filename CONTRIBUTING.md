@@ -80,16 +80,19 @@ The JAX-First rules below implement this principle.
 
 ```
 diffpes/
+├── automatons/            # Standalone agent-runnable experiment files
 ├── src/diffpes/           # Main source code
 │   ├── certify/           # Forward certification and evidence
 │   ├── constants/         # Immutable source values and lookup data
 │   │   ├── __init__.py
+│   │   ├── automaton.py
 │   │   ├── carriers.py
 │   │   ├── certification.py
 │   │   ├── numerical.py
 │   │   ├── shared.py
 │   │   └── wannier.py
 │   ├── inout/             # Data input, output, and workflow helpers
+│   ├── harness/           # Experiment command and artifact helpers
 │   ├── maths/             # Mathematical and angular primitives
 │   ├── matrixel/          # Coherent matrix-element primitives
 │   │   ├── __init__.py
@@ -125,11 +128,14 @@ The source split uses these focused ownership modules:
 - `tightb`: `neighbor_shells`, `slab_assembly`, `slab_operators`,
   `slab_rotation`, `slab_surface_cell`, `slab_topology`, and
   `slaterkoster_model`.
-- `types`: `arpes`, `certification_validation`, `derivatives`,
+- `types`: `arpes`, `automaton`, `certification_validation`, `derivatives`,
   `detector_data`, `diagonalized_bands`, `electronic_structure_validation`,
   `evidence`, `orbital_basis`, `radial_profiles`, `registry`, `reports`,
   `slab_geometry`, `slab_topology`, `slater_koster_params`, and
   `specification`.
+
+Analytic chain and graphene models live in `diffpes.harness.reference_models`.
+Existing test factories remain local while their fixture signatures differ.
 
 The other source modules remain in their listed subpackages. Each test module
 uses the corresponding path under `tests/test_diffpes/`.
@@ -266,7 +272,7 @@ def simulate_spectrum(
   `beartype.typing`.
   Runtime uses of `tuple` and `dict` (calls, literals, `isinstance` checks)
   stay valid.
-  The repository floor enforces this rule with an AST gate, which also
+  The repository floor enforces this rule with an AST check, which also
   rejects stdlib `typing` imports of the charter-owned constructs.
 - Annotate intermediate variables inside function bodies too — e.g.
   `theta_rad: Float[Array, ""] = jnp.deg2rad(theta_deg)`.
@@ -491,16 +497,16 @@ substitute for a `ValueError` or an `eqx.error_if` check.
 Name every object for the concept that it represents. Use domain terms from
 physics, mathematics, or software structure.
 
-**Never put project-management vocabulary in a name.** This rule excludes plan
-numbers, work-package numbers, gate identifiers, phase labels, sprint labels,
-and milestone labels. Development tracking stays in the separate planning
+**Never put project-management vocabulary in a name.** This rule excludes
+planning numbers, verification labels, phase labels, sprint labels, and
+milestone labels. Development tracking stays in the separate planning
 repository. It is immaterial to a user of this library.
 
 The rule covers the **entire repository** and has **no historical
-exception**. Plan vocabulary does not appear anywhere: not in comments,
+exception**. Project-management vocabulary does not appear anywhere: not in comments,
 docstrings, file names, tests, artifacts, or manifests. Rename each artifact
-to domain terms at the plans-to-code boundary, before it enters this
-repository. When a legacy name with plan vocabulary surfaces, rename it to a
+to domain terms at the planning-to-code boundary, before it enters this
+repository. When a legacy tracking name surfaces, rename it to a
 descriptive domain name in an owning change.
 
 The rule applies to all of these:
@@ -514,9 +520,9 @@ The rule applies to all of these:
 
 ```python
 # ❌ Wrong - tracking vocabulary leaks into the repository
-# file: tests/test_diffpes/test_simul/test_plan06_g15.py
-def test_plan07_wp3_carrier() -> None:
-    """Validate the Plan-06 gate 06.G15 covariance requirement."""
+# file: tests/test_diffpes/test_simul/test_tracking_identifier.py
+def test_tracking_identifier_carrier() -> None:
+    """Validate a tracked covariance requirement."""
 
 
 # ✅ Correct - the name states the content
@@ -1288,30 +1294,30 @@ uv run --frozen sphinx-build -W -a -E --keep-going -b html \
 formatting, and the other hooks. If a hook modifies files, stage the changes
 and commit again.
 
-#### The annotation pre-flight gate
+#### The annotation pre-flight check
 
-`pytest` runs an annotation gate before it collects one test. The gate is
+`pytest` runs an annotation check before it collects one test. The check is
 `tests/_preflight_types.py`. It imports every module in `diffpes` and `tests`
 while the jaxtyping import hook is active. Decoration evaluates each
 annotation. An invalid annotation therefore fails the session immediately.
 
-The gate rejects three defect classes in about 8 seconds:
+The check rejects three defect classes in about 8 seconds:
 
 - a malformed jaxtyping specification, such as a wrong dtype name or a wrong
   shape string;
 - a name that an annotation uses but the module does not import;
 - a hint that beartype cannot use, such as a bare `NDArray`.
 
-Run the gate alone during development:
+Run the check alone during development:
 
 ```bash
 python tests/_preflight_types.py
 ```
 
-Set `DIFFPES_SKIP_PREFLIGHT=1` to skip the gate for one fast local run. Do not
+Set `DIFFPES_SKIP_PREFLIGHT=1` to skip the check for one fast local run. Do not
 skip it before you submit a pull request.
 
-The gate does **not** detect a wrong dtype at runtime, because that defect
+The check does **not** detect a wrong dtype at runtime, because that defect
 requires real array values. The test suite detects that defect for `src/`,
 where the jaxtyping hook checks every signature. Annotations in `tests/` carry
 no runtime check, so keep them correct by inspection.
@@ -1404,6 +1410,14 @@ The codebase has **no compatibility layer**. When an API changes:
 the package version. Use CalVer, such as `2026.06.01`. PEP 440 normalizes this
 example to `2026.6.1` in built artifacts.
 
+### Automatons and release pins
+
+Each experiment file declares one exact diffpes dependency pin.
+Keep the pin equal to `[project].version`.
+Run `automatons/bump_pin.py` after a version update.
+Commit the version and rewritten pins together.
+Use `--root` only for a disposable checkout during verification.
+
 ### Building and Releasing
 
 Use **uv for the complete packaging process**. The build backend is `uv_build`
@@ -1424,7 +1438,7 @@ UV_PUBLISH_TOKEN=<pypi-token> uv publish
 Release checklist:
 
 1. Update `[project].version` with CalVer and update `CHANGELOG.md` in the same
-   commit.
+   commit. Run `automatons/bump_pin.py` before committing the release update.
 2. Run `ruff check src/ tests/`, `pydoclint src/`, `ty check`, and `pytest` on
    the release commit.
 3. Run `uv build` from a clean tree.

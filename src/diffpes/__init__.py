@@ -14,9 +14,11 @@ The following list describes the top-level modules:
 - :mod:`certify`
     Certify differentiable DiffPES forward-model executions.
 - :mod:`constants`
-    Expose the declarative constants of diffpes.
+    List all the constant values used throughout diffpes.
+- :mod:`harness`
+    Provide the executable experiment process boundary for diffpes.
 - :mod:`inout`
-    Expose the public :mod:`diffpes.inout` surface.
+    Load data from VASP files, and unload PyTrees to HDF5.
 - :mod:`maths`
     Compute angular matrix elements for dipole photoemission.
 - :mod:`matrixel`
@@ -26,20 +28,22 @@ The following list describes the top-level modules:
 - :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 - :mod:`simul`
-    Expose the public :mod:`diffpes.simul` surface.
+    Simulate ARPES spectra.
 - :mod:`tightb`
     Provide native tight-binding tools and ARPES-side adapters.
 - :mod:`types`
-    Expose the public :mod:`diffpes.types` surface.
+    Define type carrier PyTrees and factory functions for loading PyTrees.
 
 Routine Listings
 ----------------
 :mod:`certify`
     Certify differentiable DiffPES forward-model executions.
 :mod:`constants`
-    Expose the declarative constants of diffpes.
+    List all the constant values used throughout diffpes.
+:mod:`harness`
+    Provide the executable experiment process boundary for diffpes.
 :mod:`inout`
-    Parse VASP files for ARPES simulation input.
+    Load data from VASP files, and unload PyTrees to HDF5.
 :mod:`maths`
     Compute angular matrix elements for dipole photoemission.
 :mod:`matrixel`
@@ -49,11 +53,11 @@ Routine Listings
 :mod:`radial`
     Provide differentiable radial primitives for ARPES matrix elements.
 :mod:`simul`
-    Provide differentiable ARPES simulation primitives.
+    Simulate ARPES spectra.
 :mod:`tightb`
     Provide native tight-binding tools and ARPES-side adapters.
 :mod:`types`
-    Define types and factory functions for diffpes.
+    Define type carrier PyTrees and factory functions for loading PyTrees.
 
 Examples
 --------
@@ -93,6 +97,7 @@ jax.config.update("jax_enable_x64", True)
 from . import (  # noqa: E402
     certify,
     constants,
+    harness,
     inout,
     maths,
     matrixel,
@@ -108,6 +113,7 @@ __version__: str = version("diffpes")
 __all__: list[str] = [
     "certify",
     "constants",
+    "harness",
     "inout",
     "maths",
     "matrixel",

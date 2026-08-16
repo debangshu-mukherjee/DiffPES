@@ -144,7 +144,15 @@ class TestTutorialPolicy:
         )
 
     def test_check_rejects_direct_diffpes_import(self, tmp_path: Path) -> None:
-        """Reject a tutorial that bypasses the public package namespace."""
+        """Reject a tutorial that bypasses the public package namespace.
+
+        The checker must flag a direct package import in a copied notebook.
+
+        Notes
+        -----
+        Copies one canonical notebook, injects a direct import, and inspects
+        the reported structural defect.
+        """
         repository_root: Path = Path(__file__).resolve().parents[1]
         notebook_source: Path = (
             repository_root
