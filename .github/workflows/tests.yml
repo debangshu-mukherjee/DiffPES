@@ -11,8 +11,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen --extra dev
       - run: uv run --frozen ruff check src/ tests/ automatons/
       - run: uv run --frozen ruff format --check src/ tests/ automatons/
@@ -27,14 +27,14 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --frozen --extra dev
       - run: uv run --frozen python -c "import diffpes"
       - run: uv run --frozen pytest -m "not slow" --cov=diffpes --cov-report=xml
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           fail_ci_if_error: false
 
@@ -45,8 +45,8 @@ jobs:
       JAX_PLATFORMS: cpu
       MPLCONFIGDIR: /tmp/dp-mpl
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen --extra dev
       - run: mkdir -p "$MPLCONFIGDIR"
       - run: |
